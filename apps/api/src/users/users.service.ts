@@ -89,6 +89,28 @@ export class UsersService {
     return this.userModel.findById(id).exec();
   }
 
+  async replacePasswordHashIfCurrent(
+    userId: string,
+    currentPasswordHash: string,
+    replacementPasswordHash: string,
+  ): Promise<boolean> {
+    const result = await this.userModel
+      .updateOne(
+        {
+          _id: userId,
+          password_hash: currentPasswordHash,
+        },
+        {
+          $set: {
+            password_hash: replacementPasswordHash,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
+  }
+
   async markEmailVerifiedIfUnverified(
     userId: string,
     verifiedAt: Date,

@@ -4,7 +4,7 @@ import type { UserDocument } from '../users/schemas/user.schema';
 import type { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import type { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
-import { PasswordService } from './password.service';
+import { PASSWORD_HASH_SCHEME, PasswordService } from './password.service';
 import type { AuthSessionService } from './session/auth-session.service';
 
 const SESSION = {
@@ -40,12 +40,17 @@ describe('AuthService', () => {
     Promise<void>,
     [string, string]
   >();
+  const replacePasswordHashIfCurrent = jest.fn<
+    Promise<boolean>,
+    [string, string, string]
+  >();
   const findByEmail = jest.fn<Promise<UserDocument | null>, [string]>();
   const issueSession = jest.fn();
   const requestEmailVerification = jest.fn();
 
   const usersService = {
     createPasswordAccountIfAbsent,
+    replacePasswordHashIfCurrent,
     findByEmail,
   } as unknown as UsersService;
 
@@ -63,10 +68,11 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    replacePasswordHashIfCurrent.mockResolvedValue(true);
     service = new AuthService(usersService, sessions, lifecycle, passwords);
   });
 
-  it('hashes registration password, requests verification and never creates a session', async () => {
+  it('hashes registration password with the current full-input scheme', async () => {
     createPasswordAccountIfAbsent.mockResolvedValue();
     requestEmailVerification.mockResolvedValue(undefined);
 
@@ -87,8 +93,9 @@ describe('AuthService', () => {
       throw new Error('Expected registration to derive a password hash');
     }
 
+    expect(passwordHash.startsWith(`${PASSWORD_HASH_SCHEME}$`)).toBe(true);
     await expect(
-      bcrypt.compare('correct-horse-battery', passwordHash),
+      passwords.verify('correct-horse-battery', passwordHash),
     ).resolves.toBe(true);
     expect(requestEmailVerification).toHaveBeenCalledWith('enzo@example.com');
     expect(issueSession).not.toHaveBeenCalled();
@@ -125,6 +132,7 @@ describe('AuthService', () => {
     ).resolves.toEqual({ kind: 'invalid_credentials' });
 
     expect(issueSession).not.toHaveBeenCalled();
+    expect(replacePasswordHashIfCurrent).not.toHaveBeenCalled();
   });
 
   it('does not reveal restriction state when the password is wrong', async () => {
@@ -142,6 +150,7 @@ describe('AuthService', () => {
     ).resolves.toEqual({ kind: 'invalid_credentials' });
 
     expect(issueSession).not.toHaveBeenCalled();
+    expect(replacePasswordHashIfCurrent).not.toHaveBeenCalled();
   });
 
   it('blocks a restricted account only after correct credential proof', async () => {
@@ -159,6 +168,7 @@ describe('AuthService', () => {
     ).resolves.toEqual({ kind: 'account_restricted' });
 
     expect(issueSession).not.toHaveBeenCalled();
+    expect(replacePasswordHashIfCurrent).not.toHaveBeenCalled();
   });
 
   it('requires email verification only after the password is proven', async () => {
@@ -176,10 +186,69 @@ describe('AuthService', () => {
     ).resolves.toEqual({ kind: 'email_verification_required' });
 
     expect(issueSession).not.toHaveBeenCalled();
+    expect(replacePasswordHashIfCurrent).not.toHaveBeenCalled();
+  });
+
+  it('upgrades a legacy bcrypt hash after eligible credential proof', async () => {
+    const legacyHash = await bcrypt.hash('real-password', 4);
+    findByEmail.mockResolvedValue(userDocument(legacyHash));
+    issueSession.mockResolvedValue({
+      sessionToken: 's'.repeat(43),
+      session: SESSION,
+    });
+
+    await service.login(
+      {
+        email: 'enzo@example.com',
+        password: 'real-password',
+      },
+      'web',
+    );
+
+    expect(replacePasswordHashIfCurrent).toHaveBeenCalledTimes(1);
+    const [userId, currentHash, replacementHash] =
+      replacePasswordHashIfCurrent.mock.calls[0] ?? [];
+
+    expect(userId).toBe('user-1');
+    expect(currentHash).toBe(legacyHash);
+    expect(replacementHash?.startsWith(`${PASSWORD_HASH_SCHEME}$`)).toBe(true);
+
+    if (!replacementHash) {
+      throw new Error('Expected a migrated password hash');
+    }
+
+    await expect(
+      passwords.verify('real-password', replacementHash),
+    ).resolves.toBe(true);
+  });
+
+  it('keeps login available if best-effort legacy rehash persistence fails', async () => {
+    const legacyHash = await bcrypt.hash('real-password', 4);
+    findByEmail.mockResolvedValue(userDocument(legacyHash));
+    replacePasswordHashIfCurrent.mockRejectedValue(new Error('mongo offline'));
+    issueSession.mockResolvedValue({
+      sessionToken: 's'.repeat(43),
+      session: SESSION,
+    });
+
+    await expect(
+      service.login(
+        {
+          email: 'enzo@example.com',
+          password: 'real-password',
+        },
+        'web',
+      ),
+    ).resolves.toMatchObject({
+      kind: 'authenticated',
+      user: {
+        id: 'user-1',
+      },
+    });
   });
 
   it('issues an opaque session after verified credential proof', async () => {
-    const hash = await bcrypt.hash('real-password', 4);
+    const hash = await passwords.hash('real-password');
     findByEmail.mockResolvedValue(userDocument(hash));
     issueSession.mockResolvedValue({
       sessionToken: 's'.repeat(43),
@@ -205,5 +274,6 @@ describe('AuthService', () => {
     });
 
     expect(issueSession).toHaveBeenCalledWith('user-1', 'web', 1);
+    expect(replacePasswordHashIfCurrent).not.toHaveBeenCalled();
   });
 });

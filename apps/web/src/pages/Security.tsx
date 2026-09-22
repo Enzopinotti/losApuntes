@@ -9,6 +9,7 @@ import type {
   LoginMethods,
   PublicAuthSession,
 } from "../features/auth/interfaces";
+import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import { authApi } from "../features/auth/services/authService";
 
 const googleCallbackMessages: Record<string, string> = {
@@ -88,8 +89,9 @@ const Security = () => {
     setFeedback(null);
     setRequestId(undefined);
 
-    if (newPassword.length < 12 || newPassword.length > 256) {
-      setError("La nueva contraseña debe tener entre 12 y 256 caracteres.");
+    const passwordValidation = newPasswordValidationMessage(newPassword);
+    if (passwordValidation !== true) {
+      setError(passwordValidation);
       return;
     }
 
@@ -234,7 +236,7 @@ const Security = () => {
             <h2 id="password-security-title">Contraseña</h2>
 
             {methods?.passwordConfigured ? (
-              <form className="auth-form" onSubmit={changePassword}>
+              <form className="auth-form" onSubmit={changePassword} noValidate>
                 <label htmlFor="security-current-password">
                   Contraseña actual
                 </label>
@@ -254,8 +256,6 @@ const Security = () => {
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={12}
-                  maxLength={256}
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
                 />
@@ -268,8 +268,6 @@ const Security = () => {
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={12}
-                  maxLength={256}
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                 />

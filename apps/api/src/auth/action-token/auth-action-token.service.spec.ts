@@ -227,4 +227,100 @@ describe('AuthActionTokenService', () => {
       [hashActionToken(issued.token), 'password_recovery', consumedAt],
     ]);
   });
+  it('fails closed when the issuance bucket was already won concurrently', async () => {
+    const { store, mocks } = createStore();
+    mocks.createIfBucketAvailable.mockResolvedValue(null);
+    const service = new AuthActionTokenService(store);
+
+    await expect(
+      service.issueIfAllowed('user-1', 'email_verification', undefined, NOW),
+    ).resolves.toBeNull();
+
+    expect(mocks.listActiveForUserPurpose).not.toHaveBeenCalled();
+  });
+
+  it('does not invalidate anything when exactly three active tokens remain', async () => {
+    const { store, mocks } = createStore();
+    mocks.listActiveForUserPurpose.mockResolvedValue([
+      record({ id: 'one' }),
+      record({ id: 'two' }),
+      record({ id: 'three' }),
+    ]);
+    const service = new AuthActionTokenService(store);
+
+    await expect(
+      service.issueIfAllowed('user-1', 'email_verification', undefined, NOW),
+    ).resolves.not.toBeNull();
+
+    expect(mocks.invalidateByIds).not.toHaveBeenCalled();
+  });
+
+  it('inspects a valid bearer only through its hash and purpose', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthActionTokenService(store);
+    const token = 'i'.repeat(43);
+    const available = record({
+      purpose: 'password_recovery',
+      tokenHash: hashActionToken(token),
+    });
+    mocks.findAvailableByTokenHash.mockResolvedValue(available);
+
+    await expect(
+      service.inspect(token, 'password_recovery', NOW),
+    ).resolves.toEqual(available);
+
+    expect(mocks.findAvailableByTokenHash).toHaveBeenCalledWith(
+      hashActionToken(token),
+      'password_recovery',
+      NOW,
+    );
+  });
+
+  it('keeps targeted invalidation idempotent when the token is unavailable', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthActionTokenService(store);
+    const token = 'x'.repeat(43);
+    mocks.findAvailableByTokenHash.mockResolvedValue(null);
+
+    await expect(
+      service.invalidateToken(token, 'password_recovery', NOW),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.invalidateByIds).not.toHaveBeenCalled();
+  });
+
+  it('invalidates one available token by server-resolved ownership', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthActionTokenService(store);
+    const token = 'z'.repeat(43);
+    const available = record({
+      id: 'token-to-invalidate',
+      userId: 'user-77',
+      purpose: 'password_recovery',
+      tokenHash: hashActionToken(token),
+    });
+    mocks.findAvailableByTokenHash.mockResolvedValue(available);
+
+    await service.invalidateToken(token, 'password_recovery', NOW);
+
+    expect(mocks.invalidateByIds).toHaveBeenCalledWith(
+      'user-77',
+      'password_recovery',
+      ['token-to-invalidate'],
+      NOW,
+    );
+  });
+
+  it('delegates purpose-scoped invalidate-all cleanup', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthActionTokenService(store);
+
+    await service.invalidateAll('user-1', 'email_verification', NOW);
+
+    expect(mocks.invalidateAllForUserPurpose).toHaveBeenCalledWith(
+      'user-1',
+      'email_verification',
+      NOW,
+    );
+  });
 });

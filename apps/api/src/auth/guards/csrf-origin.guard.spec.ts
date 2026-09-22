@@ -61,6 +61,36 @@ describe('CsrfOriginGuard', () => {
     ).toBe(true);
   });
 
+  it('rejects a cross-site Fetch Metadata request even if Origin is forged', () => {
+    expect(() =>
+      guard.canActivate(
+        contextFor({
+          method: 'POST',
+          headers: {
+            origin: 'http://localhost:5173',
+            'sec-fetch-site': 'cross-site',
+          },
+          cookies: { losapuntes_session: 'a'.repeat(43) },
+        }),
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('accepts same-origin Fetch Metadata with the exact configured Origin', () => {
+    expect(
+      guard.canActivate(
+        contextFor({
+          method: 'POST',
+          headers: {
+            origin: 'http://localhost:5173',
+            'sec-fetch-site': 'same-origin',
+          },
+          cookies: { losapuntes_session: 'a'.repeat(43) },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('rejects an untrusted Origin for unsafe cookie requests', () => {
     expect(() =>
       guard.canActivate(

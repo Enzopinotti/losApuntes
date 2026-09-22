@@ -110,14 +110,17 @@ No role, academic affiliation or Profile snapshot belongs inside AuthSession.
 
 ### Expiration policy
 
-Initial recommended policy:
+Implemented v1 policy:
 
-- absolute session lifetime: 30 days;
-- no implicit infinite rolling session;
-- lastSeenAt may be updated coarsely for user-facing session inventory;
-- a later sliding/remember-me policy requires explicit product/security review.
+- absolute session lifetime: 30 days for every client;
+- Web idle timeout: 24 hours;
+- Mobile idle timeout: 14 days;
+- lastSeenAt is touched coarsely, no more often than every 5 minutes;
+- reaching the idle boundary invalidates the presented session server-side;
+- session inventory hides sessions that are already idle-expired even before TTL cleanup;
+- no implicit infinite rolling session and no remember-me mode.
 
-This keeps first implementation predictable and revocable.
+The longer Mobile idle window is a product/usability trade-off, not weaker authority: Mobile still uses the same server-side session record, credentialVersion fence, account-status check and explicit revocation model.
 
 ---
 
@@ -206,6 +209,8 @@ V1 defense:
 - SameSite=Lax host-only cookie;
 - exact configured Web origin;
 - unsafe methods using cookie auth must validate `Origin` against trusted `WEB_ORIGIN`;
+- `Sec-Fetch-Site: cross-site` fails closed as browser defense-in-depth even if a forged Origin appears trusted;
+- Bearer-only native requests do not depend on browser Fetch Metadata;
 - if the runtime topology later introduces additional legitimate origins, each must be explicitly configured/reviewed;
 - arbitrary forwarded headers are not trusted.
 
@@ -234,36 +239,47 @@ One shared policy for:
 - password change;
 - recovery completion.
 
-V1 proposal:
+Implemented v1 policy:
 
-- minimum 12 Unicode characters;
-- maximum 256 characters;
+- minimum 15 Unicode code points for a standalone password factor;
+- maximum 256 Unicode code points;
+- NFC normalization before derivation for the current scheme;
 - no required upper/lower/number/symbol composition;
-- spaces allowed;
+- spaces and Unicode allowed;
 - paste allowed;
-- password-manager compatible.
+- password-manager/autofill compatible;
+- exact-match rejection for a local common/context password baseline.
+
+The local baseline is intentionally not described as a complete compromised-password corpus. A broader blocklist/reputation source remains a maturity requirement before claiming full NIST-style compromised-password screening.
 
 ### Hashing
 
-The existing bcrypt implementation is legacy.
+New passwords use a versioned PBKDF2-HMAC-SHA-256 representation with:
 
-Target:
+- 600,000 iterations;
+- 16-byte random salt;
+- 32-byte derived key;
+- timing-safe digest comparison;
+- the full NFC-normalized password input.
 
-- versioned password-hash representation;
-- modern memory-hard/password KDF;
-- no plaintext/reversible encryption;
-- verifier accepts legacy bcrypt during migration;
-- successful legacy verification can rehash opportunistically to the current scheme.
+Legacy bcrypt remains verification-only during migration:
 
-Exact KDF parameters should be benchmarked on the production runtime before finalization.
+- legacy inputs beyond bcrypt's 72-byte boundary fail closed rather than silently accepting an ambiguous truncated credential;
+- an eligible successful legacy login derives the current hash and replaces the old hash with compare-and-swap semantics;
+- password rehash does not change credentialVersion because the user credential itself did not change;
+- a failed best-effort rehash must not break an otherwise valid login.
 
-Do not encode password algorithm choice into public API.
+PBKDF2 was selected here as a dependency-free, stable Node runtime primitive while Node's built-in Argon2 API is still release-candidate stability. OWASP prefers Argon2id for new password storage when available and operationally mature, so Argon2id remains an explicit benchmark/upgrade candidate rather than being falsely described as unnecessary.
+
+Do not encode password algorithm choice into the public API.
 
 ### Password comparison
 
-Invalid email and invalid password should follow comparable expensive verification paths where practical so obvious account timing oracles are reduced.
+Unknown/passwordless accounts consume the current verifier cost before returning invalid credentials so the obvious fast-path account timing oracle is reduced.
 
-Public login error remains `INVALID_CREDENTIALS`.
+Wrong-password results do not reveal whether an account is unverified or restricted. Verification-required/restricted states are returned only after credential proof.
+
+Public login error remains `INVALID_CREDENTIALS` for unproven credentials.
 
 ---
 

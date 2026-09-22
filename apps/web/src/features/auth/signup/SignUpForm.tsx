@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { authErrorMessage, authErrorRequestId } from "../authMessages";
 import type { SignUpFormData } from "../interfaces";
+import { newPasswordValidationMessage } from "../passwordPolicy";
 import { authApi } from "../services/authService";
 import "../AuthForm.scss";
 
@@ -105,16 +106,13 @@ const SignUpForm = () => {
             autoComplete="new-password"
             {...register("password", {
               required: "La contraseña es obligatoria",
-              minLength: {
-                value: 12,
-                message: "Usá al menos 12 caracteres",
-              },
-              maxLength: {
-                value: 256,
-                message: "La contraseña es demasiado larga",
-              },
+              validate: newPasswordValidationMessage,
             })}
           />
+          <small>
+            Usá una frase de al menos 15 caracteres. Se permiten espacios y
+            Unicode; no exigimos combinaciones artificiales de símbolos.
+          </small>
           {errors.password && (
             <p className="error" role="alert">
               {errors.password.message}

@@ -1,9 +1,10 @@
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   FastifyAdapter,
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import type { ValidationError } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 import { LogController } from 'fastify';
 
@@ -30,6 +31,25 @@ const LOGGER_REDACT_PATHS = [
 
 export interface HttpAdapterOptions {
   logger?: boolean;
+}
+
+function validationMessages(errors: ValidationError[]): string[] {
+  return errors.flatMap((error) => [
+    ...Object.values(error.constraints ?? {}),
+    ...validationMessages(error.children ?? []),
+  ]);
+}
+
+function validationException(errors: ValidationError[]): BadRequestException {
+  const passwordInvalid = errors.some(
+    (error) =>
+      error.property === 'password' || error.property === 'newPassword',
+  );
+
+  return new BadRequestException({
+    code: passwordInvalid ? 'INVALID_PASSWORD' : 'BAD_REQUEST',
+    message: validationMessages(errors),
+  });
 }
 
 export function createHttpAdapter(
@@ -71,6 +91,7 @@ export function configureHttpRuntime(
         target: false,
         value: false,
       },
+      exceptionFactory: validationException,
     }),
   );
   app.useGlobalFilters(new ApiExceptionFilter());
@@ -91,6 +112,14 @@ export function configureHttpRuntime(
   server.addHook('onSend', (request, reply, payload, done) => {
     reply.header('x-request-id', request.id);
     reply.header('x-content-type-options', 'nosniff');
+    reply.header('x-frame-options', 'DENY');
+    reply.header('referrer-policy', 'no-referrer');
+    reply.header(
+      'permissions-policy',
+      'camera=(), geolocation=(), microphone=()',
+    );
+    reply.header('x-permitted-cross-domain-policies', 'none');
+
     done(null, payload);
   });
 

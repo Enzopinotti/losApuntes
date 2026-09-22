@@ -286,4 +286,397 @@ describe('GoogleAuthService', () => {
       kind: 'identity_already_linked',
     });
   });
+  it('reports provider availability without leaking configuration', () => {
+    const { service } = harness();
+
+    expect(service.availability()).toEqual({
+      webEnabled: true,
+      mobileEnabled: true,
+    });
+  });
+
+  it('fails Web start closed when the provider is disabled', async () => {
+    const { service, provider, mocks } = harness();
+    (provider.isWebEnabled as jest.Mock).mockReturnValue(false);
+
+    await expect(service.startWebLogin('/dashboard')).resolves.toEqual({
+      kind: 'unavailable',
+    });
+    expect(mocks.issueAttempt).not.toHaveBeenCalled();
+  });
+
+  it('starts Web login with a server-side OAuth attempt', async () => {
+    const { service, mocks } = harness();
+    const attempt = {
+      state: 's'.repeat(43),
+      nonce: 'n'.repeat(43),
+      codeChallenge: 'c'.repeat(43),
+      returnPath: '/dashboard',
+    };
+    mocks.issueAttempt.mockResolvedValue(attempt);
+    mocks.createWebAuthorizationUrl.mockReturnValue(
+      'https://accounts.google.com/o/oauth2/v2/auth?state=opaque',
+    );
+
+    await expect(service.startWebLogin('/dashboard')).resolves.toEqual({
+      kind: 'started',
+      authorizationUrl:
+        'https://accounts.google.com/o/oauth2/v2/auth?state=opaque',
+    });
+    expect(mocks.issueAttempt).toHaveBeenCalledWith(
+      'login',
+      undefined,
+      '/dashboard',
+    );
+  });
+
+  it('requires live password reauthentication before starting a Web link', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue(null);
+    mocks.verifyPassword.mockResolvedValue(false);
+
+    await expect(
+      service.startWebLink(USER_ID, 'wrong-password', '/settings/security'),
+    ).resolves.toEqual({ kind: 'reauthentication_required' });
+
+    expect(mocks.issueAttempt).not.toHaveBeenCalled();
+  });
+
+  it('starts a Web link only after active-account reauthentication', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue(null);
+    mocks.verifyPassword.mockResolvedValue(true);
+    mocks.issueAttempt.mockResolvedValue({
+      state: 's'.repeat(43),
+      nonce: 'n'.repeat(43),
+      codeChallenge: 'c'.repeat(43),
+      returnPath: '/settings/security',
+    });
+    mocks.createWebAuthorizationUrl.mockReturnValue('https://google.test/auth');
+
+    await expect(
+      service.startWebLink(USER_ID, 'current-password', '/settings/security'),
+    ).resolves.toEqual({
+      kind: 'started',
+      authorizationUrl: 'https://google.test/auth',
+    });
+    expect(mocks.issueAttempt).toHaveBeenCalledWith(
+      'link',
+      USER_ID,
+      '/settings/security',
+    );
+  });
+
+  it('consumes Web OAuth state once and handles provider cancellation', async () => {
+    const { service, mocks } = harness();
+    mocks.consume.mockResolvedValue({
+      intent: 'login',
+      returnPath: '/login',
+      codeVerifier: 'v'.repeat(43),
+    });
+
+    await expect(
+      service.completeWebCallback({
+        state: 's'.repeat(43),
+        providerError: 'access_denied',
+      }),
+    ).resolves.toEqual({
+      returnPath: '/login',
+      result: { kind: 'cancelled' },
+    });
+    expect(mocks.exchangeWebAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects a Web callback when OAuth state is missing or stale', async () => {
+    const { service, mocks } = harness();
+    mocks.consume.mockResolvedValue(null);
+
+    await expect(
+      service.completeWebCallback({
+        state: 's'.repeat(43),
+        code: 'authorization-code',
+      }),
+    ).resolves.toEqual({
+      returnPath: '/login',
+      result: { kind: 'failed' },
+    });
+  });
+
+  it('rejects a Web callback when nonce proof does not match', async () => {
+    const { service, mocks } = harness();
+    const attempt = {
+      intent: 'login',
+      returnPath: '/dashboard',
+      codeVerifier: 'v'.repeat(43),
+    };
+    mocks.consume.mockResolvedValue(attempt);
+    mocks.exchangeWebAuthorizationCode.mockResolvedValue(proof());
+    mocks.nonceMatches.mockReturnValue(false);
+
+    await expect(
+      service.completeWebCallback({
+        state: 's'.repeat(43),
+        code: 'authorization-code',
+      }),
+    ).resolves.toEqual({
+      returnPath: '/dashboard',
+      result: { kind: 'failed' },
+    });
+  });
+
+  it('finishes a valid Web login callback into the normal Web AuthSession', async () => {
+    const { service, mocks } = harness();
+    mocks.consume.mockResolvedValue({
+      intent: 'login',
+      returnPath: '/dashboard',
+      codeVerifier: 'v'.repeat(43),
+    });
+    mocks.exchangeWebAuthorizationCode.mockResolvedValue(proof());
+    mocks.nonceMatches.mockReturnValue(true);
+    mocks.findBySubject.mockResolvedValue({
+      id: 'identity-1',
+      provider: 'google',
+      providerSubject: 'google-subject-1',
+      userId: USER_ID,
+      emailAtLink: 'student@gmail.com',
+      linkedAt: new Date(),
+    });
+    mocks.findById.mockResolvedValue(user());
+    mocks.issueSession.mockResolvedValue({
+      sessionToken: SESSION_TOKEN,
+      session: {
+        id: 'session-web',
+        clientType: 'web',
+        createdAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+        expiresAt: new Date().toISOString(),
+        current: true,
+      },
+    });
+
+    const outcome = await service.completeWebCallback({
+      state: 's'.repeat(43),
+      code: 'authorization-code',
+    });
+
+    expect(outcome.returnPath).toBe('/dashboard');
+    expect(outcome.result.kind).toBe('authenticated');
+    expect(mocks.issueSession).toHaveBeenCalledWith(USER_ID, 'web', 1);
+  });
+
+  it('fails Mobile Google login closed when provider verification throws', async () => {
+    const { service, mocks } = harness();
+    mocks.verifyMobileIdToken.mockRejectedValue(new Error('provider down'));
+
+    await expect(service.loginMobile('bad-id-token')).resolves.toEqual({
+      kind: 'failed',
+    });
+  });
+
+  it('fails Mobile Google login closed when the provider is disabled', async () => {
+    const { service, provider, mocks } = harness();
+    (provider.isMobileEnabled as jest.Mock).mockReturnValue(false);
+
+    await expect(service.loginMobile('id-token')).resolves.toEqual({
+      kind: 'unavailable',
+    });
+    expect(mocks.verifyMobileIdToken).not.toHaveBeenCalled();
+  });
+
+  it('rejects Mobile linking when the account is restricted', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user({ account_status: 'restricted' }));
+
+    await expect(
+      service.linkMobile(USER_ID, 'current-password', 'id-token'),
+    ).resolves.toEqual({ kind: 'account_restricted' });
+    expect(mocks.verifyMobileIdToken).not.toHaveBeenCalled();
+  });
+
+  it('returns login methods from live account and linked identity state', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue({
+      id: 'identity-1',
+      provider: 'google',
+      providerSubject: 'google-subject-1',
+      userId: USER_ID,
+      emailAtLink: 'student@gmail.com',
+      linkedAt: new Date(),
+    });
+
+    await expect(service.loginMethods(USER_ID)).resolves.toEqual({
+      passwordConfigured: true,
+      googleConnected: true,
+    });
+  });
+
+  it('returns null login methods for a disappeared account', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(null);
+    mocks.findForUser.mockResolvedValue(null);
+
+    await expect(service.loginMethods(USER_ID)).resolves.toBeNull();
+  });
+
+  it('requires the current password before unlinking Google', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue({
+      id: 'identity-1',
+      provider: 'google',
+      providerSubject: 'google-subject-1',
+      userId: USER_ID,
+      emailAtLink: 'student@gmail.com',
+      linkedAt: new Date(),
+    });
+    mocks.verifyPassword.mockResolvedValue(false);
+
+    await expect(service.unlink(USER_ID, 'wrong-password')).resolves.toEqual({
+      kind: 'reauthentication_required',
+    });
+    expect(mocks.unlinkForUser).not.toHaveBeenCalled();
+  });
+
+  it('unlinks Google after reauthentication and records the security event', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue({
+      id: 'identity-1',
+      provider: 'google',
+      providerSubject: 'google-subject-1',
+      userId: USER_ID,
+      emailAtLink: 'student@gmail.com',
+      linkedAt: new Date(),
+    });
+    mocks.verifyPassword.mockResolvedValue(true);
+    mocks.unlinkForUser.mockResolvedValue(true);
+
+    await expect(service.unlink(USER_ID, 'current-password')).resolves.toEqual({
+      kind: 'unlinked',
+    });
+    expect(mocks.auditRecord).toHaveBeenCalledWith({
+      event: 'auth.oauth.unlinked',
+      userId: USER_ID,
+    });
+  });
+
+  it('fails Web link start closed when Google is disabled', async () => {
+    const { service, provider, mocks } = harness();
+    (provider.isWebEnabled as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      service.startWebLink(USER_ID, 'current-password', '/settings/security'),
+    ).resolves.toEqual({ kind: 'unavailable' });
+    expect(mocks.findById).not.toHaveBeenCalled();
+  });
+
+  it('does not start Web linking for a missing or restricted account', async () => {
+    const missing = harness();
+    missing.mocks.findById.mockResolvedValue(null);
+    await expect(
+      missing.service.startWebLink(
+        USER_ID,
+        'current-password',
+        '/settings/security',
+      ),
+    ).resolves.toEqual({ kind: 'reauthentication_required' });
+
+    const restricted = harness();
+    restricted.mocks.findById.mockResolvedValue(
+      user({ account_status: 'restricted' }),
+    );
+    await expect(
+      restricted.service.startWebLink(
+        USER_ID,
+        'current-password',
+        '/settings/security',
+      ),
+    ).resolves.toEqual({ kind: 'account_restricted' });
+  });
+
+  it('does not start a duplicate Web link when Google is already connected', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue({
+      id: 'identity-1',
+      provider: 'google',
+      providerSubject: 'google-subject-1',
+      userId: USER_ID,
+      emailAtLink: 'student@gmail.com',
+      linkedAt: new Date(),
+    });
+
+    await expect(
+      service.startWebLink(USER_ID, 'current-password', '/settings/security'),
+    ).resolves.toEqual({ kind: 'already_linked' });
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
+  });
+
+  it('fails a Web callback closed when provider exchange fails', async () => {
+    const { service, mocks } = harness();
+    mocks.consume.mockResolvedValue({
+      intent: 'login',
+      returnPath: '/dashboard',
+      codeVerifier: 'v'.repeat(43),
+    });
+    mocks.exchangeWebAuthorizationCode.mockRejectedValue(
+      new Error('provider unavailable'),
+    );
+
+    await expect(
+      service.completeWebCallback({
+        state: 's'.repeat(43),
+        code: 'authorization-code',
+      }),
+    ).resolves.toEqual({
+      returnPath: '/dashboard',
+      result: { kind: 'failed' },
+    });
+  });
+
+  it('fails a malformed link callback that has no bound account', async () => {
+    const { service, mocks } = harness();
+    mocks.consume.mockResolvedValue({
+      intent: 'link',
+      userId: undefined,
+      returnPath: '/settings/security',
+      codeVerifier: 'v'.repeat(43),
+    });
+    mocks.exchangeWebAuthorizationCode.mockResolvedValue(proof());
+    mocks.nonceMatches.mockReturnValue(true);
+
+    await expect(
+      service.completeWebCallback({
+        state: 's'.repeat(43),
+        code: 'authorization-code',
+      }),
+    ).resolves.toEqual({
+      returnPath: '/settings/security',
+      result: { kind: 'failed' },
+    });
+  });
+
+  it('keeps unlink idempotent when no Google identity remains', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue(null);
+
+    await expect(service.unlink(USER_ID, 'current-password')).resolves.toEqual({
+      kind: 'not_linked',
+    });
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
+  });
+
+  it('blocks unlink for a restricted account before identity mutation', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user({ account_status: 'restricted' }));
+
+    await expect(service.unlink(USER_ID, 'current-password')).resolves.toEqual({
+      kind: 'account_restricted',
+    });
+    expect(mocks.findForUser).not.toHaveBeenCalled();
+  });
 });

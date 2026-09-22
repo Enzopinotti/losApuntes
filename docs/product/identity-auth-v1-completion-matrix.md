@@ -15,9 +15,11 @@ These states must not be collapsed into one green checkbox.
 
 ## Current baseline
 
-Code-complete baseline:
+Code-complete closure baseline:
 
-`main @ 85a99ac3dbe959d13bc6b1562ffe5f6dc582c79c`
+`main @ 11d1ccd51138703aaf6a140c59927aa99723f309`
+
+A post-completion maturity review is tracked in #52 / PR #53. It strengthens the closed block without pretending that #48 production evidence or #49 native Mobile implementation are complete.
 
 Merged implementation lanes:
 
@@ -36,7 +38,7 @@ Remaining explicit gates:
 | Capability | Backend | Web | Mobile | Launch gate | Status / owner |
 | --- | --- | --- | --- | --- | --- |
 | Account creation | Implemented | User-complete | Contract exists | Real Terms/Privacy + provider config | Web complete; Mobile #49; launch #48 |
-| Password login | Implemented | User-complete | Native endpoint exists | Edge abuse controls | Web complete; Mobile #49; launch #48 |
+| Password login | Implemented + hardened verifier/timing path | User-complete | Native endpoint exists | Edge abuse controls + broad compromised-password strategy | Web complete; Mobile #49; launch #48 |
 | Email verification | Implemented | User-complete | Native/deep-link UI pending | Real transactional provider/domain | Web complete; Mobile #49; launch #48 |
 | Verification resend/cooldown | Implemented | User-complete | Pending native UI | Real provider evidence | Mobile #49; launch #48 |
 | Password recovery request | Implemented | User-complete | Pending native UI | Real provider evidence | Mobile #49; launch #48 |
@@ -56,7 +58,7 @@ Remaining explicit gates:
 | Google link/unlink | Implemented | User-complete | Native UI pending | Provider-enabled smoke | #49 / #48 |
 | No browser bearer storage | Implemented | Enforced + hygiene guard | N/A | Production browser smoke | #48 |
 | Secure mobile bearer storage | Server contract only | N/A | Not implemented | Real SecureStore build | #49 |
-| CSRF/origin defense | Implemented | User-transparent | N/A | Exact production origin/HTTPS smoke | #48 |
+| CSRF/origin defense | Exact Origin + Fetch Metadata defense-in-depth | User-transparent | N/A | Exact production origin/HTTPS smoke | #48 |
 | Transactional email abstraction | Implemented | Journeys consume it | Journeys can consume it | Real provider + sender auth | #48 |
 | Auth audit boundary | Implemented | User-transparent | User-transparent | Retention/observability review | #48 |
 | Abuse/rate-limit UX code | Stable contract exists | Error state documented | Must consume code | Trusted edge/proxy policy not deployed | #48 |

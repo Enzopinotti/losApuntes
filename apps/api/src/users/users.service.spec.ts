@@ -8,10 +8,12 @@ describe('UsersService', () => {
   let service: UsersService;
 
   const exec = jest.fn();
+  const updateExec = jest.fn();
   const userModel = {
     create: jest.fn(),
     findOne: jest.fn(() => ({ exec })),
     findById: jest.fn(() => ({ exec })),
+    updateOne: jest.fn(() => ({ exec: updateExec })),
   };
 
   beforeEach(async () => {
@@ -53,5 +55,41 @@ describe('UsersService', () => {
     await expect(service.findById('user-1')).resolves.toBe(user);
     expect(userModel.findById).toHaveBeenCalledWith('user-1');
     expect(exec).toHaveBeenCalledTimes(1);
+  });
+
+  it('migrates only the exact current password hash without changing credential authority', async () => {
+    updateExec.mockResolvedValue({ modifiedCount: 1 });
+
+    await expect(
+      service.replacePasswordHashIfCurrent(
+        'user-1',
+        'legacy-hash',
+        'current-hash',
+      ),
+    ).resolves.toBe(true);
+
+    expect(userModel.updateOne).toHaveBeenCalledWith(
+      {
+        _id: 'user-1',
+        password_hash: 'legacy-hash',
+      },
+      {
+        $set: {
+          password_hash: 'current-hash',
+        },
+      },
+    );
+  });
+
+  it('reports a lost hash-migration race without overwriting newer credentials', async () => {
+    updateExec.mockResolvedValue({ modifiedCount: 0 });
+
+    await expect(
+      service.replacePasswordHashIfCurrent(
+        'user-1',
+        'stale-hash',
+        'replacement-hash',
+      ),
+    ).resolves.toBe(false);
   });
 });

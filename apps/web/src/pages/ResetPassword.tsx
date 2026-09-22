@@ -5,6 +5,7 @@ import {
   authErrorRequestId,
   isAuthCode,
 } from "../features/auth/authMessages";
+import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import { authApi } from "../features/auth/services/authService";
 
 type RecoveryState =
@@ -60,13 +61,9 @@ const ResetPassword = () => {
     setMessage(null);
     setRequestId(undefined);
 
-    if (newPassword.length < 12) {
-      setMessage("Usá al menos 12 caracteres.");
-      return;
-    }
-
-    if (newPassword.length > 256) {
-      setMessage("La contraseña es demasiado larga.");
+    const passwordValidation = newPasswordValidationMessage(newPassword);
+    if (passwordValidation !== true) {
+      setMessage(passwordValidation);
       return;
     }
 
@@ -103,14 +100,12 @@ const ResetPassword = () => {
       )}
 
       {(state === "ready" || state === "submitting") && (
-        <form className="auth-form" onSubmit={submit}>
+        <form className="auth-form" onSubmit={submit} noValidate>
           <label htmlFor="reset-password">Nueva contraseña</label>
           <input
             id="reset-password"
             type="password"
             autoComplete="new-password"
-            minLength={12}
-            maxLength={256}
             required
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
@@ -121,8 +116,6 @@ const ResetPassword = () => {
             id="reset-password-confirm"
             type="password"
             autoComplete="new-password"
-            minLength={12}
-            maxLength={256}
             required
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
