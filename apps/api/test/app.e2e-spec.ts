@@ -1,5 +1,8 @@
 import { INestApplication } from '@nestjs/common';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import { App } from 'supertest/types';
@@ -14,9 +17,10 @@ describe('AppController (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
-    const fastifyApp = moduleFixture.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter(),
-    );
+    const fastifyApp =
+      moduleFixture.createNestApplication<NestFastifyApplication>(
+        new FastifyAdapter(),
+      );
     await fastifyApp.init();
     await fastifyApp.getHttpAdapter().getInstance().ready();
     app = fastifyApp;
