@@ -26,8 +26,10 @@ Antes de fijar la base de datos, el producto usa un contrato conceptual independ
 - [Domain Contract 2026](docs/domain/domain-contract-2026.md)
 - [DER reconciliation checklist](docs/domain/der-reconciliation-checklist.md)
 - [MVP domain slices](docs/domain/mvp-domain-slices.md)
+- [Persistence preflight 2026](docs/architecture/persistence-preflight-2026.md)
+- [ADR 0004 — persistence after DER reconciliation](docs/adr/0004-persistence-after-der.md)
 
-El modelo Mongo rescatado es implementación legacy. No define las cardinalidades ni entidades futuras.
+El modelo Mongo rescatado es implementación legacy. No define las cardinalidades ni entidades futuras. ADR 0004 permanece propuesto/bloqueado hasta reconciliar los diagramas reales.
 
 ## Identity/Auth v1
 
