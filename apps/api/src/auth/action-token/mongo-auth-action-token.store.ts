@@ -83,6 +83,31 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
     return document ? toRecord(document) : null;
   }
 
+  async claimAvailableByTokenHash(
+    tokenHash: string,
+    purpose: AuthActionPurpose,
+    consumedAt: Date,
+  ): Promise<AuthActionTokenRecord | null> {
+    const document = await this.model
+      .findOneAndUpdate(
+        {
+          tokenHash,
+          purpose,
+          consumedAt: null,
+          expiresAt: { $gt: consumedAt },
+        },
+        {
+          $set: { consumedAt },
+        },
+        {
+          new: true,
+        },
+      )
+      .exec();
+
+    return document ? toRecord(document) : null;
+  }
+
   async findLatestActiveForUserPurpose(
     userId: string,
     purpose: AuthActionPurpose,
