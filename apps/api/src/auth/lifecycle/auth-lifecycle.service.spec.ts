@@ -5,7 +5,9 @@ import type { UsersService } from '../../users/users.service';
 import type { IssuedAuthActionToken } from '../action-token/auth-action-token.service';
 import type { AuthActionTokenService } from '../action-token/auth-action-token.service';
 import type { AuthActionTokenRecord } from '../action-token/auth-action-token.types';
+import type { AuthAuditService } from '../audit/auth-audit.service';
 import type { AuthEmailDelivery } from '../delivery/auth-email-delivery.types';
+import { PasswordService } from '../password.service';
 import type { AuthSessionService } from '../session/auth-session.service';
 import { AuthEmailDeliveryUnavailableError } from './auth-lifecycle.errors';
 import { AuthLifecycleService } from './auth-lifecycle.service';
@@ -97,17 +99,27 @@ function createHarness() {
   const sendEmailVerification = jest.fn();
   const sendPasswordRecovery = jest.fn();
   const sendPasswordRecoveryCompleted = jest.fn();
+  const sendPasswordChanged = jest.fn();
+  const auditRecord = jest.fn();
 
   const delivery: AuthEmailDelivery = {
     sendEmailVerification,
     sendPasswordRecovery,
     sendPasswordRecoveryCompleted,
+    sendPasswordChanged,
   };
+
+  const passwords = new PasswordService();
+  const audit = {
+    record: auditRecord,
+  } as unknown as AuthAuditService;
 
   const service = new AuthLifecycleService(
     users,
     actionTokens,
     sessions,
+    passwords,
+    audit,
     delivery,
   );
 
@@ -127,6 +139,8 @@ function createHarness() {
       sendEmailVerification,
       sendPasswordRecovery,
       sendPasswordRecoveryCompleted,
+      sendPasswordChanged,
+      auditRecord,
     },
   };
 }
