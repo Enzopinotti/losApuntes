@@ -126,7 +126,9 @@ jobs:
         run: docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120
 
       - name: Probe runtime
-        run: node scripts/smoke-api-runtime.mjs
+        run: |
+          node scripts/smoke-api-runtime.mjs
+          node scripts/smoke-auth-lifecycle.mjs
 
       - name: Runtime logs on failure
         if: failure()
