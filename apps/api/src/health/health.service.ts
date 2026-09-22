@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
-import type { Connection } from 'mongoose';
+import { ConnectionStates, type Connection } from 'mongoose';
 
-const MONGO_READY_STATE = 1;
 const MONGO_READINESS_TIMEOUT_MS = 1_500;
 
 export type HealthCheckResult = {
@@ -65,7 +64,7 @@ export class HealthService {
 
   private async mongoCheck(timeoutMs: number): Promise<HealthCheckResult> {
     if (
-      this.connection.readyState !== MONGO_READY_STATE ||
+      this.connection.readyState !== ConnectionStates.connected ||
       !this.connection.db
     ) {
       return {

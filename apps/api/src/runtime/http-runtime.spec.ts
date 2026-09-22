@@ -82,8 +82,12 @@ describe('HTTP runtime boundary', () => {
       statusCode: 400,
       code: 'BAD_REQUEST',
     });
-    expect(response.body.requestId).toBe(response.headers['x-request-id']);
-    expect(response.body.message).toEqual(
+    expect(response.body).toHaveProperty(
+      'requestId',
+      response.headers['x-request-id'],
+    );
+    expect(response.body).toHaveProperty(
+      'message',
       expect.arrayContaining(['property unexpected should not exist']),
     );
   });
