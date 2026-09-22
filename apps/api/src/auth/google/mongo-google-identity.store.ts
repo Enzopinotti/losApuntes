@@ -35,9 +35,7 @@ function toRecord(
 }
 
 @Injectable()
-export class MongoGoogleExternalIdentityStore
-  implements GoogleExternalIdentityStore
-{
+export class MongoGoogleExternalIdentityStore implements GoogleExternalIdentityStore {
   constructor(
     @InjectModel(GoogleExternalIdentity.name)
     private readonly model: Model<GoogleExternalIdentityDocument>,
