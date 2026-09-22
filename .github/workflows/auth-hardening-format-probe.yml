@@ -1,0 +1,28 @@
+name: auth-hardening-format-probe
+
+on:
+  push:
+    branches:
+      - hardening/identity-auth-maturity-2026
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Print exact Prettier delta
+        run: |
+          pnpm --filter @losapuntes/api format
+          git diff -- apps/api/src/auth/password-policy.ts apps/api/src/auth/password.service.ts apps/api/src/auth/session/auth-session.service.spec.ts apps/api/src/runtime/http-runtime.ts
