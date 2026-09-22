@@ -10,8 +10,12 @@ import {
   AuthActionToken,
   AuthActionTokenSchema,
 } from './action-token/schemas/auth-action-token.schema';
+import { AccountSecurityService } from './account-security.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthAuditService } from './audit/auth-audit.service';
+import { AUTH_AUDIT_SINK } from './audit/auth-audit.types';
+import { LoggerAuthAuditSink } from './audit/logger-auth-audit.sink';
 import { AUTH_EMAIL_DELIVERY } from './delivery/auth-email-delivery.types';
 import { ConfigurableAuthEmailDelivery } from './delivery/configurable-auth-email.delivery';
 import { AuthSessionGuard } from './guards/auth-session.guard';
@@ -36,7 +40,9 @@ import {
   ],
   providers: [
     AuthService,
+    AccountSecurityService,
     AuthLifecycleService,
+    AuthAuditService,
     AuthActionTokenService,
     PasswordService,
     AuthSessionService,
@@ -44,6 +50,11 @@ import {
     MongoAuthActionTokenStore,
     MongoAuthSessionStore,
     ConfigurableAuthEmailDelivery,
+    LoggerAuthAuditSink,
+    {
+      provide: AUTH_AUDIT_SINK,
+      useExisting: LoggerAuthAuditSink,
+    },
     {
       provide: AUTH_ACTION_TOKEN_STORE,
       useExisting: MongoAuthActionTokenStore,
