@@ -1,15 +1,7 @@
-import {
-  IsString,
-  Matches,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 import { ACTION_TOKEN_PATTERN } from '../action-token/action-token';
-import {
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
-} from '../password-policy';
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../password-policy';
 
 export class PasswordRecoveryCompleteDto {
   @IsString()
