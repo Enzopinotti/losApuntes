@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyRequest } from 'fastify';
 
+import { credentialVersion } from '../../users/user-security-state';
 import { UsersService } from '../../users/users.service';
 import type { AuthenticatedRequest } from '../auth.types';
 import { AuthSessionService } from '../session/auth-session.service';
@@ -54,6 +55,13 @@ export class AuthSessionGuard implements CanActivate {
       throw authenticationRequired();
     }
 
+    const currentCredentialVersion = credentialVersion(user);
+
+    if (resolved.credentialVersion !== currentCredentialVersion) {
+      await this.sessions.revokeCurrent(credential.sessionToken);
+      throw authenticationRequired();
+    }
+
     const authenticatedRequest = request as AuthenticatedRequest;
     authenticatedRequest.user = {
       id: user._id.toString(),
@@ -61,6 +69,7 @@ export class AuthSessionGuard implements CanActivate {
     };
     authenticatedRequest.authSession = resolved.session;
     authenticatedRequest.authTransport = credential.clientType;
+    authenticatedRequest.authCredentialVersion = currentCredentialVersion;
 
     return true;
   }

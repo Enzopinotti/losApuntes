@@ -102,23 +102,33 @@ jobs:
       - name: Validate Compose definition
         run: docker compose -f compose.local.yml config --quiet
 
-      - name: Pull Mongo runtime dependency
+      - name: Pull runtime dependencies
         run: |
-          for attempt in 1 2 3; do
-            if docker pull mongo:8.0; then
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
+          for image in mongo:8.0 axllent/mailpit:v1.31.1; do
+            pulled=false
+            for attempt in 1 2 3; do
+              if docker pull "$image"; then
+                pulled=true
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                sleep $((attempt * 5))
+              fi
+            done
+
+            if [ "$pulled" != "true" ]; then
+              echo "Failed to pull runtime dependency: $image" >&2
               exit 1
             fi
-            sleep $((attempt * 5))
           done
 
       - name: Build and start runtime
         run: docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120
 
       - name: Probe runtime
-        run: node scripts/smoke-api-runtime.mjs
+        run: |
+          node scripts/smoke-api-runtime.mjs
+          node scripts/smoke-auth-lifecycle.mjs
 
       - name: Runtime logs on failure
         if: failure()

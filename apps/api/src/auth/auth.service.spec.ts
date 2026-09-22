@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import type { UserDocument } from '../users/schemas/user.schema';
 import type { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
+import type { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
 import type { AuthSessionService } from './session/auth-session.service';
 
 const SESSION = {
@@ -14,13 +15,20 @@ const SESSION = {
   current: true,
 };
 
-function userDocument(passwordHash: string): UserDocument {
+function userDocument(
+  passwordHash: string,
+  emailVerifiedAt: Date | null | undefined = new Date(
+    '2026-09-22T10:00:00.000Z',
+  ),
+): UserDocument {
   return {
     _id: {
       toString: () => 'user-1',
     },
     email: 'enzo@example.com',
     password_hash: passwordHash,
+    email_verified_at: emailVerifiedAt,
+    credential_version: 1,
   } as unknown as UserDocument;
 }
 
@@ -31,6 +39,7 @@ describe('AuthService', () => {
   >();
   const findByEmail = jest.fn<Promise<UserDocument | null>, [string]>();
   const issueSession = jest.fn();
+  const requestEmailVerification = jest.fn();
 
   const usersService = {
     createPasswordAccountIfAbsent,
@@ -41,15 +50,20 @@ describe('AuthService', () => {
     issue: issueSession,
   } as unknown as AuthSessionService;
 
+  const lifecycle = {
+    requestEmailVerification,
+  } as unknown as AuthLifecycleService;
+
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(usersService, sessions);
+    service = new AuthService(usersService, sessions, lifecycle);
   });
 
-  it('hashes a new password and never creates a session during registration', async () => {
+  it('hashes registration password, requests verification and never creates a session', async () => {
     createPasswordAccountIfAbsent.mockResolvedValue();
+    requestEmailVerification.mockResolvedValue(undefined);
 
     await service.register({
       email: 'enzo@example.com',
@@ -71,10 +85,11 @@ describe('AuthService', () => {
     await expect(
       bcrypt.compare('correct-horse-battery', passwordHash),
     ).resolves.toBe(true);
+    expect(requestEmailVerification).toHaveBeenCalledWith('enzo@example.com');
     expect(issueSession).not.toHaveBeenCalled();
   });
 
-  it('returns null and does not issue a session for an unknown account', async () => {
+  it('does not reveal whether an unknown account is unverified', async () => {
     findByEmail.mockResolvedValue(null);
 
     await expect(
@@ -85,14 +100,14 @@ describe('AuthService', () => {
         },
         'web',
       ),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ kind: 'invalid_credentials' });
 
     expect(issueSession).not.toHaveBeenCalled();
   });
 
-  it('returns null and does not issue a session for a wrong password', async () => {
+  it('does not reveal verification state when the password is wrong', async () => {
     const hash = await bcrypt.hash('real-password', 4);
-    findByEmail.mockResolvedValue(userDocument(hash));
+    findByEmail.mockResolvedValue(userDocument(hash, null));
 
     await expect(
       service.login(
@@ -102,12 +117,29 @@ describe('AuthService', () => {
         },
         'web',
       ),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ kind: 'invalid_credentials' });
 
     expect(issueSession).not.toHaveBeenCalled();
   });
 
-  it('issues an opaque session after successful credential verification', async () => {
+  it('requires email verification only after the password is proven', async () => {
+    const hash = await bcrypt.hash('real-password', 4);
+    findByEmail.mockResolvedValue(userDocument(hash, null));
+
+    await expect(
+      service.login(
+        {
+          email: 'enzo@example.com',
+          password: 'real-password',
+        },
+        'web',
+      ),
+    ).resolves.toEqual({ kind: 'email_verification_required' });
+
+    expect(issueSession).not.toHaveBeenCalled();
+  });
+
+  it('issues an opaque session after verified credential proof', async () => {
     const hash = await bcrypt.hash('real-password', 4);
     findByEmail.mockResolvedValue(userDocument(hash));
     issueSession.mockResolvedValue({
@@ -124,6 +156,7 @@ describe('AuthService', () => {
         'web',
       ),
     ).resolves.toEqual({
+      kind: 'authenticated',
       user: {
         id: 'user-1',
         email: 'enzo@example.com',
@@ -132,6 +165,6 @@ describe('AuthService', () => {
       session: SESSION,
     });
 
-    expect(issueSession).toHaveBeenCalledWith('user-1', 'web');
+    expect(issueSession).toHaveBeenCalledWith('user-1', 'web', 1);
   });
 });

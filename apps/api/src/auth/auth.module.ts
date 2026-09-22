@@ -3,10 +3,20 @@ import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { UsersModule } from '../users/users.module';
+import { AuthActionTokenService } from './action-token/auth-action-token.service';
+import { AUTH_ACTION_TOKEN_STORE } from './action-token/auth-action-token.types';
+import { MongoAuthActionTokenStore } from './action-token/mongo-auth-action-token.store';
+import {
+  AuthActionToken,
+  AuthActionTokenSchema,
+} from './action-token/schemas/auth-action-token.schema';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AUTH_EMAIL_DELIVERY } from './delivery/auth-email-delivery.types';
+import { ConfigurableAuthEmailDelivery } from './delivery/configurable-auth-email.delivery';
 import { AuthSessionGuard } from './guards/auth-session.guard';
 import { CsrfOriginGuard } from './guards/csrf-origin.guard';
+import { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
 import { AuthSessionService } from './session/auth-session.service';
 import { AUTH_SESSION_STORE } from './session/auth-session.types';
 import { MongoAuthSessionStore } from './session/mongo-auth-session.store';
@@ -20,16 +30,29 @@ import {
     UsersModule,
     MongooseModule.forFeature([
       { name: AuthSession.name, schema: AuthSessionSchema },
+      { name: AuthActionToken.name, schema: AuthActionTokenSchema },
     ]),
   ],
   providers: [
     AuthService,
+    AuthLifecycleService,
+    AuthActionTokenService,
     AuthSessionService,
     AuthSessionGuard,
+    MongoAuthActionTokenStore,
     MongoAuthSessionStore,
+    ConfigurableAuthEmailDelivery,
+    {
+      provide: AUTH_ACTION_TOKEN_STORE,
+      useExisting: MongoAuthActionTokenStore,
+    },
     {
       provide: AUTH_SESSION_STORE,
       useExisting: MongoAuthSessionStore,
+    },
+    {
+      provide: AUTH_EMAIL_DELIVERY,
+      useExisting: ConfigurableAuthEmailDelivery,
     },
     {
       provide: APP_GUARD,

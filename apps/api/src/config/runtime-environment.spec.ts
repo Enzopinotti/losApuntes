@@ -4,6 +4,17 @@ const validEnvironment = {
   MONGO_URI: 'mongodb://127.0.0.1:27017/losapuntes',
 };
 
+const validProductionEnvironment = {
+  ...validEnvironment,
+  NODE_ENV: 'production',
+  AUTH_EMAIL_DELIVERY_MODE: 'smtp',
+  AUTH_ACTION_BASE_URL: 'https://app.losapuntes.example',
+  AUTH_EMAIL_FROM: 'Los Apuntes <no-reply@losapuntes.example>',
+  AUTH_SMTP_HOST: 'smtp.example',
+  AUTH_SMTP_PORT: '587',
+  AUTH_SMTP_SECURE: 'false',
+};
+
 describe('validateRuntimeEnvironment', () => {
   it('normalizes defaults for local development', () => {
     const result = validateRuntimeEnvironment(validEnvironment);
@@ -12,26 +23,51 @@ describe('validateRuntimeEnvironment', () => {
       NODE_ENV: 'development',
       PORT: 4000,
       SWAGGER_ENABLED: true,
+      AUTH_EMAIL_DELIVERY_MODE: 'disabled',
     });
   });
 
-  it('disables Swagger by default in production', () => {
-    const result = validateRuntimeEnvironment({
-      ...validEnvironment,
-      NODE_ENV: 'production',
-    });
+  it('disables Swagger by default in a valid production environment', () => {
+    const result = validateRuntimeEnvironment(validProductionEnvironment);
 
     expect(result.SWAGGER_ENABLED).toBe(false);
   });
 
   it('allows production Swagger only when explicitly enabled', () => {
     const result = validateRuntimeEnvironment({
-      ...validEnvironment,
-      NODE_ENV: 'production',
+      ...validProductionEnvironment,
       SWAGGER_ENABLED: 'true',
     });
 
     expect(result.SWAGGER_ENABLED).toBe(true);
+  });
+
+  it('requires SMTP delivery in production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        AUTH_EMAIL_DELIVERY_MODE: 'disabled',
+      }),
+    ).toThrow('AUTH_EMAIL_DELIVERY_MODE must be smtp in production');
+  });
+
+  it('rejects production startup when delivery mode is omitted', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+      }),
+    ).toThrow('AUTH_EMAIL_DELIVERY_MODE');
+  });
+
+  it('requires the SMTP delivery dependencies when smtp mode is enabled', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        AUTH_EMAIL_DELIVERY_MODE: 'smtp',
+      }),
+    ).toThrow('AUTH_ACTION_BASE_URL is required');
   });
 
   it('normalizes a configured browser origin', () => {

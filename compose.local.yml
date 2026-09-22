@@ -18,6 +18,12 @@ services:
       retries: 30
       start_period: 5s
 
+  mailpit:
+    image: axllent/mailpit:v1.31.1
+    restart: "no"
+    ports:
+      - "127.0.0.1:8025:8025"
+
   api:
     build:
       context: .
@@ -29,10 +35,18 @@ services:
       MONGO_URI: mongodb://mongo:27017/losapuntes_local
       WEB_ORIGIN: http://localhost:5173
       SWAGGER_ENABLED: "false"
+      AUTH_EMAIL_DELIVERY_MODE: smtp
+      AUTH_ACTION_BASE_URL: http://localhost:5173
+      AUTH_EMAIL_FROM: Los Apuntes <no-reply@losapuntes.local>
+      AUTH_SMTP_HOST: mailpit
+      AUTH_SMTP_PORT: 1025
+      AUTH_SMTP_SECURE: "false"
     ports:
       - "4000:4000"
     depends_on:
       mongo:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     healthcheck:
       test:

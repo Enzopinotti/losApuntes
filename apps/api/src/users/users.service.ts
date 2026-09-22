@@ -36,6 +36,8 @@ export class UsersService {
             $setOnInsert: {
               email,
               password_hash: passwordHash,
+              email_verified_at: null,
+              credential_version: 1,
               role: 'user',
             },
           },
@@ -53,5 +55,59 @@ export class UsersService {
 
   findById(id: string) {
     return this.userModel.findById(id).exec();
+  }
+
+  async markEmailVerifiedIfUnverified(
+    userId: string,
+    verifiedAt: Date,
+  ): Promise<boolean> {
+    const result = await this.userModel
+      .updateOne(
+        {
+          _id: userId,
+          email_verified_at: null,
+        },
+        {
+          $set: {
+            email_verified_at: verifiedAt,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
+  }
+
+  async replacePasswordIfCredentialVersion(
+    userId: string,
+    expectedCredentialVersion: number,
+    passwordHash: string,
+  ): Promise<boolean> {
+    const credentialVersionFilter =
+      expectedCredentialVersion === 1
+        ? {
+            $or: [
+              { credential_version: 1 },
+              { credential_version: { $exists: false } },
+            ],
+          }
+        : { credential_version: expectedCredentialVersion };
+
+    const result = await this.userModel
+      .updateOne(
+        {
+          _id: userId,
+          ...credentialVersionFilter,
+        },
+        {
+          $set: {
+            password_hash: passwordHash,
+            credential_version: expectedCredentialVersion + 1,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
   }
 }

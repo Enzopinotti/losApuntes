@@ -25,6 +25,7 @@ export type IssuedAuthSession = {
 
 export type ResolvedAuthSession = {
   userId: string;
+  credentialVersion: number;
   session: PublicAuthSession;
 };
 
@@ -52,6 +53,7 @@ export class AuthSessionService {
   async issue(
     userId: string,
     clientType: AuthClientType,
+    credentialVersion: number,
     now = new Date(),
   ): Promise<IssuedAuthSession> {
     const sessionToken = createSessionToken();
@@ -59,6 +61,7 @@ export class AuthSessionService {
       id: createSessionId(),
       userId,
       tokenHash: hashSessionToken(sessionToken),
+      credentialVersion,
       clientType,
       createdAt: now,
       lastSeenAt: now,
@@ -99,6 +102,7 @@ export class AuthSessionService {
 
     return {
       userId: record.userId,
+      credentialVersion: record.credentialVersion,
       session: toPublicSession(record, true),
     };
   }
@@ -114,13 +118,16 @@ export class AuthSessionService {
   async listForUser(
     userId: string,
     currentSessionId: string,
+    credentialVersion: number,
     now = new Date(),
   ): Promise<PublicAuthSession[]> {
     const sessions = await this.store.listActiveForUser(userId, now);
 
-    return sessions.map((session) =>
-      toPublicSession(session, session.id === currentSessionId),
-    );
+    return sessions
+      .filter((session) => session.credentialVersion === credentialVersion)
+      .map((session) =>
+        toPublicSession(session, session.id === currentSessionId),
+      );
   }
 
   async revokeOwned(userId: string, sessionId: string): Promise<boolean> {

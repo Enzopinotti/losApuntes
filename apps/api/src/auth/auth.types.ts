@@ -14,4 +14,5 @@ export type AuthenticatedRequest = FastifyRequest & {
   user: AuthenticatedUser;
   authSession: PublicAuthSession;
   authTransport: AuthClientType;
+  authCredentialVersion: number;
 };

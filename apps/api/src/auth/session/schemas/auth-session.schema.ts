@@ -19,6 +19,9 @@ export class AuthSession {
   @Prop({ required: true, unique: true })
   tokenHash!: string;
 
+  @Prop({ default: 1, min: 1 })
+  credentialVersion?: number;
+
   @Prop({ required: true, enum: ['web', 'mobile'] })
   clientType!: AuthClientType;
 

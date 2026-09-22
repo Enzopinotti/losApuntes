@@ -14,6 +14,12 @@ export class User {
   @Prop({ required: true })
   password_hash!: string;
 
+  @Prop({ type: Date, default: undefined })
+  email_verified_at?: Date | null;
+
+  @Prop({ default: 1, min: 1 })
+  credential_version?: number;
+
   @Prop({ default: 'user', enum: ['user', 'admin'] })
   role!: string;
 

@@ -1,8 +1,11 @@
+import { HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
+import { AuthEmailDeliveryUnavailableError } from './lifecycle/auth-lifecycle.errors';
+import type { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
 import type { AuthSessionService } from './session/auth-session.service';
 import type { SessionCookieOptions } from './session/session-cookie';
 
@@ -20,9 +23,30 @@ const USER = {
   email: 'enzo@example.com',
 };
 
+async function rejectedHttpException(
+  operation: Promise<unknown>,
+): Promise<HttpException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof HttpException) {
+      return error;
+    }
+    throw error;
+  }
+
+  throw new Error('Expected operation to reject with HttpException');
+}
+
 describe('AuthController', () => {
   const register = jest.fn();
   const login = jest.fn();
+  const requestEmailVerification = jest.fn();
+  const inspectEmailVerification = jest.fn();
+  const completeEmailVerification = jest.fn();
+  const requestPasswordRecovery = jest.fn();
+  const inspectPasswordRecovery = jest.fn();
+  const completePasswordRecovery = jest.fn();
   const revokeCurrent = jest.fn();
   const listForUser = jest.fn();
   const revokeOwned = jest.fn();
@@ -32,6 +56,15 @@ describe('AuthController', () => {
     register,
     login,
   } as unknown as AuthService;
+
+  const lifecycle = {
+    requestEmailVerification,
+    inspectEmailVerification,
+    completeEmailVerification,
+    requestPasswordRecovery,
+    inspectPasswordRecovery,
+    completePasswordRecovery,
+  } as unknown as AuthLifecycleService;
 
   const sessionService = {
     revokeCurrent,
@@ -44,7 +77,12 @@ describe('AuthController', () => {
     NODE_ENV: 'development',
   });
 
-  const controller = new AuthController(authService, sessionService, config);
+  const controller = new AuthController(
+    authService,
+    lifecycle,
+    sessionService,
+    config,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -67,8 +105,74 @@ describe('AuthController', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('keeps registration bounded when verification delivery fails', async () => {
+    register.mockRejectedValue(new AuthEmailDeliveryUnavailableError());
+
+    await expect(
+      controller.register({
+        email: 'enzo@example.com',
+        password: 'correct-horse-battery',
+      }),
+    ).resolves.toEqual({ accepted: true });
+  });
+
+  it('keeps verification request bounded when delivery fails', async () => {
+    requestEmailVerification.mockRejectedValue(
+      new AuthEmailDeliveryUnavailableError(),
+    );
+
+    await expect(
+      controller.requestEmailVerification({
+        email: 'enzo@example.com',
+      }),
+    ).resolves.toEqual({ accepted: true });
+  });
+
+  it('keeps recovery request bounded when delivery fails', async () => {
+    requestPasswordRecovery.mockRejectedValue(
+      new AuthEmailDeliveryUnavailableError(),
+    );
+
+    await expect(
+      controller.requestPasswordRecovery({
+        email: 'enzo@example.com',
+      }),
+    ).resolves.toEqual({ accepted: true });
+  });
+
+  it('returns verification availability without echoing the token', async () => {
+    inspectEmailVerification.mockResolvedValue(true);
+
+    await expect(
+      controller.inspectEmailVerification({
+        token: 'v'.repeat(43),
+      }),
+    ).resolves.toEqual({
+      verification: {
+        available: true,
+      },
+    });
+  });
+
+  it('returns an unavailable verification as 410', async () => {
+    inspectEmailVerification.mockResolvedValue(false);
+
+    const error = await rejectedHttpException(
+      controller.inspectEmailVerification({
+        token: 'v'.repeat(43),
+      }),
+    );
+
+    expect(error.getStatus()).toBe(410);
+    expect(error.getResponse()).toEqual({
+      code: 'VERIFICATION_NOT_AVAILABLE',
+      message: 'Action link is not available',
+    });
+  });
+
   it('puts the Web bearer only in the HttpOnly cookie contract', async () => {
     login.mockResolvedValue({
+      kind: 'authenticated',
       user: USER,
       sessionToken: 'a'.repeat(43),
       session: SESSION,
@@ -107,37 +211,33 @@ describe('AuthController', () => {
       ...SESSION,
       clientType: 'mobile' as const,
     };
-    const result = {
+    login.mockResolvedValue({
+      kind: 'authenticated',
       user: USER,
       sessionToken: 'b'.repeat(43),
       session: mobileSession,
-    };
-    login.mockResolvedValue(result);
+    });
 
     await expect(
       controller.mobileLogin({
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
-    ).resolves.toEqual(result);
-
-    expect(login).toHaveBeenCalledWith(
-      {
-        email: 'enzo@example.com',
-        password: 'correct-horse-battery',
-      },
-      'mobile',
-    );
+    ).resolves.toEqual({
+      user: USER,
+      sessionToken: 'b'.repeat(43),
+      session: mobileSession,
+    });
   });
 
-  it('rejects invalid Web credentials without setting a cookie', async () => {
-    login.mockResolvedValue(null);
-    const setCookie = jest.fn();
+  it('rejects invalid credentials without setting a Web cookie', async () => {
+    login.mockResolvedValue({ kind: 'invalid_credentials' });
+    const setCookie = jest.fn<void, [string, string, SessionCookieOptions]>();
     const reply = {
       setCookie,
     } as unknown as FastifyReply;
 
-    await expect(
+    const error = await rejectedHttpException(
       controller.login(
         {
           email: 'missing@example.com',
@@ -145,8 +245,38 @@ describe('AuthController', () => {
         },
         reply,
       ),
-    ).rejects.toThrow('Invalid credentials');
+    );
 
+    expect(error.getStatus()).toBe(401);
+    expect(error.getResponse()).toEqual({
+      code: 'INVALID_CREDENTIALS',
+      message: 'Invalid credentials',
+    });
+    expect(setCookie).not.toHaveBeenCalled();
+  });
+
+  it('returns verification-required only after credential proof', async () => {
+    login.mockResolvedValue({ kind: 'email_verification_required' });
+    const setCookie = jest.fn<void, [string, string, SessionCookieOptions]>();
+    const reply = {
+      setCookie,
+    } as unknown as FastifyReply;
+
+    const error = await rejectedHttpException(
+      controller.login(
+        {
+          email: 'enzo@example.com',
+          password: 'correct-horse-battery',
+        },
+        reply,
+      ),
+    );
+
+    expect(error.getStatus()).toBe(403);
+    expect(error.getResponse()).toEqual({
+      code: 'EMAIL_VERIFICATION_REQUIRED',
+      message: 'Email verification required',
+    });
     expect(setCookie).not.toHaveBeenCalled();
   });
 

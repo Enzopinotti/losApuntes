@@ -1,4 +1,5 @@
 const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
+const VALID_AUTH_EMAIL_DELIVERY_MODES = new Set(['disabled', 'smtp']);
 
 function optionalString(
   config: Record<string, unknown>,
@@ -28,9 +29,9 @@ function requiredString(config: Record<string, unknown>, key: string): string {
   return value;
 }
 
-function parsePort(value: unknown): number {
+function parsePort(value: unknown, key: string, fallback: number): number {
   if (value === undefined || value === null || value === '') {
-    return 4000;
+    return fallback;
   }
 
   const parsed =
@@ -41,7 +42,7 @@ function parsePort(value: unknown): number {
         : Number.NaN;
 
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
-    throw new Error('PORT must be an integer between 1 and 65535');
+    throw new Error(`${key} must be an integer between 1 and 65535`);
   }
 
   return parsed;
@@ -63,20 +64,20 @@ function parseBoolean(value: unknown, key: string, fallback: boolean): boolean {
   throw new Error(`${key} must be true or false`);
 }
 
-function parseWebOrigin(value: unknown): string | undefined {
+function parseHttpOrigin(value: unknown, key: string): string | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
 
   if (typeof value !== 'string') {
-    throw new Error('WEB_ORIGIN must be a string');
+    throw new Error(`${key} must be a string`);
   }
 
   let url: URL;
   try {
     url = new URL(value.trim());
   } catch {
-    throw new Error('WEB_ORIGIN must be a valid absolute HTTP(S) origin');
+    throw new Error(`${key} must be a valid absolute HTTP(S) origin`);
   }
 
   if (
@@ -87,10 +88,29 @@ function parseWebOrigin(value: unknown): string | undefined {
     url.search ||
     url.hash
   ) {
-    throw new Error('WEB_ORIGIN must be a valid absolute HTTP(S) origin');
+    throw new Error(`${key} must be a valid absolute HTTP(S) origin`);
   }
 
   return url.origin;
+}
+
+function authEmailDeliveryMode(
+  source: Record<string, unknown>,
+  nodeEnv: string,
+): 'disabled' | 'smtp' {
+  const value =
+    optionalString(source, 'AUTH_EMAIL_DELIVERY_MODE') ??
+    (nodeEnv === 'production' ? undefined : 'disabled');
+
+  if (!value || !VALID_AUTH_EMAIL_DELIVERY_MODES.has(value)) {
+    throw new Error('AUTH_EMAIL_DELIVERY_MODE must be disabled or smtp');
+  }
+
+  if (nodeEnv === 'production' && value !== 'smtp') {
+    throw new Error('AUTH_EMAIL_DELIVERY_MODE must be smtp in production');
+  }
+
+  return value as 'disabled' | 'smtp';
 }
 
 export function validateRuntimeEnvironment(
@@ -102,16 +122,49 @@ export function validateRuntimeEnvironment(
     throw new Error('NODE_ENV must be development, test or production');
   }
 
-  return {
+  const deliveryMode = authEmailDeliveryMode(source, nodeEnv);
+  const authActionBaseUrl = parseHttpOrigin(
+    source.AUTH_ACTION_BASE_URL,
+    'AUTH_ACTION_BASE_URL',
+  );
+  const smtpUser = optionalString(source, 'AUTH_SMTP_USER');
+  const smtpPass = optionalString(source, 'AUTH_SMTP_PASS');
+
+  if (Boolean(smtpUser) !== Boolean(smtpPass)) {
+    throw new Error(
+      'AUTH_SMTP_USER and AUTH_SMTP_PASS must be configured together',
+    );
+  }
+
+  const result: Record<string, unknown> = {
     ...source,
     NODE_ENV: nodeEnv,
-    PORT: parsePort(source.PORT),
+    PORT: parsePort(source.PORT, 'PORT', 4000),
     MONGO_URI: requiredString(source, 'MONGO_URI'),
-    WEB_ORIGIN: parseWebOrigin(source.WEB_ORIGIN),
+    WEB_ORIGIN: parseHttpOrigin(source.WEB_ORIGIN, 'WEB_ORIGIN'),
     SWAGGER_ENABLED: parseBoolean(
       source.SWAGGER_ENABLED,
       'SWAGGER_ENABLED',
       nodeEnv !== 'production',
     ),
+    AUTH_EMAIL_DELIVERY_MODE: deliveryMode,
+    AUTH_ACTION_BASE_URL: authActionBaseUrl,
+    AUTH_SMTP_PORT: parsePort(source.AUTH_SMTP_PORT, 'AUTH_SMTP_PORT', 587),
+    AUTH_SMTP_SECURE: parseBoolean(
+      source.AUTH_SMTP_SECURE,
+      'AUTH_SMTP_SECURE',
+      false,
+    ),
+    AUTH_SMTP_USER: smtpUser,
+    AUTH_SMTP_PASS: smtpPass,
   };
+
+  if (deliveryMode === 'smtp') {
+    result.AUTH_ACTION_BASE_URL =
+      authActionBaseUrl ?? requiredString(source, 'AUTH_ACTION_BASE_URL');
+    result.AUTH_EMAIL_FROM = requiredString(source, 'AUTH_EMAIL_FROM');
+    result.AUTH_SMTP_HOST = requiredString(source, 'AUTH_SMTP_HOST');
+  }
+
+  return result;
 }

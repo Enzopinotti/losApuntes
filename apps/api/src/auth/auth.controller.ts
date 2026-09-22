@@ -17,11 +17,20 @@ import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import type { AuthenticatedRequest } from './auth.types';
-import { AuthService } from './auth.service';
+import {
+  type AuthenticatedLoginOutcome,
+  type AuthLoginOutcome,
+  AuthService,
+} from './auth.service';
+import { ActionTokenDto } from './dto/action-token.dto';
+import { EmailAddressDto } from './dto/email-address.dto';
 import { LoginDto } from './dto/login.dto';
+import { PasswordRecoveryCompleteDto } from './dto/password-recovery-complete.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthSessionGuard } from './guards/auth-session.guard';
 import { AuthNoStoreInterceptor } from './interceptors/auth-no-store.interceptor';
+import { AuthEmailDeliveryUnavailableError } from './lifecycle/auth-lifecycle.errors';
+import { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
 import { AuthSessionService } from './session/auth-session.service';
 import {
   getSessionCookieClearOptions,
@@ -30,14 +39,40 @@ import {
 } from './session/session-cookie';
 import { presentedSessionCredential } from './session/session-credential';
 
-function invalidCredentials(): HttpException {
-  return new HttpException(
-    {
-      code: 'INVALID_CREDENTIALS',
-      message: 'Invalid credentials',
-    },
-    HttpStatus.UNAUTHORIZED,
-  );
+function authError(
+  status: HttpStatus,
+  code: string,
+  message: string,
+): HttpException {
+  return new HttpException({ code, message }, status);
+}
+
+function authenticatedOutcome(
+  outcome: AuthLoginOutcome,
+): AuthenticatedLoginOutcome {
+  if (outcome.kind === 'invalid_credentials') {
+    throw authError(
+      HttpStatus.UNAUTHORIZED,
+      'INVALID_CREDENTIALS',
+      'Invalid credentials',
+    );
+  }
+
+  if (outcome.kind === 'email_verification_required') {
+    throw authError(
+      HttpStatus.FORBIDDEN,
+      'EMAIL_VERIFICATION_REQUIRED',
+      'Email verification required',
+    );
+  }
+
+  return outcome;
+}
+
+function unavailable(
+  code: 'VERIFICATION_NOT_AVAILABLE' | 'RECOVERY_NOT_AVAILABLE',
+): HttpException {
+  return authError(HttpStatus.GONE, code, 'Action link is not available');
 }
 
 @Controller('auth')
@@ -45,6 +80,7 @@ function invalidCredentials(): HttpException {
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly lifecycle: AuthLifecycleService,
     private readonly sessions: AuthSessionService,
     private readonly config: ConfigService,
   ) {}
@@ -52,8 +88,94 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
   async register(@Body() dto: RegisterDto) {
-    await this.auth.register(dto);
+    try {
+      await this.auth.register(dto);
+    } catch (error) {
+      if (!(error instanceof AuthEmailDeliveryUnavailableError)) {
+        throw error;
+      }
+    }
+
     return { accepted: true };
+  }
+
+  @Post('email-verification/request')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async requestEmailVerification(@Body() dto: EmailAddressDto) {
+    try {
+      await this.lifecycle.requestEmailVerification(dto.email);
+    } catch (error) {
+      if (!(error instanceof AuthEmailDeliveryUnavailableError)) {
+        throw error;
+      }
+    }
+
+    return { accepted: true };
+  }
+
+  @Post('email-verification/inspect')
+  @HttpCode(HttpStatus.OK)
+  async inspectEmailVerification(@Body() dto: ActionTokenDto) {
+    if (!(await this.lifecycle.inspectEmailVerification(dto.token))) {
+      throw unavailable('VERIFICATION_NOT_AVAILABLE');
+    }
+
+    return {
+      verification: {
+        available: true,
+      },
+    };
+  }
+
+  @Post('email-verification/complete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async completeEmailVerification(@Body() dto: ActionTokenDto): Promise<void> {
+    if (!(await this.lifecycle.completeEmailVerification(dto.token))) {
+      throw unavailable('VERIFICATION_NOT_AVAILABLE');
+    }
+  }
+
+  @Post('password/recovery/request')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async requestPasswordRecovery(@Body() dto: EmailAddressDto) {
+    try {
+      await this.lifecycle.requestPasswordRecovery(dto.email);
+    } catch (error) {
+      if (!(error instanceof AuthEmailDeliveryUnavailableError)) {
+        throw error;
+      }
+    }
+
+    return { accepted: true };
+  }
+
+  @Post('password/recovery/inspect')
+  @HttpCode(HttpStatus.OK)
+  async inspectPasswordRecovery(@Body() dto: ActionTokenDto) {
+    if (!(await this.lifecycle.inspectPasswordRecovery(dto.token))) {
+      throw unavailable('RECOVERY_NOT_AVAILABLE');
+    }
+
+    return {
+      recovery: {
+        available: true,
+      },
+    };
+  }
+
+  @Post('password/recovery/complete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async completePasswordRecovery(
+    @Body() dto: PasswordRecoveryCompleteDto,
+  ): Promise<void> {
+    if (
+      !(await this.lifecycle.completePasswordRecovery(
+        dto.token,
+        dto.newPassword,
+      ))
+    ) {
+      throw unavailable('RECOVERY_NOT_AVAILABLE');
+    }
   }
 
   @Post('login')
@@ -62,11 +184,7 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const result = await this.auth.login(dto, 'web');
-
-    if (!result) {
-      throw invalidCredentials();
-    }
+    const result = authenticatedOutcome(await this.auth.login(dto, 'web'));
 
     const nodeEnv = this.config.get<string>('NODE_ENV');
     reply.setCookie(
@@ -84,13 +202,13 @@ export class AuthController {
   @Post('mobile/login')
   @HttpCode(HttpStatus.OK)
   async mobileLogin(@Body() dto: LoginDto) {
-    const result = await this.auth.login(dto, 'mobile');
+    const result = authenticatedOutcome(await this.auth.login(dto, 'mobile'));
 
-    if (!result) {
-      throw invalidCredentials();
-    }
-
-    return result;
+    return {
+      user: result.user,
+      session: result.session,
+      sessionToken: result.sessionToken,
+    };
   }
 
   @UseGuards(AuthSessionGuard)
@@ -126,6 +244,7 @@ export class AuthController {
       sessions: await this.sessions.listForUser(
         request.user.id,
         request.authSession.id,
+        request.authCredentialVersion,
       ),
     };
   }
