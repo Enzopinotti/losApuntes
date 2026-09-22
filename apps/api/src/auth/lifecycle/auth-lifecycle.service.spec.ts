@@ -371,4 +371,242 @@ describe('AuthLifecycleService', () => {
     expect(mocks.revokeAll).toHaveBeenCalledTimes(1);
     expect(mocks.sendPasswordRecoveryCompleted).toHaveBeenCalledTimes(1);
   });
+  it('does not issue verification for an unknown or already-verified account', async () => {
+    const missing = createHarness();
+    missing.mocks.findByEmail.mockResolvedValue(null);
+
+    await expect(
+      missing.service.requestEmailVerification('missing@example.com', NOW),
+    ).resolves.toBeUndefined();
+    expect(missing.mocks.issueIfAllowed).not.toHaveBeenCalled();
+
+    const verified = createHarness();
+    verified.mocks.findByEmail.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z')),
+    );
+
+    await expect(
+      verified.service.requestEmailVerification('enzo@example.com', NOW),
+    ).resolves.toBeUndefined();
+    expect(verified.mocks.issueIfAllowed).not.toHaveBeenCalled();
+  });
+
+  it('does not redeliver verification while issuance is cooling down', async () => {
+    const { service, mocks } = createHarness();
+    mocks.findByEmail.mockResolvedValue(userDocument());
+    mocks.issueIfAllowed.mockResolvedValue(null);
+
+    await expect(
+      service.requestEmailVerification('enzo@example.com', NOW),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.sendEmailVerification).not.toHaveBeenCalled();
+  });
+
+  it('inspects verification against live mailbox state', async () => {
+    const unavailable = createHarness();
+    unavailable.mocks.inspect.mockResolvedValue(null);
+    await expect(
+      unavailable.service.inspectEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(false);
+    expect(unavailable.mocks.findById).not.toHaveBeenCalled();
+
+    const pending = createHarness();
+    pending.mocks.inspect.mockResolvedValue(actionRecord('email_verification'));
+    pending.mocks.findById.mockResolvedValue(userDocument());
+    await expect(
+      pending.service.inspectEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(true);
+
+    const verified = createHarness();
+    verified.mocks.inspect.mockResolvedValue(actionRecord('email_verification'));
+    verified.mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z')),
+    );
+    await expect(
+      verified.service.inspectEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(false);
+  });
+
+  it('fails verification completion closed for unavailable or stale account state', async () => {
+    const unavailable = createHarness();
+    unavailable.mocks.claim.mockResolvedValue(null);
+    await expect(
+      unavailable.service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(false);
+
+    const missingUser = createHarness();
+    missingUser.mocks.claim.mockResolvedValue(actionRecord('email_verification'));
+    missingUser.mocks.findById.mockResolvedValue(null);
+    await expect(
+      missingUser.service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(false);
+
+    const alreadyVerified = createHarness();
+    alreadyVerified.mocks.claim.mockResolvedValue(
+      actionRecord('email_verification'),
+    );
+    alreadyVerified.mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z')),
+    );
+    await expect(
+      alreadyVerified.service.completeEmailVerification(
+        VERIFICATION_TOKEN,
+        NOW,
+      ),
+    ).resolves.toBe(false);
+
+    const lostRace = createHarness();
+    lostRace.mocks.claim.mockResolvedValue(actionRecord('email_verification'));
+    lostRace.mocks.findById.mockResolvedValue(userDocument());
+    lostRace.mocks.markEmailVerifiedIfUnverified.mockResolvedValue(false);
+    await expect(
+      lostRace.service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(false);
+    expect(lostRace.mocks.invalidateAll).not.toHaveBeenCalled();
+  });
+
+  it('does not redeliver recovery while issuance is cooling down', async () => {
+    const { service, mocks } = createHarness();
+    mocks.findByEmail.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z'), 2),
+    );
+    mocks.issueIfAllowed.mockResolvedValue(null);
+
+    await expect(
+      service.requestPasswordRecovery('enzo@example.com', NOW),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.sendPasswordRecovery).not.toHaveBeenCalled();
+  });
+
+  it('inspects recovery only when token and live credential version agree', async () => {
+    const noAction = createHarness();
+    noAction.mocks.inspect.mockResolvedValue(null);
+    await expect(
+      noAction.service.inspectPasswordRecovery(RECOVERY_TOKEN, NOW),
+    ).resolves.toBe(false);
+
+    const noVersion = createHarness();
+    noVersion.mocks.inspect.mockResolvedValue(actionRecord('password_recovery'));
+    await expect(
+      noVersion.service.inspectPasswordRecovery(RECOVERY_TOKEN, NOW),
+    ).resolves.toBe(false);
+    expect(noVersion.mocks.findById).not.toHaveBeenCalled();
+
+    const current = createHarness();
+    current.mocks.inspect.mockResolvedValue(
+      actionRecord('password_recovery', 'a'.repeat(64), 2),
+    );
+    current.mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z'), 2),
+    );
+    await expect(
+      current.service.inspectPasswordRecovery(RECOVERY_TOKEN, NOW),
+    ).resolves.toBe(true);
+
+    const missingUser = createHarness();
+    missingUser.mocks.inspect.mockResolvedValue(
+      actionRecord('password_recovery', 'a'.repeat(64), 2),
+    );
+    missingUser.mocks.findById.mockResolvedValue(null);
+    await expect(
+      missingUser.service.inspectPasswordRecovery(RECOVERY_TOKEN, NOW),
+    ).resolves.toBe(false);
+  });
+
+  it('fails recovery completion closed before credential mutation when authority is stale', async () => {
+    const noAction = createHarness();
+    noAction.mocks.claim.mockResolvedValue(null);
+    await expect(
+      noAction.service.completePasswordRecovery(
+        RECOVERY_TOKEN,
+        'valid-new-password-2026',
+        NOW,
+      ),
+    ).resolves.toBe(false);
+
+    const noVersion = createHarness();
+    noVersion.mocks.claim.mockResolvedValue(actionRecord('password_recovery'));
+    await expect(
+      noVersion.service.completePasswordRecovery(
+        RECOVERY_TOKEN,
+        'valid-new-password-2026',
+        NOW,
+      ),
+    ).resolves.toBe(false);
+
+    const staleVersion = createHarness();
+    staleVersion.mocks.claim.mockResolvedValue(
+      actionRecord('password_recovery', 'a'.repeat(64), 1),
+    );
+    staleVersion.mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z'), 2),
+    );
+    await expect(
+      staleVersion.service.completePasswordRecovery(
+        RECOVERY_TOKEN,
+        'valid-new-password-2026',
+        NOW,
+      ),
+    ).resolves.toBe(false);
+    expect(
+      staleVersion.mocks.replacePasswordIfCredentialVersion,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('fails recovery completion closed when the credential CAS loses', async () => {
+    const { service, mocks } = createHarness();
+    mocks.claim.mockResolvedValue(
+      actionRecord('password_recovery', 'a'.repeat(64), 2),
+    );
+    mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z'), 2),
+    );
+    mocks.replacePasswordIfCredentialVersion.mockResolvedValue(false);
+
+    await expect(
+      service.completePasswordRecovery(
+        RECOVERY_TOKEN,
+        'valid-new-password-2026',
+        NOW,
+      ),
+    ).resolves.toBe(false);
+
+    expect(mocks.revokeAll).not.toHaveBeenCalled();
+    expect(mocks.auditRecord).not.toHaveBeenCalled();
+  });
+
+  it('keeps credential authority after best-effort session cleanup or notice failure', async () => {
+    const { service, mocks } = createHarness();
+    const currentUser = userDocument(
+      new Date('2026-09-20T10:00:00.000Z'),
+      4,
+    );
+    mocks.claim.mockResolvedValue(
+      actionRecord('password_recovery', 'a'.repeat(64), 4),
+    );
+    mocks.findById.mockResolvedValue(currentUser);
+    mocks.replacePasswordIfCredentialVersion.mockResolvedValue(true);
+    mocks.invalidateAll.mockResolvedValue(undefined);
+    mocks.revokeAll.mockRejectedValue(new Error('session store unavailable'));
+    mocks.sendPasswordRecoveryCompleted.mockRejectedValue(
+      new Error('mail unavailable'),
+    );
+
+    await expect(
+      service.completePasswordRecovery(
+        RECOVERY_TOKEN,
+        'valid-new-password-2026',
+        NOW,
+      ),
+    ).resolves.toBe(true);
+
+    expect(mocks.auditRecord).toHaveBeenCalledWith({
+      event: 'auth.password.recovery.completed',
+      userId: USER_ID,
+      occurredAt: NOW,
+    });
+  });
+
 });
