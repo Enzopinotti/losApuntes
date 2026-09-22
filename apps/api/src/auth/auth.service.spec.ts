@@ -21,6 +21,7 @@ function userDocument(passwordHash: string): UserDocument {
     },
     email: 'enzo@example.com',
     password_hash: passwordHash,
+    credential_version: 1,
   } as unknown as UserDocument;
 }
 
@@ -132,6 +133,6 @@ describe('AuthService', () => {
       session: SESSION,
     });
 
-    expect(issueSession).toHaveBeenCalledWith('user-1', 'web');
+    expect(issueSession).toHaveBeenCalledWith('user-1', 'web', 1);
   });
 });
