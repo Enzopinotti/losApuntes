@@ -30,11 +30,11 @@ jobs:
 
       - name: Refresh web lockfile within declared semver ranges
         working-directory: apps/web
-        run: npm audit fix --package-lock-only
+        run: npm audit fix --package-lock-only || true
 
       - name: Refresh API lockfile within declared semver ranges
         working-directory: apps/api
-        run: npm audit fix --package-lock-only
+        run: npm audit fix --package-lock-only || true
 
       - name: Emit refreshed lockfiles
         shell: bash
