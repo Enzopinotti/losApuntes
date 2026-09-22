@@ -282,11 +282,26 @@ Still separate by design:
 
 The project requirement calls for at least 80% coverage in critical modules.
 
-This review therefore measures the critical Identity/Auth core separately instead of hiding it inside repository-wide averages.
+This review measures the critical Identity/Auth core separately instead of hiding it inside repository-wide averages.
 
-The permanent gate should cover the security-authority files (password, session, lifecycle, guards, action tokens, Google identity orchestration) and fail CI if the agreed critical threshold regresses.
+The critical set includes password, session, lifecycle, guards, action tokens and Google identity orchestration.
 
-Do not record a percentage here until it is measured from the exact candidate and enforced by CI.
+Measured hardening evidence before the permanent gate was frozen:
+
+- 192 tests passed;
+- statements: 94.18% (551/585);
+- branches: 80.41% (156/194);
+- functions: 100% (85/85);
+- lines: 93.75% (510/544).
+
+The permanent `Auth critical coverage` CI job now enforces a regression floor of:
+
+- statements >= 90%;
+- branches >= 80%;
+- functions >= 95%;
+- lines >= 90%.
+
+This is intentionally stricter than a repository-wide average: future code in the selected security-authority files must arrive with enough tests to preserve those floors.
 
 ## 13. Remaining maturity decisions
 
