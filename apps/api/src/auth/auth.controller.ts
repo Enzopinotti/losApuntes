@@ -58,6 +58,14 @@ function authenticatedOutcome(
     );
   }
 
+  if (outcome.kind === 'account_restricted') {
+    throw authError(
+      HttpStatus.FORBIDDEN,
+      'ACCOUNT_RESTRICTED',
+      'Account access is restricted',
+    );
+  }
+
   if (outcome.kind === 'email_verification_required') {
     throw authError(
       HttpStatus.FORBIDDEN,
