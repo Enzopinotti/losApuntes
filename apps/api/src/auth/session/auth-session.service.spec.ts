@@ -14,6 +14,7 @@ function record(overrides: Partial<AuthSessionRecord> = {}): AuthSessionRecord {
     id: SESSION_A,
     userId: 'user-1',
     tokenHash: 'a'.repeat(64),
+    credentialVersion: 1,
     clientType: 'web',
     createdAt: new Date('2026-09-22T12:00:00.000Z'),
     lastSeenAt: new Date('2026-09-22T12:00:00.000Z'),
@@ -80,6 +81,7 @@ describe('AuthSessionService', () => {
     const result = await service.issue(
       'user-1',
       'web',
+      1,
       new Date('2026-09-22T12:00:00.000Z'),
     );
 
@@ -100,6 +102,7 @@ describe('AuthSessionService', () => {
     const issued = await service.issue(
       'user-1',
       'web',
+      1,
       new Date('2026-09-22T12:00:00.000Z'),
     );
 
@@ -118,6 +121,7 @@ describe('AuthSessionService', () => {
       ),
     ).resolves.toMatchObject({
       userId: 'user-1',
+      credentialVersion: 1,
       session: {
         clientType: 'web',
       },
@@ -146,6 +150,7 @@ describe('AuthSessionService', () => {
     const issued = await service.issue(
       'user-1',
       'web',
+      1,
       new Date('2026-09-22T12:00:00.000Z'),
     );
 
@@ -182,7 +187,9 @@ describe('AuthSessionService', () => {
     ]);
 
     const service = new AuthSessionService(store);
-    await expect(service.listForUser('user-1', SESSION_B)).resolves.toEqual([
+    await expect(
+      service.listForUser('user-1', SESSION_B, 1),
+    ).resolves.toEqual([
       expect.objectContaining({ id: SESSION_A, current: false }),
       expect.objectContaining({
         id: SESSION_B,
@@ -199,7 +206,7 @@ describe('AuthSessionService', () => {
     await service.revokeCurrent('invalid');
     expect(mocks.revokeByTokenHash).not.toHaveBeenCalled();
 
-    const issued = await service.issue('user-1', 'web');
+    const issued = await service.issue('user-1', 'web', 1);
     await service.revokeCurrent(issued.sessionToken);
 
     expect(mocks.revokeByTokenHash.mock.calls).toEqual([
@@ -215,6 +222,25 @@ describe('AuthSessionService', () => {
       service.revokeOwned('user-1', 'mongo-object-id'),
     ).resolves.toBe(false);
     expect(mocks.revokeOwnedById).not.toHaveBeenCalled();
+  });
+
+  it('hides sessions issued under an older credential version', async () => {
+    const { store, mocks } = createStore();
+    mocks.listActiveForUser.mockResolvedValue([
+      record({ id: SESSION_A, credentialVersion: 1 }),
+      record({ id: SESSION_B, credentialVersion: 2 }),
+    ]);
+
+    const service = new AuthSessionService(store);
+
+    await expect(
+      service.listForUser('user-1', SESSION_B, 2),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: SESSION_B,
+        current: true,
+      }),
+    ]);
   });
 
   it('delegates revoke-all to the account-scoped store operation', async () => {
