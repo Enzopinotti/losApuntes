@@ -198,5 +198,4 @@ describe('AuthSessionGuard credential fencing', () => {
 
     expect(revokeCurrent).toHaveBeenCalledWith(TOKEN);
   });
-
 });
