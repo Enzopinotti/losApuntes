@@ -4,6 +4,7 @@ import type { UserDocument } from '../users/schemas/user.schema';
 import type { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import type { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
+import { PasswordService } from './password.service';
 import type { AuthSessionService } from './session/auth-session.service';
 
 const SESSION = {
@@ -54,11 +55,13 @@ describe('AuthService', () => {
     requestEmailVerification,
   } as unknown as AuthLifecycleService;
 
+  const passwords = new PasswordService();
+
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(usersService, sessions, lifecycle);
+    service = new AuthService(usersService, sessions, lifecycle, passwords);
   });
 
   it('hashes registration password, requests verification and never creates a session', async () => {
