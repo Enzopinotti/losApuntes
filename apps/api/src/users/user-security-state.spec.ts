@@ -1,7 +1,4 @@
-import {
-  credentialVersion,
-  isEmailVerified,
-} from './user-security-state';
+import { credentialVersion, isEmailVerified } from './user-security-state';
 
 describe('user security state compatibility', () => {
   it('treats legacy users without a credential version as version 1', () => {
