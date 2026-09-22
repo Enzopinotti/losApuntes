@@ -1,8 +1,4 @@
-const VALID_NODE_ENVIRONMENTS = new Set([
-  'development',
-  'test',
-  'production',
-]);
+const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
 const VALID_AUTH_EMAIL_DELIVERY_MODES = new Set(['disabled', 'smtp']);
 
 function optionalString(
@@ -33,11 +29,7 @@ function requiredString(config: Record<string, unknown>, key: string): string {
   return value;
 }
 
-function parsePort(
-  value: unknown,
-  key: string,
-  fallback: number,
-): number {
+function parsePort(value: unknown, key: string, fallback: number): number {
   if (value === undefined || value === null || value === '') {
     return fallback;
   }
@@ -72,10 +64,7 @@ function parseBoolean(value: unknown, key: string, fallback: boolean): boolean {
   throw new Error(`${key} must be true or false`);
 }
 
-function parseHttpOrigin(
-  value: unknown,
-  key: string,
-): string | undefined {
+function parseHttpOrigin(value: unknown, key: string): string | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
@@ -114,15 +103,11 @@ function authEmailDeliveryMode(
     (nodeEnv === 'production' ? undefined : 'disabled');
 
   if (!value || !VALID_AUTH_EMAIL_DELIVERY_MODES.has(value)) {
-    throw new Error(
-      'AUTH_EMAIL_DELIVERY_MODE must be disabled or smtp',
-    );
+    throw new Error('AUTH_EMAIL_DELIVERY_MODE must be disabled or smtp');
   }
 
   if (nodeEnv === 'production' && value !== 'smtp') {
-    throw new Error(
-      'AUTH_EMAIL_DELIVERY_MODE must be smtp in production',
-    );
+    throw new Error('AUTH_EMAIL_DELIVERY_MODE must be smtp in production');
   }
 
   return value as 'disabled' | 'smtp';
@@ -164,11 +149,7 @@ export function validateRuntimeEnvironment(
     ),
     AUTH_EMAIL_DELIVERY_MODE: deliveryMode,
     AUTH_ACTION_BASE_URL: authActionBaseUrl,
-    AUTH_SMTP_PORT: parsePort(
-      source.AUTH_SMTP_PORT,
-      'AUTH_SMTP_PORT',
-      587,
-    ),
+    AUTH_SMTP_PORT: parsePort(source.AUTH_SMTP_PORT, 'AUTH_SMTP_PORT', 587),
     AUTH_SMTP_SECURE: parseBoolean(
       source.AUTH_SMTP_SECURE,
       'AUTH_SMTP_SECURE',
@@ -180,8 +161,7 @@ export function validateRuntimeEnvironment(
 
   if (deliveryMode === 'smtp') {
     result.AUTH_ACTION_BASE_URL =
-      authActionBaseUrl ??
-      requiredString(source, 'AUTH_ACTION_BASE_URL');
+      authActionBaseUrl ?? requiredString(source, 'AUTH_ACTION_BASE_URL');
     result.AUTH_EMAIL_FROM = requiredString(source, 'AUTH_EMAIL_FROM');
     result.AUTH_SMTP_HOST = requiredString(source, 'AUTH_SMTP_HOST');
   }
