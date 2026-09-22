@@ -76,9 +76,7 @@ export class AuthActionTokenService {
       await this.store.invalidateByIds(
         userId,
         purpose,
-        active
-          .slice(MAX_ACTIVE_TOKENS_PER_PURPOSE)
-          .map((record) => record.id),
+        active.slice(MAX_ACTIVE_TOKENS_PER_PURPOSE).map((record) => record.id),
         now,
       );
     }
@@ -111,12 +109,7 @@ export class AuthActionTokenService {
     const record = await this.inspect(token, purpose, now);
     if (!record) return;
 
-    await this.store.invalidateByIds(
-      record.userId,
-      purpose,
-      [record.id],
-      now,
-    );
+    await this.store.invalidateByIds(record.userId, purpose, [record.id], now);
   }
 
   async invalidateAll(
