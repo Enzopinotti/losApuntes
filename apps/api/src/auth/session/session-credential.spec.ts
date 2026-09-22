@@ -21,7 +21,10 @@ function request(
 describe('presentedSessionCredential', () => {
   it('accepts one valid web cookie', () => {
     expect(
-      presentedSessionCredential(request(undefined, { [COOKIE_NAME]: TOKEN }), COOKIE_NAME),
+      presentedSessionCredential(
+        request(undefined, { [COOKIE_NAME]: TOKEN }),
+        COOKIE_NAME,
+      ),
     ).toEqual({
       sessionToken: TOKEN,
       clientType: 'web',
