@@ -419,7 +419,9 @@ describe('AuthLifecycleService', () => {
     ).resolves.toBe(true);
 
     const verified = createHarness();
-    verified.mocks.inspect.mockResolvedValue(actionRecord('email_verification'));
+    verified.mocks.inspect.mockResolvedValue(
+      actionRecord('email_verification'),
+    );
     verified.mocks.findById.mockResolvedValue(
       userDocument(new Date('2026-09-20T10:00:00.000Z')),
     );
@@ -436,7 +438,9 @@ describe('AuthLifecycleService', () => {
     ).resolves.toBe(false);
 
     const missingUser = createHarness();
-    missingUser.mocks.claim.mockResolvedValue(actionRecord('email_verification'));
+    missingUser.mocks.claim.mockResolvedValue(
+      actionRecord('email_verification'),
+    );
     missingUser.mocks.findById.mockResolvedValue(null);
     await expect(
       missingUser.service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
@@ -488,7 +492,9 @@ describe('AuthLifecycleService', () => {
     ).resolves.toBe(false);
 
     const noVersion = createHarness();
-    noVersion.mocks.inspect.mockResolvedValue(actionRecord('password_recovery'));
+    noVersion.mocks.inspect.mockResolvedValue(
+      actionRecord('password_recovery'),
+    );
     await expect(
       noVersion.service.inspectPasswordRecovery(RECOVERY_TOKEN, NOW),
     ).resolves.toBe(false);
@@ -579,10 +585,7 @@ describe('AuthLifecycleService', () => {
 
   it('keeps credential authority after best-effort session cleanup or notice failure', async () => {
     const { service, mocks } = createHarness();
-    const currentUser = userDocument(
-      new Date('2026-09-20T10:00:00.000Z'),
-      4,
-    );
+    const currentUser = userDocument(new Date('2026-09-20T10:00:00.000Z'), 4);
     mocks.claim.mockResolvedValue(
       actionRecord('password_recovery', 'a'.repeat(64), 4),
     );
@@ -608,5 +611,4 @@ describe('AuthLifecycleService', () => {
       occurredAt: NOW,
     });
   });
-
 });
