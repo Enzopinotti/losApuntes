@@ -57,6 +57,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) reply: FastifyReply,
@@ -81,6 +82,7 @@ export class AuthController {
   }
 
   @Post('mobile/login')
+  @HttpCode(HttpStatus.OK)
   async mobileLogin(@Body() dto: LoginDto) {
     const result = await this.auth.login(dto, 'mobile');
 
