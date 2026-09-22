@@ -13,10 +13,12 @@
     "audit:web:prod": "cd apps/web && npm audit --omit=dev --audit-level=high",
     "audit:api:prod": "cd apps/api && npm audit --omit=dev --audit-level=high",
     "lint:web": "cd apps/web && npx --no-install eslint . --max-warnings=0",
+    "typecheck:web": "cd apps/web && npx --no-install tsc -b --pretty false",
     "build:web": "npm --prefix apps/web run build",
     "lint:api": "cd apps/api && npx --no-install eslint \"{src,test}/**/*.ts\" --max-warnings=0",
+    "typecheck:api": "cd apps/api && npx --no-install tsc -p tsconfig.json --noEmit --pretty false",
     "test:api": "npm --prefix apps/api test -- --runInBand",
     "build:api": "npm --prefix apps/api run build",
-    "check": "npm run check:hygiene && npm run lint:web && npm run build:web && npm run lint:api && npm run test:api && npm run build:api"
+    "check": "npm run check:hygiene && npm run lint:web && npm run typecheck:web && npm run build:web && npm run lint:api && npm run typecheck:api && npm run test:api && npm run build:api"
   }
 }

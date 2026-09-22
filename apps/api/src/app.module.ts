@@ -4,8 +4,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-
 import { AuthModule } from './auth/auth.module';
+import { requireConfigString } from './config/required-config';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -14,8 +14,8 @@ import { UsersModule } from './users/users.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        uri: cfg.get<string>('MONGO_URI'),
+      useFactory: (config: ConfigService) => ({
+        uri: requireConfigString(config, 'MONGO_URI'),
       }),
     }),
     AuthModule,
