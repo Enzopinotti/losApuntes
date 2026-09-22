@@ -75,14 +75,6 @@ function unavailable(
   return authError(HttpStatus.GONE, code, 'Action link is not available');
 }
 
-function deliveryUnavailable(): HttpException {
-  return authError(
-    HttpStatus.SERVICE_UNAVAILABLE,
-    'AUTH_DELIVERY_UNAVAILABLE',
-    'Email delivery is temporarily unavailable',
-  );
-}
-
 @Controller('auth')
 @UseInterceptors(AuthNoStoreInterceptor)
 export class AuthController {
@@ -99,10 +91,9 @@ export class AuthController {
     try {
       await this.auth.register(dto);
     } catch (error) {
-      if (error instanceof AuthEmailDeliveryUnavailableError) {
-        throw deliveryUnavailable();
+      if (!(error instanceof AuthEmailDeliveryUnavailableError)) {
+        throw error;
       }
-      throw error;
     }
 
     return { accepted: true };
@@ -114,10 +105,9 @@ export class AuthController {
     try {
       await this.lifecycle.requestEmailVerification(dto.email);
     } catch (error) {
-      if (error instanceof AuthEmailDeliveryUnavailableError) {
-        throw deliveryUnavailable();
+      if (!(error instanceof AuthEmailDeliveryUnavailableError)) {
+        throw error;
       }
-      throw error;
     }
 
     return { accepted: true };
@@ -150,10 +140,9 @@ export class AuthController {
     try {
       await this.lifecycle.requestPasswordRecovery(dto.email);
     } catch (error) {
-      if (error instanceof AuthEmailDeliveryUnavailableError) {
-        throw deliveryUnavailable();
+      if (!(error instanceof AuthEmailDeliveryUnavailableError)) {
+        throw error;
       }
-      throw error;
     }
 
     return { accepted: true };
