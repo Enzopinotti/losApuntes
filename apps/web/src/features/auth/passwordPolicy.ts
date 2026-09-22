@@ -5,9 +5,7 @@ export function passwordCodePointLength(password: string): number {
   return Array.from(password.normalize("NFC")).length;
 }
 
-export function newPasswordValidationMessage(
-  password: string,
-): true | string {
+export function newPasswordValidationMessage(password: string): true | string {
   const length = passwordCodePointLength(password);
 
   if (length < PASSWORD_MIN_LENGTH) {
