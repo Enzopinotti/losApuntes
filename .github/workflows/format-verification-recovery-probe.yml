@@ -1,0 +1,41 @@
+name: format-verification-recovery-probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  format-auth-lifecycle:
+    if: github.head_ref == 'feat/auth-verification-recovery-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format lifecycle files
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --write             src/auth/action-token/auth-action-token.service.ts             src/auth/action-token/auth-action-token.types.ts             src/auth/auth.controller.ts             src/auth/delivery/configurable-auth-email.delivery.ts             src/auth/dto/password-recovery-complete.dto.ts             src/auth/dto/register.dto.ts             src/auth/lifecycle/auth-lifecycle.service.ts             src/config/runtime-environment.ts
+
+      - name: Emit exact format patch
+        run: |
+          echo AUTH_LIFECYCLE_FORMAT_DIFF_BEGIN
+          git diff --             apps/api/src/auth/action-token/auth-action-token.service.ts             apps/api/src/auth/action-token/auth-action-token.types.ts             apps/api/src/auth/auth.controller.ts             apps/api/src/auth/delivery/configurable-auth-email.delivery.ts             apps/api/src/auth/dto/password-recovery-complete.dto.ts             apps/api/src/auth/dto/register.dto.ts             apps/api/src/auth/lifecycle/auth-lifecycle.service.ts             apps/api/src/config/runtime-environment.ts
+          echo AUTH_LIFECYCLE_FORMAT_DIFF_END
