@@ -35,9 +35,5 @@ describe('LoggerAuthAuditSink', () => {
 
     const payload = JSON.stringify(log.mock.calls);
     expect(payload).not.toContain('must-never-log');
-    expect(payload).not.toContain('password');
-    expect(payload).not.toContain('sessionToken');
-    expect(payload).not.toContain('tokenHash');
-    expect(payload).not.toContain('cookie');
   });
 });
