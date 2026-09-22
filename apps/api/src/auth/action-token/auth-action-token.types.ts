@@ -28,6 +28,11 @@ export interface AuthActionTokenStore {
     purpose: AuthActionPurpose,
     now: Date,
   ): Promise<AuthActionTokenRecord | null>;
+  claimAvailableByTokenHash(
+    tokenHash: string,
+    purpose: AuthActionPurpose,
+    consumedAt: Date,
+  ): Promise<AuthActionTokenRecord | null>;
   findLatestActiveForUserPurpose(
     userId: string,
     purpose: AuthActionPurpose,
