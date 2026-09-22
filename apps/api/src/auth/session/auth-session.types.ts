@@ -6,6 +6,7 @@ export type AuthSessionRecord = {
   id: string;
   userId: string;
   tokenHash: string;
+  credentialVersion: number;
   clientType: AuthClientType;
   createdAt: Date;
   lastSeenAt: Date;
