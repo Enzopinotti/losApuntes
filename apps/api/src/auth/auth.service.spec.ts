@@ -1,129 +1,137 @@
-import { JwtService } from '@nestjs/jwt';
-import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 
-import { User } from '../users/schemas/user.schema';
-import { UsersService } from '../users/users.service';
+import type { UserDocument } from '../users/schemas/user.schema';
+import type { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
+import type { AuthSessionService } from './session/auth-session.service';
+
+const SESSION = {
+  id: '93b0d36e-a992-487f-b9ba-1173c47800f7',
+  clientType: 'web' as const,
+  createdAt: '2026-09-22T12:00:00.000Z',
+  lastSeenAt: '2026-09-22T12:00:00.000Z',
+  expiresAt: '2026-10-22T12:00:00.000Z',
+  current: true,
+};
+
+function userDocument(passwordHash: string): UserDocument {
+  return {
+    _id: {
+      toString: () => 'user-1',
+    },
+    email: 'enzo@example.com',
+    password_hash: passwordHash,
+  } as unknown as UserDocument;
+}
 
 describe('AuthService', () => {
-  let service: AuthService;
+  const createPasswordAccountIfAbsent = jest.fn<
+    Promise<void>,
+    [string, string]
+  >();
+  const findByEmail = jest.fn<Promise<UserDocument | null>, [string]>();
+  const issueSession = jest.fn();
 
   const usersService = {
-    create: jest.fn(),
-    findByEmail: jest.fn(),
-  };
+    createPasswordAccountIfAbsent,
+    findByEmail,
+  } as unknown as UsersService;
 
-  const jwtService = {
-    sign: jest.fn(),
-  };
+  const sessions = {
+    issue: issueSession,
+  } as unknown as AuthSessionService;
 
-  beforeEach(async () => {
+  let service: AuthService;
+
+  beforeEach(() => {
     jest.clearAllMocks();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        { provide: UsersService, useValue: usersService },
-        { provide: JwtService, useValue: jwtService },
-      ],
-    }).compile();
-
-    service = module.get<AuthService>(AuthService);
+    service = new AuthService(usersService, sessions);
   });
 
-  it('hashes the password and signs the created user', async () => {
-    let persistedUser: Partial<User> | undefined;
+  it('hashes a new password and never creates a session during registration', async () => {
+    createPasswordAccountIfAbsent.mockResolvedValue();
 
-    usersService.create.mockImplementation((data: Partial<User>) => {
-      persistedUser = data;
-      return Promise.resolve({
-        _id: { toString: () => 'user-1' },
-        role: 'user',
-      });
-    });
-    jwtService.sign.mockReturnValue('signed-token');
-
-    const result = await service.register({
-      username: 'enzo',
+    await service.register({
       email: 'enzo@example.com',
-      password: 'correct-horse',
+      password: 'correct-horse-battery',
     });
 
-    expect(usersService.create).toHaveBeenCalledTimes(1);
-    expect(persistedUser).toMatchObject({
-      username: 'enzo',
-      email: 'enzo@example.com',
-    });
+    expect(createPasswordAccountIfAbsent).toHaveBeenCalledTimes(1);
+    const [email, passwordHash] =
+      createPasswordAccountIfAbsent.mock.calls[0] ?? [];
 
-    const passwordHash = persistedUser?.password_hash;
+    expect(email).toBe('enzo@example.com');
     expect(passwordHash).toBeDefined();
-    expect(passwordHash).not.toBe('correct-horse');
+    expect(passwordHash).not.toBe('correct-horse-battery');
 
     if (!passwordHash) {
-      throw new Error('Expected register to persist a password hash');
+      throw new Error('Expected registration to derive a password hash');
     }
 
-    await expect(bcrypt.compare('correct-horse', passwordHash)).resolves.toBe(
-      true,
-    );
-    expect(jwtService.sign).toHaveBeenCalledWith(
-      { sub: 'user-1', role: 'user' },
-      { expiresIn: '15m' },
-    );
-    expect(result).toEqual({ access_token: 'signed-token' });
+    await expect(
+      bcrypt.compare('correct-horse-battery', passwordHash),
+    ).resolves.toBe(true);
+    expect(issueSession).not.toHaveBeenCalled();
   });
 
-  it('rejects login when the user does not exist', async () => {
-    usersService.findByEmail.mockResolvedValue(null);
+  it('returns null and does not issue a session for an unknown account', async () => {
+    findByEmail.mockResolvedValue(null);
 
     await expect(
-      service.login({
-        email: 'missing@example.com',
-        password: 'not-a-real-password',
-      }),
-    ).rejects.toThrow('Unauthorized');
+      service.login(
+        {
+          email: 'missing@example.com',
+          password: 'not-a-real-password',
+        },
+        'web',
+      ),
+    ).resolves.toBeNull();
 
-    expect(jwtService.sign).not.toHaveBeenCalled();
+    expect(issueSession).not.toHaveBeenCalled();
   });
 
-  it('rejects login when the password does not match', async () => {
-    const passwordHash = await bcrypt.hash('real-password', 4);
-    usersService.findByEmail.mockResolvedValue({
-      _id: { toString: () => 'user-1' },
-      role: 'user',
-      password_hash: passwordHash,
+  it('returns null and does not issue a session for a wrong password', async () => {
+    const hash = await bcrypt.hash('real-password', 4);
+    findByEmail.mockResolvedValue(userDocument(hash));
+
+    await expect(
+      service.login(
+        {
+          email: 'enzo@example.com',
+          password: 'wrong-password',
+        },
+        'web',
+      ),
+    ).resolves.toBeNull();
+
+    expect(issueSession).not.toHaveBeenCalled();
+  });
+
+  it('issues an opaque session after successful credential verification', async () => {
+    const hash = await bcrypt.hash('real-password', 4);
+    findByEmail.mockResolvedValue(userDocument(hash));
+    issueSession.mockResolvedValue({
+      sessionToken: 's'.repeat(43),
+      session: SESSION,
     });
 
     await expect(
-      service.login({
+      service.login(
+        {
+          email: 'enzo@example.com',
+          password: 'real-password',
+        },
+        'web',
+      ),
+    ).resolves.toEqual({
+      user: {
+        id: 'user-1',
         email: 'enzo@example.com',
-        password: 'wrong-password',
-      }),
-    ).rejects.toThrow('Unauthorized');
-
-    expect(jwtService.sign).not.toHaveBeenCalled();
-  });
-
-  it('signs a valid login', async () => {
-    const passwordHash = await bcrypt.hash('real-password', 4);
-    usersService.findByEmail.mockResolvedValue({
-      _id: { toString: () => 'user-1' },
-      role: 'user',
-      password_hash: passwordHash,
+      },
+      sessionToken: 's'.repeat(43),
+      session: SESSION,
     });
-    jwtService.sign.mockReturnValue('signed-token');
 
-    await expect(
-      service.login({
-        email: 'enzo@example.com',
-        password: 'real-password',
-      }),
-    ).resolves.toEqual({ access_token: 'signed-token' });
-
-    expect(jwtService.sign).toHaveBeenCalledWith(
-      { sub: 'user-1', role: 'user' },
-      { expiresIn: '15m' },
-    );
+    expect(issueSession).toHaveBeenCalledWith('user-1', 'web');
   });
 });

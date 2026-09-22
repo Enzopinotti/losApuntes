@@ -12,7 +12,7 @@ export type AuthSessionRecord = {
   expiresAt: Date;
 };
 
-export type CreateAuthSessionRecord = Omit<AuthSessionRecord, 'id'>;
+export type CreateAuthSessionRecord = AuthSessionRecord;
 
 export type PublicAuthSession = {
   id: string;

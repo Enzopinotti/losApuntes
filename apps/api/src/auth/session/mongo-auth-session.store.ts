@@ -1,5 +1,6 @@
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 
 import {
   type AuthSessionRecord,
@@ -13,7 +14,7 @@ import {
 
 function toRecord(document: AuthSessionDocument): AuthSessionRecord {
   return {
-    id: document._id.toString(),
+    id: document.sessionId,
     userId: document.userId,
     tokenHash: document.tokenHash,
     clientType: document.clientType,
@@ -23,6 +24,7 @@ function toRecord(document: AuthSessionDocument): AuthSessionRecord {
   };
 }
 
+@Injectable()
 export class MongoAuthSessionStore implements AuthSessionStore {
   constructor(
     @InjectModel(AuthSession.name)
@@ -30,7 +32,15 @@ export class MongoAuthSessionStore implements AuthSessionStore {
   ) {}
 
   async create(input: CreateAuthSessionRecord): Promise<AuthSessionRecord> {
-    const document = await this.model.create(input);
+    const document = await this.model.create({
+      sessionId: input.id,
+      userId: input.userId,
+      tokenHash: input.tokenHash,
+      clientType: input.clientType,
+      createdAt: input.createdAt,
+      lastSeenAt: input.lastSeenAt,
+      expiresAt: input.expiresAt,
+    });
     return toRecord(document);
   }
 
@@ -57,20 +67,16 @@ export class MongoAuthSessionStore implements AuthSessionStore {
         userId,
         expiresAt: { $gt: now },
       })
-      .sort({ createdAt: -1, _id: -1 })
+      .sort({ createdAt: -1, sessionId: -1 })
       .exec();
 
     return documents.map(toRecord);
   }
 
   async touchLastSeen(sessionId: string, lastSeenAt: Date): Promise<void> {
-    if (!Types.ObjectId.isValid(sessionId)) {
-      return;
-    }
-
     await this.model
       .updateOne(
-        { _id: sessionId },
+        { sessionId },
         {
           $max: { lastSeenAt },
         },
@@ -83,13 +89,9 @@ export class MongoAuthSessionStore implements AuthSessionStore {
   }
 
   async revokeOwnedById(userId: string, sessionId: string): Promise<boolean> {
-    if (!Types.ObjectId.isValid(sessionId)) {
-      return false;
-    }
-
     const result = await this.model
       .deleteOne({
-        _id: sessionId,
+        sessionId,
         userId,
       })
       .exec();

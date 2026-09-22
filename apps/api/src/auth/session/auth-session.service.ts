@@ -8,8 +8,10 @@ import {
   type PublicAuthSession,
 } from './auth-session.types';
 import {
+  createSessionId,
   createSessionToken,
   hashSessionToken,
+  isSessionId,
   isSessionToken,
 } from './session-token';
 
@@ -54,6 +56,7 @@ export class AuthSessionService {
   ): Promise<IssuedAuthSession> {
     const sessionToken = createSessionToken();
     const record = await this.store.create({
+      id: createSessionId(),
       userId,
       tokenHash: hashSessionToken(sessionToken),
       clientType,
@@ -121,6 +124,10 @@ export class AuthSessionService {
   }
 
   async revokeOwned(userId: string, sessionId: string): Promise<boolean> {
+    if (!isSessionId(sessionId)) {
+      return false;
+    }
+
     return this.store.revokeOwnedById(userId, sessionId);
   }
 

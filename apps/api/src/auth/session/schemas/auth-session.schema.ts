@@ -10,10 +10,13 @@ export type AuthSessionDocument = HydratedDocument<AuthSession>;
   versionKey: false,
 })
 export class AuthSession {
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, unique: true })
+  sessionId!: string;
+
+  @Prop({ required: true })
   userId!: string;
 
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ required: true, unique: true })
   tokenHash!: string;
 
   @Prop({ required: true, enum: ['web', 'mobile'] })
@@ -25,7 +28,7 @@ export class AuthSession {
   @Prop({ required: true })
   lastSeenAt!: Date;
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true })
   expiresAt!: Date;
 }
 
