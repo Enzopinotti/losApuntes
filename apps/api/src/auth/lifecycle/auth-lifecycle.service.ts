@@ -1,6 +1,4 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-
 import {
   credentialVersion,
   isEmailVerified,
@@ -11,6 +9,7 @@ import {
   AUTH_EMAIL_DELIVERY,
   type AuthEmailDelivery,
 } from '../delivery/auth-email-delivery.types';
+import { PasswordService } from '../password.service';
 import { AuthSessionService } from '../session/auth-session.service';
 import { AuthEmailDeliveryUnavailableError } from './auth-lifecycle.errors';
 
@@ -22,6 +21,7 @@ export class AuthLifecycleService {
     private readonly users: UsersService,
     private readonly actionTokens: AuthActionTokenService,
     private readonly sessions: AuthSessionService,
+    private readonly passwords: PasswordService,
     @Inject(AUTH_EMAIL_DELIVERY)
     private readonly delivery: AuthEmailDelivery,
   ) {}
@@ -171,7 +171,7 @@ export class AuthLifecycleService {
       return false;
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const passwordHash = await this.passwords.hash(newPassword);
     const changed = await this.users.replacePasswordIfCredentialVersion(
       action.userId,
       action.credentialVersion,
