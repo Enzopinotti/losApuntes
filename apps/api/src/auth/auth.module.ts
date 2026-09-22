@@ -17,6 +17,7 @@ import { ConfigurableAuthEmailDelivery } from './delivery/configurable-auth-emai
 import { AuthSessionGuard } from './guards/auth-session.guard';
 import { CsrfOriginGuard } from './guards/csrf-origin.guard';
 import { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
+import { PasswordService } from './password.service';
 import { AuthSessionService } from './session/auth-session.service';
 import { AUTH_SESSION_STORE } from './session/auth-session.types';
 import { MongoAuthSessionStore } from './session/mongo-auth-session.store';
@@ -37,6 +38,7 @@ import {
     AuthService,
     AuthLifecycleService,
     AuthActionTokenService,
+    PasswordService,
     AuthSessionService,
     AuthSessionGuard,
     MongoAuthActionTokenStore,
