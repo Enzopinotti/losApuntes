@@ -5,6 +5,7 @@ import {
 } from '../../users/user-security-state';
 import { UsersService } from '../../users/users.service';
 import { AuthActionTokenService } from '../action-token/auth-action-token.service';
+import { AuthAuditService } from '../audit/auth-audit.service';
 import {
   AUTH_EMAIL_DELIVERY,
   type AuthEmailDelivery,
@@ -22,6 +23,7 @@ export class AuthLifecycleService {
     private readonly actionTokens: AuthActionTokenService,
     private readonly sessions: AuthSessionService,
     private readonly passwords: PasswordService,
+    private readonly audit: AuthAuditService,
     @Inject(AUTH_EMAIL_DELIVERY)
     private readonly delivery: AuthEmailDelivery,
   ) {}
@@ -99,6 +101,12 @@ export class AuthLifecycleService {
       'email_verification',
       now,
     );
+
+    await this.audit.record({
+      event: 'auth.email.verified',
+      userId: action.userId,
+      occurredAt: now,
+    });
 
     return true;
   }
@@ -190,6 +198,12 @@ export class AuthLifecycleService {
     } catch {
       // credentialVersion is the security boundary; deletion is cleanup.
     }
+
+    await this.audit.record({
+      event: 'auth.password.recovery.completed',
+      userId: action.userId,
+      occurredAt: now,
+    });
 
     try {
       await this.delivery.sendPasswordRecoveryCompleted({
