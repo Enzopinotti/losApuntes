@@ -18,7 +18,11 @@ const forbiddenPathPatterns = [
   /\.(?:sqlite|sqlite3|db)$/,
 ];
 
-const allowedEnvExamples = new Set(['.env.example', 'apps/api/.env.example']);
+const allowedEnvExamples = new Set([
+  '.env.example',
+  'apps/api/.env.example',
+  'apps/web/.env.example',
+]);
 
 const forbiddenPaths = tracked.filter((path) => {
   if (allowedEnvExamples.has(path)) return false;
@@ -64,6 +68,22 @@ const secretPatterns = [
 
 const findings = [];
 
+const forbiddenWebAuthPatterns = [
+  {
+    name: 'legacy fake auth API',
+    regex: /\bfakeAuthApi\b/,
+  },
+  {
+    name: 'legacy fake auth token',
+    regex: /\bfake-jwt-token\b/,
+  },
+  {
+    name: 'browser bearer token persisted in web storage',
+    regex:
+      /(?:localStorage|sessionStorage)\.(?:setItem|getItem)\(\s*['"](?:token|access_token|session_token)['"]/,
+  },
+];
+
 for (const path of tracked) {
   if (path === 'pnpm-lock.yaml') continue;
 
@@ -88,6 +108,14 @@ for (const path of tracked) {
   for (const pattern of secretPatterns) {
     if (pattern.regex.test(content)) {
       findings.push(`${path}: ${pattern.name}`);
+    }
+  }
+
+  if (path.startsWith('apps/web/src/')) {
+    for (const pattern of forbiddenWebAuthPatterns) {
+      if (pattern.regex.test(content)) {
+        findings.push(`${path}: ${pattern.name}`);
+      }
     }
   }
 }
