@@ -114,6 +114,7 @@ export class AuthController {
   }
 
   @Post('email-verification/inspect')
+  @HttpCode(HttpStatus.OK)
   async inspectEmailVerification(@Body() dto: ActionTokenDto) {
     if (!(await this.lifecycle.inspectEmailVerification(dto.token))) {
       throw unavailable('VERIFICATION_NOT_AVAILABLE');
@@ -149,6 +150,7 @@ export class AuthController {
   }
 
   @Post('password/recovery/inspect')
+  @HttpCode(HttpStatus.OK)
   async inspectPasswordRecovery(@Body() dto: ActionTokenDto) {
     if (!(await this.lifecycle.inspectPasswordRecovery(dto.token))) {
       throw unavailable('RECOVERY_NOT_AVAILABLE');
