@@ -13,8 +13,9 @@ const forbiddenPathPatterns = [
   /\.wt$/,
   /(^|\/)mongod\.lock$/,
   /(^|\/)journal\//,
-  /\.pem$/,
-  /\.key$/,
+  /(^|\/)package-lock\.json$/,
+  /\.(?:pem|key|p12|pfx|jks)$/,
+  /\.(?:sqlite|sqlite3|db)$/,
 ];
 
 const allowedEnvExamples = new Set(['.env.example', 'apps/api/.env.example']);
@@ -31,15 +32,40 @@ if (forbiddenPaths.length > 0) {
 }
 
 const secretPatterns = [
-  { name: 'private key', regex: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
-  { name: 'Google OAuth client secret', regex: /GOCSPX-[A-Za-z0-9_-]{10,}/ },
-  { name: 'GitHub personal access token', regex: /gh[pousr]_[A-Za-z0-9_]{20,}/ },
+  {
+    name: 'private key',
+    regex: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  },
+  {
+    name: 'Google OAuth client secret',
+    regex: /GOCSPX-[A-Za-z0-9_-]{10,}/,
+  },
+  {
+    name: 'Google API key',
+    regex: /AIza[0-9A-Za-z_-]{30,}/,
+  },
+  {
+    name: 'GitHub token',
+    regex: /gh[pousr]_[A-Za-z0-9_]{20,}/,
+  },
+  {
+    name: 'npm access token',
+    regex: /npm_[A-Za-z0-9]{20,}/,
+  },
+  {
+    name: 'AWS access key',
+    regex: /AKIA[0-9A-Z]{16}/,
+  },
+  {
+    name: 'Slack token',
+    regex: /xox[baprs]-[A-Za-z0-9-]{10,}/,
+  },
 ];
 
 const findings = [];
 
 for (const path of tracked) {
-  if (path.endsWith('package-lock.json')) continue;
+  if (path === 'pnpm-lock.yaml') continue;
 
   let size;
   try {
@@ -48,19 +74,21 @@ for (const path of tracked) {
     continue;
   }
 
-  if (size > 1_000_000) continue;
+  if (size > 2_000_000) continue;
 
-  let text;
+  let content;
   try {
-    text = readFileSync(path, 'utf8');
+    content = readFileSync(path, 'utf8');
   } catch {
     continue;
   }
 
-  if (text.includes('\0')) continue;
+  if (content.includes('\0')) continue;
 
   for (const pattern of secretPatterns) {
-    if (pattern.regex.test(text)) findings.push(`${path}: ${pattern.name}`);
+    if (pattern.regex.test(content)) {
+      findings.push(`${path}: ${pattern.name}`);
+    }
   }
 }
 

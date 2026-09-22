@@ -19,7 +19,7 @@ export const fakeAuthApi = {
     name: string,
     email: string,
     password: string,
-    confirmPassword: string
+    confirmPassword: string,
   ) => {
     return new Promise<{
       token: string;

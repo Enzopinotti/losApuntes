@@ -4,13 +4,7 @@ Reboot 2026 de Los Apuntes: una red universitaria mobile-first que conecta ident
 
 ## Estado
 
-Este repositorio está en una fase de rescate controlado. Las ramas históricas `frontend` y `backend` son fuentes de código, no ramas mergeables.
-
-Proveniencia congelada para el rescate inicial:
-
-- frontend: `4d481ad922bfed8ce4dbc6418a5111cfd6daefe0`
-- backend: `51b67bb71c4ec03d9b94963fc139695140c5563d`
-- main base: `5c0e677c7c8b6f8d5b774aae8b094ae128748292`
+El repositorio activo vive en `main`. Las ramas históricas `frontend` y `backend` son únicamente fuentes de proveniencia y no deben mergearse.
 
 ## Reglas de ingeniería
 
@@ -20,17 +14,24 @@ Proveniencia congelada para el rescate inicial:
 - Web y mobile deberán compartir contratos; no se inventan APIs en clientes.
 - La persistencia 2026 sigue abierta hasta reconciliar DER/diagramas reales.
 - No se introducen microservicios ni infraestructura especulativa.
-- Un PR no está listo por compilar: debe pasar higiene, lint, tests y builds desde un checkout limpio.
+- Un PR no está listo por compilar: debe pasar el quality contract completo sobre su HEAD exacto.
+- Dependencias de producción con vulnerabilidades high/critical bloquean el merge.
 
 Ver `docs/architecture/engineering-guardrails.md`.
 
-## Verificación local del baseline
+## Runtime y workspace
 
-Requiere Node 24.
+- Node 24
+- pnpm 9.15.9
+- workspace único para aplicaciones y futuros paquetes compartidos
+- un solo `pnpm-lock.yaml` en la raíz
+
+## Verificación local
 
 ```bash
-npm run install:all
-npm run check
+pnpm install --frozen-lockfile
+pnpm check
+pnpm audit:prod
 ```
 
-El rescate mantiene temporalmente los lockfiles npm de cada aplicación para verificar primero los artefactos históricos de forma reproducible. La convergencia a un package manager/workspace único se hará en un cambio separado después del primer baseline verde.
+`pnpm check` ejecuta higiene, formato, lint, typecheck, tests y builds.

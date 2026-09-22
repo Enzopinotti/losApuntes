@@ -6,8 +6,11 @@ These rules exist before feature development so the easiest path is also the saf
 
 - GitHub remote is authoritative.
 - Runtime/generated state is never source.
-- Install from lockfiles in CI.
+- Node and pnpm versions are pinned.
+- The repository has one workspace and one root lockfile.
+- CI installs with `pnpm install --frozen-lockfile`.
 - A candidate is verified at its exact SHA; an older green run does not certify a newer commit.
+- Third-party GitHub Actions used by verification are pinned to immutable commit SHAs.
 - Main changes arrive through reviewable PRs.
 
 ## Security authority
@@ -16,6 +19,8 @@ These rules exist before feature development so the easiest path is also the saf
 - Client persistence is a convenience, never permission.
 - File IDs, object keys and signed URLs never imply product authorization.
 - Secrets stay outside Git; examples contain placeholders only.
+- High/critical production dependency advisories block verification.
+- Removing a leaked credential from Git does not revoke it; discovered historical credentials must be rotated.
 
 ## Contracts
 
@@ -26,21 +31,26 @@ Shared contract packages will be introduced only when there is a real contract t
 ## Architecture
 
 - NestJS modular monolith for the API.
+- Fastify is the accepted NestJS HTTP adapter (ADR 0001).
 - No microservices without a measured operational need.
 - A worker is introduced only for real asynchronous work.
 - Database choice is intentionally unresolved until DER/classes review.
-- Domain names are not finalized from NotebookLM/AI suggestions alone.
+- Domain names are not finalized from AI suggestions alone.
 
-## Quality gates
+## Quality contract
 
-Every product block should add the smallest meaningful combination of:
+The canonical repository command is `pnpm check`.
 
-- lint/type safety;
-- unit tests for domain behavior;
-- integration/contract tests for boundaries;
-- negative authorization tests for sensitive paths;
-- build verification;
-- manual UX verification for visual/mobile behavior.
+It must cover:
+
+- repository hygiene;
+- deterministic formatting checks;
+- lint with zero warnings;
+- explicit TypeScript checking;
+- meaningful unit tests for domain/service behavior;
+- production builds.
+
+Production dependency audit is an additional blocking CI gate because it relies on current registry advisories.
 
 Compilation alone is not completion.
 

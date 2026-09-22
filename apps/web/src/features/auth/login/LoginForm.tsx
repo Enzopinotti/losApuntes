@@ -17,7 +17,10 @@ const LoginForm = () => {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      const { user, token } = await fakeAuthApi.login(data.email, data.password);
+      const { user, token } = await fakeAuthApi.login(
+        data.email,
+        data.password,
+      );
       login(token, user);
       navigate("/dashboard");
     } catch (error) {
