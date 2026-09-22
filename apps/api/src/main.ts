@@ -1,3 +1,4 @@
+import fastifyCookie from '@fastify/cookie';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { type NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -33,6 +34,8 @@ async function bootstrap(): Promise<void> {
     AppModule,
     createHttpAdapter(),
   );
+
+  await app.register(fastifyCookie);
 
   const config = app.get(ConfigService);
   configureHttpRuntime(app, config);

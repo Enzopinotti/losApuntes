@@ -1,11 +1,12 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 
 @Controller('users')
 export class UsersController {
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthSessionGuard)
   @Get('profile')
   getProfile() {
-    return { message: 'Ruta protegida con JWT' };
+    return { message: 'Ruta protegida por sesión revocable' };
   }
 }
