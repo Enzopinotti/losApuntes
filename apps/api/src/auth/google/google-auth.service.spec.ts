@@ -357,11 +357,7 @@ describe('GoogleAuthService', () => {
     mocks.createWebAuthorizationUrl.mockReturnValue('https://google.test/auth');
 
     await expect(
-      service.startWebLink(
-        USER_ID,
-        'current-password',
-        '/settings/security',
-      ),
+      service.startWebLink(USER_ID, 'current-password', '/settings/security'),
     ).resolves.toEqual({
       kind: 'started',
       authorizationUrl: 'https://google.test/auth',
@@ -558,9 +554,9 @@ describe('GoogleAuthService', () => {
     mocks.verifyPassword.mockResolvedValue(true);
     mocks.unlinkForUser.mockResolvedValue(true);
 
-    await expect(
-      service.unlink(USER_ID, 'current-password'),
-    ).resolves.toEqual({ kind: 'unlinked' });
+    await expect(service.unlink(USER_ID, 'current-password')).resolves.toEqual({
+      kind: 'unlinked',
+    });
     expect(mocks.auditRecord).toHaveBeenCalledWith({
       event: 'auth.oauth.unlinked',
       userId: USER_ID,
@@ -683,5 +679,4 @@ describe('GoogleAuthService', () => {
     });
     expect(mocks.findForUser).not.toHaveBeenCalled();
   });
-
 });
