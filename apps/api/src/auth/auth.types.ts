@@ -1,5 +1,3 @@
-import type { Request } from 'express';
-
 export type JwtPayload = {
   sub: string;
   role: string;
@@ -10,6 +8,6 @@ export type AuthenticatedUser = {
   role: string;
 };
 
-export type AuthenticatedRequest = Request & {
+export type AuthenticatedRequest = {
   user: AuthenticatedUser;
 };
