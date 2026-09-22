@@ -1,33 +1,45 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
-import { credentialVersion } from '../users/user-security-state';
+import {
+  credentialVersion,
+  isEmailVerified,
+} from '../users/user-security-state';
 import { UsersService } from '../users/users.service';
 import type { AuthenticatedUser } from './auth.types';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
 import { AuthSessionService } from './session/auth-session.service';
 import type {
   AuthClientType,
   PublicAuthSession,
 } from './session/auth-session.types';
 
-export type AuthLoginResult = {
+export type AuthenticatedLoginOutcome = {
+  kind: 'authenticated';
   user: AuthenticatedUser;
   sessionToken: string;
   session: PublicAuthSession;
 };
+
+export type AuthLoginOutcome =
+  | AuthenticatedLoginOutcome
+  | { kind: 'invalid_credentials' }
+  | { kind: 'email_verification_required' };
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly sessions: AuthSessionService,
+    private readonly lifecycle: AuthLifecycleService,
   ) {}
 
   async register(dto: RegisterDto): Promise<void> {
     const hash = await bcrypt.hash(dto.password, 12);
     await this.usersService.createPasswordAccountIfAbsent(dto.email, hash);
+    await this.lifecycle.requestEmailVerification(dto.email);
   }
 
   async validateUser(email: string, pass: string) {
@@ -41,9 +53,13 @@ export class AuthService {
   async login(
     dto: LoginDto,
     clientType: AuthClientType,
-  ): Promise<AuthLoginResult | null> {
+  ): Promise<AuthLoginOutcome> {
     const user = await this.validateUser(dto.email, dto.password);
-    if (!user) return null;
+    if (!user) return { kind: 'invalid_credentials' };
+
+    if (!isEmailVerified(user)) {
+      return { kind: 'email_verification_required' };
+    }
 
     const issued = await this.sessions.issue(
       user._id.toString(),
@@ -52,6 +68,7 @@ export class AuthService {
     );
 
     return {
+      kind: 'authenticated',
       user: {
         id: user._id.toString(),
         email: user.email,

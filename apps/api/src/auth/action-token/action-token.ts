@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
 const ACTION_TOKEN_BYTES = 32;
-const ACTION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
+export const ACTION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
 export function createActionToken(): string {
   return randomBytes(ACTION_TOKEN_BYTES).toString('base64url');
