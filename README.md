@@ -29,6 +29,17 @@ Antes de fijar la base de datos, el producto usa un contrato conceptual independ
 
 El modelo Mongo rescatado es implementación legacy. No define las cardinalidades ni entidades futuras.
 
+## Identity/Auth v1
+
+La primera frontera de producto usa un contrato compartido para Web y Mobile:
+
+- [User journeys & account experience](docs/product/auth-user-journeys-v1.md)
+- [Security & session contract](docs/security/identity-auth-v1.md)
+- [HTTP contract](docs/contracts/auth-http-v1.md)
+- [ADR 0003 — opaque revocable sessions](docs/adr/0003-opaque-auth-sessions.md)
+
+Account, Profile y Academic Graph son conceptos distintos. El JWT/role del código legacy no es autoridad futura.
+
 ## Runtime y workspace
 
 - Node 24
