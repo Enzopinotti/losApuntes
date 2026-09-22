@@ -55,6 +55,10 @@ export class AccountSecurityService {
       return { kind: 'conflict' };
     }
 
+    if (!user.password_hash) {
+      return { kind: 'invalid_current_password' };
+    }
+
     const currentMatches = await this.passwords.verify(
       currentPassword,
       user.password_hash,
