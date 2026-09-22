@@ -31,6 +31,16 @@ const CLIENT_ERROR_CODES: Record<number, string> = {
   429: 'TOO_MANY_REQUESTS',
 };
 
+function responseObject(
+  exception: HttpException,
+): Record<string, unknown> | null {
+  const response = exception.getResponse();
+
+  return typeof response === 'object' && response !== null
+    ? (response as Record<string, unknown>)
+    : null;
+}
+
 function clientMessage(exception: HttpException): ClientMessage {
   const response = exception.getResponse();
 
@@ -38,23 +48,28 @@ function clientMessage(exception: HttpException): ClientMessage {
     return response;
   }
 
-  if (
-    typeof response === 'object' &&
-    response !== null &&
-    'message' in response
-  ) {
-    const message = response.message;
+  const object = responseObject(exception);
+  const message = object?.message;
 
-    if (
-      typeof message === 'string' ||
-      (Array.isArray(message) &&
-        message.every((value) => typeof value === 'string'))
-    ) {
-      return message;
-    }
+  if (
+    typeof message === 'string' ||
+    (Array.isArray(message) &&
+      message.every((value) => typeof value === 'string'))
+  ) {
+    return message;
   }
 
   return exception.message;
+}
+
+function clientCode(exception: HttpException, statusCode: number): string {
+  const code = responseObject(exception)?.code;
+
+  if (typeof code === 'string' && /^[A-Z][A-Z0-9_]*$/u.test(code)) {
+    return code;
+  }
+
+  return CLIENT_ERROR_CODES[statusCode] ?? 'HTTP_ERROR';
 }
 
 @Catch()
@@ -74,7 +89,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     const code = isServerError
       ? 'INTERNAL_SERVER_ERROR'
-      : (CLIENT_ERROR_CODES[statusCode] ?? 'HTTP_ERROR');
+      : exception instanceof HttpException
+        ? clientCode(exception, statusCode)
+        : 'HTTP_ERROR';
     const message: ClientMessage = isServerError
       ? 'Internal server error'
       : exception instanceof HttpException

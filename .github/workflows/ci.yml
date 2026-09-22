@@ -81,8 +81,6 @@ jobs:
     needs: quality
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      LOSAPUNTES_DEV_JWT_SECRET: ci-runtime-placeholder-not-a-secret
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -103,6 +101,18 @@ jobs:
 
       - name: Validate Compose definition
         run: docker compose -f compose.local.yml config --quiet
+
+      - name: Pull Mongo runtime dependency
+        run: |
+          for attempt in 1 2 3; do
+            if docker pull mongo:8.0; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
       - name: Build and start runtime
         run: docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120

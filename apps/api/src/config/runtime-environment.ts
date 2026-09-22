@@ -107,7 +107,6 @@ export function validateRuntimeEnvironment(
     NODE_ENV: nodeEnv,
     PORT: parsePort(source.PORT),
     MONGO_URI: requiredString(source, 'MONGO_URI'),
-    JWT_SECRET: requiredString(source, 'JWT_SECRET'),
     WEB_ORIGIN: parseWebOrigin(source.WEB_ORIGIN),
     SWAGGER_ENABLED: parseBoolean(
       source.SWAGGER_ENABLED,

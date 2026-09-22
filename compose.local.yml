@@ -27,7 +27,6 @@ services:
       NODE_ENV: production
       PORT: 4000
       MONGO_URI: mongodb://mongo:27017/losapuntes_local
-      JWT_SECRET: ${LOSAPUNTES_DEV_JWT_SECRET:-development-only-placeholder-not-a-secret}
       WEB_ORIGIN: http://localhost:5173
       SWAGGER_ENABLED: "false"
     ports:
