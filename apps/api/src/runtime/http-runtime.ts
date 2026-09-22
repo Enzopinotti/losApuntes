@@ -42,7 +42,8 @@ function validationMessages(errors: ValidationError[]): string[] {
 
 function validationException(errors: ValidationError[]): BadRequestException {
   const passwordInvalid = errors.some(
-    (error) => error.property === 'password' || error.property === 'newPassword',
+    (error) =>
+      error.property === 'password' || error.property === 'newPassword',
   );
 
   return new BadRequestException({
@@ -118,10 +119,6 @@ export function configureHttpRuntime(
       'camera=(), geolocation=(), microphone=()',
     );
     reply.header('x-permitted-cross-domain-policies', 'none');
-
-    if (config.get<string>('NODE_ENV') === 'production') {
-      reply.header('strict-transport-security', 'max-age=31536000');
-    }
 
     done(null, payload);
   });
