@@ -103,6 +103,22 @@ export class AuthActionTokenService {
     );
   }
 
+  async invalidateToken(
+    token: string,
+    purpose: AuthActionPurpose,
+    now = new Date(),
+  ): Promise<void> {
+    const record = await this.inspect(token, purpose, now);
+    if (!record) return;
+
+    await this.store.invalidateByIds(
+      record.userId,
+      purpose,
+      [record.id],
+      now,
+    );
+  }
+
   async invalidateAll(
     userId: string,
     purpose: AuthActionPurpose,
