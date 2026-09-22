@@ -187,9 +187,7 @@ describe('AuthSessionService', () => {
     ]);
 
     const service = new AuthSessionService(store);
-    await expect(
-      service.listForUser('user-1', SESSION_B, 1),
-    ).resolves.toEqual([
+    await expect(service.listForUser('user-1', SESSION_B, 1)).resolves.toEqual([
       expect.objectContaining({ id: SESSION_A, current: false }),
       expect.objectContaining({
         id: SESSION_B,
@@ -233,9 +231,7 @@ describe('AuthSessionService', () => {
 
     const service = new AuthSessionService(store);
 
-    await expect(
-      service.listForUser('user-1', SESSION_B, 2),
-    ).resolves.toEqual([
+    await expect(service.listForUser('user-1', SESSION_B, 2)).resolves.toEqual([
       expect.objectContaining({
         id: SESSION_B,
         current: true,
