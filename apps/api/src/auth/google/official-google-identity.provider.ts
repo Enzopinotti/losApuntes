@@ -15,7 +15,9 @@ type TokenPayloadWithNonce = TokenPayload & {
   nonce?: string;
 };
 
-function proofFromPayload(payload: TokenPayload | undefined): GoogleIdentityProof {
+function proofFromPayload(
+  payload: TokenPayload | undefined,
+): GoogleIdentityProof {
   if (!payload?.sub || !payload.email) {
     throw new Error('Google identity payload is incomplete');
   }
@@ -50,12 +52,7 @@ export class OfficialGoogleIdentityProvider implements GoogleIdentityProvider {
     const clientSecret = config.get<string>('GOOGLE_WEB_CLIENT_SECRET');
     const redirectUri = config.get<string>('GOOGLE_WEB_REDIRECT_URI');
 
-    if (
-      this.enabled &&
-      this.webClientId &&
-      clientSecret &&
-      redirectUri
-    ) {
+    if (this.enabled && this.webClientId && clientSecret && redirectUri) {
       this.webClient = new OAuth2Client({
         clientId: this.webClientId,
         clientSecret,
