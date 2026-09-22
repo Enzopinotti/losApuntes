@@ -6,18 +6,6 @@ import {
 import { AuthSessionService } from './auth-session.service';
 import { hashSessionToken } from './session-token';
 
-function createStore(): jest.Mocked<AuthSessionStore> {
-  return {
-    create: jest.fn(),
-    findActiveByTokenHash: jest.fn(),
-    listActiveForUser: jest.fn(),
-    touchLastSeen: jest.fn(),
-    revokeByTokenHash: jest.fn(),
-    revokeOwnedById: jest.fn(),
-    revokeAllForUser: jest.fn(),
-  };
-}
-
 function record(
   overrides: Partial<AuthSessionRecord> = {},
 ): AuthSessionRecord {
@@ -31,6 +19,21 @@ function record(
     expiresAt: new Date('2026-10-22T12:00:00.000Z'),
     ...overrides,
   };
+}
+
+function createStore(): jest.Mocked<AuthSessionStore> {
+  const store: jest.Mocked<AuthSessionStore> = {
+    create: jest.fn(),
+    findActiveByTokenHash: jest.fn(),
+    listActiveForUser: jest.fn(),
+    touchLastSeen: jest.fn(),
+    revokeByTokenHash: jest.fn(),
+    revokeOwnedById: jest.fn(),
+    revokeAllForUser: jest.fn(),
+  };
+
+  store.create.mockImplementation((input) => Promise.resolve(record(input)));
+  return store;
 }
 
 describe('AuthSessionService', () => {
@@ -51,9 +54,7 @@ describe('AuthSessionService', () => {
     );
 
     expect(result.sessionToken).toHaveLength(43);
-    expect(persisted?.tokenHash).toBe(
-      hashSessionToken(result.sessionToken),
-    );
+    expect(persisted?.tokenHash).toBe(hashSessionToken(result.sessionToken));
     expect(JSON.stringify(persisted)).not.toContain(result.sessionToken);
     expect(result.session.clientType).toBe('web');
     expect(result.session.current).toBe(true);
@@ -146,9 +147,7 @@ describe('AuthSessionService', () => {
     ]);
 
     const service = new AuthSessionService(store);
-    await expect(
-      service.listForUser('user-1', 'session-b'),
-    ).resolves.toEqual([
+    await expect(service.listForUser('user-1', 'session-b')).resolves.toEqual([
       expect.objectContaining({ id: 'session-a', current: false }),
       expect.objectContaining({
         id: 'session-b',
