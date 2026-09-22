@@ -67,9 +67,7 @@ function createStore() {
 }
 
 describe('AuthSessionService', () => {
-  it(
-    'persists only the session-token hash and a storage-independent public id',
-    async () => {
+  it('persists only the session-token hash and a storage-independent public id', async () => {
     const { store, mocks } = createStore();
     let persisted: CreateAuthSessionRecord | undefined;
 
@@ -93,9 +91,8 @@ describe('AuthSessionService', () => {
     );
     expect(result.session.id).toBe(persisted?.id);
     expect(result.session.clientType).toBe('web');
-      expect(result.session.current).toBe(true);
-    },
-  );
+    expect(result.session.current).toBe(true);
+  });
 
   it('resolves only an active session for the expected transport', async () => {
     const { store, mocks } = createStore();
