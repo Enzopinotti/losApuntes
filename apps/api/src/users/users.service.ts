@@ -36,6 +36,8 @@ export class UsersService {
             $setOnInsert: {
               email,
               password_hash: passwordHash,
+              email_verified_at: null,
+              credential_version: 1,
               role: 'user',
             },
           },
