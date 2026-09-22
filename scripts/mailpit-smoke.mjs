@@ -39,7 +39,7 @@ export async function waitForMailpit() {
   throw new Error('Mailpit API did not become ready in time');
 }
 
-export async function waitForMail(to, subject) {
+export async function waitForMail(to, subject, bodyIncludes) {
   const deadline = Date.now() + WAIT_TIMEOUT_MS;
   const query = encodeURIComponent(`to:${to}`);
 
@@ -49,12 +49,27 @@ export async function waitForMail(to, subject) {
         `/api/v1/search?query=${query}&limit=50`,
       );
       const messages = Array.isArray(search.messages) ? search.messages : [];
-      const match = messages.find((message) => message.Subject === subject);
+      const matches = messages.filter((message) => message.Subject === subject);
 
-      if (match?.ID) {
-        return mailpitJson(
+      for (const match of matches) {
+        if (!match?.ID) continue;
+
+        const message = await mailpitJson(
           `/api/v1/message/${encodeURIComponent(match.ID)}`,
         );
+
+        if (!bodyIncludes) {
+          return message;
+        }
+
+        const body = [
+          typeof message.Text === 'string' ? message.Text : '',
+          typeof message.HTML === 'string' ? message.HTML : '',
+        ].join('\n');
+
+        if (body.includes(bodyIncludes)) {
+          return message;
+        }
       }
     } catch {
       // Delivery/indexing is asynchronous. Retry without leaking message data.
@@ -63,7 +78,11 @@ export async function waitForMail(to, subject) {
     await delay(POLL_INTERVAL_MS);
   }
 
-  throw new Error(`Expected email was not captured: ${subject}`);
+  throw new Error(
+    bodyIncludes
+      ? `Expected email was not captured: ${subject} / ${bodyIncludes}`
+      : `Expected email was not captured: ${subject}`,
+  );
 }
 
 function escapeRegExp(value) {
