@@ -53,6 +53,13 @@ export type GoogleLinkOutcome =
   | { kind: 'unavailable' }
   | { kind: 'failed' };
 
+type GoogleVerifiedLinkOutcome =
+  | { kind: 'linked' }
+  | { kind: 'already_linked' }
+  | { kind: 'identity_already_linked' }
+  | { kind: 'account_restricted' }
+  | { kind: 'failed' };
+
 export type GoogleUnlinkOutcome =
   | { kind: 'unlinked' }
   | { kind: 'not_linked' }
@@ -365,7 +372,7 @@ export class GoogleAuthService {
   private async linkVerifiedProof(
     userId: string,
     proof: GoogleIdentityProof,
-  ): Promise<GoogleLinkOutcome> {
+  ): Promise<GoogleVerifiedLinkOutcome> {
     if (!validGoogleProof(proof) || !isGoogleAuthoritativeMailbox(proof)) {
       return { kind: 'failed' };
     }
