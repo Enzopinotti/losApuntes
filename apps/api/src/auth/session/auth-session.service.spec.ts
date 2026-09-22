@@ -144,6 +144,62 @@ describe('AuthSessionService', () => {
     expect(mocks.findActiveByTokenHash).not.toHaveBeenCalled();
   });
 
+  it('revokes a Web session at the server-side idle boundary', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthSessionService(store);
+    const token = 'w'.repeat(43);
+
+    mocks.findActiveByTokenHash.mockResolvedValue(
+      record({
+        tokenHash: hashSessionToken(token),
+        clientType: 'web',
+        lastSeenAt: new Date('2026-09-22T12:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.resolve(
+        token,
+        'web',
+        new Date('2026-09-23T12:00:00.000Z'),
+      ),
+    ).resolves.toBeNull();
+
+    expect(mocks.revokeByTokenHash).toHaveBeenCalledWith(
+      hashSessionToken(token),
+    );
+    expect(mocks.touchLastSeen).not.toHaveBeenCalled();
+  });
+
+  it('keeps an active Mobile session inside its longer idle window', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthSessionService(store);
+    const token = 'm'.repeat(43);
+
+    mocks.findActiveByTokenHash.mockResolvedValue(
+      record({
+        tokenHash: hashSessionToken(token),
+        clientType: 'mobile',
+        lastSeenAt: new Date('2026-09-10T12:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.resolve(
+        token,
+        'mobile',
+        new Date('2026-09-22T12:00:00.000Z'),
+      ),
+    ).resolves.toMatchObject({
+      userId: 'user-1',
+      session: {
+        clientType: 'mobile',
+      },
+    });
+
+    expect(mocks.revokeByTokenHash).not.toHaveBeenCalled();
+  });
+
   it('updates coarse last-seen time only after the touch interval', async () => {
     const { store, mocks } = createStore();
     const service = new AuthSessionService(store);
@@ -187,7 +243,14 @@ describe('AuthSessionService', () => {
     ]);
 
     const service = new AuthSessionService(store);
-    await expect(service.listForUser('user-1', SESSION_B, 1)).resolves.toEqual([
+    await expect(
+      service.listForUser(
+        'user-1',
+        SESSION_B,
+        1,
+        new Date('2026-09-22T13:00:00.000Z'),
+      ),
+    ).resolves.toEqual([
       expect.objectContaining({ id: SESSION_A, current: false }),
       expect.objectContaining({
         id: SESSION_B,
@@ -231,9 +294,49 @@ describe('AuthSessionService', () => {
 
     const service = new AuthSessionService(store);
 
-    await expect(service.listForUser('user-1', SESSION_B, 2)).resolves.toEqual([
+    await expect(
+      service.listForUser(
+        'user-1',
+        SESSION_B,
+        2,
+        new Date('2026-09-22T13:00:00.000Z'),
+      ),
+    ).resolves.toEqual([
       expect.objectContaining({
         id: SESSION_B,
+        current: true,
+      }),
+    ]);
+  });
+
+  it('hides an idle session from inventory even before absolute TTL cleanup', async () => {
+    const { store, mocks } = createStore();
+    mocks.listActiveForUser.mockResolvedValue([
+      record({
+        id: SESSION_A,
+        clientType: 'web',
+        lastSeenAt: new Date('2026-09-20T12:00:00.000Z'),
+      }),
+      record({
+        id: SESSION_B,
+        clientType: 'mobile',
+        lastSeenAt: new Date('2026-09-20T12:00:00.000Z'),
+      }),
+    ]);
+
+    const service = new AuthSessionService(store);
+
+    await expect(
+      service.listForUser(
+        'user-1',
+        SESSION_B,
+        1,
+        new Date('2026-09-22T12:00:00.000Z'),
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: SESSION_B,
+        clientType: 'mobile',
         current: true,
       }),
     ]);
