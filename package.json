@@ -17,6 +17,10 @@
     "test": "pnpm --filter @losapuntes/api test:ci",
     "build": "pnpm -r --if-present build",
     "audit:prod": "pnpm audit --prod --audit-level high",
+    "runtime:up": "docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120",
+    "runtime:smoke": "node scripts/smoke-api-runtime.mjs",
+    "runtime:logs": "docker compose -f compose.local.yml logs --no-color",
+    "runtime:down": "docker compose -f compose.local.yml down --volumes --remove-orphans",
     "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   }
 }

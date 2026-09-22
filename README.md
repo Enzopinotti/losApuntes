@@ -25,6 +25,7 @@ Ver `docs/architecture/engineering-guardrails.md`.
 - pnpm 9.15.9
 - workspace único para aplicaciones y futuros paquetes compartidos
 - un solo `pnpm-lock.yaml` en la raíz
+- NestJS/Fastify para el API
 
 ## Verificación local
 
@@ -35,3 +36,30 @@ pnpm audit:prod
 ```
 
 `pnpm check` ejecuta higiene, formato, lint, typecheck, tests y builds.
+
+## Laboratorio local API + Mongo
+
+El laboratorio reproduce el runtime actual sin persistir una base local en el repositorio. Mongo vive en `tmpfs` y representa únicamente la implementación rescatada actual; **no decide** la persistencia 2026.
+
+Requiere Docker Desktop/Engine con Docker Compose v2.
+
+```bash
+pnpm runtime:up
+pnpm runtime:smoke
+```
+
+El stack publica el API en `http://localhost:4000`. El smoke verifica liveness, readiness real contra Mongo, request IDs generados por el servidor y el envelope de errores HTTP.
+
+Para ver logs:
+
+```bash
+pnpm runtime:logs
+```
+
+Para eliminar completamente el runtime efímero:
+
+```bash
+pnpm runtime:down
+```
+
+No se necesita una contraseña real para este lab. `LOSAPUNTES_DEV_JWT_SECRET`, cuando se define, debe ser únicamente un valor local descartable; producción usa gestión externa de secretos.
