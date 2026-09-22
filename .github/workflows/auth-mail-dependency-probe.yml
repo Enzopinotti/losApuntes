@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: auth-mail-dependency-probe-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   resolve-mail-dependency:
     if: github.head_ref == 'feat/auth-verification-recovery-v1'
@@ -32,13 +36,16 @@ jobs:
           pnpm --filter @losapuntes/api add nodemailer@latest
           pnpm --filter @losapuntes/api add -D @types/nodemailer@latest
 
-      - name: Emit resolved package files
+      - name: Stage resolved dependency files
         run: |
-          echo API_PACKAGE_B64_BEGIN
-          base64 -w0 apps/api/package.json
-          echo
-          echo API_PACKAGE_B64_END
-          echo LOCKFILE_B64_BEGIN
-          base64 -w0 pnpm-lock.yaml
-          echo
-          echo LOCKFILE_B64_END
+          mkdir -p "${{ runner.temp }}/auth-mail-dependency"
+          cp apps/api/package.json "${{ runner.temp }}/auth-mail-dependency/package.json"
+          cp pnpm-lock.yaml "${{ runner.temp }}/auth-mail-dependency/pnpm-lock.yaml"
+
+      - name: Upload resolved dependency files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: auth-mail-dependency-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/auth-mail-dependency
+          if-no-files-found: error
+          retention-days: 1
