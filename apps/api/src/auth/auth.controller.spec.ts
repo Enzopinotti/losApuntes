@@ -73,8 +73,7 @@ describe('AuthController', () => {
       sessionToken: 'a'.repeat(43),
       session: SESSION,
     });
-    const setCookie =
-      jest.fn<void, [string, string, SessionCookieOptions]>();
+    const setCookie = jest.fn<void, [string, string, SessionCookieOptions]>();
     const reply = {
       setCookie,
     } as unknown as FastifyReply;
