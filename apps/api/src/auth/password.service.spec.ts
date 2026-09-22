@@ -54,6 +54,12 @@ describe('PasswordService', () => {
     await expect(service.verify(bcryptPrefix, legacyHash)).resolves.toBe(true);
   });
 
+  it('consumes the current verifier cost for unknown-account login paths', async () => {
+    await expect(
+      service.consumeVerificationCost('attacker-supplied-password'),
+    ).resolves.toBeUndefined();
+  });
+
   it('rejects unknown or malformed stored hash formats', async () => {
     await expect(
       service.verify('valid-looking-password', 'sha256:not-a-password-hash'),
