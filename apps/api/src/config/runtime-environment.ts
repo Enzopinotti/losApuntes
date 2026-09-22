@@ -127,7 +127,14 @@ function parseStringList(value: unknown, key: string): string[] {
     return [];
   }
 
-  return [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      raw
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function authEmailDeliveryMode(
