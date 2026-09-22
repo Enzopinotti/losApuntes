@@ -101,6 +101,20 @@ export class AuthActionTokenService {
     );
   }
 
+  async claim(
+    token: string,
+    purpose: AuthActionPurpose,
+    now = new Date(),
+  ): Promise<AuthActionTokenRecord | null> {
+    if (!isActionToken(token)) return null;
+
+    return this.store.claimAvailableByTokenHash(
+      hashActionToken(token),
+      purpose,
+      now,
+    );
+  }
+
   async invalidateToken(
     token: string,
     purpose: AuthActionPurpose,
