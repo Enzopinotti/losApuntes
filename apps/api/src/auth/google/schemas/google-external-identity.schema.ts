@@ -25,8 +25,9 @@ export class GoogleExternalIdentity {
   linkedAt!: Date;
 }
 
-export const GoogleExternalIdentitySchema =
-  SchemaFactory.createForClass(GoogleExternalIdentity);
+export const GoogleExternalIdentitySchema = SchemaFactory.createForClass(
+  GoogleExternalIdentity,
+);
 
 GoogleExternalIdentitySchema.index(
   { provider: 1, providerSubject: 1 },
