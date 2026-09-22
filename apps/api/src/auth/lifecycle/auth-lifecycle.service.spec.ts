@@ -2,13 +2,9 @@ import * as bcrypt from 'bcrypt';
 
 import type { UserDocument } from '../../users/schemas/user.schema';
 import type { UsersService } from '../../users/users.service';
-import type {
-  IssuedAuthActionToken,
-} from '../action-token/auth-action-token.service';
+import type { IssuedAuthActionToken } from '../action-token/auth-action-token.service';
 import type { AuthActionTokenService } from '../action-token/auth-action-token.service';
-import type {
-  AuthActionTokenRecord,
-} from '../action-token/auth-action-token.types';
+import type { AuthActionTokenRecord } from '../action-token/auth-action-token.types';
 import type { AuthEmailDelivery } from '../delivery/auth-email-delivery.types';
 import type { AuthSessionService } from '../session/auth-session.service';
 import { AuthEmailDeliveryUnavailableError } from './auth-lifecycle.errors';
@@ -53,10 +49,7 @@ function actionRecord(
   };
 }
 
-function issued(
-  token: string,
-  ttlMs: number,
-): IssuedAuthActionToken {
+function issued(token: string, ttlMs: number): IssuedAuthActionToken {
   return {
     token,
     expiresAt: new Date(NOW.getTime() + ttlMs),
