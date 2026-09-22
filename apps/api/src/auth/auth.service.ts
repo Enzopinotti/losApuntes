@@ -53,13 +53,7 @@ export class AuthService {
       pass,
       user.password_hash,
     );
-
-    if (!passwordMatches) {
-      return null;
-    }
-
-    await this.upgradeLegacyPasswordHash(user, pass);
-    return user;
+    return passwordMatches ? user : null;
   }
 
   async login(
@@ -76,6 +70,8 @@ export class AuthService {
     if (!isEmailVerified(user)) {
       return { kind: 'email_verification_required' };
     }
+
+    await this.upgradeLegacyPasswordHash(user, dto.password);
 
     const issued = await this.sessions.issue(
       user._id.toString(),
