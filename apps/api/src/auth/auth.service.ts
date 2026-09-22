@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { UserDocument } from '../users/schemas/user.schema';
 import {
   credentialVersion,
   isAccountActive,
@@ -52,7 +53,13 @@ export class AuthService {
       pass,
       user.password_hash,
     );
-    return passwordMatches ? user : null;
+
+    if (!passwordMatches) {
+      return null;
+    }
+
+    await this.upgradeLegacyPasswordHash(user, pass);
+    return user;
   }
 
   async login(
@@ -85,5 +92,26 @@ export class AuthService {
       sessionToken: issued.sessionToken,
       session: issued.session,
     };
+  }
+
+  private async upgradeLegacyPasswordHash(
+    user: UserDocument,
+    password: string,
+  ): Promise<void> {
+    const currentHash = user.password_hash;
+    if (!currentHash || !this.passwords.needsRehash(currentHash)) {
+      return;
+    }
+
+    try {
+      const replacementHash = await this.passwords.hash(password);
+      await this.usersService.replacePasswordHashIfCurrent(
+        user._id.toString(),
+        currentHash,
+        replacementHash,
+      );
+    } catch {
+      // Hash migration is best-effort and must never turn valid proof into login failure.
+    }
   }
 }
