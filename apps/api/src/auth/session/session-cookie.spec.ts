@@ -26,8 +26,10 @@ describe('session cookie contract', () => {
 
   it('keeps local HTTP development usable without weakening production', () => {
     expect(
-      getSessionCookieOptions('development', '2026-10-22T12:00:00.000Z')
-        .secure,
+      getSessionCookieOptions(
+        'development',
+        '2026-10-22T12:00:00.000Z',
+      ).secure,
     ).toBe(false);
     expect(getSessionCookieClearOptions('production').secure).toBe(true);
   });
