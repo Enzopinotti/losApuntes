@@ -113,6 +113,27 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
     });
   }
 
+  async sendPasswordChanged(message: AuthEmailSecurityNotice): Promise<void> {
+    if (this.mode() === 'disabled') return;
+
+    await this.smtp().sendMail({
+      from: this.from(),
+      to: message.to,
+      subject: 'Tu contraseña de Los Apuntes fue actualizada',
+      text: [
+        'Tu contraseña de Los Apuntes fue actualizada desde una sesión autenticada.',
+        '',
+        'Cerramos las sesiones anteriores. Volvé a iniciar sesión para continuar.',
+        'Si no hiciste este cambio, pedí una recuperación de contraseña desde Los Apuntes inmediatamente.',
+      ].join('\n'),
+      html: [
+        '<p>Tu contraseña de Los Apuntes fue actualizada desde una sesión autenticada.</p>',
+        '<p>Cerramos las sesiones anteriores. Volvé a iniciar sesión para continuar.</p>',
+        '<p>Si no hiciste este cambio, pedí una recuperación de contraseña desde Los Apuntes inmediatamente.</p>',
+      ].join(''),
+    });
+  }
+
   private mode(): AuthEmailDeliveryMode {
     return (
       this.config.get<AuthEmailDeliveryMode>('AUTH_EMAIL_DELIVERY_MODE') ??
