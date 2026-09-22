@@ -1,18 +1,19 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3000;
+  const port = configService.get<number>('PORT') ?? 4000;
 
   const config = new DocumentBuilder()
-    .setTitle('UniShare API')
-    .setDescription('Documentación de la API para UniShare')
-    .setVersion('1.0')
+    .setTitle('Los Apuntes API')
+    .setDescription('API de Los Apuntes')
+    .setVersion('0.1')
     .addBearerAuth()
     .build();
 
@@ -20,6 +21,10 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   await app.listen(port);
-  console.log(`🚀 UniShare corriendo en http://localhost:${port}/api`);
+  console.log(`Los Apuntes API listening on port ${port}`);
 }
-bootstrap();
+
+void bootstrap().catch((error: unknown) => {
+  console.error('Failed to bootstrap Los Apuntes API', error);
+  process.exitCode = 1;
+});

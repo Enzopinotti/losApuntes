@@ -1,5 +1,4 @@
-// auth/dto/register.dto.ts
-import { IsAlphanumeric, IsEmail, MinLength } from "class-validator";
+import { IsAlphanumeric, IsEmail, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsAlphanumeric() @MinLength(3) username: string;

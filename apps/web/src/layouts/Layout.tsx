@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/useAuth";
 import "./Layout.scss";
 import LogoutButton from "../shared/components/LogoutButton";
 
@@ -9,7 +9,7 @@ const Layout = () => {
   return (
     <div className="layout">
       <header className="navbar">
-        <h1 className="logo">UniShare</h1>
+        <h1 className="logo">Los Apuntes</h1>
         <nav>
           <NavLink
             to="/"
@@ -46,7 +46,7 @@ const Layout = () => {
       </main>
 
       <footer>
-        <small>© 2025 UniShare</small>
+        <small>© 2026 Los Apuntes</small>
       </footer>
     </div>
   );

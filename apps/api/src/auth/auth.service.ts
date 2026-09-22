@@ -3,14 +3,14 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 import { UsersService } from '../users/users.service';
-import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
-    private jwt: JwtService,
+    private readonly usersService: UsersService,
+    private readonly jwt: JwtService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -20,20 +20,29 @@ export class AuthService {
       email: dto.email,
       password_hash: hash,
     });
-    return this.sign(user.id, user.role);
+
+    return this.sign(user._id.toString(), user.role);
   }
 
   async validateUser(email: string, pass: string) {
     const user = await this.usersService.findByEmail(email);
-    if (!user) return null;
-    const ok = await bcrypt.compare(pass, user.password_hash);
-    return ok ? user : null;
+
+    if (!user) {
+      return null;
+    }
+
+    const passwordMatches = await bcrypt.compare(pass, user.password_hash);
+    return passwordMatches ? user : null;
   }
 
   async login(dto: LoginDto) {
     const user = await this.validateUser(dto.email, dto.password);
-    if (!user) throw new UnauthorizedException();
-    return this.sign(user.id, user.role);
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    return this.sign(user._id.toString(), user.role);
   }
 
   private sign(sub: string, role: string) {

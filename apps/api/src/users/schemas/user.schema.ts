@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import type { HydratedDocument } from 'mongoose';
 
-export type UserDocument = User & Document;
+export type UserDocument = HydratedDocument<User>;
 
 @Schema({ timestamps: true })
 export class User {
@@ -17,7 +17,6 @@ export class User {
   @Prop({ default: 'user', enum: ['user', 'admin'] })
   role: string;
 
-  // Extras opcionales
   @Prop() full_name?: string;
   @Prop() avatar_url?: string;
   @Prop() bio?: string;
