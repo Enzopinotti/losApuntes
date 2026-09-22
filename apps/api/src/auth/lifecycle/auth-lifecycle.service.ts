@@ -163,10 +163,7 @@ export class AuthLifecycleService {
     if (!action || action.credentialVersion === undefined) return false;
 
     const user = await this.users.findById(action.userId);
-    if (
-      !user ||
-      credentialVersion(user) !== action.credentialVersion
-    ) {
+    if (!user || credentialVersion(user) !== action.credentialVersion) {
       return false;
     }
 
