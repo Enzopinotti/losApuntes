@@ -168,6 +168,11 @@ export class GoogleAuthController {
     private readonly config: ConfigService,
   ) {}
 
+  @Get('google/status')
+  googleStatus() {
+    return this.google.availability();
+  }
+
   @Get('google/web/start')
   async startWeb(
     @Query() query: GoogleWebStartQueryDto,
