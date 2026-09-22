@@ -26,8 +26,8 @@ describe('password policy', () => {
   });
 
   it('rejects common and product-context passwords case-insensitively', () => {
-    expect(passwordPolicyViolation('PASSWORD123456')).toBe('common_password');
-    expect(passwordPolicyViolation('LosApuntes2026')).toBe('common_password');
+    expect(passwordPolicyViolation('PASSWORDPASSWORD')).toBe('common_password');
+    expect(passwordPolicyViolation('LOSAPUNTES123456')).toBe('common_password');
   });
 
   it('compares the complete normalized password, not substrings', () => {
