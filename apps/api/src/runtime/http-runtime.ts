@@ -102,7 +102,7 @@ export function configureHttpRuntime(
         method: request.method,
         route: request.routeOptions.url,
         statusCode: reply.statusCode,
-        durationMs: Math.round(request.elapsedTime * 100) / 100,
+        durationMs: Math.round(reply.elapsedTime * 100) / 100,
       },
       'HTTP request completed',
     );
