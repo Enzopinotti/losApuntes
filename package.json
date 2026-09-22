@@ -14,13 +14,14 @@
     "format:check": "pnpm -r --if-present format:check",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present check:types",
-    "test": "pnpm --filter @losapuntes/api test:ci",
+    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract",
     "build": "pnpm -r --if-present build",
     "audit:prod": "pnpm audit --prod --audit-level high",
     "runtime:up": "docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120",
     "runtime:smoke": "node scripts/smoke-api-runtime.mjs",
     "runtime:logs": "docker compose -f compose.local.yml logs --no-color",
     "runtime:down": "docker compose -f compose.local.yml down --volumes --remove-orphans",
-    "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "test:web-auth-contract": "node scripts/test-web-auth-contract.mjs"
   }
 }
