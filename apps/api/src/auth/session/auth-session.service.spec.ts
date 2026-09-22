@@ -23,7 +23,10 @@ function record(overrides: Partial<AuthSessionRecord> = {}): AuthSessionRecord {
 }
 
 function createStore() {
-  const create = jest.fn<Promise<AuthSessionRecord>, [CreateAuthSessionRecord]>();
+  const create = jest.fn<
+    Promise<AuthSessionRecord>,
+    [CreateAuthSessionRecord]
+  >();
   const findActiveByTokenHash = jest.fn<
     Promise<AuthSessionRecord | null>,
     [string, Date]
