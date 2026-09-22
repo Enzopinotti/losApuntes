@@ -24,6 +24,8 @@ describe('validateRuntimeEnvironment', () => {
       PORT: 4000,
       SWAGGER_ENABLED: true,
       AUTH_EMAIL_DELIVERY_MODE: 'disabled',
+      GOOGLE_AUTH_ENABLED: false,
+      GOOGLE_NATIVE_CLIENT_IDS: [],
     });
   });
 
@@ -90,6 +92,40 @@ describe('validateRuntimeEnvironment', () => {
         WEB_ORIGIN: origin,
       }),
     ).toThrow('WEB_ORIGIN must be a valid absolute HTTP(S) origin');
+  });
+
+  it('requires complete Google Web config when Google Auth is enabled', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        GOOGLE_AUTH_ENABLED: 'true',
+        WEB_ORIGIN: 'http://localhost:5173',
+      }),
+    ).toThrow('Google Web auth requires');
+  });
+
+  it('normalizes enabled Google config and native audiences', () => {
+    const result = validateRuntimeEnvironment({
+      ...validEnvironment,
+      WEB_ORIGIN: 'http://localhost:5173',
+      GOOGLE_AUTH_ENABLED: 'true',
+      GOOGLE_WEB_CLIENT_ID: 'web-client.apps.googleusercontent.com',
+      GOOGLE_WEB_CLIENT_SECRET: 'test-secret',
+      GOOGLE_WEB_REDIRECT_URI:
+        'http://localhost:4000/auth/google/web/callback',
+      GOOGLE_NATIVE_CLIENT_IDS:
+        'ios-client.apps.googleusercontent.com, android-client.apps.googleusercontent.com,ios-client.apps.googleusercontent.com',
+    });
+
+    expect(result).toMatchObject({
+      GOOGLE_AUTH_ENABLED: true,
+      GOOGLE_WEB_REDIRECT_URI:
+        'http://localhost:4000/auth/google/web/callback',
+      GOOGLE_NATIVE_CLIENT_IDS: [
+        'ios-client.apps.googleusercontent.com',
+        'android-client.apps.googleusercontent.com',
+      ],
+    });
   });
 
   it.each([0, 65_536, 'abc', 2.5])(
