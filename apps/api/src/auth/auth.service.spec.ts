@@ -35,12 +35,12 @@ describe('AuthService', () => {
   it('hashes the password and signs the created user', async () => {
     let persistedUser: Partial<User> | undefined;
 
-    usersService.create.mockImplementation(async (data: Partial<User>) => {
+    usersService.create.mockImplementation((data: Partial<User>) => {
       persistedUser = data;
-      return {
+      return Promise.resolve({
         _id: { toString: () => 'user-1' },
         role: 'user',
-      };
+      });
     });
     jwtService.sign.mockReturnValue('signed-token');
 
