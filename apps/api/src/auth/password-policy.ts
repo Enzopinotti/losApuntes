@@ -20,9 +20,7 @@ const COMMON_PASSWORDS = new Set(
 );
 
 export type PasswordPolicyViolation =
-  | 'too_short'
-  | 'too_long'
-  | 'common_password';
+  'too_short' | 'too_long' | 'common_password';
 
 export function passwordCodePointLength(password: string): number {
   return Array.from(password.normalize('NFC')).length;
