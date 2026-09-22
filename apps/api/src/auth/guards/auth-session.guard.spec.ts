@@ -139,4 +139,64 @@ describe('AuthSessionGuard credential fencing', () => {
     });
     expect(revokeCurrent).toHaveBeenCalledWith(TOKEN);
   });
+  it('rejects a request with no supported session credential', async () => {
+    const request = {
+      headers: {},
+      cookies: {},
+    } as unknown as FastifyRequest;
+
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 401,
+      response: {
+        code: 'AUTHENTICATION_REQUIRED',
+      },
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('rejects a credential that no longer resolves to an active session', async () => {
+    resolve.mockResolvedValue(null);
+    const request = {
+      headers: {},
+      cookies: {
+        losapuntes_session: TOKEN,
+      },
+    } as unknown as FastifyRequest;
+
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 401,
+    });
+
+    expect(findById).not.toHaveBeenCalled();
+  });
+
+  it('revokes a session whose account disappeared', async () => {
+    resolve.mockResolvedValue({
+      userId: 'deleted-user',
+      credentialVersion: 1,
+      session: {
+        id: '93b0d36e-a992-487f-b9ba-1173c47800f7',
+        clientType: 'web',
+        createdAt: '2026-09-22T14:00:00.000Z',
+        lastSeenAt: '2026-09-22T14:00:00.000Z',
+        expiresAt: '2026-10-22T14:00:00.000Z',
+        current: true,
+      },
+    });
+    findById.mockResolvedValue(null);
+    const request = {
+      headers: {},
+      cookies: {
+        losapuntes_session: TOKEN,
+      },
+    } as unknown as FastifyRequest;
+
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 401,
+    });
+
+    expect(revokeCurrent).toHaveBeenCalledWith(TOKEN);
+  });
+
 });
