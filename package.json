@@ -1,0 +1,22 @@
+{
+  "name": "los-apuntes",
+  "private": true,
+  "version": "0.0.0-reboot.0",
+  "description": "Los Apuntes 2026 monorepo rescue baseline",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "install:all": "npm ci --prefix apps/web && npm ci --prefix apps/api",
+    "check:hygiene": "node scripts/check-repo-hygiene.mjs",
+    "audit:web:prod": "cd apps/web && npm audit --omit=dev --audit-level=high",
+    "audit:api:prod": "cd apps/api && npm audit --omit=dev --audit-level=high",
+    "lint:web": "cd apps/web && npx --no-install eslint . --max-warnings=0",
+    "build:web": "npm --prefix apps/web run build",
+    "lint:api": "cd apps/api && npx --no-install eslint \"{src,test}/**/*.ts\" --max-warnings=0",
+    "test:api": "npm --prefix apps/api test -- --runInBand",
+    "build:api": "npm --prefix apps/api run build",
+    "check": "npm run check:hygiene && npm run lint:web && npm run build:web && npm run lint:api && npm run test:api && npm run build:api"
+  }
+}
