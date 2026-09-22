@@ -41,8 +41,14 @@ La primera frontera de producto usa un contrato compartido para Web y Mobile:
 - [One-time action-token security](docs/security/auth-action-tokens-v1.md)
 - [Account Security Settings UX](docs/product/account-security-settings-v1.md)
 - [Account security implementation contract](docs/security/account-security-v1.md)
+- [Google identity security](docs/security/google-identity-v1.md)
+- [Google login methods UX](docs/product/google-login-methods-v1.md)
+- [Client Auth integration contract](docs/contracts/client-auth-integration-v1.md)
+- [Identity/Auth v1 completion matrix](docs/product/identity-auth-v1-completion-matrix.md)
 
 Account, Profile y Academic Graph son conceptos distintos. El JWT/role del código legacy no es autoridad futura.
+
+Identity/Auth v1 está code-complete en backend/Web. El cliente Mobile real sigue en #49 y la readiness pública/productiva sigue en #48.
 
 ## Runtime y workspace
 
