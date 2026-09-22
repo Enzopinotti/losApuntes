@@ -567,4 +567,121 @@ describe('GoogleAuthService', () => {
     });
   });
 
+  it('fails Web link start closed when Google is disabled', async () => {
+    const { service, provider, mocks } = harness();
+    (provider.isWebEnabled as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      service.startWebLink(USER_ID, 'current-password', '/settings/security'),
+    ).resolves.toEqual({ kind: 'unavailable' });
+    expect(mocks.findById).not.toHaveBeenCalled();
+  });
+
+  it('does not start Web linking for a missing or restricted account', async () => {
+    const missing = harness();
+    missing.mocks.findById.mockResolvedValue(null);
+    await expect(
+      missing.service.startWebLink(
+        USER_ID,
+        'current-password',
+        '/settings/security',
+      ),
+    ).resolves.toEqual({ kind: 'reauthentication_required' });
+
+    const restricted = harness();
+    restricted.mocks.findById.mockResolvedValue(
+      user({ account_status: 'restricted' }),
+    );
+    await expect(
+      restricted.service.startWebLink(
+        USER_ID,
+        'current-password',
+        '/settings/security',
+      ),
+    ).resolves.toEqual({ kind: 'account_restricted' });
+  });
+
+  it('does not start a duplicate Web link when Google is already connected', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue({
+      id: 'identity-1',
+      provider: 'google',
+      providerSubject: 'google-subject-1',
+      userId: USER_ID,
+      emailAtLink: 'student@gmail.com',
+      linkedAt: new Date(),
+    });
+
+    await expect(
+      service.startWebLink(USER_ID, 'current-password', '/settings/security'),
+    ).resolves.toEqual({ kind: 'already_linked' });
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
+  });
+
+  it('fails a Web callback closed when provider exchange fails', async () => {
+    const { service, mocks } = harness();
+    mocks.consume.mockResolvedValue({
+      intent: 'login',
+      returnPath: '/dashboard',
+      codeVerifier: 'v'.repeat(43),
+    });
+    mocks.exchangeWebAuthorizationCode.mockRejectedValue(
+      new Error('provider unavailable'),
+    );
+
+    await expect(
+      service.completeWebCallback({
+        state: 's'.repeat(43),
+        code: 'authorization-code',
+      }),
+    ).resolves.toEqual({
+      returnPath: '/dashboard',
+      result: { kind: 'failed' },
+    });
+  });
+
+  it('fails a malformed link callback that has no bound account', async () => {
+    const { service, mocks } = harness();
+    mocks.consume.mockResolvedValue({
+      intent: 'link',
+      userId: undefined,
+      returnPath: '/settings/security',
+      codeVerifier: 'v'.repeat(43),
+    });
+    mocks.exchangeWebAuthorizationCode.mockResolvedValue(proof());
+    mocks.nonceMatches.mockReturnValue(true);
+
+    await expect(
+      service.completeWebCallback({
+        state: 's'.repeat(43),
+        code: 'authorization-code',
+      }),
+    ).resolves.toEqual({
+      returnPath: '/settings/security',
+      result: { kind: 'failed' },
+    });
+  });
+
+  it('keeps unlink idempotent when no Google identity remains', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user());
+    mocks.findForUser.mockResolvedValue(null);
+
+    await expect(service.unlink(USER_ID, 'current-password')).resolves.toEqual({
+      kind: 'not_linked',
+    });
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
+  });
+
+  it('blocks unlink for a restricted account before identity mutation', async () => {
+    const { service, mocks } = harness();
+    mocks.findById.mockResolvedValue(user({ account_status: 'restricted' }));
+
+    await expect(service.unlink(USER_ID, 'current-password')).resolves.toEqual({
+      kind: 'account_restricted',
+    });
+    expect(mocks.findForUser).not.toHaveBeenCalled();
+  });
+
 });
