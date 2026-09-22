@@ -51,11 +51,7 @@ function parsePort(value: unknown): number {
   return parsed;
 }
 
-function parseBoolean(
-  value: unknown,
-  key: string,
-  fallback: boolean,
-): boolean {
+function parseBoolean(value: unknown, key: string, fallback: boolean): boolean {
   if (value === undefined || value === null || value === '') {
     return fallback;
   }
