@@ -119,7 +119,7 @@ const verificationInspect = await requestJson(
   jsonRequest('POST', { token: verificationToken }),
 );
 
-assert.equal(verificationInspect.response.status, 201);
+assert.equal(verificationInspect.response.status, 200);
 assert.deepEqual(verificationInspect.body, {
   verification: { available: true },
 });
@@ -264,7 +264,7 @@ const recoveryInspect = await requestJson(
   jsonRequest('POST', { token: recoveryToken }),
 );
 
-assert.equal(recoveryInspect.response.status, 201);
+assert.equal(recoveryInspect.response.status, 200);
 assert.deepEqual(recoveryInspect.body, {
   recovery: { available: true },
 });
