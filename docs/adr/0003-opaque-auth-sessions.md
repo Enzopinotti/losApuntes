@@ -48,9 +48,15 @@ This is a transport difference, not a separate authentication system.
 
 ## Session lifetime
 
-Initial absolute lifetime: 30 days.
+Implemented v1 lifetime policy:
 
-No implicit infinite sliding session in v1.
+- absolute lifetime: 30 days;
+- Web idle timeout: 24 hours;
+- Mobile idle timeout: 14 days;
+- coarse last-seen persistence, touched at most every 5 minutes;
+- idle-expired sessions fail closed and are removed when presented.
+
+No implicit infinite sliding session or remember-me mode exists in v1.
 
 ## Alternatives considered
 
