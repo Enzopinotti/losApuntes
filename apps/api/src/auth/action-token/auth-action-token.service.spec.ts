@@ -323,5 +323,4 @@ describe('AuthActionTokenService', () => {
       NOW,
     );
   });
-
 });
