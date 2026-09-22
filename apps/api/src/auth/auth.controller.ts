@@ -318,10 +318,7 @@ export class AuthController {
     @Param('sessionId') sessionId: string,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<void> {
-    const revoked = await this.sessions.revokeOwned(
-      request.user.id,
-      sessionId,
-    );
+    const revoked = await this.sessions.revokeOwned(request.user.id, sessionId);
 
     if (revoked) {
       await this.audit.record({
