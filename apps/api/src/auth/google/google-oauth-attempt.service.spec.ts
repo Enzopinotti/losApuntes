@@ -6,12 +6,15 @@ import { GoogleOAuthAttemptService } from './google-oauth-attempt.service';
 
 describe('GoogleOAuthAttemptService', () => {
   const created: GoogleOAuthAttemptRecord[] = [];
+  const create = jest.fn((input: GoogleOAuthAttemptRecord) => {
+    created.push(input);
+    return Promise.resolve();
+  });
+  const consumeByStateHash = jest.fn(() => Promise.resolve(null));
+
   const store: GoogleOAuthAttemptStore = {
-    create: jest.fn((input: GoogleOAuthAttemptRecord) => {
-      created.push(input);
-      return Promise.resolve();
-    }),
-    consumeByStateHash: jest.fn(() => Promise.resolve(null)),
+    create,
+    consumeByStateHash,
   };
 
   beforeEach(() => {
@@ -60,7 +63,7 @@ describe('GoogleOAuthAttemptService', () => {
     const service = new GoogleOAuthAttemptService(store);
 
     await expect(service.consume('bad-state')).resolves.toBeNull();
-    expect(store.consumeByStateHash).not.toHaveBeenCalled();
+    expect(consumeByStateHash).not.toHaveBeenCalled();
   });
 
   it('matches callback nonce only through its hash', async () => {
