@@ -63,10 +63,7 @@ function createHarness() {
     record: auditRecord,
   } as unknown as AuthAuditService;
 
-  const sendPasswordChanged = jest.fn<
-    Promise<void>,
-    [{ to: string }]
-  >();
+  const sendPasswordChanged = jest.fn<Promise<void>, [{ to: string }]>();
   const delivery = {
     sendPasswordChanged,
   } as unknown as AuthEmailDelivery;
@@ -293,8 +290,12 @@ describe('AccountSecurityService', () => {
       ),
     ]);
 
-    expect(results.filter((result) => result.kind === 'changed')).toHaveLength(1);
-    expect(results.filter((result) => result.kind === 'conflict')).toHaveLength(1);
+    expect(results.filter((result) => result.kind === 'changed')).toHaveLength(
+      1,
+    );
+    expect(results.filter((result) => result.kind === 'conflict')).toHaveLength(
+      1,
+    );
     expect(mocks.revokeAll).toHaveBeenCalledTimes(1);
     expect(mocks.auditRecord).toHaveBeenCalledTimes(1);
     expect(mocks.sendPasswordChanged).toHaveBeenCalledTimes(1);
