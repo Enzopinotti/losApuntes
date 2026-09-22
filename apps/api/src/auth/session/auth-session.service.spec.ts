@@ -158,11 +158,7 @@ describe('AuthSessionService', () => {
     );
 
     await expect(
-      service.resolve(
-        token,
-        'web',
-        new Date('2026-09-23T12:00:00.000Z'),
-      ),
+      service.resolve(token, 'web', new Date('2026-09-23T12:00:00.000Z')),
     ).resolves.toBeNull();
 
     expect(mocks.revokeByTokenHash).toHaveBeenCalledWith(
@@ -185,11 +181,7 @@ describe('AuthSessionService', () => {
     );
 
     await expect(
-      service.resolve(
-        token,
-        'mobile',
-        new Date('2026-09-22T12:00:00.000Z'),
-      ),
+      service.resolve(token, 'mobile', new Date('2026-09-22T12:00:00.000Z')),
     ).resolves.toMatchObject({
       userId: 'user-1',
       session: {
