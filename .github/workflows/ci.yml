@@ -75,3 +75,45 @@ jobs:
 
       - name: Audit production dependency graph
         run: pnpm audit --prod --audit-level high
+
+  runtime-smoke:
+    name: Container runtime smoke
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      LOSAPUNTES_DEV_JWT_SECRET: ci-runtime-placeholder-not-a-secret
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Use Node 24 without cache
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Validate Compose definition
+        run: docker compose -f compose.local.yml config --quiet
+
+      - name: Build and start runtime
+        run: docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120
+
+      - name: Probe runtime
+        run: node scripts/smoke-api-runtime.mjs
+
+      - name: Runtime logs on failure
+        if: failure()
+        run: docker compose -f compose.local.yml logs --no-color
+
+      - name: Tear down runtime
+        if: always()
+        run: docker compose -f compose.local.yml down --volumes --remove-orphans

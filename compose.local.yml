@@ -1,0 +1,49 @@
+services:
+  mongo:
+    image: mongo:8.0
+    restart: "no"
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "quit(db.adminCommand('ping').ok ? 0 : 2)",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGO_URI: mongodb://mongo:27017/losapuntes_local
+      JWT_SECRET: ${LOSAPUNTES_DEV_JWT_SECRET:-development-only-placeholder-not-a-secret}
+      WEB_ORIGIN: http://localhost:5173
+      SWAGGER_ENABLED: "false"
+    ports:
+      - "4000:4000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
