@@ -96,6 +96,13 @@ export class GoogleAuthService {
     private readonly provider: GoogleIdentityProvider,
   ) {}
 
+  availability() {
+    return {
+      webEnabled: this.provider.isWebEnabled(),
+      mobileEnabled: this.provider.isMobileEnabled(),
+    };
+  }
+
   async startWebLogin(
     returnPath: string | undefined,
   ): Promise<GoogleWebStartOutcome> {
