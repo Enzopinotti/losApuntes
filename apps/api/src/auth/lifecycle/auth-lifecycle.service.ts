@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
 import {
@@ -16,6 +16,8 @@ import { AuthEmailDeliveryUnavailableError } from './auth-lifecycle.errors';
 
 @Injectable()
 export class AuthLifecycleService {
+  private readonly logger = new Logger(AuthLifecycleService.name);
+
   constructor(
     private readonly users: UsersService,
     private readonly actionTokens: AuthActionTokenService,
@@ -52,6 +54,7 @@ export class AuthLifecycleService {
         'email_verification',
         now,
       );
+      this.logger.warn('auth.email.verification.delivery_failed');
       throw new AuthEmailDeliveryUnavailableError();
     }
   }
@@ -75,7 +78,7 @@ export class AuthLifecycleService {
     token: string,
     now = new Date(),
   ): Promise<boolean> {
-    const action = await this.actionTokens.inspect(
+    const action = await this.actionTokens.claim(
       token,
       'email_verification',
       now,
@@ -129,6 +132,7 @@ export class AuthLifecycleService {
         'password_recovery',
         now,
       );
+      this.logger.warn('auth.password.recovery.delivery_failed');
       throw new AuthEmailDeliveryUnavailableError();
     }
   }
@@ -155,7 +159,7 @@ export class AuthLifecycleService {
     newPassword: string,
     now = new Date(),
   ): Promise<boolean> {
-    const action = await this.actionTokens.inspect(
+    const action = await this.actionTokens.claim(
       token,
       'password_recovery',
       now,
@@ -192,6 +196,7 @@ export class AuthLifecycleService {
         to: user.email,
       });
     } catch {
+      this.logger.warn('auth.password.recovery.confirmation_delivery_failed');
       // The credential change already succeeded; notification failure cannot undo it.
     }
 
