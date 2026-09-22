@@ -111,16 +111,14 @@ describe('validateRuntimeEnvironment', () => {
       GOOGLE_AUTH_ENABLED: 'true',
       GOOGLE_WEB_CLIENT_ID: 'web-client.apps.googleusercontent.com',
       GOOGLE_WEB_CLIENT_SECRET: 'test-secret',
-      GOOGLE_WEB_REDIRECT_URI:
-        'http://localhost:4000/auth/google/web/callback',
+      GOOGLE_WEB_REDIRECT_URI: 'http://localhost:4000/auth/google/web/callback',
       GOOGLE_NATIVE_CLIENT_IDS:
         'ios-client.apps.googleusercontent.com, android-client.apps.googleusercontent.com,ios-client.apps.googleusercontent.com',
     });
 
     expect(result).toMatchObject({
       GOOGLE_AUTH_ENABLED: true,
-      GOOGLE_WEB_REDIRECT_URI:
-        'http://localhost:4000/auth/google/web/callback',
+      GOOGLE_WEB_REDIRECT_URI: 'http://localhost:4000/auth/google/web/callback',
       GOOGLE_NATIVE_CLIENT_IDS: [
         'ios-client.apps.googleusercontent.com',
         'android-client.apps.googleusercontent.com',
