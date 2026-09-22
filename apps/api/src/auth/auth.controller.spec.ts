@@ -2,6 +2,8 @@ import { HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import type { AccountSecurityService } from './account-security.service';
+import type { AuthAuditService } from './audit/auth-audit.service';
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
 import { AuthEmailDeliveryUnavailableError } from './lifecycle/auth-lifecycle.errors';
@@ -51,6 +53,8 @@ describe('AuthController', () => {
   const listForUser = jest.fn();
   const revokeOwned = jest.fn();
   const revokeAll = jest.fn();
+  const changePassword = jest.fn();
+  const auditRecord = jest.fn();
 
   const authService = {
     register,
@@ -66,12 +70,20 @@ describe('AuthController', () => {
     completePasswordRecovery,
   } as unknown as AuthLifecycleService;
 
+  const security = {
+    changePassword,
+  } as unknown as AccountSecurityService;
+
   const sessionService = {
     revokeCurrent,
     listForUser,
     revokeOwned,
     revokeAll,
   } as unknown as AuthSessionService;
+
+  const audit = {
+    record: auditRecord,
+  } as unknown as AuthAuditService;
 
   const config = new ConfigService({
     NODE_ENV: 'development',
@@ -80,7 +92,9 @@ describe('AuthController', () => {
   const controller = new AuthController(
     authService,
     lifecycle,
+    security,
     sessionService,
+    audit,
     config,
   );
 
