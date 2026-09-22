@@ -1,8 +1,6 @@
 export const AUTH_ACTION_TOKEN_STORE = Symbol('AUTH_ACTION_TOKEN_STORE');
 
-export type AuthActionPurpose =
-  | 'email_verification'
-  | 'password_recovery';
+export type AuthActionPurpose = 'email_verification' | 'password_recovery';
 
 export type AuthActionTokenRecord = {
   id: string;
