@@ -7,7 +7,9 @@ export type AuthAuditEventName =
   | 'auth.session.revoked'
   | 'auth.session.revoked_all'
   | 'auth.account.restricted'
-  | 'auth.account.restored';
+  | 'auth.account.restored'
+  | 'auth.oauth.linked'
+  | 'auth.oauth.unlinked';
 
 export type AuthAuditEvent = {
   event: AuthAuditEventName;

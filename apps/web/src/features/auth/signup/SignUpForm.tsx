@@ -1,93 +1,133 @@
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
+import { authErrorMessage, authErrorRequestId } from "../authMessages";
 import type { SignUpFormData } from "../interfaces";
+import { authApi } from "../services/authService";
 import "../AuthForm.scss";
-import { useAuth } from "../../../contexts/useAuth";
-import { fakeAuthApi } from "../services/authService";
 
 const SignUpForm = () => {
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | undefined>();
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(true);
 
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<SignUpFormData>({ mode: "onSubmit" });
 
+  useEffect(() => {
+    let active = true;
+
+    void authApi
+      .googleStatus()
+      .then((status) => {
+        if (active) {
+          setGoogleEnabled(status.webEnabled);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setGoogleEnabled(false);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setGoogleLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const onSubmit = async (data: SignUpFormData) => {
+    setFormError(null);
+    setRequestId(undefined);
+
     try {
-      const { token, user } = await fakeAuthApi.register(
-        data.name,
-        data.email,
-        data.password,
-        data.confirmPassword,
-      );
-      login(token, user);
-      navigate("/dashboard");
+      await authApi.register(data.email, data.password);
+      navigate("/verify-email/pending", {
+        replace: true,
+        state: { email: data.email },
+      });
     } catch (error) {
-      console.error(error);
-      throw new Error("Error al crear cuenta");
+      setFormError(authErrorMessage(error, "No pudimos crear la cuenta."));
+      setRequestId(authErrorRequestId(error));
     }
   };
 
   const password = watch("password");
 
+  const continueWithGoogle = () => {
+    window.location.assign(authApi.googleWebStartUrl("/login"));
+  };
+
   return (
     <div className="auth-container">
-      <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>
         <div>
+          <label htmlFor="signup-email">Email</label>
           <input
-            placeholder="Nombre"
-            type="text"
-            {...register("name", {
-              required: "El nombre es obligatorio",
-              minLength: {
-                value: 3,
-                message: "El nombre debe contener como mínimo 3 caracteres",
-              },
-            })}
-          />
-          {errors.name && <p className="error">{errors.name.message}</p>}
-        </div>
-
-        <div>
-          <input
-            placeholder="Email"
+            id="signup-email"
             type="email"
+            autoComplete="email"
+            inputMode="email"
             {...register("email", {
               required: "El email es obligatorio",
+              maxLength: {
+                value: 320,
+                message: "El email es demasiado largo",
+              },
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                 message: "Email inválido",
               },
             })}
           />
-          {errors.email && <p className="error">{errors.email.message}</p>}
-        </div>
-
-        <div>
-          <input
-            placeholder="Contraseña"
-            type="password"
-            {...register("password", {
-              required: "La contraseña es obligatoria",
-              minLength: {
-                value: 8,
-                message: "La contraseña debe contener como mínimo 8 caracteres",
-              },
-            })}
-          />
-          {errors.password && (
-            <p className="error">{errors.password.message}</p>
+          {errors.email && (
+            <p className="error" role="alert">
+              {errors.email.message}
+            </p>
           )}
         </div>
 
         <div>
+          <label htmlFor="signup-password">Contraseña</label>
           <input
-            placeholder="Confirmar contraseña"
+            id="signup-password"
             type="password"
+            autoComplete="new-password"
+            {...register("password", {
+              required: "La contraseña es obligatoria",
+              minLength: {
+                value: 12,
+                message: "Usá al menos 12 caracteres",
+              },
+              maxLength: {
+                value: 256,
+                message: "La contraseña es demasiado larga",
+              },
+            })}
+          />
+          {errors.password && (
+            <p className="error" role="alert">
+              {errors.password.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="signup-confirm-password">Confirmar contraseña</label>
+          <input
+            id="signup-confirm-password"
+            type="password"
+            autoComplete="new-password"
             {...register("confirmPassword", {
               required: "Debes confirmar la contraseña",
               validate: (value) =>
@@ -95,11 +135,33 @@ const SignUpForm = () => {
             })}
           />
           {errors.confirmPassword && (
-            <p className="error">{errors.confirmPassword.message}</p>
+            <p className="error" role="alert">
+              {errors.confirmPassword.message}
+            </p>
           )}
         </div>
 
-        <button type="submit">Registrarse</button>
+        <p>
+          Tu cuenta se crea primero. Universidad, carrera y materias se
+          completan después en el onboarding.
+        </p>
+
+        {formError && (
+          <div role="alert" aria-live="polite">
+            <p className="error">{formError}</p>
+            {requestId && <small>Referencia para soporte: {requestId}</small>}
+          </div>
+        )}
+
+        <button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Creando cuenta…" : "Crear cuenta"}
+        </button>
+
+        {!googleLoading && googleEnabled && (
+          <button type="button" onClick={continueWithGoogle}>
+            Continuar con Google
+          </button>
+        )}
       </form>
     </div>
   );

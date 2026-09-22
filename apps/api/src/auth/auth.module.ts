@@ -20,6 +20,26 @@ import { AUTH_EMAIL_DELIVERY } from './delivery/auth-email-delivery.types';
 import { ConfigurableAuthEmailDelivery } from './delivery/configurable-auth-email.delivery';
 import { AuthSessionGuard } from './guards/auth-session.guard';
 import { CsrfOriginGuard } from './guards/csrf-origin.guard';
+import { GoogleAuthController } from './google/google-auth.controller';
+import { GoogleAuthService } from './google/google-auth.service';
+import { GoogleIdentityService } from './google/google-identity.service';
+import { GoogleOAuthAttemptService } from './google/google-oauth-attempt.service';
+import {
+  GOOGLE_EXTERNAL_IDENTITY_STORE,
+  GOOGLE_IDENTITY_PROVIDER,
+  GOOGLE_OAUTH_ATTEMPT_STORE,
+} from './google/google.types';
+import { MongoGoogleExternalIdentityStore } from './google/mongo-google-identity.store';
+import { MongoGoogleOAuthAttemptStore } from './google/mongo-google-oauth-attempt.store';
+import { OfficialGoogleIdentityProvider } from './google/official-google-identity.provider';
+import {
+  GoogleExternalIdentity,
+  GoogleExternalIdentitySchema,
+} from './google/schemas/google-external-identity.schema';
+import {
+  GoogleOAuthAttempt,
+  GoogleOAuthAttemptSchema,
+} from './google/schemas/google-oauth-attempt.schema';
 import { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
 import { PasswordService } from './password.service';
 import { AuthSessionService } from './session/auth-session.service';
@@ -36,6 +56,14 @@ import {
     MongooseModule.forFeature([
       { name: AuthSession.name, schema: AuthSessionSchema },
       { name: AuthActionToken.name, schema: AuthActionTokenSchema },
+      {
+        name: GoogleExternalIdentity.name,
+        schema: GoogleExternalIdentitySchema,
+      },
+      {
+        name: GoogleOAuthAttempt.name,
+        schema: GoogleOAuthAttemptSchema,
+      },
     ]),
   ],
   providers: [
@@ -47,10 +75,16 @@ import {
     PasswordService,
     AuthSessionService,
     AuthSessionGuard,
+    GoogleAuthService,
+    GoogleIdentityService,
+    GoogleOAuthAttemptService,
     MongoAuthActionTokenStore,
     MongoAuthSessionStore,
+    MongoGoogleExternalIdentityStore,
+    MongoGoogleOAuthAttemptStore,
     ConfigurableAuthEmailDelivery,
     LoggerAuthAuditSink,
+    OfficialGoogleIdentityProvider,
     {
       provide: AUTH_AUDIT_SINK,
       useExisting: LoggerAuthAuditSink,
@@ -68,11 +102,23 @@ import {
       useExisting: ConfigurableAuthEmailDelivery,
     },
     {
+      provide: GOOGLE_IDENTITY_PROVIDER,
+      useExisting: OfficialGoogleIdentityProvider,
+    },
+    {
+      provide: GOOGLE_EXTERNAL_IDENTITY_STORE,
+      useExisting: MongoGoogleExternalIdentityStore,
+    },
+    {
+      provide: GOOGLE_OAUTH_ATTEMPT_STORE,
+      useExisting: MongoGoogleOAuthAttemptStore,
+    },
+    {
       provide: APP_GUARD,
       useClass: CsrfOriginGuard,
     },
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, GoogleAuthController],
   exports: [AuthService, AuthSessionService, AuthSessionGuard],
 })
 export class AuthModule {}

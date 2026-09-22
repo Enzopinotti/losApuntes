@@ -94,6 +94,49 @@ function parseHttpOrigin(value: unknown, key: string): string | undefined {
   return url.origin;
 }
 
+function parseHttpUrl(value: unknown, key: string): string | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    throw new Error(`${key} must be a string`);
+  }
+
+  try {
+    const url = new URL(value.trim());
+
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.hash
+    ) {
+      throw new Error();
+    }
+
+    return url.toString();
+  } catch {
+    throw new Error(`${key} must be a valid absolute HTTP(S) URL`);
+  }
+}
+
+function parseStringList(value: unknown, key: string): string[] {
+  const raw = optionalString({ [key]: value }, key);
+  if (!raw) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      raw
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 function authEmailDeliveryMode(
   source: Record<string, unknown>,
   nodeEnv: string,
@@ -129,10 +172,41 @@ export function validateRuntimeEnvironment(
   );
   const smtpUser = optionalString(source, 'AUTH_SMTP_USER');
   const smtpPass = optionalString(source, 'AUTH_SMTP_PASS');
+  const googleAuthEnabled = parseBoolean(
+    source.GOOGLE_AUTH_ENABLED,
+    'GOOGLE_AUTH_ENABLED',
+    false,
+  );
+  const webOrigin = parseHttpOrigin(source.WEB_ORIGIN, 'WEB_ORIGIN');
+  const googleWebClientId = optionalString(source, 'GOOGLE_WEB_CLIENT_ID');
+  const googleWebClientSecret = optionalString(
+    source,
+    'GOOGLE_WEB_CLIENT_SECRET',
+  );
+  const googleWebRedirectUri = parseHttpUrl(
+    source.GOOGLE_WEB_REDIRECT_URI,
+    'GOOGLE_WEB_REDIRECT_URI',
+  );
+  const googleNativeClientIds = parseStringList(
+    source.GOOGLE_NATIVE_CLIENT_IDS,
+    'GOOGLE_NATIVE_CLIENT_IDS',
+  );
 
   if (Boolean(smtpUser) !== Boolean(smtpPass)) {
     throw new Error(
       'AUTH_SMTP_USER and AUTH_SMTP_PASS must be configured together',
+    );
+  }
+
+  if (
+    googleAuthEnabled &&
+    (!webOrigin ||
+      !googleWebClientId ||
+      !googleWebClientSecret ||
+      !googleWebRedirectUri)
+  ) {
+    throw new Error(
+      'Google Web auth requires WEB_ORIGIN, GOOGLE_WEB_CLIENT_ID, GOOGLE_WEB_CLIENT_SECRET and GOOGLE_WEB_REDIRECT_URI',
     );
   }
 
@@ -141,7 +215,7 @@ export function validateRuntimeEnvironment(
     NODE_ENV: nodeEnv,
     PORT: parsePort(source.PORT, 'PORT', 4000),
     MONGO_URI: requiredString(source, 'MONGO_URI'),
-    WEB_ORIGIN: parseHttpOrigin(source.WEB_ORIGIN, 'WEB_ORIGIN'),
+    WEB_ORIGIN: webOrigin,
     SWAGGER_ENABLED: parseBoolean(
       source.SWAGGER_ENABLED,
       'SWAGGER_ENABLED',
@@ -157,6 +231,11 @@ export function validateRuntimeEnvironment(
     ),
     AUTH_SMTP_USER: smtpUser,
     AUTH_SMTP_PASS: smtpPass,
+    GOOGLE_AUTH_ENABLED: googleAuthEnabled,
+    GOOGLE_WEB_CLIENT_ID: googleWebClientId,
+    GOOGLE_WEB_CLIENT_SECRET: googleWebClientSecret,
+    GOOGLE_WEB_REDIRECT_URI: googleWebRedirectUri,
+    GOOGLE_NATIVE_CLIENT_IDS: googleNativeClientIds,
   };
 
   if (deliveryMode === 'smtp') {

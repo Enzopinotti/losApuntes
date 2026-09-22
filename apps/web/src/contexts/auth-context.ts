@@ -1,11 +1,19 @@
 import { createContext } from "react";
-import type { User } from "../features/auth/interfaces";
+import type {
+  AuthStatus,
+  AuthUser,
+  PublicAuthSession,
+} from "../features/auth/interfaces";
 
 export type AuthContextValue = {
-  token: string | null;
-  user: User | null;
-  login: (token: string, user: User) => void;
-  logout: () => void;
+  status: AuthStatus;
+  user: AuthUser | null;
+  session: PublicAuthSession | null;
+  lastErrorCode: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refresh: () => Promise<boolean>;
+  clearError: () => void;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(

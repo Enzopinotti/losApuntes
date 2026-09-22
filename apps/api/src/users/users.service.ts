@@ -50,6 +50,37 @@ export class UsersService {
     }
   }
 
+  async createGoogleAccountIfEmailFree(
+    email: string,
+    verifiedAt: Date,
+  ): Promise<UserDocument | null> {
+    try {
+      return await this.userModel.create({
+        email,
+        email_verified_at: verifiedAt,
+        credential_version: 1,
+        account_status: 'active',
+        role: 'user',
+      });
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) {
+        throw error;
+      }
+
+      return null;
+    }
+  }
+
+  async deleteGoogleOnlyAccountIfUnclaimed(userId: string): Promise<void> {
+    await this.userModel
+      .deleteOne({
+        _id: userId,
+        password_hash: { $exists: false },
+        credential_version: 1,
+      })
+      .exec();
+  }
+
   findByEmail(email: string) {
     return this.userModel.findOne({ email }).exec();
   }
