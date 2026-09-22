@@ -15,7 +15,11 @@ import {
   isSessionToken,
 } from './session-token';
 
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_ABSOLUTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_IDLE_TTL_MS: Record<AuthClientType, number> = {
+  web: 24 * 60 * 60 * 1000,
+  mobile: 14 * 24 * 60 * 60 * 1000,
+};
 const LAST_SEEN_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 export type IssuedAuthSession = {
@@ -43,6 +47,13 @@ function toPublicSession(
   };
 }
 
+function isIdleExpired(record: AuthSessionRecord, now: Date): boolean {
+  return (
+    now.getTime() - record.lastSeenAt.getTime() >=
+    SESSION_IDLE_TTL_MS[record.clientType]
+  );
+}
+
 @Injectable()
 export class AuthSessionService {
   constructor(
@@ -65,7 +76,7 @@ export class AuthSessionService {
       clientType,
       createdAt: now,
       lastSeenAt: now,
-      expiresAt: new Date(now.getTime() + SESSION_TTL_MS),
+      expiresAt: new Date(now.getTime() + SESSION_ABSOLUTE_TTL_MS),
     });
 
     return {
@@ -83,12 +94,15 @@ export class AuthSessionService {
       return null;
     }
 
-    const record = await this.store.findActiveByTokenHash(
-      hashSessionToken(sessionToken),
-      now,
-    );
+    const tokenHash = hashSessionToken(sessionToken);
+    const record = await this.store.findActiveByTokenHash(tokenHash, now);
 
     if (!record || record.clientType !== expectedClientType) {
+      return null;
+    }
+
+    if (isIdleExpired(record, now)) {
+      await this.store.revokeByTokenHash(tokenHash);
       return null;
     }
 
@@ -124,7 +138,11 @@ export class AuthSessionService {
     const sessions = await this.store.listActiveForUser(userId, now);
 
     return sessions
-      .filter((session) => session.credentialVersion === credentialVersion)
+      .filter(
+        (session) =>
+          session.credentialVersion === credentialVersion &&
+          !isIdleExpired(session, now),
+      )
       .map((session) =>
         toPublicSession(session, session.id === currentSessionId),
       );
