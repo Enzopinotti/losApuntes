@@ -15,6 +15,8 @@ const LEGACY_BCRYPT_MAX_BYTES = 72;
 const PBKDF2_HASH_PATTERN =
   /^pbkdf2-sha256\$(\d+)\$([A-Za-z0-9_-]{22})\$([A-Za-z0-9_-]{43})$/u;
 const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$/u;
+const DUMMY_PASSWORD_HASH =
+  'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 const pbkdf2 = promisify(pbkdf2Callback);
 
@@ -109,6 +111,10 @@ export class PasswordService {
     }
 
     return bcrypt.compare(password, passwordHash);
+  }
+
+  async consumeVerificationCost(password: string): Promise<void> {
+    await this.verify(password, DUMMY_PASSWORD_HASH);
   }
 
   needsRehash(passwordHash: string): boolean {
