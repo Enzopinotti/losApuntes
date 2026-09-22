@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
+import { credentialVersion } from '../users/user-security-state';
 import { UsersService } from '../users/users.service';
 import type { AuthenticatedUser } from './auth.types';
 import { LoginDto } from './dto/login.dto';
@@ -44,7 +45,11 @@ export class AuthService {
     const user = await this.validateUser(dto.email, dto.password);
     if (!user) return null;
 
-    const issued = await this.sessions.issue(user._id.toString(), clientType);
+    const issued = await this.sessions.issue(
+      user._id.toString(),
+      clientType,
+      credentialVersion(user),
+    );
 
     return {
       user: {

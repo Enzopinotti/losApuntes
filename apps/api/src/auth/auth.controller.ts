@@ -126,6 +126,7 @@ export class AuthController {
       sessions: await this.sessions.listForUser(
         request.user.id,
         request.authSession.id,
+        request.authCredentialVersion,
       ),
     };
   }
