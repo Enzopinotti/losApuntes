@@ -1,5 +1,3 @@
-import * as bcrypt from 'bcrypt';
-
 import type { UserDocument } from '../../users/schemas/user.schema';
 import type { UsersService } from '../../users/users.service';
 import type { IssuedAuthActionToken } from '../action-token/auth-action-token.service';
@@ -323,7 +321,7 @@ describe('AuthLifecycleService', () => {
     expect(passwordUpdateCall[0]).toBe(USER_ID);
     expect(passwordUpdateCall[1]).toBe(3);
     await expect(
-      bcrypt.compare(newPassword, passwordUpdateCall[2]),
+      new PasswordService().verify(newPassword, passwordUpdateCall[2]),
     ).resolves.toBe(true);
 
     expect(mocks.invalidateAll).toHaveBeenCalledWith(
