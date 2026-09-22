@@ -2,23 +2,21 @@
   "name": "los-apuntes",
   "private": true,
   "version": "0.0.0-reboot.0",
-  "description": "Los Apuntes 2026 monorepo rescue baseline",
-  "packageManager": "npm@11.19.0",
+  "description": "Los Apuntes 2026 monorepo",
+  "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=24 <25",
+    "pnpm": "9.15.9"
   },
   "scripts": {
-    "install:all": "npm ci --prefix apps/web && npm ci --prefix apps/api",
     "check:hygiene": "node scripts/check-repo-hygiene.mjs",
-    "audit:web:prod": "cd apps/web && npm audit --omit=dev --audit-level=high",
-    "audit:api:prod": "cd apps/api && npm audit --omit=dev --audit-level=high",
-    "lint:web": "cd apps/web && npx --no-install eslint . --max-warnings=0",
-    "typecheck:web": "cd apps/web && npx --no-install tsc -b --pretty false",
-    "build:web": "npm --prefix apps/web run build",
-    "lint:api": "cd apps/api && npx --no-install eslint \"{src,test}/**/*.ts\" --max-warnings=0",
-    "typecheck:api": "cd apps/api && npx --no-install tsc -p tsconfig.json --noEmit --pretty false",
-    "test:api": "npm --prefix apps/api test -- --runInBand",
-    "build:api": "npm --prefix apps/api run build",
-    "check": "npm run check:hygiene && npm run lint:web && npm run typecheck:web && npm run build:web && npm run lint:api && npm run typecheck:api && npm run test:api && npm run build:api"
+    "format": "pnpm -r --if-present format",
+    "format:check": "pnpm -r --if-present format:check",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present check:types",
+    "test": "pnpm --filter @losapuntes/api test:ci",
+    "build": "pnpm -r --if-present build",
+    "audit:prod": "pnpm audit --prod --audit-level high",
+    "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   }
 }
