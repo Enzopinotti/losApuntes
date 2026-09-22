@@ -74,10 +74,7 @@ describe('HealthService', () => {
 
   it('bounds a hanging Mongo readiness check', async () => {
     const service = new HealthService(
-      connectionStub(
-        1,
-        () => new Promise(() => undefined),
-      ),
+      connectionStub(1, () => new Promise(() => undefined)),
     );
 
     const startedAt = Date.now();

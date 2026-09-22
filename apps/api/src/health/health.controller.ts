@@ -1,13 +1,6 @@
-import {
-  Controller,
-  Get,
-  Res,
-} from '@nestjs/common';
+import { Controller, Get, Res } from '@nestjs/common';
 
-import {
-  HealthService,
-  type ReadinessResult,
-} from './health.service';
+import { HealthService, type ReadinessResult } from './health.service';
 
 interface StatusReply {
   status(code: number): StatusReply;

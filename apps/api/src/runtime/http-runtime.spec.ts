@@ -1,21 +1,11 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  type NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+import { type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IsString } from 'class-validator';
 import * as request from 'supertest';
 
-import {
-  configureHttpRuntime,
-  createHttpAdapter,
-} from './http-runtime';
+import { configureHttpRuntime, createHttpAdapter } from './http-runtime';
 
 class RuntimeProbeDto {
   @IsString()
@@ -78,9 +68,7 @@ describe('HTTP runtime boundary', () => {
     expect(response.headers['x-request-id']).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
-    expect(response.headers['x-request-id']).not.toBe(
-      'attacker-controlled',
-    );
+    expect(response.headers['x-request-id']).not.toBe('attacker-controlled');
     expect(response.headers['x-content-type-options']).toBe('nosniff');
   });
 
@@ -96,9 +84,7 @@ describe('HTTP runtime boundary', () => {
     });
     expect(response.body.requestId).toBe(response.headers['x-request-id']);
     expect(response.body.message).toEqual(
-      expect.arrayContaining([
-        'property unexpected should not exist',
-      ]),
+      expect.arrayContaining(['property unexpected should not exist']),
     );
   });
 

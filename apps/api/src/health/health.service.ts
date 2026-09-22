@@ -42,10 +42,7 @@ async function withTimeout(
 
 @Injectable()
 export class HealthService {
-  constructor(
-    @InjectConnection()
-    private readonly connection: Connection,
-  ) {}
+  constructor(@InjectConnection() private readonly connection: Connection) {}
 
   liveness() {
     return {
@@ -66,9 +63,7 @@ export class HealthService {
     };
   }
 
-  private async mongoCheck(
-    timeoutMs: number,
-  ): Promise<HealthCheckResult> {
+  private async mongoCheck(timeoutMs: number): Promise<HealthCheckResult> {
     if (
       this.connection.readyState !== MONGO_READY_STATE ||
       !this.connection.db
@@ -81,10 +76,7 @@ export class HealthService {
     }
 
     try {
-      await withTimeout(
-        this.connection.db.admin().ping(),
-        timeoutMs,
-      );
+      await withTimeout(this.connection.db.admin().ping(), timeoutMs);
 
       return {
         name: 'mongo',

@@ -9,10 +9,7 @@ import { randomUUID } from 'node:crypto';
 interface RuntimeRequest {
   id?: string;
   log?: {
-    error(
-      fields: Record<string, unknown>,
-      message?: string,
-    ): void;
+    error(fields: Record<string, unknown>, message?: string): void;
   };
 }
 
@@ -98,14 +95,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
       );
     }
 
-    reply
-      .header('x-request-id', requestId)
-      .status(statusCode)
-      .send({
-        statusCode,
-        code,
-        message,
-        requestId,
-      });
+    reply.header('x-request-id', requestId).status(statusCode).send({
+      statusCode,
+      code,
+      message,
+      requestId,
+    });
   }
 }

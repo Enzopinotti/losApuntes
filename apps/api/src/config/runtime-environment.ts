@@ -22,10 +22,7 @@ function optionalString(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function requiredString(
-  config: Record<string, unknown>,
-  key: string,
-): string {
+function requiredString(config: Record<string, unknown>, key: string): string {
   const value = optionalString(config, key);
 
   if (!value) {

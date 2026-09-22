@@ -1,8 +1,5 @@
 import { HealthController } from './health.controller';
-import {
-  HealthService,
-  type ReadinessResult,
-} from './health.service';
+import { HealthService, type ReadinessResult } from './health.service';
 
 describe('HealthController', () => {
   it('returns 503 for a failed required readiness check', async () => {
