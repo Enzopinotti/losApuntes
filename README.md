@@ -19,6 +19,16 @@ El repositorio activo vive en `main`. Las ramas históricas `frontend` y `backen
 
 Ver `docs/architecture/engineering-guardrails.md`.
 
+## Dominio 2026
+
+Antes de fijar la base de datos, el producto usa un contrato conceptual independiente de Mongo/SQL:
+
+- [Domain Contract 2026](docs/domain/domain-contract-2026.md)
+- [DER reconciliation checklist](docs/domain/der-reconciliation-checklist.md)
+- [MVP domain slices](docs/domain/mvp-domain-slices.md)
+
+El modelo Mongo rescatado es implementación legacy. No define las cardinalidades ni entidades futuras.
+
 ## Runtime y workspace
 
 - Node 24
