@@ -211,9 +211,7 @@ describe('AuthService', () => {
 
     expect(userId).toBe('user-1');
     expect(currentHash).toBe(legacyHash);
-    expect(replacementHash?.startsWith(`${PASSWORD_HASH_SCHEME}$`)).toBe(
-      true,
-    );
+    expect(replacementHash?.startsWith(`${PASSWORD_HASH_SCHEME}$`)).toBe(true);
 
     if (!replacementHash) {
       throw new Error('Expected a migrated password hash');
