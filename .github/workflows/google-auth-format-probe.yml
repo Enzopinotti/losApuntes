@@ -1,0 +1,53 @@
+name: google-auth-format-probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    if: github.head_ref == 'feat/google-auth-integration-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format Web auth files
+        run: |
+          pnpm --filter @losapuntes/web exec prettier --write             src/contexts/AuthContext.tsx             src/features/auth/authMessages.ts             src/features/auth/interfaces.ts             src/features/auth/login/LoginForm.tsx             src/features/auth/services/authService.ts             src/features/auth/signup/SignUpForm.tsx             src/pages/ForgotPassword.tsx             src/pages/ResetPassword.tsx             src/pages/Security.tsx             src/pages/VerificationPending.tsx             src/pages/VerifyEmail.tsx
+
+      - name: Emit exact files
+        run: |
+          files=(
+            apps/web/src/contexts/AuthContext.tsx
+            apps/web/src/features/auth/authMessages.ts
+            apps/web/src/features/auth/interfaces.ts
+            apps/web/src/features/auth/login/LoginForm.tsx
+            apps/web/src/features/auth/services/authService.ts
+            apps/web/src/features/auth/signup/SignUpForm.tsx
+            apps/web/src/pages/ForgotPassword.tsx
+            apps/web/src/pages/ResetPassword.tsx
+            apps/web/src/pages/Security.tsx
+            apps/web/src/pages/VerificationPending.tsx
+            apps/web/src/pages/VerifyEmail.tsx
+          )
+          for i in "${!files[@]}"; do
+            echo "FILE_${i}_BEGIN"
+            base64 -w0 "${files[$i]}"
+            echo
+            echo "FILE_${i}_END"
+          done
