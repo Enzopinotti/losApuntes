@@ -138,9 +138,7 @@ export class AuthController {
 
   @Post('email-verification/complete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async completeEmailVerification(
-    @Body() dto: ActionTokenDto,
-  ): Promise<void> {
+  async completeEmailVerification(@Body() dto: ActionTokenDto): Promise<void> {
     if (!(await this.lifecycle.completeEmailVerification(dto.token))) {
       throw unavailable('VERIFICATION_NOT_AVAILABLE');
     }
@@ -213,9 +211,7 @@ export class AuthController {
   @Post('mobile/login')
   @HttpCode(HttpStatus.OK)
   async mobileLogin(@Body() dto: LoginDto) {
-    const result = authenticatedOutcome(
-      await this.auth.login(dto, 'mobile'),
-    );
+    const result = authenticatedOutcome(await this.auth.login(dto, 'mobile'));
 
     return {
       user: result.user,
