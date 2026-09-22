@@ -20,6 +20,9 @@ export class User {
   @Prop({ default: 1, min: 1 })
   credential_version?: number;
 
+  @Prop({ default: 'active', enum: ['active', 'restricted'] })
+  account_status?: 'active' | 'restricted';
+
   @Prop({ default: 'user', enum: ['user', 'admin'] })
   role!: string;
 

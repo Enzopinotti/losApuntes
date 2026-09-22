@@ -38,6 +38,7 @@ export class UsersService {
               password_hash: passwordHash,
               email_verified_at: null,
               credential_version: 1,
+              account_status: 'active',
               role: 'user',
             },
           },

@@ -39,6 +39,8 @@ La primera frontera de producto usa un contrato compartido para Web y Mobile:
 - [ADR 0003 — opaque revocable sessions](docs/adr/0003-opaque-auth-sessions.md)
 - [Verification & recovery UX](docs/product/auth-verification-recovery-ux-v1.md)
 - [One-time action-token security](docs/security/auth-action-tokens-v1.md)
+- [Account Security Settings UX](docs/product/account-security-settings-v1.md)
+- [Account security implementation contract](docs/security/account-security-v1.md)
 
 Account, Profile y Academic Graph son conceptos distintos. El JWT/role del código legacy no es autoridad futura.
 

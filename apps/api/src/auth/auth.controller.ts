@@ -16,6 +16,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import { AccountSecurityService } from './account-security.service';
+import { AuthAuditService } from './audit/auth-audit.service';
 import type { AuthenticatedRequest } from './auth.types';
 import {
   type AuthenticatedLoginOutcome,
@@ -25,6 +27,7 @@ import {
 import { ActionTokenDto } from './dto/action-token.dto';
 import { EmailAddressDto } from './dto/email-address.dto';
 import { LoginDto } from './dto/login.dto';
+import { PasswordChangeDto } from './dto/password-change.dto';
 import { PasswordRecoveryCompleteDto } from './dto/password-recovery-complete.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthSessionGuard } from './guards/auth-session.guard';
@@ -58,6 +61,14 @@ function authenticatedOutcome(
     );
   }
 
+  if (outcome.kind === 'account_restricted') {
+    throw authError(
+      HttpStatus.FORBIDDEN,
+      'ACCOUNT_RESTRICTED',
+      'Account access is restricted',
+    );
+  }
+
   if (outcome.kind === 'email_verification_required') {
     throw authError(
       HttpStatus.FORBIDDEN,
@@ -81,7 +92,9 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly lifecycle: AuthLifecycleService,
+    private readonly security: AccountSecurityService,
     private readonly sessions: AuthSessionService,
+    private readonly audit: AuthAuditService,
     private readonly config: ConfigService,
   ) {}
 
@@ -178,6 +191,54 @@ export class AuthController {
     }
   }
 
+  @UseGuards(AuthSessionGuard)
+  @Post('password/change')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async changePassword(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: PasswordChangeDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<void> {
+    const outcome = await this.security.changePassword(
+      request.user.id,
+      request.authCredentialVersion,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+
+    if (outcome.kind === 'invalid_current_password') {
+      throw authError(
+        HttpStatus.BAD_REQUEST,
+        'INVALID_CURRENT_PASSWORD',
+        'Current password is not valid',
+      );
+    }
+
+    if (outcome.kind === 'account_restricted') {
+      throw authError(
+        HttpStatus.FORBIDDEN,
+        'ACCOUNT_RESTRICTED',
+        'Account access is restricted',
+      );
+    }
+
+    if (outcome.kind === 'conflict') {
+      throw authError(
+        HttpStatus.CONFLICT,
+        'PASSWORD_CHANGE_CONFLICT',
+        'Account credentials changed concurrently',
+      );
+    }
+
+    if (request.authTransport === 'web') {
+      const nodeEnv = this.config.get<string>('NODE_ENV');
+      reply.clearCookie(
+        getSessionCookieName(nodeEnv),
+        getSessionCookieClearOptions(nodeEnv),
+      );
+    }
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -257,7 +318,16 @@ export class AuthController {
     @Param('sessionId') sessionId: string,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<void> {
-    await this.sessions.revokeOwned(request.user.id, sessionId);
+    const revoked = await this.sessions.revokeOwned(request.user.id, sessionId);
+
+    if (revoked) {
+      await this.audit.record({
+        event: 'auth.session.revoked',
+        userId: request.user.id,
+        sessionId,
+        clientType: request.authTransport,
+      });
+    }
 
     if (
       request.authTransport === 'web' &&
@@ -279,6 +349,12 @@ export class AuthController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<void> {
     await this.sessions.revokeAll(request.user.id);
+
+    await this.audit.record({
+      event: 'auth.session.revoked_all',
+      userId: request.user.id,
+      clientType: request.authTransport,
+    });
 
     if (request.authTransport === 'web') {
       const nodeEnv = this.config.get<string>('NODE_ENV');

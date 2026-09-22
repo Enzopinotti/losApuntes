@@ -8,7 +8,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyRequest } from 'fastify';
 
-import { credentialVersion } from '../../users/user-security-state';
+import {
+  credentialVersion,
+  isAccountActive,
+} from '../../users/user-security-state';
 import { UsersService } from '../../users/users.service';
 import type { AuthenticatedRequest } from '../auth.types';
 import { AuthSessionService } from '../session/auth-session.service';
@@ -22,6 +25,16 @@ function authenticationRequired(): HttpException {
       message: 'Authentication required',
     },
     HttpStatus.UNAUTHORIZED,
+  );
+}
+
+function accountRestricted(): HttpException {
+  return new HttpException(
+    {
+      code: 'ACCOUNT_RESTRICTED',
+      message: 'Account access is restricted',
+    },
+    HttpStatus.FORBIDDEN,
   );
 }
 
@@ -53,6 +66,11 @@ export class AuthSessionGuard implements CanActivate {
     if (!user) {
       await this.sessions.revokeCurrent(credential.sessionToken);
       throw authenticationRequired();
+    }
+
+    if (!isAccountActive(user)) {
+      await this.sessions.revokeCurrent(credential.sessionToken);
+      throw accountRestricted();
     }
 
     const currentCredentialVersion = credentialVersion(user);

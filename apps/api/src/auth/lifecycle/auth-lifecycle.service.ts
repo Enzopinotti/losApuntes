@@ -1,16 +1,16 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-
 import {
   credentialVersion,
   isEmailVerified,
 } from '../../users/user-security-state';
 import { UsersService } from '../../users/users.service';
 import { AuthActionTokenService } from '../action-token/auth-action-token.service';
+import { AuthAuditService } from '../audit/auth-audit.service';
 import {
   AUTH_EMAIL_DELIVERY,
   type AuthEmailDelivery,
 } from '../delivery/auth-email-delivery.types';
+import { PasswordService } from '../password.service';
 import { AuthSessionService } from '../session/auth-session.service';
 import { AuthEmailDeliveryUnavailableError } from './auth-lifecycle.errors';
 
@@ -22,6 +22,8 @@ export class AuthLifecycleService {
     private readonly users: UsersService,
     private readonly actionTokens: AuthActionTokenService,
     private readonly sessions: AuthSessionService,
+    private readonly passwords: PasswordService,
+    private readonly audit: AuthAuditService,
     @Inject(AUTH_EMAIL_DELIVERY)
     private readonly delivery: AuthEmailDelivery,
   ) {}
@@ -100,6 +102,12 @@ export class AuthLifecycleService {
       now,
     );
 
+    await this.audit.record({
+      event: 'auth.email.verified',
+      userId: action.userId,
+      occurredAt: now,
+    });
+
     return true;
   }
 
@@ -171,7 +179,7 @@ export class AuthLifecycleService {
       return false;
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const passwordHash = await this.passwords.hash(newPassword);
     const changed = await this.users.replacePasswordIfCredentialVersion(
       action.userId,
       action.credentialVersion,
@@ -190,6 +198,12 @@ export class AuthLifecycleService {
     } catch {
       // credentialVersion is the security boundary; deletion is cleanup.
     }
+
+    await this.audit.record({
+      event: 'auth.password.recovery.completed',
+      userId: action.userId,
+      occurredAt: now,
+    });
 
     try {
       await this.delivery.sendPasswordRecoveryCompleted({

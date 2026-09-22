@@ -1,8 +1,10 @@
 import type { User } from './schemas/user.schema';
 
+export type AccountStatus = 'active' | 'restricted';
+
 type UserSecurityFields = Pick<
   User,
-  'credential_version' | 'email_verified_at'
+  'credential_version' | 'email_verified_at' | 'account_status'
 >;
 
 export function credentialVersion(user: UserSecurityFields): number {
@@ -21,4 +23,12 @@ export function isEmailVerified(user: UserSecurityFields): boolean {
   }
 
   return user.email_verified_at instanceof Date;
+}
+
+export function accountStatus(user: UserSecurityFields): AccountStatus {
+  return user.account_status === 'restricted' ? 'restricted' : 'active';
+}
+
+export function isAccountActive(user: UserSecurityFields): boolean {
+  return accountStatus(user) === 'active';
 }
