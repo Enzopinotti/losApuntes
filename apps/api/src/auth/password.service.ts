@@ -46,10 +46,7 @@ function parsePbkdf2Hash(passwordHash: string): ParsedPbkdf2Hash | null {
   const salt = Buffer.from(match[2] ?? '', 'base64url');
   const digest = Buffer.from(match[3] ?? '', 'base64url');
 
-  if (
-    salt.length !== PBKDF2_SALT_BYTES ||
-    digest.length !== PBKDF2_KEY_BYTES
-  ) {
+  if (salt.length !== PBKDF2_SALT_BYTES || digest.length !== PBKDF2_KEY_BYTES) {
     return null;
   }
 
