@@ -37,6 +37,7 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
+          package-manager-cache: false
 
       - name: Repository hygiene
         run: npm run check:hygiene

@@ -2,6 +2,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 
+import { User } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 
@@ -32,9 +33,14 @@ describe('AuthService', () => {
   });
 
   it('hashes the password and signs the created user', async () => {
-    usersService.create.mockResolvedValue({
-      _id: { toString: () => 'user-1' },
-      role: 'user',
+    let persistedUser: Partial<User> | undefined;
+
+    usersService.create.mockImplementation(async (data: Partial<User>) => {
+      persistedUser = data;
+      return {
+        _id: { toString: () => 'user-1' },
+        role: 'user',
+      };
     });
     jwtService.sign.mockReturnValue('signed-token');
 
@@ -45,15 +51,22 @@ describe('AuthService', () => {
     });
 
     expect(usersService.create).toHaveBeenCalledTimes(1);
-    const created = usersService.create.mock.calls[0][0];
-    expect(created).toMatchObject({
+    expect(persistedUser).toMatchObject({
       username: 'enzo',
       email: 'enzo@example.com',
     });
-    expect(created.password_hash).not.toBe('correct-horse');
-    await expect(
-      bcrypt.compare('correct-horse', created.password_hash),
-    ).resolves.toBe(true);
+
+    const passwordHash = persistedUser?.password_hash;
+    expect(passwordHash).toBeDefined();
+    expect(passwordHash).not.toBe('correct-horse');
+
+    if (!passwordHash) {
+      throw new Error('Expected register to persist a password hash');
+    }
+
+    await expect(bcrypt.compare('correct-horse', passwordHash)).resolves.toBe(
+      true,
+    );
     expect(jwtService.sign).toHaveBeenCalledWith(
       { sub: 'user-1', role: 'user' },
       { expiresIn: '15m' },
