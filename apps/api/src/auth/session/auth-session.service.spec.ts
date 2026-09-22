@@ -6,9 +6,7 @@ import {
 import { AuthSessionService } from './auth-session.service';
 import { hashSessionToken } from './session-token';
 
-function record(
-  overrides: Partial<AuthSessionRecord> = {},
-): AuthSessionRecord {
+function record(overrides: Partial<AuthSessionRecord> = {}): AuthSessionRecord {
   return {
     id: '507f1f77bcf86cd799439011',
     userId: 'user-1',

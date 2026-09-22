@@ -44,10 +44,7 @@ export class AuthService {
     const user = await this.validateUser(dto.email, dto.password);
     if (!user) return null;
 
-    const issued = await this.sessions.issue(
-      user._id.toString(),
-      clientType,
-    );
+    const issued = await this.sessions.issue(user._id.toString(), clientType);
 
     return {
       user: {

@@ -120,10 +120,7 @@ export class AuthSessionService {
     );
   }
 
-  async revokeOwned(
-    userId: string,
-    sessionId: string,
-  ): Promise<boolean> {
+  async revokeOwned(userId: string, sessionId: string): Promise<boolean> {
     return this.store.revokeOwnedById(userId, sessionId);
   }
 

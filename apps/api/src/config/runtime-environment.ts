@@ -1,8 +1,4 @@
-const VALID_NODE_ENVIRONMENTS = new Set([
-  'development',
-  'test',
-  'production',
-]);
+const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
 
 function optionalString(
   config: Record<string, unknown>,

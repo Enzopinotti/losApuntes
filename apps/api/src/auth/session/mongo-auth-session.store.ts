@@ -82,10 +82,7 @@ export class MongoAuthSessionStore implements AuthSessionStore {
     await this.model.deleteOne({ tokenHash }).exec();
   }
 
-  async revokeOwnedById(
-    userId: string,
-    sessionId: string,
-  ): Promise<boolean> {
+  async revokeOwnedById(userId: string, sessionId: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(sessionId)) {
       return false;
     }
