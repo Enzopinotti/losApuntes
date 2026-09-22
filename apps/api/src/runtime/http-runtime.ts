@@ -5,6 +5,7 @@ import {
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { randomUUID } from 'node:crypto';
+import { LogController } from 'fastify';
 
 import { ApiExceptionFilter } from './api-exception.filter';
 
@@ -45,7 +46,7 @@ export function createHttpAdapter(
           },
         }
       : false,
-    disableRequestLogging: true,
+    logController: new LogController({ disableRequestLogging: true }),
     genReqId: () => randomUUID(),
     requestIdHeader: false,
     requestTimeout: HTTP_REQUEST_TIMEOUT_MS,

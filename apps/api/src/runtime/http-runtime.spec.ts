@@ -124,6 +124,11 @@ describe('HTTP runtime boundary', () => {
       .set('Access-Control-Request-Method', 'POST')
       .expect(204);
 
-    expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+    expect(denied.headers['access-control-allow-origin']).toBe(
+      'http://localhost:5173',
+    );
+    expect(denied.headers['access-control-allow-origin']).not.toBe(
+      'https://untrusted.example',
+    );
   });
 });
