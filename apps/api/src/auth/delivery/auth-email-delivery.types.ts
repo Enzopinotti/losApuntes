@@ -16,4 +16,5 @@ export interface AuthEmailDelivery {
   sendPasswordRecoveryCompleted(
     message: AuthEmailSecurityNotice,
   ): Promise<void>;
+  sendPasswordChanged(message: AuthEmailSecurityNotice): Promise<void>;
 }
