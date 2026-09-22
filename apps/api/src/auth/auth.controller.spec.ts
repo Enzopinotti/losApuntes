@@ -3,6 +3,8 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
+import { AuthEmailDeliveryUnavailableError } from './lifecycle/auth-lifecycle.errors';
+import type { AuthLifecycleService } from './lifecycle/auth-lifecycle.service';
 import type { AuthSessionService } from './session/auth-session.service';
 import type { SessionCookieOptions } from './session/session-cookie';
 
@@ -23,6 +25,12 @@ const USER = {
 describe('AuthController', () => {
   const register = jest.fn();
   const login = jest.fn();
+  const requestEmailVerification = jest.fn();
+  const inspectEmailVerification = jest.fn();
+  const completeEmailVerification = jest.fn();
+  const requestPasswordRecovery = jest.fn();
+  const inspectPasswordRecovery = jest.fn();
+  const completePasswordRecovery = jest.fn();
   const revokeCurrent = jest.fn();
   const listForUser = jest.fn();
   const revokeOwned = jest.fn();
@@ -32,6 +40,15 @@ describe('AuthController', () => {
     register,
     login,
   } as unknown as AuthService;
+
+  const lifecycle = {
+    requestEmailVerification,
+    inspectEmailVerification,
+    completeEmailVerification,
+    requestPasswordRecovery,
+    inspectPasswordRecovery,
+    completePasswordRecovery,
+  } as unknown as AuthLifecycleService;
 
   const sessionService = {
     revokeCurrent,
@@ -44,7 +61,12 @@ describe('AuthController', () => {
     NODE_ENV: 'development',
   });
 
-  const controller = new AuthController(authService, sessionService, config);
+  const controller = new AuthController(
+    authService,
+    lifecycle,
+    sessionService,
+    config,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -67,8 +89,55 @@ describe('AuthController', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('maps transactional delivery failure to a stable service error', async () => {
+    requestEmailVerification.mockRejectedValue(
+      new AuthEmailDeliveryUnavailableError(),
+    );
+
+    await expect(
+      controller.requestEmailVerification({
+        email: 'enzo@example.com',
+      }),
+    ).rejects.toMatchObject({
+      status: 503,
+      response: expect.objectContaining({
+        code: 'AUTH_DELIVERY_UNAVAILABLE',
+      }),
+    });
+  });
+
+  it('returns verification availability without echoing the token', async () => {
+    inspectEmailVerification.mockResolvedValue(true);
+
+    await expect(
+      controller.inspectEmailVerification({
+        token: 'v'.repeat(43),
+      }),
+    ).resolves.toEqual({
+      verification: {
+        available: true,
+      },
+    });
+  });
+
+  it('returns an unavailable verification as 410', async () => {
+    inspectEmailVerification.mockResolvedValue(false);
+
+    await expect(
+      controller.inspectEmailVerification({
+        token: 'v'.repeat(43),
+      }),
+    ).rejects.toMatchObject({
+      status: 410,
+      response: expect.objectContaining({
+        code: 'VERIFICATION_NOT_AVAILABLE',
+      }),
+    });
+  });
+
   it('puts the Web bearer only in the HttpOnly cookie contract', async () => {
     login.mockResolvedValue({
+      kind: 'authenticated',
       user: USER,
       sessionToken: 'a'.repeat(43),
       session: SESSION,
@@ -107,31 +176,27 @@ describe('AuthController', () => {
       ...SESSION,
       clientType: 'mobile' as const,
     };
-    const result = {
+    login.mockResolvedValue({
+      kind: 'authenticated',
       user: USER,
       sessionToken: 'b'.repeat(43),
       session: mobileSession,
-    };
-    login.mockResolvedValue(result);
+    });
 
     await expect(
       controller.mobileLogin({
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
-    ).resolves.toEqual(result);
-
-    expect(login).toHaveBeenCalledWith(
-      {
-        email: 'enzo@example.com',
-        password: 'correct-horse-battery',
-      },
-      'mobile',
-    );
+    ).resolves.toEqual({
+      user: USER,
+      sessionToken: 'b'.repeat(43),
+      session: mobileSession,
+    });
   });
 
-  it('rejects invalid Web credentials without setting a cookie', async () => {
-    login.mockResolvedValue(null);
+  it('rejects invalid credentials without setting a Web cookie', async () => {
+    login.mockResolvedValue({ kind: 'invalid_credentials' });
     const setCookie = jest.fn();
     const reply = {
       setCookie,
@@ -145,7 +210,37 @@ describe('AuthController', () => {
         },
         reply,
       ),
-    ).rejects.toThrow('Invalid credentials');
+    ).rejects.toMatchObject({
+      status: 401,
+      response: expect.objectContaining({
+        code: 'INVALID_CREDENTIALS',
+      }),
+    });
+
+    expect(setCookie).not.toHaveBeenCalled();
+  });
+
+  it('returns verification-required only after credential proof', async () => {
+    login.mockResolvedValue({ kind: 'email_verification_required' });
+    const setCookie = jest.fn();
+    const reply = {
+      setCookie,
+    } as unknown as FastifyReply;
+
+    await expect(
+      controller.login(
+        {
+          email: 'enzo@example.com',
+          password: 'correct-horse-battery',
+        },
+        reply,
+      ),
+    ).rejects.toMatchObject({
+      status: 403,
+      response: expect.objectContaining({
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+      }),
+    });
 
     expect(setCookie).not.toHaveBeenCalled();
   });
