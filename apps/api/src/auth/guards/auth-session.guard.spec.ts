@@ -17,13 +17,17 @@ function contextFor(request: Partial<FastifyRequest>): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function user(credentialVersion: number): UserDocument {
+function user(
+  credentialVersion: number,
+  accountStatus: 'active' | 'restricted' | undefined = undefined,
+): UserDocument {
   return {
     _id: {
       toString: () => 'user-1',
     },
     email: 'enzo@example.com',
     credential_version: credentialVersion,
+    account_status: accountStatus,
   } as unknown as UserDocument;
 }
 
@@ -75,6 +79,37 @@ describe('AuthSessionGuard credential fencing', () => {
 
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
     expect(revokeCurrent).not.toHaveBeenCalled();
+  });
+
+  it('fails closed with ACCOUNT_RESTRICTED and revokes an existing session', async () => {
+    resolve.mockResolvedValue({
+      userId: 'user-1',
+      credentialVersion: 2,
+      session: {
+        id: '93b0d36e-a992-487f-b9ba-1173c47800f7',
+        clientType: 'mobile',
+        createdAt: '2026-09-22T14:00:00.000Z',
+        lastSeenAt: '2026-09-22T14:00:00.000Z',
+        expiresAt: '2026-10-22T14:00:00.000Z',
+        current: true,
+      },
+    });
+    findById.mockResolvedValue(user(2, 'restricted'));
+
+    const request = {
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+      },
+      cookies: {},
+    } as unknown as FastifyRequest;
+
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 403,
+      response: {
+        code: 'ACCOUNT_RESTRICTED',
+      },
+    });
+    expect(revokeCurrent).toHaveBeenCalledWith(TOKEN);
   });
 
   it('fails closed and revokes a session fenced by a newer credential version', async () => {
