@@ -96,11 +96,7 @@ export class GoogleAuthService {
       return { kind: 'unavailable' };
     }
 
-    const attempt = await this.attempts.issue(
-      'login',
-      undefined,
-      returnPath,
-    );
+    const attempt = await this.attempts.issue('login', undefined, returnPath);
 
     return {
       kind: 'started',
@@ -343,11 +339,7 @@ export class GoogleAuthService {
     const userId = created._id.toString();
 
     try {
-      const link = await this.identities.link(
-        proof.subject,
-        userId,
-        email,
-      );
+      const link = await this.identities.link(proof.subject, userId, email);
 
       if (link.kind === 'subject_in_use') {
         await this.users.deleteGoogleOnlyAccountIfUnclaimed(userId);
