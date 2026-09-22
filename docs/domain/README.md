@@ -15,6 +15,7 @@ A concept documented here is **not automatically a table, collection, aggregate,
 - [Domain Contract 2026](domain-contract-2026.md)
 - [DER reconciliation checklist](der-reconciliation-checklist.md)
 - [Domain slices and delivery order](mvp-domain-slices.md)
+- [Academic Catalog source strategy](academic-catalog-source-strategy-2026.md)
 
 The real DER/class diagrams remain an input to architecture issue #3. Until they are reconciled, these documents constrain semantics but do not choose MongoDB or PostgreSQL.
 
