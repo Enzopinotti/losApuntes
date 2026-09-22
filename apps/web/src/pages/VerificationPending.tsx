@@ -51,8 +51,8 @@ const VerificationPending = () => {
 
       {sent && (
         <p role="status" aria-live="polite">
-          Si podemos continuar con esa dirección, vas a recibir un email con
-          las instrucciones.
+          Si podemos continuar con esa dirección, vas a recibir un email con las
+          instrucciones.
         </p>
       )}
 

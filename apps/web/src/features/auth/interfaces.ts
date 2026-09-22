@@ -29,11 +29,7 @@ export type AuthSnapshot = {
 };
 
 export type AuthStatus =
-  | "restoring"
-  | "anonymous"
-  | "authenticated"
-  | "restricted"
-  | "unavailable";
+  "restoring" | "anonymous" | "authenticated" | "restricted" | "unavailable";
 
 export type GoogleAuthStatus = {
   webEnabled: boolean;

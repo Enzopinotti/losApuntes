@@ -84,7 +84,9 @@ const LoginForm = () => {
       return;
     }
 
-    setFormError(googleMessages[google] || "No pudimos completar el acceso con Google.");
+    setFormError(
+      googleMessages[google] || "No pudimos completar el acceso con Google.",
+    );
   }, [navigate, refresh, searchParams]);
 
   const onSubmit = async (data: LoginFormData) => {
@@ -119,11 +121,7 @@ const LoginForm = () => {
 
   return (
     <div className="auth-container">
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="auth-form"
-        noValidate
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>
         <div>
           <label htmlFor="login-email">Email</label>
           <input
@@ -180,9 +178,7 @@ const LoginForm = () => {
         {formError && (
           <div role="alert" aria-live="polite">
             <p className="error">{formError}</p>
-            {requestId && (
-              <small>Referencia para soporte: {requestId}</small>
-            )}
+            {requestId && <small>Referencia para soporte: {requestId}</small>}
           </div>
         )}
 

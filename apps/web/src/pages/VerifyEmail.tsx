@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  authErrorMessage,
-  isAuthCode,
-} from "../features/auth/authMessages";
+import { authErrorMessage, isAuthCode } from "../features/auth/authMessages";
 import { authApi } from "../features/auth/services/authService";
 
 type VerifyState = "verifying" | "success" | "unavailable" | "error";
@@ -41,9 +38,7 @@ const VerifyEmail = () => {
           return;
         }
 
-        setMessage(
-          authErrorMessage(error, "No pudimos verificar el email."),
-        );
+        setMessage(authErrorMessage(error, "No pudimos verificar el email."));
         setState("error");
       }
     })();

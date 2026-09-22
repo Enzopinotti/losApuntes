@@ -8,12 +8,7 @@ import {
 import { authApi } from "../features/auth/services/authService";
 
 type RecoveryState =
-  | "checking"
-  | "ready"
-  | "submitting"
-  | "success"
-  | "unavailable"
-  | "error";
+  "checking" | "ready" | "submitting" | "success" | "unavailable" | "error";
 
 const ResetPassword = () => {
   const [token] = useState(
@@ -91,9 +86,7 @@ const ResetPassword = () => {
         return;
       }
 
-      setMessage(
-        authErrorMessage(error, "No pudimos cambiar la contraseña."),
-      );
+      setMessage(authErrorMessage(error, "No pudimos cambiar la contraseña."));
       setRequestId(authErrorRequestId(error));
       setState("ready");
     }
@@ -123,9 +116,7 @@ const ResetPassword = () => {
             onChange={(event) => setNewPassword(event.target.value)}
           />
 
-          <label htmlFor="reset-password-confirm">
-            Confirmar contraseña
-          </label>
+          <label htmlFor="reset-password-confirm">Confirmar contraseña</label>
           <input
             id="reset-password-confirm"
             type="password"
@@ -140,9 +131,7 @@ const ResetPassword = () => {
           {message && (
             <div role="alert">
               <p className="error">{message}</p>
-              {requestId && (
-                <small>Referencia para soporte: {requestId}</small>
-              )}
+              {requestId && <small>Referencia para soporte: {requestId}</small>}
             </div>
           )}
 

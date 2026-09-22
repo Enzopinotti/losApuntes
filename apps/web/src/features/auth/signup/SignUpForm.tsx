@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import {
-  authErrorMessage,
-  authErrorRequestId,
-} from "../authMessages";
+import { authErrorMessage, authErrorRequestId } from "../authMessages";
 import type { SignUpFormData } from "../interfaces";
 import { authApi } from "../services/authService";
 import "../AuthForm.scss";
@@ -73,11 +70,7 @@ const SignUpForm = () => {
 
   return (
     <div className="auth-container">
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="auth-form"
-        noValidate
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>
         <div>
           <label htmlFor="signup-email">Email</label>
           <input
@@ -130,9 +123,7 @@ const SignUpForm = () => {
         </div>
 
         <div>
-          <label htmlFor="signup-confirm-password">
-            Confirmar contraseña
-          </label>
+          <label htmlFor="signup-confirm-password">Confirmar contraseña</label>
           <input
             id="signup-confirm-password"
             type="password"
@@ -158,9 +149,7 @@ const SignUpForm = () => {
         {formError && (
           <div role="alert" aria-live="polite">
             <p className="error">{formError}</p>
-            {requestId && (
-              <small>Referencia para soporte: {requestId}</small>
-            )}
+            {requestId && <small>Referencia para soporte: {requestId}</small>}
           </div>
         )}
 

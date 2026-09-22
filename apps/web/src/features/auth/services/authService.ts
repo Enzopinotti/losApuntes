@@ -85,10 +85,7 @@ async function parseJson(response: Response): Promise<unknown> {
   }
 }
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
 
   try {
@@ -115,9 +112,7 @@ async function request<T>(
 
   if (!response.ok) {
     const envelope =
-      typeof body === "object" && body !== null
-        ? (body as ErrorEnvelope)
-        : {};
+      typeof body === "object" && body !== null ? (body as ErrorEnvelope) : {};
 
     throw new AuthApiError(
       envelope.code || "REQUEST_FAILED",
@@ -208,8 +203,7 @@ export const authApi = {
       method: "DELETE",
     }),
 
-  googleStatus: () =>
-    request<GoogleAuthStatus>("/auth/google/status"),
+  googleStatus: () => request<GoogleAuthStatus>("/auth/google/status"),
 
   googleWebStartUrl: (returnTo = "/login") => {
     const url = new URL(apiUrl("/auth/google/web/start"));
@@ -217,8 +211,7 @@ export const authApi = {
     return url.toString();
   },
 
-  loginMethods: () =>
-    request<LoginMethods>("/auth/login-methods"),
+  loginMethods: () => request<LoginMethods>("/auth/login-methods"),
 
   startGoogleLink: (currentPassword: string, returnTo = "/settings/security") =>
     request<GoogleLinkStartResponse>("/auth/google/web/link/start", {

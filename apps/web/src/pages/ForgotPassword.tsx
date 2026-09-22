@@ -24,10 +24,7 @@ const ForgotPassword = () => {
       setAccepted(true);
     } catch (nextError) {
       setError(
-        authErrorMessage(
-          nextError,
-          "No pudimos solicitar la recuperación.",
-        ),
+        authErrorMessage(nextError, "No pudimos solicitar la recuperación."),
       );
       setRequestId(authErrorRequestId(nextError));
     } finally {

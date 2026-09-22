@@ -10,10 +10,7 @@ import type {
   AuthUser,
   PublicAuthSession,
 } from "../features/auth/interfaces";
-import {
-  authApi,
-  isAuthApiError,
-} from "../features/auth/services/authService";
+import { authApi, isAuthApiError } from "../features/auth/services/authService";
 import { AuthContext } from "./auth-context";
 
 type AuthState = {
@@ -67,10 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return false;
         }
 
-        if (
-          error.code === "AUTHENTICATION_REQUIRED" ||
-          error.status === 401
-        ) {
+        if (error.code === "AUTHENTICATION_REQUIRED" || error.status === 401) {
           setState({
             status: "anonymous",
             user: null,

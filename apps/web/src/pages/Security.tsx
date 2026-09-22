@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import {
@@ -189,9 +184,7 @@ const Security = () => {
 
       window.location.assign(outcome.authorizationUrl);
     } catch (nextError) {
-      setError(
-        authErrorMessage(nextError, "No pudimos conectar Google."),
-      );
+      setError(authErrorMessage(nextError, "No pudimos conectar Google."));
       setRequestId(authErrorRequestId(nextError));
     } finally {
       setBusyAction(null);
@@ -209,9 +202,7 @@ const Security = () => {
       await loadSecurity();
       setFeedback("Google ya no está conectado a tu cuenta.");
     } catch (nextError) {
-      setError(
-        authErrorMessage(nextError, "No pudimos desconectar Google."),
-      );
+      setError(authErrorMessage(nextError, "No pudimos desconectar Google."));
       setRequestId(authErrorRequestId(nextError));
     } finally {
       setBusyAction(null);
@@ -257,9 +248,7 @@ const Security = () => {
                   onChange={(event) => setCurrentPassword(event.target.value)}
                 />
 
-                <label htmlFor="security-new-password">
-                  Nueva contraseña
-                </label>
+                <label htmlFor="security-new-password">Nueva contraseña</label>
                 <input
                   id="security-new-password"
                   type="password"
@@ -289,10 +278,7 @@ const Security = () => {
                   Al cambiarla se cierran todas las sesiones, incluida esta.
                 </p>
 
-                <button
-                  type="submit"
-                  disabled={busyAction === "password"}
-                >
+                <button type="submit" disabled={busyAction === "password"}>
                   {busyAction === "password"
                     ? "Cambiando…"
                     : "Cambiar contraseña"}
@@ -300,8 +286,8 @@ const Security = () => {
               </form>
             ) : (
               <p>
-                No hay una contraseña configurada. Podés establecer una
-                mediante el flujo de <Link to="/forgot-password">recuperación</Link>.
+                No hay una contraseña configurada. Podés establecer una mediante
+                el flujo de <Link to="/forgot-password">recuperación</Link>.
               </p>
             )}
           </section>
