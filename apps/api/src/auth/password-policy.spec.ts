@@ -16,7 +16,9 @@ describe('password policy', () => {
       'too_short',
     );
     expect(passwordPolicyViolation('correct horse battery staple')).toBeNull();
-    expect(passwordPolicyViolation('frase con espacios suficientemente larga')).toBeNull();
+    expect(
+      passwordPolicyViolation('frase con espacios suficientemente larga'),
+    ).toBeNull();
   });
 
   it('rejects values beyond the bounded maximum', () => {
