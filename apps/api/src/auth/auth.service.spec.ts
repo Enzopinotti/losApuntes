@@ -21,6 +21,7 @@ function userDocument(
   emailVerifiedAt: Date | null | undefined = new Date(
     '2026-09-22T10:00:00.000Z',
   ),
+  accountStatus: 'active' | 'restricted' | undefined = undefined,
 ): UserDocument {
   return {
     _id: {
@@ -30,6 +31,7 @@ function userDocument(
     password_hash: passwordHash,
     email_verified_at: emailVerifiedAt,
     credential_version: 1,
+    account_status: accountStatus,
   } as unknown as UserDocument;
 }
 
@@ -121,6 +123,40 @@ describe('AuthService', () => {
         'web',
       ),
     ).resolves.toEqual({ kind: 'invalid_credentials' });
+
+    expect(issueSession).not.toHaveBeenCalled();
+  });
+
+  it('does not reveal restriction state when the password is wrong', async () => {
+    const hash = await bcrypt.hash('real-password', 4);
+    findByEmail.mockResolvedValue(userDocument(hash, undefined, 'restricted'));
+
+    await expect(
+      service.login(
+        {
+          email: 'enzo@example.com',
+          password: 'wrong-password',
+        },
+        'web',
+      ),
+    ).resolves.toEqual({ kind: 'invalid_credentials' });
+
+    expect(issueSession).not.toHaveBeenCalled();
+  });
+
+  it('blocks a restricted account only after correct credential proof', async () => {
+    const hash = await bcrypt.hash('real-password', 4);
+    findByEmail.mockResolvedValue(userDocument(hash, undefined, 'restricted'));
+
+    await expect(
+      service.login(
+        {
+          email: 'enzo@example.com',
+          password: 'real-password',
+        },
+        'web',
+      ),
+    ).resolves.toEqual({ kind: 'account_restricted' });
 
     expect(issueSession).not.toHaveBeenCalled();
   });
