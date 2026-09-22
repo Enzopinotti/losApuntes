@@ -96,11 +96,7 @@ export class AccountSecurityService {
 
   private async bestEffortCleanup(userId: string, now: Date): Promise<void> {
     try {
-      await this.actionTokens.invalidateAll(
-        userId,
-        'password_recovery',
-        now,
-      );
+      await this.actionTokens.invalidateAll(userId, 'password_recovery', now);
     } catch {
       this.logger.warn('auth.password.change.recovery_cleanup_failed');
     }
