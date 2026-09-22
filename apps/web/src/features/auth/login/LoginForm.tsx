@@ -1,9 +1,9 @@
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import type { LoginFormData } from "../interfaces";
 import "../AuthForm.scss";
 import { fakeAuthApi } from "../services/authService";
-import { useAuth } from "../../../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../contexts/useAuth";
 
 const LoginForm = () => {
   const { login } = useAuth();
@@ -17,10 +17,7 @@ const LoginForm = () => {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      const { user, token } = await fakeAuthApi.login(
-        data.email,
-        data.password
-      );
+      const { user, token } = await fakeAuthApi.login(data.email, data.password);
       login(token, user);
       navigate("/dashboard");
     } catch (error) {
@@ -30,46 +27,43 @@ const LoginForm = () => {
   };
 
   return (
-    <>
-      <div className="auth-container">
-        <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
-          <div>
-            <input
-              placeholder="Email"
-              type="email"
-              {...register("email", {
-                required: "El email es obligatorio",
-                pattern: {
-                  value: /^\S+@\S+$/i,
-                  message: "Email inválido",
-                },
-              })}
-            />
-            {errors.email && <p className="error">{errors.email.message}</p>}
-          </div>
+    <div className="auth-container">
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
+        <div>
+          <input
+            placeholder="Email"
+            type="email"
+            {...register("email", {
+              required: "El email es obligatorio",
+              pattern: {
+                value: /^\S+@\S+$/i,
+                message: "Email inválido",
+              },
+            })}
+          />
+          {errors.email && <p className="error">{errors.email.message}</p>}
+        </div>
 
-          <div>
-            <input
-              placeholder="Contraseña"
-              type="password"
-              {...register("password", {
-                required: "La contraseña es obligatoria",
-                minLength: {
-                  value: 8,
-                  message: "La contraseña debe tener al menos 8 caracteres",
-                },
-              })}
-            />
+        <div>
+          <input
+            placeholder="Contraseña"
+            type="password"
+            {...register("password", {
+              required: "La contraseña es obligatoria",
+              minLength: {
+                value: 8,
+                message: "La contraseña debe tener al menos 8 caracteres",
+              },
+            })}
+          />
+          {errors.password && (
+            <p className="error">{errors.password.message}</p>
+          )}
+        </div>
 
-            {errors.password && (
-              <p className="error">{errors.password.message}</p>
-            )}
-          </div>
-
-          <button type="submit">Iniciar Sesión </button>
-        </form>
-      </div>
-    </>
+        <button type="submit">Iniciar Sesión</button>
+      </form>
+    </div>
   );
 };
 

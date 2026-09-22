@@ -1,20 +1,6 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { User } from "../features/auth/interfaces";
-
-type AuthContextType = {
-  token: string | null;
-  user: User | null;
-  login: (token: string, user: User) => void;
-  logout: () => void;
-};
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from "./auth-context";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
@@ -26,22 +12,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (storedToken && storedUser) {
       try {
-        const parsedUser = JSON.parse(storedUser);
         setToken(storedToken);
-        setUser(parsedUser);
+        setUser(JSON.parse(storedUser) as User);
       } catch (error) {
         console.error("Error parsing stored user from localStorage:", error);
-        // Si querés, podés limpiar el localStorage corrupto:
         localStorage.removeItem("user");
       }
     }
   }, []);
 
-  const login = (token: string, user: User) => {
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(user));
-    setToken(token);
-    setUser(user);
+  const login = (nextToken: string, nextUser: User) => {
+    localStorage.setItem("token", nextToken);
+    localStorage.setItem("user", JSON.stringify(nextUser));
+    setToken(nextToken);
+    setUser(nextUser);
   };
 
   const logout = () => {
@@ -56,12 +40,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be within an Auth Provider");
-  }
-  return context;
 };

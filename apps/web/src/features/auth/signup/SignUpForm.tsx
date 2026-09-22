@@ -1,11 +1,10 @@
-// src/features/auth/signup/SignUpForm.tsx
-
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import type { SignUpFormData } from "../interfaces";
 import "../AuthForm.scss";
-import { useAuth } from "../../../contexts/AuthContext";
+import { useAuth } from "../../../contexts/useAuth";
 import { fakeAuthApi } from "../services/authService";
-import { useNavigate } from "react-router-dom";
+
 const SignUpForm = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -23,7 +22,7 @@ const SignUpForm = () => {
         data.name,
         data.email,
         data.password,
-        data.confirmPassword
+        data.confirmPassword,
       );
       login(token, user);
       navigate("/dashboard");

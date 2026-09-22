@@ -15,37 +15,81 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  hygiene:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 5
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Use Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Repository hygiene
+        run: npm run check:hygiene
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
 
       - name: Use Node 24
         uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: |
-            apps/web/package-lock.json
-            apps/api/package-lock.json
-
-      - name: Repository hygiene
-        run: npm run check:hygiene
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install web from lockfile
         run: npm ci --prefix apps/web
-
-      - name: Install API from lockfile
-        run: npm ci --prefix apps/api
 
       - name: Lint web
         run: npm run lint:web
 
       - name: Build web
         run: npm run build:web
+
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Use Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install API from lockfile
+        run: npm ci --prefix apps/api
 
       - name: Lint API
         run: npm run lint:api
