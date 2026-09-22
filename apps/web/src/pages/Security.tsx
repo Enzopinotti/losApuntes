@@ -370,7 +370,7 @@ const Security = () => {
               </strong>
             </p>
 
-            {googleEnabled ? (
+            {(methods?.googleConnected || googleEnabled) && (
               <>
                 <label htmlFor="google-reauth-password">
                   Confirmá tu contraseña para cambiar Google
@@ -418,7 +418,9 @@ const Security = () => {
                   </p>
                 )}
               </>
-            ) : (
+            )}
+
+            {!methods?.googleConnected && !googleEnabled && (
               <p>Google no está habilitado en este entorno.</p>
             )}
           </section>
