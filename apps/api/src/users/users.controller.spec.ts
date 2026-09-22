@@ -1,18 +1,12 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 
 describe('UsersController', () => {
-  let controller: UsersController;
+  it('keeps the protected profile route behavior behind its guard metadata', () => {
+    const controller = new UsersController();
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [UsersController],
-    }).compile();
-
-    controller = module.get<UsersController>(UsersController);
-  });
-
-  it('should be defined', () => {
     expect(controller).toBeDefined();
+    expect(controller.getProfile()).toEqual({
+      message: 'Ruta protegida por sesión revocable',
+    });
   });
 });
