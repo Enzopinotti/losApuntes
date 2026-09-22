@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 
 import {
   extractActionToken,
@@ -66,6 +67,40 @@ function cookiePair(setCookie) {
   return setCookie.split(';', 1)[0];
 }
 
+function setSyntheticAccountStatus(email, status) {
+  const script = [
+    `const result = db.users.updateOne(`,
+    `  { email: ${JSON.stringify(email)} },`,
+    `  { $set: { account_status: ${JSON.stringify(status)} } },`,
+    `);`,
+    `if (result.matchedCount !== 1) {`,
+    `  printjson(result);`,
+    `  quit(2);`,
+    `}`,
+  ].join('\n');
+
+  execFileSync(
+    'docker',
+    [
+      'compose',
+      '-f',
+      'compose.local.yml',
+      'exec',
+      '-T',
+      'mongo',
+      'mongosh',
+      '--quiet',
+      'losapuntes_local',
+      '--eval',
+      script,
+    ],
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+}
+
 await waitForMailpit();
 
 const credentials = {
@@ -73,6 +108,7 @@ const credentials = {
   password: 'runtime-smoke-credential-2026',
 };
 const newPassword = 'runtime-smoke-new-credential-2026';
+const changedPassword = 'runtime-smoke-authenticated-change-2026';
 
 const registration = await requestJson(
   '/auth/register',
@@ -329,10 +365,182 @@ await waitForMail(
   'Tu contraseña de Los Apuntes fue actualizada',
 );
 
+const newWebLogin = await requestJson(
+  '/auth/login',
+  jsonRequest('POST', {
+    email: credentials.email,
+    password: newPassword,
+  }),
+);
+
+assert.equal(newWebLogin.response.status, 200);
+const newWebCookie = cookiePair(
+  newWebLogin.response.headers.get('set-cookie'),
+);
+const newMobileBearer = `Bearer ${newMobileLogin.body.sessionToken}`;
+
+const wrongCurrentPasswordChange = await requestJson(
+  '/auth/password/change',
+  jsonRequest(
+    'POST',
+    {
+      currentPassword: 'wrong-current-password',
+      newPassword: changedPassword,
+    },
+    {
+      authorization: newMobileBearer,
+    },
+  ),
+);
+
+assert.equal(wrongCurrentPasswordChange.response.status, 400);
+assert.equal(
+  wrongCurrentPasswordChange.body.code,
+  'INVALID_CURRENT_PASSWORD',
+);
+assertRequestId(wrongCurrentPasswordChange.response);
+
+const stillAuthenticated = await requestJson('/auth/me', {
+  headers: {
+    authorization: newMobileBearer,
+  },
+});
+
+assert.equal(stillAuthenticated.response.status, 200);
+
+const passwordChange = await request(
+  '/auth/password/change',
+  jsonRequest(
+    'POST',
+    {
+      currentPassword: newPassword,
+      newPassword: changedPassword,
+    },
+    {
+      authorization: newMobileBearer,
+    },
+  ),
+);
+
+assert.equal(passwordChange.response.status, 204);
+assert.equal(passwordChange.text, '');
+
+const staleAfterChangeMobile = await requestJson('/auth/me', {
+  headers: {
+    authorization: newMobileBearer,
+  },
+});
+
+assert.equal(staleAfterChangeMobile.response.status, 401);
+assert.equal(
+  staleAfterChangeMobile.body.code,
+  'AUTHENTICATION_REQUIRED',
+);
+
+const staleAfterChangeWeb = await requestJson('/auth/me', {
+  headers: {
+    cookie: newWebCookie,
+  },
+});
+
+assert.equal(staleAfterChangeWeb.response.status, 401);
+assert.equal(staleAfterChangeWeb.body.code, 'AUTHENTICATION_REQUIRED');
+
+const preChangePasswordLogin = await requestJson(
+  '/auth/mobile/login',
+  jsonRequest('POST', {
+    email: credentials.email,
+    password: newPassword,
+  }),
+);
+
+assert.equal(preChangePasswordLogin.response.status, 401);
+assert.equal(preChangePasswordLogin.body.code, 'INVALID_CREDENTIALS');
+
+const changedPasswordLogin = await requestJson(
+  '/auth/mobile/login',
+  jsonRequest('POST', {
+    email: credentials.email,
+    password: changedPassword,
+  }),
+);
+
+assert.equal(changedPasswordLogin.response.status, 200);
+assert.match(changedPasswordLogin.body.sessionToken, SESSION_TOKEN);
+
+await waitForMail(
+  credentials.email,
+  'Tu contraseña de Los Apuntes fue actualizada',
+  'desde una sesión autenticada',
+);
+
+const restrictedBearer = `Bearer ${changedPasswordLogin.body.sessionToken}`;
+
+setSyntheticAccountStatus(credentials.email, 'restricted');
+
+const restrictedExistingSession = await requestJson('/auth/me', {
+  headers: {
+    authorization: restrictedBearer,
+  },
+});
+
+assert.equal(restrictedExistingSession.response.status, 403);
+assert.equal(
+  restrictedExistingSession.body.code,
+  'ACCOUNT_RESTRICTED',
+);
+
+const restrictedCorrectLogin = await requestJson(
+  '/auth/mobile/login',
+  jsonRequest('POST', {
+    email: credentials.email,
+    password: changedPassword,
+  }),
+);
+
+assert.equal(restrictedCorrectLogin.response.status, 403);
+assert.equal(restrictedCorrectLogin.body.code, 'ACCOUNT_RESTRICTED');
+
+const restrictedWrongLogin = await requestJson(
+  '/auth/mobile/login',
+  jsonRequest('POST', {
+    email: credentials.email,
+    password: 'wrong-restricted-password',
+  }),
+);
+
+assert.equal(restrictedWrongLogin.response.status, 401);
+assert.equal(restrictedWrongLogin.body.code, 'INVALID_CREDENTIALS');
+
+setSyntheticAccountStatus(credentials.email, 'active');
+
+const revokedRestrictedSession = await requestJson('/auth/me', {
+  headers: {
+    authorization: restrictedBearer,
+  },
+});
+
+assert.equal(revokedRestrictedSession.response.status, 401);
+assert.equal(
+  revokedRestrictedSession.body.code,
+  'AUTHENTICATION_REQUIRED',
+);
+
+const restoredLogin = await requestJson(
+  '/auth/mobile/login',
+  jsonRequest('POST', {
+    email: credentials.email,
+    password: changedPassword,
+  }),
+);
+
+assert.equal(restoredLogin.response.status, 200);
+assert.match(restoredLogin.body.sessionToken, SESSION_TOKEN);
+
 const finalRevoke = await request('/auth/sessions', {
   method: 'DELETE',
   headers: {
-    authorization: `Bearer ${newMobileLogin.body.sessionToken}`,
+    authorization: `Bearer ${restoredLogin.body.sessionToken}`,
   },
 });
 
@@ -359,6 +567,17 @@ console.log(
       'old-password-invalidated',
       'new-password-login',
       'recovery-confirmation-email',
+      'authenticated-password-change',
+      'wrong-current-password-bounded',
+      'password-change-session-fencing',
+      'password-change-old-password-invalidated',
+      'password-change-new-password-login',
+      'password-change-confirmation-email',
+      'restricted-existing-session',
+      'restricted-correct-login',
+      'restricted-wrong-password-nondisclosure',
+      'restricted-session-revocation',
+      'account-status-restoration',
     ],
   }),
 );
