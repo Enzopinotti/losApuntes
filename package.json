@@ -10,6 +10,8 @@
   "scripts": {
     "install:all": "npm ci --prefix apps/web && npm ci --prefix apps/api",
     "check:hygiene": "node scripts/check-repo-hygiene.mjs",
+    "audit:web:prod": "cd apps/web && npm audit --omit=dev --audit-level=high",
+    "audit:api:prod": "cd apps/api && npm audit --omit=dev --audit-level=high",
     "lint:web": "cd apps/web && npx --no-install eslint . --max-warnings=0",
     "build:web": "npm --prefix apps/web run build",
     "lint:api": "cd apps/api && npx --no-install eslint \"{src,test}/**/*.ts\" --max-warnings=0",
