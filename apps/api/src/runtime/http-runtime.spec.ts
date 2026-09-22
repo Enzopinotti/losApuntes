@@ -12,6 +12,11 @@ class RuntimeProbeDto {
   value!: string;
 }
 
+class PasswordProbeDto {
+  @IsString()
+  newPassword!: string;
+}
+
 @Controller('runtime-probe')
 class RuntimeProbeController {
   @Get()
@@ -28,6 +33,11 @@ class RuntimeProbeController {
 
   @Post()
   create(@Body() dto: RuntimeProbeDto) {
+    return dto;
+  }
+
+  @Post('password')
+  password(@Body() dto: PasswordProbeDto) {
     return dto;
   }
 }
@@ -70,6 +80,12 @@ describe('HTTP runtime boundary', () => {
     );
     expect(response.headers['x-request-id']).not.toBe('attacker-controlled');
     expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-frame-options']).toBe('DENY');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
+    expect(response.headers['permissions-policy']).toBe(
+      'camera=(), geolocation=(), microphone=()',
+    );
+    expect(response.headers['x-permitted-cross-domain-policies']).toBe('none');
   });
 
   it('rejects unknown DTO fields with the stable error envelope', async () => {
@@ -89,6 +105,22 @@ describe('HTTP runtime boundary', () => {
     expect(response.body).toHaveProperty(
       'message',
       expect.arrayContaining(['property unexpected should not exist']),
+    );
+  });
+
+  it('returns a stable code for password validation failures', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/runtime-probe/password')
+      .send({ newPassword: 123 })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      statusCode: 400,
+      code: 'INVALID_PASSWORD',
+    });
+    expect(response.body).toHaveProperty(
+      'requestId',
+      response.headers['x-request-id'],
     );
   });
 
