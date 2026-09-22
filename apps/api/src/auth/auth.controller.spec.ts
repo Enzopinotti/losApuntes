@@ -4,6 +4,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
 import type { AuthSessionService } from './session/auth-session.service';
+import type { SessionCookieOptions } from './session/session-cookie';
 
 const SESSION = {
   id: '93b0d36e-a992-487f-b9ba-1173c47800f7',
@@ -72,7 +73,10 @@ describe('AuthController', () => {
       sessionToken: 'a'.repeat(43),
       session: SESSION,
     });
-    const setCookie = jest.fn();
+    const setCookie = jest.fn<
+      void,
+      [string, string, SessionCookieOptions]
+    >();
     const reply = {
       setCookie,
     } as unknown as FastifyReply;
