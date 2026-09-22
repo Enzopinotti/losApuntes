@@ -11,6 +11,13 @@ import { getSessionCookieName } from '../session/session-cookie';
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+function csrfRejected(): ForbiddenException {
+  return new ForbiddenException({
+    code: 'CSRF_VALIDATION_FAILED',
+    message: 'Forbidden',
+  });
+}
+
 @Injectable()
 export class CsrfOriginGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
@@ -27,12 +34,13 @@ export class CsrfOriginGuard implements CanActivate {
 
     if (!hasSessionCookie) return true;
 
+    if (request.headers['sec-fetch-site'] === 'cross-site') {
+      throw csrfRejected();
+    }
+
     const expectedOrigin = this.config.get<string>('WEB_ORIGIN');
     if (!expectedOrigin || request.headers.origin !== expectedOrigin) {
-      throw new ForbiddenException({
-        code: 'CSRF_VALIDATION_FAILED',
-        message: 'Forbidden',
-      });
+      throw csrfRejected();
     }
 
     return true;
