@@ -147,12 +147,7 @@ describe('AuthActionTokenService', () => {
     const service = new AuthActionTokenService(store);
 
     await expect(
-      service.issueIfAllowed(
-        'user-1',
-        'email_verification',
-        undefined,
-        NOW,
-      ),
+      service.issueIfAllowed('user-1', 'email_verification', undefined, NOW),
     ).resolves.toBeNull();
 
     expect(mocks.createIfBucketAvailable).not.toHaveBeenCalled();
