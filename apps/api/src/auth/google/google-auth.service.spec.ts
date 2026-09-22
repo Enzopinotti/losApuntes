@@ -15,9 +15,7 @@ const USER_ID = '507f1f77bcf86cd799439011';
 const OTHER_USER_ID = '507f1f77bcf86cd799439012';
 const SESSION_TOKEN = 's'.repeat(43);
 
-function user(
-  overrides: Partial<UserDocument> = {},
-): UserDocument {
+function user(overrides: Partial<UserDocument> = {}): UserDocument {
   return {
     _id: {
       toString: () => USER_ID,
@@ -31,7 +29,9 @@ function user(
   } as unknown as UserDocument;
 }
 
-function proof(overrides: Partial<GoogleIdentityProof> = {}): GoogleIdentityProof {
+function proof(
+  overrides: Partial<GoogleIdentityProof> = {},
+): GoogleIdentityProof {
   return {
     subject: 'google-subject-1',
     email: 'student@gmail.com',
