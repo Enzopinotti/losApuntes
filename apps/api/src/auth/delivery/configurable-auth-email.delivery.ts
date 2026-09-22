@@ -103,12 +103,12 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
         'Tu contraseña de Los Apuntes fue actualizada.',
         '',
         'Cerramos las sesiones anteriores. Volvé a iniciar sesión para continuar.',
-        'Si no hiciste este cambio, contactá soporte desde los canales oficiales.',
+        'Si no hiciste este cambio, pedí una nueva recuperación de contraseña desde Los Apuntes inmediatamente.',
       ].join('\n'),
       html: [
         '<p>Tu contraseña de Los Apuntes fue actualizada.</p>',
         '<p>Cerramos las sesiones anteriores. Volvé a iniciar sesión para continuar.</p>',
-        '<p>Si no hiciste este cambio, contactá soporte desde los canales oficiales.</p>',
+        '<p>Si no hiciste este cambio, pedí una nueva recuperación de contraseña desde Los Apuntes inmediatamente.</p>',
       ].join(''),
     });
   }
