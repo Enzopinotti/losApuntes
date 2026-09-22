@@ -2,7 +2,6 @@ import { validateRuntimeEnvironment } from './runtime-environment';
 
 const validEnvironment = {
   MONGO_URI: 'mongodb://127.0.0.1:27017/losapuntes',
-  JWT_SECRET: 'test-secret',
 };
 
 describe('validateRuntimeEnvironment', () => {
@@ -70,18 +69,12 @@ describe('validateRuntimeEnvironment', () => {
   );
 
   it('requires the database URI before bootstrap', () => {
-    expect(() =>
-      validateRuntimeEnvironment({
-        JWT_SECRET: 'test-secret',
-      }),
-    ).toThrow('MONGO_URI is required');
+    expect(() => validateRuntimeEnvironment({})).toThrow(
+      'MONGO_URI is required',
+    );
   });
 
-  it('requires the JWT secret before bootstrap', () => {
-    expect(() =>
-      validateRuntimeEnvironment({
-        MONGO_URI: validEnvironment.MONGO_URI,
-      }),
-    ).toThrow('JWT_SECRET is required');
+  it('does not require the removed legacy JWT secret', () => {
+    expect(() => validateRuntimeEnvironment(validEnvironment)).not.toThrow();
   });
 });
