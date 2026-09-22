@@ -85,9 +85,7 @@ describe('AuthService', () => {
     await expect(
       bcrypt.compare('correct-horse-battery', passwordHash),
     ).resolves.toBe(true);
-    expect(requestEmailVerification).toHaveBeenCalledWith(
-      'enzo@example.com',
-    );
+    expect(requestEmailVerification).toHaveBeenCalledWith('enzo@example.com');
     expect(issueSession).not.toHaveBeenCalled();
   });
 
