@@ -25,6 +25,7 @@ const LoginForm = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [formError, setFormError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | undefined>();
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(true);
@@ -62,6 +63,12 @@ const LoginForm = () => {
   }, []);
 
   useEffect(() => {
+    if (searchParams.get("password") === "changed") {
+      setSuccessMessage(
+        "Contraseña actualizada. Iniciá sesión nuevamente con la nueva contraseña.",
+      );
+    }
+
     const google = searchParams.get("google");
 
     if (!google) {
@@ -82,6 +89,7 @@ const LoginForm = () => {
 
   const onSubmit = async (data: LoginFormData) => {
     setFormError(null);
+    setSuccessMessage(null);
     setRequestId(undefined);
 
     try {
@@ -162,6 +170,12 @@ const LoginForm = () => {
             </p>
           )}
         </div>
+
+        {successMessage && (
+          <p role="status" aria-live="polite">
+            {successMessage}
+          </p>
+        )}
 
         {formError && (
           <div role="alert" aria-live="polite">
