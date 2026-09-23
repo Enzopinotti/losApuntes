@@ -88,7 +88,9 @@ export class SearchDiscoveryService {
     ]);
 
     const resultCount =
-      results.resources.length + results.subjects.length + results.people.length;
+      results.resources.length +
+      results.subjects.length +
+      results.people.length;
 
     await this.events.recordBestEffort({
       event: 'pilot.search_performed',
