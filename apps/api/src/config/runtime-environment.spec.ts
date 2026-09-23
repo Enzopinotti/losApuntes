@@ -158,7 +158,8 @@ describe('validateRuntimeEnvironment', () => {
   });
 
   it('rejects incomplete Files configuration', () => {
-    const { FILES_S3_BUCKET: _bucket, ...incomplete } = validEnvironment;
+    const incomplete: Record<string, unknown> = { ...validEnvironment };
+    delete incomplete.FILES_S3_BUCKET;
     expect(() => validateRuntimeEnvironment(incomplete)).toThrow(
       'FILES_S3_BUCKET is required',
     );
