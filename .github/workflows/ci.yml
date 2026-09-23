@@ -387,6 +387,7 @@ jobs:
           node scripts/smoke-search-discovery-lifecycle.mjs
           node scripts/smoke-social-qa-lifecycle.mjs
           node scripts/smoke-feeds-lifecycle.mjs
+          node scripts/smoke-pilot-lifecycle.mjs
 
       - name: Runtime logs on failure
         if: failure()
