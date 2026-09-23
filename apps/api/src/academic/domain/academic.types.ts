@@ -113,18 +113,23 @@ export type AcademicCatalogProposalRecord = {
   updatedAt: Date;
 };
 
+export const ACADEMIC_AUDIT_EVENTS = [
+  'academic.catalog.created',
+  'academic.catalog.updated',
+  'academic.catalog.merged',
+  'academic.affiliation.created',
+  'academic.affiliation.updated',
+  'academic.subject_participation.upserted',
+  'academic.context.updated',
+  'academic.proposal.created',
+  'academic.proposal.reviewed',
+] as const;
+
+export type AcademicAuditEventName = (typeof ACADEMIC_AUDIT_EVENTS)[number];
+
 export type AcademicAuditEventRecord = {
   id: string;
-  event:
-    | 'academic.catalog.created'
-    | 'academic.catalog.updated'
-    | 'academic.catalog.merged'
-    | 'academic.affiliation.created'
-    | 'academic.affiliation.updated'
-    | 'academic.subject_participation.upserted'
-    | 'academic.context.updated'
-    | 'academic.proposal.created'
-    | 'academic.proposal.reviewed';
+  event: AcademicAuditEventName;
   actorUserId: string;
   targetId: string;
   metadata?: Record<string, string | number | boolean | null>;
