@@ -109,10 +109,12 @@ export const searchApi = {
     return request<SearchResponse>(`/search?${query.toString()}`);
   },
 
-  contextual: (input: {
-    subjectLimit?: number;
-    resourcesPerSubject?: number;
-  } = {}) => {
+  contextual: (
+    input: {
+      subjectLimit?: number;
+      resourcesPerSubject?: number;
+    } = {},
+  ) => {
     const query = new URLSearchParams({
       subjectLimit: String(input.subjectLimit ?? 6),
       resourcesPerSubject: String(input.resourcesPerSubject ?? 4),
