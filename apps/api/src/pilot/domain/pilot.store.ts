@@ -58,6 +58,7 @@ export interface PilotMetricsSnapshot {
     oldestPendingAt: Date | null;
   };
   subjects: PilotSubjectDensity[];
+  subjectsTruncated: boolean;
 }
 
 export interface PilotStore {
