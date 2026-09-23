@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { ClientSession, Connection, Model } from 'mongoose';
+import type { Connection, Model } from 'mongoose';
 
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import { Notification } from '../../notifications/mongo/notification.mongo-schema';
@@ -189,7 +189,7 @@ export class MongoSocialStore implements SocialStore {
         if (!connection) throw new Error('Connection create returned no row');
         await this.notifications.create([input.notification], { session });
         result = {
-          connection: connection.toObject() as ConnectionRecord,
+          connection: connection.toObject(),
           changed: true,
         };
       });
