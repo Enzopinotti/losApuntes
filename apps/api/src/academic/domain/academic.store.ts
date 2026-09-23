@@ -112,6 +112,9 @@ export interface AcademicStore {
   createProposal(
     input: CreateProposalRecord,
   ): Promise<AcademicCatalogProposalRecord>;
+  findProposalById(
+    id: string,
+  ): Promise<AcademicCatalogProposalRecord | null>;
   listProposals(
     status: AcademicProposalStatus | undefined,
     limit: number,
