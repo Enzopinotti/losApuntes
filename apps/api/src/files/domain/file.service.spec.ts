@@ -58,7 +58,7 @@ describe('FileService', () => {
   it('creates a private upload intent without exposing object keys', async () => {
     const fileStore = store();
     const objectStorage = storage();
-    fileStore.create.mockImplementation(async (input) => ({
+    fileStore.create.mockImplementation((input) => ({
       ...input,
       createdAt: now,
       updatedAt: now,
@@ -108,7 +108,7 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    expect(fileStore.create).not.toHaveBeenCalled();
+    expect(fileStore.create.mock.calls).toHaveLength(0);
   });
 
   it('marks intent failed when storage cannot sign upload', async () => {
@@ -132,12 +132,12 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
-    expect(fileStore.markFailed).toHaveBeenCalledWith(
+    expect(fileStore.markFailed.mock.calls).toContainEqual([
       pending.id,
       'user-1',
       'STORAGE_UNAVAILABLE',
       expect.any(Date),
-    );
+    ]);
   });
 
   it('finalizes a valid PDF and is idempotent after ready', async () => {
@@ -171,7 +171,7 @@ describe('FileService', () => {
 
     expect(first.file.state).toBe('ready');
     expect(second.file.id).toBe(pending.id);
-    expect(objectStorage.headObject).toHaveBeenCalledTimes(1);
+    expect(objectStorage.headObject.mock.calls).toHaveLength(1);
   });
 
   it('fails closed and deletes mismatched-size bytes', async () => {
@@ -197,13 +197,15 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    expect(fileStore.markFailed).toHaveBeenCalledWith(
+    expect(fileStore.markFailed.mock.calls).toContainEqual([
       pending.id,
       'user-1',
       'SIZE_MISMATCH',
       expect.any(Date),
-    );
-    expect(objectStorage.deleteObject).toHaveBeenCalledWith(pending.objectKey);
+    ]);
+    expect(objectStorage.deleteObject.mock.calls).toContainEqual([
+      pending.objectKey,
+    ]);
   });
 
   it('fails closed when content signature does not match declared MIME', async () => {
@@ -235,12 +237,12 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    expect(fileStore.markFailed).toHaveBeenCalledWith(
+    expect(fileStore.markFailed.mock.calls).toContainEqual([
       pending.id,
       'user-1',
       'CONTENT_SIGNATURE_MISMATCH',
       expect.any(Date),
-    );
+    ]);
   });
 
   it('rejects expired upload intents and schedules cleanup', async () => {
@@ -259,12 +261,12 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(fileStore.markFailed).toHaveBeenCalledWith(
+    expect(fileStore.markFailed.mock.calls).toContainEqual([
       pending.id,
       'user-1',
       'UPLOAD_EXPIRED',
       expect.any(Date),
-    );
+    ]);
   });
 
   it('does not hide storage outages as invalid uploads', async () => {
@@ -282,7 +284,7 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
-    expect(fileStore.markFailed).not.toHaveBeenCalled();
+    expect(fileStore.markFailed.mock.calls).toHaveLength(0);
   });
 
   it('creates bounded signed downloads only for complete ready assets', async () => {
@@ -309,7 +311,7 @@ describe('FileService', () => {
     });
 
     expect(result.url).toContain('signed-get');
-    expect(objectStorage.createDownloadIntent).toHaveBeenCalledWith(
+    expect(objectStorage.createDownloadIntent.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         expiresInSeconds: 300,
         disposition: 'inline',
@@ -376,12 +378,12 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    expect(fileStore.markFailed).toHaveBeenCalledWith(
+    expect(fileStore.markFailed.mock.calls).toContainEqual([
       pending.id,
       'user-1',
       'CONTENT_TYPE_MISMATCH',
       expect.any(Date),
-    );
+    ]);
   });
 
   it('resolves a mark-ready race only when the concurrent state is ready', async () => {
@@ -407,15 +409,12 @@ describe('FileService', () => {
     );
     fileStore.markReady.mockResolvedValue(null);
 
-    await expect(
-      new FileService(fileStore, objectStorage).finalize(
-        'user-1',
-        pending.id,
-        now,
-      ),
-    ).resolves.toEqual({
-      file: expect.objectContaining({ id: pending.id, state: 'ready' }),
-    });
+    const racedReady = await new FileService(
+      fileStore,
+      objectStorage,
+    ).finalize('user-1', pending.id, now);
+    expect(racedReady.file.id).toBe(pending.id);
+    expect(racedReady.file.state).toBe('ready');
 
     fileStore.findOwned
       .mockReset()
@@ -491,7 +490,7 @@ describe('FileService', () => {
       filename: 'x.pdf',
       disposition: 'attachment',
     });
-    expect(objectStorage.createDownloadIntent).toHaveBeenLastCalledWith(
+    expect(objectStorage.createDownloadIntent.mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ expiresInSeconds: 2 }),
     );
   });
@@ -514,7 +513,7 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(objectStorage.deleteObject).not.toHaveBeenCalled();
+    expect(objectStorage.deleteObject.mock.calls).toHaveLength(0);
   });
 
   it('keeps cross-user or missing upload ids opaque', async () => {
@@ -578,7 +577,9 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    expect(objectStorage.deleteObject).toHaveBeenCalledWith(pending.objectKey);
+    expect(objectStorage.deleteObject.mock.calls).toContainEqual([
+      pending.objectKey,
+    ]);
   });
 
   it('returns a complete ready asset to an already-authorized Resource', async () => {
@@ -658,13 +659,13 @@ describe('FileService', () => {
     ).cleanupExpiredAssets(20, now);
 
     expect(result).toEqual({ examined: 2, reclaimed: 1 });
-    expect(fileStore.claimForReclamation).toHaveBeenCalledWith(
+    expect(fileStore.claimForReclamation.mock.calls).toContainEqual([
       'a',
       'pending',
       now,
-    );
-    expect(fileStore.markReclaimed).toHaveBeenCalledWith('a', now);
-    expect(fileStore.markReclaimed).toHaveBeenCalledTimes(1);
+    ]);
+    expect(fileStore.markReclaimed.mock.calls).toContainEqual(['a', now]);
+    expect(fileStore.markReclaimed.mock.calls).toHaveLength(1);
 
     fileStore.listReclaimable.mockResolvedValue([
       asset({ id: 'c', objectKey: 'c', state: 'ready' }),
@@ -679,6 +680,6 @@ describe('FileService', () => {
     ).cleanupExpiredAssets(20, now);
 
     expect(skipped).toEqual({ examined: 2, reclaimed: 0 });
-    expect(objectStorage.deleteObject).not.toHaveBeenCalled();
+    expect(objectStorage.deleteObject.mock.calls).toHaveLength(0);
   });
 });
