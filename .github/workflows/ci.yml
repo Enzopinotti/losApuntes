@@ -228,7 +228,11 @@ jobs:
 
       - name: Pull runtime dependencies
         run: |
-          for image in mongo:8.0 axllent/mailpit:v1.31.1; do
+          for image in \
+            mongo:8.0 \
+            axllent/mailpit:v1.31.1 \
+            quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0 \
+            quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z; do
             pulled=false
             for attempt in 1 2 3; do
               if docker pull "$image"; then
@@ -255,6 +259,7 @@ jobs:
           node scripts/smoke-auth-lifecycle.mjs
           node scripts/smoke-academic-lifecycle.mjs
           node scripts/smoke-profile-lifecycle.mjs
+          node scripts/smoke-files-resources-lifecycle.mjs
 
       - name: Runtime logs on failure
         if: failure()
