@@ -49,10 +49,7 @@ export const PROFILE_COVER_PRESETS = [
 
 export type ProfileCoverPreset = (typeof PROFILE_COVER_PRESETS)[number];
 
-export type ProfileVisibilityPolicy = Record<
-  ProfileSection,
-  ProfileVisibility
->;
+export type ProfileVisibilityPolicy = Record<ProfileSection, ProfileVisibility>;
 
 export type ProfileRecommendationSignals = {
   academicContext: boolean;
