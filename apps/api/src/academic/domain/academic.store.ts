@@ -5,6 +5,7 @@ import type {
   AcademicCatalogProposalRecord,
   AcademicCurrentContextRecord,
   AcademicNodeKind,
+  AcademicProposalStatus,
   SubjectParticipationRecord,
 } from './academic.types';
 
@@ -111,6 +112,17 @@ export interface AcademicStore {
   createProposal(
     input: CreateProposalRecord,
   ): Promise<AcademicCatalogProposalRecord>;
+  listProposals(
+    status: AcademicProposalStatus | undefined,
+    limit: number,
+  ): Promise<AcademicCatalogProposalRecord[]>;
+  reviewProposal(
+    id: string,
+    reviewerUserId: string,
+    status: Exclude<AcademicProposalStatus, 'pending'>,
+    reason: string,
+    canonicalTargetId?: string,
+  ): Promise<AcademicCatalogProposalRecord | null>;
 
   appendAuditEvent(input: AcademicAuditEventRecord): Promise<void>;
 }
