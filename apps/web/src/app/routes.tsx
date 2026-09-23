@@ -5,6 +5,9 @@ import Dashboard from "../pages/Dashboard";
 import ForgotPassword from "../pages/ForgotPassword";
 import Home from "../pages/Home";
 import Login from "../pages/Login";
+import Network from "../pages/Network";
+import Notifications from "../pages/Notifications";
+import Questions from "../pages/Questions";
 import Profile from "../pages/Profile";
 import PublicProfile from "../pages/PublicProfile";
 import ResetPassword from "../pages/ResetPassword";
@@ -32,6 +35,7 @@ export const routes: RouteObject[] = [
       { path: "p/:profileId", element: <PublicProfile /> },
       { path: "resources", element: <Resources /> },
       { path: "search", element: <Search /> },
+      { path: "questions", element: <Questions /> },
       {
         path: "dashboard",
         element: (
@@ -45,6 +49,22 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <Profile />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "network",
+        element: (
+          <PrivateRoute>
+            <Network />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "notifications",
+        element: (
+          <PrivateRoute>
+            <Notifications />
           </PrivateRoute>
         ),
       },
