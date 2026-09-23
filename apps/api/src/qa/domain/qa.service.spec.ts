@@ -538,4 +538,258 @@ describe('QaService', () => {
       createdAt: now.toISOString(),
     });
   });
+
+  it('searches with canonical academic filters and a deterministic cursor', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    configureProjection(academicApi, profileApi);
+    academicApi.resolveResourceContext.mockResolvedValue({
+      subjectId,
+      courseOfferingId: null,
+    });
+    qaStore.searchQuestions.mockResolvedValueOnce({
+      items: [question()],
+      hasMore: true,
+    });
+
+    const first = await service(qaStore, academicApi, profileApi).search({
+      q: '  NORMALIZACIÓN  ',
+      subjectId: '99999999-9999-4999-8999-999999999999',
+      status: 'open',
+      limit: 1,
+    });
+
+    expect(academicApi.resolveResourceContext).toHaveBeenCalledWith(
+      '99999999-9999-4999-8999-999999999999',
+    );
+    expect(qaStore.searchQuestions).toHaveBeenCalledWith({
+      q: 'normalización',
+      subjectId,
+      state: 'open',
+      limit: 1,
+      after: undefined,
+    });
+    expect(first.nextCursor).not.toBeNull();
+
+    qaStore.searchQuestions.mockResolvedValueOnce({
+      items: [],
+      hasMore: false,
+    });
+
+    await service(qaStore, academicApi, profileApi).search({
+      limit: 1,
+      cursor: first.nextCursor ?? undefined,
+    });
+
+    expect(qaStore.searchQuestions).toHaveBeenLastCalledWith({
+      limit: 1,
+      after: {
+        updatedAt: now,
+        id: questionId,
+      },
+    });
+  });
+
+  it('returns an empty unfiltered search without inventing a cursor', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    qaStore.searchQuestions.mockResolvedValue({
+      items: [],
+      hasMore: false,
+    });
+
+    const result = await service(qaStore, academicApi, profileApi).search({
+      limit: 25,
+    });
+
+    expect(result).toEqual({ items: [], nextCursor: null });
+    expect(qaStore.searchQuestions).toHaveBeenCalledWith({
+      limit: 25,
+      after: undefined,
+    });
+    expect(academicApi.resolveResourceContext).not.toHaveBeenCalled();
+  });
+
+  it('rejects a cursor whose encoded date is invalid', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    const cursor = Buffer.from(
+      JSON.stringify({ updatedAt: 'not-a-date', id: questionId }),
+      'utf8',
+    ).toString('base64url');
+
+    await expect(
+      service(qaStore, academicApi, profileApi).search({
+        limit: 10,
+        cursor,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(qaStore.searchQuestions).not.toHaveBeenCalled();
+  });
+
+  it('rejects empty Question updates and supports status-only updates', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    configureProjection(academicApi, profileApi);
+    qaStore.findQuestion.mockResolvedValue(question());
+
+    await expect(
+      service(qaStore, academicApi, profileApi).update('user-a', questionId, {
+        expectedRevision: 1,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    qaStore.updateQuestionOwned.mockResolvedValue(
+      question({ state: 'closed', revision: 2 }),
+    );
+
+    const result = await service(qaStore, academicApi, profileApi).update(
+      'user-a',
+      questionId,
+      {
+        expectedRevision: 1,
+        status: 'closed',
+      },
+    );
+
+    expect(result.question.state).toBe('closed');
+    expect(qaStore.updateQuestionOwned).toHaveBeenLastCalledWith(
+      questionId,
+      'user-a',
+      1,
+      { state: 'closed' },
+    );
+  });
+
+  it('creates an Answer by the Question author without a self-notification', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    configureProjection(academicApi, profileApi);
+    profileApi.getAttributionForUser.mockResolvedValue({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      displayName: 'Ana',
+      avatarUrl: null,
+    });
+    qaStore.findQuestion.mockResolvedValue(question());
+    qaStore.createAnswerAtomic.mockResolvedValue(
+      answer({ authorUserId: 'user-a' }),
+    );
+
+    await service(qaStore, academicApi, profileApi).createAnswer(
+      'user-a',
+      questionId,
+      { body: 'Aclaración del autor' },
+    );
+
+    const call = qaStore.createAnswerAtomic.mock.calls[0]?.[0];
+    expect(call?.answer.authorUserId).toBe('user-a');
+    expect(call?.notification).toBeUndefined();
+  });
+
+  it('returns revision conflict when Answer editing loses the race', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    qaStore.findAnswer.mockResolvedValue(answer());
+    qaStore.updateAnswerOwned.mockResolvedValue(null);
+
+    await expect(
+      service(qaStore, academicApi, profileApi).updateAnswer(
+        'user-b',
+        answerId,
+        {
+          expectedRevision: 1,
+          body: 'Cambio concurrente',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('hides Question ownership when a non-author tries to accept an Answer', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    qaStore.findQuestion.mockResolvedValue(question());
+
+    await expect(
+      service(qaStore, academicApi, profileApi).acceptAnswer(
+        'user-b',
+        questionId,
+        answerId,
+        1,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(qaStore.findAnswer).not.toHaveBeenCalled();
+  });
+
+  it('accepts the Question authors own Answer without a self-notification', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    configureProjection(academicApi, profileApi);
+    qaStore.findQuestion.mockResolvedValue(question());
+    qaStore.findAnswer.mockResolvedValue(answer({ authorUserId: 'user-a' }));
+    qaStore.acceptAnswerAtomic.mockResolvedValue(
+      question({ acceptedAnswerId: answerId, revision: 2 }),
+    );
+
+    await service(qaStore, academicApi, profileApi).acceptAnswer(
+      'user-a',
+      questionId,
+      answerId,
+      1,
+    );
+
+    const call = qaStore.acceptAnswerAtomic.mock.calls[0]?.[0];
+    expect(call?.notification).toBeUndefined();
+  });
+
+  it('reports a visible Answer and normalizes optional details', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    qaStore.findAnswer.mockResolvedValue(answer());
+    qaStore.upsertPendingReport.mockImplementation((input) =>
+      Promise.resolve(
+        report({
+          id: '55555555-5555-4555-8555-555555555555',
+          targetType: input.targetType,
+          targetId: input.targetId,
+          reporterUserId: input.reporterUserId,
+          reason: input.reason,
+          details: input.details,
+        }),
+      ),
+    );
+
+    const result = await service(
+      qaStore,
+      academicApi,
+      profileApi,
+    ).reportAnswer(
+      'user-a',
+      answerId,
+      'inappropriate',
+      '  detalle   relevante  ',
+    );
+
+    expect(result.report.targetType).toBe('answer');
+    expect(qaStore.upsertPendingReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetType: 'answer',
+        targetId: answerId,
+        reporterUserId: 'user-a',
+        reason: 'inappropriate',
+        details: 'detalle relevante',
+      }),
+    );
+  });
+
 });
