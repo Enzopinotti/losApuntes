@@ -10,8 +10,9 @@
 | Immutable upload intent | Implemented | Implemented | Unit + runtime |
 | Verified-email upload/finalize | Implemented | Error surfaced | Auth/runtime |
 | 50 MiB + MIME allowlist | Implemented | Prevalidated | DTO + unit |
+| Signed exact byte-length bound | Implemented | User-agent Content-Length | Unit + MinIO runtime |
 | Byte-signature verification | Implemented | Server authority | Unit + runtime |
-| Exact size/Content-Type verification | Implemented | Server authority | Unit + runtime |
+| Exact size/Content-Type re-verification | Implemented | Server authority | Unit + runtime |
 | Finalize idempotency | Implemented | Safe retry | Unit + runtime |
 | Single asset claim | Transactional | N/A | Runtime |
 | Cleanup claim-before-delete | CAS `reclaiming` | N/A | Unit + worker runtime |
@@ -26,6 +27,7 @@
 | Remove saved relation in place | Implemented | Implemented | Web static contract |
 | Optimistic Resource revision | Implemented | Conflict surfaced | Unit |
 | Canonical Subject context | Academic Graph authority | Subject picker | Unit + build |
+| Merged Subject search filters | Canonicalized before query | Transparent | Unit |
 | Optional CourseOffering validation | Academic Graph authority | Contract-ready | Unit |
 | Metadata discovery/search | Bounded cursor API | Search/filter UI | Unit + build |
 | Preview/download issuance | Reauthorized signed GET | Implemented | Runtime |
@@ -54,7 +56,8 @@ Files + Notes v1 does **not** claim:
 - secret possession-based share links;
 - moderation resolution UI;
 - native Mobile screen acceptance;
-- production HTTPS/presign-origin evidence.
+- production HTTPS/presign-origin evidence;
+- hard Resource deletion/tombstoning semantics, which remain a `DELETE-01` / DER data-policy decision.
 
 Those are separate future concerns and must not be inferred from this module.
 
