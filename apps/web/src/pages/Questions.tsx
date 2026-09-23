@@ -42,6 +42,7 @@ const Questions = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id");
   const [items, setItems] = useState<QuestionView[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<QuestionDetailResponse | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<QuestionState | "">("");
@@ -63,21 +64,38 @@ const Questions = () => {
   const [editAnswerId, setEditAnswerId] = useState<string | null>(null);
   const [editAnswerBody, setEditAnswerBody] = useState("");
 
-  const loadList = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await communityApi.questions({
-        q: query.trim() || undefined,
-        status: statusFilter || undefined,
-      });
-      setItems(result.items);
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setLoading(false);
-    }
-  }, [query, statusFilter]);
+  const loadList = useCallback(
+    async (cursor?: string, append = false) => {
+      if (append) {
+        setBusy("questions-more");
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const result = await communityApi.questions({
+          q: query.trim() || undefined,
+          status: statusFilter || undefined,
+          cursor,
+          limit: 25,
+        });
+        setItems((current) =>
+          append ? [...current, ...result.items] : result.items,
+        );
+        setNextCursor(result.nextCursor);
+      } catch (nextError) {
+        setError(messageFor(nextError));
+      } finally {
+        if (append) {
+          setBusy(null);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [query, statusFilter],
+  );
 
   const openQuestion = useCallback(
     async (id: string) => {
@@ -369,24 +387,36 @@ const Questions = () => {
           ) : items.length === 0 ? (
             <p>No encontramos preguntas.</p>
           ) : (
-            <ul className="community-list">
-              {items.map((question) => (
-                <li key={question.id}>
-                  <button
-                    type="button"
-                    className="community-question-link"
-                    disabled={busy === `open:${question.id}`}
-                    onClick={() => void openQuestion(question.id)}
-                  >
-                    <strong>{question.title}</strong>
-                    <span>{question.academic.subject.name}</span>
-                    <small>
-                      {question.answerCount} respuesta(s) · {question.state}
-                    </small>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="community-list">
+                {items.map((question) => (
+                  <li key={question.id}>
+                    <button
+                      type="button"
+                      className="community-question-link"
+                      disabled={busy === `open:${question.id}`}
+                      onClick={() => void openQuestion(question.id)}
+                    >
+                      <strong>{question.title}</strong>
+                      <span>{question.academic.subject.name}</span>
+                      <small>
+                        {question.answerCount} respuesta(s) · {question.state}
+                      </small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {nextCursor && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy === "questions-more"}
+                  onClick={() => void loadList(nextCursor, true)}
+                >
+                  {busy === "questions-more" ? "Cargando…" : "Cargar más"}
+                </button>
+              )}
+            </>
           )}
         </section>
 
