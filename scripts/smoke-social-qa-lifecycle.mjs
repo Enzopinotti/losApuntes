@@ -248,6 +248,39 @@ assert.equal(
   'Idempotent follow must create one notification',
 );
 
+
+const followCarla = await request(
+  `/social/profiles/${carla.profileId}/follow`,
+  {
+    method: 'PUT',
+    headers: { authorization: alice.bearer },
+  },
+);
+assert.equal(followCarla.response.status, 200);
+
+const followingPageOne = await request('/social/me/following?limit=1', {
+  headers: { authorization: alice.bearer },
+});
+assert.equal(followingPageOne.response.status, 200);
+assert.equal(followingPageOne.body.items.length, 1);
+assert.equal(typeof followingPageOne.body.nextCursor, 'string');
+
+const followingPageTwo = await request(
+  `/social/me/following?limit=1&cursor=${encodeURIComponent(
+    followingPageOne.body.nextCursor,
+  )}`,
+  { headers: { authorization: alice.bearer } },
+);
+assert.equal(followingPageTwo.response.status, 200);
+assert.equal(followingPageTwo.body.items.length, 1);
+assert.equal(
+  new Set([
+    followingPageOne.body.items[0].profile.profileId,
+    followingPageTwo.body.items[0].profile.profileId,
+  ]).size,
+  2,
+);
+
 const stillNoConnection = await request('/social/me/connections?limit=100', {
   headers: { authorization: alice.bearer },
 });
@@ -384,6 +417,49 @@ const accepted = await request(
 );
 assert.equal(accepted.response.status, 201);
 assert.equal(accepted.body.connection.status, 'accepted');
+
+
+const connectionPageOne = await request(
+  '/social/me/connections?limit=1',
+  { headers: { authorization: bruno.bearer } },
+);
+assert.equal(connectionPageOne.response.status, 200);
+assert.equal(connectionPageOne.body.items.length, 1);
+assert.equal(typeof connectionPageOne.body.nextCursor, 'string');
+
+const connectionPageTwo = await request(
+  `/social/me/connections?limit=1&cursor=${encodeURIComponent(
+    connectionPageOne.body.nextCursor,
+  )}`,
+  { headers: { authorization: bruno.bearer } },
+);
+assert.equal(connectionPageTwo.response.status, 200);
+assert.equal(connectionPageTwo.body.items.length, 1);
+assert.notEqual(
+  connectionPageOne.body.items[0].id,
+  connectionPageTwo.body.items[0].id,
+);
+
+const notificationPageOne = await request(
+  '/notifications?unreadOnly=false&limit=1',
+  { headers: { authorization: bruno.bearer } },
+);
+assert.equal(notificationPageOne.response.status, 200);
+assert.equal(notificationPageOne.body.items.length, 1);
+assert.equal(typeof notificationPageOne.body.nextCursor, 'string');
+
+const notificationPageTwo = await request(
+  `/notifications?unreadOnly=false&limit=1&cursor=${encodeURIComponent(
+    notificationPageOne.body.nextCursor,
+  )}`,
+  { headers: { authorization: bruno.bearer } },
+);
+assert.equal(notificationPageTwo.response.status, 200);
+assert.equal(notificationPageTwo.body.items.length, 1);
+assert.notEqual(
+  notificationPageOne.body.items[0].id,
+  notificationPageTwo.body.items[0].id,
+);
 
 const aliceNotifications = await notifications(alice);
 const acceptedNotification = aliceNotifications.find(
@@ -569,6 +645,24 @@ const secondQuestion = await request(
 );
 assert.equal(secondQuestion.response.status, 201);
 
+
+const questionPageOne = await request('/questions?limit=1');
+assert.equal(questionPageOne.response.status, 200);
+assert.equal(questionPageOne.body.items.length, 1);
+assert.equal(typeof questionPageOne.body.nextCursor, 'string');
+
+const questionPageTwo = await request(
+  `/questions?limit=1&cursor=${encodeURIComponent(
+    questionPageOne.body.nextCursor,
+  )}`,
+);
+assert.equal(questionPageTwo.response.status, 200);
+assert.equal(questionPageTwo.body.items.length, 1);
+assert.notEqual(
+  questionPageOne.body.items[0].id,
+  questionPageTwo.body.items[0].id,
+);
+
 const wrongQuestionAccept = await request(
   `/questions/${secondQuestion.body.question.id}/answers/${answerId}/accept`,
   json(
@@ -685,6 +779,9 @@ console.log(
       'follow-does-not-connect',
       'connection-pair-concurrency-uniqueness',
       'single-connection-request-notification',
+      'following-cursor-pagination',
+      'connection-cursor-pagination',
+      'notification-cursor-pagination',
       'requester-cannot-self-accept',
       'outsider-connection-deny',
       'recipient-accept',
@@ -695,6 +792,7 @@ console.log(
       'anonymous-question-read',
       'invalid-auth-public-search-rejected',
       'bounded-question-search',
+      'question-cursor-pagination',
       'closed-question-rejects-answer',
       'answer-edit',
       'answer-question-membership',
