@@ -220,7 +220,11 @@ const AdminPilot = () => {
       <section className="pilot-card">
         <div className="pilot-card-heading">
           <h2>Moderación pendiente</h2>
-          <button type="button" className="secondary" onClick={() => void load()}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void load()}
+          >
             Actualizar
           </button>
         </div>
