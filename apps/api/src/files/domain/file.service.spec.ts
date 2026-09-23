@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  NotFoundException,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
