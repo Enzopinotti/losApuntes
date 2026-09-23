@@ -574,7 +574,6 @@ const cleanupObjectKey = mongoEval(
     `const id = ${JSON.stringify(cleanupIntent.body.file.id)};`,
     "const row = db.file_assets.findOne({ id });",
     "if (!row) quit(2);",
-    "db.file_assets.updateOne({ id }, { $set: { expiresAt: new Date(Date.now() - 60000) } });",
     "print(row.objectKey);",
   ].join('\n'),
 );
@@ -596,6 +595,14 @@ const beforeCleanupStat = spawnSync(
   { encoding: 'utf8' },
 );
 assert.equal(beforeCleanupStat.status, 0, beforeCleanupStat.stderr);
+
+mongoEval(
+  [
+    `const id = ${JSON.stringify(cleanupIntent.body.file.id)};`,
+    "const result = db.file_assets.updateOne({ id, state: 'pending' }, { $set: { expiresAt: new Date(Date.now() - 60000) } });",
+    "if (result.matchedCount !== 1) { printjson(result); quit(2); }",
+  ].join('\n'),
+);
 
 await waitForReclaimed(cleanupIntent.body.file.id);
 
