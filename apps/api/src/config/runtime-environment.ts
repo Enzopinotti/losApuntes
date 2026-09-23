@@ -48,6 +48,33 @@ function parsePort(value: unknown, key: string, fallback: number): number {
   return parsed;
 }
 
+function parseBoundedInteger(
+  value: unknown,
+  key: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(
+      `${key} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+
+  return parsed;
+}
+
 function parseBoolean(value: unknown, key: string, fallback: boolean): boolean {
   if (value === undefined || value === null || value === '') {
     return fallback;
@@ -261,6 +288,13 @@ export function validateRuntimeEnvironment(
     FILES_S3_SECRET_ACCESS_KEY: requiredString(
       source,
       'FILES_S3_SECRET_ACCESS_KEY',
+    ),
+    FILES_DOWNLOAD_URL_TTL_SECONDS: parseBoundedInteger(
+      source.FILES_DOWNLOAD_URL_TTL_SECONDS,
+      'FILES_DOWNLOAD_URL_TTL_SECONDS',
+      300,
+      1,
+      300,
     ),
   };
 
