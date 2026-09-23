@@ -8,11 +8,7 @@ import type { AcademicService } from '../../academic/domain/academic.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { QaStore } from './qa.store';
 import { QaService } from './qa.service';
-import type {
-  AnswerRecord,
-  QaReportRecord,
-  QuestionRecord,
-} from './qa.types';
+import type { AnswerRecord, QaReportRecord, QuestionRecord } from './qa.types';
 
 const now = new Date('2026-09-23T15:00:00.000Z');
 const subjectId = '11111111-1111-4111-8111-111111111111';
@@ -65,9 +61,7 @@ function service(
   );
 }
 
-function question(
-  overrides: Partial<QuestionRecord> = {},
-): QuestionRecord {
+function question(overrides: Partial<QuestionRecord> = {}): QuestionRecord {
   return {
     id: questionId,
     authorUserId: 'user-a',
@@ -164,15 +158,14 @@ describe('QaService', () => {
       }),
     );
 
-    const result = await service(
-      qaStore,
-      academicApi,
-      profileApi,
-    ).create('user-a', {
-      subjectId: '99999999-9999-4999-8999-999999999999',
-      title: '  Normalización   de bases de datos ',
-      body: ' ¿Cómo paso de segunda a tercera forma normal? ',
-    });
+    const result = await service(qaStore, academicApi, profileApi).create(
+      'user-a',
+      {
+        subjectId: '99999999-9999-4999-8999-999999999999',
+        title: '  Normalización   de bases de datos ',
+        body: ' ¿Cómo paso de segunda a tercera forma normal? ',
+      },
+    );
 
     expect(academicApi.resolveResourceContext).toHaveBeenCalledWith(
       '99999999-9999-4999-8999-999999999999',
@@ -249,9 +242,7 @@ describe('QaService', () => {
       service(qaStore, academicApi, profileApi).get(questionId),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    qaStore.findAnswer.mockResolvedValue(
-      answer({ moderationState: 'hidden' }),
-    );
+    qaStore.findAnswer.mockResolvedValue(answer({ moderationState: 'hidden' }));
 
     await expect(
       service(qaStore, academicApi, profileApi).updateAnswer(
@@ -364,15 +355,17 @@ describe('QaService', () => {
     qaStore.findQuestion.mockResolvedValue(question());
     qaStore.createAnswerAtomic.mockResolvedValue(answer());
 
-    const result = await service(
-      qaStore,
-      academicApi,
-      profileApi,
-    ).createAnswer('user-b', questionId, {
-      body: ' Primero eliminá dependencias transitivas. ',
-    });
+    const result = await service(qaStore, academicApi, profileApi).createAnswer(
+      'user-b',
+      questionId,
+      {
+        body: ' Primero eliminá dependencias transitivas. ',
+      },
+    );
 
-    expect(result.answer.body).toBe('Primero eliminá dependencias transitivas.');
+    expect(result.answer.body).toBe(
+      'Primero eliminá dependencias transitivas.',
+    );
     expect(qaStore.createAnswerAtomic).toHaveBeenCalledWith(
       expect.objectContaining({
         answer: expect.objectContaining({
@@ -769,11 +762,7 @@ describe('QaService', () => {
       ),
     );
 
-    const result = await service(
-      qaStore,
-      academicApi,
-      profileApi,
-    ).reportAnswer(
+    const result = await service(qaStore, academicApi, profileApi).reportAnswer(
       'user-a',
       answerId,
       'inappropriate',
@@ -791,5 +780,4 @@ describe('QaService', () => {
       }),
     );
   });
-
 });
