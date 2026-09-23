@@ -83,11 +83,7 @@ export class SocialService {
     await this.store.unfollow(userId, targetUserId);
   }
 
-  async listFollowing(
-    userId: string,
-    limit: number,
-    cursor?: string,
-  ) {
+  async listFollowing(userId: string, limit: number, cursor?: string) {
     const rows = await this.store.listFollowing(
       userId,
       limit + 1,
