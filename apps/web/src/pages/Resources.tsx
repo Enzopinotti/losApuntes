@@ -5,7 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AcademicSubjectOption,
@@ -51,9 +51,12 @@ function listFrom(value: string): string[] {
 
 const Resources = () => {
   const { status } = useAuth();
+  const [searchParams] = useSearchParams();
+  const routeQuery = searchParams.get("q") ?? "";
+  const subjectIdFilter = searchParams.get("subjectId") ?? undefined;
   const authenticated = status === "authenticated";
   const [items, setItems] = useState<ResourceView[]>([]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(routeQuery);
   const [visibilityFilter, setVisibilityFilter] = useState<
     ResourceVisibility | ""
   >("");
@@ -90,6 +93,7 @@ const Resources = () => {
         const result = await resourcesApi.search({
           q: query.trim() || undefined,
           visibility: visibilityFilter || undefined,
+          subjectId: subjectIdFilter,
         });
         setItems(result.items);
       }
@@ -98,7 +102,11 @@ const Resources = () => {
     } finally {
       setLoading(false);
     }
-  }, [authenticated, query, savedMode, visibilityFilter]);
+  }, [authenticated, query, savedMode, subjectIdFilter, visibilityFilter]);
+
+  useEffect(() => {
+    setQuery(routeQuery);
+  }, [routeQuery]);
 
   useEffect(() => {
     void load();
@@ -319,6 +327,13 @@ const Resources = () => {
       {error && (
         <p className="resources-error" role="alert">
           {error}
+        </p>
+      )}
+
+      {subjectIdFilter && (
+        <p className="resources-login-note">
+          Filtrando por la materia seleccionada desde búsqueda.{" "}
+          <Link to="/resources">Quitar filtro de materia</Link>
         </p>
       )}
 
