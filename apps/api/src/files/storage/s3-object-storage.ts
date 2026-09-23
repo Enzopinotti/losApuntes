@@ -284,6 +284,7 @@ export function createS3ObjectStorage(
         secretAccessKey: options.secretAccessKey,
         expiresInSeconds: input.expiresInSeconds,
         headers: {
+          'content-length': String(input.contentLength),
           'content-type': input.contentType,
           'if-none-match': '*',
         },
