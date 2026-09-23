@@ -2,6 +2,7 @@ export const FILE_ASSET_STATES = [
   'pending',
   'ready',
   'failed',
+  'reclaiming',
   'reclaimed',
 ] as const;
 
