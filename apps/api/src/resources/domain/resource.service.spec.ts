@@ -430,6 +430,177 @@ describe('ResourceService', () => {
     );
   });
 
+  it('rethrows unexpected resource creation failures', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    deps.academic.resolveResourceContext.mockResolvedValue({
+      subjectId: resource().subjectId,
+      courseOfferingId: null,
+    });
+    const failure = new Error('database unavailable');
+    resourceStore.createClaimingAsset.mockRejectedValue(failure);
+
+    await expect(
+      service(resourceStore, deps).create('author-1', {
+        assetId: asset().id,
+        title: 'Apunte',
+        subjectId: resource().subjectId,
+        visibility: 'private',
+      }),
+    ).rejects.toBe(failure);
+  });
+
+  it('decodes valid search cursors and supports subject and visibility filters', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    projectionDeps(deps);
+    const row = resource({ visibility: 'public' });
+    resourceStore.searchAuthorized
+      .mockResolvedValueOnce({ items: [row], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+
+    const first = await service(resourceStore, deps).search('viewer-2', {
+      q: ' BASE ',
+      subjectId: row.subjectId,
+      visibility: 'public',
+      limit: 25,
+    });
+    expect(first.nextCursor).toEqual(expect.any(String));
+
+    await service(resourceStore, deps).search('viewer-2', {
+      limit: 25,
+      cursor: first.nextCursor!,
+    });
+
+    expect(resourceStore.searchAuthorized).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        viewerUserId: 'viewer-2',
+        after: {
+          updatedAt: row.updatedAt,
+          id: row.id,
+        },
+      }),
+    );
+  });
+
+  it('revokes shares without disclosing unknown profiles and supports save removal', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const row = resource({ visibility: 'public' });
+    resourceStore.findById.mockResolvedValue(row);
+
+    deps.profiles.resolveUserIdByProfileId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('viewer-2');
+
+    await expect(
+      service(resourceStore, deps).revokeShare(
+        'author-1',
+        row.id,
+        '44444444-4444-4444-8444-444444444444',
+      ),
+    ).resolves.toBeUndefined();
+    expect(resourceStore.removeShare).not.toHaveBeenCalled();
+
+    await service(resourceStore, deps).revokeShare(
+      'author-1',
+      row.id,
+      '44444444-4444-4444-8444-444444444444',
+    );
+    expect(resourceStore.removeShare).toHaveBeenCalledWith(row.id, 'viewer-2');
+
+    await expect(
+      service(resourceStore, deps).save('viewer-2', row.id),
+    ).resolves.toEqual({ saved: true });
+    expect(resourceStore.upsertSave).toHaveBeenCalledWith(row.id, 'viewer-2');
+
+    await service(resourceStore, deps).unsave('viewer-2', row.id);
+    expect(resourceStore.removeSave).toHaveBeenCalledWith(row.id, 'viewer-2');
+  });
+
+  it('hides moderated resources and rejects cross-user owner mutations', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    resourceStore.findById.mockResolvedValue(
+      resource({ moderationState: 'hidden', visibility: 'public' }),
+    );
+
+    await expect(
+      service(resourceStore, deps).get(resource().id, 'viewer-2'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    resourceStore.findById.mockResolvedValue(resource());
+    await expect(
+      service(resourceStore, deps).update('viewer-2', resource().id, {
+        expectedRevision: 1,
+        visibility: 'public',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('projects a course offering and owner capabilities without exposing user ids', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const row = resource({
+      visibility: 'public',
+      courseOfferingId: '66666666-6666-4666-8666-666666666666',
+    });
+    resourceStore.findById.mockResolvedValue(row);
+    deps.files.getReadyAssetForResource.mockResolvedValue(asset());
+    deps.profiles.getAttributionForUser.mockResolvedValue({
+      profileId: '44444444-4444-4444-8444-444444444444',
+      displayName: 'Autor',
+      avatarUrl: null,
+    });
+    deps.academic.getCatalogNode
+      .mockResolvedValueOnce({
+        node: {
+          id: row.subjectId,
+          name: 'Base de Datos',
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        node: {
+          id: row.courseOfferingId,
+          name: 'Base de Datos · 2026 S2',
+        },
+      } as never);
+
+    const result = await service(resourceStore, deps).get(row.id, 'author-1');
+
+    expect(result.resource.academic.courseOffering?.id).toBe(
+      row.courseOfferingId,
+    );
+    expect(result.resource.capabilities).toEqual({
+      edit: true,
+      manageShares: true,
+    });
+    expect(JSON.stringify(result.resource)).not.toContain('authorUserId');
+  });
+
+  it('accepts reports without optional details', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const row = resource({ visibility: 'public' });
+    resourceStore.findById.mockResolvedValue(row);
+    resourceStore.upsertPendingReport.mockResolvedValue({
+      id: '55555555-5555-4555-8555-555555555555',
+      resourceId: row.id,
+      reporterUserId: 'viewer-2',
+      reason: 'other',
+      details: null,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await service(resourceStore, deps).report('viewer-2', row.id, 'other');
+
+    expect(resourceStore.upsertPendingReport).toHaveBeenCalledWith(
+      expect.objectContaining({ details: null }),
+    );
+  });
+
   it('does not project resources whose ready asset vanished', async () => {
     const resourceStore = store();
     const deps = dependencies();
