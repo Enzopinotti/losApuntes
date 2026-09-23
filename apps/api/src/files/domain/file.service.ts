@@ -289,6 +289,8 @@ export class FileService {
     let reclaimed = 0;
 
     for (const row of rows) {
+      if (row.state === 'reclaimed') continue;
+
       try {
         await this.storage.deleteObject(row.objectKey);
         if (await this.store.markReclaimed(row.id, row.state, now)) {
