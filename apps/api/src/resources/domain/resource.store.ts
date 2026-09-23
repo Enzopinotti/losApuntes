@@ -41,7 +41,7 @@ export interface ResourceStore {
     authorUserId: string,
     expectedRevision: number,
     patch: UpdateResourceRecord,
-  ): Promise<ResourceRecord | null>;
+  ): Promise<ResourceRecord | null>; // Clears explicit shares atomically when visibility leaves shared.
   hasShare(resourceId: string, userId: string): Promise<boolean>;
   upsertShare(resourceId: string, userId: string): Promise<void>;
   removeShare(resourceId: string, userId: string): Promise<void>;
