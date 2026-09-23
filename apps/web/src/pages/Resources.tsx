@@ -227,6 +227,21 @@ const Resources = () => {
     }
   };
 
+  const unsave = async (resource: ResourceView) => {
+    setBusyId(resource.id);
+    setError(null);
+
+    try {
+      await resourcesApi.unsave(resource.id);
+      setFeedback("Apunte quitado de guardados.");
+      await load();
+    } catch (nextError) {
+      setError(messageFor(nextError));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const report = async (resource: ResourceView) => {
     setBusyId(resource.id);
     setError(null);
@@ -505,9 +520,11 @@ const Resources = () => {
                       type="button"
                       className="secondary"
                       disabled={busyId === resource.id}
-                      onClick={() => void save(resource)}
+                      onClick={() =>
+                        void (savedMode ? unsave(resource) : save(resource))
+                      }
                     >
-                      Guardar
+                      {savedMode ? "Quitar de guardados" : "Guardar"}
                     </button>
                     {!resource.capabilities.edit && (
                       <button
