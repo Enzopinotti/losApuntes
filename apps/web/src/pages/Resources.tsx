@@ -112,8 +112,7 @@ const Resources = () => {
     [],
   );
 
-  const searchSubjects = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const searchSubjects = async () => {
     if (subjectQuery.trim().length < 2) return;
 
     setError(null);
@@ -386,20 +385,23 @@ const Resources = () => {
             </label>
 
             <div className="resources-wide subject-picker">
-              <form onSubmit={searchSubjects}>
-                <label>
-                  Buscar materia canónica
-                  <div className="inline-control">
-                    <input
-                      minLength={2}
-                      value={subjectQuery}
-                      onChange={(event) => setSubjectQuery(event.target.value)}
-                      placeholder="Ej. Base de Datos"
-                    />
-                    <button type="submit">Buscar materia</button>
-                  </div>
-                </label>
-              </form>
+              <label>
+                Buscar materia canónica
+                <div className="inline-control">
+                  <input
+                    minLength={2}
+                    value={subjectQuery}
+                    onChange={(event) => setSubjectQuery(event.target.value)}
+                    placeholder="Ej. Base de Datos"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void searchSubjects()}
+                  >
+                    Buscar materia
+                  </button>
+                </div>
+              </label>
 
               {subject && (
                 <p className="subject-selected">
