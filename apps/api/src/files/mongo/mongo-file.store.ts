@@ -106,7 +106,7 @@ export class MongoFileAssetStore implements FileAssetStore {
       .find({
         expiresAt: { $lte: now },
         claimRef: null,
-        state: { $in: ['pending', 'failed', 'ready'] },
+        state: { $in: ['pending', 'failed', 'ready', 'reclaiming'] },
       })
       .sort({ expiresAt: 1, id: 1 })
       .limit(limit)
@@ -114,14 +114,34 @@ export class MongoFileAssetStore implements FileAssetStore {
       .exec();
   }
 
-  async markReclaimed(
+  async claimForReclamation(
     id: string,
     expectedState: Exclude<FileAssetState, 'reclaimed'>,
-    reclaimedAt: Date,
-  ): Promise<boolean> {
+    now: Date,
+  ): Promise<FileAssetRecord | null> {
+    return this.assets
+      .findOneAndUpdate(
+        {
+          id,
+          state: expectedState,
+          claimRef: null,
+          expiresAt: { $lte: now },
+        },
+        {
+          $set: {
+            state: 'reclaiming',
+          },
+        },
+        { new: true },
+      )
+      .lean<FileAssetRecord>()
+      .exec();
+  }
+
+  async markReclaimed(id: string, reclaimedAt: Date): Promise<boolean> {
     const result = await this.assets
       .updateOne(
-        { id, state: expectedState, claimRef: null },
+        { id, state: 'reclaiming', claimRef: null },
         {
           $set: {
             state: 'reclaimed',
