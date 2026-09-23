@@ -20,6 +20,7 @@ export interface S3ObjectStorageOptions {
   endpoint: string;
   publicEndpoint?: string;
   providerId?: string;
+  now?: () => Date;
 }
 
 function sha256Hex(value: string): string {
@@ -77,8 +78,11 @@ function canonicalQuery(
   return values
     .map(([key, value]) => [encodeAws(key), encodeAws(value)] as const)
     .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
-      const keyOrder = leftKey.localeCompare(rightKey);
-      return keyOrder === 0 ? leftValue.localeCompare(rightValue) : keyOrder;
+      if (leftKey < rightKey) return -1;
+      if (leftKey > rightKey) return 1;
+      if (leftValue < rightValue) return -1;
+      if (leftValue > rightValue) return 1;
+      return 0;
     })
     .map(([key, value]) => `${key}=${value}`)
     .join('&');
@@ -159,7 +163,7 @@ function presignedUrl(input: {
   ]);
   const signedHeaders = [...headers.keys()].sort().join(';');
   const canonicalHeaders = [...headers.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([key, value]) => `${key}:${normalizeHeaderValue(value)}\n`)
     .join('');
 
@@ -204,8 +208,9 @@ async function signedRequest(input: {
   accessKeyId: string;
   secretAccessKey: string;
   headers?: Readonly<Record<string, string>>;
+  now?: Date;
 }): Promise<Response> {
-  const now = new Date();
+  const now = input.now ?? new Date();
   const { amzDate, dateStamp } = awsDate(now);
   const scope = `${dateStamp}/${input.region}/${SERVICE}/aws4_request`;
   const signingHeaders = new Map<string, string>([
@@ -215,7 +220,7 @@ async function signedRequest(input: {
   ]);
   const signedHeaders = [...signingHeaders.keys()].sort().join(';');
   const canonicalHeaders = [...signingHeaders.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([key, value]) => `${key}:${value}\n`)
     .join('');
 
@@ -274,6 +279,7 @@ export function createS3ObjectStorage(
     createUploadIntent(
       input: Parameters<ObjectStorage['createUploadIntent']>[0],
     ): Promise<ObjectStorageUploadIntent> {
+      const now = options.now?.() ?? new Date();
       const url = presignedUrl({
         method: 'PUT',
         endpoint: publicEndpoint,
@@ -288,6 +294,7 @@ export function createS3ObjectStorage(
           'content-type': input.contentType,
           'if-none-match': '*',
         },
+        now,
       });
 
       return Promise.resolve({
@@ -297,7 +304,7 @@ export function createS3ObjectStorage(
           'content-type': input.contentType,
           'if-none-match': '*',
         },
-        expiresAt: new Date(Date.now() + input.expiresInSeconds * 1000),
+        expiresAt: new Date(now.getTime() + input.expiresInSeconds * 1000),
       });
     },
 
@@ -310,6 +317,7 @@ export function createS3ObjectStorage(
         region: options.region,
         accessKeyId: options.accessKeyId,
         secretAccessKey: options.secretAccessKey,
+        now: options.now?.(),
       });
 
       if (response.status === 404) return null;
@@ -348,6 +356,7 @@ export function createS3ObjectStorage(
         headers: {
           range: `bytes=0-${maximumBytes - 1}`,
         },
+        now: options.now?.(),
       });
 
       if (!response.ok) throw storageError('GET prefix', response.status);
@@ -363,6 +372,7 @@ export function createS3ObjectStorage(
     createDownloadIntent(
       input: Parameters<ObjectStorage['createDownloadIntent']>[0],
     ): Promise<ObjectStorageDownloadIntent> {
+      const now = options.now?.() ?? new Date();
       const url = presignedUrl({
         method: 'GET',
         endpoint: publicEndpoint,
@@ -379,11 +389,12 @@ export function createS3ObjectStorage(
             responseDisposition(input.disposition, input.filename),
           ],
         ],
+        now,
       });
 
       return Promise.resolve({
         url,
-        expiresAt: new Date(Date.now() + input.expiresInSeconds * 1000),
+        expiresAt: new Date(now.getTime() + input.expiresInSeconds * 1000),
       });
     },
 
@@ -396,6 +407,7 @@ export function createS3ObjectStorage(
         region: options.region,
         accessKeyId: options.accessKeyId,
         secretAccessKey: options.secretAccessKey,
+        now: options.now?.(),
       });
 
       if (response.status === 404) return;
