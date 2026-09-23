@@ -13,6 +13,7 @@ import type {
   SubjectParticipationRecord,
 } from '../domain/academic.types';
 import type {
+  AcademicSourceIdentityConflictError,
   AcademicStore,
   CatalogSearchQuery,
   CatalogSearchResult,
@@ -30,6 +31,15 @@ import {
   AcademicCurrentContext,
   AcademicSubjectParticipation,
 } from './academic.mongo-schemas';
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 11000
+  );
+}
 
 function escapeRegex(value: string): string {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/gu, '\\$&');
@@ -168,10 +178,18 @@ export class MongoAcademicStore implements AcademicStore {
     input: CreateCatalogNodeRecord,
   ): Promise<AcademicCatalogNodeRecord> {
     const session = this.session();
-    const created = session
-      ? (await this.catalog.create([input], { session }))[0]
-      : await this.catalog.create(input);
-    return toPlain<AcademicCatalogNodeRecord>(created);
+
+    try {
+      const created = session
+        ? (await this.catalog.create([input], { session }))[0]
+        : await this.catalog.create(input);
+      return toPlain<AcademicCatalogNodeRecord>(created);
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new AcademicSourceIdentityConflictError();
+      }
+      throw error;
+    }
   }
 
   async updateCatalogNode(
@@ -179,14 +197,21 @@ export class MongoAcademicStore implements AcademicStore {
     expectedRevision: number,
     patch: UpdateCatalogNodeRecord,
   ): Promise<AcademicCatalogNodeRecord | null> {
-    return this.catalog
-      .findOneAndUpdate(
-        { id, revision: expectedRevision },
-        { $set: patch, $inc: { revision: 1 } },
-        { new: true, session: this.session() },
-      )
-      .lean<AcademicCatalogNodeRecord>()
-      .exec();
+    try {
+      return await this.catalog
+        .findOneAndUpdate(
+          { id, revision: expectedRevision },
+          { $set: patch, $inc: { revision: 1 } },
+          { new: true, session: this.session() },
+        )
+        .lean<AcademicCatalogNodeRecord>()
+        .exec();
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new AcademicSourceIdentityConflictError();
+      }
+      throw error;
+    }
   }
 
   async createAffiliation(
