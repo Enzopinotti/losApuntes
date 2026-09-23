@@ -224,6 +224,10 @@ describe('ProfileService', () => {
     ).getOwnerProfile('user-1');
 
     expect(result.onboardingRequired).toBe(false);
+    if (result.onboardingRequired) {
+      throw new Error('Expected an onboarded profile projection');
+    }
+
     expect(result.academic.affiliations).toHaveLength(1);
     expect(result.activities[0]?.id).toBe(act.id);
     expect(result.contributions.available).toBe(false);
