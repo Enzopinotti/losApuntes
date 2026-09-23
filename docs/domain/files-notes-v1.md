@@ -121,7 +121,7 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 ## 5. Concurrency/idempotency
 
 - Upload intent creates one immutable object key.
-- Signed PUT must not be a replacement path.
+- Signed PUT must not be a replacement path and binds the exact declared byte length, so a modified client cannot use a valid intent to stream an arbitrarily larger object.
 - Finalize `pending -> ready` is compare-and-set and idempotently returns the already-ready asset for the same creator.
 - Resource creation claims a ready asset once. One asset cannot back two unrelated Resources in v1.
 - cleanup first claims an expired asset into `reclaiming`; only then may it delete object bytes. This makes cleanup mutually exclusive with Resource claiming.
@@ -134,7 +134,7 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 - title, description and tags are length-bounded;
 - tags are normalized/deduplicated;
 - MIME is allowlisted and signature-verified;
-- expected size must exactly equal object-storage HEAD;
+- declared size is bound into the signed PUT and expected size must still exactly equal object-storage HEAD at finalize;
 - subject must resolve to an active canonical Subject;
 - optional CourseOffering must be a descendant of that Subject;
 - signed-read filename is response metadata only and sanitized before Content-Disposition.
@@ -193,3 +193,9 @@ Permanent CI must prove on the exact final HEAD:
 - abandoned upload cleanup deletes object bytes and metadata lifecycle advances safely.
 
 No earlier-SHA green result counts as merge evidence.
+
+## 10. Honest v1 boundaries
+
+Files + Notes v1 does not invent hard Resource deletion or tombstoning semantics. `DELETE-01` in the 2026 domain contract explicitly leaves anonymize/tombstone/retention/physical-delete behavior to the DER and data-retention policy. V1 therefore closes publication/privacy/access lifecycle without pretending that irreversible deletion policy has already been decided.
+
+Native Mobile screen acceptance and production HTTPS/presign-origin/CORS evidence also remain outside this slice and are owned by their existing readiness lanes.
