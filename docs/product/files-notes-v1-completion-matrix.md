@@ -1,7 +1,7 @@
 # Files + Notes v1 — completion matrix
 
 **Issue:** #6  
-**Status:** Candidate pending exact-head and post-merge verification
+**Status:** Closed — exact-head and post-merge verification complete
 
 | Capability | API/domain | Web | Permanent evidence |
 | --- | --- | --- | --- |
@@ -61,9 +61,16 @@ Files + Notes v1 does **not** claim:
 
 Those are separate future concerns and must not be inferred from this module.
 
-## Closure rule
+## Closure evidence
 
-Issue #6 closes only after one exact PR HEAD and the merged `main` both pass:
+Files + Notes v1 is closed with exact evidence:
+
+- candidate SHA: `64da3f6009fa15126eadc9ce80f726856f243eab`;
+- candidate verify: run #478 / Actions `35866348177`;
+- merge/main SHA: `112d07a8cd0b5a5d45bc231d0253cdc1572af5e3`;
+- post-merge verify: run #479 / Actions `35868180682`.
+
+Both candidate and merged `main` passed:
 
 - Quality Gate;
 - Auth critical coverage;
@@ -73,4 +80,4 @@ Issue #6 closes only after one exact PR HEAD and the merged `main` both pass:
 - Production dependency audit;
 - Container runtime smoke including real MinIO and cleanup worker.
 
-Closure evidence records candidate SHA/run, merge SHA and post-merge run. No earlier-SHA green result counts.
+Issue #6 is closed. No earlier-SHA green result is used as closure evidence.
