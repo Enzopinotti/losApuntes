@@ -1,7 +1,4 @@
-import {
-  ForbiddenException,
-  type ExecutionContext,
-} from '@nestjs/common';
+import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 
 import type { UsersService } from '../../users/users.service';
 import { ModerationWriteGuard } from './moderation-write.guard';
