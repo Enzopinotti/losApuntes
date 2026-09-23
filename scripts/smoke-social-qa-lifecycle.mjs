@@ -615,6 +615,22 @@ assert.equal(
   true,
 );
 
+const authenticatedQuestionSearch = await request(
+  `/questions?subjectId=${nodes.subject.id}&status=open&limit=20`,
+  { headers: { authorization: alice.bearer } },
+);
+assert.equal(authenticatedQuestionSearch.response.status, 200);
+const searchableQuestion = authenticatedQuestionSearch.body.items.find(
+  (item) => item.id === questionId,
+);
+assert.ok(searchableQuestion);
+assert.deepEqual(searchableQuestion.viewer, {
+  canEdit: true,
+  canAnswer: true,
+  canAcceptAnswers: true,
+  canReport: true,
+});
+
 const closeQuestion = await request(
   `/questions/${questionId}`,
   json(
