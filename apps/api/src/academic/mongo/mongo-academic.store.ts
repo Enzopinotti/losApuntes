@@ -8,6 +8,7 @@ import type {
   AcademicCatalogNodeRecord,
   AcademicCatalogProposalRecord,
   AcademicCurrentContextRecord,
+  AcademicProposalStatus,
   SubjectParticipationRecord,
 } from '../domain/academic.types';
 import type {
@@ -284,6 +285,45 @@ export class MongoAcademicStore implements AcademicStore {
   ): Promise<AcademicCatalogProposalRecord> {
     const created = await this.proposals.create(input);
     return toPlain<AcademicCatalogProposalRecord>(created);
+  }
+
+  async listProposals(
+    status: AcademicProposalStatus | undefined,
+    limit: number,
+  ): Promise<AcademicCatalogProposalRecord[]> {
+    return this.proposals
+      .find(status ? { status } : {})
+      .sort({ createdAt: 1, id: 1 })
+      .limit(limit)
+      .lean<AcademicCatalogProposalRecord[]>()
+      .exec();
+  }
+
+  async reviewProposal(
+    id: string,
+    reviewerUserId: string,
+    status: Exclude<AcademicProposalStatus, 'pending'>,
+    reason: string,
+    canonicalTargetId?: string,
+  ): Promise<AcademicCatalogProposalRecord | null> {
+    const reviewedAt = new Date();
+
+    return this.proposals
+      .findOneAndUpdate(
+        { id, status: 'pending' },
+        {
+          $set: {
+            status,
+            reviewedByUserId: reviewerUserId,
+            reviewReason: reason,
+            canonicalTargetId,
+            reviewedAt,
+          },
+        },
+        { new: true },
+      )
+      .lean<AcademicCatalogProposalRecord>()
+      .exec();
   }
 
   async appendAuditEvent(input: AcademicAuditEventRecord): Promise<void> {
