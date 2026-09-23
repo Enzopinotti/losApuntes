@@ -287,6 +287,15 @@ export class MongoAcademicStore implements AcademicStore {
     return toPlain<AcademicCatalogProposalRecord>(created);
   }
 
+  async findProposalById(
+    id: string,
+  ): Promise<AcademicCatalogProposalRecord | null> {
+    return this.proposals
+      .findOne({ id })
+      .lean<AcademicCatalogProposalRecord>()
+      .exec();
+  }
+
   async listProposals(
     status: AcademicProposalStatus | undefined,
     limit: number,
