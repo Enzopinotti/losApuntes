@@ -22,6 +22,7 @@
 | Essential notification creation + navigable accepted-answer target | yes | transaction + unit + runtime |
 | Notification ownership/read state | yes | negative unit + runtime |
 | Privacy-safe Profile attribution | yes | unit + runtime |
+| Bounded cursor pagination for relationships/questions/notifications | yes | unit + Web contract + runtime |
 | Web network surface | yes | build + static contract |
 | Web Q&A surface | yes | build + static contract |
 | Dedicated critical coverage gate | yes | CI |
