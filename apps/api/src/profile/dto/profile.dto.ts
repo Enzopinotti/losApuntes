@@ -104,11 +104,6 @@ export class ProfileRecommendationSignalsDto {
 class ProfileEditableFieldsDto {
   @IsOptional()
   @IsString()
-  @Length(2, 80)
-  displayName?: string;
-
-  @IsOptional()
-  @IsString()
   @Length(1, 500)
   bio?: string;
 
@@ -185,13 +180,18 @@ class ProfileEditableFieldsDto {
 export class CreateProfileDto extends ProfileEditableFieldsDto {
   @IsString()
   @Length(2, 80)
-  declare displayName: string;
+  displayName!: string;
 }
 
 export class UpdateProfileDto extends ProfileEditableFieldsDto {
   @IsInt()
   @Min(1)
   expectedRevision!: number;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  displayName?: string;
 }
 
 export class CreateProfileActivityDto {
