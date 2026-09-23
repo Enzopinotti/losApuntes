@@ -188,6 +188,21 @@ export class ResourceService {
     };
   }
 
+  async getFeedCandidates(
+    viewerUserId: string,
+    input: {
+      subjectIds?: string[];
+      authorUserIds?: string[];
+      anchorAt: Date;
+      limit: number;
+    },
+  ): Promise<ResourceRecord[]> {
+    return this.store.listFeedCandidates({
+      viewerUserId,
+      ...input,
+    });
+  }
+
   async update(userId: string, id: string, dto: UpdateResourceDto) {
     const existing = await this.requireOwned(id, userId);
     const patch: {
