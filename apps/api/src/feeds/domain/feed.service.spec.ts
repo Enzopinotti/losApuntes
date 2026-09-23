@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  HttpException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -120,6 +121,19 @@ function dependencies() {
   return { academic, profiles, resources, qa, social };
 }
 
+async function expectHttpCode(
+  promise: Promise<unknown>,
+  code: string,
+): Promise<void> {
+  try {
+    await promise;
+    throw new Error(`Expected HTTP error ${code}`);
+  } catch (error) {
+    if (!(error instanceof HttpException)) throw error;
+    expect(error.getResponse()).toMatchObject({ code });
+  }
+}
+
 function configureDefaults(
   feedStore: jest.Mocked<FeedStore>,
   deps: ReturnType<typeof dependencies>,
@@ -130,11 +144,14 @@ function configureDefaults(
   deps.academic.listSubjectParticipations.mockResolvedValue({
     participations: [],
   });
-  deps.academic.resolveResourceContext.mockImplementation(async (id) => ({
-    subjectId: id,
-    courseOfferingId: null,
-  }));
-  deps.academic.getCatalogNode.mockImplementation(async (id) => ({
+  deps.academic.resolveResourceContext.mockImplementation((id) =>
+    Promise.resolve({
+      subjectId: id,
+      courseOfferingId: null,
+    }),
+  );
+  deps.academic.getCatalogNode.mockImplementation((id) =>
+    Promise.resolve({
     node: {
       id,
       kind: 'subject',
@@ -156,8 +173,9 @@ function configureDefaults(
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     },
-    resolvedFromId: null,
-  }));
+      resolvedFromId: null,
+    }),
+  );
   deps.profiles.getFeedSignals.mockResolvedValue({
     profileId,
     skills: ['SQL'],
@@ -171,18 +189,20 @@ function configureDefaults(
     },
   });
   deps.profiles.resolveUserIdByProfileId.mockResolvedValue('target-user');
-  deps.profiles.getAttributionsForUsers.mockImplementation(async (userIds) => {
-    return new Map(
-      userIds.map((userId, index) => [
-        userId,
-        {
-          profileId: `7000000${index}-0000-4000-8000-00000000000${index}`,
-          displayName: `Autor ${index}`,
-          avatarUrl: null,
-        },
-      ]),
-    );
-  });
+  deps.profiles.getAttributionsForUsers.mockImplementation((userIds) =>
+    Promise.resolve(
+      new Map(
+        userIds.map((userId, index) => [
+          userId,
+          {
+            profileId: `7000000${index}-0000-4000-8000-00000000000${index}`,
+            displayName: `Autor ${index}`,
+            avatarUrl: null,
+          },
+        ]),
+      ),
+    ),
+  );
   deps.resources.getFeedCandidates.mockResolvedValue([]);
   deps.qa.getFeedCandidates.mockResolvedValue([]);
   deps.social.getFeedRelations.mockResolvedValue({
@@ -242,12 +262,13 @@ describe('FeedService', () => {
       subjectId: canonical,
       courseOfferingId: null,
     });
-    feedStore.updatePreferences.mockImplementation(
-      async (_user, _revision, patch) =>
+    feedStore.updatePreferences.mockImplementation((_user, _revision, patch) =>
+      Promise.resolve(
         preferences({
           ...patch,
           revision: 2,
         }),
+      ),
     );
 
     const result = await service(feedStore, deps).updatePreferences('viewer', {
@@ -258,7 +279,7 @@ describe('FeedService', () => {
       prioritizedSubjectIds: [otherSubjectId],
     });
 
-    expect(feedStore.updatePreferences).toHaveBeenCalledWith(
+    expect(feedStore.updatePreferences.mock.calls[0]).toEqual([
       'viewer',
       1,
       expect.objectContaining({
@@ -267,7 +288,7 @@ describe('FeedService', () => {
         mutedProfileIds: [profileId],
         prioritizedSubjectIds: [],
       }),
-    );
+    ]);
     expect(result.preferences.revision).toBe(2);
   });
 
@@ -283,7 +304,7 @@ describe('FeedService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(feedStore.updatePreferences).not.toHaveBeenCalled();
+    expect(feedStore.updatePreferences.mock.calls).toHaveLength(0);
   });
 
   it('rejects unknown muted Profiles', async () => {
@@ -292,14 +313,13 @@ describe('FeedService', () => {
     configureDefaults(feedStore, deps);
     deps.profiles.resolveUserIdByProfileId.mockResolvedValue(null);
 
-    await expect(
+    await expectHttpCode(
       service(feedStore, deps).updatePreferences('viewer', {
         expectedRevision: 1,
         mutedProfileIds: [profileId],
       }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'FEED_PROFILE_NOT_FOUND' }),
-    });
+      'FEED_PROFILE_NOT_FOUND',
+    );
   });
 
   it('returns an explicit empty Academic feed without guessing context', async () => {
@@ -317,8 +337,8 @@ describe('FeedService', () => {
       stopReason: 'end',
       context: { subjectIds: [] },
     });
-    expect(deps.resources.getFeedCandidates).not.toHaveBeenCalled();
-    expect(deps.qa.getFeedCandidates).not.toHaveBeenCalled();
+    expect(deps.resources.getFeedCandidates.mock.calls).toHaveLength(0);
+    expect(deps.qa.getFeedCandidates.mock.calls).toHaveLength(0);
   });
 
   it('uses current Subjects and deterministic chronology in Academic feed', async () => {
@@ -374,7 +394,7 @@ describe('FeedService', () => {
     deps.profiles.getAttributionsForUsers.mockResolvedValue(
       new Map([
         [
-          rows[0]!.authorUserId,
+          rows[0].authorUserId,
           {
             profileId: mutedAuthorProfile,
             displayName: 'Muted',
@@ -382,7 +402,7 @@ describe('FeedService', () => {
           },
         ],
         [
-          rows[1]!.authorUserId,
+          rows[1].authorUserId,
           {
             profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             displayName: 'Other subject',
@@ -390,7 +410,7 @@ describe('FeedService', () => {
           },
         ],
         [
-          rows[2]!.authorUserId,
+          rows[2].authorUserId,
           {
             profileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
             displayName: 'Visible',
@@ -406,7 +426,7 @@ describe('FeedService', () => {
       order: 'ranked',
     });
 
-    expect(result.items.map((item) => item.id)).toEqual([rows[2]!.id]);
+    expect(result.items.map((item) => item.id)).toEqual([rows[2].id]);
   });
 
   it('uses academic, social and interest signals only when enabled', async () => {
@@ -486,16 +506,15 @@ describe('FeedService', () => {
       preferences({ revision: 2 }),
     );
 
-    await expect(
+    await expectHttpCode(
       service(feedStore, deps).forYou('viewer', {
         limit: 2,
         cursor: first.nextCursor ?? undefined,
         mode: 'balanced',
         order: 'ranked',
       }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'FEED_CURSOR_STALE' }),
-    });
+      'FEED_CURSOR_STALE',
+    );
   });
 
   it('rejects reuse of a cursor under another request context', async () => {
@@ -512,18 +531,15 @@ describe('FeedService', () => {
       order: 'ranked',
     });
 
-    await expect(
+    await expectHttpCode(
       service(feedStore, deps).forYou('viewer', {
         limit: 3,
         cursor: first.nextCursor ?? undefined,
         mode: 'balanced',
         order: 'ranked',
       }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'FEED_CURSOR_CONTEXT_MISMATCH',
-      }),
-    });
+      'FEED_CURSOR_CONTEXT_MISMATCH',
+    );
   });
 
   it('returns a natural break after the third page even with more supply', async () => {
@@ -596,18 +612,15 @@ describe('FeedService', () => {
     configureDefaults(feedStore, deps);
     deps.qa.get.mockRejectedValue(new NotFoundException());
 
-    await expect(
+    await expectHttpCode(
       service(feedStore, deps).setFeedback(
         'viewer',
         'question',
         question(0).id,
         'less',
       ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'FEED_FEEDBACK_TARGET_NOT_FOUND',
-      }),
-    });
+      'FEED_FEEDBACK_TARGET_NOT_FOUND',
+    );
   });
 
   it('clears feedback without requiring the target to remain readable', async () => {
@@ -627,7 +640,7 @@ describe('FeedService', () => {
       ),
     ).resolves.toEqual({ changed: true, revision: 3 });
 
-    expect(deps.resources.get).not.toHaveBeenCalled();
+    expect(deps.resources.get.mock.calls).toHaveLength(0);
   });
 
   it('rejects malformed feed cursors', async () => {
