@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 
 import type {
   AuthenticatedRequest,
