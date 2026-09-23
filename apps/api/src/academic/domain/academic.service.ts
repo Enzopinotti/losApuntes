@@ -782,6 +782,16 @@ export class AcademicService {
     kind: AcademicNodeKind,
     parentIds: string[],
   ): Promise<string[]> {
+    if (kind === 'country' && parentIds.length > 0) this.invalidParent();
+    if (kind !== 'country' && parentIds.length === 0) this.invalidParent();
+
+    if (parentIds.length > 1 && kind !== 'subject') {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_PARENT_CARDINALITY_INVALID',
+        message: 'Only Subject may currently have multiple catalog parents',
+      });
+    }
+
     const canonicalIds = uniqueStrings(
       await Promise.all(
         parentIds.map(async (parentId) => {
@@ -854,7 +864,15 @@ export class AcademicService {
     candidateId: string,
     ancestorId: string,
   ): Promise<boolean> {
-    const canonicalAncestor = (await this.resolveNode(ancestorId)).node.id;
+    let canonicalAncestor: string;
+
+    try {
+      canonicalAncestor = (await this.resolveNode(ancestorId)).node.id;
+    } catch (error) {
+      if (error instanceof NotFoundException) return false;
+      throw error;
+    }
+
     let frontier = [candidateId];
     const visited = new Set<string>();
 
