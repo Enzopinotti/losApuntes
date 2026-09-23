@@ -19,7 +19,8 @@
 | Losing pending→failed race never deletes ready bytes | Implemented | N/A | Unit regression |
 | Public/private/shared metadata | Implemented | Implemented | Unit + runtime |
 | Resource-scoped explicit grants | Implemented | Profile UUID controls | Adapter unit + runtime |
-| Stale grants powerless after private transition | Implemented | Server-authorized | Adapter unit + runtime |
+| Stale grants powerless after privacy exit | Implemented + atomically cleared | Server-authorized | Adapter unit + runtime |
+| Returning to shared does not revive old grants | Implemented | No client authority | Runtime |
 | Share lookup cannot authorize a different Resource | Implemented | No client authority | Adapter regression + runtime |
 | Save never grants access | Implemented | Guardados view | Unit + runtime |
 | Remove saved relation in place | Implemented | Implemented | Web static contract |
