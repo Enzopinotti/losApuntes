@@ -165,9 +165,7 @@ const Search = () => {
                       <div>
                         <strong>{subject.name}</strong>
                         {subject.aliases.length > 0 && (
-                          <small>
-                            También: {subject.aliases.join(", ")}
-                          </small>
+                          <small>También: {subject.aliases.join(", ")}</small>
                         )}
                       </div>
                       <Link to={`/resources?subjectId=${subject.id}`}>
