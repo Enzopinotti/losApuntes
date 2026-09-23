@@ -481,6 +481,27 @@ describe('FileService', () => {
     );
   });
 
+  it('does not delete bytes when another finalize wins the fail transition', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset({
+      expiresAt: new Date(now.getTime() - 1),
+    });
+
+    fileStore.findOwned.mockResolvedValue(pending);
+    fileStore.markFailed.mockResolvedValue(null);
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(objectStorage.deleteObject).not.toHaveBeenCalled();
+  });
+
   it('reclaims expired objects and leaves failed deletes retryable', async () => {
     const fileStore = store();
     const objectStorage = storage();
