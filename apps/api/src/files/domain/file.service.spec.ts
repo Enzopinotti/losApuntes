@@ -180,11 +180,11 @@ describe('FileService', () => {
     const pending = asset();
 
     fileStore.findOwned.mockResolvedValue(pending);
-    objectStorage.headObject.mockResolvedValue({
-      byteSize: 9,
     fileStore.markFailed.mockResolvedValue(
       asset({ state: 'failed', failureCode: 'SIZE_MISMATCH' }),
     );
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: 9,
       contentType: 'application/pdf',
       etag: null,
     });
