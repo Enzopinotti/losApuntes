@@ -20,7 +20,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:auth:coverage": "jest --config ./jest.auth-coverage.cjs --runInBand --coverage"
+    "test:auth:coverage": "jest --config ./jest.auth-coverage.cjs --runInBand --coverage",
+    "test:academic:coverage": "jest --config ./jest.academic-coverage.cjs --runInBand --coverage"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
