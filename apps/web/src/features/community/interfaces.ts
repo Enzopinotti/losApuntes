@@ -10,10 +10,7 @@ export type FollowingItem = {
 };
 
 export type ConnectionStatus =
-  | "pending"
-  | "accepted"
-  | "declined"
-  | "disconnected";
+  "pending" | "accepted" | "declined" | "disconnected";
 
 export type ConnectionView = {
   id: string;
