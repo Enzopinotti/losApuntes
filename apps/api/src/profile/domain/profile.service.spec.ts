@@ -5,15 +5,9 @@ import {
 } from '@nestjs/common';
 
 import type { AcademicService } from '../../academic/domain/academic.service';
-import {
-  ProfileAlreadyExistsError,
-  type ProfileStore,
-} from './profile.store';
+import { ProfileAlreadyExistsError, type ProfileStore } from './profile.store';
 import { ProfileService } from './profile.service';
-import type {
-  ProfileActivityRecord,
-  ProfileRecord,
-} from './profile.types';
+import type { ProfileActivityRecord, ProfileRecord } from './profile.types';
 
 const now = new Date('2026-09-23T03:00:00.000Z');
 
@@ -218,10 +212,9 @@ describe('ProfileService', () => {
       context: { affiliationId: 'aff-1' } as never,
     });
 
-    const result = await service(
-      profileStore,
-      academicService,
-    ).getOwnerProfile('user-1');
+    const result = await service(profileStore, academicService).getOwnerProfile(
+      'user-1',
+    );
 
     expect(result.onboardingRequired).toBe(false);
     if (result.onboardingRequired) {
@@ -459,7 +452,9 @@ describe('ProfileService', () => {
     const updated = activity({ title: 'Nuevo título', revision: 2 });
 
     profileStore.findActivityForUser.mockResolvedValue(existing);
-    profileStore.updateActivity.mockResolvedValueOnce(updated).mockResolvedValueOnce(null);
+    profileStore.updateActivity
+      .mockResolvedValueOnce(updated)
+      .mockResolvedValueOnce(null);
 
     const ok = await service(profileStore, academicService).updateActivity(
       'user-1',
@@ -505,7 +500,9 @@ describe('ProfileService', () => {
     const academicService = academic();
     const existing = activity();
     profileStore.findActivityForUser.mockResolvedValue(existing);
-    profileStore.deleteActivity.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    profileStore.deleteActivity
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
 
     await expect(
       service(profileStore, academicService).deleteActivity(
