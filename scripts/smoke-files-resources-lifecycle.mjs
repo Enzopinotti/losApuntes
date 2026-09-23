@@ -125,10 +125,15 @@ async function createReadyPdf(bearer, filename, label) {
   });
   assert.equal(upload.ok, true, `PUT failed with ${upload.status}`);
 
+  const replacementBytes = Buffer.from(bytes);
+  replacementBytes[replacementBytes.length - 1] =
+    replacementBytes[replacementBytes.length - 1] === 0x0a ? 0x21 : 0x0a;
+  assert.equal(replacementBytes.byteLength, bytes.byteLength);
+
   const replacement = await fetch(intent.body.upload.url, {
     method: intent.body.upload.method,
     headers: intent.body.upload.headers,
-    body: Buffer.from('%PDF-1.7\\nreplacement-must-fail\\n%%EOF\\n', 'utf8'),
+    body: replacementBytes,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   assert.equal(
