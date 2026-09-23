@@ -5,6 +5,7 @@ module.exports = {
   collectCoverageFrom: [
     'files/domain/file.service.ts',
     'files/storage/file-mime.ts',
+    'files/storage/s3-object-storage.ts',
     'resources/domain/resource.service.ts',
   ],
   coverageThreshold: {
