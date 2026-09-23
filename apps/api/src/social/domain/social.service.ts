@@ -9,7 +9,41 @@ import { randomUUID } from 'node:crypto';
 
 import { ProfileService } from '../../profile/domain/profile.service';
 import { SOCIAL_STORE, type SocialStore } from './social.store';
-import type { ConnectionRecord } from './social.types';
+import type { ConnectionRecord, SocialCursor } from './social.types';
+
+function encodeCursor(cursor: SocialCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      at: cursor.at.toISOString(),
+      id: cursor.id,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeCursor(value?: string): SocialCursor | undefined {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (typeof parsed.at !== 'string' || typeof parsed.id !== 'string') {
+      throw new Error('invalid cursor');
+    }
+
+    const at = new Date(parsed.at);
+    if (Number.isNaN(at.getTime())) throw new Error('invalid date');
+
+    return { at, id: parsed.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'SOCIAL_CURSOR_INVALID',
+      message: 'Social cursor is invalid',
+    });
+  }
+}
 
 @Injectable()
 export class SocialService {
@@ -49,14 +83,25 @@ export class SocialService {
     await this.store.unfollow(userId, targetUserId);
   }
 
-  async listFollowing(userId: string, limit: number) {
-    const rows = await this.store.listFollowing(userId, limit);
+  async listFollowing(
+    userId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    const rows = await this.store.listFollowing(
+      userId,
+      limit + 1,
+      decodeCursor(cursor),
+    );
+    const hasMore = rows.length > limit;
+    const pageRows = rows.slice(0, limit);
     const items = await Promise.all(
-      rows.map(async (row) => ({
+      pageRows.map(async (row) => ({
         followedAt: row.createdAt.toISOString(),
         profile: await this.profiles.getAttributionForUser(row.followeeUserId),
       })),
     );
+    const last = pageRows.at(-1);
 
     return {
       items: items.filter(
@@ -66,6 +111,10 @@ export class SocialService {
           profile: NonNullable<typeof item.profile>;
         } => item.profile !== null,
       ),
+      nextCursor:
+        hasMore && last
+          ? encodeCursor({ at: last.createdAt, id: last.id })
+          : null,
     };
   }
 
@@ -101,11 +150,26 @@ export class SocialService {
     userId: string,
     status: ConnectionRecord['status'] | undefined,
     limit: number,
+    cursor?: string,
   ) {
-    const rows = await this.store.listConnections(userId, status, limit);
+    const rows = await this.store.listConnections(
+      userId,
+      status,
+      limit + 1,
+      decodeCursor(cursor),
+    );
+    const hasMore = rows.length > limit;
+    const pageRows = rows.slice(0, limit);
+    const last = pageRows.at(-1);
 
     return {
-      items: await Promise.all(rows.map((row) => this.projection(row, userId))),
+      items: await Promise.all(
+        pageRows.map((row) => this.projection(row, userId)),
+      ),
+      nextCursor:
+        hasMore && last
+          ? encodeCursor({ at: last.updatedAt, id: last.id })
+          : null,
     };
   }
 
