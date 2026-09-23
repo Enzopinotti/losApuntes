@@ -354,11 +354,11 @@ export class AcademicService {
     };
   }
 
-  async createAffiliation(
-    userId: string,
-    dto: CreateAcademicAffiliationDto,
-  ) {
-    const institution = await this.requireKind(dto.institutionId, 'institution');
+  async createAffiliation(userId: string, dto: CreateAcademicAffiliationDto) {
+    const institution = await this.requireKind(
+      dto.institutionId,
+      'institution',
+    );
 
     const contextualIds = [
       dto.campusId,

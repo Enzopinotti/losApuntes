@@ -101,7 +101,9 @@ export interface AcademicStore {
     userId: string,
   ): Promise<SubjectParticipationRecord[]>;
 
-  getCurrentContext(userId: string): Promise<AcademicCurrentContextRecord | null>;
+  getCurrentContext(
+    userId: string,
+  ): Promise<AcademicCurrentContextRecord | null>;
   setCurrentContext(
     input: Omit<AcademicCurrentContextRecord, 'createdAt' | 'updatedAt'>,
   ): Promise<AcademicCurrentContextRecord>;

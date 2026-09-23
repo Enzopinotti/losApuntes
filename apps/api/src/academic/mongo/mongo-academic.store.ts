@@ -66,7 +66,10 @@ export class MongoAcademicStore implements AcademicStore {
   async findCatalogNodeById(
     id: string,
   ): Promise<AcademicCatalogNodeRecord | null> {
-    return this.catalog.findOne({ id }).lean<AcademicCatalogNodeRecord>().exec();
+    return this.catalog
+      .findOne({ id })
+      .lean<AcademicCatalogNodeRecord>()
+      .exec();
   }
 
   async findCatalogNodesByIds(
@@ -92,9 +95,7 @@ export class MongoAcademicStore implements AcademicStore {
       .exec();
   }
 
-  async searchCatalog(
-    query: CatalogSearchQuery,
-  ): Promise<CatalogSearchResult> {
+  async searchCatalog(query: CatalogSearchQuery): Promise<CatalogSearchResult> {
     const clauses: FilterQuery<AcademicCatalogNode>[] = [{ status: 'active' }];
 
     if (query.kind) clauses.push({ kind: query.kind });

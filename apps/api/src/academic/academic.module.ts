@@ -34,7 +34,10 @@ import { MongoAcademicStore } from './mongo/mongo-academic.store';
         name: AcademicSubjectParticipation.name,
         schema: AcademicSubjectParticipationSchema,
       },
-      { name: AcademicCurrentContext.name, schema: AcademicCurrentContextSchema },
+      {
+        name: AcademicCurrentContext.name,
+        schema: AcademicCurrentContextSchema,
+      },
       {
         name: AcademicCatalogProposal.name,
         schema: AcademicCatalogProposalSchema,

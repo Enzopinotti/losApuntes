@@ -15,9 +15,7 @@ export class AcademicAdminGuard implements CanActivate {
   constructor(private readonly users: UsersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context
-      .switchToHttp()
-      .getRequest<AuthenticatedRequest>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const allowed = await this.users.hasPlatformPermission(
       request.user.id,

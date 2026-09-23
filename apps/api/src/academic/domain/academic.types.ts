@@ -54,12 +54,7 @@ export type AcademicCatalogNodeRecord = {
 };
 
 export type AcademicAffiliationStatus =
-  | 'applicant'
-  | 'active'
-  | 'paused'
-  | 'completed'
-  | 'withdrawn'
-  | 'alumni';
+  'applicant' | 'active' | 'paused' | 'completed' | 'withdrawn' | 'alumni';
 
 export type AcademicAffiliationRecord = {
   id: string;
@@ -77,10 +72,7 @@ export type AcademicAffiliationRecord = {
 };
 
 export type SubjectParticipationState =
-  | 'planned'
-  | 'current'
-  | 'completed'
-  | 'dropped';
+  'planned' | 'current' | 'completed' | 'dropped';
 
 export type SubjectParticipationRecord = {
   id: string;

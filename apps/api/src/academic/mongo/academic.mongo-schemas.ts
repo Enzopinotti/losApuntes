@@ -47,7 +47,11 @@ export class AcademicCatalogNode {
   @Prop({
     required: true,
     type: {
-      authorityTier: { type: String, required: true, enum: ['A', 'B', 'C', 'D'] },
+      authorityTier: {
+        type: String,
+        required: true,
+        enum: ['A', 'B', 'C', 'D'],
+      },
       sourceKey: { type: String, required: true },
       sourceUrl: { type: String, required: true },
       externalId: { type: String, required: false },
@@ -164,8 +168,9 @@ export class AcademicSubjectParticipation {
   updatedAt!: Date;
 }
 
-export const AcademicSubjectParticipationSchema =
-  SchemaFactory.createForClass(AcademicSubjectParticipation);
+export const AcademicSubjectParticipationSchema = SchemaFactory.createForClass(
+  AcademicSubjectParticipation,
+);
 AcademicSubjectParticipationSchema.index(
   { userId: 1, subjectId: 1, courseOfferingId: 1 },
   { unique: true },
@@ -186,8 +191,9 @@ export class AcademicCurrentContext {
   updatedAt!: Date;
 }
 
-export const AcademicCurrentContextSchema =
-  SchemaFactory.createForClass(AcademicCurrentContext);
+export const AcademicCurrentContextSchema = SchemaFactory.createForClass(
+  AcademicCurrentContext,
+);
 
 @Schema({ collection: 'academic_catalog_proposals', timestamps: true })
 export class AcademicCatalogProposal {
@@ -224,8 +230,9 @@ export class AcademicCatalogProposal {
   updatedAt!: Date;
 }
 
-export const AcademicCatalogProposalSchema =
-  SchemaFactory.createForClass(AcademicCatalogProposal);
+export const AcademicCatalogProposalSchema = SchemaFactory.createForClass(
+  AcademicCatalogProposal,
+);
 AcademicCatalogProposalSchema.index({ userId: 1, createdAt: -1 });
 
 @Schema({ collection: 'academic_audit_events', timestamps: false })

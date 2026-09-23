@@ -38,10 +38,7 @@ export class AcademicController {
   }
 
   @Get('catalog/:id/children')
-  children(
-    @Param('id') id: string,
-    @Query('kind') kind?: AcademicNodeKind,
-  ) {
+  children(@Param('id') id: string, @Query('kind') kind?: AcademicNodeKind) {
     return this.academic.listChildren(id, kind);
   }
 
