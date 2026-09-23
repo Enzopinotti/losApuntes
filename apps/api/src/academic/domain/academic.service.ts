@@ -11,6 +11,7 @@ import type {
   CreateAcademicAffiliationDto,
   CreateAcademicCatalogNodeDto,
   CreateAcademicProposalDto,
+  ReviewAcademicProposalDto,
   SetAcademicContextDto,
   UpdateAcademicAffiliationStatusDto,
   UpdateAcademicCatalogNodeDto,
@@ -25,7 +26,9 @@ import {
   ACADEMIC_PARENT_KINDS,
   type AcademicAffiliationRecord,
   type AcademicCatalogNodeRecord,
+  type AcademicCatalogProposalRecord,
   type AcademicNodeKind,
+  type AcademicProposalStatus,
 } from './academic.types';
 
 const MAX_REDIRECT_DEPTH = 8;
@@ -246,6 +249,20 @@ export class AcademicService {
               .map(cleanDisplayName)
               .filter((alias) => normalizeName(alias) !== normalizeName(name)),
           );
+
+    if (dto.provenance?.externalId) {
+      const sourceIdentity = await this.store.findCatalogNodeBySourceIdentity(
+        dto.provenance.sourceKey,
+        dto.provenance.externalId,
+      );
+
+      if (sourceIdentity && sourceIdentity.id !== id) {
+        throw new ConflictException({
+          code: 'ACADEMIC_SOURCE_IDENTITY_EXISTS',
+          message: 'Academic source identity already exists',
+        });
+      }
+    }
 
     const updated = await this.store.updateCatalogNode(
       id,
@@ -558,18 +575,88 @@ export class AcademicService {
       kind: created.kind,
     });
 
+    return { proposal: this.publicProposal(created) };
+  }
+
+  async listProposals(
+    status: AcademicProposalStatus | undefined,
+    limit: number,
+  ) {
     return {
-      proposal: {
-        id: created.id,
-        kind: created.kind,
-        proposedName: created.proposedName,
-        parentIds: created.parentIds,
-        evidenceUrl: created.evidenceUrl,
-        notes: created.notes,
-        status: created.status,
-        createdAt: created.createdAt.toISOString(),
-      },
+      proposals: (await this.store.listProposals(status, limit)).map((row) =>
+        this.publicProposal(row),
+      ),
     };
+  }
+
+  async reviewProposal(
+    actorUserId: string,
+    id: string,
+    dto: ReviewAcademicProposalDto,
+  ) {
+    const proposal = await this.store.findProposalById(id);
+    if (!proposal) this.notFound();
+
+    if (proposal.status !== 'pending') {
+      throw new ConflictException({
+        code: 'ACADEMIC_PROPOSAL_ALREADY_REVIEWED',
+        message: 'Academic proposal has already been reviewed',
+      });
+    }
+
+    const requiresTarget = dto.status !== 'rejected';
+
+    if (requiresTarget && !dto.canonicalTargetId) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_PROPOSAL_TARGET_REQUIRED',
+        message: 'A canonical target is required for this review outcome',
+      });
+    }
+
+    if (!requiresTarget && dto.canonicalTargetId) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_PROPOSAL_TARGET_NOT_ALLOWED',
+        message: 'Rejected proposals cannot reference a canonical target',
+      });
+    }
+
+    let canonicalTargetId: string | undefined;
+
+    if (dto.canonicalTargetId) {
+      const { node } = await this.resolveNode(dto.canonicalTargetId);
+
+      if (node.status !== 'active' || node.kind !== proposal.kind) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_PROPOSAL_TARGET_INVALID',
+          message:
+            'Proposal canonical target must be an active node of the same kind',
+        });
+      }
+
+      canonicalTargetId = node.id;
+    }
+
+    const reviewed = await this.store.reviewProposal(
+      id,
+      actorUserId,
+      dto.status,
+      dto.reason.trim(),
+      canonicalTargetId,
+    );
+
+    if (!reviewed) {
+      throw new ConflictException({
+        code: 'ACADEMIC_PROPOSAL_ALREADY_REVIEWED',
+        message: 'Academic proposal changed concurrently',
+      });
+    }
+
+    await this.audit('academic.proposal.reviewed', actorUserId, reviewed.id, {
+      status: reviewed.status,
+      canonicalTargetId: reviewed.canonicalTargetId ?? null,
+    });
+
+    return { proposal: this.publicProposal(reviewed) };
   }
 
   private async resolveNode(id: string): Promise<{
@@ -727,6 +814,25 @@ export class AcademicService {
     return {
       affiliationId: row.affiliationId,
       subjectParticipationId: row.subjectParticipationId,
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private publicProposal(row: AcademicCatalogProposalRecord) {
+    return {
+      id: row.id,
+      userId: row.userId,
+      kind: row.kind,
+      proposedName: row.proposedName,
+      parentIds: row.parentIds,
+      evidenceUrl: row.evidenceUrl,
+      notes: row.notes,
+      status: row.status,
+      reviewedByUserId: row.reviewedByUserId,
+      reviewReason: row.reviewReason,
+      canonicalTargetId: row.canonicalTargetId,
+      reviewedAt: row.reviewedAt?.toISOString(),
+      createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
