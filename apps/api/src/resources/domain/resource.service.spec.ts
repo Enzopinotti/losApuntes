@@ -601,6 +601,125 @@ describe('ResourceService', () => {
     );
   });
 
+  it('rejects decodable cursors with missing fields or invalid dates', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+
+    const missingId = Buffer.from(
+      JSON.stringify({ updatedAt: now.toISOString() }),
+      'utf8',
+    ).toString('base64url');
+    await expect(
+      service(resourceStore, deps).search(undefined, {
+        limit: 25,
+        cursor: missingId,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    const invalidDate = Buffer.from(
+      JSON.stringify({ updatedAt: 'not-a-date', id: resource().id }),
+      'utf8',
+    ).toString('base64url');
+    await expect(
+      service(resourceStore, deps).search(undefined, {
+        limit: 25,
+        cursor: invalidDate,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('keeps unknown share targets opaque', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    resourceStore.findById.mockResolvedValue(resource());
+    deps.profiles.resolveUserIdByProfileId.mockResolvedValue(null);
+
+    await expect(
+      service(resourceStore, deps).grantShare(
+        'author-1',
+        resource().id,
+        '44444444-4444-4444-8444-444444444444',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(resourceStore.upsertShare).not.toHaveBeenCalled();
+  });
+
+  it('ignores orphaned saved relations instead of treating them as authority', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    projectionDeps(deps);
+
+    resourceStore.listSavedResourceIds.mockResolvedValue([
+      'missing',
+      resource().id,
+    ]);
+    resourceStore.findManyByIds.mockResolvedValue([
+      resource({ visibility: 'public' }),
+    ]);
+
+    const result = await service(resourceStore, deps).listSaved('viewer-2', 25);
+
+    expect(result.items.map((item) => item.id)).toEqual([resource().id]);
+  });
+
+  it('normalizes blank optional metadata defensively', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const row = resource({
+      description: null,
+      tags: [],
+      visibility: 'private',
+    });
+
+    deps.academic.resolveResourceContext.mockResolvedValue({
+      subjectId: row.subjectId,
+      courseOfferingId: null,
+    });
+    projectionDeps(deps);
+    resourceStore.createClaimingAsset.mockResolvedValue({
+      resource: row,
+      asset: asset(),
+    });
+
+    await service(resourceStore, deps).create(
+      'author-1',
+      {
+        assetId: row.assetId,
+        title: ' Apunte ',
+        description: '   ',
+        tags: [' SQL ', 'sql', '   '],
+        subjectId: row.subjectId,
+        visibility: 'private',
+      },
+      now,
+    );
+
+    const input = resourceStore.createClaimingAsset.mock.calls[0]?.[0];
+    expect(input?.resource.description).toBeNull();
+    expect(input?.resource.tags).toEqual(['SQL']);
+  });
+
+  it('fails closed when a ready asset is structurally incomplete', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const row = resource({ visibility: 'public' });
+    resourceStore.findById.mockResolvedValue(row);
+    deps.files.getReadyAssetForResource.mockResolvedValue({
+      ...asset(),
+      verifiedMimeType: undefined,
+      actualByteSize: undefined,
+    });
+    deps.profiles.getAttributionForUser.mockResolvedValue(null);
+    deps.academic.getCatalogNode.mockResolvedValue({
+      node: { id: row.subjectId, name: 'Base de Datos' },
+    } as never);
+
+    await expect(
+      service(resourceStore, deps).get(row.id),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
   it('does not project resources whose ready asset vanished', async () => {
     const resourceStore = store();
     const deps = dependencies();
