@@ -23,6 +23,7 @@ function store(): jest.Mocked<NotificationStore> {
     list: jest.fn(),
     markRead: jest.fn(),
     markAllRead: jest.fn(),
+    countUnread: jest.fn(),
   };
 }
 
@@ -129,6 +130,21 @@ describe('NotificationService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
     expect(notificationStore.list).not.toHaveBeenCalled();
+  });
+
+  it('counts unread notifications through the owned store query', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    notificationStore.countUnread.mockResolvedValue(7);
+
+    await expect(
+      new NotificationService(
+        notificationStore,
+        profileApi as unknown as ProfileService,
+      ).countUnread('user-a'),
+    ).resolves.toEqual({ unreadCount: 7 });
+
+    expect(notificationStore.countUnread).toHaveBeenCalledWith('user-a');
   });
 
   it('marks only an owned notification and fails opaque when absent', async () => {
