@@ -98,6 +98,26 @@ assert.equal(forbidden.body.code, 'ACADEMIC_CATALOG_WRITE_FORBIDDEN');
 
 setCatalogWritePermission(true);
 
+const invalidTimestamp = await request(
+  '/academic/admin/catalog',
+  json(
+    'POST',
+    {
+      kind: 'country',
+      name: 'Invalid Timestamp',
+      provenance: {
+        authorityTier: 'C',
+        sourceKey: 'runtime-smoke-invalid',
+        sourceUrl: 'https://example.test/runtime',
+        verifiedAt: 'not-a-date',
+      },
+    },
+    bearer,
+  ),
+);
+assert.equal(invalidTimestamp.response.status, 400);
+assert.equal(invalidTimestamp.body.code, 'BAD_REQUEST');
+
 async function createNode(body) {
   const result = await request(
     '/academic/admin/catalog',
@@ -132,6 +152,44 @@ const institution = await createNode({
     externalId: 'institution-1',
   },
 });
+
+const duplicateSourceIdentity = await request(
+  '/academic/admin/catalog',
+  json(
+    'POST',
+    {
+      kind: 'institution',
+      name: 'Duplicate Source Identity',
+      parentIds: [country.id],
+      provenance: {
+        authorityTier: 'C',
+        sourceKey: 'runtime-smoke',
+        sourceUrl: 'https://example.test/runtime',
+        externalId: 'institution-1',
+      },
+    },
+    bearer,
+  ),
+);
+assert.equal(duplicateSourceIdentity.response.status, 409);
+assert.equal(
+  duplicateSourceIdentity.body.code,
+  'ACADEMIC_SOURCE_IDENTITY_EXISTS',
+);
+
+const staleRevision = await request(
+  `/academic/admin/catalog/${institution.id}`,
+  json(
+    'PATCH',
+    {
+      expectedRevision: 999,
+      name: 'Stale Runtime Rename',
+    },
+    bearer,
+  ),
+);
+assert.equal(staleRevision.response.status, 409);
+assert.equal(staleRevision.body.code, 'ACADEMIC_REVISION_CONFLICT');
 
 const program = await createNode({
   kind: 'program',
@@ -344,6 +402,9 @@ console.log(
     checks: [
       'permission-deny-by-default',
       'catalog-write',
+      'invalid-provenance-timestamp',
+      'source-identity-conflict',
+      'optimistic-revision-conflict',
       'hierarchy-validation',
       'alias-search',
       'affiliation',
