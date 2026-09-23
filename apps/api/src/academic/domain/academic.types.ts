@@ -94,11 +94,7 @@ export type AcademicCurrentContextRecord = {
 };
 
 export type AcademicProposalStatus =
-  | 'pending'
-  | 'accepted'
-  | 'rejected'
-  | 'duplicate'
-  | 'superseded';
+  'pending' | 'accepted' | 'rejected' | 'duplicate' | 'superseded';
 
 export type AcademicCatalogProposalRecord = {
   id: string;
