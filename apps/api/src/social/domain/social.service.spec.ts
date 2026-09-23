@@ -7,10 +7,7 @@ import {
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { SocialStore } from './social.store';
 import { SocialService } from './social.service';
-import type {
-  ConnectionRecord,
-  FollowRecord,
-} from './social.types';
+import type { ConnectionRecord, FollowRecord } from './social.types';
 
 const now = new Date('2026-09-23T15:00:00.000Z');
 
@@ -43,10 +40,7 @@ function service(
   socialStore: jest.Mocked<SocialStore>,
   profiles: jest.Mocked<ProfileApi>,
 ) {
-  return new SocialService(
-    socialStore,
-    profiles as unknown as ProfileService,
-  );
+  return new SocialService(socialStore, profiles as unknown as ProfileService);
 }
 
 function connection(
@@ -65,9 +59,7 @@ function connection(
   };
 }
 
-function follow(
-  overrides: Partial<FollowRecord> = {},
-): FollowRecord {
+function follow(overrides: Partial<FollowRecord> = {}): FollowRecord {
   return {
     id: '22222222-2222-4222-8222-222222222222',
     followerUserId: 'user-a',
@@ -196,10 +188,11 @@ describe('SocialService', () => {
     });
     socialStore.listConnections.mockResolvedValue([connection()]);
 
-    const outgoing = await service(
-      socialStore,
-      profiles,
-    ).listConnections('user-a', undefined, 20);
+    const outgoing = await service(socialStore, profiles).listConnections(
+      'user-a',
+      undefined,
+      20,
+    );
     expect(outgoing.items[0]).toEqual(
       expect.objectContaining({
         requestedByMe: true,
@@ -207,10 +200,11 @@ describe('SocialService', () => {
       }),
     );
 
-    const incoming = await service(
-      socialStore,
-      profiles,
-    ).listConnections('user-b', 'pending', 20);
+    const incoming = await service(socialStore, profiles).listConnections(
+      'user-b',
+      'pending',
+      20,
+    );
     expect(incoming.items[0]).toEqual(
       expect.objectContaining({
         requestedByMe: false,
@@ -339,18 +333,12 @@ describe('SocialService', () => {
     const instance = service(socialStore, profiles);
 
     await expect(
-      instance.unfollow(
-        'user-a',
-        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      ),
+      instance.unfollow('user-a', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
     ).resolves.toBeUndefined();
     expect(socialStore.unfollow).toHaveBeenCalledWith('user-a', 'user-b');
 
     await expect(
-      instance.unfollow(
-        'user-a',
-        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      ),
+      instance.unfollow('user-a', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -495,12 +483,7 @@ describe('SocialService', () => {
     profiles.getAttributionForUser.mockResolvedValue(null);
 
     await expect(
-      service(socialStore, profiles).listConnections(
-        'user-a',
-        'accepted',
-        20,
-      ),
+      service(socialStore, profiles).listConnections('user-a', 'accepted', 20),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
-
 });
