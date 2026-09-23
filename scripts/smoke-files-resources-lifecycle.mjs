@@ -60,7 +60,7 @@ function mongoEval(script) {
 }
 
 async function createVerifiedUser(label) {
-  const email = `files-${label}-${randomUUID()}@example.test`;
+  const email = `files-${label}-${randomUUID()}@example.test`.toLowerCase();
   const password = `Files smoke ${randomUUID()} ${randomUUID()}`;
 
   const registration = await request(
