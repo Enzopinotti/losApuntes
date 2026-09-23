@@ -15,6 +15,7 @@ It does not claim that Web or native Mobile have already implemented all user-fa
 | Source-scoped external ID uniqueness | Implemented | Documented | Yes | Yes |
 | Active/inactive lifecycle | Implemented | Documented | Yes | Yes |
 | Merge + redirect preservation | Implemented | Documented | Yes | Yes |
+| Redirect-safe child discovery and canonical projections | Implemented | Documented | Yes | Yes |
 | Redirect loop/depth fail-closed behavior | Implemented | Documented | Yes | Unit |
 | Optimistic revision control | Implemented | Documented | Yes | API path |
 | Explicit catalog-write permission | Implemented | Documented | Yes | Yes |
@@ -26,7 +27,10 @@ It does not claim that Web or native Mobile have already implemented all user-fa
 | Ownership isolation | Implemented | Documented | Yes | Auth guard + unit |
 | Missing-data proposal | Implemented | Documented | Yes | Yes |
 | Proposal stays non-canonical | Implemented | Documented | Yes | Yes |
+| Admin proposal review lifecycle | Implemented | Documented | Yes | Yes |
+| Review replay/concurrency fail-closed | Implemented | Documented | Yes | Yes |
 | Durable academic audit | Implemented | Documented | Yes | Mongo smoke |
+| Mutation + audit atomicity | Implemented | Documented | Unit-of-work boundary | Transaction-capable runtime |
 | Bounded cursor pagination | Implemented | Documented | Yes | Unit |
 | Persistence adapter boundary | Implemented | Documented | Architectural | Build |
 | Dedicated critical coverage gate | Implemented | CI | Threshold enforced | CI |
