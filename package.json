@@ -14,7 +14,7 @@
     "format:check": "pnpm -r --if-present format:check",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present check:types",
-    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-profile-contract",
+    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-profile-contract && pnpm test:web-resources-contract",
     "build": "pnpm -r --if-present build",
     "audit:prod": "pnpm audit --prod --audit-level high",
     "runtime:up": "docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120",
@@ -23,6 +23,7 @@
     "runtime:down": "docker compose -f compose.local.yml down --volumes --remove-orphans",
     "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "test:web-auth-contract": "node scripts/test-web-auth-contract.mjs",
-    "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs"
+    "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs",
+    "test:web-resources-contract": "node scripts/test-web-resources-contract.mjs"
   }
 }
