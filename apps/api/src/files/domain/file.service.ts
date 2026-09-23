@@ -14,14 +14,8 @@ import {
   normalizeResourceMimeType,
   verifyResourceMimeType,
 } from '../storage/file-mime';
-import {
-  OBJECT_STORAGE,
-  type ObjectStorage,
-} from '../storage/object-storage';
-import {
-  FILE_ASSET_STORE,
-  type FileAssetStore,
-} from './file.store';
+import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage';
+import { FILE_ASSET_STORE, type FileAssetStore } from './file.store';
 import type { FileAssetRecord, PublicFileAsset } from './file.types';
 
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
@@ -190,7 +184,8 @@ export class FileService {
         await this.failAndDelete(existing, 'CONTENT_TYPE_MISMATCH', now);
         throw new UnprocessableEntityException({
           code: 'FILE_UPLOAD_INVALID',
-          message: 'Uploaded file content type does not match the upload intent',
+          message:
+            'Uploaded file content type does not match the upload intent',
         });
       }
 
