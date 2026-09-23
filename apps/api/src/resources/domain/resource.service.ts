@@ -164,10 +164,13 @@ export class ResourceService {
   }
 
   async search(viewerUserId: string | undefined, dto: ResourceSearchDto) {
+    const canonicalSubjectId = dto.subjectId
+      ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
+      : undefined;
     const result = await this.store.searchAuthorized({
       viewerUserId,
       ...(dto.q ? { q: normalized(dto.q) } : {}),
-      ...(dto.subjectId ? { subjectId: dto.subjectId } : {}),
+      ...(canonicalSubjectId ? { subjectId: canonicalSubjectId } : {}),
       ...(dto.visibility ? { visibility: dto.visibility } : {}),
       limit: dto.limit,
       after: decodeCursor(dto.cursor),
