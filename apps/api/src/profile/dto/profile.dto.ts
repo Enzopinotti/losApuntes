@@ -33,7 +33,7 @@ export class ProfileProfessionalDto {
   @IsOptional()
   @IsString()
   @Length(2, 140)
-  headline?: string;
+  headline?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -105,7 +105,7 @@ class ProfileEditableFieldsDto {
   @IsOptional()
   @IsString()
   @Length(1, 500)
-  bio?: string;
+  bio?: string | null;
 
   @IsOptional()
   @IsUrl({
@@ -114,7 +114,7 @@ class ProfileEditableFieldsDto {
     require_valid_protocol: true,
   })
   @Length(8, 2048)
-  avatarUrl?: string;
+  avatarUrl?: string | null;
 
   @IsOptional()
   @IsArray()
@@ -205,7 +205,7 @@ export class CreateProfileActivityDto {
   @IsOptional()
   @IsString()
   @Length(1, 1000)
-  description?: string;
+  description?: string | null;
 
   @IsOptional()
   @IsUrl({
@@ -214,15 +214,15 @@ export class CreateProfileActivityDto {
     require_valid_protocol: true,
   })
   @Length(8, 2048)
-  url?: string;
+  url?: string | null;
 
   @IsOptional()
   @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
-  startedOn?: string;
+  startedOn?: string | null;
 
   @IsOptional()
   @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
-  endedOn?: string;
+  endedOn?: string | null;
 }
 
 export class UpdateProfileActivityDto {
@@ -242,7 +242,7 @@ export class UpdateProfileActivityDto {
   @IsOptional()
   @IsString()
   @Length(1, 1000)
-  description?: string;
+  description?: string | null;
 
   @IsOptional()
   @IsUrl({
@@ -251,15 +251,15 @@ export class UpdateProfileActivityDto {
     require_valid_protocol: true,
   })
   @Length(8, 2048)
-  url?: string;
+  url?: string | null;
 
   @IsOptional()
   @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
-  startedOn?: string;
+  startedOn?: string | null;
 
   @IsOptional()
   @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
-  endedOn?: string;
+  endedOn?: string | null;
 }
 
 export class DeleteProfileActivityQueryDto {
