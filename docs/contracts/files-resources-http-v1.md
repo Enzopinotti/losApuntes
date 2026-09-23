@@ -178,13 +178,13 @@ Requires verified author.
 
 `profileId` is the stable public Profile UUID, not a database user id.
 
-The server resolves it to account authority and creates an idempotent Resource-specific grant. Self-sharing is rejected.
+The server resolves it to account authority and creates an idempotent Resource-specific grant. The Resource must currently be `shared`; creating latent grants while it is `private` or `public` is rejected. Self-sharing is rejected.
 
 ### DELETE /resources/:id/shares/:profileId
 
 Requires verified author.
 
-Revocation affects all future metadata/access authorization immediately. Previously issued signed URLs remain bounded only by their short TTL.
+Revocation affects all future metadata/access authorization immediately. Any privacy transition away from `shared` clears explicit grants atomically with the Resource revision update, so old grants cannot revive if the Resource later returns to `shared`. Previously issued signed URLs remain bounded only by their short TTL.
 
 ### PUT /resources/:id/save
 
@@ -261,6 +261,7 @@ Relevant stable codes include:
 - `RESOURCE_REVISION_CONFLICT`;
 - `RESOURCE_UPDATE_EMPTY`;
 - `RESOURCE_SHARE_SELF`;
+- `RESOURCE_SHARE_VISIBILITY_REQUIRED`;
 - `RESOURCE_CURSOR_INVALID`;
 - `RESOURCE_UNAVAILABLE`;
 - Academic Graph context errors when supplied context is invalid.
