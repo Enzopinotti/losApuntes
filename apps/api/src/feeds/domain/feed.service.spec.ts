@@ -50,8 +50,7 @@ function resource(
     description: 'SQL normalización',
     tags: ['SQL'],
     searchText: 'recurso sql normalización',
-    subjectId:
-      index % 2 === 0 ? subjectId : otherSubjectId,
+    subjectId: index % 2 === 0 ? subjectId : otherSubjectId,
     courseOfferingId: null,
     visibility: 'public',
     moderationState: 'available',
@@ -69,8 +68,7 @@ function question(
   return {
     id: `6000000${index}-0000-4000-8000-00000000000${index}`,
     authorUserId: `question-author-${index}`,
-    subjectId:
-      index % 2 === 0 ? subjectId : otherSubjectId,
+    subjectId: index % 2 === 0 ? subjectId : otherSubjectId,
     courseOfferingId: null,
     title: `Pregunta ${index}`,
     body: '¿Cómo normalizo una base de datos SQL?',
@@ -244,11 +242,12 @@ describe('FeedService', () => {
       subjectId: canonical,
       courseOfferingId: null,
     });
-    feedStore.updatePreferences.mockImplementation(async (_user, _revision, patch) =>
-      preferences({
-        ...patch,
-        revision: 2,
-      }),
+    feedStore.updatePreferences.mockImplementation(
+      async (_user, _revision, patch) =>
+        preferences({
+          ...patch,
+          revision: 2,
+        }),
     );
 
     const result = await service(feedStore, deps).updatePreferences('viewer', {
@@ -353,9 +352,9 @@ describe('FeedService', () => {
       question(1).id,
       resource(2).id,
     ]);
-    expect(result.items.every((item) => item.why.includes('current_subject'))).toBe(
-      true,
-    );
+    expect(
+      result.items.every((item) => item.why.includes('current_subject')),
+    ).toBe(true);
   });
 
   it('honors mutes before ranking For You candidates', async () => {
@@ -415,9 +414,7 @@ describe('FeedService', () => {
     const deps = dependencies();
     configureDefaults(feedStore, deps);
     deps.academic.listSubjectParticipations.mockResolvedValue({
-      participations: [
-        { id: 'part', subjectId, state: 'current' },
-      ],
+      participations: [{ id: 'part', subjectId, state: 'current' }],
     } as never);
     deps.social.getFeedRelations.mockResolvedValue({
       followingUserIds: ['followed'],
