@@ -6,7 +6,10 @@ import { SearchDiscoveryService } from './search-discovery.service';
 type ResourceApi = Pick<ResourceService, 'search'>;
 type AcademicApi = Pick<
   AcademicService,
-  'searchCatalog' | 'listSubjectParticipations' | 'getCatalogNode'
+  | 'searchCatalog'
+  | 'listSubjectParticipations'
+  | 'getCatalogNode'
+  | 'resolveResourceContext'
 >;
 type ProfileApi = Pick<ProfileService, 'searchPublicProfiles'>;
 
@@ -21,6 +24,7 @@ function academic(): jest.Mocked<AcademicApi> {
     searchCatalog: jest.fn(),
     listSubjectParticipations: jest.fn(),
     getCatalogNode: jest.fn(),
+    resolveResourceContext: jest.fn(),
   };
 }
 
@@ -129,6 +133,10 @@ describe('SearchDiscoveryService', () => {
     });
 
     const subjectId = '22222222-2222-4222-8222-222222222222';
+    academicApi.resolveResourceContext.mockResolvedValue({
+      subjectId,
+      courseOfferingId: null,
+    });
     const result = await service(
       resourceApi,
       academicApi,
@@ -152,6 +160,39 @@ describe('SearchDiscoveryService', () => {
     });
     expect(academicApi.searchCatalog).not.toHaveBeenCalled();
     expect(profileApi.searchPublicProfiles).not.toHaveBeenCalled();
+  });
+
+  it('canonicalizes resource subject filters before delegating search', async () => {
+    const resourceApi = resources();
+    const academicApi = academic();
+    const profileApi = profiles();
+    const mergedSubjectId = '22222222-2222-4222-8222-222222222222';
+    const canonicalSubjectId = '33333333-3333-4333-8333-333333333333';
+
+    academicApi.resolveResourceContext.mockResolvedValue({
+      subjectId: canonicalSubjectId,
+      courseOfferingId: null,
+    });
+    resourceApi.search.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
+
+    await service(resourceApi, academicApi, profileApi).search(undefined, {
+      q: 'resumen',
+      scope: 'resources',
+      limit: 4,
+      subjectId: mergedSubjectId,
+    });
+
+    expect(academicApi.resolveResourceContext).toHaveBeenCalledWith(
+      mergedSubjectId,
+    );
+    expect(resourceApi.search).toHaveBeenCalledWith(undefined, {
+      q: 'resumen',
+      subjectId: canonicalSubjectId,
+      limit: 4,
+    });
   });
 
   it('supports subject-only and people-only searches independently', async () => {
@@ -323,6 +364,16 @@ describe('SearchDiscoveryService', () => {
     });
 
     expect(academicApi.getCatalogNode).toHaveBeenCalledTimes(6);
+    expect(
+      academicApi.getCatalogNode.mock.calls.map(([subjectId]) => subjectId),
+    ).toEqual([
+      '00000000-0000-4000-8000-000000000000',
+      '00000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000003',
+      '00000000-0000-4000-8000-000000000004',
+      '00000000-0000-4000-8000-000000000005',
+    ]);
     expect(result.subjects).toHaveLength(3);
   });
 });
