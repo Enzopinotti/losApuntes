@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import type { FastifyRequest } from 'fastify';
 
 import { getSessionCookieName } from '../session/session-cookie';
-import { presentedSessionCredential } from '../session/session-credential';
 import { AuthSessionGuard } from './auth-session.guard';
 
 @Injectable()
@@ -15,12 +14,14 @@ export class OptionalAuthSessionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
-    const credential = presentedSessionCredential(
-      request,
-      getSessionCookieName(this.config.get<string>('NODE_ENV')),
+    const cookieName = getSessionCookieName(
+      this.config.get<string>('NODE_ENV'),
     );
+    const hasCookieCredential = request.cookies?.[cookieName] !== undefined;
+    const hasAuthorizationCredential =
+      request.headers.authorization !== undefined;
 
-    if (!credential) return true;
+    if (!hasCookieCredential && !hasAuthorizationCredential) return true;
 
     return this.required.canActivate(context);
   }
