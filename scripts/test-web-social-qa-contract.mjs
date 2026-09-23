@@ -15,6 +15,7 @@ assert.match(service, /credentials:\s*"include"/u);
 assert.match(service, /cache:\s*"no-store"/u);
 assert.match(service, /AbortSignal\.timeout\(15_000\)/u);
 assert.match(service, /social\/me\/connections/u);
+assert.match(service, /cursor/u);
 assert.match(service, /questions/u);
 assert.match(service, /notifications/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
@@ -27,6 +28,8 @@ assert.match(network, /scope:\s*"people"/u);
 assert.match(network, /communityApi\.follow/u);
 assert.match(network, /communityApi\.requestConnection/u);
 assert.match(network, /communityApi\.respondConnection/u);
+assert.match(network, /loadMoreFollowing/u);
+assert.match(network, /loadMoreConnections/u);
 assert.doesNotMatch(network, /academic.*connect|auto.*connect/iu);
 assert.doesNotMatch(network, /localStorage|sessionStorage/u);
 
@@ -36,12 +39,16 @@ assert.match(questions, /communityApi\.createQuestion/u);
 assert.match(questions, /communityApi\.createAnswer/u);
 assert.match(questions, /communityApi\.acceptAnswer/u);
 assert.match(questions, /resourcesApi\.searchSubjects/u);
+assert.match(questions, /nextCursor/u);
+assert.match(questions, /questions-more/u);
 assert.doesNotMatch(questions, /localStorage|sessionStorage/u);
 
 const notifications = await read('apps/web/src/pages/Notifications.tsx');
 assert.match(notifications, /communityApi\.notifications/u);
 assert.match(notifications, /communityApi\.markNotificationRead/u);
 assert.match(notifications, /communityApi\.markAllNotificationsRead/u);
+assert.match(notifications, /nextCursor/u);
+assert.match(notifications, /Cargar más/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
