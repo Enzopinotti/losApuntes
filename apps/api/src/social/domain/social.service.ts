@@ -190,8 +190,7 @@ export class SocialService {
           ),
         ),
       ],
-      truncated:
-        following.length > limit || connections.length > limit,
+      truncated: following.length > limit || connections.length > limit,
     };
   }
 
