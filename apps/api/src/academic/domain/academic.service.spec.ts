@@ -236,12 +236,9 @@ describe('AcademicService', () => {
       ),
     );
 
-    await expect(service.getCatalogNode(merged.id)).resolves.toEqual(
-      expect.objectContaining({
-        resolvedFromId: merged.id,
-        node: expect.objectContaining({ id: target.id }),
-      }),
-    );
+    const resolved = await service.getCatalogNode(merged.id);
+    expect(resolved.resolvedFromId).toBe(merged.id);
+    expect(resolved.node.id).toBe(target.id);
 
     store.findCatalogNodeById.mockResolvedValue(merged);
     await expect(service.getCatalogNode(merged.id)).rejects.toBeInstanceOf(
@@ -446,19 +443,12 @@ describe('AcademicService', () => {
       }),
     );
 
-    await expect(
-      service.setCurrentContext('user-1', {
-        affiliationId: row.id,
-        subjectParticipationId: part.id,
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        context: expect.objectContaining({
-          affiliationId: row.id,
-          subjectParticipationId: part.id,
-        }),
-      }),
-    );
+    const result = await service.setCurrentContext('user-1', {
+      affiliationId: row.id,
+      subjectParticipationId: part.id,
+    });
+    expect(result.context.affiliationId).toBe(row.id);
+    expect(result.context.subjectParticipationId).toBe(part.id);
   });
   it('rejects malformed pagination cursors', async () => {
     const store = createStore();
@@ -701,18 +691,13 @@ describe('AcademicService', () => {
       endedOn: '2026',
     });
 
-    await expect(
-      service.createAffiliation('user-1', {
-        institutionId: institution.id,
-        programId: program.id,
-        status: 'active',
-        startedOn: '2025',
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        affiliation: expect.objectContaining({ id: created.id }),
-      }),
-    );
+    const createdResult = await service.createAffiliation('user-1', {
+      institutionId: institution.id,
+      programId: program.id,
+      status: 'active',
+      startedOn: '2025',
+    });
+    expect(createdResult.affiliation.id).toBe(created.id);
 
     await expect(service.listAffiliations('user-1')).resolves.toEqual(
       expect.objectContaining({
@@ -720,16 +705,15 @@ describe('AcademicService', () => {
       }),
     );
 
-    await expect(
-      service.updateAffiliationStatus('user-1', created.id, {
+    const updatedResult = await service.updateAffiliationStatus(
+      'user-1',
+      created.id,
+      {
         status: 'completed',
         endedOn: '2026',
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        affiliation: expect.objectContaining({ status: 'completed' }),
-      }),
+      },
     );
+    expect(updatedResult.affiliation.status).toBe('completed');
   });
 
   it('returns not found when an affiliation status update is not owned', async () => {
@@ -788,11 +772,8 @@ describe('AcademicService', () => {
       updatedAt: now,
     });
 
-    await expect(service.getCurrentContext('user-1')).resolves.toEqual(
-      expect.objectContaining({
-        context: expect.objectContaining({ affiliationId: active.id }),
-      }),
-    );
+    const contextResult = await service.getCurrentContext('user-1');
+    expect(contextResult.context?.affiliationId).toBe(active.id);
 
     store.getCurrentContext.mockResolvedValue(null);
     await expect(service.getCurrentContext('user-1')).resolves.toEqual({
@@ -921,15 +902,10 @@ describe('AcademicService', () => {
       hasMore: false,
     });
 
-    await expect(
-      service.listChildren(parent.id, 'program', 10),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        parent: expect.objectContaining({ id: parent.id }),
-        items: [expect.objectContaining({ id: child.id })],
-        truncated: false,
-      }),
-    );
+    const children = await service.listChildren(parent.id, 'program', 10);
+    expect(children.parent.id).toBe(parent.id);
+    expect(children.items.map((item) => item.id)).toEqual([child.id]);
+    expect(children.truncated).toBe(false);
   });
 
   it('rejects malformed catalog cursors', async () => {
@@ -1178,18 +1154,17 @@ describe('AcademicService', () => {
       affiliations: [expect.objectContaining({ id: row.id, status: 'active' })],
     });
 
-    await expect(
-      service.updateAffiliationStatus('user-1', row.id, {
+    const updateResult = await service.updateAffiliationStatus(
+      'user-1',
+      row.id,
+      {
         status: 'completed',
         endedOn: '2026',
-      }),
-    ).resolves.toEqual({
-      affiliation: expect.objectContaining({
-        id: row.id,
-        status: 'completed',
-        endedOn: '2026',
-      }),
-    });
+      },
+    );
+    expect(updateResult.affiliation.id).toBe(row.id);
+    expect(updateResult.affiliation.status).toBe('completed');
+    expect(updateResult.affiliation.endedOn).toBe('2026');
 
     store.updateAffiliationStatus.mockResolvedValueOnce(null);
     await expect(
@@ -1373,15 +1348,12 @@ describe('AcademicService', () => {
       }),
     );
 
-    await expect(
-      service.createProposal('user-1', {
-        kind: 'subject',
-        proposedName: 'Materia propuesta',
-        parentIds: [curriculum.id],
-      }),
-    ).resolves.toEqual({
-      proposal: expect.objectContaining({ status: 'pending' }),
+    const proposalResult = await service.createProposal('user-1', {
+      kind: 'subject',
+      proposedName: 'Materia propuesta',
+      parentIds: [curriculum.id],
     });
+    expect(proposalResult.proposal.status).toBe('pending');
 
     store.findCatalogNodesByIds.mockResolvedValue([]);
     await expect(
