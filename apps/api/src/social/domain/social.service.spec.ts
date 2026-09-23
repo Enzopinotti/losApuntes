@@ -640,5 +640,4 @@ describe('SocialService', () => {
     expect(result.connectionUserIds).toEqual(['user-d']);
     expect(result.truncated).toBe(true);
   });
-
 });
