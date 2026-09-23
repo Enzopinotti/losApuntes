@@ -14,11 +14,7 @@ export const QA_REPORT_REASONS = [
 ] as const;
 export type QaReportReason = (typeof QA_REPORT_REASONS)[number];
 
-export const QA_REPORT_STATUSES = [
-  'pending',
-  'resolved',
-  'dismissed',
-] as const;
+export const QA_REPORT_STATUSES = ['pending', 'resolved', 'dismissed'] as const;
 export type QaReportStatus = (typeof QA_REPORT_STATUSES)[number];
 
 export interface QuestionRecord {
