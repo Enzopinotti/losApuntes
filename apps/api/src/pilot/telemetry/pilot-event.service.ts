@@ -1,10 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
-import {
-  PILOT_EVENT_STORE,
-  type PilotEventStore,
-} from './pilot-event.store';
+import { PILOT_EVENT_STORE, type PilotEventStore } from './pilot-event.store';
 import type { PilotEventName } from './pilot-event.types';
 
 @Injectable()
