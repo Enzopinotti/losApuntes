@@ -201,27 +201,27 @@ export class AcademicService {
     const created = await this.withSourceIdentityConflict(() =>
       this.store.runAtomically(async () => {
         const node = await this.store.createCatalogNode({
-        id: randomUUID(),
-        kind: dto.kind,
-        name,
-        normalizedName: normalizeName(name),
-        aliases,
-        normalizedAliases: aliases.map(normalizeName),
-        parentIds,
-        status: 'active',
-        provenance: {
-          ...dto.provenance,
-          verifiedAt: dto.provenance.verifiedAt
-            ? new Date(dto.provenance.verifiedAt)
-            : undefined,
-        },
-        revision: 1,
-      });
+          id: randomUUID(),
+          kind: dto.kind,
+          name,
+          normalizedName: normalizeName(name),
+          aliases,
+          normalizedAliases: aliases.map(normalizeName),
+          parentIds,
+          status: 'active',
+          provenance: {
+            ...dto.provenance,
+            verifiedAt: dto.provenance.verifiedAt
+              ? new Date(dto.provenance.verifiedAt)
+              : undefined,
+          },
+          revision: 1,
+        });
 
-      await this.audit('academic.catalog.created', actorUserId, node.id, {
-        kind: node.kind,
-        revision: node.revision,
-      });
+        await this.audit('academic.catalog.created', actorUserId, node.id, {
+          kind: node.kind,
+          revision: node.revision,
+        });
 
         return node;
       }),
@@ -280,43 +280,43 @@ export class AcademicService {
     const updated = await this.withSourceIdentityConflict(() =>
       this.store.runAtomically(async () => {
         const node = await this.store.updateCatalogNode(
-        id,
-        dto.expectedRevision,
-        {
-          ...(dto.name === undefined
-            ? {}
-            : { name, normalizedName: normalizeName(name) }),
-          ...(dto.aliases === undefined
-            ? {}
-            : {
-                aliases,
-                normalizedAliases: aliases.map(normalizeName),
-              }),
-          ...(dto.parentIds === undefined ? {} : { parentIds }),
-          ...(dto.status === undefined ? {} : { status: dto.status }),
-          ...(dto.provenance === undefined
-            ? {}
-            : {
-                provenance: {
-                  ...dto.provenance,
-                  verifiedAt: dto.provenance.verifiedAt
-                    ? new Date(dto.provenance.verifiedAt)
-                    : undefined,
-                },
-              }),
-        },
-      );
+          id,
+          dto.expectedRevision,
+          {
+            ...(dto.name === undefined
+              ? {}
+              : { name, normalizedName: normalizeName(name) }),
+            ...(dto.aliases === undefined
+              ? {}
+              : {
+                  aliases,
+                  normalizedAliases: aliases.map(normalizeName),
+                }),
+            ...(dto.parentIds === undefined ? {} : { parentIds }),
+            ...(dto.status === undefined ? {} : { status: dto.status }),
+            ...(dto.provenance === undefined
+              ? {}
+              : {
+                  provenance: {
+                    ...dto.provenance,
+                    verifiedAt: dto.provenance.verifiedAt
+                      ? new Date(dto.provenance.verifiedAt)
+                      : undefined,
+                  },
+                }),
+          },
+        );
 
-      if (!node) {
-        throw new ConflictException({
-          code: 'ACADEMIC_REVISION_CONFLICT',
-          message: 'Academic catalog node changed concurrently',
+        if (!node) {
+          throw new ConflictException({
+            code: 'ACADEMIC_REVISION_CONFLICT',
+            message: 'Academic catalog node changed concurrently',
+          });
+        }
+
+        await this.audit('academic.catalog.updated', actorUserId, id, {
+          revision: node.revision,
         });
-      }
-
-      await this.audit('academic.catalog.updated', actorUserId, id, {
-        revision: node.revision,
-      });
 
         return node;
       }),
