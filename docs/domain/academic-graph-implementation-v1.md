@@ -58,6 +58,13 @@ Renames preserve the UUID.
 
 A duplicate merge never hard-deletes the source ID. The source node becomes `merged` and points to the surviving canonical ID through `redirectToId`.
 
+Redirect identity is applied beyond direct node lookup:
+
+- child discovery expands the canonical parent to bounded merged-source IDs;
+- graph ancestry resolves merged parents before evaluating membership;
+- new writes canonicalize supplied merged IDs;
+- affiliation and SubjectParticipation projections return canonical catalog IDs while preserving the stored historical relation.
+
 Catalog reads resolve redirect chains with:
 
 - loop detection;
@@ -194,6 +201,12 @@ Public proposal submission does not:
 
 Canonicalization remains an administrative workflow.
 
+Admin review closes the proposal lifecycle:
+
+`pending -> accepted | rejected | duplicate | superseded`
+
+For accepted/duplicate/superseded outcomes, the reviewer must identify an already-existing active canonical node of the same kind. Rejected proposals cannot claim a canonical target. The transition is conditional on `pending`, so retries/concurrent reviewers cannot overwrite the first decision.
+
 ## Audit
 
 The adapter persists append-only academic audit events for:
@@ -204,7 +217,9 @@ The adapter persists append-only academic audit events for:
 - affiliation create/update;
 - subject participation upsert;
 - current context update;
-- missing-data proposal create.
+- missing-data proposal create/review.
+
+A successful mutation and its audit event execute inside the same `AcademicStore.runAtomically` unit of work. The Mongo adapter implements that boundary with a real Mongo transaction, preventing a successful domain mutation from committing without its required audit event.
 
 The audit records actor, target, event time and bounded metadata.
 
@@ -220,6 +235,8 @@ The current physical collections are:
 - `academic_audit_events`.
 
 These names are adapter details.
+
+Academic write paths require transaction-capable Mongo. The local/CI runtime starts a one-node replica set specifically so transactional behavior is exercised instead of mocked.
 
 A future DER may split/merge/restructure them. Code outside `apps/api/src/academic/mongo` must not depend on those physical names or Mongoose document shape.
 
