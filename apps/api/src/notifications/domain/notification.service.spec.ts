@@ -141,18 +141,12 @@ describe('NotificationService', () => {
 
     notificationStore.markRead.mockResolvedValue(row({ readAt: now }));
     await expect(
-      instance.markRead(
-        'user-a',
-        '11111111-1111-4111-8111-111111111111',
-      ),
+      instance.markRead('user-a', '11111111-1111-4111-8111-111111111111'),
     ).resolves.toEqual({ read: true });
 
     notificationStore.markRead.mockResolvedValue(null);
     await expect(
-      instance.markRead(
-        'user-b',
-        '11111111-1111-4111-8111-111111111111',
-      ),
+      instance.markRead('user-b', '11111111-1111-4111-8111-111111111111'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -217,5 +211,4 @@ describe('NotificationService', () => {
     expect(result.items[0]?.actor).toBeNull();
     expect(profileApi.getAttributionForUser).not.toHaveBeenCalled();
   });
-
 });
