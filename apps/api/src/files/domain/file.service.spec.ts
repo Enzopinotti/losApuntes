@@ -90,7 +90,7 @@ describe('FileService', () => {
 
     expect(result.file.filename).toBe('Apunte final.pdf');
     expect(result.upload.headers['if-none-match']).toBe('*');
-    expect(objectStorage.createUploadIntent).toHaveBeenCalledWith(
+    expect(objectStorage.createUploadIntent.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         contentLength: 8,
         contentType: 'application/pdf',
