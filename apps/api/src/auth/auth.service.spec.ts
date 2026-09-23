@@ -268,6 +268,7 @@ describe('AuthService', () => {
       user: {
         id: 'user-1',
         email: 'enzo@example.com',
+        emailVerified: true,
       },
       sessionToken: 's'.repeat(43),
       session: SESSION,

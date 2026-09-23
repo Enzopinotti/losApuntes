@@ -11,6 +11,7 @@ import type { FastifyRequest } from 'fastify';
 import {
   credentialVersion,
   isAccountActive,
+  isEmailVerified,
 } from '../../users/user-security-state';
 import { UsersService } from '../../users/users.service';
 import type { AuthenticatedRequest } from '../auth.types';
@@ -84,6 +85,7 @@ export class AuthSessionGuard implements CanActivate {
     authenticatedRequest.user = {
       id: user._id.toString(),
       email: user.email,
+      emailVerified: isEmailVerified(user),
     };
     authenticatedRequest.authSession = resolved.session;
     authenticatedRequest.authTransport = credential.clientType;

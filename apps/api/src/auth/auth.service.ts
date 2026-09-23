@@ -87,6 +87,7 @@ export class AuthService {
       user: {
         id: user._id.toString(),
         email: user.email,
+        emailVerified: true,
       },
       sessionToken: issued.sessionToken,
       session: issued.session,

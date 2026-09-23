@@ -8,6 +8,7 @@ import Login from "../pages/Login";
 import Profile from "../pages/Profile";
 import PublicProfile from "../pages/PublicProfile";
 import ResetPassword from "../pages/ResetPassword";
+import Resources from "../pages/Resources";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
 import VerificationPending from "../pages/VerificationPending";
@@ -28,6 +29,7 @@ export const routes: RouteObject[] = [
       { path: "auth/reset-password", element: <ResetPassword /> },
       { path: "account/restricted", element: <AccountRestricted /> },
       { path: "p/:profileId", element: <PublicProfile /> },
+      { path: "resources", element: <Resources /> },
       {
         path: "dashboard",
         element: (

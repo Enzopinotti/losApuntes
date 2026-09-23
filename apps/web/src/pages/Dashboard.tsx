@@ -17,6 +17,9 @@ const Dashboard = () => {
       <p>
         <Link to="/profile">Completar o editar mi perfil</Link>
       </p>
+      <p>
+        <Link to="/resources">Buscar o subir apuntes</Link>
+      </p>
       <Link to="/settings/security">Revisar seguridad de la cuenta</Link>
     </section>
   );

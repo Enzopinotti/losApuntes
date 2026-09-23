@@ -19,6 +19,8 @@ import { LoggerAuthAuditSink } from './audit/logger-auth-audit.sink';
 import { AUTH_EMAIL_DELIVERY } from './delivery/auth-email-delivery.types';
 import { ConfigurableAuthEmailDelivery } from './delivery/configurable-auth-email.delivery';
 import { AuthSessionGuard } from './guards/auth-session.guard';
+import { OptionalAuthSessionGuard } from './guards/optional-auth-session.guard';
+import { VerifiedEmailGuard } from './guards/verified-email.guard';
 import { CsrfOriginGuard } from './guards/csrf-origin.guard';
 import { GoogleAuthController } from './google/google-auth.controller';
 import { GoogleAuthService } from './google/google-auth.service';
@@ -75,6 +77,8 @@ import {
     PasswordService,
     AuthSessionService,
     AuthSessionGuard,
+    OptionalAuthSessionGuard,
+    VerifiedEmailGuard,
     GoogleAuthService,
     GoogleIdentityService,
     GoogleOAuthAttemptService,
@@ -119,6 +123,12 @@ import {
     },
   ],
   controllers: [AuthController, GoogleAuthController],
-  exports: [AuthService, AuthSessionService, AuthSessionGuard],
+  exports: [
+    AuthService,
+    AuthSessionService,
+    AuthSessionGuard,
+    OptionalAuthSessionGuard,
+    VerifiedEmailGuard,
+  ],
 })
 export class AuthModule {}

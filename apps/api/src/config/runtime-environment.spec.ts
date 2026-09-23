@@ -2,6 +2,13 @@ import { validateRuntimeEnvironment } from './runtime-environment';
 
 const validEnvironment = {
   MONGO_URI: 'mongodb://127.0.0.1:27017/losapuntes',
+  FILES_STORAGE_PROVIDER: 's3',
+  FILES_S3_ENDPOINT: 'http://127.0.0.1:9000',
+  FILES_S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
+  FILES_S3_REGION: 'us-east-1',
+  FILES_S3_BUCKET: 'losapuntes-files',
+  FILES_S3_ACCESS_KEY_ID: 'test-files',
+  FILES_S3_SECRET_ACCESS_KEY: 'test-files-secret',
 };
 
 const validProductionEnvironment = {
@@ -137,6 +144,60 @@ describe('validateRuntimeEnvironment', () => {
       ).toThrow('PORT must be an integer between 1 and 65535');
     },
   );
+
+  it('normalizes required Files configuration', () => {
+    const result = validateRuntimeEnvironment(validEnvironment);
+
+    expect(result).toMatchObject({
+      FILES_STORAGE_PROVIDER: 's3',
+      FILES_S3_ENDPOINT: 'http://127.0.0.1:9000',
+      FILES_S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
+      FILES_S3_REGION: 'us-east-1',
+      FILES_S3_BUCKET: 'losapuntes-files',
+      FILES_DOWNLOAD_URL_TTL_SECONDS: 300,
+    });
+  });
+
+  it('rejects incomplete Files configuration', () => {
+    const incomplete: Record<string, unknown> = { ...validEnvironment };
+    delete incomplete.FILES_S3_BUCKET;
+    expect(() => validateRuntimeEnvironment(incomplete)).toThrow(
+      'FILES_S3_BUCKET is required',
+    );
+  });
+
+  it('rejects invalid signed download TTLs', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        FILES_DOWNLOAD_URL_TTL_SECONDS: 0,
+      }),
+    ).toThrow(
+      'FILES_DOWNLOAD_URL_TTL_SECONDS must be an integer between 1 and 300',
+    );
+  });
+
+  it('rejects unsupported Files providers', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        FILES_STORAGE_PROVIDER: 'public-http',
+      }),
+    ).toThrow('FILES_STORAGE_PROVIDER must be s3');
+  });
+
+  it.each([
+    'not-a-url',
+    'ftp://storage.example.com',
+    'https://storage.example.com/path',
+  ])('rejects invalid Files S3 endpoint: %s', (endpoint) => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        FILES_S3_ENDPOINT: endpoint,
+      }),
+    ).toThrow('FILES_S3_ENDPOINT must be a valid absolute HTTP(S) origin');
+  });
 
   it('requires the database URI before bootstrap', () => {
     expect(() => validateRuntimeEnvironment({})).toThrow(

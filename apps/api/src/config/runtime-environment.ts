@@ -48,6 +48,33 @@ function parsePort(value: unknown, key: string, fallback: number): number {
   return parsed;
 }
 
+function parseBoundedInteger(
+  value: unknown,
+  key: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(
+      `${key} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+
+  return parsed;
+}
+
 function parseBoolean(value: unknown, key: string, fallback: boolean): boolean {
   if (value === undefined || value === null || value === '') {
     return fallback;
@@ -165,6 +192,7 @@ export function validateRuntimeEnvironment(
     throw new Error('NODE_ENV must be development, test or production');
   }
 
+  const mongoUri = requiredString(source, 'MONGO_URI');
   const deliveryMode = authEmailDeliveryMode(source, nodeEnv);
   const authActionBaseUrl = parseHttpOrigin(
     source.AUTH_ACTION_BASE_URL,
@@ -191,6 +219,18 @@ export function validateRuntimeEnvironment(
     source.GOOGLE_NATIVE_CLIENT_IDS,
     'GOOGLE_NATIVE_CLIENT_IDS',
   );
+  const filesStorageProvider = requiredString(source, 'FILES_STORAGE_PROVIDER');
+  if (filesStorageProvider !== 's3') {
+    throw new Error('FILES_STORAGE_PROVIDER must be s3');
+  }
+  const filesS3Endpoint = parseHttpOrigin(
+    source.FILES_S3_ENDPOINT,
+    'FILES_S3_ENDPOINT',
+  );
+  const filesS3PublicEndpoint = parseHttpOrigin(
+    source.FILES_S3_PUBLIC_ENDPOINT,
+    'FILES_S3_PUBLIC_ENDPOINT',
+  );
 
   if (Boolean(smtpUser) !== Boolean(smtpPass)) {
     throw new Error(
@@ -214,7 +254,7 @@ export function validateRuntimeEnvironment(
     ...source,
     NODE_ENV: nodeEnv,
     PORT: parsePort(source.PORT, 'PORT', 4000),
-    MONGO_URI: requiredString(source, 'MONGO_URI'),
+    MONGO_URI: mongoUri,
     WEB_ORIGIN: webOrigin,
     SWAGGER_ENABLED: parseBoolean(
       source.SWAGGER_ENABLED,
@@ -236,6 +276,26 @@ export function validateRuntimeEnvironment(
     GOOGLE_WEB_CLIENT_SECRET: googleWebClientSecret,
     GOOGLE_WEB_REDIRECT_URI: googleWebRedirectUri,
     GOOGLE_NATIVE_CLIENT_IDS: googleNativeClientIds,
+    FILES_STORAGE_PROVIDER: filesStorageProvider,
+    FILES_S3_ENDPOINT:
+      filesS3Endpoint ?? requiredString(source, 'FILES_S3_ENDPOINT'),
+    FILES_S3_PUBLIC_ENDPOINT:
+      filesS3PublicEndpoint ??
+      requiredString(source, 'FILES_S3_PUBLIC_ENDPOINT'),
+    FILES_S3_REGION: requiredString(source, 'FILES_S3_REGION'),
+    FILES_S3_BUCKET: requiredString(source, 'FILES_S3_BUCKET'),
+    FILES_S3_ACCESS_KEY_ID: requiredString(source, 'FILES_S3_ACCESS_KEY_ID'),
+    FILES_S3_SECRET_ACCESS_KEY: requiredString(
+      source,
+      'FILES_S3_SECRET_ACCESS_KEY',
+    ),
+    FILES_DOWNLOAD_URL_TTL_SECONDS: parseBoundedInteger(
+      source.FILES_DOWNLOAD_URL_TTL_SECONDS,
+      'FILES_DOWNLOAD_URL_TTL_SECONDS',
+      300,
+      1,
+      300,
+    ),
   };
 
   if (deliveryMode === 'smtp') {
