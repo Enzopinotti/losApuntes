@@ -286,7 +286,6 @@ export class CreateAcademicProposalDto {
   notes?: string;
 }
 
-
 export class AcademicProposalListDto {
   @IsOptional()
   @IsIn(PROPOSAL_STATUSES)
