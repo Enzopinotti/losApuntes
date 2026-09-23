@@ -280,7 +280,12 @@ export class MongoResourceStore implements ResourceStore {
             $or: [
               { visibility: 'public' },
               { authorUserId: input.viewerUserId },
-              { '__viewerShares.0': { $exists: true } },
+              {
+                $and: [
+                  { visibility: 'shared' },
+                  { '__viewerShares.0': { $exists: true } },
+                ],
+              },
             ],
           },
         },
