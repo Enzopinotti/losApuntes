@@ -162,22 +162,17 @@ describe('ProfileService', () => {
     );
 
     expect(result.profile.displayName).toBe('Enzo Pinotti');
-    expect(profileStore.createProfile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'user-1',
-        displayName: 'Enzo Pinotti',
-        skills: ['SQL'],
-        professional: {
-          headline: null,
-          careerDiscoveryOptIn: false,
-        },
-        visibility: expect.objectContaining({
-          about: 'public',
-          academic: 'private',
-          professional: 'private',
-        }),
-      }),
-    );
+    const createInput = profileStore.createProfile.mock.calls[0]?.[0];
+    expect(createInput?.userId).toBe('user-1');
+    expect(createInput?.displayName).toBe('Enzo Pinotti');
+    expect(createInput?.skills).toEqual(['SQL']);
+    expect(createInput?.professional).toEqual({
+      headline: null,
+      careerDiscoveryOptIn: false,
+    });
+    expect(createInput?.visibility.about).toBe('public');
+    expect(createInput?.visibility.academic).toBe('private');
+    expect(createInput?.visibility.professional).toBe('private');
   });
 
   it('maps persistence creation races to a stable conflict', async () => {
@@ -217,7 +212,12 @@ describe('ProfileService', () => {
     );
 
     expect(result.onboardingRequired).toBe(false);
-    if (result.onboardingRequired) {
+    if (
+      !('academic' in result) ||
+      result.academic === undefined ||
+      result.activities === undefined ||
+      result.contributions === undefined
+    ) {
       throw new Error('Expected an onboarded profile projection');
     }
 
@@ -258,16 +258,13 @@ describe('ProfileService', () => {
     );
 
     expect(result.profile.revision).toBe(2);
-    expect(profileStore.updateProfile).toHaveBeenCalledWith(
-      'user-1',
-      1,
-      expect.objectContaining({
-        professional: {
-          headline: 'Ingeniería',
-          careerDiscoveryOptIn: true,
-        },
-      }),
-    );
+    const updateCall = profileStore.updateProfile.mock.calls[0];
+    expect(updateCall?.[0]).toBe('user-1');
+    expect(updateCall?.[1]).toBe(1);
+    expect(updateCall?.[2]?.professional).toEqual({
+      headline: 'Ingeniería',
+      careerDiscoveryOptIn: true,
+    });
   });
 
   it('rejects stale profile writes', async () => {
@@ -327,13 +324,15 @@ describe('ProfileService', () => {
       academicService,
     ).getPublicProfile(row.id);
 
-    expect(result.profile).toEqual(
-      expect.objectContaining({
-        id: row.id,
-        about: expect.objectContaining({ bio: 'Bio pública' }),
-        skills: expect.objectContaining({ skills: ['SQL'] }),
-      }),
-    );
+    expect(result.profile.id).toBe(row.id);
+    if (!('about' in result.profile) || !result.profile.about) {
+      throw new Error('Expected public about section');
+    }
+    if (!('skills' in result.profile) || !result.profile.skills) {
+      throw new Error('Expected public skills section');
+    }
+    expect(result.profile.about.bio).toBe('Bio pública');
+    expect(result.profile.skills.skills).toEqual(['SQL']);
     expect(result.profile).not.toHaveProperty('academic');
     expect(result.profile).not.toHaveProperty('activities');
     expect(result.profile).not.toHaveProperty('professional');
@@ -405,12 +404,9 @@ describe('ProfileService', () => {
     );
 
     expect(result.activity.title).toBe('Proyecto final');
-    expect(profileStore.createActivity).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Proyecto final',
-        description: 'Descripción',
-      }),
-    );
+    const activityInput = profileStore.createActivity.mock.calls[0]?.[0];
+    expect(activityInput?.title).toBe('Proyecto final');
+    expect(activityInput?.description).toBe('Descripción');
   });
 
   it('rejects inverted activity periods on create and update', async () => {
