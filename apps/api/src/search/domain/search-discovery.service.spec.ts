@@ -82,15 +82,14 @@ describe('SearchDiscoveryService', () => {
       ],
     });
 
-    const result = await service(
-      resourceApi,
-      academicApi,
-      profileApi,
-    ).search('viewer-1', {
-      q: '  Base   de Datos ',
-      scope: 'all',
-      limit: 8,
-    });
+    const result = await service(resourceApi, academicApi, profileApi).search(
+      'viewer-1',
+      {
+        q: '  Base   de Datos ',
+        scope: 'all',
+        limit: 8,
+      },
+    );
 
     expect(result.query).toBe('Base de Datos');
     expect(result.scope).toBe('all');
@@ -137,16 +136,15 @@ describe('SearchDiscoveryService', () => {
       subjectId,
       courseOfferingId: null,
     });
-    const result = await service(
-      resourceApi,
-      academicApi,
-      profileApi,
-    ).search(undefined, {
-      q: 'apunte',
-      scope: 'resources',
-      limit: 5,
-      subjectId,
-    });
+    const result = await service(resourceApi, academicApi, profileApi).search(
+      undefined,
+      {
+        q: 'apunte',
+        scope: 'resources',
+        limit: 5,
+        subjectId,
+      },
+    );
 
     expect(result.results).toEqual({
       resources: [],
@@ -259,17 +257,20 @@ describe('SearchDiscoveryService', () => {
       ] as never[],
     });
 
-    academicApi.getCatalogNode.mockImplementation(async (id) => ({
-      node: {
-        id,
-        kind: 'subject',
-        name:
-          id === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-            ? 'Sistemas'
-            : 'Arquitectura',
-      },
-      resolvedFromId: undefined,
-    } as never));
+    academicApi.getCatalogNode.mockImplementation(
+      async (id) =>
+        ({
+          node: {
+            id,
+            kind: 'subject',
+            name:
+              id === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+                ? 'Sistemas'
+                : 'Arquitectura',
+          },
+          resolvedFromId: undefined,
+        }) as never,
+    );
 
     resourceApi.search.mockImplementation(async (_viewer, input) => ({
       items: [
@@ -345,10 +346,13 @@ describe('SearchDiscoveryService', () => {
         state: 'current',
       })) as never[],
     });
-    academicApi.getCatalogNode.mockImplementation(async (id) => ({
-      node: { id, kind: 'subject', name: id },
-      resolvedFromId: undefined,
-    } as never));
+    academicApi.getCatalogNode.mockImplementation(
+      async (id) =>
+        ({
+          node: { id, kind: 'subject', name: id },
+          resolvedFromId: undefined,
+        }) as never,
+    );
     resourceApi.search.mockResolvedValue({
       items: [],
       nextCursor: null,
