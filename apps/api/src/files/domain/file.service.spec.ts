@@ -411,10 +411,11 @@ describe('FileService', () => {
     );
     fileStore.markReady.mockResolvedValue(null);
 
-    const racedReady = await new FileService(
-      fileStore,
-      objectStorage,
-    ).finalize('user-1', pending.id, now);
+    const racedReady = await new FileService(fileStore, objectStorage).finalize(
+      'user-1',
+      pending.id,
+      now,
+    );
     expect(racedReady.file.id).toBe(pending.id);
     expect(racedReady.file.state).toBe('ready');
 
