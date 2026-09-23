@@ -45,9 +45,9 @@ const Feeds = () => {
   const [order, setOrder] = useState<FeedOrder>("ranked");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [stopReason, setStopReason] = useState<
-    "end" | "natural_break" | null
-  >(null);
+  const [stopReason, setStopReason] = useState<"end" | "natural_break" | null>(
+    null,
+  );
   const [preferences, setPreferences] =
     useState<FeedPreferencesResponse | null>(null);
   const [effectiveSignals, setEffectiveSignals] = useState<{
@@ -154,10 +154,7 @@ const Feeds = () => {
     await updatePreference({ mutedProfileIds: [...next] });
   };
 
-  const feedback = async (
-    item: FeedItem,
-    signal: FeedFeedbackSignal,
-  ) => {
+  const feedback = async (item: FeedItem, signal: FeedFeedbackSignal) => {
     const key = `${item.type}:${item.id}:${signal}`;
     setBusy(key);
     setError(null);
@@ -316,9 +313,8 @@ const Feeds = () => {
 
       {effectiveSignals && (
         <p className="feeds-signals" role="status">
-          Señales efectivas: académico{" "}
-          {effectiveSignals.academic ? "sí" : "no"} · red{" "}
-          {effectiveSignals.social ? "sí" : "no"} · intereses{" "}
+          Señales efectivas: académico {effectiveSignals.academic ? "sí" : "no"}{" "}
+          · red {effectiveSignals.social ? "sí" : "no"} · intereses{" "}
           {effectiveSignals.interests ? "sí" : "no"}
           {effectiveSignals.relationWindowTruncated ? " · red acotada" : ""}
         </p>
