@@ -474,6 +474,8 @@ describe('QaService', () => {
     expect(acceptCall?.notification?.userId).toBe('user-b');
     expect(acceptCall?.notification?.actorUserId).toBe('user-a');
     expect(acceptCall?.notification?.type).toBe('qa.answer_accepted');
+    expect(acceptCall?.notification?.targetType).toBe('question');
+    expect(acceptCall?.notification?.targetId).toBe(questionId);
   });
 
   it('returns revision conflict when Answer acceptance loses the race', async () => {
