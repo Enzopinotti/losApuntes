@@ -170,13 +170,13 @@ export class FeedService {
       this.profiles.getFeedSignals(userId),
     ]);
 
-    return this.preferencesProjection(preferences, signals?.recommendationSignals);
+    return this.preferencesProjection(
+      preferences,
+      signals?.recommendationSignals,
+    );
   }
 
-  async updatePreferences(
-    userId: string,
-    dto: UpdateFeedPreferencesDto,
-  ) {
+  async updatePreferences(userId: string, dto: UpdateFeedPreferencesDto) {
     const existing = await this.store.getOrCreatePreferences(userId);
     if (existing.revision !== dto.expectedRevision) {
       this.preferenceConflict();
@@ -270,13 +270,11 @@ export class FeedService {
       },
     );
 
-    const ordered = prepared
-      .sort(compareChronological)
-      .map((candidate) => ({
-        ...candidate,
-        score: 0,
-        why: ['current_subject'] as FeedReasonCode[],
-      }));
+    const ordered = prepared.sort(compareChronological).map((candidate) => ({
+      ...candidate,
+      score: 0,
+      why: ['current_subject'] as FeedReasonCode[],
+    }));
     const page = this.page(
       ordered,
       cursor?.page ?? 0,
@@ -296,10 +294,7 @@ export class FeedService {
         order: 'chronological',
         hasMore: page.remaining.length > 0,
       }),
-      stopReason: this.stopReason(
-        cursor?.page ?? 0,
-        page.remaining.length > 0,
-      ),
+      stopReason: this.stopReason(cursor?.page ?? 0, page.remaining.length > 0),
       context: { subjectIds },
     };
   }
@@ -340,16 +335,13 @@ export class FeedService {
       preferences.useInterests &&
       Boolean(
         recommendationSignals?.learning ||
-          recommendationSignals?.skillsInterests,
+        recommendationSignals?.skillsInterests,
       );
     const subjectSignals = effectiveAcademic
       ? unique([...currentSubjectIds, ...prioritizedSubjectIds])
       : [];
     const socialUserIds = effectiveSocial
-      ? unique([
-          ...relations.followingUserIds,
-          ...relations.connectionUserIds,
-        ])
+      ? unique([...relations.followingUserIds, ...relations.connectionUserIds])
       : [];
     const interestTerms =
       effectiveInterests && profileSignals
@@ -421,10 +413,7 @@ export class FeedService {
         order: dto.order,
         hasMore: page.remaining.length > 0,
       }),
-      stopReason: this.stopReason(
-        cursor?.page ?? 0,
-        page.remaining.length > 0,
-      ),
+      stopReason: this.stopReason(cursor?.page ?? 0, page.remaining.length > 0),
       effectiveSignals: {
         academic: effectiveAcademic,
         social: effectiveSocial,
@@ -579,12 +568,11 @@ export class FeedService {
         return {
           ...candidate,
           authorProfileId: author?.profileId ?? null,
-          author:
-            author ?? {
-              profileId: null,
-              displayName: 'Usuario de Los Apuntes',
-              avatarUrl: null,
-            },
+          author: author ?? {
+            profileId: null,
+            displayName: 'Usuario de Los Apuntes',
+            avatarUrl: null,
+          },
         };
       })
       .filter(
@@ -666,12 +654,11 @@ export class FeedService {
       id: candidate.id,
       title: candidate.title,
       summary: candidate.summary,
-      author:
-        attributions.get(candidate.authorUserId) ?? {
-          profileId: null,
-          displayName: 'Usuario de Los Apuntes',
-          avatarUrl: null,
-        },
+      author: attributions.get(candidate.authorUserId) ?? {
+        profileId: null,
+        displayName: 'Usuario de Los Apuntes',
+        avatarUrl: null,
+      },
       academic: {
         subject: subjects.get(candidate.subjectId),
       },
