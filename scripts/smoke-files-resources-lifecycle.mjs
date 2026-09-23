@@ -242,6 +242,37 @@ const viewerPrivate = await request(`/resources/${primary.id}`, {
 });
 assert.equal(viewerPrivate.response.status, 404);
 
+const shareWhilePrivate = await request(
+  `/resources/${primary.id}/shares/${viewer.profileId}`,
+  {
+    method: 'PUT',
+    headers: { authorization: author.bearer },
+  },
+);
+assert.equal(shareWhilePrivate.response.status, 409);
+assert.equal(
+  shareWhilePrivate.body.code,
+  'RESOURCE_SHARE_VISIBILITY_REQUIRED',
+);
+
+const sharedUpdate = await request(
+  `/resources/${primary.id}`,
+  json(
+    'PATCH',
+    {
+      expectedRevision: primary.revision,
+      visibility: 'shared',
+    },
+    author.bearer,
+  ),
+);
+assert.equal(sharedUpdate.response.status, 200);
+assert.equal(sharedUpdate.body.resource.visibility, 'shared');
+assert.equal(
+  sharedUpdate.body.resource.revision,
+  primary.revision + 1,
+);
+
 const share = await request(
   `/resources/${primary.id}/shares/${viewer.profileId}`,
   {
@@ -334,7 +365,7 @@ const publicUpdate = await request(
   json(
     'PATCH',
     {
-      expectedRevision: primary.revision,
+      expectedRevision: sharedUpdate.body.resource.revision,
       visibility: 'public',
     },
     author.bearer,
@@ -528,6 +559,7 @@ console.log(
       'finalize-idempotency',
       'asset-single-claim',
       'private-deny',
+      'grant-requires-shared-visibility',
       'explicit-share',
       'share-is-resource-scoped',
       'signed-download',
