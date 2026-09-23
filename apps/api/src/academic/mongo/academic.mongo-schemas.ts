@@ -7,6 +7,7 @@ import {
   type AcademicAuthorityTier,
   type AcademicNodeKind,
   type AcademicNodeStatus,
+  type AcademicProposalStatus,
   type SubjectParticipationState,
 } from '../domain/academic.types';
 
@@ -224,7 +225,19 @@ export class AcademicCatalogProposal {
     default: 'pending',
     index: true,
   })
-  status!: 'pending' | 'accepted' | 'rejected' | 'duplicate' | 'superseded';
+  status!: AcademicProposalStatus;
+
+  @Prop()
+  reviewedByUserId?: string;
+
+  @Prop()
+  reviewReason?: string;
+
+  @Prop()
+  canonicalTargetId?: string;
+
+  @Prop()
+  reviewedAt?: Date;
 
   createdAt!: Date;
   updatedAt!: Date;
@@ -234,6 +247,7 @@ export const AcademicCatalogProposalSchema = SchemaFactory.createForClass(
   AcademicCatalogProposal,
 );
 AcademicCatalogProposalSchema.index({ userId: 1, createdAt: -1 });
+AcademicCatalogProposalSchema.index({ status: 1, createdAt: 1, id: 1 });
 
 @Schema({ collection: 'academic_audit_events', timestamps: false })
 export class AcademicAuditEvent {
