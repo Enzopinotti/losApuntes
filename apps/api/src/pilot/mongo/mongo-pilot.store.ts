@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'node:crypto';
-import type { ClientSession, Connection, Model } from 'mongoose';
+import type { Connection, Model } from 'mongoose';
 
 import {
   PilotModerationTargetNotFoundError,
@@ -62,10 +62,6 @@ function preview(value: string | null | undefined): string {
   if (!value) return '';
   const clean = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
   return clean.length <= 240 ? clean : clean.slice(0, 239) + '…';
-}
-
-function percentage(part: number, total: number): number {
-  return total === 0 ? 0 : Math.round((part / total) * 10_000) / 100;
 }
 
 @Injectable()
@@ -250,7 +246,6 @@ export class MongoPilotStore implements PilotStore {
     days: number;
   }): Promise<PilotMetricsSnapshot> {
     const users = this.connection.collection('users');
-    const profiles = this.connection.collection('profiles');
     const events =
       this.connection.collection<PilotEventDocument>('pilot_events');
     const resourceReports = this.connection.collection('resource_reports');
