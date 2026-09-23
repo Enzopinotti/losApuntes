@@ -101,6 +101,16 @@ export class MongoAcademicStore implements AcademicStore {
       .exec();
   }
 
+  async findDirectRedirectSources(
+    targetId: string,
+  ): Promise<AcademicCatalogNodeRecord[]> {
+    return this.catalog
+      .find({ status: 'merged', redirectToId: targetId })
+      .sort({ id: 1 })
+      .lean<AcademicCatalogNodeRecord[]>()
+      .exec();
+  }
+
   async findCatalogNodeBySourceIdentity(
     sourceKey: string,
     externalId: string,
@@ -118,7 +128,9 @@ export class MongoAcademicStore implements AcademicStore {
     const clauses: FilterQuery<AcademicCatalogNode>[] = [{ status: 'active' }];
 
     if (query.kind) clauses.push({ kind: query.kind });
-    if (query.parentId) clauses.push({ parentIds: query.parentId });
+    if (query.parentIds && query.parentIds.length > 0) {
+      clauses.push({ parentIds: { $in: query.parentIds } });
+    }
 
     if (query.q) {
       const prefix = new RegExp('^' + escapeRegex(query.q), 'u');
