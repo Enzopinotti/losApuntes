@@ -5,6 +5,7 @@ import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
 import { FilesModule } from '../files/files.module';
 import { FileAsset, FileAssetSchema } from '../files/mongo/file.mongo-schema';
+import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { ProfileModule } from '../profile/profile.module';
 import { UsersModule } from '../users/users.module';
 import { ResourceService } from './domain/resource.service';
@@ -28,6 +29,7 @@ import { ResourcesController } from './resources.controller';
     UsersModule,
     AcademicModule,
     ProfileModule,
+    PilotTelemetryModule,
     FilesModule,
     MongooseModule.forFeature([
       { name: Resource.name, schema: ResourceSchema },

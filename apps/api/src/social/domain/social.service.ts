@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
+import { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import { ProfileService } from '../../profile/domain/profile.service';
 import { SOCIAL_STORE, type SocialStore } from './social.store';
 import type { ConnectionRecord, SocialCursor } from './social.types';
@@ -51,6 +52,7 @@ export class SocialService {
     @Inject(SOCIAL_STORE)
     private readonly store: SocialStore,
     private readonly profiles: ProfileService,
+    private readonly events: PilotEventService,
   ) {}
 
   async follow(userId: string, profileId: string) {
@@ -59,7 +61,7 @@ export class SocialService {
 
     if (targetUserId === userId) this.selfRelation();
 
-    await this.store.follow({
+    const result = await this.store.follow({
       id: randomUUID(),
       followerUserId: userId,
       followeeUserId: targetUserId,
@@ -73,6 +75,13 @@ export class SocialService {
         readAt: null,
       },
     });
+
+    if (result.created) {
+      await this.events.recordBestEffort({
+        event: 'pilot.follow_created',
+        userId,
+      });
+    }
 
     return { following: true };
   }
@@ -236,6 +245,13 @@ export class SocialService {
       throw new ConflictException({
         code: 'SOCIAL_CONNECTION_STATE_CONFLICT',
         message: 'Connection changed concurrently',
+      });
+    }
+
+    if (status === 'accepted') {
+      await this.events.recordBestEffort({
+        event: 'pilot.connection_accepted',
+        userId,
       });
     }
 

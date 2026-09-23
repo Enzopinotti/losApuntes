@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AcademicService } from '../../academic/domain/academic.service';
 import { FileService } from '../../files/domain/file.service';
+import { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import { ProfileService } from '../../profile/domain/profile.service';
 import type {
   CreateResourceDto,
@@ -108,6 +109,7 @@ export class ResourceService {
     private readonly files: FileService,
     private readonly academic: AcademicService,
     private readonly profiles: ProfileService,
+    private readonly events: PilotEventService,
   ) {}
 
   async create(userId: string, dto: CreateResourceDto, now = new Date()) {
@@ -139,6 +141,13 @@ export class ResourceService {
           moderationState: 'available',
           revision: 1,
         },
+      });
+
+      await this.events.recordBestEffort({
+        event: 'pilot.resource_created',
+        userId,
+        subjectId: context.subjectId,
+        now,
       });
 
       return {

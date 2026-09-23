@@ -6,6 +6,7 @@ import {
   Notification,
   NotificationSchema,
 } from '../notifications/mongo/notification.mongo-schema';
+import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { ProfileModule } from '../profile/profile.module';
 import { UsersModule } from '../users/users.module';
 import { SocialService } from './domain/social.service';
@@ -24,6 +25,7 @@ import { SocialController } from './social.controller';
     AuthModule,
     UsersModule,
     ProfileModule,
+    PilotTelemetryModule,
     MongooseModule.forFeature([
       { name: SocialFollow.name, schema: SocialFollowSchema },
       { name: SocialConnection.name, schema: SocialConnectionSchema },
