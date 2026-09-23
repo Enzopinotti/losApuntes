@@ -8,8 +8,10 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { requireConfigString } from './config/required-config';
 import { validateRuntimeEnvironment } from './config/runtime-environment';
+import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { ProfileModule } from './profile/profile.module';
+import { ResourcesModule } from './resources/resources.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -29,6 +31,8 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     AcademicModule,
     ProfileModule,
+    FilesModule,
+    ResourcesModule,
     HealthModule,
   ],
   controllers: [AppController],
