@@ -405,6 +405,29 @@ const privateAgain = await request(
 assert.equal(privateAgain.response.status, 200);
 assert.equal(privateAgain.body.resource.visibility, 'private');
 
+const sharedAgain = await request(
+  `/resources/${primary.id}`,
+  json(
+    'PATCH',
+    {
+      expectedRevision: privateAgain.body.resource.revision,
+      visibility: 'shared',
+    },
+    author.bearer,
+  ),
+);
+assert.equal(sharedAgain.response.status, 200);
+assert.equal(sharedAgain.body.resource.visibility, 'shared');
+
+const staleGrantMustNotRevive = await request(`/resources/${primary.id}`, {
+  headers: { authorization: viewer.bearer },
+});
+assert.equal(
+  staleGrantMustNotRevive.response.status,
+  404,
+  'Leaving shared visibility must remove historical explicit grants',
+);
+
 const savedAfterPrivacyChange = await request('/resources/saved?limit=25', {
   headers: { authorization: viewer.bearer },
 });
@@ -515,6 +538,7 @@ console.log(
       'save-does-not-grant-access',
       'report-idempotency',
       'privacy-transition',
+      'privacy-transition-clears-explicit-grants',
       'abandoned-upload-byte-cleanup',
     ],
   }),
