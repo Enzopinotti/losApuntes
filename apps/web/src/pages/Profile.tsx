@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type {
   OwnerProfileResponse,
@@ -259,7 +254,11 @@ const Profile = () => {
           Empezamos con lo mínimo. Tu universidad, carrera y materias siguen
           siendo datos académicos separados y validados por el servidor.
         </p>
-        {error && <p className="profile-error" role="alert">{error}</p>}
+        {error && (
+          <p className="profile-error" role="alert">
+            {error}
+          </p>
+        )}
         <form onSubmit={createProfile} className="profile-card">
           <label htmlFor="profile-display-name">Nombre para mostrar</label>
           <input
@@ -308,8 +307,16 @@ const Profile = () => {
         </Link>
       </header>
 
-      {feedback && <p className="profile-success" role="status">{feedback}</p>}
-      {error && <p className="profile-error" role="alert">{error}</p>}
+      {feedback && (
+        <p className="profile-success" role="status">
+          {feedback}
+        </p>
+      )}
+      {error && (
+        <p className="profile-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <form onSubmit={saveProfile} className="profile-grid">
         <section className="profile-card">
@@ -356,22 +363,46 @@ const Profile = () => {
           <h2>Habilidades y aprendizaje</h2>
           <p className="profile-help">Separá los valores con comas.</p>
           <label htmlFor="profile-languages">Idiomas</label>
-          <input id="profile-languages" value={languages} onChange={(event) => setLanguages(event.target.value)} />
+          <input
+            id="profile-languages"
+            value={languages}
+            onChange={(event) => setLanguages(event.target.value)}
+          />
           <label htmlFor="profile-skills">Habilidades</label>
-          <input id="profile-skills" value={skills} onChange={(event) => setSkills(event.target.value)} />
+          <input
+            id="profile-skills"
+            value={skills}
+            onChange={(event) => setSkills(event.target.value)}
+          />
           <label htmlFor="profile-interests">Intereses</label>
-          <input id="profile-interests" value={interests} onChange={(event) => setInterests(event.target.value)} />
-          <label htmlFor="profile-help-topics">Temas en los que puedo ayudar</label>
-          <input id="profile-help-topics" value={helpTopics} onChange={(event) => setHelpTopics(event.target.value)} />
-          <label htmlFor="profile-learning-topics">Temas que quiero aprender</label>
-          <input id="profile-learning-topics" value={learningTopics} onChange={(event) => setLearningTopics(event.target.value)} />
+          <input
+            id="profile-interests"
+            value={interests}
+            onChange={(event) => setInterests(event.target.value)}
+          />
+          <label htmlFor="profile-help-topics">
+            Temas en los que puedo ayudar
+          </label>
+          <input
+            id="profile-help-topics"
+            value={helpTopics}
+            onChange={(event) => setHelpTopics(event.target.value)}
+          />
+          <label htmlFor="profile-learning-topics">
+            Temas que quiero aprender
+          </label>
+          <input
+            id="profile-learning-topics"
+            value={learningTopics}
+            onChange={(event) => setLearningTopics(event.target.value)}
+          />
         </section>
 
         <section className="profile-card profile-wide">
           <h2>Privacidad por sección</h2>
           <p className="profile-help">
-            “Universidad” y “Conexiones” se guardan hoy de forma fail-closed:
-            no se muestran públicamente hasta que exista autoridad verificable.
+            “Universidad” y “Conexiones” se guardan hoy de forma fail-closed: no
+            se muestran públicamente hasta que exista autoridad verificable.
           </p>
           <div className="profile-privacy-grid">
             {sections.map((section) => (
@@ -404,15 +435,27 @@ const Profile = () => {
             otra persona en tu perfil.
           </p>
           <label className="profile-check">
-            <input type="checkbox" checked={recommendAcademic} onChange={(event) => setRecommendAcademic(event.target.checked)} />
+            <input
+              type="checkbox"
+              checked={recommendAcademic}
+              onChange={(event) => setRecommendAcademic(event.target.checked)}
+            />
             Usar contexto académico
           </label>
           <label className="profile-check">
-            <input type="checkbox" checked={recommendLearning} onChange={(event) => setRecommendLearning(event.target.checked)} />
+            <input
+              type="checkbox"
+              checked={recommendLearning}
+              onChange={(event) => setRecommendLearning(event.target.checked)}
+            />
             Usar intereses de aprendizaje
           </label>
           <label className="profile-check">
-            <input type="checkbox" checked={recommendSkills} onChange={(event) => setRecommendSkills(event.target.checked)} />
+            <input
+              type="checkbox"
+              checked={recommendSkills}
+              onChange={(event) => setRecommendSkills(event.target.checked)}
+            />
             Usar habilidades e intereses
           </label>
         </section>
@@ -420,10 +463,12 @@ const Profile = () => {
         <section className="profile-card">
           <h2>Contexto académico</h2>
           <p>
-            Afiliaciones: <strong>{snapshot.academic.affiliations.length}</strong>
+            Afiliaciones:{" "}
+            <strong>{snapshot.academic.affiliations.length}</strong>
           </p>
           <p>
-            Materias asociadas: <strong>{snapshot.academic.participations.length}</strong>
+            Materias asociadas:{" "}
+            <strong>{snapshot.academic.participations.length}</strong>
           </p>
           <p>
             Contexto actual:{" "}
