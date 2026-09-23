@@ -533,11 +533,11 @@ No future migration should preserve a legacy field merely because it exists toda
 
 ---
 
-## 9. Persistence-decision evidence expected from the DER
+## 9. Persistence evidence expected from the future DER
 
-Issue #3 must evaluate persistence using the real relationship graph and workflows, not personal preference.
+The NotebookLM DER is an architecture reconciliation input, not a coding gate.
 
-The DER review must supply evidence for:
+When it arrives, evaluate the implemented workloads against:
 
 - relationship density and many-to-many behavior;
 - referential-integrity requirements;
@@ -556,20 +556,26 @@ The DER review must supply evidence for:
 
 Search/indexing is not automatically the primary database. Full-text/vector search may be a separate projection later regardless of transactional persistence.
 
-Semi-structured profile presentation does not by itself imply a document database, and relationship density does not by itself imply a relational database. The complete DER/workload evidence decides.
+Semi-structured profile presentation does not by itself imply a document database, and relationship density does not by itself imply a relational database. The DER/workload evidence may justify replacing the current adapter, but it does not retroactively become product truth by itself.
 
 ---
 
 ## 10. Definition of domain-ready
 
-A future domain implementation is ready to start only when:
+A domain slice may be implemented before the final DER when all of these are true:
 
-- the real DER/class diagrams have been reconciled against this contract;
-- contradictions are explicitly resolved rather than silently chosen by code;
-- persistence ADR records the chosen model and rejected alternatives;
-- MVP domain slice is identified;
-- physical names/cardinalities are documented;
-- authorization and lifecycle invariants have tests planned;
-- Web/mobile contracts can refer to stable domain concepts without duplicating business rules.
+- product semantics are explicit in this contract;
+- persistence-specific code is isolated behind a port/adapter;
+- stable product IDs do not depend on the physical database;
+- authorization, lifecycle and negative invariants are tested;
+- Web/Mobile contracts do not duplicate business rules;
+- the slice documents how a later DER/persistence change will be reconciled and migrated.
 
-Until then, infrastructure/runtime work may continue, but new product entities must not harden a speculative persistence model.
+When the DER arrives:
+
+- contradictions must be resolved explicitly rather than silently chosen by code or diagram;
+- physical cardinalities/constraints must be mapped to the implemented semantics;
+- persistence changes require a migration and rollback plan;
+- accepted product invariants remain authoritative unless intentionally revised.
+
+New modules must not harden speculative persistence assumptions, but they no longer need to wait for the DER to begin.
