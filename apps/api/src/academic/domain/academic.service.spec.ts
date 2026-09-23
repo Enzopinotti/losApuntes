@@ -782,22 +782,18 @@ describe('AcademicService', () => {
     store.upsertSubjectParticipation.mockResolvedValue(row);
     store.listSubjectParticipationsForUser.mockResolvedValue([row]);
 
-    await expect(
-      service.upsertSubjectParticipation('user-1', subject.id, {
+    const upsertResult = await service.upsertSubjectParticipation(
+      'user-1',
+      subject.id,
+      {
         state: 'current',
         periodLabel: '2026 S2',
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        participation: expect.objectContaining({ id: row.id }),
-      }),
+      },
     );
+    expect(upsertResult.participation.id).toBe(row.id);
 
-    await expect(service.listSubjectParticipations('user-1')).resolves.toEqual(
-      expect.objectContaining({
-        participations: [expect.objectContaining({ id: row.id })],
-      }),
-    );
+    const listResult = await service.listSubjectParticipations('user-1');
+    expect(listResult.participations.map((item) => item.id)).toEqual([row.id]);
   });
 
   it('returns and updates current academic context without accepting withdrawn context', async () => {
