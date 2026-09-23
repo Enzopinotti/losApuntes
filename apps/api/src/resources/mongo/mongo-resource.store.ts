@@ -66,8 +66,7 @@ export class MongoResourceStore implements ResourceStore {
 
     try {
       let output:
-        | { resource: ResourceRecord; asset: FileAssetRecord }
-        | undefined;
+        { resource: ResourceRecord; asset: FileAssetRecord } | undefined;
 
       await session.withTransaction(async () => {
         const asset = await this.assets
@@ -192,9 +191,7 @@ export class MongoResourceStore implements ResourceStore {
     limit: number;
     after?: ResourceSearchCursor;
   }): Promise<{ items: ResourceRecord[]; hasMore: boolean }> {
-    const filters: FilterQuery<Resource>[] = [
-      { moderationState: 'available' },
-    ];
+    const filters: FilterQuery<Resource>[] = [{ moderationState: 'available' }];
 
     if (input.subjectId) filters.push({ subjectId: input.subjectId });
     if (input.visibility) filters.push({ visibility: input.visibility });
