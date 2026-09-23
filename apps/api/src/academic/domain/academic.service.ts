@@ -119,10 +119,13 @@ export class AcademicService {
     limit: number;
     cursor?: string;
   }) {
+    const parentIds = input.parentId
+      ? await this.catalogIdentitySet(input.parentId)
+      : undefined;
     const result = await this.store.searchCatalog({
       kind: input.kind,
       q: input.q ? normalizeName(input.q) : undefined,
-      parentId: input.parentId,
+      parentIds,
       limit: input.limit,
       after: decodeCursor(input.cursor),
     });
@@ -150,9 +153,10 @@ export class AcademicService {
 
   async listChildren(id: string, kind?: AcademicNodeKind, limit = 50) {
     const resolved = await this.resolveNode(id);
+    const parentIds = await this.catalogIdentitySet(resolved.node.id);
     const result = await this.store.searchCatalog({
       kind,
-      parentId: resolved.node.id,
+      parentIds,
       limit,
     });
 
@@ -167,8 +171,10 @@ export class AcademicService {
     actorUserId: string,
     dto: CreateAcademicCatalogNodeDto,
   ) {
-    const parentIds = uniqueStrings(dto.parentIds ?? []);
-    await this.assertParentKinds(dto.kind, parentIds);
+    const parentIds = await this.canonicalParentIds(
+      dto.kind,
+      uniqueStrings(dto.parentIds ?? []),
+    );
 
     if (dto.provenance.externalId) {
       const existing = await this.store.findCatalogNodeBySourceIdentity(
@@ -236,12 +242,12 @@ export class AcademicService {
       });
     }
 
-    const parentIds =
+    const parentIds = await this.canonicalParentIds(
+      existing.kind,
       dto.parentIds === undefined
         ? existing.parentIds
-        : uniqueStrings(dto.parentIds);
-
-    await this.assertParentKinds(existing.kind, parentIds);
+        : uniqueStrings(dto.parentIds),
+    );
 
     const name =
       dto.name === undefined ? existing.name : cleanDisplayName(dto.name);
@@ -376,9 +382,11 @@ export class AcademicService {
   }
 
   async listAffiliations(userId: string) {
+    const rows = await this.store.listAffiliationsForUser(userId);
+
     return {
-      affiliations: (await this.store.listAffiliationsForUser(userId)).map(
-        (row) => this.publicAffiliation(row),
+      affiliations: await Promise.all(
+        rows.map((row) => this.publicAffiliation(row)),
       ),
     };
   }
@@ -388,16 +396,28 @@ export class AcademicService {
       dto.institutionId,
       'institution',
     );
+    const campus = dto.campusId
+      ? await this.requireKind(dto.campusId, 'campus')
+      : undefined;
+    const academicUnit = dto.academicUnitId
+      ? await this.requireKind(dto.academicUnitId, 'academic_unit')
+      : undefined;
+    const program = dto.programId
+      ? await this.requireKind(dto.programId, 'program')
+      : undefined;
+    const curriculum = dto.curriculumId
+      ? await this.requireKind(dto.curriculumId, 'curriculum')
+      : undefined;
 
     const contextualIds = [
-      dto.campusId,
-      dto.academicUnitId,
-      dto.programId,
-      dto.curriculumId,
+      campus?.id,
+      academicUnit?.id,
+      program?.id,
+      curriculum?.id,
     ].filter((value): value is string => Boolean(value));
 
-    for (const id of contextualIds) {
-      if (!(await this.isDescendantOf(id, institution.id))) {
+    for (const contextualId of contextualIds) {
+      if (!(await this.isDescendantOf(contextualId, institution.id))) {
         throw new UnprocessableEntityException({
           code: 'ACADEMIC_CONTEXT_MISMATCH',
           message: 'Academic affiliation nodes do not share one institution',
@@ -405,21 +425,15 @@ export class AcademicService {
       }
     }
 
-    if (dto.campusId) await this.requireKind(dto.campusId, 'campus');
-    if (dto.academicUnitId)
-      await this.requireKind(dto.academicUnitId, 'academic_unit');
-    if (dto.programId) await this.requireKind(dto.programId, 'program');
-    if (dto.curriculumId) {
-      const curriculum = await this.requireKind(dto.curriculumId, 'curriculum');
-      if (
-        dto.programId &&
-        !(await this.isDescendantOf(curriculum.id, dto.programId))
-      ) {
-        throw new UnprocessableEntityException({
-          code: 'ACADEMIC_CONTEXT_MISMATCH',
-          message: 'Curriculum does not belong to the selected program',
-        });
-      }
+    if (
+      curriculum &&
+      program &&
+      !(await this.isDescendantOf(curriculum.id, program.id))
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_CONTEXT_MISMATCH',
+        message: 'Curriculum does not belong to the selected program',
+      });
     }
 
     const created = await this.store.runAtomically(async () => {
@@ -427,10 +441,10 @@ export class AcademicService {
         id: randomUUID(),
         userId,
         institutionId: institution.id,
-        campusId: dto.campusId,
-        academicUnitId: dto.academicUnitId,
-        programId: dto.programId,
-        curriculumId: dto.curriculumId,
+        campusId: campus?.id,
+        academicUnitId: academicUnit?.id,
+        programId: program?.id,
+        curriculumId: curriculum?.id,
         status: dto.status,
         startedOn: dto.startedOn,
         endedOn: dto.endedOn,
@@ -443,7 +457,7 @@ export class AcademicService {
       return row;
     });
 
-    return { affiliation: this.publicAffiliation(created) };
+    return { affiliation: await this.publicAffiliation(created) };
   }
 
   async updateAffiliationStatus(
@@ -467,14 +481,16 @@ export class AcademicService {
       return row;
     });
 
-    return { affiliation: this.publicAffiliation(updated) };
+    return { affiliation: await this.publicAffiliation(updated) };
   }
 
   async listSubjectParticipations(userId: string) {
+    const rows = await this.store.listSubjectParticipationsForUser(userId);
+
     return {
-      participations: (
-        await this.store.listSubjectParticipationsForUser(userId)
-      ).map((row) => this.publicParticipation(row)),
+      participations: await Promise.all(
+        rows.map((row) => this.publicParticipation(row)),
+      ),
     };
   }
 
@@ -520,7 +536,7 @@ export class AcademicService {
       return participation;
     });
 
-    return { participation: this.publicParticipation(row) };
+    return { participation: await this.publicParticipation(row) };
   }
 
   async getCurrentContext(userId: string) {
@@ -582,11 +598,10 @@ export class AcademicService {
   }
 
   async createProposal(userId: string, dto: CreateAcademicProposalDto) {
-    const parentIds = uniqueStrings(dto.parentIds ?? []);
-    if (parentIds.length > 0) {
-      const parents = await this.store.findCatalogNodesByIds(parentIds);
-      if (parents.length !== parentIds.length) this.notFound();
-    }
+    const parentIds = await this.canonicalParentIds(
+      dto.kind,
+      uniqueStrings(dto.parentIds ?? []),
+    );
 
     const created = await this.store.runAtomically(async () => {
       const proposal = await this.store.createProposal({
@@ -758,6 +773,49 @@ export class AcademicService {
     return node;
   }
 
+  private async canonicalParentIds(
+    kind: AcademicNodeKind,
+    parentIds: string[],
+  ): Promise<string[]> {
+    const canonicalIds = uniqueStrings(
+      await Promise.all(
+        parentIds.map(async (parentId) => {
+          const { node } = await this.resolveNode(parentId);
+          return node.id;
+        }),
+      ),
+    );
+
+    await this.assertParentKinds(kind, canonicalIds);
+    return canonicalIds;
+  }
+
+  private async catalogIdentitySet(id: string): Promise<string[]> {
+    const { node } = await this.resolveNode(id);
+    const identities = new Set<string>([node.id]);
+    let frontier = [node.id];
+
+    for (let depth = 0; depth < MAX_REDIRECT_DEPTH; depth += 1) {
+      const batches = await Promise.all(
+        frontier.map((targetId) =>
+          this.store.findDirectRedirectSources(targetId),
+        ),
+      );
+      const next = uniqueStrings(
+        batches
+          .flat()
+          .map((source) => source.id)
+          .filter((sourceId) => !identities.has(sourceId)),
+      );
+
+      if (next.length === 0) break;
+      next.forEach((sourceId) => identities.add(sourceId));
+      frontier = next;
+    }
+
+    return [...identities];
+  }
+
   private async assertParentKinds(
     kind: AcademicNodeKind,
     parentIds: string[],
@@ -791,8 +849,7 @@ export class AcademicService {
     candidateId: string,
     ancestorId: string,
   ): Promise<boolean> {
-    if (candidateId === ancestorId) return true;
-
+    const canonicalAncestor = (await this.resolveNode(ancestorId)).node.id;
     let frontier = [candidateId];
     const visited = new Set<string>();
 
@@ -801,24 +858,32 @@ export class AcademicService {
       if (ids.length === 0) return false;
       ids.forEach((id) => visited.add(id));
 
-      const nodes = await this.store.findCatalogNodesByIds(ids);
-      const parentIds = uniqueStrings(nodes.flatMap((node) => node.parentIds));
+      const resolvedNodes = await Promise.all(
+        ids.map(async (id) => (await this.resolveNode(id)).node),
+      );
+      const nodes = [
+        ...new Map(resolvedNodes.map((node) => [node.id, node])).values(),
+      ];
 
-      if (parentIds.includes(ancestorId)) return true;
-      frontier = parentIds;
+      if (nodes.some((node) => node.id === canonicalAncestor)) return true;
+
+      frontier = uniqueStrings(nodes.flatMap((node) => node.parentIds));
     }
 
     return false;
   }
 
-  private publicAffiliation(row: AcademicAffiliationRecord) {
+  private async publicAffiliation(row: AcademicAffiliationRecord) {
+    const canonicalId = async (id?: string): Promise<string | undefined> =>
+      id ? (await this.resolveNode(id)).node.id : undefined;
+
     return {
       id: row.id,
-      institutionId: row.institutionId,
-      campusId: row.campusId,
-      academicUnitId: row.academicUnitId,
-      programId: row.programId,
-      curriculumId: row.curriculumId,
+      institutionId: (await canonicalId(row.institutionId))!,
+      campusId: await canonicalId(row.campusId),
+      academicUnitId: await canonicalId(row.academicUnitId),
+      programId: await canonicalId(row.programId),
+      curriculumId: await canonicalId(row.curriculumId),
       status: row.status,
       startedOn: row.startedOn,
       endedOn: row.endedOn,
@@ -827,7 +892,7 @@ export class AcademicService {
     };
   }
 
-  private publicParticipation(row: {
+  private async publicParticipation(row: {
     id: string;
     subjectId: string;
     courseOfferingId?: string;
@@ -838,8 +903,10 @@ export class AcademicService {
   }) {
     return {
       id: row.id,
-      subjectId: row.subjectId,
-      courseOfferingId: row.courseOfferingId,
+      subjectId: (await this.resolveNode(row.subjectId)).node.id,
+      courseOfferingId: row.courseOfferingId
+        ? (await this.resolveNode(row.courseOfferingId)).node.id
+        : undefined,
       state: row.state,
       periodLabel: row.periodLabel,
       createdAt: row.createdAt.toISOString(),
