@@ -64,6 +64,8 @@ export type CreateProposalRecord = Omit<
 >;
 
 export interface AcademicStore {
+  runAtomically<T>(operation: () => Promise<T>): Promise<T>;
+
   findCatalogNodeById(id: string): Promise<AcademicCatalogNodeRecord | null>;
   findCatalogNodesByIds(ids: string[]): Promise<AcademicCatalogNodeRecord[]>;
   findCatalogNodeBySourceIdentity(
