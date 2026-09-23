@@ -1,7 +1,7 @@
 # Pilot v1 — completion matrix
 
 **Issue:** #8  
-**Status:** In implementation
+**Status:** Candidate — exact-head and post-merge evidence required
 
 | Capability | Required evidence |
 | --- | --- |
@@ -32,7 +32,7 @@
 | Container lifecycle smoke | CI |
 | Exact-head candidate green | PR evidence |
 | Post-merge main green | closure evidence |
-| Pilot scope/support/rollback runbook | documentation |
+| Pilot scope/support/rollback runbook | `docs/operations/pilot-v1-runbook.md` |
 
 ## Honest boundaries
 
