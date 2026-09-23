@@ -554,6 +554,17 @@ assert.equal(reopened.body.connection.id, connectionId);
 assert.equal(reopened.body.connection.status, 'pending');
 assert.equal(reopened.body.connection.requestedByMe, true);
 
+const reopenedRequestNotification = (await notifications(alice)).find(
+  (item) =>
+    item.type === 'social.connection_requested' &&
+    item.target.type === 'connection' &&
+    item.target.id === connectionId,
+);
+assert.ok(
+  reopenedRequestNotification,
+  'Reopened connection notification must target the stable relation id',
+);
+
 const declined = await request(
   `/social/connections/${connectionId}/decline`,
   {
