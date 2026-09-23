@@ -48,7 +48,7 @@ Response includes:
 - exact headers the client must send;
 - upload expiry.
 
-The client uploads bytes directly to object storage. Application cookies/bearers are not sent to the storage origin.
+The declared `byteSize` is part of the signed storage request contract. The user agent supplies the request `Content-Length`; a different body length invalidates the signed PUT. The client uploads bytes directly to object storage, and application cookies/bearers are not sent to the storage origin.
 
 ### POST /files/:fileId/finalize
 
@@ -75,7 +75,7 @@ Optional authentication.
 Query:
 
 - `q` optional metadata query;
-- `subjectId` optional canonical Subject UUID;
+- `subjectId` optional Subject UUID; merged/deprecated Subject IDs are resolved through Academic Graph before filtering;
 - `visibility` optional filter;
 - `limit` 1–50, default 25;
 - `cursor` opaque cursor.
