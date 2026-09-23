@@ -70,32 +70,36 @@ function participation(
   };
 }
 
+function mockFn<T extends (...args: any[]) => any>() {
+  return jest.fn<ReturnType<T>, Parameters<T>>();
+}
+
 function createStore() {
   return {
-    findCatalogNodeById: jest.fn<AcademicStore['findCatalogNodeById']>(),
+    findCatalogNodeById: mockFn<AcademicStore['findCatalogNodeById']>(),
     findCatalogNodesByIds:
-      jest.fn<AcademicStore['findCatalogNodesByIds']>(),
+      mockFn<AcademicStore['findCatalogNodesByIds']>(),
     findCatalogNodeBySourceIdentity:
-      jest.fn<AcademicStore['findCatalogNodeBySourceIdentity']>(),
-    searchCatalog: jest.fn<AcademicStore['searchCatalog']>(),
-    createCatalogNode: jest.fn<AcademicStore['createCatalogNode']>(),
-    updateCatalogNode: jest.fn<AcademicStore['updateCatalogNode']>(),
-    createAffiliation: jest.fn<AcademicStore['createAffiliation']>(),
-    findAffiliationById: jest.fn<AcademicStore['findAffiliationById']>(),
+      mockFn<AcademicStore['findCatalogNodeBySourceIdentity']>(),
+    searchCatalog: mockFn<AcademicStore['searchCatalog']>(),
+    createCatalogNode: mockFn<AcademicStore['createCatalogNode']>(),
+    updateCatalogNode: mockFn<AcademicStore['updateCatalogNode']>(),
+    createAffiliation: mockFn<AcademicStore['createAffiliation']>(),
+    findAffiliationById: mockFn<AcademicStore['findAffiliationById']>(),
     listAffiliationsForUser:
-      jest.fn<AcademicStore['listAffiliationsForUser']>(),
+      mockFn<AcademicStore['listAffiliationsForUser']>(),
     updateAffiliationStatus:
-      jest.fn<AcademicStore['updateAffiliationStatus']>(),
+      mockFn<AcademicStore['updateAffiliationStatus']>(),
     upsertSubjectParticipation:
-      jest.fn<AcademicStore['upsertSubjectParticipation']>(),
+      mockFn<AcademicStore['upsertSubjectParticipation']>(),
     findSubjectParticipationById:
-      jest.fn<AcademicStore['findSubjectParticipationById']>(),
+      mockFn<AcademicStore['findSubjectParticipationById']>(),
     listSubjectParticipationsForUser:
-      jest.fn<AcademicStore['listSubjectParticipationsForUser']>(),
-    getCurrentContext: jest.fn<AcademicStore['getCurrentContext']>(),
-    setCurrentContext: jest.fn<AcademicStore['setCurrentContext']>(),
-    createProposal: jest.fn<AcademicStore['createProposal']>(),
-    appendAuditEvent: jest.fn<AcademicStore['appendAuditEvent']>(),
+      mockFn<AcademicStore['listSubjectParticipationsForUser']>(),
+    getCurrentContext: mockFn<AcademicStore['getCurrentContext']>(),
+    setCurrentContext: mockFn<AcademicStore['setCurrentContext']>(),
+    createProposal: mockFn<AcademicStore['createProposal']>(),
+    appendAuditEvent: mockFn<AcademicStore['appendAuditEvent']>(),
   };
 }
 
