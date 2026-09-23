@@ -8,10 +8,11 @@ Accepted:
 - [ADR 0002 — Harden the API runtime boundary before domain expansion](0002-api-runtime-boundary.md)
 - [ADR 0003 — Use opaque revocable sessions for Web and Mobile](0003-opaque-auth-sessions.md)
 - [ADR 0004 — Use replaceable transactional persistence before/after DER reconciliation](0004-persistence-after-der.md)
+- [ADR 0005 — Private object storage and resource-owned authorization](0005-private-object-storage-resource-authorization.md)
 
-Planned early ADRs:
+Planned future ADRs:
 
-- object storage/file authorization;
-- search architecture when the MVP requires it.
+- dedicated search architecture if/when metadata search no longer satisfies the MVP;
+- derived-file/preview processing if richer formats or OCR are introduced.
 
 An ADR records context, decision, consequences and rejected alternatives.
