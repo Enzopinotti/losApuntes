@@ -172,4 +172,50 @@ describe('NotificationService', () => {
       expect.any(Date),
     );
   });
+
+  it('rejects a cursor with a structurally valid but invalid date', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const cursor = Buffer.from(
+      JSON.stringify({
+        createdAt: 'not-a-date',
+        id: '11111111-1111-4111-8111-111111111111',
+      }),
+      'utf8',
+    ).toString('base64url');
+
+    await expect(
+      new NotificationService(
+        notificationStore,
+        profileApi as unknown as ProfileService,
+      ).list('user-a', {
+        unreadOnly: false,
+        limit: 10,
+        cursor,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(notificationStore.list).not.toHaveBeenCalled();
+  });
+
+  it('projects system notifications without inventing an actor', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    notificationStore.list.mockResolvedValue({
+      items: [row({ actorUserId: null })],
+      hasMore: false,
+    });
+
+    const result = await new NotificationService(
+      notificationStore,
+      profileApi as unknown as ProfileService,
+    ).list('user-a', {
+      unreadOnly: false,
+      limit: 10,
+    });
+
+    expect(result.items[0]?.actor).toBeNull();
+    expect(profileApi.getAttributionForUser).not.toHaveBeenCalled();
+  });
+
 });
