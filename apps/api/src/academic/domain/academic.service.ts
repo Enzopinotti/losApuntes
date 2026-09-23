@@ -863,9 +863,16 @@ export class AcademicService {
       if (ids.length === 0) return false;
       ids.forEach((id) => visited.add(id));
 
-      const resolvedNodes = await Promise.all(
-        ids.map(async (id) => (await this.resolveNode(id)).node),
-      );
+      let resolvedNodes: AcademicCatalogNodeRecord[];
+
+      try {
+        resolvedNodes = await Promise.all(
+          ids.map(async (id) => (await this.resolveNode(id)).node),
+        );
+      } catch (error) {
+        if (error instanceof NotFoundException) return false;
+        throw error;
+      }
       const nodes = [
         ...new Map(resolvedNodes.map((node) => [node.id, node])).values(),
       ];
