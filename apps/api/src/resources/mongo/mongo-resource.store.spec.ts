@@ -61,4 +61,90 @@ describe('MongoResourceStore authorization pipeline', () => {
       ]),
     );
   });
+
+  it('clears explicit grants transactionally when visibility leaves shared', async () => {
+    const updated = {
+      id: '11111111-1111-4111-8111-111111111111',
+      visibility: 'private',
+      revision: 2,
+    };
+    const updateExec = jest.fn().mockResolvedValue(updated);
+    const lean = jest.fn().mockReturnValue({ exec: updateExec });
+    const findOneAndUpdate = jest.fn().mockReturnValue({ lean });
+    const deleteExec = jest.fn().mockResolvedValue({ deletedCount: 2 });
+    const deleteMany = jest.fn().mockReturnValue({ exec: deleteExec });
+    const session = {
+      withTransaction: jest.fn(async (operation: () => Promise<void>) =>
+        operation(),
+      ),
+      endSession: jest.fn().mockResolvedValue(undefined),
+    };
+    const startSession = jest.fn().mockResolvedValue(session);
+
+    const store = new MongoResourceStore(
+      { startSession } as never,
+      { findOneAndUpdate } as never,
+      { deleteMany } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.updateOwned(
+        updated.id,
+        'author-1',
+        1,
+        { visibility: 'private' },
+      ),
+    ).resolves.toEqual(updated);
+
+    expect(startSession).toHaveBeenCalledTimes(1);
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      { id: updated.id, authorUserId: 'author-1', revision: 1 },
+      {
+        $set: { visibility: 'private' },
+        $inc: { revision: 1 },
+      },
+      { new: true, session },
+    );
+    expect(deleteMany).toHaveBeenCalledWith(
+      { resourceId: updated.id },
+      { session },
+    );
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not clear grants when visibility remains shared', async () => {
+    const updated = {
+      id: '11111111-1111-4111-8111-111111111111',
+      visibility: 'shared',
+      revision: 2,
+    };
+    const exec = jest.fn().mockResolvedValue(updated);
+    const lean = jest.fn().mockReturnValue({ exec });
+    const findOneAndUpdate = jest.fn().mockReturnValue({ lean });
+    const startSession = jest.fn();
+
+    const store = new MongoResourceStore(
+      { startSession } as never,
+      { findOneAndUpdate } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.updateOwned(
+        updated.id,
+        'author-1',
+        1,
+        { visibility: 'shared' },
+      ),
+    ).resolves.toEqual(updated);
+
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
 });
