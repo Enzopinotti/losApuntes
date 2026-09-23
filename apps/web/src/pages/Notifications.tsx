@@ -96,7 +96,11 @@ const Notifications = () => {
         </p>
       </header>
 
-      {error && <p className="community-error" role="alert">{error}</p>}
+      {error && (
+        <p className="community-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <div className="community-toolbar">
         <label>
