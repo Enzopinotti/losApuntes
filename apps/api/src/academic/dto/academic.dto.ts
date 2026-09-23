@@ -4,6 +4,7 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUrl,
@@ -68,7 +69,7 @@ export class AcademicProvenanceDto {
   sourceFingerprint?: string;
 
   @IsOptional()
-  @IsString()
+  @IsISO8601({ strict: true, strictSeparator: true })
   verifiedAt?: string;
 }
 
@@ -165,6 +166,19 @@ export class AcademicCatalogSearchDto {
   @IsString()
   @Length(4, 512)
   cursor?: string;
+}
+
+export class AcademicCatalogChildrenDto {
+  @IsOptional()
+  @IsIn(ACADEMIC_NODE_KINDS)
+  kind?: AcademicNodeKind;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 25;
 }
 
 export class CreateAcademicAffiliationDto {
