@@ -296,9 +296,7 @@ describe('QaService', () => {
     expect(updateQuestionCall?.[0]).toBe(questionId);
     expect(updateQuestionCall?.[1]).toBe('user-a');
     expect(updateQuestionCall?.[2]).toBe(1);
-    expect(updateQuestionCall?.[3]?.title).toBe(
-      'Normalización y dependencias',
-    );
+    expect(updateQuestionCall?.[3]?.title).toBe('Normalización y dependencias');
     expect(typeof updateQuestionCall?.[3]?.searchText).toBe('string');
 
     qaStore.updateQuestionOwned.mockResolvedValue(null);
