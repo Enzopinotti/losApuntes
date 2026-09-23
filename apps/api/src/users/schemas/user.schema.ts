@@ -26,6 +26,9 @@ export class User {
   @Prop({ default: 'user', enum: ['user', 'admin'] })
   role!: string;
 
+  @Prop({ type: [String], default: [] })
+  platform_permissions?: string[];
+
   @Prop() full_name?: string;
   @Prop() avatar_url?: string;
   @Prop() bio?: string;
