@@ -359,10 +359,7 @@ export class QaService {
     return row;
   }
 
-  private async questionProjection(
-    row: QuestionRecord,
-    viewerUserId?: string,
-  ) {
+  private async questionProjection(row: QuestionRecord, viewerUserId?: string) {
     const [author, subject, offering] = await Promise.all([
       this.profiles.getAttributionForUser(row.authorUserId),
       this.academic.getCatalogNode(row.subjectId),
