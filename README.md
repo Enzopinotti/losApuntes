@@ -31,6 +31,10 @@ Ver `docs/architecture/engineering-guardrails.md`.
 - [MVP domain slices](docs/domain/mvp-domain-slices.md)
 - [Persistence preflight 2026](docs/architecture/persistence-preflight-2026.md)
 - [ADR 0004 — replaceable persistence / DER reconciliation](docs/adr/0004-persistence-after-der.md)
+- [Files + Notes v1](docs/domain/files-notes-v1.md)
+- [Search + contextual discovery v1](docs/domain/search-discovery-v1.md)
+- [Search + contextual discovery HTTP v1](docs/contracts/search-discovery-http-v1.md)
+- [Search + contextual discovery completion matrix](docs/product/search-discovery-v1-completion-matrix.md)
 
 El Mongo actual es un adapter de runtime, no la definición eterna del dominio.
 
@@ -79,6 +83,8 @@ La implementación depende de `AcademicStore`, no de Mongoose fuera del adapter 
 - NestJS/Fastify para el API
 - MongoDB como adapter transaccional actual
 - Mailpit para email local verificable
+- MinIO privado/S3-compatible para Files local/CI
+- worker dedicado para cleanup de uploads abandonados
 
 ## Verificación local
 
@@ -90,7 +96,7 @@ pnpm audit:prod
 
 `pnpm check` ejecuta higiene, formato, lint, typecheck, tests y builds.
 
-La CI agrega gates específicos de Auth y Academic Graph.
+La CI agrega gates críticos específicos de Auth, Academic Graph, Profile, Files/Resources y Search, además del audit de dependencias y el smoke del stack real.
 
 ## Laboratorio local
 
@@ -101,7 +107,7 @@ pnpm runtime:smoke
 
 El stack publica el API en `http://localhost:4000`.
 
-El smoke cubre runtime base, ciclo Auth y ciclo Academic Graph contra Mongo efímero.
+El smoke cubre runtime base, Auth, Academic Graph, Profile, Files/Resources y Search/Contextual Discovery contra Mongo replica-set y MinIO efímeros.
 
 Para logs:
 

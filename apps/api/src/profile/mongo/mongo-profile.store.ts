@@ -25,6 +25,10 @@ function isDuplicateKeyError(error: unknown): boolean {
   );
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, (character) => '\\' + character);
+}
+
 function toPlain<T>(value: { toObject(): unknown } | T): T {
   if (
     typeof value === 'object' &&
@@ -53,6 +57,21 @@ export class MongoProfileStore implements ProfileStore {
 
   async findProfileById(id: string): Promise<ProfileRecord | null> {
     return this.profiles.findOne({ id }).lean<ProfileRecord>().exec();
+  }
+
+  async searchPublicProfiles(
+    query: string,
+    limit: number,
+  ): Promise<ProfileRecord[]> {
+    return this.profiles
+      .find({
+        'visibility.about': 'public',
+        displayName: { $regex: escapeRegex(query), $options: 'i' },
+      })
+      .sort({ displayName: 1, id: 1 })
+      .limit(limit)
+      .lean<ProfileRecord[]>()
+      .exec();
   }
 
   async createProfile(input: CreateProfileRecord): Promise<ProfileRecord> {

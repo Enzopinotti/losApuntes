@@ -84,6 +84,7 @@ function store(): jest.Mocked<ProfileStore> {
   return {
     findProfileByUserId: jest.fn(),
     findProfileById: jest.fn(),
+    searchPublicProfiles: jest.fn(),
     createProfile: jest.fn(),
     updateProfile: jest.fn(),
     listActivitiesForUser: jest.fn(),
@@ -810,5 +811,40 @@ describe('ProfileService', () => {
         '11111111-1111-4111-8111-111111111111',
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('projects only public identity fields from people search', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const row = profile({
+      displayName: 'Ana Pública',
+      bio: 'This must never be in search results',
+      avatarUrl: 'https://example.test/avatar.png',
+      skills: ['private-skill'],
+      professional: {
+        headline: 'Private headline',
+        careerDiscoveryOptIn: true,
+      },
+    });
+    profileStore.searchPublicProfiles.mockResolvedValue([row]);
+
+    const result = await service(
+      profileStore,
+      academicService,
+    ).searchPublicProfiles('  Ana   ', 8);
+
+    expect(profileStore.searchPublicProfiles.mock.calls).toEqual([['Ana', 8]]);
+    expect(result).toEqual({
+      items: [
+        {
+          profileId: row.id,
+          displayName: 'Ana Pública',
+          avatarUrl: 'https://example.test/avatar.png',
+        },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain('private-skill');
+    expect(JSON.stringify(result)).not.toContain('Private headline');
+    expect(JSON.stringify(result)).not.toContain('careerDiscoveryOptIn');
   });
 });

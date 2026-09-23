@@ -120,6 +120,12 @@ export class Profile {
 
 export const ProfileSchema = SchemaFactory.createForClass(Profile);
 
+ProfileSchema.index({
+  'visibility.about': 1,
+  displayName: 1,
+  id: 1,
+});
+
 @Schema({ collection: 'profile_activities', timestamps: true })
 export class ProfileActivity {
   @Prop({ required: true, unique: true, index: true })

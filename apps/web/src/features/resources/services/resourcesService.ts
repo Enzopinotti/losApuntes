@@ -114,11 +114,13 @@ export const resourcesApi = {
   search: (input: {
     q?: string;
     visibility?: ResourceVisibility;
+    subjectId?: string;
     cursor?: string;
   }) => {
     const query = new URLSearchParams();
     if (input.q) query.set("q", input.q);
     if (input.visibility) query.set("visibility", input.visibility);
+    if (input.subjectId) query.set("subjectId", input.subjectId);
     if (input.cursor) query.set("cursor", input.cursor);
     query.set("limit", "25");
     return request<ResourceSearchResponse>(`/resources?${query.toString()}`);

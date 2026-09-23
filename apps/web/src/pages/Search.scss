@@ -1,0 +1,147 @@
+.search-page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 4rem;
+}
+
+.search-hero,
+.search-form,
+.search-group,
+.search-contextual {
+  background: #fff;
+  border: 1px solid #e8e8ee;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(20, 24, 40, 0.06);
+}
+
+.search-hero {
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.search-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5b5bd6;
+}
+
+.search-hero h1,
+.search-group h2,
+.search-contextual h2 {
+  margin-top: 0;
+}
+
+.search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px auto;
+  gap: 0.8rem;
+  align-items: end;
+  padding: 1rem;
+}
+
+.search-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.search-form input,
+.search-form select {
+  border: 1px solid #cfcfd8;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+}
+
+.search-error {
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  background: #fff0f0;
+  color: #8b1e1e;
+}
+
+.search-results {
+  margin-top: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.search-summary {
+  margin: 0;
+}
+
+.search-group {
+  padding: 1.25rem;
+}
+
+.search-group ul,
+.context-buckets ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-group li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid #ececf1;
+}
+
+.search-group li:last-child {
+  border-bottom: 0;
+}
+
+.search-group li div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.search-group span,
+.search-group small {
+  color: #626274;
+}
+
+.search-contextual {
+  margin-top: 1rem;
+  padding: 1.25rem;
+}
+
+.context-buckets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.context-buckets article {
+  border: 1px solid #ececf1;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.context-buckets h3 {
+  margin-top: 0;
+}
+
+.context-buckets li + li {
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 760px) {
+  .search-form {
+    grid-template-columns: 1fr;
+  }
+
+  .context-buckets {
+    grid-template-columns: 1fr;
+  }
+
+  .search-group li {
+    flex-direction: column;
+  }
+}

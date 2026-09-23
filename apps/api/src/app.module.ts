@@ -12,6 +12,7 @@ import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { ProfileModule } from './profile/profile.module';
 import { ResourcesModule } from './resources/resources.module';
+import { SearchDiscoveryModule } from './search/search-discovery.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { UsersModule } from './users/users.module';
     ProfileModule,
     FilesModule,
     ResourcesModule,
+    SearchDiscoveryModule,
     HealthModule,
   ],
   controllers: [AppController],
