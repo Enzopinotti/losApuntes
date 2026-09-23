@@ -10,11 +10,12 @@ import {
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
+import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
 import { CreateFileUploadIntentDto } from './dto/file.dto';
 import { FileService } from './domain/file.service';
 
 @Controller('files')
-@UseGuards(AuthSessionGuard)
+@UseGuards(AuthSessionGuard, VerifiedEmailGuard)
 export class FilesController {
   constructor(private readonly files: FileService) {}
 
