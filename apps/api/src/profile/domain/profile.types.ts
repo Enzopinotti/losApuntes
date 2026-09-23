@@ -61,7 +61,7 @@ export type ProfileRecommendationSignals = {
 };
 
 export type ProfileProfessionalSettings = {
-  headline?: string;
+  headline: string | null;
   careerDiscoveryOptIn: boolean;
 };
 
@@ -75,8 +75,8 @@ export type ProfileRecord = {
   id: string;
   userId: string;
   displayName: string;
-  bio?: string;
-  avatarUrl?: string;
+  bio: string | null;
+  avatarUrl: string | null;
   languages: string[];
   skills: string[];
   interests: string[];
@@ -96,10 +96,10 @@ export type ProfileActivityRecord = {
   userId: string;
   type: ProfileActivityType;
   title: string;
-  description?: string;
-  url?: string;
-  startedOn?: string;
-  endedOn?: string;
+  description: string | null;
+  url: string | null;
+  startedOn: string | null;
+  endedOn: string | null;
   revision: number;
   createdAt: Date;
   updatedAt: Date;
