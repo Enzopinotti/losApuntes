@@ -79,11 +79,9 @@ export class SearchDiscoveryService {
             })
         : Promise.resolve(),
       includesScope(dto.scope, 'people')
-        ? this.profiles
-            .searchPublicProfiles(query, dto.limit)
-            .then((value) => {
-              results.people = value.items;
-            })
+        ? this.profiles.searchPublicProfiles(query, dto.limit).then((value) => {
+            results.people = value.items;
+          })
         : Promise.resolve(),
     ]);
 
