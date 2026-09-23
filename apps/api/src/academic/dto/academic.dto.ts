@@ -22,6 +22,7 @@ import {
   type AcademicAuthorityTier,
   type AcademicNodeKind,
   type AcademicNodeStatus,
+  type AcademicProposalStatus,
   type SubjectParticipationState,
 } from '../domain/academic.types';
 
@@ -39,6 +40,21 @@ const PARTICIPATION_STATES: SubjectParticipationState[] = [
   'current',
   'completed',
   'dropped',
+];
+
+const PROPOSAL_STATUSES: AcademicProposalStatus[] = [
+  'pending',
+  'accepted',
+  'rejected',
+  'duplicate',
+  'superseded',
+];
+
+const PROPOSAL_REVIEW_STATUSES: Exclude<AcademicProposalStatus, 'pending'>[] = [
+  'accepted',
+  'rejected',
+  'duplicate',
+  'superseded',
 ];
 
 export class AcademicProvenanceDto {
@@ -268,4 +284,31 @@ export class CreateAcademicProposalDto {
   @IsString()
   @Length(1, 2000)
   notes?: string;
+}
+
+
+export class AcademicProposalListDto {
+  @IsOptional()
+  @IsIn(PROPOSAL_STATUSES)
+  status?: AcademicProposalStatus;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 50;
+}
+
+export class ReviewAcademicProposalDto {
+  @IsIn(PROPOSAL_REVIEW_STATUSES)
+  status!: Exclude<AcademicProposalStatus, 'pending'>;
+
+  @IsOptional()
+  @IsUUID('4')
+  canonicalTargetId?: string;
+
+  @IsString()
+  @Length(3, 1000)
+  reason!: string;
 }
