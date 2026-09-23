@@ -234,43 +234,6 @@ jobs:
       - name: Enforce critical Social Q&A coverage
         run: pnpm --filter @losapuntes/api test:social-qa:coverage
 
-  social-final-format-diagnostic:
-    name: Social final format diagnostic
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
-
-      - name: Use Node 24
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install workspace from frozen lockfile
-        run: pnpm install --frozen-lockfile
-
-      - name: Print canonical Social formatting payloads
-        run: |
-          pnpm --filter @losapuntes/api exec prettier --write \
-            src/social/domain/social.service.ts \
-            src/social/domain/social.service.spec.ts
-          for file in \
-            apps/api/src/social/domain/social.service.ts \
-            apps/api/src/social/domain/social.service.spec.ts; do
-            echo "FORMAT_FILE_BEGIN:$file"
-            base64 -w0 "$file"
-            echo
-            echo "FORMAT_FILE_END:$file"
-          done
-
   production-dependency-audit:
     name: Production dependency audit
     runs-on: ubuntu-24.04
