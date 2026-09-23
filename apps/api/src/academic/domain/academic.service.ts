@@ -19,6 +19,7 @@ import type {
 } from '../dto/academic.dto';
 import {
   ACADEMIC_STORE,
+  AcademicSourceIdentityConflictError,
   type AcademicStore,
   type CatalogSearchCursor,
 } from './academic.store';
@@ -197,8 +198,9 @@ export class AcademicService {
         .filter((alias) => normalizeName(alias) !== normalizeName(name)),
     );
 
-    const created = await this.store.runAtomically(async () => {
-      const node = await this.store.createCatalogNode({
+    const created = await this.withSourceIdentityConflict(() =>
+      this.store.runAtomically(async () => {
+        const node = await this.store.createCatalogNode({
         id: randomUUID(),
         kind: dto.kind,
         name,
@@ -221,8 +223,9 @@ export class AcademicService {
         revision: node.revision,
       });
 
-      return node;
-    });
+        return node;
+      }),
+    );
 
     return { node: publicNode(created) };
   }
@@ -274,8 +277,9 @@ export class AcademicService {
       }
     }
 
-    const updated = await this.store.runAtomically(async () => {
-      const node = await this.store.updateCatalogNode(
+    const updated = await this.withSourceIdentityConflict(() =>
+      this.store.runAtomically(async () => {
+        const node = await this.store.updateCatalogNode(
         id,
         dto.expectedRevision,
         {
@@ -314,8 +318,9 @@ export class AcademicService {
         revision: node.revision,
       });
 
-      return node;
-    });
+        return node;
+      }),
+    );
 
     return { node: publicNode(updated) };
   }
@@ -943,6 +948,23 @@ export class AcademicService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  private async withSourceIdentityConflict<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof AcademicSourceIdentityConflictError) {
+        throw new ConflictException({
+          code: 'ACADEMIC_SOURCE_IDENTITY_EXISTS',
+          message: 'Academic source identity already exists',
+        });
+      }
+
+      throw error;
+    }
   }
 
   private async audit(
