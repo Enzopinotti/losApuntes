@@ -182,13 +182,21 @@ const Resources = () => {
     resource: ResourceView,
     disposition: "inline" | "attachment",
   ) => {
+    const target = window.open("about:blank", "_blank");
+    if (target) target.opener = null;
+
     setBusyId(resource.id);
     setError(null);
 
     try {
       const result = await resourcesApi.access(resource.id, disposition);
-      window.open(result.access.url, "_blank", "noopener,noreferrer");
+      if (target) {
+        target.location.href = result.access.url;
+      } else {
+        window.location.assign(result.access.url);
+      }
     } catch (nextError) {
+      target?.close();
       setError(messageFor(nextError));
     } finally {
       setBusyId(null);
