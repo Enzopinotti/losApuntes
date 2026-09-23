@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -249,15 +244,25 @@ const Questions = () => {
     <section className="community-page" aria-labelledby="questions-title">
       <header className="community-hero">
         <p className="community-eyebrow">Preguntas y respuestas</p>
-        <h1 id="questions-title">Resolver dudas dentro del contexto académico</h1>
+        <h1 id="questions-title">
+          Resolver dudas dentro del contexto académico
+        </h1>
         <p>
           Las preguntas conservan su materia canónica. Leer es público; publicar
           requiere una cuenta verificada y un perfil.
         </p>
       </header>
 
-      {feedback && <p className="community-success" role="status">{feedback}</p>}
-      {error && <p className="community-error" role="alert">{error}</p>}
+      {feedback && (
+        <p className="community-success" role="status">
+          {feedback}
+        </p>
+      )}
+      {error && (
+        <p className="community-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <form
         className="community-search"
@@ -316,7 +321,11 @@ const Questions = () => {
                 ))}
               </ul>
             )}
-            {subject && <p>Materia: <strong>{subject.name}</strong></p>}
+            {subject && (
+              <p>
+                Materia: <strong>{subject.name}</strong>
+              </p>
+            )}
             <label>
               Título
               <input
@@ -387,7 +396,9 @@ const Questions = () => {
           ) : (
             <>
               <header className="community-question-header">
-                <span className="community-status">{selected.question.state}</span>
+                <span className="community-status">
+                  {selected.question.state}
+                </span>
                 <h2>{selected.question.title}</h2>
                 <p>{selected.question.body}</p>
                 <small>
@@ -498,18 +509,19 @@ const Questions = () => {
                         <p>{answer.body}</p>
                       )}
                       <div className="community-actions">
-                        {answer.viewer.canEdit && editAnswerId !== answer.id && (
-                          <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => {
-                              setEditAnswerId(answer.id);
-                              setEditAnswerBody(answer.body);
-                            }}
-                          >
-                            Editar
-                          </button>
-                        )}
+                        {answer.viewer.canEdit &&
+                          editAnswerId !== answer.id && (
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() => {
+                                setEditAnswerId(answer.id);
+                                setEditAnswerBody(answer.body);
+                              }}
+                            >
+                              Editar
+                            </button>
+                          )}
                         {selected.question.viewer.canAcceptAnswers &&
                           selected.question.acceptedAnswerId !== answer.id && (
                             <button
