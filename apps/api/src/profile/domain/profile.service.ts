@@ -237,6 +237,23 @@ export class ProfileService {
     return { profile: this.ownerProfile(updated) };
   }
 
+  async getAttributionForUser(userId: string) {
+    const profile = await this.store.findProfileByUserId(userId);
+    if (!profile) return null;
+
+    const aboutPublic = profile.visibility.about === 'public';
+    return {
+      profileId: profile.id,
+      displayName: aboutPublic ? profile.displayName : 'Usuario de Los Apuntes',
+      avatarUrl: aboutPublic ? profile.avatarUrl : null,
+    };
+  }
+
+  async resolveUserIdByProfileId(profileId: string): Promise<string | null> {
+    const profile = await this.store.findProfileById(profileId);
+    return profile?.userId ?? null;
+  }
+
   async getPublicProfile(profileId: string) {
     const profile = await this.store.findProfileById(profileId);
     if (!profile) this.profileNotFound();

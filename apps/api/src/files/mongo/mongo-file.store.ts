@@ -37,6 +37,10 @@ export class MongoFileAssetStore implements FileAssetStore {
     return toPlain<FileAssetRecord>(created);
   }
 
+  async findById(id: string): Promise<FileAssetRecord | null> {
+    return this.assets.findOne({ id }).lean<FileAssetRecord>().exec();
+  }
+
   async findOwned(
     id: string,
     creatorUserId: string,

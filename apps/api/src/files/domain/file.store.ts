@@ -10,6 +10,7 @@ export type CreateFileAssetRecord = Omit<
 export interface FileAssetStore {
   create(input: CreateFileAssetRecord): Promise<FileAssetRecord>;
   findOwned(id: string, creatorUserId: string): Promise<FileAssetRecord | null>;
+  findById(id: string): Promise<FileAssetRecord | null>;
   markReady(
     id: string,
     creatorUserId: string,

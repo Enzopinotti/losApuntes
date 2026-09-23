@@ -244,6 +244,11 @@ export class FileService {
     });
   }
 
+  async getReadyAssetForResource(id: string): Promise<FileAssetRecord | null> {
+    const asset = await this.store.findById(id);
+    return asset?.state === 'ready' ? asset : null;
+  }
+
   async createAuthorizedDownloadIntent(input: {
     asset: FileAssetRecord;
     filename: string;
