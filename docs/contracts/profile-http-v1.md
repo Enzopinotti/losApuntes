@@ -172,11 +172,16 @@ The API must not leak a private section through:
 - `PROFILE_ALREADY_EXISTS`;
 - `PROFILE_REVISION_CONFLICT`;
 - `PROFILE_ACTIVITY_NOT_FOUND`;
-- `PROFILE_ACTIVITY_REVISION_CONFLICT`.
+- `PROFILE_ACTIVITY_REVISION_CONFLICT`;
+- `PROFILE_ACTIVITY_PERIOD_INVALID`.
+
+Activity periods use coarse `YYYY` / `YYYY-MM` values. When both ends exist, the end period cannot be earlier than the start period.
 
 Validation errors use the repository-wide request-ID/error envelope.
 
 ## Client rules
+
+The Web implementation consumes this contract through cookie-authenticated, `no-store` requests. It does not persist or reconstruct an auth bearer in browser storage.
 
 Clients must not:
 
