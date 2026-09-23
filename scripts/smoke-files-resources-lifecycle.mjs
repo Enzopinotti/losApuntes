@@ -217,6 +217,45 @@ const subject = subjectSearch.body.items.find(
 );
 assert.ok(subject, 'Academic smoke must create Base de Datos subject');
 
+const wrongSizeBytes = Buffer.from(
+  '%PDF-1.7\nsize-bound-runtime\n%%EOF\n',
+  'utf8',
+);
+const wrongSizeIntent = await request(
+  '/files/upload-intents',
+  json(
+    'POST',
+    {
+      filename: 'size-bound.pdf',
+      mimeType: 'application/pdf',
+      byteSize: wrongSizeBytes.byteLength + 1,
+    },
+    author.bearer,
+  ),
+);
+assert.equal(wrongSizeIntent.response.status, 201);
+const wrongSizePut = await fetch(wrongSizeIntent.body.upload.url, {
+  method: wrongSizeIntent.body.upload.method,
+  headers: wrongSizeIntent.body.upload.headers,
+  body: wrongSizeBytes,
+  signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+});
+assert.equal(
+  wrongSizePut.ok,
+  false,
+  'Storage must reject a body whose Content-Length differs from the signed intent',
+);
+
+const wrongSizeFinalize = await request(
+  `/files/${wrongSizeIntent.body.file.id}/finalize`,
+  {
+    method: 'POST',
+    headers: { authorization: author.bearer },
+  },
+);
+assert.equal(wrongSizeFinalize.response.status, 409);
+assert.equal(wrongSizeFinalize.body.code, 'FILE_UPLOAD_INCOMPLETE');
+
 const primaryUpload = await createReadyPdf(
   author.bearer,
   'base-datos.pdf',
@@ -578,6 +617,7 @@ console.log(
     event: 'files.resources.lifecycle.smoke.ok',
     checks: [
       'direct-private-object-upload',
+      'signed-content-length-bound',
       'immutable-signed-put',
       'cross-user-file-finalize-deny',
       'finalize-idempotency',
