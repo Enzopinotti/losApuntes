@@ -35,8 +35,11 @@ export class QuestionsController {
 
   @UseGuards(OptionalAuthSessionGuard)
   @Get('questions')
-  search(@Query() query: QuestionSearchDto) {
-    return this.qa.search(query);
+  search(
+    @Req() request: OptionallyAuthenticatedRequest,
+    @Query() query: QuestionSearchDto,
+  ) {
+    return this.qa.search(query, request.user?.id);
   }
 
   @UseGuards(OptionalAuthSessionGuard)
