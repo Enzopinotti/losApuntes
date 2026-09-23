@@ -143,6 +143,78 @@ describe('ProfileService', () => {
     expect(academicService.listAffiliations).not.toHaveBeenCalled();
   });
 
+  it('provides privacy-safe resource attribution from public profile identity', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileByUserId.mockResolvedValue(
+      profile({
+        displayName: 'Enzo Pinotti',
+        avatarUrl: 'https://example.test/avatar.png',
+      }),
+    );
+
+    await expect(
+      service(profileStore, academicService).getAttributionForUser('user-1'),
+    ).resolves.toEqual({
+      profileId: '11111111-1111-4111-8111-111111111111',
+      displayName: 'Enzo Pinotti',
+      avatarUrl: 'https://example.test/avatar.png',
+    });
+  });
+
+  it('masks private profile identity in resource attribution', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileByUserId.mockResolvedValue(
+      profile({
+        displayName: 'Nombre privado',
+        avatarUrl: 'https://example.test/private.png',
+        visibility: {
+          ...profile().visibility,
+          about: 'private',
+        },
+      }),
+    );
+
+    await expect(
+      service(profileStore, academicService).getAttributionForUser('user-1'),
+    ).resolves.toEqual({
+      profileId: '11111111-1111-4111-8111-111111111111',
+      displayName: 'Usuario de Los Apuntes',
+      avatarUrl: null,
+    });
+  });
+
+  it('keeps resource attribution optional before profile onboarding', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileByUserId.mockResolvedValue(null);
+
+    await expect(
+      service(profileStore, academicService).getAttributionForUser('user-1'),
+    ).resolves.toBeNull();
+  });
+
+  it('resolves public profile ids to internal account authority without exposing it', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileById
+      .mockResolvedValueOnce(profile())
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      service(profileStore, academicService).resolveUserIdByProfileId(
+        '11111111-1111-4111-8111-111111111111',
+      ),
+    ).resolves.toBe('user-1');
+
+    await expect(
+      service(profileStore, academicService).resolveUserIdByProfileId(
+        '22222222-2222-4222-8222-222222222222',
+      ),
+    ).resolves.toBeNull();
+  });
+
   it('creates a normalized minimal profile with privacy-safe defaults', async () => {
     const profileStore = store();
     const academicService = academic();
