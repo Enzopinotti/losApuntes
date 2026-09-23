@@ -124,8 +124,7 @@ export const resourcesApi = {
     return request<ResourceSearchResponse>(`/resources?${query.toString()}`);
   },
 
-  saved: () =>
-    request<{ items: ResourceView[] }>("/resources/saved?limit=50"),
+  saved: () => request<{ items: ResourceView[] }>("/resources/saved?limit=50"),
 
   searchSubjects: async (q: string): Promise<AcademicSubjectOption[]> => {
     const query = new URLSearchParams({
