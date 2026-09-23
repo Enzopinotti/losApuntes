@@ -31,7 +31,7 @@ It does not:
 - grant Resource access;
 - change recommendation consent.
 
-Follow/unfollow is idempotent.
+Follow/unfollow is idempotent, including concurrent duplicate follow requests. Persistence uniqueness is authoritative and only the winning Follow creation emits a notification.
 
 ### Connection
 
@@ -43,7 +43,7 @@ Lifecycle:
 
 A pending request identifies the requester and intended recipient. Only the intended recipient may accept or decline it. Either accepted participant may disconnect.
 
-The unordered user pair is unique. Concurrent requests cannot create two parallel Connection objects.
+The unordered user pair is unique. Concurrent opposite-direction requests converge on one stable Connection object and exactly one request notification.
 
 Declined/disconnected pairs may be requested again; re-request creates a new pending state on the same stable relation identity.
 
@@ -109,6 +109,7 @@ Rules:
 
 - no self-notifications;
 - notification creation is atomic with the state transition that requires it;
+- `qa.answer_accepted` targets the containing Question so the notification has a stable navigable destination without granting Answer access;
 - readers may only read/mark their own notifications;
 - notification payload never becomes authorization for the linked object;
 - deleting/hiding a target later may make navigation fail closed while preserving the notification record.
