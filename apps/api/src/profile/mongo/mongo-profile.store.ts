@@ -26,7 +26,9 @@ function isDuplicateKeyError(error: unknown): boolean {
 }
 
 function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\function escapeRegex(value: string): string {
   return value.replace(/[.*+?^$\{\}()|[\]\\]/gu, '\\function toPlain<T>(value: { toObject(): unknown } | T): T {');
+}');
 }
 
 function toPlain<T>(value: { toObject(): unknown } | T): T {
