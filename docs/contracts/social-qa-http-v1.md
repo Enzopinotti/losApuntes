@@ -6,7 +6,7 @@ Authenticated mutation routes use the existing Auth session authority.
 
 Social/Q&A writes require a verified account.
 
-Public read routes may accept optional authentication but do not downgrade an invalid presented credential to anonymous.
+Public read routes validate optional authentication when a credential is presented and do not downgrade an invalid/stale credential to anonymous. This includes both `GET /questions` and `GET /questions/:id`.
 
 All public user references use Profile UUID.
 
@@ -64,6 +64,8 @@ Either participant may transition an accepted relation to disconnected.
 ## Questions
 
 ### GET /questions
+
+Anonymous-readable. If a session credential is presented, it is validated before the search executes.
 
 Optional query:
 
