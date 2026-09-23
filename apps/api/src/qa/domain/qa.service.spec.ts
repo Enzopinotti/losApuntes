@@ -26,6 +26,7 @@ function store(): jest.Mocked<QaStore> {
     createQuestion: jest.fn(),
     findQuestion: jest.fn(),
     searchQuestions: jest.fn(),
+    listFeedCandidates: jest.fn(),
     updateQuestionOwned: jest.fn(),
     listAnswers: jest.fn(),
     findAnswer: jest.fn(),
