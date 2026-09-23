@@ -473,4 +473,137 @@ describe('SocialService', () => {
       service(socialStore, profiles).listConnections('user-a', 'accepted', 20),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('paginates following with a deterministic opaque cursor', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const first = follow();
+    const second = follow({
+      id: '33333333-3333-4333-8333-333333333333',
+      followeeUserId: 'user-c',
+      createdAt: new Date('2026-09-23T14:00:00.000Z'),
+      updatedAt: new Date('2026-09-23T14:00:00.000Z'),
+    });
+    socialStore.listFollowing
+      .mockResolvedValueOnce([first, second])
+      .mockResolvedValueOnce([second]);
+    profiles.getAttributionForUser.mockImplementation((userId) =>
+      Promise.resolve({
+        profileId:
+          userId === 'user-b'
+            ? 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+            : 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        displayName: userId === 'user-b' ? 'B' : 'C',
+        avatarUrl: null,
+      }),
+    );
+
+    const instance = service(socialStore, profiles);
+    const page = await instance.listFollowing('user-a', 1);
+
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).not.toBeNull();
+    expect(socialStore.listFollowing).toHaveBeenCalledWith(
+      'user-a',
+      2,
+      undefined,
+    );
+
+    const next = await instance.listFollowing(
+      'user-a',
+      1,
+      page.nextCursor ?? undefined,
+    );
+
+    expect(next.items[0]?.profile.profileId).toBe(
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    );
+    expect(socialStore.listFollowing).toHaveBeenLastCalledWith('user-a', 2, {
+      at: now,
+      id: first.id,
+    });
+  });
+
+  it('rejects malformed social cursors before persistence reads', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const instance = service(socialStore, profiles);
+
+    await expect(
+      instance.listFollowing('user-a', 20, 'invalid-cursor'),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    await expect(
+      instance.listConnections(
+        'user-a',
+        undefined,
+        20,
+        Buffer.from(
+          JSON.stringify({ at: 'not-a-date', id: 'connection' }),
+          'utf8',
+        ).toString('base64url'),
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(socialStore.listFollowing).not.toHaveBeenCalled();
+    expect(socialStore.listConnections).not.toHaveBeenCalled();
+  });
+
+  it('paginates connections by updatedAt and stable id', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const first = connection({ status: 'accepted', respondedAt: now });
+    const second = connection({
+      id: '44444444-4444-4444-8444-444444444444',
+      userLowId: 'user-a',
+      userHighId: 'user-c',
+      requestedByUserId: 'user-c',
+      status: 'accepted',
+      respondedAt: new Date('2026-09-23T14:00:00.000Z'),
+      updatedAt: new Date('2026-09-23T14:00:00.000Z'),
+    });
+    socialStore.listConnections
+      .mockResolvedValueOnce([first, second])
+      .mockResolvedValueOnce([second]);
+    profiles.getAttributionForUser.mockImplementation((userId) =>
+      Promise.resolve({
+        profileId:
+          userId === 'user-b'
+            ? 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+            : 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        displayName: userId === 'user-b' ? 'B' : 'C',
+        avatarUrl: null,
+      }),
+    );
+
+    const instance = service(socialStore, profiles);
+    const page = await instance.listConnections('user-a', 'accepted', 1);
+
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).not.toBeNull();
+    expect(socialStore.listConnections).toHaveBeenCalledWith(
+      'user-a',
+      'accepted',
+      2,
+      undefined,
+    );
+
+    await instance.listConnections(
+      'user-a',
+      'accepted',
+      1,
+      page.nextCursor ?? undefined,
+    );
+
+    expect(socialStore.listConnections).toHaveBeenLastCalledWith(
+      'user-a',
+      'accepted',
+      2,
+      {
+        at: now,
+        id: first.id,
+      },
+    );
+  });
+
 });
