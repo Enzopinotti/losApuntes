@@ -63,10 +63,7 @@ export class ResourcesController {
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
   @Post()
-  create(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: CreateResourceDto,
-  ) {
+  create(@Req() request: AuthenticatedRequest, @Body() dto: CreateResourceDto) {
     return this.resources.create(request.user.id, dto);
   }
 
@@ -139,11 +136,6 @@ export class ResourcesController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: CreateResourceReportDto,
   ) {
-    return this.resources.report(
-      request.user.id,
-      id,
-      dto.reason,
-      dto.details,
-    );
+    return this.resources.report(request.user.id, id, dto.reason, dto.details);
   }
 }
