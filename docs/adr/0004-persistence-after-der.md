@@ -29,6 +29,8 @@ For the current runtime:
 
 For Academic Graph v1 the boundary is `AcademicStore`.
 
+Academic mutations that require audit execute through `AcademicStore.runAtomically`. The Mongo adapter backs this with database transactions; therefore the runtime Mongo deployment must be transaction-capable (replica set or equivalent managed topology). Local/CI uses a single-node replica set so this property is continuously exercised.
+
 This is an interim persistence implementation decision, not a declaration that MongoDB is the permanent product database.
 
 ## Why this is acceptable before the DER
@@ -104,7 +106,7 @@ A future adapter/migration must preserve:
 - historical affiliations;
 - current-context validation;
 - Auth credential/session race guarantees;
-- durable audit where required;
+- atomic mutation + durable audit where required;
 - explicit schema/data migration with rollback.
 
 ## Migration discipline
