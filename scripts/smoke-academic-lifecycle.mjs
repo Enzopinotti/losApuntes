@@ -396,6 +396,33 @@ const duplicateInstitution = await createNode({
   },
 });
 
+const duplicateProgram = await createNode({
+  kind: 'program',
+  name: 'Programa bajo institución fusionada',
+  parentIds: [duplicateInstitution.id],
+  provenance: {
+    authorityTier: 'C',
+    sourceKey: 'runtime-smoke',
+    sourceUrl: 'https://example.test/runtime',
+    externalId: 'program-under-merged-institution',
+  },
+});
+
+const legacyAffiliationResult = await request(
+  '/academic/me/affiliations',
+  json(
+    'POST',
+    {
+      institutionId: duplicateInstitution.id,
+      programId: duplicateProgram.id,
+      status: 'active',
+    },
+    bearer,
+  ),
+);
+assert.equal(legacyAffiliationResult.response.status, 201);
+const legacyAffiliationId = legacyAffiliationResult.body.affiliation.id;
+
 const mergeResult = await request(
   `/academic/admin/catalog/${duplicateInstitution.id}/merge`,
   json(
@@ -417,6 +444,26 @@ const redirected = await request(
 assert.equal(redirected.response.status, 200);
 assert.equal(redirected.body.node.id, institution.id);
 assert.equal(redirected.body.resolvedFromId, duplicateInstitution.id);
+
+const mergedChildren = await request(
+  `/academic/catalog/${institution.id}/children?kind=program&limit=50`,
+);
+assert.equal(mergedChildren.response.status, 200);
+assert.equal(
+  mergedChildren.body.items.some((item) => item.id === duplicateProgram.id),
+  true,
+);
+
+const affiliationsAfterMerge = await request('/academic/me/affiliations', {
+  headers: { authorization: bearer },
+});
+assert.equal(affiliationsAfterMerge.response.status, 200);
+const canonicalizedLegacyAffiliation =
+  affiliationsAfterMerge.body.affiliations.find(
+    (affiliation) => affiliation.id === legacyAffiliationId,
+  );
+assert.equal(canonicalizedLegacyAffiliation.institutionId, institution.id);
+assert.equal(canonicalizedLegacyAffiliation.programId, duplicateProgram.id);
 
 const auditCountScript = [
   "const count = db.academic_audit_events.countDocuments({});",
@@ -459,6 +506,9 @@ console.log(
       'proposal-admin-review',
       'proposal-review-replay-conflict',
       'merge-redirect',
+      'merge-preserves-child-discovery',
+      'merge-canonicalizes-affiliation-projection',
+      'transaction-backed-audit',
       'durable-audit',
     ],
   }),
