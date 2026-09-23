@@ -47,6 +47,7 @@ export type UpdateProfileActivityRecord = Partial<
 export interface ProfileStore {
   findProfileByUserId(userId: string): Promise<ProfileRecord | null>;
   findProfileById(id: string): Promise<ProfileRecord | null>;
+  searchPublicProfiles(query: string, limit: number): Promise<ProfileRecord[]>;
   createProfile(input: CreateProfileRecord): Promise<ProfileRecord>;
   updateProfile(
     userId: string,
