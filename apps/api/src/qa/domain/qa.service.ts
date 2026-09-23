@@ -270,8 +270,8 @@ export class QaService {
               userId: answer.authorUserId,
               type: 'qa.answer_accepted' as const,
               actorUserId: userId,
-              targetType: 'answer' as const,
-              targetId: answerId,
+              targetType: 'question' as const,
+              targetId: questionId,
               readAt: null,
             },
           }
