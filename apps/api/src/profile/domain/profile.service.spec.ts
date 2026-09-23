@@ -84,6 +84,7 @@ function store(): jest.Mocked<ProfileStore> {
   return {
     findProfileByUserId: jest.fn(),
     findProfileById: jest.fn(),
+    findProfilesByUserIds: jest.fn(),
     searchPublicProfiles: jest.fn(),
     createProfile: jest.fn(),
     updateProfile: jest.fn(),
