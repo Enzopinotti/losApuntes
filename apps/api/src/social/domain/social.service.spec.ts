@@ -130,18 +130,15 @@ describe('SocialService', () => {
     );
 
     expect(result).toEqual({ following: true });
-    expect(socialStore.follow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        followerUserId: 'user-a',
-        followeeUserId: 'user-b',
-        notification: expect.objectContaining({
-          userId: 'user-b',
-          actorUserId: 'user-a',
-          type: 'social.followed',
-          targetType: 'profile',
-          targetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-        }),
-      }),
+    const followCall = socialStore.follow.mock.calls[0]?.[0];
+    expect(followCall?.followerUserId).toBe('user-a');
+    expect(followCall?.followeeUserId).toBe('user-b');
+    expect(followCall?.notification.userId).toBe('user-b');
+    expect(followCall?.notification.actorUserId).toBe('user-a');
+    expect(followCall?.notification.type).toBe('social.followed');
+    expect(followCall?.notification.targetType).toBe('profile');
+    expect(followCall?.notification.targetId).toBe(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     );
   });
 
@@ -267,17 +264,14 @@ describe('SocialService', () => {
     );
 
     expect(result.connection.status).toBe('accepted');
-    expect(socialStore.respondConnection).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: pending.id,
-        recipientUserId: 'user-b',
-        status: 'accepted',
-        notification: expect.objectContaining({
-          userId: 'user-a',
-          actorUserId: 'user-b',
-          type: 'social.connection_accepted',
-        }),
-      }),
+    const respondCall = socialStore.respondConnection.mock.calls[0]?.[0];
+    expect(respondCall?.id).toBe(pending.id);
+    expect(respondCall?.recipientUserId).toBe('user-b');
+    expect(respondCall?.status).toBe('accepted');
+    expect(respondCall?.notification?.userId).toBe('user-a');
+    expect(respondCall?.notification?.actorUserId).toBe('user-b');
+    expect(respondCall?.notification?.type).toBe(
+      'social.connection_accepted',
     );
   });
 
@@ -400,17 +394,14 @@ describe('SocialService', () => {
         incoming: false,
       }),
     );
-    expect(socialStore.requestConnection).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requesterUserId: 'user-a',
-        targetUserId: 'user-b',
-        notification: expect.objectContaining({
-          type: 'social.connection_requested',
-          userId: 'user-b',
-          actorUserId: 'user-a',
-        }),
-      }),
+    const requestCall = socialStore.requestConnection.mock.calls[0]?.[0];
+    expect(requestCall?.requesterUserId).toBe('user-a');
+    expect(requestCall?.targetUserId).toBe('user-b');
+    expect(requestCall?.notification.type).toBe(
+      'social.connection_requested',
     );
+    expect(requestCall?.notification.userId).toBe('user-b');
+    expect(requestCall?.notification.actorUserId).toBe('user-a');
   });
 
   it('rejects response once the connection is no longer pending', async () => {
