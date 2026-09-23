@@ -141,10 +141,10 @@ describe('PilotService', () => {
     dependencies.profiles.getOwnerProfile.mockResolvedValue({
       profile: { id: 'profile-1' },
       onboardingRequired: false,
-    } as never);
+    });
     dependencies.academic.getCurrentContext.mockResolvedValue({
       context: { affiliationId: 'aff-1' },
-    } as never);
+    });
     dependencies.academic.listSubjectParticipations.mockResolvedValue({
       participations: [
         { subjectId: 'subject-b', state: 'current' },
@@ -152,17 +152,17 @@ describe('PilotService', () => {
         { subjectId: 'subject-a', state: 'current' },
         { subjectId: 'subject-c', state: 'completed' },
       ],
-    } as never);
+    });
     dependencies.feeds.academicFeed.mockResolvedValue({
       items: [{ id: 'academic-1' }],
       nextCursor: null,
       stopReason: 'end',
-    } as never);
+    });
     dependencies.feeds.forYou.mockResolvedValue({
       items: [{ id: 'for-you-1' }],
       nextCursor: null,
       stopReason: 'end',
-    } as never);
+    });
     dependencies.notifications.countUnread.mockResolvedValue({
       unreadCount: 3,
     });
@@ -207,12 +207,12 @@ describe('PilotService', () => {
       items: [],
       nextCursor: null,
       stopReason: 'empty',
-    } as never);
+    });
     dependencies.feeds.forYou.mockResolvedValue({
       items: [],
       nextCursor: null,
       stopReason: 'empty',
-    } as never);
+    });
     dependencies.notifications.countUnread.mockResolvedValue({
       unreadCount: 0,
     });
@@ -253,7 +253,7 @@ describe('PilotService', () => {
         action: 'hide',
       }),
     );
-    expect(pilotStore.listModeration).toHaveBeenCalledWith({
+    expect(pilotStore.listModeration.mock.calls[0]?.[0]).toEqual({
       status: 'resolved',
       limit: 20,
     });
@@ -281,7 +281,7 @@ describe('PilotService', () => {
     );
 
     expect(result.item.status).toBe('dismissed');
-    expect(pilotStore.reviewModeration).toHaveBeenCalledWith(
+    expect(pilotStore.reviewModeration.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         kind: 'resource',
         operatorUserId: 'operator-1',
@@ -359,7 +359,7 @@ describe('PilotService', () => {
     pilotStore.metrics.mockResolvedValue(metrics());
     dependencies.academic.getCatalogNode.mockResolvedValue({
       node: { name: 'Base de Datos' },
-    } as never);
+    });
 
     const result = await service(pilotStore, dependencies).metrics(14, now);
 
@@ -369,7 +369,7 @@ describe('PilotService', () => {
     expect(result.contributions.contributionRate).toBe(75);
     expect(result.moderation.oldestPendingAt).toBe('2026-09-20T18:00:00.000Z');
     expect(result.subjects[0]?.subjectName).toBe('Base de Datos');
-    expect(pilotStore.metrics).toHaveBeenCalledWith({
+    expect(pilotStore.metrics.mock.calls[0]?.[0]).toEqual({
       from: new Date('2026-09-09T18:00:00.000Z'),
       to: now,
       previousFrom: new Date('2026-08-26T18:00:00.000Z'),
@@ -431,7 +431,7 @@ describe('PilotService', () => {
         service(pilotStore, dependencies).metrics(days, now),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-      expect(pilotStore.metrics).not.toHaveBeenCalled();
+      expect(pilotStore.metrics.mock.calls).toHaveLength(0);
     },
   );
 });
