@@ -244,10 +244,10 @@ describe('ResourceService', () => {
       'resource.id',
       resource().id,
     );
-    expect(resourceStore.hasShare).toHaveBeenCalledWith(
+    expect(resourceStore.hasShare.mock.calls).toContainEqual([
       resource().id,
       'viewer-2',
-    );
+    ]);
   });
 
   it('updates metadata with optimistic concurrency and rejects empty writes', async () => {
@@ -306,10 +306,10 @@ describe('ResourceService', () => {
         '44444444-4444-4444-8444-444444444444',
       ),
     ).resolves.toEqual({ shared: true });
-    expect(resourceStore.upsertShare).toHaveBeenCalledWith(
+    expect(resourceStore.upsertShare.mock.calls).toContainEqual([
       resource().id,
       'viewer-2',
-    );
+    ]);
 
     deps.profiles.resolveUserIdByProfileId.mockResolvedValueOnce('author-1');
     await expect(
@@ -328,20 +328,26 @@ describe('ResourceService', () => {
       resource({ visibility: 'private' }),
     );
 
-    await expect(
-      service(resourceStore, deps).grantShare(
+    try {
+      await service(resourceStore, deps).grantShare(
         'author-1',
         resource().id,
         '44444444-4444-4444-8444-444444444444',
-      ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
+      );
+      throw new Error('Expected share visibility conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConflictException);
+      if (!(error instanceof ConflictException)) throw error;
+      expect(error.getResponse()).toEqual({
         code: 'RESOURCE_SHARE_VISIBILITY_REQUIRED',
-      }),
-    });
+        message: 'Resource must be shared before granting explicit access',
+      });
+    }
 
-    expect(deps.profiles.resolveUserIdByProfileId).not.toHaveBeenCalled();
-    expect(resourceStore.upsertShare).not.toHaveBeenCalled();
+    expect(
+      deps.profiles.resolveUserIdByProfileId.mock.calls,
+    ).toHaveLength(0);
+    expect(resourceStore.upsertShare.mock.calls).toHaveLength(0);
   });
 
   it('saved resources never grant access after privacy changes', async () => {
@@ -373,7 +379,7 @@ describe('ResourceService', () => {
       limit: 25,
     });
 
-    expect(resourceStore.searchAuthorized).toHaveBeenCalledWith(
+    expect(resourceStore.searchAuthorized.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ q: 'base de datos', limit: 25 }),
     );
     expect(typeof result.nextCursor).toBe('string');
@@ -444,7 +450,7 @@ describe('ResourceService', () => {
     );
 
     expect(result.report.status).toBe('pending');
-    expect(resourceStore.upsertPendingReport).toHaveBeenCalledWith(
+    expect(resourceStore.upsertPendingReport.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         resourceId: resource().id,
         reporterUserId: 'viewer-2',
@@ -495,7 +501,7 @@ describe('ResourceService', () => {
       cursor: first.nextCursor!,
     });
 
-    expect(resourceStore.searchAuthorized).toHaveBeenLastCalledWith(
+    expect(resourceStore.searchAuthorized.mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({
         viewerUserId: 'viewer-2',
         after: {
@@ -523,22 +529,31 @@ describe('ResourceService', () => {
         '44444444-4444-4444-8444-444444444444',
       ),
     ).resolves.toBeUndefined();
-    expect(resourceStore.removeShare).not.toHaveBeenCalled();
+    expect(resourceStore.removeShare.mock.calls).toHaveLength(0);
 
     await service(resourceStore, deps).revokeShare(
       'author-1',
       row.id,
       '44444444-4444-4444-8444-444444444444',
     );
-    expect(resourceStore.removeShare).toHaveBeenCalledWith(row.id, 'viewer-2');
+    expect(resourceStore.removeShare.mock.calls).toContainEqual([
+      row.id,
+      'viewer-2',
+    ]);
 
     await expect(
       service(resourceStore, deps).save('viewer-2', row.id),
     ).resolves.toEqual({ saved: true });
-    expect(resourceStore.upsertSave).toHaveBeenCalledWith(row.id, 'viewer-2');
+    expect(resourceStore.upsertSave.mock.calls).toContainEqual([
+      row.id,
+      'viewer-2',
+    ]);
 
     await service(resourceStore, deps).unsave('viewer-2', row.id);
-    expect(resourceStore.removeSave).toHaveBeenCalledWith(row.id, 'viewer-2');
+    expect(resourceStore.removeSave.mock.calls).toContainEqual([
+      row.id,
+      'viewer-2',
+    ]);
   });
 
   it('hides moderated resources and rejects cross-user owner mutations', async () => {
@@ -619,7 +634,7 @@ describe('ResourceService', () => {
 
     await service(resourceStore, deps).report('viewer-2', row.id, 'other');
 
-    expect(resourceStore.upsertPendingReport).toHaveBeenCalledWith(
+    expect(resourceStore.upsertPendingReport.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ details: null }),
     );
   });
@@ -667,7 +682,7 @@ describe('ResourceService', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    expect(resourceStore.upsertShare).not.toHaveBeenCalled();
+    expect(resourceStore.upsertShare.mock.calls).toHaveLength(0);
   });
 
   it('ignores orphaned saved relations instead of treating them as authority', async () => {
