@@ -25,6 +25,38 @@ describe('resource MIME verification', () => {
     );
   });
 
+  it('rejects truncated and mismatched image signatures', () => {
+    expect(
+      verifyResourceMimeType(new Uint8Array([0xff, 0xd8]), 'image/jpeg'),
+    ).toBeNull();
+    expect(
+      verifyResourceMimeType(
+        new Uint8Array([0xff, 0xd8, 0xff, 0x00]),
+        'image/png',
+      ),
+    ).toBeNull();
+    expect(
+      verifyResourceMimeType(
+        new Uint8Array([
+          0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        ]),
+        'image/jpeg',
+      ),
+    ).toBeNull();
+    expect(
+      verifyResourceMimeType(
+        new Uint8Array(Buffer.from('RIFF0000NOPE')),
+        'image/webp',
+      ),
+    ).toBeNull();
+    expect(
+      verifyResourceMimeType(
+        new Uint8Array(Buffer.from('RIFF0000WEBP')),
+        'image/png',
+      ),
+    ).toBeNull();
+  });
+
   it('rejects unsupported or spoofed bytes', () => {
     expect(normalizeResourceMimeType('text/html')).toBeNull();
     expect(
