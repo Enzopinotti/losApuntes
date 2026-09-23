@@ -22,10 +22,7 @@ import {
   UpdateFeedPreferencesDto,
 } from './dto/feed.dto';
 import { FeedService } from './domain/feed.service';
-import {
-  FEED_TARGET_TYPES,
-  type FeedTargetType,
-} from './domain/feed.types';
+import { FEED_TARGET_TYPES, type FeedTargetType } from './domain/feed.types';
 
 @Controller('feeds')
 @UseGuards(AuthSessionGuard)
@@ -33,18 +30,12 @@ export class FeedsController {
   constructor(private readonly feeds: FeedService) {}
 
   @Get('academic')
-  academic(
-    @Req() request: AuthenticatedRequest,
-    @Query() query: FeedPageDto,
-  ) {
+  academic(@Req() request: AuthenticatedRequest, @Query() query: FeedPageDto) {
     return this.feeds.academicFeed(request.user.id, query);
   }
 
   @Get('for-you')
-  forYou(
-    @Req() request: AuthenticatedRequest,
-    @Query() query: ForYouFeedDto,
-  ) {
+  forYou(@Req() request: AuthenticatedRequest, @Query() query: ForYouFeedDto) {
     return this.feeds.forYou(request.user.id, query);
   }
 
@@ -82,11 +73,7 @@ export class FeedsController {
     @Param('type') type: string,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
   ) {
-    return this.feeds.clearFeedback(
-      request.user.id,
-      this.targetType(type),
-      id,
-    );
+    return this.feeds.clearFeedback(request.user.id, this.targetType(type), id);
   }
 
   private targetType(value: string): FeedTargetType {
