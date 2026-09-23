@@ -251,7 +251,8 @@ export class MongoPilotStore implements PilotStore {
   }): Promise<PilotMetricsSnapshot> {
     const users = this.connection.collection('users');
     const profiles = this.connection.collection('profiles');
-    const events = this.connection.collection<PilotEventDocument>('pilot_events');
+    const events =
+      this.connection.collection<PilotEventDocument>('pilot_events');
     const resourceReports = this.connection.collection('resource_reports');
     const qaReports = this.connection.collection('qa_reports');
 
@@ -431,12 +432,13 @@ export class MongoPilotStore implements PilotStore {
         right.openQuestions - left.openQuestions ||
         left.subjectId.localeCompare(right.subjectId),
     );
-    const oldestPendingAt = [
-      oldestResource?.createdAt as Date | undefined,
-      oldestQa?.createdAt as Date | undefined,
-    ]
-      .filter((value): value is Date => value instanceof Date)
-      .sort((left, right) => left.getTime() - right.getTime())[0] ?? null;
+    const oldestPendingAt =
+      [
+        oldestResource?.createdAt as Date | undefined,
+        oldestQa?.createdAt as Date | undefined,
+      ]
+        .filter((value): value is Date => value instanceof Date)
+        .sort((left, right) => left.getTime() - right.getTime())[0] ?? null;
 
     return {
       window: {
@@ -447,8 +449,7 @@ export class MongoPilotStore implements PilotStore {
       onboarding: {
         accountsCreated: onboarding.accountsCreated,
         profilesCompleted: onboarding.profilesCompleted,
-        dropOff:
-          onboarding.accountsCreated - onboarding.profilesCompleted,
+        dropOff: onboarding.accountsCreated - onboarding.profilesCompleted,
       },
       search: {
         searches,
