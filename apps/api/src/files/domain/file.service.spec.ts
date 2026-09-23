@@ -182,6 +182,9 @@ describe('FileService', () => {
     fileStore.findOwned.mockResolvedValue(pending);
     objectStorage.headObject.mockResolvedValue({
       byteSize: 9,
+    fileStore.markFailed.mockResolvedValue(
+      asset({ state: 'failed', failureCode: 'SIZE_MISMATCH' }),
+    );
       contentType: 'application/pdf',
       etag: null,
     });
@@ -216,6 +219,12 @@ describe('FileService', () => {
     });
     objectStorage.readPrefix.mockResolvedValue(
       new Uint8Array(Buffer.from('NOTPDF!!')),
+    );
+    fileStore.markFailed.mockResolvedValue(
+      asset({
+        state: 'failed',
+        failureCode: 'CONTENT_SIGNATURE_MISMATCH',
+      }),
     );
 
     await expect(
@@ -352,6 +361,12 @@ describe('FileService', () => {
       contentType: 'image/png',
       etag: null,
     });
+    fileStore.markFailed.mockResolvedValue(
+      asset({
+        state: 'failed',
+        failureCode: 'CONTENT_TYPE_MISMATCH',
+      }),
+    );
 
     await expect(
       new FileService(fileStore, objectStorage).finalize(
@@ -500,6 +515,119 @@ describe('FileService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(objectStorage.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it('keeps cross-user or missing upload ids opaque', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    fileStore.findOwned.mockResolvedValue(null);
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-2',
+        asset().id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('fails loudly on corrupted ready metadata instead of issuing access', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    fileStore.findOwned.mockResolvedValue(
+      asset({
+        state: 'ready',
+        verifiedMimeType: undefined,
+        actualByteSize: undefined,
+        readyAt: undefined,
+      }),
+    );
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        asset().id,
+        now,
+      ),
+    ).rejects.toThrow('Ready file asset is incomplete');
+  });
+
+  it('treats a missing stored Content-Type as an invalid finalized upload', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+
+    fileStore.findOwned.mockResolvedValue(pending);
+    fileStore.markFailed.mockResolvedValue(
+      asset({
+        state: 'failed',
+        failureCode: 'CONTENT_TYPE_MISMATCH',
+      }),
+    );
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: pending.expectedByteSize,
+      contentType: null,
+      etag: null,
+    });
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(objectStorage.deleteObject).toHaveBeenCalledWith(pending.objectKey);
+  });
+
+  it('returns a complete ready asset to an already-authorized Resource', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const ready = asset({
+      state: 'ready',
+      verifiedMimeType: 'application/pdf',
+      actualByteSize: 8,
+      readyAt: now,
+    });
+    fileStore.findById.mockResolvedValue(ready);
+
+    await expect(
+      new FileService(fileStore, objectStorage).getReadyAssetForResource(
+        ready.id,
+      ),
+    ).resolves.toBe(ready);
+  });
+
+  it('does not mask invalid bytes when best-effort failed-upload deletion is unavailable', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+
+    fileStore.findOwned.mockResolvedValue(pending);
+    fileStore.markFailed.mockResolvedValue(
+      asset({
+        state: 'failed',
+        failureCode: 'CONTENT_SIGNATURE_MISMATCH',
+      }),
+    );
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: 8,
+      contentType: 'application/pdf',
+      etag: null,
+    });
+    objectStorage.readPrefix.mockResolvedValue(
+      new Uint8Array(Buffer.from('NOTPDF!!')),
+    );
+    objectStorage.deleteObject.mockRejectedValue(new Error('storage delete'));
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
   it('reclaims expired objects and leaves failed deletes retryable', async () => {
