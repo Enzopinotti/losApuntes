@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import AccountRestricted from "../pages/AccountRestricted";
+import AdminPilot from "../pages/AdminPilot";
 import Dashboard from "../pages/Dashboard";
 import Feeds from "../pages/Feeds";
 import ForgotPassword from "../pages/ForgotPassword";
@@ -74,6 +75,14 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <Notifications />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "admin/pilot",
+        element: (
+          <PrivateRoute>
+            <AdminPilot />
           </PrivateRoute>
         ),
       },

@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
+import type { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { SocialStore } from './social.store';
 import { SocialService } from './social.service';
@@ -40,7 +41,13 @@ function service(
   socialStore: jest.Mocked<SocialStore>,
   profiles: jest.Mocked<ProfileApi>,
 ) {
-  return new SocialService(socialStore, profiles as unknown as ProfileService);
+  return new SocialService(
+    socialStore,
+    profiles as unknown as ProfileService,
+    {
+      recordBestEffort: jest.fn().mockResolvedValue(undefined),
+    } as unknown as PilotEventService,
+  );
 }
 
 function connection(

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { AcademicService } from '../../academic/domain/academic.service';
+import { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import { ProfileService } from '../../profile/domain/profile.service';
 import { ResourceService } from '../../resources/domain/resource.service';
 import type {
@@ -23,6 +24,7 @@ export class SearchDiscoveryService {
     private readonly resources: ResourceService,
     private readonly academic: AcademicService,
     private readonly profiles: ProfileService,
+    private readonly events: PilotEventService,
   ) {}
 
   async search(viewerUserId: string | undefined, dto: SearchQueryDto) {
@@ -84,6 +86,18 @@ export class SearchDiscoveryService {
           })
         : Promise.resolve(),
     ]);
+
+    const resultCount =
+      results.resources.length +
+      results.subjects.length +
+      results.people.length;
+
+    await this.events.recordBestEffort({
+      event: 'pilot.search_performed',
+      ...(viewerUserId ? { userId: viewerUserId } : {}),
+      ...(canonicalSubjectId ? { subjectId: canonicalSubjectId } : {}),
+      resultCount,
+    });
 
     return {
       query,

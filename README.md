@@ -35,6 +35,10 @@ Ver `docs/architecture/engineering-guardrails.md`.
 - [Search + contextual discovery v1](docs/domain/search-discovery-v1.md)
 - [Search + contextual discovery HTTP v1](docs/contracts/search-discovery-http-v1.md)
 - [Search + contextual discovery completion matrix](docs/product/search-discovery-v1-completion-matrix.md)
+- [Pilot Operations v1](docs/domain/pilot-ops-v1.md)
+- [Pilot HTTP v1](docs/contracts/pilot-ops-http-v1.md)
+- [Pilot completion matrix](docs/product/pilot-v1-completion-matrix.md)
+- [Pilot operational runbook](docs/operations/pilot-v1-runbook.md)
 
 El Mongo actual es un adapter de runtime, no la definición eterna del dominio.
 
@@ -96,7 +100,7 @@ pnpm audit:prod
 
 `pnpm check` ejecuta higiene, formato, lint, typecheck, tests y builds.
 
-La CI agrega gates críticos específicos de Auth, Academic Graph, Profile, Files/Resources y Search, además del audit de dependencias y el smoke del stack real.
+La CI agrega gates críticos específicos de Auth, Academic Graph, Profile, Files/Resources, Search, Social/Q&A, Feeds y Pilot, además del audit de dependencias y el smoke del stack real.
 
 ## Laboratorio local
 
@@ -107,7 +111,7 @@ pnpm runtime:smoke
 
 El stack publica el API en `http://localhost:4000`.
 
-El smoke cubre runtime base, Auth, Academic Graph, Profile, Files/Resources y Search/Contextual Discovery contra Mongo replica-set y MinIO efímeros.
+El smoke cubre runtime base, Auth, Academic Graph, Profile, Files/Resources, Search/Contextual Discovery, Social/Q&A, Feeds y Pilot Operations contra Mongo replica-set y MinIO efímeros.
 
 Para logs:
 

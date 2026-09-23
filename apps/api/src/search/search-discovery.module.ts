@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
+import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { ProfileModule } from '../profile/profile.module';
 import { ResourcesModule } from '../resources/resources.module';
 import { UsersModule } from '../users/users.module';
@@ -14,6 +15,7 @@ import { SearchDiscoveryController } from './search-discovery.controller';
     UsersModule,
     AcademicModule,
     ProfileModule,
+    PilotTelemetryModule,
     ResourcesModule,
   ],
   providers: [SearchDiscoveryService],

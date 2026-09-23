@@ -3,9 +3,11 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   QA_MODERATION_STATES,
   QA_REPORT_REASONS,
+  QA_REPORT_STATUSES,
   QUESTION_STATES,
   type QaModerationState,
   type QaReportReason,
+  type QaReportStatus,
   type QuestionState,
 } from '../domain/qa.types';
 
@@ -107,8 +109,25 @@ export class QaReport {
   @Prop({ type: String, default: null })
   details!: string | null;
 
-  @Prop({ required: true, enum: ['pending'], default: 'pending', index: true })
-  status!: 'pending';
+  @Prop({
+    required: true,
+    enum: QA_REPORT_STATUSES,
+    default: 'pending',
+    index: true,
+  })
+  status!: QaReportStatus;
+
+  @Prop()
+  reviewedByUserId?: string;
+
+  @Prop({ type: Date })
+  reviewedAt?: Date;
+
+  @Prop()
+  reviewReason?: string;
+
+  @Prop({ enum: ['hide', 'restore', 'dismiss'] })
+  reviewAction?: 'hide' | 'restore' | 'dismiss';
 
   createdAt!: Date;
   updatedAt!: Date;
@@ -119,3 +138,4 @@ QaReportSchema.index(
   { targetType: 1, targetId: 1, reporterUserId: 1, status: 1 },
   { unique: true },
 );
+QaReportSchema.index({ status: 1, createdAt: 1, id: 1 });

@@ -1,4 +1,5 @@
 import type { AcademicService } from '../../academic/domain/academic.service';
+import type { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { ResourceService } from '../../resources/domain/resource.service';
 import { SearchDiscoveryService } from './search-discovery.service';
@@ -43,6 +44,9 @@ function service(
     resourceApi as unknown as ResourceService,
     academicApi as unknown as AcademicService,
     profileApi as unknown as ProfileService,
+    {
+      recordBestEffort: jest.fn().mockResolvedValue(undefined),
+    } as unknown as PilotEventService,
   );
 }
 

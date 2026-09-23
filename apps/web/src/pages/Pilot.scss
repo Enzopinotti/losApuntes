@@ -1,0 +1,252 @@
+.pilot-page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 4rem;
+}
+
+.pilot-landing {
+  min-height: 58vh;
+  display: grid;
+  align-items: center;
+}
+
+.pilot-landing-copy {
+  max-width: 760px;
+}
+
+.pilot-landing-copy h1 {
+  font-size: clamp(2.2rem, 6vw, 4.8rem);
+  line-height: 0.98;
+  margin: 0.4rem 0 1.1rem;
+}
+
+.pilot-eyebrow {
+  margin: 0;
+  color: #5b5bd6;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pilot-hero,
+.pilot-card,
+.pilot-callout,
+.pilot-metric {
+  background: #fff;
+  border: 1px solid #e7e7ef;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(20, 24, 40, 0.05);
+}
+
+.pilot-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.25rem;
+  align-items: flex-start;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.pilot-hero h1,
+.pilot-card h2,
+.pilot-moderation-list h3 {
+  margin-top: 0;
+}
+
+.pilot-hero-stats {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 190px;
+}
+
+.pilot-hero-stats span,
+.pilot-hero-stats a {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.pilot-grid,
+.pilot-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.pilot-card,
+.pilot-metric {
+  padding: 1.25rem;
+}
+
+.pilot-card-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pilot-callout {
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.pilot-callout p {
+  margin-bottom: 0;
+}
+
+.pilot-feed-preview,
+.pilot-moderation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pilot-feed-preview li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid #ececf2;
+}
+
+.pilot-feed-preview li:last-child {
+  border-bottom: 0;
+}
+
+.pilot-feed-preview span,
+.pilot-moderation-list span {
+  color: #5b5bd6;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pilot-feed-preview small,
+.pilot-muted,
+.pilot-metric small {
+  color: #626274;
+}
+
+.pilot-shortcuts {
+  margin-top: 1rem;
+}
+
+.pilot-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pilot-primary-link {
+  display: inline-block;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  background: #25255c;
+  color: #fff;
+  text-decoration: none;
+}
+
+.pilot-error {
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: #fff0f0;
+  color: #8b1e1e;
+  margin: 1rem 0;
+}
+
+.pilot-metric-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.pilot-metric {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.pilot-metric > strong {
+  font-size: 1.8rem;
+}
+
+.pilot-window-control {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.pilot-window-control select,
+.pilot-moderation-list textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #cfcfd8;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.pilot-table-wrap {
+  overflow-x: auto;
+}
+
+.pilot-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pilot-table-wrap th,
+.pilot-table-wrap td {
+  text-align: left;
+  padding: 0.7rem;
+  border-bottom: 1px solid #ececf2;
+}
+
+.pilot-moderation-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.pilot-moderation-list article {
+  border-top: 1px solid #ececf2;
+  padding-top: 1rem;
+}
+
+.pilot-moderation-list article:first-child {
+  border-top: 0;
+}
+
+.pilot-moderation-list article > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pilot-moderation-list label {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.8rem 0;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .pilot-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .pilot-hero,
+  .pilot-callout,
+  .pilot-moderation-list article > header {
+    flex-direction: column;
+  }
+
+  .pilot-grid,
+  .pilot-metric-grid {
+    grid-template-columns: 1fr;
+  }
+}

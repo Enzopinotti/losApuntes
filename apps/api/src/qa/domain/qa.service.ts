@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 
 import { AcademicService } from '../../academic/domain/academic.service';
+import { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import { ProfileService } from '../../profile/domain/profile.service';
 import type {
   CreateAnswerDto,
@@ -70,6 +71,7 @@ export class QaService {
     private readonly store: QaStore,
     private readonly academic: AcademicService,
     private readonly profiles: ProfileService,
+    private readonly events: PilotEventService,
   ) {}
 
   async search(dto: QuestionSearchDto, viewerUserId?: string) {
@@ -129,6 +131,12 @@ export class QaService {
       answerCount: 0,
       acceptedAnswerId: null,
       revision: 1,
+    });
+
+    await this.events.recordBestEffort({
+      event: 'pilot.question_created',
+      userId,
+      subjectId: context.subjectId,
     });
 
     return { question: await this.questionProjection(created) };
@@ -231,6 +239,12 @@ export class QaService {
         message: 'Question changed before the answer could be created',
       });
     }
+
+    await this.events.recordBestEffort({
+      event: 'pilot.answer_created',
+      userId,
+      subjectId: question.subjectId,
+    });
 
     return { answer: await this.answerProjection(created) };
   }

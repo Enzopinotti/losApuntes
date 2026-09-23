@@ -3,9 +3,11 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   RESOURCE_MODERATION_STATES,
   RESOURCE_REPORT_REASONS,
+  RESOURCE_REPORT_STATUSES,
   RESOURCE_VISIBILITIES,
   type ResourceModerationState,
   type ResourceReportReason,
+  type ResourceReportStatus,
   type ResourceVisibility,
 } from '../domain/resource.types';
 
@@ -120,8 +122,25 @@ export class ResourceReport {
   @Prop({ type: String, default: null })
   details!: string | null;
 
-  @Prop({ required: true, enum: ['pending'], default: 'pending', index: true })
-  status!: 'pending';
+  @Prop({
+    required: true,
+    enum: RESOURCE_REPORT_STATUSES,
+    default: 'pending',
+    index: true,
+  })
+  status!: ResourceReportStatus;
+
+  @Prop()
+  reviewedByUserId?: string;
+
+  @Prop({ type: Date })
+  reviewedAt?: Date;
+
+  @Prop()
+  reviewReason?: string;
+
+  @Prop({ enum: ['hide', 'restore', 'dismiss'] })
+  reviewAction?: 'hide' | 'restore' | 'dismiss';
 
   createdAt!: Date;
   updatedAt!: Date;
@@ -133,3 +152,4 @@ ResourceReportSchema.index(
   { resourceId: 1, reporterUserId: 1, status: 1 },
   { unique: true },
 );
+ResourceReportSchema.index({ status: 1, createdAt: 1, id: 1 });

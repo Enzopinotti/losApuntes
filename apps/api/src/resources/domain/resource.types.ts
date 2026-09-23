@@ -15,6 +15,13 @@ export const RESOURCE_REPORT_REASONS = [
 ] as const;
 export type ResourceReportReason = (typeof RESOURCE_REPORT_REASONS)[number];
 
+export const RESOURCE_REPORT_STATUSES = [
+  'pending',
+  'resolved',
+  'dismissed',
+] as const;
+export type ResourceReportStatus = (typeof RESOURCE_REPORT_STATUSES)[number];
+
 export interface ResourceRecord {
   id: string;
   authorUserId: string;
@@ -52,7 +59,11 @@ export interface ResourceReportRecord {
   reporterUserId: string;
   reason: ResourceReportReason;
   details: string | null;
-  status: 'pending';
+  status: ResourceReportStatus;
+  reviewedByUserId?: string;
+  reviewedAt?: Date;
+  reviewReason?: string;
+  reviewAction?: 'hide' | 'restore' | 'dismiss';
   createdAt: Date;
   updatedAt: Date;
 }

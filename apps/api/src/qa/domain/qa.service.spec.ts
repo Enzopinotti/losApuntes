@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import type { AcademicService } from '../../academic/domain/academic.service';
+import type { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { QaStore } from './qa.store';
 import { QaService } from './qa.service';
@@ -59,6 +60,9 @@ function service(
     qaStore,
     academicApi as unknown as AcademicService,
     profileApi as unknown as ProfileService,
+    {
+      recordBestEffort: jest.fn().mockResolvedValue(undefined),
+    } as unknown as PilotEventService,
   );
 }
 

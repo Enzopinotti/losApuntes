@@ -7,6 +7,7 @@ import {
   Notification,
   NotificationSchema,
 } from '../notifications/mongo/notification.mongo-schema';
+import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { ProfileModule } from '../profile/profile.module';
 import { UsersModule } from '../users/users.module';
 import { QaService } from './domain/qa.service';
@@ -28,6 +29,7 @@ import { QuestionsController } from './questions.controller';
     UsersModule,
     AcademicModule,
     ProfileModule,
+    PilotTelemetryModule,
     MongooseModule.forFeature([
       { name: Question.name, schema: QuestionSchema },
       { name: Answer.name, schema: AnswerSchema },

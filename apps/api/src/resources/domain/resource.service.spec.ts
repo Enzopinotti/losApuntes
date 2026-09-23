@@ -8,6 +8,7 @@ import {
 import type { AcademicService } from '../../academic/domain/academic.service';
 import type { FileService } from '../../files/domain/file.service';
 import type { FileAssetRecord } from '../../files/domain/file.types';
+import type { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { ResourceStore } from './resource.store';
 import { ResourceAssetUnavailableError } from './resource.store';
@@ -99,8 +100,11 @@ function dependencies() {
     getAttributionForUser: jest.fn(),
     resolveUserIdByProfileId: jest.fn(),
   };
+  const events = {
+    recordBestEffort: jest.fn().mockResolvedValue(undefined),
+  };
 
-  return { files, academic, profiles };
+  return { files, academic, profiles, events };
 }
 
 function service(
@@ -112,6 +116,7 @@ function service(
     deps.files as unknown as FileService,
     deps.academic as unknown as AcademicService,
     deps.profiles as unknown as ProfileService,
+    deps.events as unknown as PilotEventService,
   );
 }
 
