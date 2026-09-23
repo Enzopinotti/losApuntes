@@ -27,11 +27,11 @@ export class Profile {
   @Prop({ required: true })
   displayName!: string;
 
-  @Prop()
-  bio?: string;
+  @Prop({ type: String, default: null })
+  bio!: string | null;
 
-  @Prop()
-  avatarUrl?: string;
+  @Prop({ type: String, default: null })
+  avatarUrl!: string | null;
 
   @Prop({ type: [String], default: [] })
   languages!: string[];
@@ -51,7 +51,7 @@ export class Profile {
   @Prop({
     required: true,
     type: {
-      headline: { type: String, required: false },
+      headline: { type: String, default: null },
       careerDiscoveryOptIn: { type: Boolean, required: true, default: false },
     },
   })
@@ -134,17 +134,17 @@ export class ProfileActivity {
   @Prop({ required: true })
   title!: string;
 
-  @Prop()
-  description?: string;
+  @Prop({ type: String, default: null })
+  description!: string | null;
 
-  @Prop()
-  url?: string;
+  @Prop({ type: String, default: null })
+  url!: string | null;
 
-  @Prop()
-  startedOn?: string;
+  @Prop({ type: String, default: null })
+  startedOn!: string | null;
 
-  @Prop()
-  endedOn?: string;
+  @Prop({ type: String, default: null })
+  endedOn!: string | null;
 
   @Prop({ required: true, min: 1, default: 1 })
   revision!: number;
