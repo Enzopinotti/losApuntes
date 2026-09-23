@@ -197,7 +197,15 @@ export class MongoSocialStore implements SocialStore {
             return;
           }
 
-          await this.notifications.create([input.notification], { session });
+          await this.notifications.create(
+            [
+              {
+                ...input.notification,
+                targetId: reopened.id,
+              },
+            ],
+            { session },
+          );
           result = { connection: reopened, changed: true };
           return;
         }
