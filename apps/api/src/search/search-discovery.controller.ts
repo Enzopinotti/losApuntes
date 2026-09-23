@@ -6,10 +6,7 @@ import type {
 } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { OptionalAuthSessionGuard } from '../auth/guards/optional-auth-session.guard';
-import {
-  ContextualDiscoveryQueryDto,
-  SearchQueryDto,
-} from './dto/search.dto';
+import { ContextualDiscoveryQueryDto, SearchQueryDto } from './dto/search.dto';
 import { SearchDiscoveryService } from './domain/search-discovery.service';
 
 @Controller()
