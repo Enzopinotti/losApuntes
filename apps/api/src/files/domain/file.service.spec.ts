@@ -1,0 +1,330 @@
+import {
+  ConflictException,
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+
+import type { FileAssetStore } from './file.store';
+import { FileService } from './file.service';
+import type { FileAssetRecord } from './file.types';
+import type { ObjectStorage } from '../storage/object-storage';
+
+const now = new Date('2026-09-23T12:00:00.000Z');
+
+function asset(overrides: Partial<FileAssetRecord> = {}): FileAssetRecord {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    creatorUserId: 'user-1',
+    purpose: 'resource-asset',
+    provider: 's3',
+    objectKey: 'resource-assets/test/file',
+    originalFilename: 'apunte.pdf',
+    declaredMimeType: 'application/pdf',
+    expectedByteSize: 8,
+    state: 'pending',
+    expiresAt: new Date(now.getTime() + 60_000),
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function store(): jest.Mocked<FileAssetStore> {
+  return {
+    create: jest.fn(),
+    findOwned: jest.fn(),
+    findById: jest.fn(),
+    markReady: jest.fn(),
+    markFailed: jest.fn(),
+    listReclaimable: jest.fn(),
+    markReclaimed: jest.fn(),
+  };
+}
+
+function storage(): jest.Mocked<ObjectStorage> {
+  return {
+    providerId: 's3',
+    createUploadIntent: jest.fn(),
+    headObject: jest.fn(),
+    readPrefix: jest.fn(),
+    createDownloadIntent: jest.fn(),
+    deleteObject: jest.fn(),
+  };
+}
+
+describe('FileService', () => {
+  it('creates a private upload intent without exposing object keys', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    fileStore.create.mockImplementation(async (input) => ({
+      ...input,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    objectStorage.createUploadIntent.mockResolvedValue({
+      url: 'http://storage.test/signed-put',
+      method: 'PUT',
+      headers: {
+        'content-type': 'application/pdf',
+        'if-none-match': '*',
+      },
+      expiresAt: new Date(now.getTime() + 600_000),
+    });
+
+    const result = await new FileService(
+      fileStore,
+      objectStorage,
+    ).createUploadIntent(
+      'user-1',
+      {
+        filename: '../Apunte final.pdf',
+        mimeType: 'application/pdf',
+        byteSize: 8,
+      },
+      now,
+    );
+
+    expect(result.file.filename).toBe('Apunte final.pdf');
+    expect(result.upload.headers['if-none-match']).toBe('*');
+    expect(result).not.toHaveProperty('objectKey');
+    expect(JSON.stringify(result)).not.toContain('resource-assets/');
+  });
+
+  it('rejects unsupported MIME before persistence', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+
+    await expect(
+      new FileService(fileStore, objectStorage).createUploadIntent(
+        'user-1',
+        {
+          filename: 'virus.exe',
+          mimeType: 'application/octet-stream',
+          byteSize: 10,
+        },
+        now,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(fileStore.create).not.toHaveBeenCalled();
+  });
+
+  it('marks intent failed when storage cannot sign upload', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+    fileStore.create.mockResolvedValue(pending);
+    objectStorage.createUploadIntent.mockRejectedValue(
+      new Error('storage unavailable'),
+    );
+
+    await expect(
+      new FileService(fileStore, objectStorage).createUploadIntent(
+        'user-1',
+        {
+          filename: 'apunte.pdf',
+          mimeType: 'application/pdf',
+          byteSize: 8,
+        },
+        now,
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(fileStore.markFailed).toHaveBeenCalledWith(
+      pending.id,
+      'user-1',
+      'STORAGE_UNAVAILABLE',
+      expect.any(Date),
+    );
+  });
+
+  it('finalizes a valid PDF and is idempotent after ready', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+    const ready = asset({
+      state: 'ready',
+      verifiedMimeType: 'application/pdf',
+      actualByteSize: 8,
+      etag: 'etag-1',
+      readyAt: now,
+    });
+
+    fileStore.findOwned
+      .mockResolvedValueOnce(pending)
+      .mockResolvedValueOnce(ready);
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: 8,
+      contentType: 'application/pdf',
+      etag: 'etag-1',
+    });
+    objectStorage.readPrefix.mockResolvedValue(
+      new Uint8Array(Buffer.from('%PDF-1.7')),
+    );
+    fileStore.markReady.mockResolvedValue(ready);
+
+    const service = new FileService(fileStore, objectStorage);
+    const first = await service.finalize('user-1', pending.id, now);
+    const second = await service.finalize('user-1', pending.id, now);
+
+    expect(first.file.state).toBe('ready');
+    expect(second.file.id).toBe(pending.id);
+    expect(objectStorage.headObject).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed and deletes mismatched-size bytes', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+
+    fileStore.findOwned.mockResolvedValue(pending);
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: 9,
+      contentType: 'application/pdf',
+      etag: null,
+    });
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(fileStore.markFailed).toHaveBeenCalledWith(
+      pending.id,
+      'user-1',
+      'SIZE_MISMATCH',
+      expect.any(Date),
+    );
+    expect(objectStorage.deleteObject).toHaveBeenCalledWith(pending.objectKey);
+  });
+
+  it('fails closed when content signature does not match declared MIME', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+
+    fileStore.findOwned.mockResolvedValue(pending);
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: 8,
+      contentType: 'application/pdf',
+      etag: null,
+    });
+    objectStorage.readPrefix.mockResolvedValue(
+      new Uint8Array(Buffer.from('NOTPDF!!')),
+    );
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(fileStore.markFailed).toHaveBeenCalledWith(
+      pending.id,
+      'user-1',
+      'CONTENT_SIGNATURE_MISMATCH',
+      expect.any(Date),
+    );
+  });
+
+  it('rejects expired upload intents and schedules cleanup', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset({
+      expiresAt: new Date(now.getTime() - 1),
+    });
+    fileStore.findOwned.mockResolvedValue(pending);
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(fileStore.markFailed).toHaveBeenCalledWith(
+      pending.id,
+      'user-1',
+      'UPLOAD_EXPIRED',
+      expect.any(Date),
+    );
+  });
+
+  it('does not hide storage outages as invalid uploads', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+    fileStore.findOwned.mockResolvedValue(pending);
+    objectStorage.headObject.mockRejectedValue(new Error('network'));
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(fileStore.markFailed).not.toHaveBeenCalled();
+  });
+
+  it('creates bounded signed downloads only for complete ready assets', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const ready = asset({
+      state: 'ready',
+      verifiedMimeType: 'application/pdf',
+      actualByteSize: 8,
+      readyAt: now,
+    });
+    objectStorage.createDownloadIntent.mockResolvedValue({
+      url: 'http://storage.test/signed-get',
+      expiresAt: new Date(now.getTime() + 300_000),
+    });
+
+    const result = await new FileService(
+      fileStore,
+      objectStorage,
+    ).createAuthorizedDownloadIntent({
+      asset: ready,
+      filename: 'apunte.pdf',
+      disposition: 'inline',
+    });
+
+    expect(result.url).toContain('signed-get');
+    expect(objectStorage.createDownloadIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expiresInSeconds: 300,
+        disposition: 'inline',
+      }),
+    );
+  });
+
+  it('reclaims expired objects and leaves failed deletes retryable', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const reclaimable = [
+      asset({ id: 'a', objectKey: 'a', state: 'pending' }),
+      asset({ id: 'b', objectKey: 'b', state: 'failed' }),
+    ];
+    fileStore.listReclaimable.mockResolvedValue(reclaimable);
+    objectStorage.deleteObject
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error('temporary'));
+    fileStore.markReclaimed.mockResolvedValue(true);
+
+    const result = await new FileService(
+      fileStore,
+      objectStorage,
+    ).cleanupExpiredAssets(20, now);
+
+    expect(result).toEqual({ examined: 2, reclaimed: 1 });
+    expect(fileStore.markReclaimed).toHaveBeenCalledTimes(1);
+  });
+});
