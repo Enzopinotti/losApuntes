@@ -93,6 +93,13 @@ export type AcademicCurrentContextRecord = {
   updatedAt: Date;
 };
 
+export type AcademicProposalStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'duplicate'
+  | 'superseded';
+
 export type AcademicCatalogProposalRecord = {
   id: string;
   userId: string;
@@ -101,7 +108,11 @@ export type AcademicCatalogProposalRecord = {
   parentIds: string[];
   evidenceUrl?: string;
   notes?: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'duplicate' | 'superseded';
+  status: AcademicProposalStatus;
+  reviewedByUserId?: string;
+  reviewReason?: string;
+  canonicalTargetId?: string;
+  reviewedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -116,7 +127,8 @@ export type AcademicAuditEventRecord = {
     | 'academic.affiliation.updated'
     | 'academic.subject_participation.upserted'
     | 'academic.context.updated'
-    | 'academic.proposal.created';
+    | 'academic.proposal.created'
+    | 'academic.proposal.reviewed';
   actorUserId: string;
   targetId: string;
   metadata?: Record<string, string | number | boolean | null>;
