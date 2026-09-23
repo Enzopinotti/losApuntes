@@ -2,6 +2,7 @@ import type { RouteObject } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import AccountRestricted from "../pages/AccountRestricted";
 import Dashboard from "../pages/Dashboard";
+import Feeds from "../pages/Feeds";
 import ForgotPassword from "../pages/ForgotPassword";
 import Home from "../pages/Home";
 import Login from "../pages/Login";
@@ -36,6 +37,14 @@ export const routes: RouteObject[] = [
       { path: "resources", element: <Resources /> },
       { path: "search", element: <Search /> },
       { path: "questions", element: <Questions /> },
+      {
+        path: "feeds",
+        element: (
+          <PrivateRoute>
+            <Feeds />
+          </PrivateRoute>
+        ),
+      },
       {
         path: "dashboard",
         element: (
