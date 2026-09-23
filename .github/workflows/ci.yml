@@ -71,13 +71,16 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
-      - name: Show canonical formatting diff
+      - name: Emit canonical Social Q&A formatting payloads
         run: |
           pnpm --filter @losapuntes/api format
-          git diff --no-ext-diff --unified=20 -- \
-            apps/api/src/notifications \
-            apps/api/src/social \
-            apps/api/src/qa
+          find apps/api/src/notifications apps/api/src/social apps/api/src/qa \
+            -type f -name '*.ts' | sort | while read -r file; do
+            echo "FORMAT_FILE_BEGIN:$file"
+            base64 -w0 "$file"
+            echo
+            echo "FORMAT_FILE_END:$file"
+          done
 
   auth-critical-coverage:
     name: Auth critical coverage
