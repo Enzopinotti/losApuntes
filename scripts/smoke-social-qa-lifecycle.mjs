@@ -215,24 +215,20 @@ assert.equal(
   'Shared academic context must not create a social connection',
 );
 
-const followFirst = await request(
-  `/social/profiles/${bruno.profileId}/follow`,
-  {
+const [followFirst, followAgain] = await Promise.all([
+  request(`/social/profiles/${bruno.profileId}/follow`, {
     method: 'PUT',
     headers: { authorization: alice.bearer },
-  },
-);
-assert.equal(followFirst.response.status, 200);
+  }),
+  request(`/social/profiles/${bruno.profileId}/follow`, {
+    method: 'PUT',
+    headers: { authorization: alice.bearer },
+  }),
+]);
+assert.equal(followFirst.response.status, 200, JSON.stringify(followFirst.body));
+assert.equal(followAgain.response.status, 200, JSON.stringify(followAgain.body));
 assert.deepEqual(followFirst.body, { following: true });
-
-const followAgain = await request(
-  `/social/profiles/${bruno.profileId}/follow`,
-  {
-    method: 'PUT',
-    headers: { authorization: alice.bearer },
-  },
-);
-assert.equal(followAgain.response.status, 200);
+assert.deepEqual(followAgain.body, { following: true });
 
 const following = await request('/social/me/following?limit=100', {
   headers: { authorization: alice.bearer },
@@ -257,6 +253,64 @@ const stillNoConnection = await request('/social/me/connections?limit=100', {
 });
 assert.equal(stillNoConnection.response.status, 200);
 assert.equal(stillNoConnection.body.items.length, 0);
+
+
+const [brunoToCarla, carlaToBruno] = await Promise.all([
+  request(`/social/profiles/${carla.profileId}/connections`, {
+    method: 'POST',
+    headers: { authorization: bruno.bearer },
+  }),
+  request(`/social/profiles/${bruno.profileId}/connections`, {
+    method: 'POST',
+    headers: { authorization: carla.bearer },
+  }),
+]);
+assert.equal(
+  brunoToCarla.response.status,
+  201,
+  JSON.stringify(brunoToCarla.body),
+);
+assert.equal(
+  carlaToBruno.response.status,
+  201,
+  JSON.stringify(carlaToBruno.body),
+);
+assert.equal(
+  brunoToCarla.body.connection.id,
+  carlaToBruno.body.connection.id,
+  'Concurrent opposite requests must converge on one Connection identity',
+);
+
+const concurrentPairCount = Number(
+  mongoEval(
+    [
+      `const a = ${JSON.stringify(bruno.userId)};`,
+      `const b = ${JSON.stringify(carla.userId)};`,
+      'const low = a < b ? a : b;',
+      'const high = a < b ? b : a;',
+      'print(db.social_connections.countDocuments({ userLowId: low, userHighId: high }));',
+    ].join('\n'),
+  ),
+);
+assert.equal(
+  concurrentPairCount,
+  1,
+  'Concurrent opposite requests must persist one unordered pair',
+);
+
+const concurrentRequestNotifications = [
+  ...(await notifications(bruno)),
+  ...(await notifications(carla)),
+].filter(
+  (item) =>
+    item.type === 'social.connection_requested' &&
+    item.target.id === brunoToCarla.body.connection.id,
+);
+assert.equal(
+  concurrentRequestNotifications.length,
+  1,
+  'Concurrent connection creation must emit one request notification',
+);
 
 const connectionRequest = await request(
   `/social/profiles/${bruno.profileId}/connections`,
@@ -404,6 +458,15 @@ assert.equal(questionCreate.response.status, 201, JSON.stringify(questionCreate.
 const questionId = questionCreate.body.question.id;
 assert.match(questionId, UUID_V4);
 assert.equal(questionCreate.body.question.academic.subject.id, nodes.subject.id);
+
+const invalidAuthenticatedSearch = await request('/questions?limit=10', {
+  headers: { authorization: 'Bearer invalid-session' },
+});
+assert.equal(
+  invalidAuthenticatedSearch.response.status,
+  401,
+  'Public Q&A search must reject an invalid presented credential',
+);
 
 const anonymousQuestion = await request(`/questions/${questionId}`);
 assert.equal(anonymousQuestion.response.status, 200);
@@ -618,9 +681,10 @@ console.log(
     event: 'social.qa.lifecycle.smoke.ok',
     checks: [
       'shared-academic-context-does-not-connect',
-      'follow-idempotency',
+      'concurrent-follow-idempotency',
       'follow-does-not-connect',
-      'connection-pair-uniqueness',
+      'connection-pair-concurrency-uniqueness',
+      'single-connection-request-notification',
       'requester-cannot-self-accept',
       'outsider-connection-deny',
       'recipient-accept',
@@ -629,6 +693,7 @@ console.log(
       'decline-without-acceptance-notification',
       'canonical-question-context',
       'anonymous-question-read',
+      'invalid-auth-public-search-rejected',
       'bounded-question-search',
       'closed-question-rejects-answer',
       'answer-edit',
