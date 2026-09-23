@@ -58,11 +58,13 @@ describe('FileService', () => {
   it('creates a private upload intent without exposing object keys', async () => {
     const fileStore = store();
     const objectStorage = storage();
-    fileStore.create.mockImplementation((input) => ({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }));
+    fileStore.create.mockImplementation((input) =>
+      Promise.resolve({
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
     objectStorage.createUploadIntent.mockResolvedValue({
       url: 'http://storage.test/signed-put',
       method: 'PUT',
