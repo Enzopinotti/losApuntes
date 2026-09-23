@@ -847,5 +847,4 @@ describe('ProfileService', () => {
     expect(JSON.stringify(result)).not.toContain('Private headline');
     expect(JSON.stringify(result)).not.toContain('careerDiscoveryOptIn');
   });
-
 });
