@@ -77,8 +77,7 @@ function mockFn<T extends (...args: any[]) => any>() {
 function createStore() {
   return {
     findCatalogNodeById: mockFn<AcademicStore['findCatalogNodeById']>(),
-    findCatalogNodesByIds:
-      mockFn<AcademicStore['findCatalogNodesByIds']>(),
+    findCatalogNodesByIds: mockFn<AcademicStore['findCatalogNodesByIds']>(),
     findCatalogNodeBySourceIdentity:
       mockFn<AcademicStore['findCatalogNodeBySourceIdentity']>(),
     searchCatalog: mockFn<AcademicStore['searchCatalog']>(),
@@ -86,10 +85,8 @@ function createStore() {
     updateCatalogNode: mockFn<AcademicStore['updateCatalogNode']>(),
     createAffiliation: mockFn<AcademicStore['createAffiliation']>(),
     findAffiliationById: mockFn<AcademicStore['findAffiliationById']>(),
-    listAffiliationsForUser:
-      mockFn<AcademicStore['listAffiliationsForUser']>(),
-    updateAffiliationStatus:
-      mockFn<AcademicStore['updateAffiliationStatus']>(),
+    listAffiliationsForUser: mockFn<AcademicStore['listAffiliationsForUser']>(),
+    updateAffiliationStatus: mockFn<AcademicStore['updateAffiliationStatus']>(),
     upsertSubjectParticipation:
       mockFn<AcademicStore['upsertSubjectParticipation']>(),
     findSubjectParticipationById:
@@ -113,10 +110,10 @@ describe('AcademicService', () => {
     store.findCatalogNodeBySourceIdentity.mockResolvedValue(null);
     store.createCatalogNode.mockImplementation((input) =>
       Promise.resolve({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
     );
 
     const result = await service.createCatalogNode('admin-1', {
@@ -193,10 +190,10 @@ describe('AcademicService', () => {
     store.findCatalogNodesByIds.mockResolvedValue([planA, planB]);
     store.createCatalogNode.mockImplementation((input) =>
       Promise.resolve({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
     );
 
     const result = await service.createCatalogNode('admin-1', {
@@ -232,9 +229,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === merged.id) return merged;
-      if (id === target.id) return target;
-      return null;
+          if (id === merged.id) return merged;
+          if (id === target.id) return target;
+          return null;
         })(),
       ),
     );
@@ -268,9 +265,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === institution.id) return institution;
-      if (id === foreignProgram.id) return foreignProgram;
-      return null;
+          if (id === institution.id) return institution;
+          if (id === foreignProgram.id) return foreignProgram;
+          return null;
         })(),
       ),
     );
@@ -318,17 +315,17 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === subject.id) return subject;
-      if (id === offering.id) return offering;
-      return null;
+          if (id === subject.id) return subject;
+          if (id === offering.id) return offering;
+          return null;
         })(),
       ),
     );
     store.findCatalogNodesByIds.mockImplementation((ids) =>
       Promise.resolve(
         (() => {
-      if (ids.includes(offering.id)) return [offering];
-      return [];
+          if (ids.includes(offering.id)) return [offering];
+          return [];
         })(),
       ),
     );
@@ -347,10 +344,10 @@ describe('AcademicService', () => {
 
     store.createProposal.mockImplementation((input) =>
       Promise.resolve({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
     );
 
     const result = await service.createProposal('user-1', {
@@ -443,10 +440,10 @@ describe('AcademicService', () => {
     );
     store.setCurrentContext.mockImplementation((input) =>
       Promise.resolve({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
     );
 
     await expect(
@@ -585,9 +582,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === source.id) return source;
-      if (id === target.id) return target;
-      return null;
+          if (id === source.id) return source;
+          if (id === target.id) return target;
+          return null;
         })(),
       ),
     );
@@ -639,9 +636,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === source.id) return source;
-      if (id === target.id) return target;
-      return null;
+          if (id === source.id) return source;
+          if (id === target.id) return target;
+          return null;
         })(),
       ),
     );
@@ -654,9 +651,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === source.id) return source;
-      if (id === sameKindTarget.id) return sameKindTarget;
-      return null;
+          if (id === source.id) return source;
+          if (id === sameKindTarget.id) return sameKindTarget;
+          return null;
         })(),
       ),
     );
@@ -687,9 +684,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === institution.id) return institution;
-      if (id === program.id) return program;
-      return null;
+          if (id === institution.id) return institution;
+          if (id === program.id) return program;
+          return null;
         })(),
       ),
     );
@@ -1087,9 +1084,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === source.id) return source;
-      if (id === target.id) return target;
-      return null;
+          if (id === source.id) return source;
+          if (id === target.id) return target;
+          return null;
         })(),
       ),
     );
@@ -1134,9 +1131,9 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === source.id) return source;
-      if (id === target.id) return target;
-      return null;
+          if (id === source.id) return source;
+          if (id === target.id) return target;
+          return null;
         })(),
       ),
     );
@@ -1148,14 +1145,14 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === source.id) {
-        return {
-          ...source,
-          status: 'merged',
-          redirectToId: target.id,
-        };
-      }
-      return target;
+          if (id === source.id) {
+            return {
+              ...source,
+              status: 'merged',
+              redirectToId: target.id,
+            };
+          }
+          return target;
         })(),
       ),
     );
@@ -1178,9 +1175,7 @@ describe('AcademicService', () => {
     });
 
     await expect(service.listAffiliations('user-1')).resolves.toEqual({
-      affiliations: [
-        expect.objectContaining({ id: row.id, status: 'active' }),
-      ],
+      affiliations: [expect.objectContaining({ id: row.id, status: 'active' })],
     });
 
     await expect(
@@ -1226,27 +1221,27 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(
         (() => {
-      if (id === institution.id) return institution;
-      if (id === program.id) return program;
-      if (id === curriculum.id) return curriculum;
-      return null;
+          if (id === institution.id) return institution;
+          if (id === program.id) return program;
+          if (id === curriculum.id) return curriculum;
+          return null;
         })(),
       ),
     );
     store.findCatalogNodesByIds.mockImplementation((ids) =>
       Promise.resolve(
         (() => {
-      const all = [institution, program, curriculum];
-      return all.filter((node) => ids.includes(node.id));
+          const all = [institution, program, curriculum];
+          return all.filter((node) => ids.includes(node.id));
         })(),
       ),
     );
     store.createAffiliation.mockImplementation((input) =>
       Promise.resolve({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
     );
 
     const result = await service.createAffiliation('user-1', {
@@ -1280,10 +1275,10 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockResolvedValue(subject);
     store.upsertSubjectParticipation.mockImplementation((input) =>
       Promise.resolve({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
     );
 
     await expect(service.listSubjectParticipations('user-1')).resolves.toEqual({
@@ -1372,10 +1367,10 @@ describe('AcademicService', () => {
     store.findCatalogNodesByIds.mockResolvedValue([curriculum]);
     store.createProposal.mockImplementation((input) =>
       Promise.resolve({
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    }),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      }),
     );
 
     await expect(
@@ -1412,11 +1407,13 @@ describe('AcademicService', () => {
     );
 
     store.findCatalogNodeById.mockImplementation((id) =>
-      Promise.resolve(catalogNode({
-        id,
-        status: 'merged',
-        redirectToId: id + '-next',
-      })),
+      Promise.resolve(
+        catalogNode({
+          id,
+          status: 'merged',
+          redirectToId: id + '-next',
+        }),
+      ),
     );
 
     await expect(service.getCatalogNode('start')).rejects.toBeInstanceOf(
@@ -1447,10 +1444,7 @@ describe('AcademicService', () => {
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    store.findCatalogNodesByIds.mockResolvedValue([
-      institutionA,
-      institutionB,
-    ]);
+    store.findCatalogNodesByIds.mockResolvedValue([institutionA, institutionB]);
 
     await expect(
       service.createCatalogNode('admin-1', {
@@ -1495,5 +1489,4 @@ describe('AcademicService', () => {
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
-
 });
