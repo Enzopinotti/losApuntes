@@ -517,6 +517,217 @@ describe('ProfileService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('covers explicit optional profile creation controls', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const created = profile({
+      bio: 'Bio',
+      avatarUrl: 'https://example.test/avatar.png',
+      languages: ['es'],
+      skills: ['SQL'],
+      interests: ['datos'],
+      helpTopics: ['bases de datos'],
+      learningTopics: ['arquitectura'],
+      professional: {
+        headline: 'Estudiante',
+        careerDiscoveryOptIn: true,
+      },
+      presentation: {
+        accentPreset: 'indigo',
+        coverPreset: 'paper',
+        sectionOrder: [
+          'about',
+          'academic',
+          'learning',
+          'activities',
+          'skills',
+          'professional',
+          'contributions',
+        ],
+      },
+      visibility: {
+        about: 'public',
+        academic: 'public',
+        learning: 'public',
+        activities: 'public',
+        skills: 'public',
+        professional: 'public',
+        contributions: 'public',
+      },
+      recommendationSignals: {
+        academicContext: false,
+        learning: false,
+        skillsInterests: false,
+      },
+    });
+    profileStore.createProfile.mockResolvedValue(created);
+
+    await service(profileStore, academicService).createProfile('user-1', {
+      displayName: 'Enzo',
+      bio: ' Bio ',
+      avatarUrl: 'https://example.test/avatar.png',
+      languages: [' es '],
+      skills: [' SQL '],
+      interests: [' datos '],
+      helpTopics: [' bases de datos '],
+      learningTopics: [' arquitectura '],
+      professional: {
+        headline: ' Estudiante ',
+        careerDiscoveryOptIn: true,
+      },
+      presentation: {
+        accentPreset: 'indigo',
+        coverPreset: 'paper',
+        sectionOrder: [
+          'about',
+          'academic',
+          'learning',
+          'activities',
+          'skills',
+          'professional',
+          'contributions',
+        ],
+      },
+      visibility: {
+        academic: 'public',
+        learning: 'public',
+        activities: 'public',
+        skills: 'public',
+        professional: 'public',
+        contributions: 'public',
+      },
+      recommendationSignals: {
+        academicContext: false,
+        learning: false,
+        skillsInterests: false,
+      },
+    });
+
+    const createInput = profileStore.createProfile.mock.calls[0]?.[0];
+    expect(createInput?.bio).toBe('Bio');
+    expect(createInput?.professional.headline).toBe('Estudiante');
+    expect(createInput?.professional.careerDiscoveryOptIn).toBe(true);
+    expect(createInput?.presentation.accentPreset).toBe('indigo');
+    expect(createInput?.recommendationSignals).toEqual({
+      academicContext: false,
+      learning: false,
+      skillsInterests: false,
+    });
+  });
+
+  it('rethrows unexpected persistence errors during profile creation', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const persistenceError = new Error('persistence unavailable');
+    profileStore.createProfile.mockRejectedValue(persistenceError);
+
+    await expect(
+      service(profileStore, academicService).createProfile('user-1', {
+        displayName: 'Enzo',
+      }),
+    ).rejects.toBe(persistenceError);
+  });
+
+  it('updates every editable profile group without replacing academic truth', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const existing = profile();
+    const updated = profile({
+      displayName: 'Enzo actualizado',
+      revision: 2,
+    });
+    profileStore.findProfileByUserId.mockResolvedValue(existing);
+    profileStore.updateProfile.mockResolvedValue(updated);
+
+    await service(profileStore, academicService).updateProfile('user-1', {
+      expectedRevision: 1,
+      displayName: ' Enzo actualizado ',
+      bio: null,
+      avatarUrl: null,
+      languages: [' es '],
+      skills: [' SQL '],
+      interests: [' datos '],
+      helpTopics: [' bases '],
+      learningTopics: [' sistemas '],
+      professional: {
+        headline: null,
+        careerDiscoveryOptIn: true,
+      },
+      presentation: {
+        accentPreset: 'emerald',
+        coverPreset: 'gradient',
+        sectionOrder: [
+          'professional',
+          'skills',
+          'activities',
+          'learning',
+          'academic',
+          'about',
+          'contributions',
+        ],
+      },
+      visibility: {
+        skills: 'public',
+      },
+      recommendationSignals: {
+        academicContext: false,
+        learning: false,
+        skillsInterests: false,
+      },
+    });
+
+    const patch = profileStore.updateProfile.mock.calls[0]?.[2];
+    expect(patch?.displayName).toBe('Enzo actualizado');
+    expect(patch?.bio).toBeNull();
+    expect(patch?.languages).toEqual(['es']);
+    expect(patch?.skills).toEqual(['SQL']);
+    expect(patch?.presentation?.accentPreset).toBe('emerald');
+    expect(patch?.visibility?.skills).toBe('public');
+    expect(patch?.recommendationSignals).toEqual({
+      academicContext: false,
+      learning: false,
+      skillsInterests: false,
+    });
+  });
+
+  it('projects every explicitly public section without leaking private controls', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    configureAcademic(academicService);
+    const row = profile({
+      helpTopics: ['SQL'],
+      learningTopics: ['Arquitectura'],
+      professional: {
+        headline: 'Estudiante',
+        careerDiscoveryOptIn: true,
+      },
+      visibility: {
+        about: 'public',
+        academic: 'public',
+        learning: 'public',
+        activities: 'public',
+        skills: 'public',
+        professional: 'public',
+        contributions: 'public',
+      },
+    });
+    profileStore.findProfileById.mockResolvedValue(row);
+    profileStore.listActivitiesForUser.mockResolvedValue([]);
+
+    const result = await service(
+      profileStore,
+      academicService,
+    ).getPublicProfile(row.id);
+
+    expect(result.profile).toHaveProperty('learning');
+    expect(result.profile).toHaveProperty('professional');
+    expect(result.profile).toHaveProperty('contributions');
+    expect(result.profile).not.toHaveProperty('recommendationSignals');
+    expect(result.profile.professional).not.toHaveProperty(
+      'careerDiscoveryOptIn',
+    );
+  });
+
   it('returns stable not-found for unknown public profiles', async () => {
     const profileStore = store();
     const academicService = academic();
