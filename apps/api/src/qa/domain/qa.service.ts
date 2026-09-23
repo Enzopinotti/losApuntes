@@ -72,7 +72,7 @@ export class QaService {
     private readonly profiles: ProfileService,
   ) {}
 
-  async search(dto: QuestionSearchDto) {
+  async search(dto: QuestionSearchDto, viewerUserId?: string) {
     const subjectId = dto.subjectId
       ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
       : undefined;
@@ -87,7 +87,7 @@ export class QaService {
 
     return {
       items: await Promise.all(
-        result.items.map((row) => this.questionProjection(row)),
+        result.items.map((row) => this.questionProjection(row, viewerUserId)),
       ),
       nextCursor:
         result.hasMore && last
