@@ -271,7 +271,9 @@ export function createS3ObjectStorage(
   return Object.freeze({
     providerId,
 
-    async createUploadIntent(input): Promise<ObjectStorageUploadIntent> {
+    createUploadIntent(
+      input: Parameters<ObjectStorage['createUploadIntent']>[0],
+    ): Promise<ObjectStorageUploadIntent> {
       const url = presignedUrl({
         method: 'PUT',
         endpoint: publicEndpoint,
@@ -287,7 +289,7 @@ export function createS3ObjectStorage(
         },
       });
 
-      return {
+      return Promise.resolve({
         url,
         method: 'PUT',
         headers: {
@@ -295,7 +297,7 @@ export function createS3ObjectStorage(
           'if-none-match': '*',
         },
         expiresAt: new Date(Date.now() + input.expiresInSeconds * 1000),
-      };
+      });
     },
 
     async headObject(objectKey: string): Promise<ObjectStorageHead | null> {
@@ -357,7 +359,9 @@ export function createS3ObjectStorage(
       return bytes;
     },
 
-    async createDownloadIntent(input): Promise<ObjectStorageDownloadIntent> {
+    createDownloadIntent(
+      input: Parameters<ObjectStorage['createDownloadIntent']>[0],
+    ): Promise<ObjectStorageDownloadIntent> {
       const url = presignedUrl({
         method: 'GET',
         endpoint: publicEndpoint,
@@ -376,10 +380,10 @@ export function createS3ObjectStorage(
         ],
       });
 
-      return {
+      return Promise.resolve({
         url,
         expiresAt: new Date(Date.now() + input.expiresInSeconds * 1000),
-      };
+      });
     },
 
     async deleteObject(objectKey: string): Promise<void> {
