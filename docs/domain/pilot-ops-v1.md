@@ -1,7 +1,7 @@
 # Pilot Operations v1
 
 **Issue:** #8  
-**Status:** In implementation  
+**Status:** Candidate — implementation complete, CI closure pending  
 **Date:** 2026-09-23
 
 ## Product purpose
@@ -190,6 +190,11 @@ Before public pilot launch, the runbook must name:
 - rollback criteria.
 
 Those values are deployment inputs, not hard-coded application defaults.
+
+The required fail-closed launch procedure is documented in
+`docs/operations/pilot-v1-runbook.md`. A public pilot remains blocked until
+its launch record contains concrete scope, accountable owners, support channel,
+release/rollback SHAs and change-window evidence.
 
 ## Explicit non-goals
 
