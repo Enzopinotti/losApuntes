@@ -106,6 +106,7 @@ export class FileService {
       const upload = await this.storage.createUploadIntent({
         objectKey: asset.objectKey,
         contentType: mimeType,
+        contentLength: asset.expectedByteSize,
         expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
       });
 
