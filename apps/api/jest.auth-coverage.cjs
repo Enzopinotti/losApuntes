@@ -13,6 +13,7 @@ module.exports = {
     'auth/session/session-cookie.ts',
     'auth/session/session-token.ts',
     'auth/guards/auth-session.guard.ts',
+    'auth/guards/optional-auth-session.guard.ts',
     'auth/guards/csrf-origin.guard.ts',
     'auth/lifecycle/auth-lifecycle.service.ts',
     'auth/google/google-auth.service.ts',
