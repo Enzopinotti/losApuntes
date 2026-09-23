@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import type { FilterQuery, Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
 
 import type {
   AcademicAffiliationRecord,
@@ -49,7 +50,11 @@ function toPlain<T>(value: { toObject(): unknown } | T): T {
 
 @Injectable()
 export class MongoAcademicStore implements AcademicStore {
+  private readonly transactionContext = new AsyncLocalStorage<ClientSession>();
+
   constructor(
+    @InjectConnection()
+    private readonly connection: Connection,
     @InjectModel(AcademicCatalogNode.name)
     private readonly catalog: Model<AcademicCatalogNode>,
     @InjectModel(AcademicAffiliation.name)
@@ -63,6 +68,19 @@ export class MongoAcademicStore implements AcademicStore {
     @InjectModel(AcademicAuditEvent.name)
     private readonly audit: Model<AcademicAuditEvent>,
   ) {}
+
+  async runAtomically<T>(operation: () => Promise<T>): Promise<T> {
+    const existingSession = this.transactionContext.getStore();
+    if (existingSession) return operation();
+
+    return this.connection.transaction((session) =>
+      this.transactionContext.run(session, operation),
+    );
+  }
+
+  private session(): ClientSession | undefined {
+    return this.transactionContext.getStore();
+  }
 
   async findCatalogNodeById(
     id: string,
@@ -137,7 +155,10 @@ export class MongoAcademicStore implements AcademicStore {
   async createCatalogNode(
     input: CreateCatalogNodeRecord,
   ): Promise<AcademicCatalogNodeRecord> {
-    const created = await this.catalog.create(input);
+    const session = this.session();
+    const created = session
+      ? (await this.catalog.create([input], { session }))[0]
+      : await this.catalog.create(input);
     return toPlain<AcademicCatalogNodeRecord>(created);
   }
 
@@ -150,7 +171,7 @@ export class MongoAcademicStore implements AcademicStore {
       .findOneAndUpdate(
         { id, revision: expectedRevision },
         { $set: patch, $inc: { revision: 1 } },
-        { new: true },
+        { new: true, session: this.session() },
       )
       .lean<AcademicCatalogNodeRecord>()
       .exec();
@@ -159,7 +180,10 @@ export class MongoAcademicStore implements AcademicStore {
   async createAffiliation(
     input: CreateAffiliationRecord,
   ): Promise<AcademicAffiliationRecord> {
-    const created = await this.affiliations.create(input);
+    const session = this.session();
+    const created = session
+      ? (await this.affiliations.create([input], { session }))[0]
+      : await this.affiliations.create(input);
     return toPlain<AcademicAffiliationRecord>(created);
   }
 
@@ -192,7 +216,11 @@ export class MongoAcademicStore implements AcademicStore {
     if (endedOn !== undefined) update.endedOn = endedOn;
 
     return this.affiliations
-      .findOneAndUpdate({ id, userId }, { $set: update }, { new: true })
+      .findOneAndUpdate(
+        { id, userId },
+        { $set: update },
+        { new: true, session: this.session() },
+      )
       .lean<AcademicAffiliationRecord>()
       .exec();
   }
@@ -221,7 +249,7 @@ export class MongoAcademicStore implements AcademicStore {
             courseOfferingId,
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, new: true, session: this.session() },
       )
       .lean<SubjectParticipationRecord>()
       .exec();
@@ -271,7 +299,7 @@ export class MongoAcademicStore implements AcademicStore {
           },
           $setOnInsert: { userId: input.userId },
         },
-        { upsert: true, new: true },
+        { upsert: true, new: true, session: this.session() },
       )
       .lean<AcademicCurrentContextRecord>()
       .exec();
@@ -283,7 +311,10 @@ export class MongoAcademicStore implements AcademicStore {
   async createProposal(
     input: CreateProposalRecord,
   ): Promise<AcademicCatalogProposalRecord> {
-    const created = await this.proposals.create(input);
+    const session = this.session();
+    const created = session
+      ? (await this.proposals.create([input], { session }))[0]
+      : await this.proposals.create(input);
     return toPlain<AcademicCatalogProposalRecord>(created);
   }
 
@@ -329,13 +360,20 @@ export class MongoAcademicStore implements AcademicStore {
             reviewedAt,
           },
         },
-        { new: true },
+        { new: true, session: this.session() },
       )
       .lean<AcademicCatalogProposalRecord>()
       .exec();
   }
 
   async appendAuditEvent(input: AcademicAuditEventRecord): Promise<void> {
+    const session = this.session();
+
+    if (session) {
+      await this.audit.create([input], { session });
+      return;
+    }
+
     await this.audit.create(input);
   }
 }
