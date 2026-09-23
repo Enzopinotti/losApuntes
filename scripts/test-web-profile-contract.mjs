@@ -26,7 +26,7 @@ assert.doesNotMatch(owner, /localStorage|sessionStorage/u);
 assert.doesNotMatch(owner, /career_id|cohort_year/u);
 
 const publicPage = await read('apps/web/src/pages/PublicProfile.tsx');
-assert.match(publicPage, /profileApi\.publicProfile\(/u);
+assert.match(publicPage, /profileApi\s*\.\s*publicProfile\s*\(/u);
 assert.doesNotMatch(publicPage, /profileApi\.me\(\)/u);
 assert.doesNotMatch(publicPage, /careerDiscoveryOptIn|recommendationSignals/u);
 assert.doesNotMatch(publicPage, /localStorage|sessionStorage/u);
