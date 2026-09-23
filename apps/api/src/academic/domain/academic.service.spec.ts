@@ -76,6 +76,7 @@ function mockFn<T extends (...args: any[]) => any>() {
 
 function createStore() {
   return {
+    runAtomically: <T>(operation: () => Promise<T>) => operation(),
     findCatalogNodeById: mockFn<AcademicStore['findCatalogNodeById']>(),
     findCatalogNodesByIds: mockFn<AcademicStore['findCatalogNodesByIds']>(),
     findCatalogNodeBySourceIdentity:
