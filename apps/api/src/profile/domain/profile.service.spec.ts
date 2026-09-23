@@ -912,9 +912,8 @@ describe('ProfileService', () => {
       academicService,
     ).getAttributionsForUsers(['user-public', 'user-private', 'user-public']);
 
-    expect(profileStore.findProfilesByUserIds).toHaveBeenCalledWith([
-      'user-public',
-      'user-private',
+    expect(profileStore.findProfilesByUserIds.mock.calls).toEqual([
+      [['user-public', 'user-private']],
     ]);
     expect(result.get('user-public')).toEqual({
       profileId: publicRow.id,
