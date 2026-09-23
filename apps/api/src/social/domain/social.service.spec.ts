@@ -605,5 +605,4 @@ describe('SocialService', () => {
       },
     );
   });
-
 });
