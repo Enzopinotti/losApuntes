@@ -82,10 +82,20 @@ function createStore() {
     mockFn<AcademicStore['findDirectRedirectSources']>();
   findDirectRedirectSources.mockResolvedValue([]);
 
+  const findCatalogNodesByIds =
+    mockFn<AcademicStore['findCatalogNodesByIds']>();
+  findCatalogNodesByIds.mockResolvedValue([]);
+
+  const findCatalogNodeById = mockFn<AcademicStore['findCatalogNodeById']>();
+  findCatalogNodeById.mockImplementation(async (id) => {
+    const rows = await findCatalogNodesByIds([id]);
+    return rows[0] ?? null;
+  });
+
   return {
     runAtomically: <T>(operation: () => Promise<T>) => operation(),
-    findCatalogNodeById: mockFn<AcademicStore['findCatalogNodeById']>(),
-    findCatalogNodesByIds: mockFn<AcademicStore['findCatalogNodesByIds']>(),
+    findCatalogNodeById,
+    findCatalogNodesByIds,
     findDirectRedirectSources,
     findCatalogNodeBySourceIdentity:
       mockFn<AcademicStore['findCatalogNodeBySourceIdentity']>(),
@@ -1154,7 +1164,32 @@ describe('AcademicService', () => {
     const store = createStore();
     const service = new AcademicService(store);
     const row = affiliation();
+    const institution = catalogNode({
+      id: row.institutionId,
+      kind: 'institution',
+    });
+    const program = catalogNode({
+      id: row.programId!,
+      kind: 'program',
+      parentIds: [institution.id],
+    });
+    const curriculum = catalogNode({
+      id: row.curriculumId!,
+      kind: 'curriculum',
+      parentIds: [program.id],
+    });
 
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(
+        id === institution.id
+          ? institution
+          : id === program.id
+            ? program
+            : id === curriculum.id
+              ? curriculum
+              : null,
+      ),
+    );
     store.listAffiliationsForUser.mockResolvedValue([row]);
     store.updateAffiliationStatus.mockResolvedValue({
       ...row,
