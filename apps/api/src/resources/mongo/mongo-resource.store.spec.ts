@@ -91,12 +91,9 @@ describe('MongoResourceStore authorization pipeline', () => {
     );
 
     await expect(
-      store.updateOwned(
-        updated.id,
-        'author-1',
-        1,
-        { visibility: 'private' },
-      ),
+      store.updateOwned(updated.id, 'author-1', 1, {
+        visibility: 'private',
+      }),
     ).resolves.toEqual(updated);
 
     expect(startSession).toHaveBeenCalledTimes(1);
@@ -136,15 +133,11 @@ describe('MongoResourceStore authorization pipeline', () => {
     );
 
     await expect(
-      store.updateOwned(
-        updated.id,
-        'author-1',
-        1,
-        { visibility: 'shared' },
-      ),
+      store.updateOwned(updated.id, 'author-1', 1, {
+        visibility: 'shared',
+      }),
     ).resolves.toEqual(updated);
 
     expect(startSession).not.toHaveBeenCalled();
   });
-
 });
