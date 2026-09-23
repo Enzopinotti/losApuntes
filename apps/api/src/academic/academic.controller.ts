@@ -18,10 +18,12 @@ import { AcademicService } from './domain/academic.service';
 import {
   AcademicCatalogChildrenDto,
   AcademicCatalogSearchDto,
+  AcademicProposalListDto,
   CreateAcademicAffiliationDto,
   CreateAcademicCatalogNodeDto,
   CreateAcademicProposalDto,
   MergeAcademicCatalogNodeDto,
+  ReviewAcademicProposalDto,
   SetAcademicContextDto,
   UpdateAcademicAffiliationStatusDto,
   UpdateAcademicCatalogNodeDto,
@@ -118,6 +120,22 @@ export class AcademicController {
     @Body() dto: CreateAcademicProposalDto,
   ) {
     return this.academic.createProposal(request.user.id, dto);
+  }
+
+  @UseGuards(AuthSessionGuard, AcademicAdminGuard)
+  @Get('admin/proposals')
+  proposals(@Query() query: AcademicProposalListDto) {
+    return this.academic.listProposals(query.status, query.limit);
+  }
+
+  @UseGuards(AuthSessionGuard, AcademicAdminGuard)
+  @Patch('admin/proposals/:id/review')
+  reviewProposal(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: ReviewAcademicProposalDto,
+  ) {
+    return this.academic.reviewProposal(request.user.id, id, dto);
   }
 
   @UseGuards(AuthSessionGuard, AcademicAdminGuard)
