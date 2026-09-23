@@ -38,9 +38,9 @@ assert.match(
   routes,
   /path:\s*"profile"[\s\S]*?<PrivateRoute>[\s\S]*?<Profile\s*\/>[\s\S]*?<\/PrivateRoute>/u,
 );
-assert.doesNotMatch(
+assert.match(
   routes,
-  /path:\s*"p\/:profileId"[\s\S]{0,200}<PrivateRoute>/u,
+  /\{\s*path:\s*"p\/:profileId",\s*element:\s*<PublicProfile\s*\/>\s*\}/u,
   'Public profile route must remain anonymous-readable',
 );
 
