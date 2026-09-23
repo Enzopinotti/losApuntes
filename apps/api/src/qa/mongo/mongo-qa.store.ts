@@ -20,7 +20,7 @@ import { Answer, QaReport, Question } from './qa.mongo-schemas';
 
 function escapeRegex(value: string): string {
   return value.replace(
-    /[.*+?^\${}()|[\]\\]/gu,
+    /[.*+?^${}()|[\]\\]/gu,
     (character) => '\\' + character,
   );
 }
