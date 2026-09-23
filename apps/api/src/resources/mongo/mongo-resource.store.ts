@@ -264,7 +264,7 @@ export class MongoResourceStore implements ResourceStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$resourceId', '$resourceId'] },
+                      { $eq: ['$resourceId', '$$resourceId'] },
                       { $eq: ['$userId', input.viewerUserId] },
                     ],
                   },
