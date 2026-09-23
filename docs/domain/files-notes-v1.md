@@ -92,10 +92,10 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 
 ### Resources
 
-- `POST /resources` — authenticated; consumes one ready owned asset and canonical academic context.
+- `POST /resources` — authenticated + verified email; consumes one ready owned asset and canonical academic context.
 - `GET /resources/:id` — current viewer projection; anonymous only when public.
-- `PATCH /resources/:id` — author only + expectedRevision.
-- `POST /resources/:id/access` — reauthorizes then returns short-lived signed GET for inline/attachment disposition.
+- `PATCH /resources/:id` — verified author only + expectedRevision.
+- `POST /resources/:id/access` — authenticated + verified email; reauthorizes then returns short-lived signed GET for inline/attachment disposition.
 - `PUT /resources/:id/shares/:profileId` — verified author only; resolves the stable public Profile UUID to the account authority.
 - `DELETE /resources/:id/shares/:profileId` — verified author only.
 - `PUT /resources/:id/save` / `DELETE /resources/:id/save` — authenticated viewer.
@@ -174,8 +174,6 @@ Authenticated users can:
 The browser does not store bearer credentials or object keys. API metadata calls use the existing HttpOnly cookie with `credentials: include` and `no-store`. The direct signed PUT deliberately does **not** send application cookies.
 
 The first-page bounded discovery UI is intentionally metadata search, not OCR/full-text search. Search engine/OCR evolution remains a projection concern, not a Resource identity change.
-
-## 9. Verification required before merge
 
 ## 9. Verification required before merge
 
