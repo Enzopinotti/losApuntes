@@ -63,20 +63,6 @@ const subject = subjectSearch.body.results.subjects.find(
 );
 assert.ok(subject, 'Academic smoke must expose Base de Datos');
 
-const peopleSearch = await request(
-  '/search?q=runtime%20student&scope=people&limit=8',
-);
-assert.equal(peopleSearch.response.status, 200);
-assert.equal(
-  peopleSearch.body.results.people.some(
-    (person) => person.displayName === 'Runtime Student',
-  ),
-  true,
-  'Profile smoke must leave one public Runtime Student profile',
-);
-assert.equal(JSON.stringify(peopleSearch.body).includes('careerDiscoveryOptIn'), false);
-assert.equal(JSON.stringify(peopleSearch.body).includes('recommendationSignals'), false);
-
 const registration = await request(
   '/auth/register',
   json('POST', { email: EMAIL, password: PASSWORD }),
@@ -114,6 +100,41 @@ const login = await request(
 );
 assert.equal(login.response.status, 200);
 const bearer = `Bearer ${login.body.sessionToken}`;
+
+const searchProfile = await request(
+  '/profile/me',
+  json(
+    'POST',
+    {
+      displayName: 'Search Runtime Student',
+      bio: 'Perfil público creado por el smoke de Search',
+    },
+    bearer,
+  ),
+);
+assert.equal(searchProfile.response.status, 201, JSON.stringify(searchProfile.body));
+
+const peopleSearch = await request(
+  '/search?q=search%20runtime%20student&scope=people&limit=8',
+);
+assert.equal(peopleSearch.response.status, 200);
+assert.equal(
+  peopleSearch.body.results.people.some(
+    (person) =>
+      person.profileId === searchProfile.body.profile.id &&
+      person.displayName === 'Search Runtime Student',
+  ),
+  true,
+  'Search smoke must discover its own public Profile anonymously',
+);
+assert.equal(
+  JSON.stringify(peopleSearch.body).includes('careerDiscoveryOptIn'),
+  false,
+);
+assert.equal(
+  JSON.stringify(peopleSearch.body).includes('recommendationSignals'),
+  false,
+);
 
 const participation = await request(
   `/academic/me/subjects/${subject.id}`,
