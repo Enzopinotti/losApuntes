@@ -261,6 +261,42 @@ export class ProfileService {
     };
   }
 
+  async getFeedSignals(userId: string) {
+    const profile = await this.store.findProfileByUserId(userId);
+    if (!profile) return null;
+
+    return {
+      profileId: profile.id,
+      skills: profile.skills,
+      interests: profile.interests,
+      helpTopics: profile.helpTopics,
+      learningTopics: profile.learningTopics,
+      recommendationSignals: profile.recommendationSignals,
+    };
+  }
+
+  async getAttributionsForUsers(userIds: string[]) {
+    const unique = [...new Set(userIds)];
+    const rows = await this.store.findProfilesByUserIds(unique);
+    const byUserId = new Map(
+      rows.map((profile) => {
+        const aboutPublic = profile.visibility.about === 'public';
+        return [
+          profile.userId,
+          {
+            profileId: profile.id,
+            displayName: aboutPublic
+              ? profile.displayName
+              : 'Usuario de Los Apuntes',
+            avatarUrl: aboutPublic ? profile.avatarUrl : null,
+          },
+        ] as const;
+      }),
+    );
+
+    return byUserId;
+  }
+
   async resolveUserIdByProfileId(profileId: string): Promise<string | null> {
     const profile = await this.store.findProfileById(profileId);
     return profile?.userId ?? null;
