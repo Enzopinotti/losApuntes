@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, Model } from 'mongoose';
+import type { Connection, FilterQuery, Model } from 'mongoose';
 
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import { Notification } from '../../notifications/mongo/notification.mongo-schema';
@@ -9,6 +9,7 @@ import type {
   ConnectionRecord,
   ConnectionStatus,
   FollowRecord,
+  SocialCursor,
 } from '../domain/social.types';
 import { SocialConnection, SocialFollow } from './social.mongo-schemas';
 
@@ -113,9 +114,24 @@ export class MongoSocialStore implements SocialStore {
     await this.follows.deleteOne({ followerUserId, followeeUserId }).exec();
   }
 
-  async listFollowing(userId: string, limit: number): Promise<FollowRecord[]> {
+  async listFollowing(
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ): Promise<FollowRecord[]> {
+    const filters: FilterQuery<SocialFollow>[] = [{ followerUserId: userId }];
+
+    if (after) {
+      filters.push({
+        $or: [
+          { createdAt: { $lt: after.at } },
+          { createdAt: after.at, id: { $gt: after.id } },
+        ],
+      });
+    }
+
     return this.follows
-      .find({ followerUserId: userId })
+      .find({ $and: filters })
       .sort({ createdAt: -1, id: 1 })
       .limit(limit)
       .lean<FollowRecord[]>()
@@ -233,12 +249,25 @@ export class MongoSocialStore implements SocialStore {
     userId: string,
     status: ConnectionStatus | undefined,
     limit: number,
+    after?: SocialCursor,
   ): Promise<ConnectionRecord[]> {
+    const filters: FilterQuery<SocialConnection>[] = [
+      { $or: [{ userLowId: userId }, { userHighId: userId }] },
+    ];
+
+    if (status) filters.push({ status });
+
+    if (after) {
+      filters.push({
+        $or: [
+          { updatedAt: { $lt: after.at } },
+          { updatedAt: after.at, id: { $gt: after.id } },
+        ],
+      });
+    }
+
     return this.connections
-      .find({
-        $or: [{ userLowId: userId }, { userHighId: userId }],
-        ...(status ? { status } : {}),
-      })
+      .find({ $and: filters })
       .sort({ updatedAt: -1, id: 1 })
       .limit(limit)
       .lean<ConnectionRecord[]>()
