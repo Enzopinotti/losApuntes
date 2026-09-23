@@ -439,7 +439,10 @@ const publicUpdate = await request(
 );
 assert.equal(publicUpdate.response.status, 200);
 assert.equal(publicUpdate.body.resource.visibility, 'public');
-assert.equal(publicUpdate.body.resource.revision, primary.revision + 1);
+assert.equal(
+  publicUpdate.body.resource.revision,
+  sharedUpdate.body.resource.revision + 1,
+);
 
 const publicAnonymous = await request(`/resources/${primary.id}`);
 assert.equal(publicAnonymous.response.status, 200);
