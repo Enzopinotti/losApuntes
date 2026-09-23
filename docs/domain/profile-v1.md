@@ -2,7 +2,7 @@
 
 ## Status
 
-Backend design for Slice 3 of the 2026 reboot.
+Profile v1 implemented for the API and Web product surface in Slice 3 of the 2026 reboot.
 
 This contract reconciles the historical profile requirements with the accepted 2026 domain model. Historical requirements ask for a personal academic/professional profile with name, photo, bio, university/career/year, skills, languages, achievements and privacy controls. The 2026 model keeps the user-facing goal but changes where truth lives:
 
@@ -54,6 +54,8 @@ Profile v1 also supports bounded activity entries:
 - academic work.
 
 Each activity has its own stable UUID and revision so concurrent edits cannot silently overwrite each other.
+
+If both activity periods are present, `endedOn` must not precede `startedOn`. The API rejects inverted periods before persistence.
 
 ## Data that Profile does not own
 
@@ -125,6 +127,8 @@ Presentation never changes permissions or authorization.
 
 An account without a Profile is valid.
 
+The Web route `/profile` implements the progressive flow: the first step asks only for an explicit display name; richer biography, skills, learning preferences, privacy, professional opt-in and activities remain optional follow-up edits.
+
 `GET /profile/me` returns `onboardingRequired: true` rather than inventing a display identity from the email.
 
 The short onboarding creates Profile with the minimum useful explicit field: `displayName`.
@@ -165,6 +169,12 @@ No automatic destructive migration is performed in Profile v1.
 
 A future migration may seed Profile fields from legacy `full_name/avatar_url/bio` only with explicit deterministic rules. Legacy `career_id/cohort_year` must not seed canonical academic truth.
 
+## Web security boundary
+
+The Web client uses the existing HttpOnly session cookie with `credentials: include`, `cache: no-store` and bounded request timeouts. It does not store a Profile/Auth bearer in `localStorage` or `sessionStorage`.
+
+The public route `/p/:profileId` renders only fields already present in the server-side privacy projection. Client code does not fetch an owner projection and hide fields cosmetically.
+
 ## Persistence boundary
 
 Application code depends on `ProfileStore`.
@@ -183,6 +193,8 @@ Profile v1 backend does not implement:
 - arbitrary HTML/profile themes;
 - file-backed avatar upload;
 - organization membership;
-- Web/Mobile screens.
+- native Mobile profile screens.
+
+Native Mobile consumes the same HTTP semantics as part of the Mobile module (#7/#49); it is not a second Profile authority.
 
 Those modules may project into Profile later without moving their source of truth into Profile.
