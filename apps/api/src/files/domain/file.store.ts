@@ -29,9 +29,10 @@ export interface FileAssetStore {
     expiresAt: Date,
   ): Promise<FileAssetRecord | null>;
   listReclaimable(now: Date, limit: number): Promise<FileAssetRecord[]>;
-  markReclaimed(
+  claimForReclamation(
     id: string,
     expectedState: Exclude<FileAssetState, 'reclaimed'>,
-    reclaimedAt: Date,
-  ): Promise<boolean>;
+    now: Date,
+  ): Promise<FileAssetRecord | null>;
+  markReclaimed(id: string, reclaimedAt: Date): Promise<boolean>;
 }
