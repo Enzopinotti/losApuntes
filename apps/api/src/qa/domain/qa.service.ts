@@ -96,14 +96,14 @@ export class QaService {
     };
   }
 
-  async get(id: string) {
+  async get(id: string, viewerUserId?: string) {
     const question = await this.requireVisibleQuestion(id);
     const answers = await this.store.listAnswers(id, 100);
 
     return {
-      question: await this.questionProjection(question),
+      question: await this.questionProjection(question, viewerUserId),
       answers: await Promise.all(
-        answers.map((answer) => this.answerProjection(answer)),
+        answers.map((answer) => this.answerProjection(answer, viewerUserId)),
       ),
     };
   }
@@ -359,7 +359,10 @@ export class QaService {
     return row;
   }
 
-  private async questionProjection(row: QuestionRecord) {
+  private async questionProjection(
+    row: QuestionRecord,
+    viewerUserId?: string,
+  ) {
     const [author, subject, offering] = await Promise.all([
       this.profiles.getAttributionForUser(row.authorUserId),
       this.academic.getCatalogNode(row.subjectId),
@@ -383,18 +386,28 @@ export class QaService {
       answerCount: row.answerCount,
       acceptedAnswerId: row.acceptedAnswerId,
       revision: row.revision,
+      viewer: {
+        canEdit: row.authorUserId === viewerUserId,
+        canAnswer: Boolean(viewerUserId) && row.state === 'open',
+        canAcceptAnswers: row.authorUserId === viewerUserId,
+        canReport: Boolean(viewerUserId),
+      },
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
 
-  private async answerProjection(row: AnswerRecord) {
+  private async answerProjection(row: AnswerRecord, viewerUserId?: string) {
     return {
       id: row.id,
       questionId: row.questionId,
       author: await this.profiles.getAttributionForUser(row.authorUserId),
       body: row.body,
       revision: row.revision,
+      viewer: {
+        canEdit: row.authorUserId === viewerUserId,
+        canReport: Boolean(viewerUserId),
+      },
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
