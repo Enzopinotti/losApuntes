@@ -265,34 +265,6 @@ jobs:
       - name: Enforce critical Feeds coverage
         run: pnpm --filter @losapuntes/api test:feeds:coverage
 
-  pilot-api-format-diagnostic:
-    name: Pilot API format diagnostic
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
-
-      - name: Use Node 24
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install workspace from frozen lockfile
-        run: pnpm install --frozen-lockfile
-
-      - name: Print canonical Pilot API formatting
-        run: |
-          pnpm --filter @losapuntes/api exec prettier --write src/pilot/domain/pilot.service.spec.ts src/pilot/guards/pilot-guards.spec.ts
-          git diff --no-ext-diff --unified=20 -- apps/api/src/pilot/domain/pilot.service.spec.ts apps/api/src/pilot/guards/pilot-guards.spec.ts
-
   pilot-critical-coverage:
     name: Pilot critical coverage
     runs-on: ubuntu-24.04
