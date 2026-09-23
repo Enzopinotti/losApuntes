@@ -33,6 +33,7 @@ import {
 export class QuestionsController {
   constructor(private readonly qa: QaService) {}
 
+  @UseGuards(OptionalAuthSessionGuard)
   @Get('questions')
   search(@Query() query: QuestionSearchDto) {
     return this.qa.search(query);
