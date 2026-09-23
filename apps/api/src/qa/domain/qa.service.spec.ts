@@ -533,12 +533,15 @@ describe('QaService', () => {
       hasMore: true,
     });
 
-    const first = await service(qaStore, academicApi, profileApi).search({
-      q: '  NORMALIZACIÓN  ',
-      subjectId: '99999999-9999-4999-8999-999999999999',
-      status: 'open',
-      limit: 1,
-    });
+    const first = await service(qaStore, academicApi, profileApi).search(
+      {
+        q: '  NORMALIZACIÓN  ',
+        subjectId: '99999999-9999-4999-8999-999999999999',
+        status: 'open',
+        limit: 1,
+      },
+      'user-a',
+    );
 
     expect(academicApi.resolveResourceContext).toHaveBeenCalledWith(
       '99999999-9999-4999-8999-999999999999',
@@ -549,6 +552,12 @@ describe('QaService', () => {
       state: 'open',
       limit: 1,
       after: undefined,
+    });
+    expect(first.items[0]?.viewer).toEqual({
+      canEdit: true,
+      canAnswer: true,
+      canAcceptAnswers: true,
+      canReport: true,
     });
     expect(first.nextCursor).not.toBeNull();
 
