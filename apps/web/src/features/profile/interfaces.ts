@@ -1,8 +1,5 @@
 export type ProfileVisibility =
-  | "public"
-  | "university"
-  | "connections"
-  | "private";
+  "public" | "university" | "connections" | "private";
 
 export type ProfileSection =
   | "about"
@@ -14,11 +11,7 @@ export type ProfileSection =
   | "contributions";
 
 export type ProfileActivityType =
-  | "project"
-  | "research"
-  | "club"
-  | "volunteering"
-  | "academic_work";
+  "project" | "research" | "club" | "volunteering" | "academic_work";
 
 export type OwnerProfile = {
   id: string;
