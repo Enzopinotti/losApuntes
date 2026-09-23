@@ -165,6 +165,7 @@ export function validateRuntimeEnvironment(
     throw new Error('NODE_ENV must be development, test or production');
   }
 
+  const mongoUri = requiredString(source, 'MONGO_URI');
   const deliveryMode = authEmailDeliveryMode(source, nodeEnv);
   const authActionBaseUrl = parseHttpOrigin(
     source.AUTH_ACTION_BASE_URL,
@@ -229,7 +230,7 @@ export function validateRuntimeEnvironment(
     ...source,
     NODE_ENV: nodeEnv,
     PORT: parsePort(source.PORT, 'PORT', 4000),
-    MONGO_URI: requiredString(source, 'MONGO_URI'),
+    MONGO_URI: mongoUri,
     WEB_ORIGIN: webOrigin,
     SWAGGER_ENABLED: parseBoolean(
       source.SWAGGER_ENABLED,
