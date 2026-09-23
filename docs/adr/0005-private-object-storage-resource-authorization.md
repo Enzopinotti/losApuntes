@@ -69,7 +69,7 @@ Maximum object size: **50 MiB**.
 Upload intent TTL: **10 minutes**.  
 Download/preview intent TTL: **5 minutes by default**, runtime-bounded to **1–300 seconds**. Local/CI intentionally uses 2 seconds so expiry is proven against real MinIO rather than only asserted from configuration.
 
-The upload URL is single-object and signed with immutable-create semantics where the provider supports the required conditional request. Finalization verifies object existence, exact size, declared storage Content-Type and a bounded byte prefix against the supported MIME signature.
+The upload URL is single-object and signed with immutable-create semantics. The signature binds the declared `Content-Type` and exact `Content-Length` as well as the create-only condition, so object storage rejects replacement attempts and wrong-sized request bodies before they become valid uploads. Finalization independently re-verifies object existence, exact size, stored Content-Type and a bounded byte prefix against the supported MIME signature.
 
 Storage mismatch fails closed and the object is deleted best-effort.
 
