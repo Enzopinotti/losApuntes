@@ -125,6 +125,18 @@ async function createReadyPdf(bearer, filename, label) {
   });
   assert.equal(upload.ok, true, `PUT failed with ${upload.status}`);
 
+  const replacement = await fetch(intent.body.upload.url, {
+    method: intent.body.upload.method,
+    headers: intent.body.upload.headers,
+    body: Buffer.from('%PDF-1.7\\nreplacement-must-fail\\n%%EOF\\n', 'utf8'),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  assert.equal(
+    replacement.ok,
+    false,
+    'A signed upload intent must not replace an existing object',
+  );
+
   const finalized = await request(
     `/files/${intent.body.file.id}/finalize`,
     {
@@ -217,6 +229,16 @@ const primary = await createResource(
   'Apunte Runtime Primario',
   'private',
 );
+
+const crossUserFinalize = await request(
+  `/files/${primaryUpload.file.id}/finalize`,
+  {
+    method: 'POST',
+    headers: { authorization: viewer.bearer },
+  },
+);
+assert.equal(crossUserFinalize.response.status, 404);
+assert.equal(crossUserFinalize.body.code, 'FILE_UPLOAD_NOT_FOUND');
 
 const duplicateClaim = await request(
   '/resources',
@@ -556,6 +578,8 @@ console.log(
     event: 'files.resources.lifecycle.smoke.ok',
     checks: [
       'direct-private-object-upload',
+      'immutable-signed-put',
+      'cross-user-file-finalize-deny',
       'finalize-idempotency',
       'asset-single-claim',
       'private-deny',
