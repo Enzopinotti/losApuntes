@@ -295,12 +295,19 @@ export class FileService {
       if (row.state === 'reclaimed') continue;
 
       try {
-        await this.storage.deleteObject(row.objectKey);
-        if (await this.store.markReclaimed(row.id, row.state, now)) {
+        const claimed = await this.store.claimForReclamation(
+          row.id,
+          row.state,
+          now,
+        );
+        if (!claimed) continue;
+
+        await this.storage.deleteObject(claimed.objectKey);
+        if (await this.store.markReclaimed(claimed.id, now)) {
           reclaimed += 1;
         }
       } catch {
-        // Leave the row reclaimable so the dedicated worker can retry later.
+        // Leave reclaiming state durable so the worker can retry storage cleanup.
       }
     }
 
