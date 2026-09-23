@@ -1,9 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
-import {
-  PILOT_EVENT_NAMES,
-  type PilotEventName,
-} from '../pilot-event.types';
+import { PILOT_EVENT_NAMES, type PilotEventName } from '../pilot-event.types';
 
 @Schema({ collection: 'pilot_events', timestamps: false })
 export class PilotEvent {
