@@ -17,7 +17,7 @@ describe('PilotEventService', () => {
       now,
     });
 
-    expect(store.create).toHaveBeenCalledWith(
+    expect(store.create.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         event: 'pilot.search_performed',
         userId: 'user-1',
