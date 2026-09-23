@@ -25,6 +25,38 @@ services:
     ports:
       - "127.0.0.1:8025:8025"
 
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
+    restart: "no"
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: losapuntes-local
+      MINIO_ROOT_PASSWORD: losapuntes-local-files-secret
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:5173
+    tmpfs:
+      - /data
+    ports:
+      - "127.0.0.1:9000:9000"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        mc alias set local http://minio:9000 losapuntes-local
+        losapuntes-local-files-secret &&
+        mc mb --ignore-existing local/losapuntes-files
+    depends_on:
+      minio:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -42,6 +74,13 @@ services:
       AUTH_SMTP_HOST: mailpit
       AUTH_SMTP_PORT: 1025
       AUTH_SMTP_SECURE: "false"
+      FILES_STORAGE_PROVIDER: s3
+      FILES_S3_ENDPOINT: http://minio:9000
+      FILES_S3_PUBLIC_ENDPOINT: http://localhost:9000
+      FILES_S3_REGION: us-east-1
+      FILES_S3_BUCKET: losapuntes-files
+      FILES_S3_ACCESS_KEY_ID: losapuntes-local
+      FILES_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
     ports:
       - "4000:4000"
     depends_on:
@@ -49,6 +88,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -61,3 +102,35 @@ services:
       timeout: 5s
       retries: 30
       start_period: 5s
+
+  files-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: "no"
+    command: ["node", "dist/files/files-cleanup.worker.js"]
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/losapuntes_local?replicaSet=rs0&directConnection=true
+      WEB_ORIGIN: http://localhost:5173
+      SWAGGER_ENABLED: "false"
+      AUTH_EMAIL_DELIVERY_MODE: smtp
+      AUTH_ACTION_BASE_URL: http://localhost:5173
+      AUTH_EMAIL_FROM: Los Apuntes <no-reply@losapuntes.local>
+      AUTH_SMTP_HOST: mailpit
+      AUTH_SMTP_PORT: 1025
+      AUTH_SMTP_SECURE: "false"
+      FILES_STORAGE_PROVIDER: s3
+      FILES_S3_ENDPOINT: http://minio:9000
+      FILES_S3_PUBLIC_ENDPOINT: http://localhost:9000
+      FILES_S3_REGION: us-east-1
+      FILES_S3_BUCKET: losapuntes-files
+      FILES_S3_ACCESS_KEY_ID: losapuntes-local
+      FILES_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
