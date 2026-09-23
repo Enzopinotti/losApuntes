@@ -25,27 +25,47 @@ function targetPath(item: NotificationView): string | null {
 
 const Notifications = () => {
   const [items, setItems] = useState<NotificationView[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await communityApi.notifications({ unreadOnly });
-      setItems(result.items);
-    } catch (nextError) {
-      setError(
-        isCommunityApiError(nextError)
-          ? nextError.message
-          : "No pudimos cargar tus notificaciones.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [unreadOnly]);
+  const load = useCallback(
+    async (cursor?: string, append = false) => {
+      if (append) {
+        setBusy(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const result = await communityApi.notifications({
+          unreadOnly,
+          cursor,
+          limit: 50,
+        });
+        setItems((current) =>
+          append ? [...current, ...result.items] : result.items,
+        );
+        setNextCursor(result.nextCursor);
+      } catch (nextError) {
+        setError(
+          isCommunityApiError(nextError)
+            ? nextError.message
+            : "No pudimos cargar tus notificaciones.",
+        );
+      } finally {
+        if (append) {
+          setBusy(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [unreadOnly],
+  );
 
   useEffect(() => {
     void load();
@@ -122,33 +142,45 @@ const Notifications = () => {
         ) : items.length === 0 ? (
           <p>No hay notificaciones para mostrar.</p>
         ) : (
-          <ul className="community-list">
-            {items.map((item) => {
-              const target = targetPath(item);
-              return (
-                <li key={item.id} className={item.readAt ? "" : "unread"}>
-                  <div>
-                    <strong>
-                      {item.actor?.displayName ?? "Los Apuntes"}{" "}
-                      {labels[item.type]}
-                    </strong>
-                    <small>{new Date(item.createdAt).toLocaleString()}</small>
-                    {target && <Link to={target}>Abrir</Link>}
-                  </div>
-                  {!item.readAt && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => void markRead(item.id)}
-                    >
-                      Marcar leída
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <ul className="community-list">
+              {items.map((item) => {
+                const target = targetPath(item);
+                return (
+                  <li key={item.id} className={item.readAt ? "" : "unread"}>
+                    <div>
+                      <strong>
+                        {item.actor?.displayName ?? "Los Apuntes"}{" "}
+                        {labels[item.type]}
+                      </strong>
+                      <small>{new Date(item.createdAt).toLocaleString()}</small>
+                      {target && <Link to={target}>Abrir</Link>}
+                    </div>
+                    {!item.readAt && (
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void markRead(item.id)}
+                      >
+                        Marcar leída
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {nextCursor && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() => void load(nextCursor, true)}
+              >
+                {busy ? "Cargando…" : "Cargar más"}
+              </button>
+            )}
+          </>
         )}
       </section>
     </section>
