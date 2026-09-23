@@ -115,8 +115,7 @@ export class ProfileService {
           dto.professional?.headline === undefined
             ? null
             : cleanNullable(dto.professional.headline),
-        careerDiscoveryOptIn:
-          dto.professional?.careerDiscoveryOptIn ?? false,
+        careerDiscoveryOptIn: dto.professional?.careerDiscoveryOptIn ?? false,
       },
       presentation: {
         accentPreset: dto.presentation?.accentPreset ?? 'default',
@@ -132,8 +131,7 @@ export class ProfileService {
       recommendationSignals: {
         academicContext: dto.recommendationSignals?.academicContext ?? true,
         learning: dto.recommendationSignals?.learning ?? true,
-        skillsInterests:
-          dto.recommendationSignals?.skillsInterests ?? true,
+        skillsInterests: dto.recommendationSignals?.skillsInterests ?? true,
       },
       revision: 1,
     } as const;
@@ -197,7 +195,8 @@ export class ProfileService {
                 dto.presentation.accentPreset ??
                 existing.presentation.accentPreset,
               coverPreset:
-                dto.presentation.coverPreset ?? existing.presentation.coverPreset,
+                dto.presentation.coverPreset ??
+                existing.presentation.coverPreset,
               sectionOrder:
                 dto.presentation.sectionOrder === undefined
                   ? existing.presentation.sectionOrder
@@ -351,9 +350,7 @@ export class ProfileService {
       dto.expectedRevision,
       {
         ...(dto.type === undefined ? {} : { type: dto.type }),
-        ...(dto.title === undefined
-          ? {}
-          : { title: cleanText(dto.title) }),
+        ...(dto.title === undefined ? {} : { title: cleanText(dto.title) }),
         ...(dto.description === undefined
           ? {}
           : { description: cleanNullable(dto.description) }),
@@ -422,7 +419,8 @@ export class ProfileService {
     ) {
       throw new UnprocessableEntityException({
         code: 'PROFILE_SECTION_ORDER_INVALID',
-        message: 'Profile section order must contain every section exactly once',
+        message:
+          'Profile section order must contain every section exactly once',
       });
     }
 
