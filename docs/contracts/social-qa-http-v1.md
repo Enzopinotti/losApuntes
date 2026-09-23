@@ -30,7 +30,12 @@ Idempotently unfollow.
 
 ### GET /social/me/following
 
-Returns bounded current following list with privacy-safe Profile attribution.
+Optional query:
+
+- `limit` 1..100;
+- `cursor` opaque continuation cursor.
+
+Returns a bounded current following page with privacy-safe Profile attribution and `nextCursor` when more rows exist.
 
 ### POST /social/profiles/:profileId/connections
 
@@ -45,9 +50,10 @@ Self-connection is rejected.
 Query:
 
 - `status` optional = pending/accepted/declined/disconnected;
-- `limit` 1..100.
+- `limit` 1..100;
+- `cursor` opaque continuation cursor.
 
-For pending rows, projection identifies whether the viewer is requester or recipient.
+Returns `nextCursor` when more rows exist. For pending rows, projection identifies whether the viewer is requester or recipient.
 
 ### POST /social/connections/:id/accept
 
@@ -166,6 +172,7 @@ Representative domain codes:
 - `SOCIAL_CONNECTION_NOT_FOUND`;
 - `SOCIAL_CONNECTION_STATE_CONFLICT`;
 - `SOCIAL_CONNECTION_RECIPIENT_REQUIRED`;
+- `SOCIAL_CURSOR_INVALID`;
 - `QUESTION_NOT_FOUND`;
 - `QUESTION_CLOSED`;
 - `QUESTION_REVISION_CONFLICT`;
