@@ -1673,7 +1673,6 @@ describe('AcademicService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
-
   it('maps persistence-level source identity races to the stable conflict contract', async () => {
     const store = createStore();
     const service = new AcademicService(store);
@@ -1763,5 +1762,4 @@ describe('AcademicService', () => {
     expect(affiliations.affiliations[0]?.institutionId).toBe(target.id);
     expect(affiliations.affiliations[0]?.programId).toBe(child.id);
   });
-
 });
