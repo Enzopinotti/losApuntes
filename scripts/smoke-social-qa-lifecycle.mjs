@@ -535,7 +535,8 @@ assert.equal(acceptAnswer.body.question.acceptedAnswerId, answerId);
 const brunoNotifications = await notifications(bruno);
 assert.equal(
   brunoNotifications.some(
-    (item) => item.type === 'qa.answer_accepted' && item.target.id === answerId,
+    (item) =>
+      item.type === 'qa.answer_accepted' && item.target.id === questionId,
   ),
   true,
 );
