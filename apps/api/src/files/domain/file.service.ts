@@ -319,15 +319,17 @@ export class FileService {
     failureCode: string,
     now: Date,
   ): Promise<void> {
-    await this.store.markFailed(
+    const failed = await this.store.markFailed(
       asset.id,
       asset.creatorUserId,
       failureCode,
       new Date(now.getTime() + FAILED_RECLAIM_MS),
     );
 
+    if (!failed) return;
+
     try {
-      await this.storage.deleteObject(asset.objectKey);
+      await this.storage.deleteObject(failed.objectKey);
     } catch {
       // The worker retries storage cleanup from durable failed state.
     }
