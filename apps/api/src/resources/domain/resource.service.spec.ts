@@ -482,17 +482,31 @@ describe('ResourceService', () => {
     const deps = dependencies();
     projectionDeps(deps);
     const row = resource({ visibility: 'public' });
+    const mergedSubjectId = '77777777-7777-4777-8777-777777777777';
+    deps.academic.resolveResourceContext.mockResolvedValue({
+      subjectId: row.subjectId,
+      courseOfferingId: null,
+    });
     resourceStore.searchAuthorized
       .mockResolvedValueOnce({ items: [row], hasMore: true })
       .mockResolvedValueOnce({ items: [], hasMore: false });
 
     const first = await service(resourceStore, deps).search('viewer-2', {
       q: ' BASE ',
-      subjectId: row.subjectId,
+      subjectId: mergedSubjectId,
       visibility: 'public',
       limit: 25,
     });
     expect(first.nextCursor).toEqual(expect.any(String));
+    expect(deps.academic.resolveResourceContext.mock.calls).toContainEqual([
+      mergedSubjectId,
+    ]);
+    expect(resourceStore.searchAuthorized.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        subjectId: row.subjectId,
+        visibility: 'public',
+      }),
+    );
 
     await service(resourceStore, deps).search('viewer-2', {
       limit: 25,
