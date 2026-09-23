@@ -26,9 +26,12 @@ const MIME_PREFIX_BYTES = 64;
 
 function cleanFilename(value: string): string {
   const basename = path.basename(value.replace(/\\/gu, '/'));
-  const cleaned = basename
-    .normalize('NFC')
-    .replace(/[\u0000-\u001f\u007f]/gu, '')
+  const cleaned = [...basename.normalize('NFC')]
+    .filter((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code >= 0x20 && code !== 0x7f;
+    })
+    .join('')
     .trim();
 
   if (!cleaned) {
