@@ -328,4 +328,179 @@ describe('SocialService', () => {
       ),
     ).resolves.toBeUndefined();
   });
+
+  it('unfollows a resolved target and rejects self-unfollow', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    profiles.resolveUserIdByProfileId
+      .mockResolvedValueOnce('user-b')
+      .mockResolvedValueOnce('user-a');
+
+    const instance = service(socialStore, profiles);
+
+    await expect(
+      instance.unfollow(
+        'user-a',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ),
+    ).resolves.toBeUndefined();
+    expect(socialStore.unfollow).toHaveBeenCalledWith('user-a', 'user-b');
+
+    await expect(
+      instance.unfollow(
+        'user-a',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('fails opaque when a target Profile cannot be resolved', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    profiles.getAttributionForUser.mockResolvedValue({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      displayName: 'A',
+      avatarUrl: null,
+    });
+    profiles.resolveUserIdByProfileId.mockResolvedValue(null);
+
+    await expect(
+      service(socialStore, profiles).requestConnection(
+        'user-a',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(socialStore.requestConnection).not.toHaveBeenCalled();
+  });
+
+  it('creates and projects a pending connection request transactionally', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    profiles.getAttributionForUser.mockImplementation((userId) =>
+      Promise.resolve({
+        profileId:
+          userId === 'user-a'
+            ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+            : 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        displayName: userId === 'user-a' ? 'A' : 'B',
+        avatarUrl: null,
+      }),
+    );
+    profiles.resolveUserIdByProfileId.mockResolvedValue('user-b');
+    socialStore.requestConnection.mockImplementation((input) =>
+      Promise.resolve({
+        connection: connection({
+          id: input.id,
+          userLowId: 'user-a',
+          userHighId: 'user-b',
+          requestedByUserId: 'user-a',
+        }),
+        changed: true,
+      }),
+    );
+
+    const result = await service(socialStore, profiles).requestConnection(
+      'user-a',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    );
+
+    expect(result.connection).toEqual(
+      expect.objectContaining({
+        status: 'pending',
+        requestedByMe: true,
+        incoming: false,
+      }),
+    );
+    expect(socialStore.requestConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requesterUserId: 'user-a',
+        targetUserId: 'user-b',
+        notification: expect.objectContaining({
+          type: 'social.connection_requested',
+          userId: 'user-b',
+          actorUserId: 'user-a',
+        }),
+      }),
+    );
+  });
+
+  it('rejects response once the connection is no longer pending', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    socialStore.findConnectionById.mockResolvedValue(
+      connection({ status: 'accepted', respondedAt: now }),
+    );
+
+    await expect(
+      service(socialStore, profiles).respond(
+        'user-b',
+        '11111111-1111-4111-8111-111111111111',
+        'declined',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(socialStore.respondConnection).not.toHaveBeenCalled();
+  });
+
+  it('declines a pending request without an acceptance notification', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const pending = connection();
+    const declined = connection({
+      status: 'declined',
+      respondedAt: now,
+    });
+    socialStore.findConnectionById.mockResolvedValue(pending);
+    socialStore.respondConnection.mockResolvedValue(declined);
+    profiles.getAttributionForUser.mockResolvedValue({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      displayName: 'A',
+      avatarUrl: null,
+    });
+
+    const result = await service(socialStore, profiles).respond(
+      'user-b',
+      pending.id,
+      'declined',
+    );
+
+    expect(result.connection.status).toBe('declined');
+    const call = socialStore.respondConnection.mock.calls[0]?.[0];
+    expect(call?.notification).toBeUndefined();
+  });
+
+  it('fails disconnect when the accepted relation changes concurrently', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    socialStore.findConnectionById.mockResolvedValue(
+      connection({ status: 'accepted', respondedAt: now }),
+    );
+    socialStore.disconnectConnection.mockResolvedValue(null);
+
+    await expect(
+      service(socialStore, profiles).disconnect(
+        'user-a',
+        '11111111-1111-4111-8111-111111111111',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('fails closed when a connection participant no longer has attribution', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    socialStore.listConnections.mockResolvedValue([
+      connection({ status: 'accepted', respondedAt: now }),
+    ]);
+    profiles.getAttributionForUser.mockResolvedValue(null);
+
+    await expect(
+      service(socialStore, profiles).listConnections(
+        'user-a',
+        'accepted',
+        20,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
 });
