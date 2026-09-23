@@ -654,7 +654,9 @@ describe('ResourceService', () => {
   it('keeps unknown share targets opaque', async () => {
     const resourceStore = store();
     const deps = dependencies();
-    resourceStore.findById.mockResolvedValue(resource());
+    resourceStore.findById.mockResolvedValue(
+      resource({ visibility: 'shared' }),
+    );
     deps.profiles.resolveUserIdByProfileId.mockResolvedValue(null);
 
     await expect(
