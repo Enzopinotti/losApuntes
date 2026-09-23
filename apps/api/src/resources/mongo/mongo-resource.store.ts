@@ -37,7 +37,11 @@ function toPlain<T>(value: { toObject(): unknown } | T): T {
 }
 
 function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\return value.replace(/[.*+?^\${}()|[\]\\]/gu, '\\$&');');
+  const special = new Set(['\\', '^', '$', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|']);
+
+  return [...value]
+    .map((character) => (special.has(character) ? `\\${character}` : character))
+    .join('');
 }
 
 @Injectable()
