@@ -19,7 +19,7 @@ export type CatalogSearchCursor = {
 export type CatalogSearchQuery = {
   kind?: AcademicNodeKind;
   q?: string;
-  parentId?: string;
+  parentIds?: string[];
   limit: number;
   after?: CatalogSearchCursor;
 };
@@ -68,6 +68,9 @@ export interface AcademicStore {
 
   findCatalogNodeById(id: string): Promise<AcademicCatalogNodeRecord | null>;
   findCatalogNodesByIds(ids: string[]): Promise<AcademicCatalogNodeRecord[]>;
+  findDirectRedirectSources(
+    targetId: string,
+  ): Promise<AcademicCatalogNodeRecord[]>;
   findCatalogNodeBySourceIdentity(
     sourceKey: string,
     externalId: string,
