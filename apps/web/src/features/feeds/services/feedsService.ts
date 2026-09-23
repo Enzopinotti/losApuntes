@@ -154,11 +154,7 @@ export const feedsApi = {
       }),
     }),
 
-  setFeedback: (
-    type: FeedTargetType,
-    id: string,
-    signal: FeedFeedbackSignal,
-  ) =>
+  setFeedback: (type: FeedTargetType, id: string, signal: FeedFeedbackSignal) =>
     request<{
       feedback: {
         targetType: FeedTargetType;
