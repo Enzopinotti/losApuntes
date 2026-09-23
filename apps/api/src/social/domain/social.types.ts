@@ -7,6 +7,11 @@ export const CONNECTION_STATUSES = [
 
 export type ConnectionStatus = (typeof CONNECTION_STATUSES)[number];
 
+export interface SocialCursor {
+  at: Date;
+  id: string;
+}
+
 export interface FollowRecord {
   id: string;
   followerUserId: string;
