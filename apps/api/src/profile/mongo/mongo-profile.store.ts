@@ -29,10 +29,6 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, (character) => '\\' + character);
 }
 
-function toPlain<T>(value: { toObject(): unknown } | T): T {');
-}');
-}
-
 function toPlain<T>(value: { toObject(): unknown } | T): T {
   if (
     typeof value === 'object' &&
