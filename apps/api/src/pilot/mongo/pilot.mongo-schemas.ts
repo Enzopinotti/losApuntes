@@ -44,4 +44,7 @@ export class PilotModerationAudit {
 export const PilotModerationAuditSchema =
   SchemaFactory.createForClass(PilotModerationAudit);
 
-PilotModerationAuditSchema.index({ reportKind: 1, reportId: 1 }, { unique: true });
+PilotModerationAuditSchema.index(
+  { reportKind: 1, reportId: 1 },
+  { unique: true },
+);
