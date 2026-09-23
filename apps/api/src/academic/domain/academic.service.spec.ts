@@ -4,7 +4,10 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
-import type { AcademicStore } from './academic.store';
+import {
+  AcademicSourceIdentityConflictError,
+  type AcademicStore,
+} from './academic.store';
 import { AcademicService } from './academic.service';
 import type {
   AcademicAffiliationRecord,
@@ -1633,6 +1636,93 @@ describe('AcademicService', () => {
         canonicalTargetId: program.id,
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+
+  it('maps persistence-level source identity races to the stable conflict contract', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const country = catalogNode();
+
+    store.findCatalogNodesByIds.mockResolvedValue([country]);
+    store.findCatalogNodeBySourceIdentity.mockResolvedValue(null);
+    store.createCatalogNode.mockRejectedValue(
+      new AcademicSourceIdentityConflictError(),
+    );
+
+    await expect(
+      service.createCatalogNode('admin-1', {
+        kind: 'institution',
+        name: 'Concurrent institution',
+        parentIds: [country.id],
+        provenance: {
+          authorityTier: 'A',
+          sourceKey: 'siu',
+          sourceUrl: 'https://example.test/siu',
+          externalId: 'concurrent-id',
+        },
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'ACADEMIC_SOURCE_IDENTITY_EXISTS',
+      }),
+    });
+  });
+
+  it('keeps children and affiliation projections canonical after a parent merge', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const target = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+      name: 'Canonical institution',
+      normalizedName: 'canonical institution',
+    });
+    const source = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+      status: 'merged',
+      redirectToId: target.id,
+    });
+    const child = catalogNode({
+      id: '44444444-4444-4444-8444-444444444444',
+      kind: 'program',
+      parentIds: [source.id],
+    });
+    const row = affiliation({
+      institutionId: source.id,
+      programId: child.id,
+      curriculumId: undefined,
+    });
+
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(
+        id === target.id
+          ? target
+          : id === source.id
+            ? source
+            : id === child.id
+              ? child
+              : null,
+      ),
+    );
+    store.findDirectRedirectSources.mockImplementation((id) =>
+      Promise.resolve(id === target.id ? [source] : []),
+    );
+    store.searchCatalog.mockResolvedValue({ items: [child], hasMore: false });
+    store.listAffiliationsForUser.mockResolvedValue([row]);
+
+    const children = await service.listChildren(target.id, 'program', 25);
+    expect(children.items.map((item) => item.id)).toEqual([child.id]);
+    expect(store.searchCatalog).toHaveBeenCalledWith({
+      kind: 'program',
+      parentIds: [target.id, source.id],
+      limit: 25,
+    });
+
+    const affiliations = await service.listAffiliations('user-1');
+    expect(affiliations.affiliations[0]?.institutionId).toBe(target.id);
+    expect(affiliations.affiliations[0]?.programId).toBe(child.id);
   });
 
 });
