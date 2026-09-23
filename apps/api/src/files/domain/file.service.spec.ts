@@ -37,6 +37,7 @@ function store(): jest.Mocked<FileAssetStore> {
     markReady: jest.fn(),
     markFailed: jest.fn(),
     listReclaimable: jest.fn(),
+    claimForReclamation: jest.fn(),
     markReclaimed: jest.fn(),
   };
 }
@@ -314,6 +315,15 @@ describe('FileService', () => {
       asset({ id: 'b', objectKey: 'b', state: 'failed' }),
     ];
     fileStore.listReclaimable.mockResolvedValue(reclaimable);
+    fileStore.claimForReclamation
+      .mockResolvedValueOnce({
+        ...reclaimable[0],
+        state: 'reclaiming',
+      })
+      .mockResolvedValueOnce({
+        ...reclaimable[1],
+        state: 'reclaiming',
+      });
     objectStorage.deleteObject
       .mockResolvedValueOnce()
       .mockRejectedValueOnce(new Error('temporary'));
@@ -325,6 +335,12 @@ describe('FileService', () => {
     ).cleanupExpiredAssets(20, now);
 
     expect(result).toEqual({ examined: 2, reclaimed: 1 });
+    expect(fileStore.claimForReclamation).toHaveBeenCalledWith(
+      'a',
+      'pending',
+      now,
+    );
+    expect(fileStore.markReclaimed).toHaveBeenCalledWith('a', now);
     expect(fileStore.markReclaimed).toHaveBeenCalledTimes(1);
   });
 });
