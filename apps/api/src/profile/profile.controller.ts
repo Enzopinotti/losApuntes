@@ -35,19 +35,13 @@ export class ProfileController {
 
   @UseGuards(AuthSessionGuard)
   @Post('profile/me')
-  create(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: CreateProfileDto,
-  ) {
+  create(@Req() request: AuthenticatedRequest, @Body() dto: CreateProfileDto) {
     return this.profile.createProfile(request.user.id, dto);
   }
 
   @UseGuards(AuthSessionGuard)
   @Patch('profile/me')
-  update(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: UpdateProfileDto,
-  ) {
+  update(@Req() request: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
     return this.profile.updateProfile(request.user.id, dto);
   }
 
