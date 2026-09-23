@@ -11,8 +11,9 @@ El repositorio activo vive en `main`. Las ramas históricas `frontend` y `backen
 - GitHub remoto es la autoridad.
 - Nada de `node_modules`, bases físicas, artefactos generados ni secretos versionados.
 - El backend es la autoridad de seguridad y negocio.
-- Web y mobile deberán compartir contratos; no se inventan APIs en clientes.
-- La persistencia 2026 sigue abierta hasta reconciliar DER/diagramas reales.
+- Web y Mobile comparten contratos; no se inventan APIs en clientes.
+- Los módulos nuevos aíslan persistencia detrás de adapters/ports.
+- El DER futuro de NotebookLM puede modificar el modelo físico sin convertirlo hoy en un bloqueo.
 - No se introducen microservicios ni infraestructura especulativa.
 - Un PR no está listo por compilar: debe pasar el quality contract completo sobre su HEAD exacto.
 - Dependencias de producción con vulnerabilidades high/critical bloquean el merge.
@@ -21,15 +22,17 @@ Ver `docs/architecture/engineering-guardrails.md`.
 
 ## Dominio 2026
 
-Antes de fijar la base de datos, el producto usa un contrato conceptual independiente de Mongo/SQL:
-
 - [Domain Contract 2026](docs/domain/domain-contract-2026.md)
+- [Academic Graph v1 implementation](docs/domain/academic-graph-implementation-v1.md)
+- [Academic HTTP v1](docs/contracts/academic-http-v1.md)
+- [Academic Graph completion matrix](docs/product/academic-graph-v1-completion-matrix.md)
+- [Academic Catalog source strategy](docs/domain/academic-catalog-source-strategy-2026.md)
 - [DER reconciliation checklist](docs/domain/der-reconciliation-checklist.md)
 - [MVP domain slices](docs/domain/mvp-domain-slices.md)
 - [Persistence preflight 2026](docs/architecture/persistence-preflight-2026.md)
-- [ADR 0004 — persistence after DER reconciliation](docs/adr/0004-persistence-after-der.md)
+- [ADR 0004 — replaceable persistence / DER reconciliation](docs/adr/0004-persistence-after-der.md)
 
-El modelo Mongo rescatado es implementación legacy. No define las cardinalidades ni entidades futuras. ADR 0004 permanece propuesto/bloqueado hasta reconciliar los diagramas reales.
+El Mongo actual es un adapter de runtime, no la definición eterna del dominio.
 
 ## Identity/Auth v1
 
@@ -48,17 +51,34 @@ La primera frontera de producto usa un contrato compartido para Web y Mobile:
 - [Client Auth integration contract](docs/contracts/client-auth-integration-v1.md)
 - [Identity/Auth v1 completion matrix](docs/product/identity-auth-v1-completion-matrix.md)
 
-Account, Profile y Academic Graph son conceptos distintos. El JWT/role del código legacy no es autoridad futura.
+Account, Profile y Academic Graph son conceptos distintos.
 
-Identity/Auth v1 está code-complete en backend/Web. El cliente Mobile real sigue en #49 y la readiness pública/productiva sigue en #48.
+## Academic Graph v1
+
+El backend implementa:
+
+- catálogo académico canónico con UUID estable;
+- jerarquía flexible Country → Institution → niveles opcionales → Program → Curriculum → Subject → CourseOffering;
+- alias, proveniencia, lifecycle y merge con redirects;
+- permisos administrativos explícitos;
+- afiliaciones múltiples/históricas;
+- SubjectParticipation;
+- CurrentAcademicContext server-authoritative;
+- propuestas de datos faltantes sin canonicalización automática;
+- auditoría académica durable;
+- cobertura crítica y smoke real contra Mongo.
+
+La implementación depende de `AcademicStore`, no de Mongoose fuera del adapter académico. El DER posterior puede reemplazar el modelo físico.
 
 ## Runtime y workspace
 
 - Node 24
 - pnpm 9.15.9
-- workspace único para aplicaciones y futuros paquetes compartidos
-- un solo `pnpm-lock.yaml` en la raíz
+- workspace único
+- un solo `pnpm-lock.yaml`
 - NestJS/Fastify para el API
+- MongoDB como adapter transaccional actual
+- Mailpit para email local verificable
 
 ## Verificación local
 
@@ -70,29 +90,29 @@ pnpm audit:prod
 
 `pnpm check` ejecuta higiene, formato, lint, typecheck, tests y builds.
 
-## Laboratorio local API + Mongo
+La CI agrega gates específicos de Auth y Academic Graph.
 
-El laboratorio reproduce el runtime actual sin persistir una base local en el repositorio. Mongo vive en `tmpfs` y representa únicamente la implementación rescatada actual; **no decide** la persistencia 2026.
-
-Requiere Docker Desktop/Engine con Docker Compose v2.
+## Laboratorio local
 
 ```bash
 pnpm runtime:up
 pnpm runtime:smoke
 ```
 
-El stack publica el API en `http://localhost:4000`. El smoke verifica liveness, readiness real contra Mongo, request IDs generados por el servidor y el envelope de errores HTTP.
+El stack publica el API en `http://localhost:4000`.
 
-Para ver logs:
+El smoke cubre runtime base, ciclo Auth y ciclo Academic Graph contra Mongo efímero.
+
+Para logs:
 
 ```bash
 pnpm runtime:logs
 ```
 
-Para eliminar completamente el runtime efímero:
+Para eliminar el runtime efímero:
 
 ```bash
 pnpm runtime:down
 ```
 
-El laboratorio usa Mailpit como sink SMTP local para verificar emails de Auth sin enviar mensajes reales. Producción requiere un proveedor transaccional real y gestión externa de secretos.
+Producción requiere proveedor transaccional real de email, secretos externos y evidencia de edge/HTTPS separada del laboratorio local.

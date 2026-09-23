@@ -2,16 +2,13 @@
 
 ## Status
 
-Prepared against:
+Historical preflight prepared against:
 
 `main @ 576b9dc76ccd630ff05f80bc337210203e781568`
 
-Primary architecture issue: #3  
-Downstream domain issues: #5, #10, #9, #6
+Architecture issue #3 is closed. ADR 0004 now accepts a replaceable-persistence strategy: MongoDB/Mongoose is the current adapter, while the future NotebookLM DER may justify a different physical model.
 
-This document does **not** choose MongoDB, PostgreSQL or a hybrid model.
-
-Its purpose is to make the eventual decision fast, evidence-based and migration-aware once the real DER/class diagrams are available.
+This document is retained as decision evidence. Statements below that originally described the DER as a blocker are superseded by ADR 0004 and the implemented Academic Graph boundary.
 
 ## 1. Inputs reviewed
 
@@ -280,17 +277,17 @@ If PostgreSQL wins after DER reconciliation:
 
 Do not perform an uncontrolled “schema rewrite” directly inside controllers/services.
 
-## 9. What is still missing
+## 9. DER evidence still expected
 
 The actual DER/class diagrams were **not found** in the currently available Project files.
 
 The available historical documents contain only high-level entities/hierarchy.
 
-Before #3 can choose persistence, the real diagrams must be supplied and reconciled with:
+When NotebookLM produces the diagrams, reconcile them with:
 
 `docs/domain/der-reconciliation-checklist.md`
 
-Minimum missing evidence:
+Expected evidence:
 
 - diagram file/version/date;
 - entities and exact relationships;
@@ -300,40 +297,37 @@ Minimum missing evidence:
 - inheritance/generalization if any;
 - unique keys/business identifiers;
 - intended deletes/cascades;
-- any original database assumptions.
+- original database assumptions.
 
-## 10. Immediate go/no-go
+## 10. Current go/no-go
 
-### Safe now
+### Safe and already in use
 
-- continue Auth/runtime hardening already completed;
-- document migration boundaries;
-- prepare import/source strategy;
-- prepare workload fixtures and contract tests;
-- inspect official catalog sources;
-- define API/domain semantics independent of persistence.
+- implement domain modules behind explicit store/port boundaries;
+- use stable product UUIDs;
+- keep Mongo-specific code inside adapters;
+- test business invariants independently from persistence;
+- add current-runtime indexes/constraints that can later be migrated;
+- continue source/pilot work without treating the DER as a blocker.
 
-### Not safe yet
+### Still prohibited without evidence
 
-- create final academic collections/tables;
-- migrate `career_id`;
-- choose an ORM;
-- remove Mongo;
-- introduce PostgreSQL in production;
-- implement Catalog entities with guessed cardinalities;
-- hard-code one university/career per user.
+- treat Mongo collections as permanent architecture;
+- migrate or remove Mongo merely by preference;
+- introduce PostgreSQL/hybrid production persistence without migration evidence;
+- expose Mongo ObjectIds as public identity;
+- hard-code one university/career directly on User as the new domain model;
+- accept a future DER change without migration/rollback analysis.
 
-## 11. Decision trigger
+## 11. Reconciliation trigger
 
-#3 can move from preflight to decision only when the real diagrams are available and the reconciliation produces:
+When the diagrams arrive, produce:
 
-1. annotated mapping to the 2026 domain contract;
+1. annotated mapping to the 2026 domain contract and implemented modules;
 2. contradiction list;
-3. MVP pruning;
-4. final conceptual cardinalities;
-5. workload/cardinality inventory;
-6. candidate comparison using that evidence;
-7. chosen persistence model;
-8. migration impact and rollback plan.
+3. final conceptual cardinalities;
+4. workload/cardinality inventory;
+5. persistence impact analysis;
+6. migration and rollback plan if the physical model changes.
 
-At that point ADR 0004 can move from **Proposed / blocked by DER** to **Accepted** with the actual database decision.
+ADR 0004 remains Accepted as the replaceable-persistence rule; a later ADR may select a permanent database once the DER/workload evidence justifies it.

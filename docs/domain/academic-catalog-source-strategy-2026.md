@@ -4,9 +4,9 @@
 
 Prepared on 2026-09-22 for issue #10.
 
-This document defines **source authority, provenance and import rules** for the canonical academic catalog without choosing a physical database schema.
+This document defines **source authority, provenance and import rules** for the canonical academic catalog independently from the physical database schema.
 
-It deliberately does not create Institution/Program/Subject tables or collections. Those remain blocked by issue #3 until the real DER/class diagrams are reconciled.
+Academic Graph v1 now implements the catalog behind the replaceable `AcademicStore` boundary. The source strategy remains authoritative for provenance/import behavior, while the future NotebookLM DER may revise the physical representation.
 
 ## 1. Why source strategy comes before persistence
 
@@ -375,7 +375,7 @@ An adapter does **not** own:
 - UI;
 - database-specific persistence assumptions.
 
-This keeps source ingestion testable even while ADR 0004 is unresolved.
+This keeps source ingestion testable independently from the current Mongo adapter and compatible with ADR 0004.
 
 ## 14. Failure and degraded-source behavior
 
@@ -462,17 +462,18 @@ These tests should consume adapter-neutral normalized records, not Mongoose/SQL 
 - whether national imports are full snapshots or incremental feeds;
 - pilot institution and pilot career.
 
-## 19. Definition of source-ready
+## 19. Definition of source-adapter/pilot readiness
 
-Academic Catalog source work is ready for implementation when:
+The Academic Graph backend is already implementable and implemented behind a persistence boundary.
 
-- a pilot context is selected;
+A real source adapter or launch pilot is ready when:
+
+- the target institution/context is selected;
 - its authoritative source set is recorded;
-- the real DER is reconciled;
-- ADR 0004 is accepted;
 - source manifests and normalized adapter output are defined;
 - import diff/review semantics are agreed;
-- canonical/provisional/alias/merge semantics have tests;
-- usage/licensing constraints of automated bulk sources are known.
+- canonical/provisional/alias/merge semantics remain covered by tests;
+- usage/licensing constraints of automated bulk sources are known;
+- ambiguous source precedence is documented for that adapter/pilot.
 
-Until then, source research and adapter-neutral fixtures/contracts are safe; final catalog persistence is not.
+The future DER is reconciled as architecture evidence and may trigger a persistence migration, but it is not a prerequisite for continuing module development.

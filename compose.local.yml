@@ -2,6 +2,7 @@ services:
   mongo:
     image: mongo:8.0
     restart: "no"
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     tmpfs:
       - /data/db
     healthcheck:
@@ -11,7 +12,7 @@ services:
           "mongosh",
           "--quiet",
           "--eval",
-          "quit(db.adminCommand('ping').ok ? 0 : 2)",
+          "try { if (db.hello().isWritablePrimary) quit(0); rs.status(); quit(2); } catch (error) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}); quit(2); }",
         ]
       interval: 2s
       timeout: 5s
@@ -32,7 +33,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      MONGO_URI: mongodb://mongo:27017/losapuntes_local
+      MONGO_URI: mongodb://mongo:27017/losapuntes_local?replicaSet=rs0&directConnection=true
       WEB_ORIGIN: http://localhost:5173
       SWAGGER_ENABLED: "false"
       AUTH_EMAIL_DELIVERY_MODE: smtp

@@ -40,6 +40,7 @@ export class UsersService {
               credential_version: 1,
               account_status: 'active',
               role: 'user',
+              platform_permissions: [],
             },
           },
           { upsert: true },
@@ -61,6 +62,7 @@ export class UsersService {
         credential_version: 1,
         account_status: 'active',
         role: 'user',
+        platform_permissions: [],
       });
     } catch (error) {
       if (!isDuplicateKeyError(error)) {
@@ -87,6 +89,17 @@ export class UsersService {
 
   findById(id: string) {
     return this.userModel.findById(id).exec();
+  }
+
+  async hasPlatformPermission(
+    userId: string,
+    permission: string,
+  ): Promise<boolean> {
+    return Boolean(
+      await this.userModel
+        .exists({ _id: userId, platform_permissions: permission })
+        .exec(),
+    );
   }
 
   async replacePasswordHashIfCurrent(

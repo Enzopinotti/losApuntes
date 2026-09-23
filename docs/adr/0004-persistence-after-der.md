@@ -1,109 +1,168 @@
-# ADR 0004 — Choose transactional persistence after DER reconciliation
+# ADR 0004 — Replaceable transactional persistence before/after DER reconciliation
 
-- Status: Proposed — blocked on real DER/class diagrams
+- Status: Accepted interim, explicitly revisable by the NotebookLM DER
 - Date: 2026-09-22
-- Tracks: #3
+- Revised: 2026-09-23
 
 ## Context
 
-The rescued backend currently runs on MongoDB/Mongoose.
+The rescued backend runs on MongoDB/Mongoose.
 
-Historical Los Apuntes material also named MongoDB Atlas and described a high-level academic hierarchy, but it explicitly left detailed technical modeling for later design.
+The 2026 product requires substantially richer relational semantics than the rescued User document: temporal academic affiliations, canonical catalog identity, aliases/provenance, provisional proposals, SubjectParticipation, current context, merge/redirect semantics and later resources/social relationships.
 
-The accepted 2026 domain contract is substantially richer than the rescued physical model. It requires temporal academic affiliations, canonical catalog identity, scoped aliases/provenance, provisional-to-canonical transitions, subject participation, catalog merge/redirect semantics, profile/privacy separation, resources/assets and several many-to-many relationship types.
+The project decision is now to continue building domain slices before the final NotebookLM DER is produced, while making those slices cheap to remodel afterward.
 
-The repository intentionally does not yet contain the real DER/class diagrams that issue #3 requires.
+Waiting for the diagram would unnecessarily block product progress. Hard-coding Mongoose throughout the application would create the opposite problem.
 
-Selecting a database before those diagrams are reconciled would turn a provisional implementation detail into architecture.
+## Decision
 
-## Current decision
+Use a **replaceable persistence boundary**.
 
-**Do not choose or migrate the primary transactional database yet.**
+For the current runtime:
 
-Until the DER is reconciled:
+- MongoDB/Mongoose remains the concrete transactional adapter;
+- new domain application services depend on explicit store/port contracts;
+- persistence-specific models and queries stay inside adapter folders;
+- public IDs are product IDs, never Mongo ObjectIds;
+- business rules cannot depend on collection names or Mongoose document behavior;
+- migrations/reconciliation after the NotebookLM DER are expected and supported.
 
-- MongoDB/Mongoose remains the runtime persistence adapter for the already-working Account/Auth foundation;
-- no new Academic Graph physical model may treat Mongo as permanent by default;
-- PostgreSQL remains a serious candidate, not a predetermined winner;
-- hybrid persistence is not selected without a concrete workload;
-- public Auth semantics remain persistence-independent.
+For Academic Graph v1 the boundary is `AcademicStore`.
 
-The detailed evidence and migration surface are documented in:
+Academic mutations that require audit execute through `AcademicStore.runAtomically`. The Mongo adapter backs this with database transactions; therefore the runtime Mongo deployment must be transaction-capable (replica set or equivalent managed topology). Local/CI uses a single-node replica set so this property is continuously exercised.
 
-`docs/architecture/persistence-preflight-2026.md`
+This is an interim persistence implementation decision, not a declaration that MongoDB is the permanent product database.
 
-## Decision criteria for the final revision
+## Why this is acceptable before the DER
 
-The accepted persistence decision must use the reconciled DER/workloads to compare at least:
+The costly part to change later is not a collection name. It is business logic coupled to persistence assumptions.
 
-- referential integrity;
-- scoped uniqueness/dedup;
-- temporal/history queries;
-- many-to-many graph behavior;
-- canonical merge/redirect workflows;
-- transaction boundaries;
-- schema evolution/migrations;
-- indexing/search projections;
-- developer velocity;
-- local/CI reproducibility;
-- backup/restore/rollback;
-- migration cost from the current Auth runtime.
+The implementation therefore freezes only product semantics already required by the 2026 contract:
 
-## Invariants independent of the winner
-
-The selected persistence model must preserve:
-
-- stable product identifiers independent of display names;
-- multiple simultaneous/historical academic affiliations;
+- stable IDs;
+- flexible optional hierarchy;
+- historical/multiple affiliations;
+- Subject distinct from CourseOffering;
+- canonical versus provisional state;
+- merge redirects;
+- provenance;
 - server-authoritative current context;
-- canonical/provisional separation;
-- auditability of sensitive state transitions;
-- Auth credentialVersion/session/action-token race guarantees;
-- no storage-specific identifier as public authorization authority.
+- explicit authorization;
+- auditability.
 
-## Why no decision is recorded yet
+The future DER may reorganize how those facts are stored.
 
-The current repository evidence proves two things simultaneously:
+## Current Mongo adapter
 
-1. MongoDB is a functioning adapter for the present Account/Auth slice.
-2. The future product has relational/integrity pressure that the tiny current schema cannot meaningfully evaluate.
+Identity/Auth already uses Mongo-backed stores.
 
-Without real cardinalities and lifecycle semantics from the DER, a Mongo-vs-PostgreSQL verdict would be preference dressed as architecture.
+Academic Graph v1 adds Mongo adapters for:
 
-## Rejected premature alternatives
+- catalog nodes;
+- affiliations;
+- subject participation;
+- current context;
+- proposals;
+- audit events.
 
-### Declare MongoDB permanent because it already works
+Application code outside the Mongo adapter must not import those schemas.
 
-Rejected for now.
+## Future DER reconciliation
 
-Existing Auth behavior proves operability for Auth, not suitability for the Academic Graph.
+When NotebookLM produces the real DER/class model, compare it against:
 
-### Migrate immediately to PostgreSQL because the future graph looks relational
+- `docs/domain/domain-contract-2026.md`;
+- `docs/domain/academic-graph-implementation-v1.md`;
+- runtime workloads;
+- already-shipped HTTP semantics.
 
-Rejected for now.
+Classify every difference as one of:
 
-The direction may ultimately be correct, but migration before diagram/workload reconciliation creates cost without a validated physical target.
+1. physical-only representation change;
+2. cardinality/integrity improvement compatible with current semantics;
+3. genuine product-semantic conflict.
 
-### Use both MongoDB and PostgreSQL from day one
+Only category 3 requires an explicit product decision.
+
+## Database choice after the DER
+
+PostgreSQL remains a serious candidate if the DER/workloads show that relational integrity, joins, temporal queries and many-to-many behavior justify migration.
+
+MongoDB may remain if the resulting model and operational evidence support it.
+
+Hybrid persistence is rejected unless one concrete workload demonstrates a benefit worth the operational cost.
+
+No database gets selected by preference alone.
+
+## Required properties of any replacement
+
+A future adapter/migration must preserve:
+
+- stable product IDs;
+- source-scoped external IDs;
+- no silent duplicate canonicalization;
+- redirects after merge;
+- user ownership isolation;
+- historical affiliations;
+- current-context validation;
+- Auth credential/session race guarantees;
+- atomic mutation + durable audit where required;
+- explicit schema/data migration with rollback.
+
+## Migration discipline
+
+A later physical migration must provide:
+
+1. target schema and constraints;
+2. deterministic mapping from current product UUIDs;
+3. data backfill plan;
+4. verification queries;
+5. dual-read/write only if demonstrably required;
+6. cutover plan;
+7. rollback plan;
+8. post-cutover cleanup plan.
+
+Do not use the future DER as justification for a flag-day rewrite.
+
+## Rejected alternatives
+
+### Block all product work until the DER exists
 
 Rejected.
 
-This adds consistency, deployment, backup, testing and operational complexity before a concrete workload justifies it.
+The project explicitly chooses module-by-module implementation first, with later physical reconciliation.
 
-## Trigger to revise this ADR
+### Treat the current Mongo shape as permanent
 
-Revise this ADR when the real DER/class diagrams are available and the reconciliation checklist is complete.
+Rejected.
 
-The revision must record:
+Mongo is an adapter, not domain truth.
 
-- final chosen persistence model;
-- physical ID conventions;
-- migration/versioning tool;
-- constraint/index strategy;
-- transaction policy;
-- search/projection boundary;
-- migration plan for current User/Auth data;
-- rollback strategy;
-- rejected alternatives with evidence.
+### Put temporary `career_id` academic state back on User
 
-Until then, this ADR's architectural decision is intentionally **defer the database choice while preserving replaceable persistence boundaries**.
+Rejected.
+
+It encodes the wrong cardinality and breaks history/multiple-affiliation semantics.
+
+### Add PostgreSQL alongside Mongo before evidence
+
+Rejected.
+
+It creates two operational systems before the DER provides a concrete reason.
+
+## Consequences
+
+Positive:
+
+- development can continue now;
+- NotebookLM can still reshape the persistence model later;
+- HTTP/client contracts remain stable;
+- testable invariants survive adapter replacement.
+
+Trade-off:
+
+- a future DER may require a non-trivial data migration;
+- adapter boundaries add code now;
+- some physical constraints are enforced at application + Mongo-index level until a future database decision.
+
+That trade is accepted.

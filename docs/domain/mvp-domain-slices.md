@@ -1,45 +1,28 @@
 # MVP domain slices and delivery order
 
-This document defines implementation slices without selecting a physical database.
-
-The purpose is to avoid two opposite failures:
-
-- implementing every future concept before validating the MVP;
-- implementing an underspecified shortcut that makes Profile, Academic Graph or Resources impossible later.
+This document defines implementation slices while keeping physical persistence replaceable.
 
 ## Slice 0 — Runtime foundation
 
-Status: complete baseline.
+Status: complete.
 
-Includes the clean pnpm workspace, quality/audit gates, hardened HTTP runtime, liveness/readiness and reproducible container runtime smoke. This slice contains no 2026 domain decision.
+Includes workspace hygiene, quality/audit gates, hardened HTTP runtime, liveness/readiness and reproducible container smoke.
 
 ## Slice 1 — Identity and session contract
 
-Primary issue: #4.
+Status: backend/Web code-complete.
 
-Concepts required:
+Includes Account authority, revocable Session, verification/recovery, Google login-method lifecycle, account status, security settings and shared Web/Mobile auth semantics.
 
-- Account/User principal;
-- minimum Profile projection;
-- Session;
-- verification claim for email/login method;
-- account status;
-- security/audit event vocabulary.
-
-Must not require final Academic Graph storage to define secure session lifecycle.
-
-Required outcomes: register, login, email verification, me/bootstrap, logout/revoke, recovery, lockout/rate policy and one backend authority for Web/Mobile.
-
-Important constraint: the current JWT `role` claim is legacy behavior, not the future authorization model.
+Native Mobile implementation and public production evidence are separate delivery concerns.
 
 ## Slice 2 — Canonical academic catalog + affiliation/context
 
-Primary issues: #5 and #10.
+Status: backend implementation complete in Academic Graph v1.
 
-Requires the real DER reconciliation and persistence ADR.
+Implemented concepts:
 
-Concepts:
-
+- Country;
 - Institution;
 - optional Campus;
 - optional AcademicUnit;
@@ -53,81 +36,49 @@ Concepts:
 - SubjectParticipation;
 - CurrentAcademicContext.
 
-This is the domain foundation for meaningful onboarding, profile personalization, search and Resources.
+The application uses an `AcademicStore` persistence boundary. The current Mongo adapter is explicitly replaceable after NotebookLM DER reconciliation.
 
-Do not implement only `career_id` on User as a bridge. That would encode the wrong cardinality.
+The slice intentionally does not use `career_id` on User as domain authority.
 
 ## Slice 3 — Living profile
 
-Primary issue: #9.
+Next product slice after Academic Graph.
 
-Depends on Slice 1 and enough of Slice 2 to reference canonical academic identity.
+Depends on Identity plus canonical academic identity.
 
-Initial MVP profile should include display identity, current academic context, compact historical affiliation projection, useful interests/help signals and privacy defaults.
-
-Professional visibility should exist only when a product surface consumes it. Deep visual presets can wait until core identity/context works.
+Initial profile work should consume `CurrentAcademicContext`/affiliations rather than recreating academic fields in the client.
 
 ## Slice 4 — Resources / Notes
 
-Primary issue: #6.
+Depends on authenticated principal, Academic Graph and storage authorization.
 
-Depends on authenticated principal, academic context and storage authorization contract.
-
-Concepts:
-
-- Resource;
-- ResourceAsset/upload intent;
-- authorship;
-- academic context;
-- visibility;
-- save/bookmark;
-- report/moderation state.
-
-Critical invariants:
-
-- asset identity is not authorization;
-- finalize is idempotent;
-- privacy transition is server-authoritative;
-- save is not access;
-- abandoned uploads are cleanable.
+Required concepts include Resource, ResourceAsset/upload intent, authorship, academic context, visibility, save/bookmark and moderation state.
 
 ## Slice 5 — Search and contextual discovery
 
-Primary issues: #5, #6 and #8.
+Build deterministic/scoped discovery over canonical product data.
 
-Initially provide deterministic/scoped discovery over canonical product data.
-
-Search is a projection/indexing concern; it must not redefine canonical ownership. Do not start algorithmic feed ranking here.
+Search remains a projection/indexing concern and does not redefine canonical ownership.
 
 ## Slice 6 — Social + lightweight Q&A
 
-Primary issue: #8.
+Follow/Connection semantics, Question/Answer, Report and essential notifications.
 
-Potential concepts: Follow, reciprocal Connection only if MVP evidence requires it, Question, Answer, Report and essential notifications.
-
-Keep social edges distinct from shared academic context.
+Academic proximity remains separate from social consent.
 
 ## Slice 7 — Contextual Home
 
-Primary issues: #8 and later #11.
-
-The first Home can be rule-based and explainable: current subjects, relevant resources, useful questions, people from valid context and explicit followed sources.
-
-The product does not need a sophisticated recommender to validate the MVP.
+Rule-based first Home over current subjects, resources, questions, people and followed sources.
 
 ## Slice 8 — Organizations and alumni lifecycle
 
-Primary issues: #12 and #13.
+Organization management, memberships/follows, alumni/mentor transitions and events.
 
-The data model must remain compatible from Slice 2 onward, but full UI/workflows can wait.
-
-Future concepts include Organization, ManagementGrant, organization follow/membership, multiple/historical AcademicAffiliations, alumni/mentor transitions and events.
+The AcademicAffiliation model already preserves history/multiple affiliations needed for this expansion.
 
 ## Slice 9 — Opportunities and professional discovery
 
-Post-core product.
-
-Requires explicit professional visibility opt-in, source attribution, sponsorship labeling and privacy boundaries separate from the ordinary academic profile.
+Post-core product with explicit professional visibility opt-in and source/sponsorship boundaries.
 
 ## Implementation dependency graph
 
@@ -137,15 +88,10 @@ Runtime foundation
       v
 Identity/session
       |
-      +-------------------+
-      |                   |
-      v                   |
-DER + persistence ADR     |
-      |                   |
-      v                   |
-Academic catalog/context  |
-      |                   |
-      +-----> Profile <----+
+      v
+Academic catalog/context
+      |
+      +-----> Profile
       |
       v
 Resources/Notes
@@ -162,29 +108,29 @@ Contextual Home
       +----> Organizations/alumni
       |
       +----> Opportunities
+
+NotebookLM DER reconciliation can revise persistence underneath these slices.
 ```
 
-## What can proceed while DER is missing
+## DER rule
 
-Safe work:
+The DER is no longer a blocker for application-level module delivery.
 
-- Identity/session conceptual/API contract;
-- auth threat model;
-- verification/recovery semantics;
-- API error contract;
-- storage/file authorization ADR design;
-- contract test structure;
-- product telemetry vocabulary;
-- documentation.
+Safe approach:
 
-Blocked or intentionally limited:
+- implement domain behavior behind ports;
+- keep storage-specific code isolated;
+- use stable product IDs;
+- write invariants/tests first;
+- reconcile physical model later.
 
-- final Academic Graph persistence;
-- catalog physical model;
-- profile academic storage;
-- Resource academic storage shape;
-- migrations from `career_id`;
-- any decision that assumes one current university/career.
+Still prohibited:
+
+- treating current Mongo collections as immutable architecture;
+- exposing Mongo ObjectIds as product identity;
+- duplicating catalog truth in Web/Mobile;
+- encoding one current career directly on User as the new model;
+- skipping a future migration plan when the DER changes persistence.
 
 ## Definition of slice completion
 
@@ -196,7 +142,7 @@ Each implemented slice should have:
 - backend authorization tests including negative cases;
 - stable API contract;
 - Web/Mobile-consumable semantics;
-- migration/versioning plan;
+- persistence/migration boundary;
 - degraded/error behavior;
 - exact-head CI evidence;
 - runtime smoke coverage when behavior crosses process/database/storage boundaries.
