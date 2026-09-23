@@ -96,6 +96,9 @@ function createStore() {
     getCurrentContext: mockFn<AcademicStore['getCurrentContext']>(),
     setCurrentContext: mockFn<AcademicStore['setCurrentContext']>(),
     createProposal: mockFn<AcademicStore['createProposal']>(),
+    findProposalById: mockFn<AcademicStore['findProposalById']>(),
+    listProposals: mockFn<AcademicStore['listProposals']>(),
+    reviewProposal: mockFn<AcademicStore['reviewProposal']>(),
     appendAuditEvent: mockFn<AcademicStore['appendAuditEvent']>(),
   };
 }
@@ -1461,4 +1464,169 @@ describe('AcademicService', () => {
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
+
+  it('prevents provenance updates from stealing another source identity', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const country = catalogNode();
+    const existing = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+      parentIds: [country.id],
+    });
+    const other = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+      parentIds: [country.id],
+    });
+
+    store.findCatalogNodeById.mockResolvedValue(existing);
+    store.findCatalogNodesByIds.mockResolvedValue([country]);
+    store.findCatalogNodeBySourceIdentity.mockResolvedValue(other);
+
+    await expect(
+      service.updateCatalogNode('admin-1', existing.id, {
+        expectedRevision: 1,
+        provenance: {
+          authorityTier: 'A',
+          sourceKey: 'siu',
+          sourceUrl: 'https://example.test/siu',
+          externalId: 'occupied',
+        },
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(store.updateCatalogNode).not.toHaveBeenCalled();
+  });
+
+  it('lists proposals and requires canonical targets for resolution outcomes', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const proposal = {
+      id: '99999999-9999-4999-8999-999999999999',
+      userId: 'user-1',
+      kind: 'subject' as const,
+      proposedName: 'Materia propuesta',
+      parentIds: [],
+      status: 'pending' as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    store.listProposals.mockResolvedValue([proposal]);
+    const list = await service.listProposals('pending', 20);
+    expect(list.proposals.map((item) => item.id)).toEqual([proposal.id]);
+
+    store.findProposalById.mockResolvedValue(proposal);
+
+    await expect(
+      service.reviewProposal('admin-1', proposal.id, {
+        status: 'accepted',
+        reason: 'Validada con plan oficial',
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    await expect(
+      service.reviewProposal('admin-1', proposal.id, {
+        status: 'rejected',
+        reason: 'No corresponde',
+        canonicalTargetId: '55555555-5555-4555-8555-555555555555',
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('reviews a proposal exactly once and maps it to a same-kind canonical node', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const proposal = {
+      id: '99999999-9999-4999-8999-999999999999',
+      userId: 'user-1',
+      kind: 'subject' as const,
+      proposedName: 'Bases de Datos',
+      parentIds: [],
+      status: 'pending' as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const target = catalogNode({
+      id: '55555555-5555-4555-8555-555555555555',
+      kind: 'subject',
+      name: 'Base de Datos',
+      normalizedName: 'base de datos',
+    });
+
+    store.findProposalById.mockResolvedValue(proposal);
+    store.findCatalogNodeById.mockResolvedValue(target);
+    store.reviewProposal.mockResolvedValue({
+      ...proposal,
+      status: 'duplicate',
+      reviewedByUserId: 'admin-1',
+      reviewReason: 'Misma materia canónica',
+      canonicalTargetId: target.id,
+      reviewedAt: now,
+      updatedAt: now,
+    });
+
+    const result = await service.reviewProposal('admin-1', proposal.id, {
+      status: 'duplicate',
+      reason: '  Misma materia canónica  ',
+      canonicalTargetId: target.id,
+    });
+
+    expect(result.proposal.status).toBe('duplicate');
+    expect(result.proposal.canonicalTargetId).toBe(target.id);
+    expect(store.reviewProposal).toHaveBeenCalledWith(
+      proposal.id,
+      'admin-1',
+      'duplicate',
+      'Misma materia canónica',
+      target.id,
+    );
+    expect(store.appendAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'academic.proposal.reviewed',
+        targetId: proposal.id,
+      }),
+    );
+
+    store.reviewProposal.mockResolvedValue(null);
+    await expect(
+      service.reviewProposal('admin-1', proposal.id, {
+        status: 'duplicate',
+        reason: 'Carrera concurrente',
+        canonicalTargetId: target.id,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects proposal review targets of a different academic kind', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const proposal = {
+      id: '99999999-9999-4999-8999-999999999999',
+      userId: 'user-1',
+      kind: 'subject' as const,
+      proposedName: 'Materia',
+      parentIds: [],
+      status: 'pending' as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const program = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'program',
+    });
+
+    store.findProposalById.mockResolvedValue(proposal);
+    store.findCatalogNodeById.mockResolvedValue(program);
+
+    await expect(
+      service.reviewProposal('admin-1', proposal.id, {
+        status: 'superseded',
+        reason: 'Target incorrecto',
+        canonicalTargetId: program.id,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
 });
