@@ -292,15 +292,14 @@ describe('QaService', () => {
     );
 
     expect(result.question.revision).toBe(2);
-    expect(qaStore.updateQuestionOwned).toHaveBeenCalledWith(
-      questionId,
-      'user-a',
-      1,
-      expect.objectContaining({
-        title: 'Normalización y dependencias',
-        searchText: expect.any(String),
-      }),
+    const updateQuestionCall = qaStore.updateQuestionOwned.mock.calls[0];
+    expect(updateQuestionCall?.[0]).toBe(questionId);
+    expect(updateQuestionCall?.[1]).toBe('user-a');
+    expect(updateQuestionCall?.[2]).toBe(1);
+    expect(updateQuestionCall?.[3]?.title).toBe(
+      'Normalización y dependencias',
     );
+    expect(typeof updateQuestionCall?.[3]?.searchText).toBe('string');
 
     qaStore.updateQuestionOwned.mockResolvedValue(null);
     await expect(
@@ -366,21 +365,14 @@ describe('QaService', () => {
     expect(result.answer.body).toBe(
       'Primero eliminá dependencias transitivas.',
     );
-    expect(qaStore.createAnswerAtomic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        answer: expect.objectContaining({
-          questionId,
-          authorUserId: 'user-b',
-          revision: 1,
-        }),
-        notification: expect.objectContaining({
-          userId: 'user-a',
-          actorUserId: 'user-b',
-          type: 'qa.question_answered',
-          targetId: questionId,
-        }),
-      }),
-    );
+    const createAnswerCall = qaStore.createAnswerAtomic.mock.calls[0]?.[0];
+    expect(createAnswerCall?.answer.questionId).toBe(questionId);
+    expect(createAnswerCall?.answer.authorUserId).toBe('user-b');
+    expect(createAnswerCall?.answer.revision).toBe(1);
+    expect(createAnswerCall?.notification?.userId).toBe('user-a');
+    expect(createAnswerCall?.notification?.actorUserId).toBe('user-b');
+    expect(createAnswerCall?.notification?.type).toBe('qa.question_answered');
+    expect(createAnswerCall?.notification?.targetId).toBe(questionId);
   });
 
   it('rejects Answer creation if the Question closes concurrently', async () => {
@@ -476,19 +468,14 @@ describe('QaService', () => {
     );
 
     expect(result.question.acceptedAnswerId).toBe(answerId);
-    expect(qaStore.acceptAnswerAtomic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        questionId,
-        answerId,
-        authorUserId: 'user-a',
-        expectedRevision: 1,
-        notification: expect.objectContaining({
-          userId: 'user-b',
-          actorUserId: 'user-a',
-          type: 'qa.answer_accepted',
-        }),
-      }),
-    );
+    const acceptCall = qaStore.acceptAnswerAtomic.mock.calls[0]?.[0];
+    expect(acceptCall?.questionId).toBe(questionId);
+    expect(acceptCall?.answerId).toBe(answerId);
+    expect(acceptCall?.authorUserId).toBe('user-a');
+    expect(acceptCall?.expectedRevision).toBe(1);
+    expect(acceptCall?.notification?.userId).toBe('user-b');
+    expect(acceptCall?.notification?.actorUserId).toBe('user-a');
+    expect(acceptCall?.notification?.type).toBe('qa.answer_accepted');
   });
 
   it('returns revision conflict when Answer acceptance loses the race', async () => {
