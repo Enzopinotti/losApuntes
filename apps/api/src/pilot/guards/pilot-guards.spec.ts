@@ -24,10 +24,10 @@ describe('Pilot operation guards', () => {
     const guard = new PilotOpsReadGuard(userService);
 
     await expect(guard.canActivate(context())).resolves.toBe(true);
-    expect(userService.hasPlatformPermission).toHaveBeenCalledWith(
+    expect(userService.hasPlatformPermission.mock.calls[0]).toEqual([
       'user-1',
       'pilot:ops:read',
-    );
+    ]);
   });
 
   it('fails pilot reads closed without permission', async () => {
@@ -43,10 +43,10 @@ describe('Pilot operation guards', () => {
     const guard = new ModerationWriteGuard(userService);
 
     await expect(guard.canActivate(context())).resolves.toBe(true);
-    expect(userService.hasPlatformPermission).toHaveBeenCalledWith(
+    expect(userService.hasPlatformPermission.mock.calls[0]).toEqual([
       'user-1',
       'moderation:write',
-    );
+    ]);
   });
 
   it('fails moderation writes closed without permission', async () => {
