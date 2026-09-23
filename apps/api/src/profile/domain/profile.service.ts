@@ -314,6 +314,7 @@ export class ProfileService {
 
   async createActivity(userId: string, dto: CreateProfileActivityDto) {
     await this.requireOwnerProfile(userId);
+    this.assertActivityPeriod(dto.startedOn, dto.endedOn);
 
     const created = await this.store.createActivity({
       id: randomUUID(),
@@ -338,6 +339,11 @@ export class ProfileService {
   ) {
     const existing = await this.store.findActivityForUser(userId, id);
     if (!existing) this.activityNotFound();
+
+    const startedOn =
+      dto.startedOn === undefined ? existing.startedOn : dto.startedOn;
+    const endedOn = dto.endedOn === undefined ? existing.endedOn : dto.endedOn;
+    this.assertActivityPeriod(startedOn, endedOn);
 
     const updated = await this.store.updateActivity(
       userId,
@@ -385,6 +391,20 @@ export class ProfileService {
       throw new ConflictException({
         code: 'PROFILE_ACTIVITY_REVISION_CONFLICT',
         message: 'Profile activity changed concurrently',
+      });
+    }
+  }
+
+  private assertActivityPeriod(
+    startedOn: string | null | undefined,
+    endedOn: string | null | undefined,
+  ): void {
+    if (!startedOn || !endedOn) return;
+
+    if (endedOn < startedOn) {
+      throw new UnprocessableEntityException({
+        code: 'PROFILE_ACTIVITY_PERIOD_INVALID',
+        message: 'Activity end period cannot be before start period',
       });
     }
   }
