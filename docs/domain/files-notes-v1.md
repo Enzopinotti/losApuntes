@@ -110,13 +110,13 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 | metadata read, private | yes | no | no | no |
 | metadata read, shared | yes | yes | no | no |
 | metadata read, public | yes | yes | yes | yes |
-| signed read | same as metadata read | same | same | same |
+| signed read | yes, verified session | yes, verified session | no | yes for a public Resource with verified session |
 | edit/privacy | yes | no | no | no |
 | manage shares | yes | no | no | no |
 | save | yes | yes | n/a | public authenticated viewer |
 | report | yes | yes | n/a | public authenticated viewer |
 
-`hidden` resources fail closed for normal readers. Administrative moderation access is not invented in this slice.
+`hidden` resources fail closed for normal readers. Public metadata may be read anonymously, but file delivery is intentionally stricter: issuing a signed preview/download requires an active verified account plus current Resource read authorization. Administrative moderation access is not invented in this slice.
 
 ## 5. Concurrency/idempotency
 
