@@ -67,7 +67,7 @@ V1 accepts:
 Maximum object size: **50 MiB**.
 
 Upload intent TTL: **10 minutes**.  
-Download/preview intent TTL: **5 minutes**.
+Download/preview intent TTL: **5 minutes by default**, runtime-bounded to **1–300 seconds**. Local/CI intentionally uses 2 seconds so expiry is proven against real MinIO rather than only asserted from configuration.
 
 The upload URL is single-object and signed with immutable-create semantics where the provider supports the required conditional request. Finalization verifies object existence, exact size, declared storage Content-Type and a bounded byte prefix against the supported MIME signature.
 
@@ -89,7 +89,20 @@ Changing visibility or removing a share affects all **future** signed-read issua
 
 API instances do not run per-process cleanup timers.
 
-A dedicated Files cleanup worker reclaims expired pending/failed assets in bounded batches and removes their object-storage bytes best-effort. Durable ready assets referenced by Resources are never reclaimed as abandoned uploads.
+A dedicated Files cleanup worker reclaims expired unclaimed assets in bounded batches.
+
+Cleanup uses a durable compare-and-set transition before touching bytes:
+
+```text
+pending | failed | ready(unclaimed)
+-> reclaiming
+-> DELETE object bytes
+-> reclaimed
+```
+
+The `reclaiming` claim happens before object deletion. Resource creation only claims `ready` assets, so a Resource cannot race with cleanup and become attached to bytes that the worker is deleting. If object deletion fails, `reclaiming` remains durable and retryable on a later worker pass.
+
+Durable ready assets already claimed by Resources are never reclaimed as abandoned uploads.
 
 ## Search
 
