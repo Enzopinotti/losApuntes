@@ -12,8 +12,8 @@ import type {
   AcademicProposalStatus,
   SubjectParticipationRecord,
 } from '../domain/academic.types';
+import { AcademicSourceIdentityConflictError } from '../domain/academic.store';
 import type {
-  AcademicSourceIdentityConflictError,
   AcademicStore,
   CatalogSearchQuery,
   CatalogSearchResult,
