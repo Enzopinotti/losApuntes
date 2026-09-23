@@ -270,9 +270,7 @@ describe('SocialService', () => {
     expect(respondCall?.status).toBe('accepted');
     expect(respondCall?.notification?.userId).toBe('user-a');
     expect(respondCall?.notification?.actorUserId).toBe('user-b');
-    expect(respondCall?.notification?.type).toBe(
-      'social.connection_accepted',
-    );
+    expect(respondCall?.notification?.type).toBe('social.connection_accepted');
   });
 
   it('returns stable conflict when a connection changes concurrently', async () => {
@@ -397,9 +395,7 @@ describe('SocialService', () => {
     const requestCall = socialStore.requestConnection.mock.calls[0]?.[0];
     expect(requestCall?.requesterUserId).toBe('user-a');
     expect(requestCall?.targetUserId).toBe('user-b');
-    expect(requestCall?.notification.type).toBe(
-      'social.connection_requested',
-    );
+    expect(requestCall?.notification.type).toBe('social.connection_requested');
     expect(requestCall?.notification.userId).toBe('user-b');
     expect(requestCall?.notification.actorUserId).toBe('user-a');
   });
