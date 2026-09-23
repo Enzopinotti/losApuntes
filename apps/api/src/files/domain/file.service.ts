@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import {
   ConflictException,
   Inject,
@@ -71,6 +72,7 @@ export class FileService {
     private readonly store: FileAssetStore,
     @Inject(OBJECT_STORAGE)
     private readonly storage: ObjectStorage,
+    private readonly config: ConfigService = new ConfigService(),
   ) {}
 
   async createUploadIntent(
@@ -266,7 +268,8 @@ export class FileService {
         filename: input.filename,
         contentType: input.asset.verifiedMimeType,
         disposition: input.disposition,
-        expiresInSeconds: 5 * 60,
+        expiresInSeconds:
+          this.config.get<number>('FILES_DOWNLOAD_URL_TTL_SECONDS') ?? 300,
       });
 
       return {
