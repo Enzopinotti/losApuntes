@@ -16,10 +16,13 @@
 | Single asset claim | Transactional | N/A | Runtime |
 | Cleanup claim-before-delete | CAS `reclaiming` | N/A | Unit + worker runtime |
 | Cleanup retry after storage failure | Durable | N/A | Unit |
+| Losing pending→failed race never deletes ready bytes | Implemented | N/A | Unit regression |
 | Public/private/shared metadata | Implemented | Implemented | Unit + runtime |
 | Resource-scoped explicit grants | Implemented | Profile UUID controls | Adapter unit + runtime |
-| Stale grants powerless after private transition | Implemented | Server-authorized | Adapter unit |
+| Stale grants powerless after private transition | Implemented | Server-authorized | Adapter unit + runtime |
+| Share lookup cannot authorize a different Resource | Implemented | No client authority | Adapter regression + runtime |
 | Save never grants access | Implemented | Guardados view | Unit + runtime |
+| Remove saved relation in place | Implemented | Implemented | Web static contract |
 | Optimistic Resource revision | Implemented | Conflict surfaced | Unit |
 | Canonical Subject context | Academic Graph authority | Subject picker | Unit + build |
 | Optional CourseOffering validation | Academic Graph authority | Contract-ready | Unit |
