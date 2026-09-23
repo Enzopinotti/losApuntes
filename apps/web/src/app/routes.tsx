@@ -5,6 +5,8 @@ import Dashboard from "../pages/Dashboard";
 import ForgotPassword from "../pages/ForgotPassword";
 import Home from "../pages/Home";
 import Login from "../pages/Login";
+import Profile from "../pages/Profile";
+import PublicProfile from "../pages/PublicProfile";
 import ResetPassword from "../pages/ResetPassword";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
@@ -25,11 +27,20 @@ export const routes: RouteObject[] = [
       { path: "forgot-password", element: <ForgotPassword /> },
       { path: "auth/reset-password", element: <ResetPassword /> },
       { path: "account/restricted", element: <AccountRestricted /> },
+      { path: "p/:profileId", element: <PublicProfile /> },
       {
         path: "dashboard",
         element: (
           <PrivateRoute>
             <Dashboard />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "profile",
+        element: (
+          <PrivateRoute>
+            <Profile />
           </PrivateRoute>
         ),
       },
