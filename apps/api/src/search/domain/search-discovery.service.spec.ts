@@ -257,32 +257,33 @@ describe('SearchDiscoveryService', () => {
       ] as never[],
     });
 
-    academicApi.getCatalogNode.mockImplementation(
-      async (id) =>
-        ({
-          node: {
-            id,
-            kind: 'subject',
-            name:
-              id === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-                ? 'Sistemas'
-                : 'Arquitectura',
-          },
-          resolvedFromId: undefined,
-        }) as never,
+    academicApi.getCatalogNode.mockImplementation((id) =>
+      Promise.resolve({
+        node: {
+          id,
+          kind: 'subject',
+          name:
+            id === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+              ? 'Sistemas'
+              : 'Arquitectura',
+        },
+        resolvedFromId: undefined,
+      } as never),
     );
 
-    resourceApi.search.mockImplementation(async (_viewer, input) => ({
-      items: [
-        {
-          id:
-            input.subjectId === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-              ? 'r-sistemas'
-              : 'r-arquitectura',
-        },
-      ] as never[],
-      nextCursor: null,
-    }));
+    resourceApi.search.mockImplementation((_viewer, input) =>
+      Promise.resolve({
+        items: [
+          {
+            id:
+              input.subjectId === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+                ? 'r-sistemas'
+                : 'r-arquitectura',
+          },
+        ] as never[],
+        nextCursor: null,
+      }),
+    );
 
     const result = await service(
       resourceApi,
@@ -346,12 +347,11 @@ describe('SearchDiscoveryService', () => {
         state: 'current',
       })) as never[],
     });
-    academicApi.getCatalogNode.mockImplementation(
-      async (id) =>
-        ({
-          node: { id, kind: 'subject', name: id },
-          resolvedFromId: undefined,
-        }) as never,
+    academicApi.getCatalogNode.mockImplementation((id) =>
+      Promise.resolve({
+        node: { id, kind: 'subject', name: id },
+        resolvedFromId: undefined,
+      } as never),
     );
     resourceApi.search.mockResolvedValue({
       items: [],
