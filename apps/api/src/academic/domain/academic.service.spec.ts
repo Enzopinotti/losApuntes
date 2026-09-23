@@ -75,10 +75,15 @@ function mockFn<T extends (...args: any[]) => any>() {
 }
 
 function createStore() {
+  const findDirectRedirectSources =
+    mockFn<AcademicStore['findDirectRedirectSources']>();
+  findDirectRedirectSources.mockResolvedValue([]);
+
   return {
     runAtomically: <T>(operation: () => Promise<T>) => operation(),
     findCatalogNodeById: mockFn<AcademicStore['findCatalogNodeById']>(),
     findCatalogNodesByIds: mockFn<AcademicStore['findCatalogNodesByIds']>(),
+    findDirectRedirectSources,
     findCatalogNodeBySourceIdentity:
       mockFn<AcademicStore['findCatalogNodeBySourceIdentity']>(),
     searchCatalog: mockFn<AcademicStore['searchCatalog']>(),
@@ -948,7 +953,7 @@ describe('AcademicService', () => {
     expect(result.truncated).toBe(true);
     expect(store.searchCatalog).toHaveBeenCalledWith({
       kind: 'program',
-      parentId: parent.id,
+      parentIds: [parent.id],
       limit: 1,
     });
   });
