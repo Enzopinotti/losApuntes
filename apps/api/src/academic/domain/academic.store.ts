@@ -11,6 +11,13 @@ import type {
 
 export const ACADEMIC_STORE = Symbol('ACADEMIC_STORE');
 
+export class AcademicSourceIdentityConflictError extends Error {
+  constructor() {
+    super('Academic source identity conflict');
+    this.name = 'AcademicSourceIdentityConflictError';
+  }
+}
+
 export type CatalogSearchCursor = {
   normalizedName: string;
   id: string;
