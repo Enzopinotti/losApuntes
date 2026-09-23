@@ -245,7 +245,14 @@ export class ResourceService {
   }
 
   async grantShare(userId: string, id: string, profileId: string) {
-    await this.requireOwned(id, userId);
+    const resource = await this.requireOwned(id, userId);
+    if (resource.visibility !== 'shared') {
+      throw new ConflictException({
+        code: 'RESOURCE_SHARE_VISIBILITY_REQUIRED',
+        message: 'Resource must be shared before granting explicit access',
+      });
+    }
+
     const targetUserId =
       await this.profiles.resolveUserIdByProfileId(profileId);
     if (!targetUserId) this.notFound();
