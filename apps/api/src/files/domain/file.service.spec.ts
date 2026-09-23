@@ -307,6 +307,179 @@ describe('FileService', () => {
     );
   });
 
+  it('rejects filenames that become empty after sanitization', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+
+    await expect(
+      new FileService(fileStore, objectStorage).createUploadIntent(
+        'user-1',
+        {
+          filename: '../\u0000',
+          mimeType: 'application/pdf',
+          byteSize: 8,
+        },
+        now,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('rejects non-pending finalize states and missing uploaded objects', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const service = new FileService(fileStore, objectStorage);
+
+    fileStore.findOwned.mockResolvedValueOnce(asset({ state: 'failed' }));
+    await expect(
+      service.finalize('user-1', asset().id, now),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    fileStore.findOwned.mockResolvedValueOnce(asset());
+    objectStorage.headObject.mockResolvedValueOnce(null);
+    await expect(
+      service.finalize('user-1', asset().id, now),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects stored content-type mismatches even when size matches', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+    fileStore.findOwned.mockResolvedValue(pending);
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: 8,
+      contentType: 'image/png',
+      etag: null,
+    });
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(fileStore.markFailed).toHaveBeenCalledWith(
+      pending.id,
+      'user-1',
+      'CONTENT_TYPE_MISMATCH',
+      expect.any(Date),
+    );
+  });
+
+  it('resolves a mark-ready race only when the concurrent state is ready', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const pending = asset();
+    const ready = asset({
+      state: 'ready',
+      verifiedMimeType: 'application/pdf',
+      actualByteSize: 8,
+      readyAt: now,
+    });
+    fileStore.findOwned
+      .mockResolvedValueOnce(pending)
+      .mockResolvedValueOnce(ready);
+    objectStorage.headObject.mockResolvedValue({
+      byteSize: 8,
+      contentType: 'application/pdf',
+      etag: null,
+    });
+    objectStorage.readPrefix.mockResolvedValue(
+      new Uint8Array(Buffer.from('%PDF-1.7')),
+    );
+    fileStore.markReady.mockResolvedValue(null);
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).resolves.toEqual({
+      file: expect.objectContaining({ id: pending.id, state: 'ready' }),
+    });
+
+    fileStore.findOwned
+      .mockReset()
+      .mockResolvedValueOnce(pending)
+      .mockResolvedValueOnce(asset({ state: 'failed' }));
+
+    await expect(
+      new FileService(fileStore, objectStorage).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('returns ready assets only and fails closed on incomplete download assets', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const service = new FileService(fileStore, objectStorage);
+
+    fileStore.findById.mockResolvedValueOnce(asset({ state: 'pending' }));
+    await expect(
+      service.getReadyAssetForResource(asset().id),
+    ).resolves.toBeNull();
+
+    await expect(
+      service.createAuthorizedDownloadIntent({
+        asset: asset({ state: 'pending' }),
+        filename: 'x.pdf',
+        disposition: 'inline',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('maps download signing failures and honors configured TTL', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    const ready = asset({
+      state: 'ready',
+      verifiedMimeType: 'application/pdf',
+      actualByteSize: 8,
+      readyAt: now,
+    });
+    const config = {
+      get: jest.fn().mockReturnValue(2),
+    };
+
+    objectStorage.createDownloadIntent.mockRejectedValueOnce(
+      new Error('signing unavailable'),
+    );
+    await expect(
+      new FileService(
+        fileStore,
+        objectStorage,
+        config as never,
+      ).createAuthorizedDownloadIntent({
+        asset: ready,
+        filename: 'x.pdf',
+        disposition: 'attachment',
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    objectStorage.createDownloadIntent.mockResolvedValueOnce({
+      url: 'http://storage.test/get',
+      expiresAt: now,
+    });
+    await new FileService(
+      fileStore,
+      objectStorage,
+      config as never,
+    ).createAuthorizedDownloadIntent({
+      asset: ready,
+      filename: 'x.pdf',
+      disposition: 'attachment',
+    });
+    expect(objectStorage.createDownloadIntent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expiresInSeconds: 2 }),
+    );
+  });
+
   it('reclaims expired objects and leaves failed deletes retryable', async () => {
     const fileStore = store();
     const objectStorage = storage();
@@ -342,5 +515,20 @@ describe('FileService', () => {
     );
     expect(fileStore.markReclaimed).toHaveBeenCalledWith('a', now);
     expect(fileStore.markReclaimed).toHaveBeenCalledTimes(1);
+
+    fileStore.listReclaimable.mockResolvedValue([
+      asset({ id: 'c', objectKey: 'c', state: 'ready' }),
+      asset({ id: 'd', objectKey: 'd', state: 'reclaimed' }),
+    ]);
+    fileStore.claimForReclamation.mockReset().mockResolvedValue(null);
+    objectStorage.deleteObject.mockClear();
+
+    const skipped = await new FileService(
+      fileStore,
+      objectStorage,
+    ).cleanupExpiredAssets(20, now);
+
+    expect(skipped).toEqual({ examined: 2, reclaimed: 0 });
+    expect(objectStorage.deleteObject).not.toHaveBeenCalled();
   });
 });
