@@ -21,10 +21,7 @@ import {
   ResourceAssetUnavailableError,
   type ResourceStore,
 } from './resource.store';
-import type {
-  ResourceRecord,
-  ResourceSearchCursor,
-} from './resource.types';
+import type { ResourceRecord, ResourceSearchCursor } from './resource.types';
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -87,10 +84,7 @@ function decodeCursor(value?: string): ResourceSearchCursor | undefined {
       Buffer.from(value, 'base64url').toString('utf8'),
     ) as Record<string, unknown>;
 
-    if (
-      typeof parsed.updatedAt !== 'string' ||
-      typeof parsed.id !== 'string'
-    ) {
+    if (typeof parsed.updatedAt !== 'string' || typeof parsed.id !== 'string') {
       throw new Error('Invalid cursor');
     }
 
@@ -177,9 +171,7 @@ export class ResourceService {
     const last = result.items.at(-1);
 
     return {
-      items: await Promise.all(
-        result.items.map((row) => this.projection(row)),
-      ),
+      items: await Promise.all(result.items.map((row) => this.projection(row))),
       nextCursor:
         result.hasMore && last
           ? encodeCursor({ updatedAt: last.updatedAt, id: last.id })
@@ -248,7 +240,8 @@ export class ResourceService {
 
   async grantShare(userId: string, id: string, profileId: string) {
     await this.requireOwned(id, userId);
-    const targetUserId = await this.profiles.resolveUserIdByProfileId(profileId);
+    const targetUserId =
+      await this.profiles.resolveUserIdByProfileId(profileId);
     if (!targetUserId) this.notFound();
     if (targetUserId === userId) {
       throw new UnprocessableEntityException({
@@ -337,8 +330,7 @@ export class ResourceService {
       resourceId: id,
       reporterUserId: userId,
       reason,
-      details:
-        details === undefined ? null : cleanNullable(details),
+      details: details === undefined ? null : cleanNullable(details),
     });
 
     return {
@@ -391,7 +383,11 @@ export class ResourceService {
         : Promise.resolve(null),
     ]);
 
-    if (!asset || !asset.verifiedMimeType || asset.actualByteSize === undefined) {
+    if (
+      !asset ||
+      !asset.verifiedMimeType ||
+      asset.actualByteSize === undefined
+    ) {
       throw new ServiceUnavailableException({
         code: 'RESOURCE_UNAVAILABLE',
         message: 'Resource file is temporarily unavailable',
