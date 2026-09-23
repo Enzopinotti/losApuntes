@@ -344,9 +344,7 @@ describe('ResourceService', () => {
       });
     }
 
-    expect(
-      deps.profiles.resolveUserIdByProfileId.mock.calls,
-    ).toHaveLength(0);
+    expect(deps.profiles.resolveUserIdByProfileId.mock.calls).toHaveLength(0);
     expect(resourceStore.upsertShare.mock.calls).toHaveLength(0);
   });
 
