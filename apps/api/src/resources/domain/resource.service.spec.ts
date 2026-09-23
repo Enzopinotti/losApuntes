@@ -203,7 +203,7 @@ describe('ResourceService', () => {
     const resourceStore = store();
     const deps = dependencies();
     projectionDeps(deps);
-    resourceStore.findById.mockResolvedValue(resource());
+    resourceStore.findById.mockResolvedValue(resource({ visibility: 'shared' }));
     resourceStore.hasShare.mockResolvedValue(false);
 
     await expect(
@@ -319,6 +319,29 @@ describe('ResourceService', () => {
         '44444444-4444-4444-8444-444444444444',
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('refuses latent grants unless the resource is currently shared', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    resourceStore.findById.mockResolvedValue(
+      resource({ visibility: 'private' }),
+    );
+
+    await expect(
+      service(resourceStore, deps).grantShare(
+        'author-1',
+        resource().id,
+        '44444444-4444-4444-8444-444444444444',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'RESOURCE_SHARE_VISIBILITY_REQUIRED',
+      }),
+    });
+
+    expect(deps.profiles.resolveUserIdByProfileId).not.toHaveBeenCalled();
+    expect(resourceStore.upsertShare).not.toHaveBeenCalled();
   });
 
   it('saved resources never grant access after privacy changes', async () => {
