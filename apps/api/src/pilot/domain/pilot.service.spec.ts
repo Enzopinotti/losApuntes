@@ -292,7 +292,11 @@ describe('PilotService', () => {
   });
 
   it.each([
-    [new PilotReportNotFoundError(), NotFoundException, 'PILOT_REPORT_NOT_FOUND'],
+    [
+      new PilotReportNotFoundError(),
+      NotFoundException,
+      'PILOT_REPORT_NOT_FOUND',
+    ],
     [
       new PilotModerationTargetNotFoundError(),
       NotFoundException,
@@ -363,9 +367,7 @@ describe('PilotService', () => {
     expect(result.search.noResultRate).toBe(25);
     expect(result.activity.returningRate).toBe(50);
     expect(result.contributions.contributionRate).toBe(75);
-    expect(result.moderation.oldestPendingAt).toBe(
-      '2026-09-20T18:00:00.000Z',
-    );
+    expect(result.moderation.oldestPendingAt).toBe('2026-09-20T18:00:00.000Z');
     expect(result.subjects[0]?.subjectName).toBe('Base de Datos');
     expect(pilotStore.metrics).toHaveBeenCalledWith({
       from: new Date('2026-09-09T18:00:00.000Z'),
@@ -419,14 +421,17 @@ describe('PilotService', () => {
     expect(result.subjects[0]?.subjectName).toBeNull();
   });
 
-  it.each([0, 91, 1.5])('rejects an invalid metrics window: %s', async (days) => {
-    const pilotStore = store();
-    const dependencies = deps();
+  it.each([0, 91, 1.5])(
+    'rejects an invalid metrics window: %s',
+    async (days) => {
+      const pilotStore = store();
+      const dependencies = deps();
 
-    await expect(
-      service(pilotStore, dependencies).metrics(days, now),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      await expect(
+        service(pilotStore, dependencies).metrics(days, now),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    expect(pilotStore.metrics).not.toHaveBeenCalled();
-  });
+      expect(pilotStore.metrics).not.toHaveBeenCalled();
+    },
+  );
 });
