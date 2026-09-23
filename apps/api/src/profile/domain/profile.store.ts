@@ -1,7 +1,4 @@
-import type {
-  ProfileActivityRecord,
-  ProfileRecord,
-} from './profile.types';
+import type { ProfileActivityRecord, ProfileRecord } from './profile.types';
 
 export const PROFILE_STORE = Symbol('PROFILE_STORE');
 
