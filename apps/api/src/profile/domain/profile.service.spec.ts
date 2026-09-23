@@ -910,11 +910,7 @@ describe('ProfileService', () => {
     const result = await service(
       profileStore,
       academicService,
-    ).getAttributionsForUsers([
-      'user-public',
-      'user-private',
-      'user-public',
-    ]);
+    ).getAttributionsForUsers(['user-public', 'user-private', 'user-public']);
 
     expect(profileStore.findProfilesByUserIds).toHaveBeenCalledWith([
       'user-public',
@@ -931,5 +927,4 @@ describe('ProfileService', () => {
       avatarUrl: null,
     });
   });
-
 });
