@@ -108,6 +108,7 @@ export class MongoQaStore implements QaStore {
   async listFeedCandidates(input: {
     subjectIds?: string[];
     authorUserIds?: string[];
+    excludeAuthorUserId?: string;
     anchorAt: Date;
     limit: number;
   }): Promise<QuestionRecord[]> {
@@ -116,6 +117,9 @@ export class MongoQaStore implements QaStore {
       { createdAt: { $lte: input.anchorAt } },
     ];
 
+    if (input.excludeAuthorUserId) {
+      filters.push({ authorUserId: { $ne: input.excludeAuthorUserId } });
+    }
     if (input.subjectIds && input.subjectIds.length > 0) {
       filters.push({ subjectId: { $in: input.subjectIds } });
     }
