@@ -3,10 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { PILOT_EVENT_STORE } from './pilot-event.store';
 import { PilotEventService } from './pilot-event.service';
-import {
-  PilotEvent,
-  PilotEventSchema,
-} from './mongo/pilot-event.mongo-schema';
+import { PilotEvent, PilotEventSchema } from './mongo/pilot-event.mongo-schema';
 import { MongoPilotEventStore } from './mongo/mongo-pilot-event.store';
 
 @Module({
