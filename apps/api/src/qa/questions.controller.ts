@@ -11,8 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import type { AuthenticatedRequest } from '../auth/auth.types';
+import type {
+  AuthenticatedRequest,
+  OptionallyAuthenticatedRequest,
+} from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
+import { OptionalAuthSessionGuard } from '../auth/guards/optional-auth-session.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
 import { QaService } from './domain/qa.service';
 import {
@@ -34,9 +38,13 @@ export class QuestionsController {
     return this.qa.search(query);
   }
 
+  @UseGuards(OptionalAuthSessionGuard)
   @Get('questions/:id')
-  get(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.qa.get(id);
+  get(
+    @Req() request: OptionallyAuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ) {
+    return this.qa.get(id, request.user?.id);
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
