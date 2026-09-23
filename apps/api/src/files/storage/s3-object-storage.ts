@@ -227,12 +227,9 @@ async function signedRequest(input: {
     signedHeaders,
     EMPTY_SHA256,
   ].join('\n');
-  const stringToSign = [
-    ALGORITHM,
-    amzDate,
-    scope,
-    sha256Hex(canonical),
-  ].join('\n');
+  const stringToSign = [ALGORITHM, amzDate, scope, sha256Hex(canonical)].join(
+    '\n',
+  );
   const signature = hmac(
     signingKey(input.secretAccessKey, dateStamp, input.region),
     stringToSign,
