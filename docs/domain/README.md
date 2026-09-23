@@ -18,8 +18,9 @@ A concept documented here is not automatically one table, collection, aggregate,
 - [DER reconciliation checklist](der-reconciliation-checklist.md)
 - [Domain slices and delivery order](mvp-domain-slices.md)
 - [Academic Catalog source strategy](academic-catalog-source-strategy-2026.md)
+- [Files + Notes v1](files-notes-v1.md)
 
-The Academic Graph is implemented behind a replaceable persistence boundary.
+The Academic Graph and Files/Resources slices are implemented behind replaceable persistence/storage boundaries.
 
 The future NotebookLM DER may revise physical representation and cardinalities. It is no longer a blocker for coding modules, but it remains an architecture reconciliation input.
 
