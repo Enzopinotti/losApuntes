@@ -18,4 +18,5 @@ export interface NotificationStore {
     readAt: Date,
   ) => Promise<NotificationRecord | null>;
   markAllRead: (userId: string, readAt: Date) => Promise<number>;
+  countUnread: (userId: string) => Promise<number>;
 }

@@ -91,6 +91,10 @@ export class NotificationService {
     };
   }
 
+  async countUnread(userId: string) {
+    return { unreadCount: await this.store.countUnread(userId) };
+  }
+
   async markRead(userId: string, id: string) {
     const row = await this.store.markRead(userId, id, new Date());
     if (!row) {

@@ -62,6 +62,10 @@ export class MongoNotificationStore implements NotificationStore {
       .exec();
   }
 
+  async countUnread(userId: string): Promise<number> {
+    return this.notifications.countDocuments({ userId, readAt: null }).exec();
+  }
+
   async markAllRead(userId: string, readAt: Date): Promise<number> {
     const result = await this.notifications
       .updateMany({ userId, readAt: null }, { $set: { readAt } })
