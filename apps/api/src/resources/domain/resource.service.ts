@@ -141,7 +141,9 @@ export class ResourceService {
         },
       });
 
-      return { resource: await this.projection(created.resource) };
+      return {
+        resource: await this.projection(created.resource, userId),
+      };
     } catch (error) {
       if (error instanceof ResourceAssetUnavailableError) {
         throw new ConflictException({
@@ -156,7 +158,9 @@ export class ResourceService {
 
   async get(id: string, viewerUserId?: string) {
     const resource = await this.requireReadable(id, viewerUserId);
-    return { resource: await this.projection(resource) };
+    return {
+      resource: await this.projection(resource, viewerUserId),
+    };
   }
 
   async search(viewerUserId: string | undefined, dto: ResourceSearchDto) {
@@ -171,7 +175,9 @@ export class ResourceService {
     const last = result.items.at(-1);
 
     return {
-      items: await Promise.all(result.items.map((row) => this.projection(row))),
+      items: await Promise.all(
+        result.items.map((row) => this.projection(row, viewerUserId)),
+      ),
       nextCursor:
         result.hasMore && last
           ? encodeCursor({ updatedAt: last.updatedAt, id: last.id })
@@ -235,7 +241,7 @@ export class ResourceService {
       });
     }
 
-    return { resource: await this.projection(updated) };
+    return { resource: await this.projection(updated, userId) };
   }
 
   async grantShare(userId: string, id: string, profileId: string) {
@@ -284,7 +290,9 @@ export class ResourceService {
     }
 
     return {
-      items: await Promise.all(visible.map((row) => this.projection(row))),
+      items: await Promise.all(
+        visible.map((row) => this.projection(row, userId)),
+      ),
     };
   }
 
@@ -374,7 +382,10 @@ export class ResourceService {
     return this.store.hasShare(resource.id, viewerUserId);
   }
 
-  private async projection(resource: ResourceRecord) {
+  private async projection(
+    resource: ResourceRecord,
+    viewerUserId?: string,
+  ) {
     const [asset, author, subject, offering] = await Promise.all([
       this.files.getReadyAssetForResource(resource.assetId),
       this.profiles.getAttributionForUser(resource.authorUserId),
@@ -419,6 +430,10 @@ export class ResourceService {
         filename: asset.originalFilename,
         mimeType: asset.verifiedMimeType,
         byteSize: asset.actualByteSize,
+      },
+      capabilities: {
+        edit: resource.authorUserId === viewerUserId,
+        manageShares: resource.authorUserId === viewerUserId,
       },
       revision: resource.revision,
       createdAt: resource.createdAt.toISOString(),
