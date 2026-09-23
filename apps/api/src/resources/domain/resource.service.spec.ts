@@ -203,7 +203,7 @@ describe('ResourceService', () => {
     const resourceStore = store();
     const deps = dependencies();
     projectionDeps(deps);
-    resourceStore.findById.mockResolvedValue(resource({ visibility: 'shared' }));
+    resourceStore.findById.mockResolvedValue(resource());
     resourceStore.hasShare.mockResolvedValue(false);
 
     await expect(
@@ -296,7 +296,9 @@ describe('ResourceService', () => {
   it('grants shares by stable Profile UUID and rejects self-share', async () => {
     const resourceStore = store();
     const deps = dependencies();
-    resourceStore.findById.mockResolvedValue(resource());
+    resourceStore.findById.mockResolvedValue(
+      resource({ visibility: 'shared' }),
+    );
 
     deps.profiles.resolveUserIdByProfileId.mockResolvedValueOnce('viewer-2');
     await expect(
