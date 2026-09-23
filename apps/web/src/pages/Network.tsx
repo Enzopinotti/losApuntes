@@ -32,7 +32,13 @@ const Network = () => {
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<SearchPersonResult[]>([]);
   const [following, setFollowing] = useState<FollowingItem[]>([]);
+  const [followingNextCursor, setFollowingNextCursor] = useState<string | null>(
+    null,
+  );
   const [connections, setConnections] = useState<ConnectionView[]>([]);
+  const [connectionsNextCursor, setConnectionsNextCursor] = useState<
+    string | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +53,9 @@ const Network = () => {
         communityApi.connections(),
       ]);
       setFollowing(followingResult.items);
+      setFollowingNextCursor(followingResult.nextCursor);
       setConnections(connectionResult.items);
+      setConnectionsNextCursor(connectionResult.nextCursor);
     } catch (nextError) {
       setError(messageFor(nextError));
     } finally {
@@ -58,6 +66,42 @@ const Network = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadMoreFollowing = async () => {
+    if (!followingNextCursor) return;
+
+    setBusy("following-more");
+    setError(null);
+    try {
+      const result = await communityApi.following(50, followingNextCursor);
+      setFollowing((current) => [...current, ...result.items]);
+      setFollowingNextCursor(result.nextCursor);
+    } catch (nextError) {
+      setError(messageFor(nextError));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const loadMoreConnections = async () => {
+    if (!connectionsNextCursor) return;
+
+    setBusy("connections-more");
+    setError(null);
+    try {
+      const result = await communityApi.connections(
+        undefined,
+        50,
+        connectionsNextCursor,
+      );
+      setConnections((current) => [...current, ...result.items]);
+      setConnectionsNextCursor(result.nextCursor);
+    } catch (nextError) {
+      setError(messageFor(nextError));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const findPeople = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -189,30 +233,42 @@ const Network = () => {
           ) : following.length === 0 ? (
             <p>Todavía no seguís perfiles.</p>
           ) : (
-            <ul className="community-list">
-              {following.map((item) => (
-                <li key={item.profile.profileId}>
-                  <div>
-                    <strong>{item.profile.displayName}</strong>
-                    <Link to={`/p/${item.profile.profileId}`}>Perfil</Link>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy === `unfollow:${item.profile.profileId}`}
-                    onClick={() =>
-                      void run(
-                        `unfollow:${item.profile.profileId}`,
-                        () => communityApi.unfollow(item.profile.profileId),
-                        "Dejaste de seguir ese perfil.",
-                      )
-                    }
-                  >
-                    Dejar de seguir
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="community-list">
+                {following.map((item) => (
+                  <li key={item.profile.profileId}>
+                    <div>
+                      <strong>{item.profile.displayName}</strong>
+                      <Link to={`/p/${item.profile.profileId}`}>Perfil</Link>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy === `unfollow:${item.profile.profileId}`}
+                      onClick={() =>
+                        void run(
+                          `unfollow:${item.profile.profileId}`,
+                          () => communityApi.unfollow(item.profile.profileId),
+                          "Dejaste de seguir ese perfil.",
+                        )
+                      }
+                    >
+                      Dejar de seguir
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {followingNextCursor && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy === "following-more"}
+                  onClick={() => void loadMoreFollowing()}
+                >
+                  {busy === "following-more" ? "Cargando…" : "Cargar más"}
+                </button>
+              )}
+            </>
           )}
         </section>
 
@@ -223,82 +279,95 @@ const Network = () => {
           ) : connections.length === 0 ? (
             <p>No hay solicitudes ni conexiones todavía.</p>
           ) : (
-            <ul className="community-list">
-              {connections.map((connection) => (
-                <li key={connection.id}>
-                  <div>
-                    <strong>{connection.other.displayName}</strong>
-                    <span className="community-status">
-                      {connection.status}
-                    </span>
-                    {connection.status === "pending" && (
-                      <small>
-                        {connection.incoming
-                          ? "Solicitud recibida"
-                          : "Solicitud enviada"}
-                      </small>
-                    )}
-                  </div>
-                  <div className="community-actions">
-                    {connection.incoming && connection.status === "pending" && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={busy === `accept:${connection.id}`}
-                          onClick={() =>
-                            void run(
-                              `accept:${connection.id}`,
-                              () =>
-                                communityApi.respondConnection(
-                                  connection.id,
-                                  "accept",
-                                ),
-                              "Conexión aceptada.",
-                            )
-                          }
-                        >
-                          Aceptar
-                        </button>
+            <>
+              <ul className="community-list">
+                {connections.map((connection) => (
+                  <li key={connection.id}>
+                    <div>
+                      <strong>{connection.other.displayName}</strong>
+                      <span className="community-status">
+                        {connection.status}
+                      </span>
+                      {connection.status === "pending" && (
+                        <small>
+                          {connection.incoming
+                            ? "Solicitud recibida"
+                            : "Solicitud enviada"}
+                        </small>
+                      )}
+                    </div>
+                    <div className="community-actions">
+                      {connection.incoming &&
+                        connection.status === "pending" && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={busy === `accept:${connection.id}`}
+                              onClick={() =>
+                                void run(
+                                  `accept:${connection.id}`,
+                                  () =>
+                                    communityApi.respondConnection(
+                                      connection.id,
+                                      "accept",
+                                    ),
+                                  "Conexión aceptada.",
+                                )
+                              }
+                            >
+                              Aceptar
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary"
+                              disabled={busy === `decline:${connection.id}`}
+                              onClick={() =>
+                                void run(
+                                  `decline:${connection.id}`,
+                                  () =>
+                                    communityApi.respondConnection(
+                                      connection.id,
+                                      "decline",
+                                    ),
+                                  "Solicitud rechazada.",
+                                )
+                              }
+                            >
+                              Rechazar
+                            </button>
+                          </>
+                        )}
+                      {connection.status === "accepted" && (
                         <button
                           type="button"
                           className="secondary"
-                          disabled={busy === `decline:${connection.id}`}
+                          disabled={busy === `disconnect:${connection.id}`}
                           onClick={() =>
                             void run(
-                              `decline:${connection.id}`,
-                              () =>
-                                communityApi.respondConnection(
-                                  connection.id,
-                                  "decline",
-                                ),
-                              "Solicitud rechazada.",
+                              `disconnect:${connection.id}`,
+                              () => communityApi.disconnect(connection.id),
+                              "Conexión finalizada.",
                             )
                           }
                         >
-                          Rechazar
+                          Desconectar
                         </button>
-                      </>
-                    )}
-                    {connection.status === "accepted" && (
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy === `disconnect:${connection.id}`}
-                        onClick={() =>
-                          void run(
-                            `disconnect:${connection.id}`,
-                            () => communityApi.disconnect(connection.id),
-                            "Conexión finalizada.",
-                          )
-                        }
-                      >
-                        Desconectar
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {connectionsNextCursor && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy === "connections-more"}
+                  onClick={() => void loadMoreConnections()}
+                >
+                  {busy === "connections-more" ? "Cargando…" : "Cargar más"}
+                </button>
+              )}
+            </>
           )}
         </section>
       </div>
