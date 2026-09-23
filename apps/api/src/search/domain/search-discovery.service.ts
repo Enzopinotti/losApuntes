@@ -27,6 +27,10 @@ export class SearchDiscoveryService {
 
   async search(viewerUserId: string | undefined, dto: SearchQueryDto) {
     const query = cleanQuery(dto.q);
+    const canonicalSubjectId =
+      dto.subjectId && includesScope(dto.scope, 'resources')
+        ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
+        : undefined;
     const results: {
       resources: Awaited<ReturnType<ResourceService['search']>>['items'];
       subjects: Array<{
@@ -51,7 +55,7 @@ export class SearchDiscoveryService {
         ? this.resources
             .search(viewerUserId, {
               q: query,
-              ...(dto.subjectId ? { subjectId: dto.subjectId } : {}),
+              ...(canonicalSubjectId ? { subjectId: canonicalSubjectId } : {}),
               limit: dto.limit,
             })
             .then((value) => {
@@ -102,7 +106,9 @@ export class SearchDiscoveryService {
           .filter((row) => row.state === 'current')
           .map((row) => row.subjectId),
       ),
-    ].slice(0, dto.subjectLimit * 2);
+    ]
+      .sort((left, right) => left.localeCompare(right))
+      .slice(0, dto.subjectLimit * 2);
 
     const subjects = await Promise.all(
       subjectIds.map(async (subjectId) => {
