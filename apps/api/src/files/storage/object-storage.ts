@@ -21,6 +21,7 @@ export interface ObjectStorage {
   createUploadIntent(input: {
     objectKey: string;
     contentType: string;
+    contentLength: number;
     expiresInSeconds: number;
   }): Promise<ObjectStorageUploadIntent>;
   headObject(objectKey: string): Promise<ObjectStorageHead | null>;
