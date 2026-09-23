@@ -87,6 +87,20 @@ export class MongoSocialStore implements SocialStore {
 
       if (!result) throw new Error('Follow transaction returned no result');
       return result;
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        const raced = await this.follows
+          .findOne({
+            followerUserId: input.followerUserId,
+            followeeUserId: input.followeeUserId,
+          })
+          .lean<FollowRecord>()
+          .exec();
+
+        if (raced) return { follow: raced, created: false };
+      }
+
+      throw error;
     } finally {
       await session.endSession();
     }
