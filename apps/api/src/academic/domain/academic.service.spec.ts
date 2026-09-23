@@ -1650,8 +1650,8 @@ describe('AcademicService', () => {
       new AcademicSourceIdentityConflictError(),
     );
 
-    await expect(
-      service.createCatalogNode('admin-1', {
+    try {
+      await service.createCatalogNode('admin-1', {
         kind: 'institution',
         name: 'Concurrent institution',
         parentIds: [country.id],
@@ -1661,12 +1661,16 @@ describe('AcademicService', () => {
           sourceUrl: 'https://example.test/siu',
           externalId: 'concurrent-id',
         },
-      }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
+      });
+      throw new Error('Expected source identity conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConflictException);
+      if (!(error instanceof ConflictException)) throw error;
+      expect(error.getResponse()).toEqual({
         code: 'ACADEMIC_SOURCE_IDENTITY_EXISTS',
-      }),
-    });
+        message: 'Academic source identity already exists',
+      });
+    }
   });
 
   it('keeps children and affiliation projections canonical after a parent merge', async () => {
