@@ -32,9 +32,11 @@ async function bootstrap(): Promise<void> {
   const files = app.get(FileService);
   const intervalMs = cleanupIntervalMs();
   let stopping = false;
+  const shutdown = new AbortController();
 
   const stop = () => {
     stopping = true;
+    shutdown.abort();
   };
 
   process.once('SIGINT', stop);
@@ -53,7 +55,14 @@ async function bootstrap(): Promise<void> {
         );
       }
 
-      await delay(intervalMs, undefined, { ref: false });
+      try {
+        await delay(intervalMs, undefined, {
+          ref: false,
+          signal: shutdown.signal,
+        });
+      } catch (error) {
+        if (!stopping) throw error;
+      }
     }
   } finally {
     await app.close();
