@@ -10,8 +10,7 @@ import type { AuthenticatedRequest } from '../auth.types';
 @Injectable()
 export class VerifiedEmailGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const request =
-      context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     if (!request.user.emailVerified) {
       throw new ForbiddenException({
