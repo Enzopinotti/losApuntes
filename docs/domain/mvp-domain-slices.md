@@ -42,29 +42,29 @@ The slice intentionally does not use `career_id` on User as domain authority.
 
 ## Slice 3 — Living profile
 
-Next product slice after Academic Graph.
+Status: complete in Profile v1 across API and Web.
 
-Depends on Identity plus canonical academic identity.
-
-Initial profile work should consume `CurrentAcademicContext`/affiliations rather than recreating academic fields in the client.
+Profile consumes `CurrentAcademicContext`/affiliations from Academic Graph rather than recreating academic fields in the client. Native Mobile remains a separate client delivery concern.
 
 ## Slice 4 — Resources / Notes
 
-Depends on authenticated principal, Academic Graph and storage authorization.
+Status: complete in Files + Notes v1 across storage, API/domain, Web and runtime operations.
 
-Required concepts include Resource, ResourceAsset/upload intent, authorship, academic context, visibility, save/bookmark and moderation state.
+Implemented concepts include Resource, ResourceAsset/upload intent, authorship, canonical academic context, privacy/share grants, save/bookmark, reporting, moderation-aware reads, private S3-compatible storage and abandoned-upload cleanup.
 
 ## Slice 5 — Search and contextual discovery
 
-Build deterministic/scoped discovery over canonical product data.
+Status: complete in Search + contextual discovery v1.
 
-Search remains a projection/indexing concern and does not redefine canonical ownership.
+Deterministic/scoped discovery is implemented over current Resource, Academic and public Profile authorities. Search remains a projection/read concern and does not redefine canonical ownership or introduce hidden feed/recommendation scoring.
 
 ## Slice 6 — Social + lightweight Q&A
 
+Status: next product slice.
+
 Follow/Connection semantics, Question/Answer, Report and essential notifications.
 
-Academic proximity remains separate from social consent.
+Academic proximity remains separate from social consent. This slice must not smuggle in Feed/For You ranking; Contextual Home remains Slice 7.
 
 ## Slice 7 — Contextual Home
 
