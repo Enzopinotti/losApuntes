@@ -127,6 +127,7 @@ services:
       FILES_S3_BUCKET: losapuntes-files
       FILES_S3_ACCESS_KEY_ID: losapuntes-local
       FILES_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
+      FILES_CLEANUP_INTERVAL_MS: "1000"
     depends_on:
       mongo:
         condition: service_healthy
