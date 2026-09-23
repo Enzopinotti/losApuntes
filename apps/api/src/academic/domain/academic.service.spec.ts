@@ -209,7 +209,12 @@ describe('AcademicService', () => {
       parentIds: ['33333333-3333-4333-8333-333333333333'],
     });
 
-    store.findCatalogNodesByIds.mockResolvedValue([planA, planB]);
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(id === planA.id ? planA : id === planB.id ? planB : null),
+    );
+    store.findCatalogNodesByIds.mockImplementation((ids) =>
+      Promise.resolve([planA, planB].filter((node) => ids.includes(node.id))),
+    );
     store.createCatalogNode.mockImplementation((input) =>
       Promise.resolve({
         ...input,
@@ -360,7 +365,13 @@ describe('AcademicService', () => {
   it('keeps missing-data proposals provisional', async () => {
     const store = createStore();
     const service = new AcademicService(store);
+    const curriculum = catalogNode({
+      id: '44444444-4444-4444-8444-444444444444',
+      kind: 'curriculum',
+    });
 
+    store.findCatalogNodeById.mockResolvedValue(curriculum);
+    store.findCatalogNodesByIds.mockResolvedValue([curriculum]);
     store.createProposal.mockImplementation((input) =>
       Promise.resolve({
         ...input,
@@ -372,6 +383,7 @@ describe('AcademicService', () => {
     const result = await service.createProposal('user-1', {
       kind: 'subject',
       proposedName: '  Materia nueva ',
+      parentIds: [curriculum.id],
       notes: 'Plan oficial',
     });
 
@@ -445,17 +457,23 @@ describe('AcademicService', () => {
     const store = createStore();
     const service = new AcademicService(store);
     const row = affiliation();
+    const curriculum = catalogNode({
+      id: row.curriculumId!,
+      kind: 'curriculum',
+    });
     const subject = catalogNode({
       id: '55555555-5555-4555-8555-555555555555',
       kind: 'subject',
-      parentIds: [row.curriculumId!],
+      parentIds: [curriculum.id],
     });
     const part = participation();
 
     store.findAffiliationById.mockResolvedValue(row);
     store.findSubjectParticipationById.mockResolvedValue(part);
-    store.findCatalogNodesByIds.mockImplementation((ids) =>
-      Promise.resolve(ids.includes(subject.id) ? [subject] : []),
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(
+        id === subject.id ? subject : id === curriculum.id ? curriculum : null,
+      ),
     );
     store.setCurrentContext.mockImplementation((input) =>
       Promise.resolve({
@@ -691,6 +709,7 @@ describe('AcademicService', () => {
     const created = affiliation({
       institutionId: institution.id,
       programId: program.id,
+      curriculumId: undefined,
     });
 
     store.findCatalogNodeById.mockImplementation((id) =>
