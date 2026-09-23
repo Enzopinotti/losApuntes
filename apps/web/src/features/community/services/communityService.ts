@@ -129,11 +129,7 @@ export const communityApi = {
       method: "DELETE",
     }),
 
-  connections: (
-    status?: ConnectionStatus,
-    limit = 50,
-    cursor?: string,
-  ) => {
+  connections: (status?: ConnectionStatus, limit = 50, cursor?: string) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (status) query.set("status", status);
     if (cursor) query.set("cursor", cursor);
