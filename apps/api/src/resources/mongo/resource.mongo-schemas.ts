@@ -127,7 +127,8 @@ export class ResourceReport {
   updatedAt!: Date;
 }
 
-export const ResourceReportSchema = SchemaFactory.createForClass(ResourceReport);
+export const ResourceReportSchema =
+  SchemaFactory.createForClass(ResourceReport);
 ResourceReportSchema.index(
   { resourceId: 1, reporterUserId: 1, status: 1 },
   { unique: true },
