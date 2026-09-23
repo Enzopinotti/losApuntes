@@ -37,10 +37,28 @@ function toPlain<T>(value: { toObject(): unknown } | T): T {
 }
 
 function escapeRegex(value: string): string {
-  const special = new Set([
+  const specialCharacters = new Set([
     '\\',
     '^',
-    '
+    '$',
+    '.',
+    '|',
+    '?',
+    '*',
+    '+',
+    '(',
+    ')',
+    '[',
+    ']',
+    '{',
+    '}',
+  ]);
+
+  return [...value]
+    .map((character) =>
+      specialCharacters.has(character) ? `\\${character}` : character,
+    )
+    .join('');
 }
 
 @Injectable()
