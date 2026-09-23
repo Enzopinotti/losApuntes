@@ -94,10 +94,7 @@ export class SearchDiscoveryService {
     };
   }
 
-  async contextual(
-    userId: string,
-    dto: ContextualDiscoveryQueryDto,
-  ) {
+  async contextual(userId: string, dto: ContextualDiscoveryQueryDto) {
     const participationResult =
       await this.academic.listSubjectParticipations(userId);
     const subjectIds = [
