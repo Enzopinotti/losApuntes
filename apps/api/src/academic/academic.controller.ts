@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -14,8 +15,8 @@ import {
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { AcademicService } from './domain/academic.service';
-import type { AcademicNodeKind } from './domain/academic.types';
 import {
+  AcademicCatalogChildrenDto,
   AcademicCatalogSearchDto,
   CreateAcademicAffiliationDto,
   CreateAcademicCatalogNodeDto,
@@ -38,12 +39,15 @@ export class AcademicController {
   }
 
   @Get('catalog/:id/children')
-  children(@Param('id') id: string, @Query('kind') kind?: AcademicNodeKind) {
-    return this.academic.listChildren(id, kind);
+  children(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Query() query: AcademicCatalogChildrenDto,
+  ) {
+    return this.academic.listChildren(id, query.kind, query.limit);
   }
 
   @Get('catalog/:id')
-  get(@Param('id') id: string) {
+  get(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.academic.getCatalogNode(id);
   }
 
@@ -66,7 +70,7 @@ export class AcademicController {
   @Patch('me/affiliations/:id/status')
   updateAffiliationStatus(
     @Req() request: AuthenticatedRequest,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdateAcademicAffiliationStatusDto,
   ) {
     return this.academic.updateAffiliationStatus(request.user.id, id, dto);
@@ -82,7 +86,7 @@ export class AcademicController {
   @Put('me/subjects/:subjectId')
   subjectParticipation(
     @Req() request: AuthenticatedRequest,
-    @Param('subjectId') subjectId: string,
+    @Param('subjectId', new ParseUUIDPipe({ version: '4' })) subjectId: string,
     @Body() dto: UpsertSubjectParticipationDto,
   ) {
     return this.academic.upsertSubjectParticipation(
@@ -129,7 +133,7 @@ export class AcademicController {
   @Patch('admin/catalog/:id')
   updateCatalogNode(
     @Req() request: AuthenticatedRequest,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdateAcademicCatalogNodeDto,
   ) {
     return this.academic.updateCatalogNode(request.user.id, id, dto);
@@ -139,7 +143,7 @@ export class AcademicController {
   @Post('admin/catalog/:id/merge')
   mergeCatalogNode(
     @Req() request: AuthenticatedRequest,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: MergeAcademicCatalogNodeDto,
   ) {
     return this.academic.mergeCatalogNode(
