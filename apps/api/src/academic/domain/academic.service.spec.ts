@@ -428,4 +428,462 @@ describe('AcademicService', () => {
       }),
     );
   });
+  it('rejects malformed pagination cursors', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+
+    await expect(
+      service.searchCatalog({ limit: 10, cursor: 'not-json' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('rejects duplicate external source identities before insertion', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const country = catalogNode();
+    const existing = catalogNode({
+      kind: 'institution',
+      parentIds: [country.id],
+    });
+
+    store.findCatalogNodesByIds.mockResolvedValue([country]);
+    store.findCatalogNodeBySourceIdentity.mockResolvedValue(existing);
+
+    await expect(
+      service.createCatalogNode('admin-1', {
+        kind: 'institution',
+        name: 'Duplicate',
+        parentIds: [country.id],
+        provenance: {
+          authorityTier: 'A',
+          sourceKey: 'official',
+          sourceUrl: 'https://example.test/source',
+          externalId: 'AR',
+        },
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(store.createCatalogNode).not.toHaveBeenCalled();
+  });
+
+  it('updates a canonical node while preserving optimistic revision control', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const country = catalogNode();
+    const existing = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+      name: 'Old Name',
+      normalizedName: 'old name',
+      parentIds: [country.id],
+    });
+
+    store.findCatalogNodeById.mockResolvedValue(existing);
+    store.findCatalogNodesByIds.mockResolvedValue([country]);
+    store.updateCatalogNode.mockImplementation(
+      async (_id, _revision, patch) => ({
+        ...existing,
+        ...patch,
+        revision: 2,
+        updatedAt: new Date('2026-09-22T21:00:00.000Z'),
+      }),
+    );
+
+    const result = await service.updateCatalogNode('admin-1', existing.id, {
+      expectedRevision: 1,
+      name: 'New Name',
+      aliases: ['NN', 'New Name'],
+      status: 'inactive',
+      parentIds: [country.id],
+      provenance: {
+        authorityTier: 'B',
+        sourceKey: 'institution',
+        sourceUrl: 'https://example.test/current',
+        verifiedAt: now.toISOString(),
+      },
+    });
+
+    expect(result.node).toEqual(
+      expect.objectContaining({
+        name: 'New Name',
+        aliases: ['NN'],
+        status: 'inactive',
+        revision: 2,
+      }),
+    );
+    expect(store.appendAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'academic.catalog.updated' }),
+    );
+  });
+
+  it('rejects updates to already merged nodes', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    store.findCatalogNodeById.mockResolvedValue(
+      catalogNode({ status: 'merged', redirectToId: 'target' }),
+    );
+
+    await expect(
+      service.updateCatalogNode('admin-1', 'source', {
+        expectedRevision: 2,
+        name: 'Nope',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('merges same-kind nodes and writes an audit redirect', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+      name: 'Duplicate',
+      normalizedName: 'duplicate',
+    });
+    const target = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+      name: 'Canonical',
+      normalizedName: 'canonical',
+    });
+
+    store.findCatalogNodeById.mockImplementation(async (id) => {
+      if (id === source.id) return source;
+      if (id === target.id) return target;
+      return null;
+    });
+    store.updateCatalogNode.mockImplementation(
+      async (_id, _revision, patch) => ({
+        ...source,
+        ...patch,
+        revision: 2,
+      }),
+    );
+
+    const result = await service.mergeCatalogNode(
+      'admin-1',
+      source.id,
+      target.id,
+      1,
+    );
+
+    expect(result.source).toEqual(
+      expect.objectContaining({
+        status: 'merged',
+        redirectToId: target.id,
+      }),
+    );
+    expect(store.appendAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'academic.catalog.merged',
+        targetId: source.id,
+      }),
+    );
+  });
+
+  it('rejects self merges, kind mismatches and merge revision conflicts', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const target = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'program',
+    });
+
+    await expect(
+      service.mergeCatalogNode('admin-1', source.id, source.id, 1),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    store.findCatalogNodeById.mockImplementation(async (id) => {
+      if (id === source.id) return source;
+      if (id === target.id) return target;
+      return null;
+    });
+
+    await expect(
+      service.mergeCatalogNode('admin-1', source.id, target.id, 1),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    const sameKindTarget = { ...target, kind: 'institution' as const };
+    store.findCatalogNodeById.mockImplementation(async (id) => {
+      if (id === source.id) return source;
+      if (id === sameKindTarget.id) return sameKindTarget;
+      return null;
+    });
+    store.updateCatalogNode.mockResolvedValue(null);
+
+    await expect(
+      service.mergeCatalogNode('admin-1', source.id, sameKindTarget.id, 1),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('creates, lists and updates an owned affiliation', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const institution = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const program = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'program',
+      parentIds: [institution.id],
+    });
+    const created = affiliation({
+      institutionId: institution.id,
+      programId: program.id,
+    });
+
+    store.findCatalogNodeById.mockImplementation(async (id) => {
+      if (id === institution.id) return institution;
+      if (id === program.id) return program;
+      return null;
+    });
+    store.findCatalogNodesByIds.mockImplementation(async (ids) =>
+      ids.includes(program.id) ? [program] : [],
+    );
+    store.createAffiliation.mockResolvedValue(created);
+    store.listAffiliationsForUser.mockResolvedValue([created]);
+    store.updateAffiliationStatus.mockResolvedValue({
+      ...created,
+      status: 'completed',
+      endedOn: '2026',
+    });
+
+    await expect(
+      service.createAffiliation('user-1', {
+        institutionId: institution.id,
+        programId: program.id,
+        status: 'active',
+        startedOn: '2025',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        affiliation: expect.objectContaining({ id: created.id }),
+      }),
+    );
+
+    await expect(service.listAffiliations('user-1')).resolves.toEqual(
+      expect.objectContaining({
+        affiliations: [expect.objectContaining({ id: created.id })],
+      }),
+    );
+
+    await expect(
+      service.updateAffiliationStatus('user-1', created.id, {
+        status: 'completed',
+        endedOn: '2026',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        affiliation: expect.objectContaining({ status: 'completed' }),
+      }),
+    );
+  });
+
+  it('returns not found when an affiliation status update is not owned', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    store.updateAffiliationStatus.mockResolvedValue(null);
+
+    await expect(
+      service.updateAffiliationStatus('user-1', 'missing', {
+        status: 'withdrawn',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('upserts and lists a direct subject participation', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const subject = catalogNode({
+      id: '55555555-5555-4555-8555-555555555555',
+      kind: 'subject',
+    });
+    const row = participation({ subjectId: subject.id });
+
+    store.findCatalogNodeById.mockResolvedValue(subject);
+    store.upsertSubjectParticipation.mockResolvedValue(row);
+    store.listSubjectParticipationsForUser.mockResolvedValue([row]);
+
+    await expect(
+      service.upsertSubjectParticipation('user-1', subject.id, {
+        state: 'current',
+        periodLabel: '2026 S2',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        participation: expect.objectContaining({ id: row.id }),
+      }),
+    );
+
+    await expect(
+      service.listSubjectParticipations('user-1'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        participations: [expect.objectContaining({ id: row.id })],
+      }),
+    );
+  });
+
+  it('returns and updates current academic context without accepting withdrawn context', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const active = affiliation({ status: 'active' });
+    const withdrawn = affiliation({ status: 'withdrawn' });
+
+    store.getCurrentContext.mockResolvedValue({
+      userId: 'user-1',
+      affiliationId: active.id,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(service.getCurrentContext('user-1')).resolves.toEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({ affiliationId: active.id }),
+      }),
+    );
+
+    store.getCurrentContext.mockResolvedValue(null);
+    await expect(service.getCurrentContext('user-1')).resolves.toEqual({
+      context: null,
+    });
+
+    store.findAffiliationById.mockResolvedValue(withdrawn);
+    await expect(
+      service.setCurrentContext('user-1', {
+        affiliationId: withdrawn.id,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('rejects a participation outside the selected affiliation context', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const row = affiliation();
+    const part = participation({
+      subjectId: '55555555-5555-4555-8555-555555555555',
+    });
+    const subject = catalogNode({
+      id: part.subjectId,
+      kind: 'subject',
+      parentIds: ['99999999-9999-4999-8999-999999999999'],
+    });
+
+    store.findAffiliationById.mockResolvedValue(row);
+    store.findSubjectParticipationById.mockResolvedValue(part);
+    store.findCatalogNodesByIds.mockImplementation(async (ids) =>
+      ids.includes(subject.id) ? [subject] : [],
+    );
+
+    await expect(
+      service.setCurrentContext('user-1', {
+        affiliationId: row.id,
+        subjectParticipationId: part.id,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('rejects proposals that reference unknown canonical parents', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    store.findCatalogNodesByIds.mockResolvedValue([]);
+
+    await expect(
+      service.createProposal('user-1', {
+        kind: 'subject',
+        proposedName: 'Unknown',
+        parentIds: ['44444444-4444-4444-8444-444444444444'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('fails closed for missing nodes and invalid redirect records', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+
+    store.findCatalogNodeById.mockResolvedValueOnce(null);
+    await expect(
+      service.getCatalogNode('missing'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    store.findCatalogNodeById.mockResolvedValue(
+      catalogNode({
+        status: 'merged',
+        redirectToId: undefined,
+      }),
+    );
+    await expect(
+      service.getCatalogNode('11111111-1111-4111-8111-111111111111'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects invalid node kind use and invalid parent cardinality', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const wrongKind = catalogNode({ kind: 'country' });
+
+    store.findCatalogNodeById.mockResolvedValue(wrongKind);
+    await expect(
+      service.upsertSubjectParticipation('user-1', wrongKind.id, {
+        state: 'current',
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    const countryA = catalogNode({
+      id: '00000000-0000-4000-8000-000000000001',
+    });
+    const countryB = catalogNode({
+      id: '00000000-0000-4000-8000-000000000002',
+    });
+    store.findCatalogNodesByIds.mockResolvedValue([countryA, countryB]);
+
+    await expect(
+      service.createCatalogNode('admin-1', {
+        kind: 'institution',
+        name: 'Two parents',
+        parentIds: [countryA.id, countryB.id],
+        provenance: {
+          authorityTier: 'C',
+          sourceKey: 'curated',
+          sourceUrl: 'https://example.test/source',
+        },
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('lists canonical children using the resolved parent id', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const parent = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const child = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'program',
+      parentIds: [parent.id],
+    });
+
+    store.findCatalogNodeById.mockResolvedValue(parent);
+    store.searchCatalog.mockResolvedValue({
+      items: [child],
+      hasMore: false,
+    });
+
+    await expect(
+      service.listChildren(parent.id, 'program', 10),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        parent: expect.objectContaining({ id: parent.id }),
+        items: [expect.objectContaining({ id: child.id })],
+        truncated: false,
+      }),
+    );
+  });
+
 });
