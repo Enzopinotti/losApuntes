@@ -338,6 +338,51 @@ const proposalResult = await request(
 );
 assert.equal(proposalResult.response.status, 201);
 assert.equal(proposalResult.body.proposal.status, 'pending');
+const proposalId = proposalResult.body.proposal.id;
+
+const proposalQueue = await request(
+  '/academic/admin/proposals?status=pending&limit=20',
+  { headers: { authorization: bearer } },
+);
+assert.equal(proposalQueue.response.status, 200);
+assert.equal(
+  proposalQueue.body.proposals.some((proposal) => proposal.id === proposalId),
+  true,
+);
+
+const proposalReview = await request(
+  `/academic/admin/proposals/${proposalId}/review`,
+  json(
+    'PATCH',
+    {
+      status: 'duplicate',
+      canonicalTargetId: subject.id,
+      reason: 'Runtime smoke duplicate mapping',
+    },
+    bearer,
+  ),
+);
+assert.equal(proposalReview.response.status, 200);
+assert.equal(proposalReview.body.proposal.status, 'duplicate');
+assert.equal(proposalReview.body.proposal.canonicalTargetId, subject.id);
+
+const proposalReplay = await request(
+  `/academic/admin/proposals/${proposalId}/review`,
+  json(
+    'PATCH',
+    {
+      status: 'duplicate',
+      canonicalTargetId: subject.id,
+      reason: 'Runtime smoke duplicate replay',
+    },
+    bearer,
+  ),
+);
+assert.equal(proposalReplay.response.status, 409);
+assert.equal(
+  proposalReplay.body.code,
+  'ACADEMIC_PROPOSAL_ALREADY_REVIEWED',
+);
 
 const duplicateInstitution = await createNode({
   kind: 'institution',
@@ -411,6 +456,8 @@ console.log(
       'subject-participation',
       'current-context',
       'provisional-proposal',
+      'proposal-admin-review',
+      'proposal-review-replay-conflict',
       'merge-redirect',
       'durable-audit',
     ],
