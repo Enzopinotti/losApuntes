@@ -196,7 +196,41 @@ Body:
 
 Response state is always initially `pending`.
 
-Submission is not canonicalization.
+Submission is not canonicalization. Parent IDs are canonicalized through merge redirects and must be structurally valid for the proposed kind.
+
+## Proposal administration
+
+Requires AuthSession + `academic:catalog:write`.
+
+### GET /academic/admin/proposals
+
+Query:
+
+- `status` optional: pending/accepted/rejected/duplicate/superseded;
+- `limit` optional, 1–100, default 50.
+
+Returns the bounded review queue including reviewer evidence for already-reviewed proposals.
+
+### PATCH /academic/admin/proposals/:id/review
+
+Body:
+
+```json
+{
+  "status": "duplicate",
+  "canonicalTargetId": "uuid",
+  "reason": "Misma materia canónica publicada en el plan oficial"
+}
+```
+
+Rules:
+
+- only `pending` proposals may transition;
+- `accepted`, `duplicate` and `superseded` require an active same-kind canonical target;
+- `rejected` forbids a canonical target;
+- review records actor, reason, target and time;
+- a repeated/concurrent review fails closed;
+- review never silently creates a canonical node.
 
 ## Catalog administration
 
@@ -245,7 +279,7 @@ Body:
 
 Only same-kind nodes may be merged.
 
-The source ID remains resolvable through redirect.
+The source ID remains resolvable through redirect. Graph traversal treats the canonical target and every bounded redirect source as one identity set, so children attached to an older merged parent remain discoverable. User affiliation/subject projections canonicalize merged catalog IDs without destroying the stored historical reference.
 
 ## Error codes
 
@@ -268,7 +302,11 @@ Relevant stable codes include:
 - `ACADEMIC_PARENT_INVALID`;
 - `ACADEMIC_PARENT_CARDINALITY_INVALID`;
 - `ACADEMIC_CONTEXT_MISMATCH`;
-- `ACADEMIC_CONTEXT_INELIGIBLE`.
+- `ACADEMIC_CONTEXT_INELIGIBLE`;
+- `ACADEMIC_PROPOSAL_ALREADY_REVIEWED`;
+- `ACADEMIC_PROPOSAL_TARGET_REQUIRED`;
+- `ACADEMIC_PROPOSAL_TARGET_NOT_ALLOWED`;
+- `ACADEMIC_PROPOSAL_TARGET_INVALID`.
 
 HTTP validation uses the repository-wide error envelope and request ID.
 
