@@ -8,6 +8,11 @@ import type {
 export type AuthenticatedUser = {
   id: string;
   email: string;
+  emailVerified: boolean;
+};
+
+export type OptionallyAuthenticatedRequest = FastifyRequest & {
+  user?: AuthenticatedUser;
 };
 
 export type AuthenticatedRequest = FastifyRequest & {
