@@ -192,10 +192,7 @@ export function validateRuntimeEnvironment(
     source.GOOGLE_NATIVE_CLIENT_IDS,
     'GOOGLE_NATIVE_CLIENT_IDS',
   );
-  const filesStorageProvider = requiredString(
-    source,
-    'FILES_STORAGE_PROVIDER',
-  );
+  const filesStorageProvider = requiredString(source, 'FILES_STORAGE_PROVIDER');
   if (filesStorageProvider !== 's3') {
     throw new Error('FILES_STORAGE_PROVIDER must be s3');
   }
