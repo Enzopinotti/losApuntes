@@ -112,9 +112,7 @@ export const feedsApi = {
       limit: String(input.limit ?? 20),
     });
     if (input.cursor) query.set("cursor", input.cursor);
-    return request<AcademicFeedResponse>(
-      `/feeds/academic?${query.toString()}`,
-    );
+    return request<AcademicFeedResponse>(`/feeds/academic?${query.toString()}`);
   },
 
   forYou: (input: {
@@ -129,13 +127,10 @@ export const feedsApi = {
       order: input.order,
     });
     if (input.cursor) query.set("cursor", input.cursor);
-    return request<ForYouFeedResponse>(
-      `/feeds/for-you?${query.toString()}`,
-    );
+    return request<ForYouFeedResponse>(`/feeds/for-you?${query.toString()}`);
   },
 
-  preferences: () =>
-    request<FeedPreferencesResponse>("/feeds/preferences"),
+  preferences: () => request<FeedPreferencesResponse>("/feeds/preferences"),
 
   updatePreferences: (
     current: FeedPreferencesResponse["preferences"],
