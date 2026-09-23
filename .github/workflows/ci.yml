@@ -223,6 +223,7 @@ jobs:
           node scripts/smoke-api-runtime.mjs
           node scripts/smoke-auth-lifecycle.mjs
           node scripts/smoke-academic-lifecycle.mjs
+          node scripts/smoke-profile-lifecycle.mjs
 
       - name: Runtime logs on failure
         if: failure()
