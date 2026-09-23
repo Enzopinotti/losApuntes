@@ -154,6 +154,7 @@ describe('validateRuntimeEnvironment', () => {
       FILES_S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
       FILES_S3_REGION: 'us-east-1',
       FILES_S3_BUCKET: 'losapuntes-files',
+      FILES_DOWNLOAD_URL_TTL_SECONDS: 300,
     });
   });
 
@@ -162,6 +163,17 @@ describe('validateRuntimeEnvironment', () => {
     delete incomplete.FILES_S3_BUCKET;
     expect(() => validateRuntimeEnvironment(incomplete)).toThrow(
       'FILES_S3_BUCKET is required',
+    );
+  });
+
+  it('rejects invalid signed download TTLs', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        FILES_DOWNLOAD_URL_TTL_SECONDS: 0,
+      }),
+    ).toThrow(
+      'FILES_DOWNLOAD_URL_TTL_SECONDS must be an integer between 1 and 300',
     );
   });
 
