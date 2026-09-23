@@ -18,7 +18,7 @@
     "build": "pnpm -r --if-present build",
     "audit:prod": "pnpm audit --prod --audit-level high",
     "runtime:up": "docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120",
-    "runtime:smoke": "node scripts/smoke-api-runtime.mjs && node scripts/smoke-auth-lifecycle.mjs && node scripts/smoke-academic-lifecycle.mjs && node scripts/smoke-profile-lifecycle.mjs && node scripts/smoke-files-resources-lifecycle.mjs && node scripts/smoke-search-discovery-lifecycle.mjs && node scripts/smoke-social-qa-lifecycle.mjs && node scripts/smoke-feeds-lifecycle.mjs",
+    "runtime:smoke": "node scripts/smoke-api-runtime.mjs && node scripts/smoke-auth-lifecycle.mjs && node scripts/smoke-academic-lifecycle.mjs && node scripts/smoke-profile-lifecycle.mjs && node scripts/smoke-files-resources-lifecycle.mjs && node scripts/smoke-search-discovery-lifecycle.mjs && node scripts/smoke-social-qa-lifecycle.mjs && node scripts/smoke-feeds-lifecycle.mjs && node scripts/smoke-pilot-lifecycle.mjs",
     "runtime:logs": "docker compose -f compose.local.yml logs --no-color",
     "runtime:down": "docker compose -f compose.local.yml down --volumes --remove-orphans",
     "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
