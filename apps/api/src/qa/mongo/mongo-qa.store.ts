@@ -19,10 +19,7 @@ import type {
 import { Answer, QaReport, Question } from './qa.mongo-schemas';
 
 function escapeRegex(value: string): string {
-  return value.replace(
-    /[.*+?^${}()|[\]\\]/gu,
-    (character) => '\\' + character,
-  );
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, (character) => '\\' + character);
 }
 
 function toPlain<T>(value: { toObject(): unknown } | T): T {
