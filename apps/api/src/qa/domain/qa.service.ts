@@ -321,7 +321,7 @@ export class QaService {
       targetId,
       reporterUserId: userId,
       reason,
-      details: details === undefined ? null : cleanText(details),
+      details: details == null ? null : cleanText(details),
     });
 
     return {
