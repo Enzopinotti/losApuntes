@@ -9,6 +9,7 @@ import Profile from "../pages/Profile";
 import PublicProfile from "../pages/PublicProfile";
 import ResetPassword from "../pages/ResetPassword";
 import Resources from "../pages/Resources";
+import Search from "../pages/Search";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
 import VerificationPending from "../pages/VerificationPending";
@@ -30,6 +31,7 @@ export const routes: RouteObject[] = [
       { path: "account/restricted", element: <AccountRestricted /> },
       { path: "p/:profileId", element: <PublicProfile /> },
       { path: "resources", element: <Resources /> },
+      { path: "search", element: <Search /> },
       {
         path: "dashboard",
         element: (
