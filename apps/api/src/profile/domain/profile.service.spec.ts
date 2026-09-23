@@ -833,7 +833,7 @@ describe('ProfileService', () => {
       academicService,
     ).searchPublicProfiles('  Ana   ', 8);
 
-    expect(profileStore.searchPublicProfiles).toHaveBeenCalledWith('Ana', 8);
+    expect(profileStore.searchPublicProfiles.mock.calls).toEqual([['Ana', 8]]);
     expect(result).toEqual({
       items: [
         {
