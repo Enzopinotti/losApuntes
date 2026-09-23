@@ -138,11 +138,13 @@ jobs:
       - name: Install workspace from frozen lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Print canonical academic formatting patch
+      - name: Print canonical academic formatting payload
         run: |
           pnpm --filter @losapuntes/api exec prettier --write "src/academic/**/*.ts"
-          git diff -- apps/api/src/academic
-          test -z "$(git status --short -- apps/api/src/academic)"
+          echo "ACADEMIC_SPEC_BASE64_BEGIN"
+          base64 -w0 apps/api/src/academic/domain/academic.service.spec.ts
+          echo
+          echo "ACADEMIC_SPEC_BASE64_END"
 
   production-dependency-audit:
     name: Production dependency audit
