@@ -52,8 +52,8 @@ function Landing() {
         <p className="pilot-eyebrow">Los Apuntes</p>
         <h1>Tu universidad, organizada alrededor de lo que estudiás.</h1>
         <p>
-          Encontrá apuntes, preguntas y personas dentro de un contexto
-          académico verificable, sin un feed infinito diseñado para retenerte.
+          Encontrá apuntes, preguntas y personas dentro de un contexto académico
+          verificable, sin un feed infinito diseñado para retenerte.
         </p>
         <div className="pilot-actions">
           <Link className="pilot-primary-link" to="/sign-up">
