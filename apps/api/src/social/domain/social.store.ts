@@ -3,6 +3,7 @@ import type {
   ConnectionRecord,
   ConnectionStatus,
   FollowRecord,
+  SocialCursor,
 } from './social.types';
 
 export const SOCIAL_STORE = Symbol('SOCIAL_STORE');
@@ -15,7 +16,11 @@ export interface SocialStore {
     notification: CreateNotificationRecord;
   }) => Promise<{ follow: FollowRecord; created: boolean }>;
   unfollow: (followerUserId: string, followeeUserId: string) => Promise<void>;
-  listFollowing: (userId: string, limit: number) => Promise<FollowRecord[]>;
+  listFollowing: (
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ) => Promise<FollowRecord[]>;
 
   requestConnection: (input: {
     id: string;
@@ -29,6 +34,7 @@ export interface SocialStore {
     userId: string,
     status: ConnectionStatus | undefined,
     limit: number,
+    after?: SocialCursor,
   ) => Promise<ConnectionRecord[]>;
   respondConnection: (input: {
     id: string;
