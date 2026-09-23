@@ -191,27 +191,31 @@ export class AcademicService {
         .filter((alias) => normalizeName(alias) !== normalizeName(name)),
     );
 
-    const created = await this.store.createCatalogNode({
-      id: randomUUID(),
-      kind: dto.kind,
-      name,
-      normalizedName: normalizeName(name),
-      aliases,
-      normalizedAliases: aliases.map(normalizeName),
-      parentIds,
-      status: 'active',
-      provenance: {
-        ...dto.provenance,
-        verifiedAt: dto.provenance.verifiedAt
-          ? new Date(dto.provenance.verifiedAt)
-          : undefined,
-      },
-      revision: 1,
-    });
+    const created = await this.store.runAtomically(async () => {
+      const node = await this.store.createCatalogNode({
+        id: randomUUID(),
+        kind: dto.kind,
+        name,
+        normalizedName: normalizeName(name),
+        aliases,
+        normalizedAliases: aliases.map(normalizeName),
+        parentIds,
+        status: 'active',
+        provenance: {
+          ...dto.provenance,
+          verifiedAt: dto.provenance.verifiedAt
+            ? new Date(dto.provenance.verifiedAt)
+            : undefined,
+        },
+        revision: 1,
+      });
 
-    await this.audit('academic.catalog.created', actorUserId, created.id, {
-      kind: created.kind,
-      revision: created.revision,
+      await this.audit('academic.catalog.created', actorUserId, node.id, {
+        kind: node.kind,
+        revision: node.revision,
+      });
+
+      return node;
     });
 
     return { node: publicNode(created) };
@@ -264,43 +268,47 @@ export class AcademicService {
       }
     }
 
-    const updated = await this.store.updateCatalogNode(
-      id,
-      dto.expectedRevision,
-      {
-        ...(dto.name === undefined
-          ? {}
-          : { name, normalizedName: normalizeName(name) }),
-        ...(dto.aliases === undefined
-          ? {}
-          : {
-              aliases,
-              normalizedAliases: aliases.map(normalizeName),
-            }),
-        ...(dto.parentIds === undefined ? {} : { parentIds }),
-        ...(dto.status === undefined ? {} : { status: dto.status }),
-        ...(dto.provenance === undefined
-          ? {}
-          : {
-              provenance: {
-                ...dto.provenance,
-                verifiedAt: dto.provenance.verifiedAt
-                  ? new Date(dto.provenance.verifiedAt)
-                  : undefined,
-              },
-            }),
-      },
-    );
+    const updated = await this.store.runAtomically(async () => {
+      const node = await this.store.updateCatalogNode(
+        id,
+        dto.expectedRevision,
+        {
+          ...(dto.name === undefined
+            ? {}
+            : { name, normalizedName: normalizeName(name) }),
+          ...(dto.aliases === undefined
+            ? {}
+            : {
+                aliases,
+                normalizedAliases: aliases.map(normalizeName),
+              }),
+          ...(dto.parentIds === undefined ? {} : { parentIds }),
+          ...(dto.status === undefined ? {} : { status: dto.status }),
+          ...(dto.provenance === undefined
+            ? {}
+            : {
+                provenance: {
+                  ...dto.provenance,
+                  verifiedAt: dto.provenance.verifiedAt
+                    ? new Date(dto.provenance.verifiedAt)
+                    : undefined,
+                },
+              }),
+        },
+      );
 
-    if (!updated) {
-      throw new ConflictException({
-        code: 'ACADEMIC_REVISION_CONFLICT',
-        message: 'Academic catalog node changed concurrently',
+      if (!node) {
+        throw new ConflictException({
+          code: 'ACADEMIC_REVISION_CONFLICT',
+          message: 'Academic catalog node changed concurrently',
+        });
+      }
+
+      await this.audit('academic.catalog.updated', actorUserId, id, {
+        revision: node.revision,
       });
-    }
 
-    await this.audit('academic.catalog.updated', actorUserId, id, {
-      revision: updated.revision,
+      return node;
     });
 
     return { node: publicNode(updated) };
@@ -336,25 +344,29 @@ export class AcademicService {
       });
     }
 
-    const updated = await this.store.updateCatalogNode(
-      source.id,
-      expectedRevision,
-      {
-        status: 'merged',
-        redirectToId: target.node.id,
-      },
-    );
+    const updated = await this.store.runAtomically(async () => {
+      const node = await this.store.updateCatalogNode(
+        source.id,
+        expectedRevision,
+        {
+          status: 'merged',
+          redirectToId: target.node.id,
+        },
+      );
 
-    if (!updated) {
-      throw new ConflictException({
-        code: 'ACADEMIC_REVISION_CONFLICT',
-        message: 'Academic catalog node changed concurrently',
+      if (!node) {
+        throw new ConflictException({
+          code: 'ACADEMIC_REVISION_CONFLICT',
+          message: 'Academic catalog node changed concurrently',
+        });
+      }
+
+      await this.audit('academic.catalog.merged', actorUserId, source.id, {
+        targetId: target.node.id,
+        revision: node.revision,
       });
-    }
 
-    await this.audit('academic.catalog.merged', actorUserId, source.id, {
-      targetId: target.node.id,
-      revision: updated.revision,
+      return node;
     });
 
     return {
@@ -410,21 +422,25 @@ export class AcademicService {
       }
     }
 
-    const created = await this.store.createAffiliation({
-      id: randomUUID(),
-      userId,
-      institutionId: institution.id,
-      campusId: dto.campusId,
-      academicUnitId: dto.academicUnitId,
-      programId: dto.programId,
-      curriculumId: dto.curriculumId,
-      status: dto.status,
-      startedOn: dto.startedOn,
-      endedOn: dto.endedOn,
-    });
+    const created = await this.store.runAtomically(async () => {
+      const row = await this.store.createAffiliation({
+        id: randomUUID(),
+        userId,
+        institutionId: institution.id,
+        campusId: dto.campusId,
+        academicUnitId: dto.academicUnitId,
+        programId: dto.programId,
+        curriculumId: dto.curriculumId,
+        status: dto.status,
+        startedOn: dto.startedOn,
+        endedOn: dto.endedOn,
+      });
 
-    await this.audit('academic.affiliation.created', userId, created.id, {
-      status: created.status,
+      await this.audit('academic.affiliation.created', userId, row.id, {
+        status: row.status,
+      });
+
+      return row;
     });
 
     return { affiliation: this.publicAffiliation(created) };
@@ -435,16 +451,20 @@ export class AcademicService {
     id: string,
     dto: UpdateAcademicAffiliationStatusDto,
   ) {
-    const updated = await this.store.updateAffiliationStatus(
-      userId,
-      id,
-      dto.status,
-      dto.endedOn,
-    );
-    if (!updated) this.notFound();
+    const updated = await this.store.runAtomically(async () => {
+      const row = await this.store.updateAffiliationStatus(
+        userId,
+        id,
+        dto.status,
+        dto.endedOn,
+      );
+      if (!row) this.notFound();
 
-    await this.audit('academic.affiliation.updated', userId, updated.id, {
-      status: updated.status,
+      await this.audit('academic.affiliation.updated', userId, row.id, {
+        status: row.status,
+      });
+
+      return row;
     });
 
     return { affiliation: this.publicAffiliation(updated) };
@@ -480,21 +500,25 @@ export class AcademicService {
       offeringId = offering.id;
     }
 
-    const row = await this.store.upsertSubjectParticipation({
-      id: randomUUID(),
-      userId,
-      subjectId: subject.id,
-      courseOfferingId: offeringId,
-      state: dto.state,
-      periodLabel: dto.periodLabel,
-    });
+    const row = await this.store.runAtomically(async () => {
+      const participation = await this.store.upsertSubjectParticipation({
+        id: randomUUID(),
+        userId,
+        subjectId: subject.id,
+        courseOfferingId: offeringId,
+        state: dto.state,
+        periodLabel: dto.periodLabel,
+      });
 
-    await this.audit(
-      'academic.subject_participation.upserted',
-      userId,
-      row.id,
-      { state: row.state },
-    );
+      await this.audit(
+        'academic.subject_participation.upserted',
+        userId,
+        participation.id,
+        { state: participation.state },
+      );
+
+      return participation;
+    });
 
     return { participation: this.publicParticipation(row) };
   }
@@ -540,14 +564,18 @@ export class AcademicService {
       }
     }
 
-    const context = await this.store.setCurrentContext({
-      userId,
-      affiliationId: affiliation.id,
-      subjectParticipationId: participation?.id,
-    });
+    const context = await this.store.runAtomically(async () => {
+      const current = await this.store.setCurrentContext({
+        userId,
+        affiliationId: affiliation.id,
+        subjectParticipationId: participation?.id,
+      });
 
-    await this.audit('academic.context.updated', userId, userId, {
-      affiliationId: affiliation.id,
+      await this.audit('academic.context.updated', userId, userId, {
+        affiliationId: affiliation.id,
+      });
+
+      return current;
     });
 
     return { context: this.publicContext(context) };
@@ -560,19 +588,23 @@ export class AcademicService {
       if (parents.length !== parentIds.length) this.notFound();
     }
 
-    const created = await this.store.createProposal({
-      id: randomUUID(),
-      userId,
-      kind: dto.kind,
-      proposedName: cleanDisplayName(dto.proposedName),
-      parentIds,
-      evidenceUrl: dto.evidenceUrl,
-      notes: dto.notes?.trim(),
-      status: 'pending',
-    });
+    const created = await this.store.runAtomically(async () => {
+      const proposal = await this.store.createProposal({
+        id: randomUUID(),
+        userId,
+        kind: dto.kind,
+        proposedName: cleanDisplayName(dto.proposedName),
+        parentIds,
+        evidenceUrl: dto.evidenceUrl,
+        notes: dto.notes?.trim(),
+        status: 'pending',
+      });
 
-    await this.audit('academic.proposal.created', userId, created.id, {
-      kind: created.kind,
+      await this.audit('academic.proposal.created', userId, proposal.id, {
+        kind: proposal.kind,
+      });
+
+      return proposal;
     });
 
     return { proposal: this.publicProposal(created) };
@@ -636,24 +668,33 @@ export class AcademicService {
       canonicalTargetId = node.id;
     }
 
-    const reviewed = await this.store.reviewProposal(
-      id,
-      actorUserId,
-      dto.status,
-      dto.reason.trim(),
-      canonicalTargetId,
-    );
+    const reviewed = await this.store.runAtomically(async () => {
+      const proposalAfterReview = await this.store.reviewProposal(
+        id,
+        actorUserId,
+        dto.status,
+        dto.reason.trim(),
+        canonicalTargetId,
+      );
 
-    if (!reviewed) {
-      throw new ConflictException({
-        code: 'ACADEMIC_PROPOSAL_ALREADY_REVIEWED',
-        message: 'Academic proposal changed concurrently',
-      });
-    }
+      if (!proposalAfterReview) {
+        throw new ConflictException({
+          code: 'ACADEMIC_PROPOSAL_ALREADY_REVIEWED',
+          message: 'Academic proposal changed concurrently',
+        });
+      }
 
-    await this.audit('academic.proposal.reviewed', actorUserId, reviewed.id, {
-      status: reviewed.status,
-      canonicalTargetId: reviewed.canonicalTargetId ?? null,
+      await this.audit(
+        'academic.proposal.reviewed',
+        actorUserId,
+        proposalAfterReview.id,
+        {
+          status: proposalAfterReview.status,
+          canonicalTargetId: proposalAfterReview.canonicalTargetId ?? null,
+        },
+      );
+
+      return proposalAfterReview;
     });
 
     return { proposal: this.publicProposal(reviewed) };
