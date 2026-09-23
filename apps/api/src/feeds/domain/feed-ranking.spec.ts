@@ -11,9 +11,7 @@ import {
 
 const anchor = new Date('2026-09-23T17:00:00.000Z');
 
-function candidate(
-  overrides: Partial<FeedCandidate> = {},
-): FeedCandidate {
+function candidate(overrides: Partial<FeedCandidate> = {}): FeedCandidate {
   return {
     type: 'resource',
     id: '11111111-1111-4111-8111-111111111111',
@@ -95,9 +93,7 @@ describe('Feed ranking', () => {
     const academic = rankFeedCandidate(
       candidate(),
       context({
-        currentSubjectIds: new Set([
-          '22222222-2222-4222-8222-222222222222',
-        ]),
+        currentSubjectIds: new Set(['22222222-2222-4222-8222-222222222222']),
       }),
     );
     expect(academic.why).not.toContain('exploration');
