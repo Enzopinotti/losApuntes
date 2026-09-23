@@ -14,6 +14,13 @@ export const QA_REPORT_REASONS = [
 ] as const;
 export type QaReportReason = (typeof QA_REPORT_REASONS)[number];
 
+export const QA_REPORT_STATUSES = [
+  'pending',
+  'resolved',
+  'dismissed',
+] as const;
+export type QaReportStatus = (typeof QA_REPORT_STATUSES)[number];
+
 export interface QuestionRecord {
   id: string;
   authorUserId: string;
@@ -49,7 +56,11 @@ export interface QaReportRecord {
   reporterUserId: string;
   reason: QaReportReason;
   details: string | null;
-  status: 'pending';
+  status: QaReportStatus;
+  reviewedByUserId?: string;
+  reviewedAt?: Date;
+  reviewReason?: string;
+  reviewAction?: 'hide' | 'restore' | 'dismiss';
   createdAt: Date;
   updatedAt: Date;
 }
