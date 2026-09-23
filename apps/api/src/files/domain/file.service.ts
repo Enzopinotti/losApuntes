@@ -8,7 +8,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
+import { basename } from 'node:path';
 
 import type { CreateFileUploadIntentDto } from '../dto/file.dto';
 import {
@@ -26,8 +26,8 @@ const FAILED_RECLAIM_MS = 5 * 60 * 1000;
 const MIME_PREFIX_BYTES = 64;
 
 function cleanFilename(value: string): string {
-  const basename = path.basename(value.replace(/\\/gu, '/'));
-  const cleaned = [...basename.normalize('NFC')]
+  const safeBasename = basename(value.replace(/\\/gu, '/'));
+  const cleaned = [...safeBasename.normalize('NFC')]
     .filter((character) => {
       const code = character.codePointAt(0) ?? 0;
       return code >= 0x20 && code !== 0x7f;
