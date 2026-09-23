@@ -27,7 +27,11 @@ export class SocialController {
     @Req() request: AuthenticatedRequest,
     @Query() query: SocialListDto,
   ) {
-    return this.social.listFollowing(request.user.id, query.limit);
+    return this.social.listFollowing(
+      request.user.id,
+      query.limit,
+      query.cursor,
+    );
   }
 
   @Get('me/connections')
@@ -39,6 +43,7 @@ export class SocialController {
       request.user.id,
       query.status,
       query.limit,
+      query.cursor,
     );
   }
 
