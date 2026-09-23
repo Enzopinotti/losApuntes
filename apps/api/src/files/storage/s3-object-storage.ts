@@ -55,8 +55,9 @@ function awsDate(date: Date): { amzDate: string; dateStamp: string } {
 }
 
 function encodeAws(value: string): string {
-  return encodeURIComponent(value).replace(/[!'()*]/gu, (character) =>
-    `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  return encodeURIComponent(value).replace(
+    /[!'()*]/gu,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
   );
 }
 
@@ -119,8 +120,7 @@ function responseDisposition(
       .slice(0, 180) || 'download';
   const encoded = encodeURIComponent(filename).replace(
     /['()*]/gu,
-    (character) =>
-      `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
   );
 
   return `${disposition}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
@@ -180,12 +180,9 @@ function presignedUrl(input: {
     signedHeaders,
     'UNSIGNED-PAYLOAD',
   ].join('\n');
-  const stringToSign = [
-    ALGORITHM,
-    amzDate,
-    scope,
-    sha256Hex(canonical),
-  ].join('\n');
+  const stringToSign = [ALGORITHM, amzDate, scope, sha256Hex(canonical)].join(
+    '\n',
+  );
   const signature = hmac(
     signingKey(input.secretAccessKey, dateStamp, input.region),
     stringToSign,
@@ -246,10 +243,7 @@ async function signedRequest(input: {
     `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
   return fetch(
-    `${input.endpoint.origin}${canonicalUri(
-      input.bucket,
-      input.objectKey,
-    )}`,
+    `${input.endpoint.origin}${canonicalUri(input.bucket, input.objectKey)}`,
     {
       method: input.method,
       headers: {
@@ -366,9 +360,7 @@ export function createS3ObjectStorage(
       return bytes;
     },
 
-    async createDownloadIntent(
-      input,
-    ): Promise<ObjectStorageDownloadIntent> {
+    async createDownloadIntent(input): Promise<ObjectStorageDownloadIntent> {
       const url = presignedUrl({
         method: 'GET',
         endpoint: publicEndpoint,
