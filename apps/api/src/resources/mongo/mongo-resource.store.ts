@@ -192,25 +192,8 @@ export class MongoResourceStore implements ResourceStore {
     limit: number;
     after?: ResourceSearchCursor;
   }): Promise<{ items: ResourceRecord[]; hasMore: boolean }> {
-    const access: FilterQuery<Resource>[] = [{ visibility: 'public' }];
-
-    if (input.viewerUserId) {
-      const sharedIds = (
-        await this.shares
-          .find({ userId: input.viewerUserId })
-          .select({ resourceId: 1, _id: 0 })
-          .limit(500)
-          .lean<Array<{ resourceId: string }>>()
-          .exec()
-      ).map((row) => row.resourceId);
-
-      access.push({ authorUserId: input.viewerUserId });
-      if (sharedIds.length > 0) access.push({ id: { $in: sharedIds } });
-    }
-
     const filters: FilterQuery<Resource>[] = [
       { moderationState: 'available' },
-      { $or: access },
     ];
 
     if (input.subjectId) filters.push({ subjectId: input.subjectId });
@@ -236,11 +219,57 @@ export class MongoResourceStore implements ResourceStore {
       });
     }
 
+    if (!input.viewerUserId) {
+      filters.push({ visibility: 'public' });
+      const rows = await this.resources
+        .find({ $and: filters })
+        .sort({ updatedAt: -1, id: 1 })
+        .limit(input.limit + 1)
+        .lean<ResourceRecord[]>()
+        .exec();
+
+      return {
+        items: rows.slice(0, input.limit),
+        hasMore: rows.length > input.limit,
+      };
+    }
+
     const rows = await this.resources
-      .find({ $and: filters })
-      .sort({ updatedAt: -1, id: 1 })
-      .limit(input.limit + 1)
-      .lean<ResourceRecord[]>()
+      .aggregate<ResourceRecord>([
+        { $match: { $and: filters } },
+        {
+          $lookup: {
+            from: 'resource_shares',
+            let: { resourceId: '$id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$resourceId', '$resourceId'] },
+                      { $eq: ['$userId', input.viewerUserId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__viewerShares',
+          },
+        },
+        {
+          $match: {
+            $or: [
+              { visibility: 'public' },
+              { authorUserId: input.viewerUserId },
+              { '__viewerShares.0': { $exists: true } },
+            ],
+          },
+        },
+        { $sort: { updatedAt: -1, id: 1 } },
+        { $limit: input.limit + 1 },
+        { $project: { __viewerShares: 0 } },
+      ])
       .exec();
 
     return {

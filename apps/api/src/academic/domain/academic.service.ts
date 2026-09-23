@@ -602,6 +602,35 @@ export class AcademicService {
     return { context: this.publicContext(context) };
   }
 
+  async resolveResourceContext(
+    subjectId: string,
+    courseOfferingId?: string,
+  ): Promise<{ subjectId: string; courseOfferingId: string | null }> {
+    const subject = await this.requireKind(subjectId, 'subject');
+    let offeringId: string | null = null;
+
+    if (courseOfferingId) {
+      const offering = await this.requireKind(
+        courseOfferingId,
+        'course_offering',
+      );
+
+      if (!(await this.isDescendantOf(offering.id, subject.id))) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_MISMATCH',
+          message: 'Course offering does not belong to the selected subject',
+        });
+      }
+
+      offeringId = offering.id;
+    }
+
+    return {
+      subjectId: subject.id,
+      courseOfferingId: offeringId,
+    };
+  }
+
   async createProposal(userId: string, dto: CreateAcademicProposalDto) {
     const parentIds = await this.canonicalParentIds(
       dto.kind,
