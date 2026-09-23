@@ -152,27 +152,27 @@ function configureDefaults(
   );
   deps.academic.getCatalogNode.mockImplementation((id) =>
     Promise.resolve({
-    node: {
-      id,
-      kind: 'subject',
-      name: id === subjectId ? 'Base de Datos' : 'Algoritmos',
-      aliases: [],
-      parentIds: [],
-      status: 'active',
-      redirectToId: undefined,
-      provenance: {
-        authorityTier: 'C',
-        sourceKey: 'test',
-        sourceUrl: 'https://example.test/catalog',
-        externalId: id,
-        sourceObservedName: undefined,
-        sourceFingerprint: undefined,
-        verifiedAt: undefined,
+      node: {
+        id,
+        kind: 'subject',
+        name: id === subjectId ? 'Base de Datos' : 'Algoritmos',
+        aliases: [],
+        parentIds: [],
+        status: 'active',
+        redirectToId: undefined,
+        provenance: {
+          authorityTier: 'C',
+          sourceKey: 'test',
+          sourceUrl: 'https://example.test/catalog',
+          externalId: id,
+          sourceObservedName: undefined,
+          sourceFingerprint: undefined,
+          verifiedAt: undefined,
+        },
+        revision: 1,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
       },
-      revision: 1,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    },
       resolvedFromId: null,
     }),
   );
