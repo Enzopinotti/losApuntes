@@ -12,7 +12,11 @@ function cleanupIntervalMs(): number {
   if (!raw) return DEFAULT_INTERVAL_MS;
 
   const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed < 1_000 || parsed > 60 * 60 * 1000) {
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed < 1_000 ||
+    parsed > 60 * 60 * 1000
+  ) {
     throw new Error(
       'FILES_CLEANUP_INTERVAL_MS must be an integer between 1000 and 3600000',
     );

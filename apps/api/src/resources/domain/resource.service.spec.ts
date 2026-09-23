@@ -16,9 +16,7 @@ import type { ResourceRecord } from './resource.types';
 
 const now = new Date('2026-09-23T12:00:00.000Z');
 
-function resource(
-  overrides: Partial<ResourceRecord> = {},
-): ResourceRecord {
+function resource(overrides: Partial<ResourceRecord> = {}): ResourceRecord {
   return {
     id: '11111111-1111-4111-8111-111111111111',
     authorUserId: 'author-1',

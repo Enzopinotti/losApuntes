@@ -389,10 +389,7 @@ export class ResourceService {
     return this.store.hasShare(resource.id, viewerUserId);
   }
 
-  private async projection(
-    resource: ResourceRecord,
-    viewerUserId?: string,
-  ) {
+  private async projection(resource: ResourceRecord, viewerUserId?: string) {
     const [asset, author, subject, offering] = await Promise.all([
       this.files.getReadyAssetForResource(resource.assetId),
       this.profiles.getAttributionForUser(resource.authorUserId),
