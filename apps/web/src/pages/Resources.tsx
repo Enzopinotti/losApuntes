@@ -67,12 +67,11 @@ const Resources = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
-  const [visibility, setVisibility] =
-    useState<ResourceVisibility>("private");
+  const [visibility, setVisibility] = useState<ResourceVisibility>("private");
   const [subjectQuery, setSubjectQuery] = useState("");
-  const [subjectOptions, setSubjectOptions] = useState<
-    AcademicSubjectOption[]
-  >([]);
+  const [subjectOptions, setSubjectOptions] = useState<AcademicSubjectOption[]>(
+    [],
+  );
   const [subject, setSubject] = useState<AcademicSubjectOption | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -117,9 +116,7 @@ const Resources = () => {
 
     setError(null);
     try {
-      setSubjectOptions(
-        await resourcesApi.searchSubjects(subjectQuery.trim()),
-      );
+      setSubjectOptions(await resourcesApi.searchSubjects(subjectQuery.trim()));
     } catch (nextError) {
       setError(messageFor(nextError));
     }
@@ -291,8 +288,16 @@ const Resources = () => {
         )}
       </header>
 
-      {feedback && <p className="resources-success" role="status">{feedback}</p>}
-      {error && <p className="resources-error" role="alert">{error}</p>}
+      {feedback && (
+        <p className="resources-success" role="status">
+          {feedback}
+        </p>
+      )}
+      {error && (
+        <p className="resources-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <form
         className="resources-search"
@@ -394,10 +399,7 @@ const Resources = () => {
                     onChange={(event) => setSubjectQuery(event.target.value)}
                     placeholder="Ej. Base de Datos"
                   />
-                  <button
-                    type="button"
-                    onClick={() => void searchSubjects()}
-                  >
+                  <button type="button" onClick={() => void searchSubjects()}>
                     Buscar materia
                   </button>
                 </div>
@@ -413,10 +415,7 @@ const Resources = () => {
                 <ul className="subject-results">
                   {subjectOptions.map((option) => (
                     <li key={option.id}>
-                      <button
-                        type="button"
-                        onClick={() => setSubject(option)}
-                      >
+                      <button type="button" onClick={() => setSubject(option)}>
                         {option.name}
                       </button>
                     </li>
@@ -440,10 +439,7 @@ const Resources = () => {
             )}
 
             <div className="resources-wide">
-              <button
-                type="submit"
-                disabled={uploading || !file || !subject}
-              >
+              <button type="submit" disabled={uploading || !file || !subject}>
                 {uploading ? "Subiendo…" : "Publicar recurso"}
               </button>
             </div>
