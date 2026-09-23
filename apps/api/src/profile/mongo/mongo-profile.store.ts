@@ -59,6 +59,15 @@ export class MongoProfileStore implements ProfileStore {
     return this.profiles.findOne({ id }).lean<ProfileRecord>().exec();
   }
 
+  async findProfilesByUserIds(userIds: string[]): Promise<ProfileRecord[]> {
+    if (userIds.length === 0) return [];
+
+    return this.profiles
+      .find({ userId: { $in: userIds } })
+      .lean<ProfileRecord[]>()
+      .exec();
+  }
+
   async searchPublicProfiles(
     query: string,
     limit: number,

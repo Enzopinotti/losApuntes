@@ -105,6 +105,36 @@ export class MongoQaStore implements QaStore {
     };
   }
 
+  async listFeedCandidates(input: {
+    subjectIds?: string[];
+    authorUserIds?: string[];
+    excludeAuthorUserId?: string;
+    anchorAt: Date;
+    limit: number;
+  }): Promise<QuestionRecord[]> {
+    const filters: FilterQuery<Question>[] = [
+      { moderationState: 'available' },
+      { createdAt: { $lte: input.anchorAt } },
+    ];
+
+    if (input.excludeAuthorUserId) {
+      filters.push({ authorUserId: { $ne: input.excludeAuthorUserId } });
+    }
+    if (input.subjectIds && input.subjectIds.length > 0) {
+      filters.push({ subjectId: { $in: input.subjectIds } });
+    }
+    if (input.authorUserIds && input.authorUserIds.length > 0) {
+      filters.push({ authorUserId: { $in: input.authorUserIds } });
+    }
+
+    return this.questions
+      .find({ $and: filters })
+      .sort({ createdAt: -1, id: 1 })
+      .limit(input.limit)
+      .lean<QuestionRecord[]>()
+      .exec();
+  }
+
   async updateQuestionOwned(
     id: string,
     authorUserId: string,

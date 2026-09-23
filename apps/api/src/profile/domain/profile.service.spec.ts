@@ -84,6 +84,7 @@ function store(): jest.Mocked<ProfileStore> {
   return {
     findProfileByUserId: jest.fn(),
     findProfileById: jest.fn(),
+    findProfilesByUserIds: jest.fn(),
     searchPublicProfiles: jest.fn(),
     createProfile: jest.fn(),
     updateProfile: jest.fn(),
@@ -846,5 +847,83 @@ describe('ProfileService', () => {
     expect(JSON.stringify(result)).not.toContain('private-skill');
     expect(JSON.stringify(result)).not.toContain('Private headline');
     expect(JSON.stringify(result)).not.toContain('careerDiscoveryOptIn');
+  });
+
+  it('provides feed signals only from explicit Profile recommendation state', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const row = profile({
+      skills: ['SQL'],
+      interests: ['datos'],
+      helpTopics: ['normalización'],
+      learningTopics: ['arquitectura'],
+      recommendationSignals: {
+        academicContext: false,
+        learning: true,
+        skillsInterests: false,
+      },
+    });
+    profileStore.findProfileByUserId
+      .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce(null);
+
+    const instance = service(profileStore, academicService);
+
+    await expect(instance.getFeedSignals('user-1')).resolves.toEqual({
+      profileId: row.id,
+      skills: ['SQL'],
+      interests: ['datos'],
+      helpTopics: ['normalización'],
+      learningTopics: ['arquitectura'],
+      recommendationSignals: {
+        academicContext: false,
+        learning: true,
+        skillsInterests: false,
+      },
+    });
+    await expect(instance.getFeedSignals('missing-user')).resolves.toBeNull();
+  });
+
+  it('batches feed attribution and masks private profile identity', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const publicRow = profile({
+      userId: 'user-public',
+      displayName: 'Pública',
+      avatarUrl: 'https://example.test/public.png',
+    });
+    const privateRow = profile({
+      id: '22222222-2222-4222-8222-222222222222',
+      userId: 'user-private',
+      displayName: 'Privada',
+      avatarUrl: 'https://example.test/private.png',
+      visibility: {
+        ...profile().visibility,
+        about: 'private',
+      },
+    });
+    profileStore.findProfilesByUserIds.mockResolvedValue([
+      publicRow,
+      privateRow,
+    ]);
+
+    const result = await service(
+      profileStore,
+      academicService,
+    ).getAttributionsForUsers(['user-public', 'user-private', 'user-public']);
+
+    expect(profileStore.findProfilesByUserIds.mock.calls).toEqual([
+      [['user-public', 'user-private']],
+    ]);
+    expect(result.get('user-public')).toEqual({
+      profileId: publicRow.id,
+      displayName: 'Pública',
+      avatarUrl: 'https://example.test/public.png',
+    });
+    expect(result.get('user-private')).toEqual({
+      profileId: privateRow.id,
+      displayName: 'Usuario de Los Apuntes',
+      avatarUrl: null,
+    });
   });
 });

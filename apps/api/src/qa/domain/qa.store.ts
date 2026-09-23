@@ -27,6 +27,13 @@ export interface QaStore {
     limit: number;
     after?: QuestionCursor;
   }) => Promise<{ items: QuestionRecord[]; hasMore: boolean }>;
+  listFeedCandidates: (input: {
+    subjectIds?: string[];
+    authorUserIds?: string[];
+    excludeAuthorUserId?: string;
+    anchorAt: Date;
+    limit: number;
+  }) => Promise<QuestionRecord[]>;
   updateQuestionOwned: (
     id: string,
     authorUserId: string,

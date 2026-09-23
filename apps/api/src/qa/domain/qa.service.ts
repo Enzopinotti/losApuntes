@@ -134,6 +134,21 @@ export class QaService {
     return { question: await this.questionProjection(created) };
   }
 
+  async getFeedCandidates(
+    viewerUserId: string,
+    input: {
+      subjectIds?: string[];
+      authorUserIds?: string[];
+      anchorAt: Date;
+      limit: number;
+    },
+  ): Promise<QuestionRecord[]> {
+    return this.store.listFeedCandidates({
+      ...input,
+      excludeAuthorUserId: viewerUserId,
+    });
+  }
+
   async update(userId: string, id: string, dto: UpdateQuestionDto) {
     const existing = await this.requireVisibleQuestion(id);
     if (existing.authorUserId !== userId) this.questionNotFound();

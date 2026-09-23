@@ -605,4 +605,39 @@ describe('SocialService', () => {
       },
     );
   });
+
+  it('provides bounded deduplicated feed relations and reports truncation', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const following = Array.from({ length: 501 }, (_, index) =>
+      follow({
+        id: `follow-${index}`,
+        followeeUserId: index % 2 === 0 ? 'user-b' : 'user-c',
+      }),
+    );
+    const connections = Array.from({ length: 501 }, (_, index) =>
+      connection({
+        id: `connection-${index}`,
+        userLowId: index % 2 === 0 ? 'user-a' : 'user-d',
+        userHighId: index % 2 === 0 ? 'user-d' : 'user-a',
+        status: 'accepted',
+      }),
+    );
+    socialStore.listFollowing.mockResolvedValue(following);
+    socialStore.listConnections.mockResolvedValue(connections);
+
+    const result = await service(socialStore, profiles).getFeedRelations(
+      'user-a',
+    );
+
+    expect(socialStore.listFollowing).toHaveBeenCalledWith('user-a', 501);
+    expect(socialStore.listConnections).toHaveBeenCalledWith(
+      'user-a',
+      'accepted',
+      501,
+    );
+    expect(result.followingUserIds).toEqual(['user-b', 'user-c']);
+    expect(result.connectionUserIds).toEqual(['user-d']);
+    expect(result.truncated).toBe(true);
+  });
 });

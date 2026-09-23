@@ -14,11 +14,11 @@
     "format:check": "pnpm -r --if-present format:check",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present check:types",
-    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-profile-contract && pnpm test:web-resources-contract && pnpm test:web-search-contract && pnpm test:web-social-qa-contract",
+    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-profile-contract && pnpm test:web-resources-contract && pnpm test:web-search-contract && pnpm test:web-social-qa-contract && pnpm test:web-feeds-contract",
     "build": "pnpm -r --if-present build",
     "audit:prod": "pnpm audit --prod --audit-level high",
     "runtime:up": "docker compose -f compose.local.yml up --build -d --wait --wait-timeout 120",
-    "runtime:smoke": "node scripts/smoke-api-runtime.mjs && node scripts/smoke-auth-lifecycle.mjs && node scripts/smoke-academic-lifecycle.mjs && node scripts/smoke-profile-lifecycle.mjs && node scripts/smoke-files-resources-lifecycle.mjs && node scripts/smoke-search-discovery-lifecycle.mjs && node scripts/smoke-social-qa-lifecycle.mjs",
+    "runtime:smoke": "node scripts/smoke-api-runtime.mjs && node scripts/smoke-auth-lifecycle.mjs && node scripts/smoke-academic-lifecycle.mjs && node scripts/smoke-profile-lifecycle.mjs && node scripts/smoke-files-resources-lifecycle.mjs && node scripts/smoke-search-discovery-lifecycle.mjs && node scripts/smoke-social-qa-lifecycle.mjs && node scripts/smoke-feeds-lifecycle.mjs",
     "runtime:logs": "docker compose -f compose.local.yml logs --no-color",
     "runtime:down": "docker compose -f compose.local.yml down --volumes --remove-orphans",
     "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
@@ -26,6 +26,7 @@
     "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs",
     "test:web-resources-contract": "node scripts/test-web-resources-contract.mjs",
     "test:web-search-contract": "node scripts/test-web-search-contract.mjs",
-    "test:web-social-qa-contract": "node scripts/test-web-social-qa-contract.mjs"
+    "test:web-social-qa-contract": "node scripts/test-web-social-qa-contract.mjs",
+    "test:web-feeds-contract": "node scripts/test-web-feeds-contract.mjs"
   }
 }

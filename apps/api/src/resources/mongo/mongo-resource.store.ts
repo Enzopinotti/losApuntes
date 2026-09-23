@@ -328,6 +328,64 @@ export class MongoResourceStore implements ResourceStore {
     };
   }
 
+  async listFeedCandidates(input: {
+    viewerUserId: string;
+    subjectIds?: string[];
+    authorUserIds?: string[];
+    anchorAt: Date;
+    limit: number;
+  }): Promise<ResourceRecord[]> {
+    const filters: FilterQuery<Resource>[] = [
+      { moderationState: 'available' },
+      { createdAt: { $lte: input.anchorAt } },
+      { authorUserId: { $ne: input.viewerUserId } },
+    ];
+
+    if (input.subjectIds && input.subjectIds.length > 0) {
+      filters.push({ subjectId: { $in: input.subjectIds } });
+    }
+    if (input.authorUserIds && input.authorUserIds.length > 0) {
+      filters.push({ authorUserId: { $in: input.authorUserIds } });
+    }
+
+    return this.resources
+      .aggregate<ResourceRecord>([
+        { $match: { $and: filters } },
+        {
+          $lookup: {
+            from: 'resource_shares',
+            let: { resourceId: '$id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$resourceId', '$resourceId'] },
+                      { $eq: ['$userId', input.viewerUserId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__viewerShares',
+          },
+        },
+        {
+          $match: {
+            $or: [
+              { visibility: 'public' },
+              { '__viewerShares.0': { $exists: true } },
+            ],
+          },
+        },
+        { $sort: { createdAt: -1, id: 1 } },
+        { $limit: input.limit },
+        { $project: { __viewerShares: 0 } },
+      ])
+      .exec();
+  }
+
   async upsertPendingReport(input: {
     id: string;
     resourceId: string;

@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { requireConfigString } from './config/required-config';
 import { validateRuntimeEnvironment } from './config/runtime-environment';
+import { FeedsModule } from './feeds/feeds.module';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -38,6 +39,7 @@ import { UsersModule } from './users/users.module';
     FilesModule,
     ResourcesModule,
     SearchDiscoveryModule,
+    FeedsModule,
     NotificationsModule,
     SocialModule,
     QaModule,

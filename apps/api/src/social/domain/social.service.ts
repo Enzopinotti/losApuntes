@@ -169,6 +169,31 @@ export class SocialService {
     };
   }
 
+  async getFeedRelations(userId: string) {
+    const limit = 500;
+    const [following, connections] = await Promise.all([
+      this.store.listFollowing(userId, limit + 1),
+      this.store.listConnections(userId, 'accepted', limit + 1),
+    ]);
+
+    const followingPage = following.slice(0, limit);
+    const connectionPage = connections.slice(0, limit);
+
+    return {
+      followingUserIds: [
+        ...new Set(followingPage.map((row) => row.followeeUserId)),
+      ],
+      connectionUserIds: [
+        ...new Set(
+          connectionPage.map((row) =>
+            row.userLowId === userId ? row.userHighId : row.userLowId,
+          ),
+        ),
+      ],
+      truncated: following.length > limit || connections.length > limit,
+    };
+  }
+
   async respond(userId: string, id: string, status: 'accepted' | 'declined') {
     const current = await this.store.findConnectionById(id);
     this.assertParticipant(current, userId);

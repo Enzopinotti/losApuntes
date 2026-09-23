@@ -68,6 +68,7 @@ function store(): jest.Mocked<ResourceStore> {
     removeSave: jest.fn(),
     listSavedResourceIds: jest.fn(),
     searchAuthorized: jest.fn(),
+    listFeedCandidates: jest.fn(),
     upsertPendingReport: jest.fn(),
   };
 }

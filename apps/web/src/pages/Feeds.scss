@@ -1,0 +1,201 @@
+.feeds-page {
+  width: min(1040px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 4rem;
+}
+
+.feeds-hero,
+.feeds-controls,
+.feeds-preferences,
+.feeds-empty,
+.feed-card,
+.feeds-stop {
+  background: #fff;
+  border: 1px solid #e7e7ef;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(20, 24, 40, 0.05);
+}
+
+.feeds-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.5rem;
+}
+
+.feeds-eyebrow {
+  margin: 0 0 0.35rem;
+  color: #5b5bd6;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feeds-hero h1,
+.feed-card h2,
+.feeds-stop h2,
+.feeds-empty h2 {
+  margin-top: 0;
+}
+
+.feeds-tabs,
+.feeds-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.feeds-tabs button.active {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.feeds-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}
+
+.feeds-controls label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.feeds-controls select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #cfcfd8;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.feeds-signal-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.feeds-signal-controls label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  font-weight: 500;
+}
+
+.feeds-preferences,
+.feeds-empty,
+.feeds-stop {
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}
+
+.feeds-preferences summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.feeds-signals {
+  color: #5f6072;
+  font-size: 0.92rem;
+}
+
+.feeds-error {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: #fff0f0;
+  color: #8b1e1e;
+}
+
+.feeds-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.feed-card {
+  padding: 1.25rem;
+}
+
+.feed-card > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.feed-card h2 {
+  margin-bottom: 0.3rem;
+}
+
+.feed-kind {
+  display: inline-block;
+  color: #5b5bd6;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.feed-meta {
+  color: #626274;
+  margin-top: 0;
+}
+
+.feed-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 1rem 0;
+}
+
+.feed-why span {
+  background: #f1f0ff;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.84rem;
+}
+
+.feeds-actions {
+  margin-top: 1rem;
+}
+
+.feeds-more {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.feeds-stop {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+button.secondary {
+  background: transparent;
+  color: inherit;
+  border: 1px solid #cfcfd8;
+}
+
+@media (max-width: 760px) {
+  .feeds-hero {
+    flex-direction: column;
+  }
+
+  .feeds-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .feeds-signal-controls {
+    grid-column: auto;
+  }
+
+  .feed-card > header {
+    flex-direction: column;
+  }
+}
