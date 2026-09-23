@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 import {
+  ACADEMIC_AUDIT_EVENTS,
   ACADEMIC_NODE_KINDS,
   type AcademicAffiliationStatus,
   type AcademicAuditEventRecord,
@@ -254,7 +255,12 @@ export class AcademicAuditEvent {
   @Prop({ required: true, unique: true, index: true })
   id!: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({
+    required: true,
+    type: String,
+    enum: ACADEMIC_AUDIT_EVENTS,
+    index: true,
+  })
   event!: AcademicAuditEventRecord['event'];
 
   @Prop({ required: true, index: true })
