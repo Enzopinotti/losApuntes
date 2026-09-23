@@ -1,6 +1,6 @@
 # Search + contextual discovery v1
 
-**Status:** implementation candidate  
+**Status:** implemented  
 **Slice:** 5 — deterministic search/discovery
 
 ## Purpose
@@ -109,7 +109,7 @@ Indexing/projection work added later must preserve:
 
 ## Verification
 
-Closure requires:
+The permanent verification contract includes:
 
 - dedicated Search critical coverage;
 - privacy-negative People tests;
@@ -117,5 +117,8 @@ Closure requires:
 - canonical Subject search tests;
 - contextual discovery tests;
 - static Web transport/privacy contract;
-- container runtime smoke on real Mongo data;
-- exact-head + post-merge green evidence.
+- a self-contained container smoke that creates its own public Profile fixture;
+- real Mongo + MinIO lifecycle inherited from the full runtime smoke;
+- exact-head verification before merge and a fresh full verification on merged `main`.
+
+The Search smoke is deliberately independent from Profile smoke state. It creates its own user/Profile fixture so ordering or cleanup in another module cannot make Search appear green or red accidentally.
