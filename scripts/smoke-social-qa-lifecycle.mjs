@@ -113,16 +113,82 @@ async function createActor(label) {
   };
 }
 
-async function academicNode(kind, q, expectedName) {
-  const result = await request(
-    `/academic/catalog/search?kind=${encodeURIComponent(
-      kind,
-    )}&q=${encodeURIComponent(q)}&limit=20`,
+function setCatalogWritePermission(actor, enabled) {
+  const update = enabled
+    ? "{ $addToSet: { platform_permissions: 'academic:catalog:write' } }"
+    : "{ $pull: { platform_permissions: 'academic:catalog:write' } }";
+
+  mongoEval(
+    [
+      `const email = ${JSON.stringify(actor.email)};`,
+      `const result = db.users.updateOne({ email }, ${update});`,
+      "if (result.matchedCount !== 1) { printjson(result); quit(2); }",
+    ].join('\n'),
   );
-  assert.equal(result.response.status, 200, JSON.stringify(result.body));
-  const node = result.body.items.find((item) => item.name === expectedName);
-  assert.ok(node, `Missing academic node: ${expectedName}`);
-  return node;
+}
+
+async function createAcademicNode(actor, body) {
+  const result = await request(
+    '/academic/admin/catalog',
+    json('POST', body, actor.bearer),
+  );
+  assert.equal(result.response.status, 201, JSON.stringify(result.body));
+  assert.match(result.body.node.id, UUID_V4);
+  return result.body.node;
+}
+
+async function createAcademicFixture(actor) {
+  const sourceKey = `social-qa-runtime-${randomUUID()}`;
+  const provenance = (externalId) => ({
+    authorityTier: 'C',
+    sourceKey,
+    sourceUrl: 'https://example.test/social-qa-runtime',
+    externalId,
+  });
+
+  setCatalogWritePermission(actor, true);
+
+  try {
+    const country = await createAcademicNode(actor, {
+      kind: 'country',
+      name: `Social QA Country ${sourceKey}`,
+      provenance: provenance('country'),
+    });
+    const institution = await createAcademicNode(actor, {
+      kind: 'institution',
+      name: `Social QA University ${sourceKey}`,
+      parentIds: [country.id],
+      provenance: provenance('institution'),
+    });
+    const program = await createAcademicNode(actor, {
+      kind: 'program',
+      name: `Social QA Program ${sourceKey}`,
+      parentIds: [institution.id],
+      provenance: provenance('program'),
+    });
+    const curriculum = await createAcademicNode(actor, {
+      kind: 'curriculum',
+      name: `Social QA Plan ${sourceKey}`,
+      parentIds: [program.id],
+      provenance: provenance('curriculum'),
+    });
+    const subject = await createAcademicNode(actor, {
+      kind: 'subject',
+      name: `Social QA Subject ${sourceKey}`,
+      parentIds: [curriculum.id],
+      provenance: provenance('subject'),
+    });
+    const offering = await createAcademicNode(actor, {
+      kind: 'course_offering',
+      name: `Social QA Offering ${sourceKey}`,
+      parentIds: [subject.id],
+      provenance: provenance('offering'),
+    });
+
+    return { institution, program, curriculum, subject, offering };
+  } finally {
+    setCatalogWritePermission(actor, false);
+  }
 }
 
 async function attachAcademicContext(actor, nodes) {
@@ -178,29 +244,10 @@ async function notifications(actor) {
   return result.body.items;
 }
 
-const nodes = {
-  institution: await academicNode(
-    'institution',
-    'Universidad Runtime Smoke',
-    'Universidad Runtime Smoke',
-  ),
-  program: await academicNode(
-    'program',
-    'Ingeniería Runtime',
-    'Ingeniería Runtime',
-  ),
-  curriculum: await academicNode('curriculum', 'Plan 2026', 'Plan 2026'),
-  subject: await academicNode('subject', 'Base de Datos', 'Base de Datos'),
-  offering: await academicNode(
-    'course_offering',
-    'Base de Datos 2026 S2',
-    'Base de Datos · 2026 S2',
-  ),
-};
-
 const alice = await createActor('Alice');
 const bruno = await createActor('Bruno');
 const carla = await createActor('Carla');
+const nodes = await createAcademicFixture(alice);
 
 await attachAcademicContext(alice, nodes);
 await attachAcademicContext(bruno, nodes);
