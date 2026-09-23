@@ -110,9 +110,7 @@ function json(value: unknown): string {
 
 export const communityApi = {
   following: (limit = 50) =>
-    request<{ items: FollowingItem[] }>(
-      `/social/me/following?limit=${limit}`,
-    ),
+    request<{ items: FollowingItem[] }>(`/social/me/following?limit=${limit}`),
 
   follow: (profileId: string) =>
     request<{ following: true }>(
@@ -121,10 +119,9 @@ export const communityApi = {
     ),
 
   unfollow: (profileId: string) =>
-    request<void>(
-      `/social/profiles/${encodeURIComponent(profileId)}/follow`,
-      { method: "DELETE" },
-    ),
+    request<void>(`/social/profiles/${encodeURIComponent(profileId)}/follow`, {
+      method: "DELETE",
+    }),
 
   connections: (status?: ConnectionStatus, limit = 100) => {
     const query = new URLSearchParams({ limit: String(limit) });
@@ -140,10 +137,7 @@ export const communityApi = {
       { method: "POST" },
     ),
 
-  respondConnection: (
-    id: string,
-    action: "accept" | "decline",
-  ) =>
+  respondConnection: (id: string, action: "accept" | "decline") =>
     request<{ connection: ConnectionView }>(
       `/social/connections/${encodeURIComponent(id)}/${action}`,
       { method: "POST" },
@@ -174,11 +168,7 @@ export const communityApi = {
   question: (id: string) =>
     request<QuestionDetailResponse>(`/questions/${encodeURIComponent(id)}`),
 
-  createQuestion: (input: {
-    subjectId: string;
-    title: string;
-    body: string;
-  }) =>
+  createQuestion: (input: { subjectId: string; title: string; body: string }) =>
     request<{ question: QuestionView }>("/questions", {
       method: "POST",
       body: json(input),
@@ -275,10 +265,9 @@ export const communityApi = {
   },
 
   markNotificationRead: (id: string) =>
-    request<{ read: true }>(
-      `/notifications/${encodeURIComponent(id)}/read`,
-      { method: "PATCH" },
-    ),
+    request<{ read: true }>(`/notifications/${encodeURIComponent(id)}/read`, {
+      method: "PATCH",
+    }),
 
   markAllNotificationsRead: () =>
     request<{ updated: number }>("/notifications/read-all", {
