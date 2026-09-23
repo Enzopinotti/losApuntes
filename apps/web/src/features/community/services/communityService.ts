@@ -109,8 +109,14 @@ function json(value: unknown): string {
 }
 
 export const communityApi = {
-  following: (limit = 50) =>
-    request<{ items: FollowingItem[] }>(`/social/me/following?limit=${limit}`),
+  following: (limit = 50, cursor?: string) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (cursor) query.set("cursor", cursor);
+
+    return request<{ items: FollowingItem[]; nextCursor: string | null }>(
+      `/social/me/following?${query.toString()}`,
+    );
+  },
 
   follow: (profileId: string) =>
     request<{ following: true }>(
@@ -123,10 +129,16 @@ export const communityApi = {
       method: "DELETE",
     }),
 
-  connections: (status?: ConnectionStatus, limit = 100) => {
+  connections: (
+    status?: ConnectionStatus,
+    limit = 50,
+    cursor?: string,
+  ) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (status) query.set("status", status);
-    return request<{ items: ConnectionView[] }>(
+    if (cursor) query.set("cursor", cursor);
+
+    return request<{ items: ConnectionView[]; nextCursor: string | null }>(
       `/social/me/connections?${query.toString()}`,
     );
   },
