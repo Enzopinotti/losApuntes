@@ -15,8 +15,7 @@ export const NOTIFICATION_TARGET_TYPES = [
   'answer',
 ] as const;
 
-export type NotificationTargetType =
-  (typeof NOTIFICATION_TARGET_TYPES)[number];
+export type NotificationTargetType = (typeof NOTIFICATION_TARGET_TYPES)[number];
 
 export interface NotificationRecord {
   id: string;

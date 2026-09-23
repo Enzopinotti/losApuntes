@@ -30,10 +30,7 @@ function decodeCursor(value?: string): NotificationCursor | undefined {
       Buffer.from(value, 'base64url').toString('utf8'),
     ) as Record<string, unknown>;
 
-    if (
-      typeof parsed.createdAt !== 'string' ||
-      typeof parsed.id !== 'string'
-    ) {
+    if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string') {
       throw new Error('invalid cursor');
     }
 

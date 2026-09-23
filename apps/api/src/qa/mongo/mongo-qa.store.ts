@@ -19,7 +19,10 @@ import type {
 import { Answer, QaReport, Question } from './qa.mongo-schemas';
 
 function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^\${}()|[\]\\]/gu, (character) => '\\' + character);
+  return value.replace(
+    /[.*+?^\${}()|[\]\\]/gu,
+    (character) => '\\' + character,
+  );
 }
 
 function toPlain<T>(value: { toObject(): unknown } | T): T {
@@ -128,7 +131,10 @@ export class MongoQaStore implements QaStore {
       .exec();
   }
 
-  async listAnswers(questionId: string, limit: number): Promise<AnswerRecord[]> {
+  async listAnswers(
+    questionId: string,
+    limit: number,
+  ): Promise<AnswerRecord[]> {
     return this.answers
       .find({ questionId, moderationState: 'available' })
       .sort({ createdAt: 1, id: 1 })

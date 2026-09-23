@@ -10,10 +10,7 @@ import type {
   ConnectionStatus,
   FollowRecord,
 } from '../domain/social.types';
-import {
-  SocialConnection,
-  SocialFollow,
-} from './social.mongo-schemas';
+import { SocialConnection, SocialFollow } from './social.mongo-schemas';
 
 function pair(left: string, right: string): [string, string] {
   return left < right ? [left, right] : [right, left];
@@ -50,9 +47,7 @@ export class MongoSocialStore implements SocialStore {
     const session = await this.connection.startSession();
 
     try {
-      let result:
-        | { follow: FollowRecord; created: boolean }
-        | undefined;
+      let result: { follow: FollowRecord; created: boolean } | undefined;
 
       await session.withTransaction(async () => {
         const write = await this.follows
@@ -101,9 +96,7 @@ export class MongoSocialStore implements SocialStore {
     followerUserId: string,
     followeeUserId: string,
   ): Promise<void> {
-    await this.follows
-      .deleteOne({ followerUserId, followeeUserId })
-      .exec();
+    await this.follows.deleteOne({ followerUserId, followeeUserId }).exec();
   }
 
   async listFollowing(userId: string, limit: number): Promise<FollowRecord[]> {
@@ -130,8 +123,7 @@ export class MongoSocialStore implements SocialStore {
 
     try {
       let result:
-        | { connection: ConnectionRecord; changed: boolean }
-        | undefined;
+        { connection: ConnectionRecord; changed: boolean } | undefined;
 
       await session.withTransaction(async () => {
         const existing = await this.connections
@@ -220,10 +212,7 @@ export class MongoSocialStore implements SocialStore {
   }
 
   async findConnectionById(id: string): Promise<ConnectionRecord | null> {
-    return this.connections
-      .findOne({ id })
-      .lean<ConnectionRecord>()
-      .exec();
+    return this.connections.findOne({ id }).lean<ConnectionRecord>().exec();
   }
 
   async listConnections(

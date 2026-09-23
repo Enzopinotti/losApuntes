@@ -57,21 +57,14 @@ export class MongoNotificationStore implements NotificationStore {
     readAt: Date,
   ): Promise<NotificationRecord | null> {
     return this.notifications
-      .findOneAndUpdate(
-        { id, userId },
-        { $set: { readAt } },
-        { new: true },
-      )
+      .findOneAndUpdate({ id, userId }, { $set: { readAt } }, { new: true })
       .lean<NotificationRecord>()
       .exec();
   }
 
   async markAllRead(userId: string, readAt: Date): Promise<number> {
     const result = await this.notifications
-      .updateMany(
-        { userId, readAt: null },
-        { $set: { readAt } },
-      )
+      .updateMany({ userId, readAt: null }, { $set: { readAt } })
       .exec();
 
     return result.modifiedCount;

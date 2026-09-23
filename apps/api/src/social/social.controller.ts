@@ -15,10 +15,7 @@ import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
 import { SocialService } from './domain/social.service';
-import {
-  ConnectionListDto,
-  SocialListDto,
-} from './dto/social.dto';
+import { ConnectionListDto, SocialListDto } from './dto/social.dto';
 
 @Controller('social')
 @UseGuards(AuthSessionGuard)

@@ -41,10 +41,7 @@ export class QuestionsController {
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
   @Post('questions')
-  create(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: CreateQuestionDto,
-  ) {
+  create(@Req() request: AuthenticatedRequest, @Body() dto: CreateQuestionDto) {
     return this.qa.create(request.user.id, dto);
   }
 
@@ -102,12 +99,7 @@ export class QuestionsController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: CreateQaReportDto,
   ) {
-    return this.qa.reportQuestion(
-      request.user.id,
-      id,
-      dto.reason,
-      dto.details,
-    );
+    return this.qa.reportQuestion(request.user.id, id, dto.reason, dto.details);
   }
 
   @UseGuards(AuthSessionGuard)

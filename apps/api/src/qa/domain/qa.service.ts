@@ -17,11 +17,7 @@ import type {
   UpdateQuestionDto,
 } from '../dto/qa.dto';
 import { QA_STORE, type QaStore } from './qa.store';
-import type {
-  AnswerRecord,
-  QuestionCursor,
-  QuestionRecord,
-} from './qa.types';
+import type { AnswerRecord, QuestionCursor, QuestionRecord } from './qa.types';
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -51,10 +47,7 @@ function decodeCursor(value?: string): QuestionCursor | undefined {
       Buffer.from(value, 'base64url').toString('utf8'),
     ) as Record<string, unknown>;
 
-    if (
-      typeof parsed.updatedAt !== 'string' ||
-      typeof parsed.id !== 'string'
-    ) {
+    if (typeof parsed.updatedAt !== 'string' || typeof parsed.id !== 'string') {
       throw new Error('invalid cursor');
     }
 
@@ -84,9 +77,7 @@ export class QaService {
       ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
       : undefined;
     const result = await this.store.searchQuestions({
-      ...(dto.q
-        ? { q: cleanText(dto.q).toLocaleLowerCase('es-AR') }
-        : {}),
+      ...(dto.q ? { q: cleanText(dto.q).toLocaleLowerCase('es-AR') } : {}),
       ...(subjectId ? { subjectId } : {}),
       ...(dto.status ? { state: dto.status } : {}),
       limit: dto.limit,
@@ -183,11 +174,7 @@ export class QaService {
     return { question: await this.questionProjection(updated) };
   }
 
-  async createAnswer(
-    userId: string,
-    questionId: string,
-    dto: CreateAnswerDto,
-  ) {
+  async createAnswer(userId: string, questionId: string, dto: CreateAnswerDto) {
     await this.requireActorProfile(userId);
     const question = await this.requireVisibleQuestion(questionId);
 

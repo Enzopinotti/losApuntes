@@ -53,9 +53,6 @@ export class SocialConnection {
 
 export const SocialConnectionSchema =
   SchemaFactory.createForClass(SocialConnection);
-SocialConnectionSchema.index(
-  { userLowId: 1, userHighId: 1 },
-  { unique: true },
-);
+SocialConnectionSchema.index({ userLowId: 1, userHighId: 1 }, { unique: true });
 SocialConnectionSchema.index({ userLowId: 1, status: 1, updatedAt: -1 });
 SocialConnectionSchema.index({ userHighId: 1, status: 1, updatedAt: -1 });

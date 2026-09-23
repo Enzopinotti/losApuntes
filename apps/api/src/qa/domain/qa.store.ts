@@ -31,7 +31,9 @@ export interface QaStore {
     id: string,
     authorUserId: string,
     expectedRevision: number,
-    patch: Partial<Pick<QuestionRecord, 'title' | 'body' | 'searchText' | 'state'>>,
+    patch: Partial<
+      Pick<QuestionRecord, 'title' | 'body' | 'searchText' | 'state'>
+    >,
   ): Promise<QuestionRecord | null>;
 
   listAnswers(questionId: string, limit: number): Promise<AnswerRecord[]>;

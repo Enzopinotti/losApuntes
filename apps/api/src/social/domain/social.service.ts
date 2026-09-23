@@ -8,10 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 
 import { ProfileService } from '../../profile/domain/profile.service';
-import {
-  SOCIAL_STORE,
-  type SocialStore,
-} from './social.store';
+import { SOCIAL_STORE, type SocialStore } from './social.store';
 import type { ConnectionRecord } from './social.types';
 
 @Injectable()
@@ -63,8 +60,11 @@ export class SocialService {
 
     return {
       items: items.filter(
-        (item): item is typeof item & { profile: NonNullable<typeof item.profile> } =>
-          item.profile !== null,
+        (
+          item,
+        ): item is typeof item & {
+          profile: NonNullable<typeof item.profile>;
+        } => item.profile !== null,
       ),
     };
   }
@@ -105,17 +105,11 @@ export class SocialService {
     const rows = await this.store.listConnections(userId, status, limit);
 
     return {
-      items: await Promise.all(
-        rows.map((row) => this.projection(row, userId)),
-      ),
+      items: await Promise.all(rows.map((row) => this.projection(row, userId))),
     };
   }
 
-  async respond(
-    userId: string,
-    id: string,
-    status: 'accepted' | 'declined',
-  ) {
+  async respond(userId: string, id: string, status: 'accepted' | 'declined') {
     const current = await this.store.findConnectionById(id);
     this.assertParticipant(current, userId);
 
@@ -200,7 +194,8 @@ export class SocialService {
   }
 
   private async resolveTarget(profileId: string): Promise<string> {
-    const targetUserId = await this.profiles.resolveUserIdByProfileId(profileId);
+    const targetUserId =
+      await this.profiles.resolveUserIdByProfileId(profileId);
     if (!targetUserId) this.profileNotFound();
     return targetUserId;
   }
