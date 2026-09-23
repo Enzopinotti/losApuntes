@@ -152,8 +152,6 @@ export const profileApi = {
     ),
 };
 
-export function isProfileApiError(
-  error: unknown,
-): error is ProfileApiError {
+export function isProfileApiError(error: unknown): error is ProfileApiError {
   return error instanceof ProfileApiError;
 }
