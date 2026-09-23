@@ -43,5 +43,22 @@ describe('MongoResourceStore authorization pipeline', () => {
         }),
       ]),
     );
+
+    expect(pipeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          $match: {
+            $or: expect.arrayContaining([
+              {
+                $and: [
+                  { visibility: 'shared' },
+                  { '__viewerShares.0': { $exists: true } },
+                ],
+              },
+            ]),
+          },
+        }),
+      ]),
+    );
   });
 });
