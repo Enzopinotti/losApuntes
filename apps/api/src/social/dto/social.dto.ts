@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
 
 import {
   CONNECTION_STATUSES,
@@ -13,6 +21,11 @@ export class SocialListDto {
   @Min(1)
   @Max(100)
   limit = 50;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
 }
 
 export class ConnectionListDto extends SocialListDto {
