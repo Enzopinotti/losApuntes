@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT_MS = 5_000;
 const EMAIL = 'runtime-smoke@example.test';
 const PASSWORD = 'runtime-smoke-authenticated-change-2026';
 const UUID_V4 =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 async function request(path, options = {}) {
   const response = await fetch(new URL(path, baseUrl), {
