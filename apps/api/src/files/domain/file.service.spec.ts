@@ -90,6 +90,12 @@ describe('FileService', () => {
 
     expect(result.file.filename).toBe('Apunte final.pdf');
     expect(result.upload.headers['if-none-match']).toBe('*');
+    expect(objectStorage.createUploadIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentLength: 8,
+        contentType: 'application/pdf',
+      }),
+    );
     expect(result).not.toHaveProperty('objectKey');
     expect(JSON.stringify(result)).not.toContain('resource-assets/');
   });
