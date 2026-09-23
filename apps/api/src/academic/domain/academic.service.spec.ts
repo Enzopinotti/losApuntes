@@ -720,9 +720,7 @@ describe('AcademicService', () => {
       }),
     );
 
-    await expect(
-      service.listSubjectParticipations('user-1'),
-    ).resolves.toEqual(
+    await expect(service.listSubjectParticipations('user-1')).resolves.toEqual(
       expect.objectContaining({
         participations: [expect.objectContaining({ id: row.id })],
       }),
@@ -807,9 +805,9 @@ describe('AcademicService', () => {
     const service = new AcademicService(store);
 
     store.findCatalogNodeById.mockResolvedValueOnce(null);
-    await expect(
-      service.getCatalogNode('missing'),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getCatalogNode('missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
 
     store.findCatalogNodeById.mockResolvedValue(
       catalogNode({
@@ -885,5 +883,4 @@ describe('AcademicService', () => {
       }),
     );
   });
-
 });
