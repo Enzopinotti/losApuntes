@@ -256,7 +256,8 @@ export class ResourceService {
 
   async revokeShare(userId: string, id: string, profileId: string) {
     await this.requireOwned(id, userId);
-    const targetUserId = await this.profiles.resolveUserIdByProfileId(profileId);
+    const targetUserId =
+      await this.profiles.resolveUserIdByProfileId(profileId);
     if (!targetUserId) return;
     await this.store.removeShare(id, targetUserId);
   }
