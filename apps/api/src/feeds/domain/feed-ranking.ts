@@ -102,10 +102,12 @@ export function rankFeedCandidate(
     pushReason(why, 'following');
   }
 
-  const matches = interestMatches(candidate.searchableText, context.interestTerms);
+  const matches = interestMatches(
+    candidate.searchableText,
+    context.interestTerms,
+  );
   if (matches > 0) {
-    score +=
-      Math.min(20, matches * 5) + (context.mode === 'discover' ? 10 : 0);
+    score += Math.min(20, matches * 5) + (context.mode === 'discover' ? 10 : 0);
     pushReason(why, 'interest_match');
   }
 
@@ -215,10 +217,7 @@ export function takeForYouPage(
   ): boolean => {
     if ((authorCounts.get(candidate.authorUserId) ?? 0) >= 2) return false;
     if ((subjectCounts.get(candidate.subjectId) ?? 0) >= 4) return false;
-    if (
-      enforceTypeCap &&
-      (typeCounts.get(candidate.type) ?? 0) >= typeCap
-    ) {
+    if (enforceTypeCap && (typeCounts.get(candidate.type) ?? 0) >= typeCap) {
       return false;
     }
     return true;
