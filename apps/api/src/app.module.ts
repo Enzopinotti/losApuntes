@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { requireConfigString } from './config/required-config';
 import { validateRuntimeEnvironment } from './config/runtime-environment';
 import { HealthModule } from './health/health.module';
+import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     UsersModule,
     AcademicModule,
+    ProfileModule,
     HealthModule,
   ],
   controllers: [AppController],
