@@ -151,14 +151,41 @@ export class MongoResourceStore implements ResourceStore {
     expectedRevision: number,
     patch: UpdateResourceRecord,
   ): Promise<ResourceRecord | null> {
-    return this.resources
-      .findOneAndUpdate(
-        { id, authorUserId, revision: expectedRevision },
-        { $set: patch, $inc: { revision: 1 } },
-        { new: true },
-      )
-      .lean<ResourceRecord>()
-      .exec();
+    if (patch.visibility === undefined || patch.visibility === 'shared') {
+      return this.resources
+        .findOneAndUpdate(
+          { id, authorUserId, revision: expectedRevision },
+          { $set: patch, $inc: { revision: 1 } },
+          { new: true },
+        )
+        .lean<ResourceRecord>()
+        .exec();
+    }
+
+    const session = await this.connection.startSession();
+
+    try {
+      let updated: ResourceRecord | null = null;
+
+      await session.withTransaction(async () => {
+        updated = await this.resources
+          .findOneAndUpdate(
+            { id, authorUserId, revision: expectedRevision },
+            { $set: patch, $inc: { revision: 1 } },
+            { new: true, session },
+          )
+          .lean<ResourceRecord>()
+          .exec();
+
+        if (!updated) return;
+
+        await this.shares.deleteMany({ resourceId: id }, { session }).exec();
+      });
+
+      return updated;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async hasShare(resourceId: string, userId: string): Promise<boolean> {
