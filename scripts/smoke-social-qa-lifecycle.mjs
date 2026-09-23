@@ -59,7 +59,7 @@ function mongoEval(script) {
 }
 
 async function createActor(label) {
-  const email = `social-qa-${label}-${randomUUID()}@example.test`;
+  const email = `social-qa-${label}-${randomUUID()}@example.test`.toLowerCase();
   const password = `Social QA runtime ${randomUUID()} ${randomUUID()}`;
 
   const registration = await request(
