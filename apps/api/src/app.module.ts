@@ -10,9 +10,12 @@ import { requireConfigString } from './config/required-config';
 import { validateRuntimeEnvironment } from './config/runtime-environment';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { ProfileModule } from './profile/profile.module';
+import { QaModule } from './qa/qa.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
+import { SocialModule } from './social/social.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -35,6 +38,9 @@ import { UsersModule } from './users/users.module';
     FilesModule,
     ResourcesModule,
     SearchDiscoveryModule,
+    NotificationsModule,
+    SocialModule,
+    QaModule,
     HealthModule,
   ],
   controllers: [AppController],

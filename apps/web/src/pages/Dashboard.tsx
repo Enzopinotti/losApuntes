@@ -20,6 +20,15 @@ const Dashboard = () => {
       <p>
         <Link to="/resources">Buscar o subir apuntes</Link>
       </p>
+      <p>
+        <Link to="/questions">Preguntar o responder dudas académicas</Link>
+      </p>
+      <p>
+        <Link to="/network">Revisar mi red</Link>
+      </p>
+      <p>
+        <Link to="/notifications">Ver notificaciones</Link>
+      </p>
       <Link to="/settings/security">Revisar seguridad de la cuenta</Link>
     </section>
   );

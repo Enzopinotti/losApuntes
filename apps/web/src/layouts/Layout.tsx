@@ -20,6 +20,25 @@ const Layout = () => {
             Home
           </NavLink>
 
+          <NavLink
+            to="/resources"
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
+            Recursos
+          </NavLink>
+          <NavLink
+            to="/search"
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
+            Buscar
+          </NavLink>
+          <NavLink
+            to="/questions"
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
+            Preguntas
+          </NavLink>
+
           {!authenticated && (
             <>
               <NavLink
@@ -44,6 +63,18 @@ const Layout = () => {
                 className={({ isActive }) => (isActive ? "active" : "")}
               >
                 Dashboard
+              </NavLink>
+              <NavLink
+                to="/network"
+                className={({ isActive }) => (isActive ? "active" : "")}
+              >
+                Red
+              </NavLink>
+              <NavLink
+                to="/notifications"
+                className={({ isActive }) => (isActive ? "active" : "")}
+              >
+                Notificaciones
               </NavLink>
               <NavLink
                 to="/settings/security"

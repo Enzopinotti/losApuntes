@@ -24,7 +24,8 @@
     "test:academic:coverage": "jest --config ./jest.academic-coverage.cjs --runInBand --coverage",
     "test:profile:coverage": "jest --config ./jest.profile-coverage.cjs --runInBand --coverage",
     "test:files-resources:coverage": "jest --config ./jest.files-resources-coverage.cjs --runInBand --coverage",
-    "test:search:coverage": "jest --config ./jest.search-coverage.cjs --runInBand --coverage"
+    "test:search:coverage": "jest --config ./jest.search-coverage.cjs --runInBand --coverage",
+    "test:social-qa:coverage": "jest --config ./jest.social-qa-coverage.cjs --runInBand --coverage"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
