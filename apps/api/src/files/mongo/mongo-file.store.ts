@@ -6,10 +6,7 @@ import {
   type CreateFileAssetRecord,
   type FileAssetStore,
 } from '../domain/file.store';
-import type {
-  FileAssetRecord,
-  FileAssetState,
-} from '../domain/file.types';
+import type { FileAssetRecord, FileAssetState } from '../domain/file.types';
 import { FileAsset } from './file.mongo-schema';
 
 function toPlain<T>(value: { toObject(): unknown } | T): T {
