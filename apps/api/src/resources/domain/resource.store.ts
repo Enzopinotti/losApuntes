@@ -56,6 +56,13 @@ export interface ResourceStore {
     limit: number;
     after?: ResourceSearchCursor;
   }): Promise<{ items: ResourceRecord[]; hasMore: boolean }>;
+  listFeedCandidates(input: {
+    viewerUserId: string;
+    subjectIds?: string[];
+    authorUserIds?: string[];
+    anchorAt: Date;
+    limit: number;
+  }): Promise<ResourceRecord[]>;
   upsertPendingReport(input: {
     id: string;
     resourceId: string;
