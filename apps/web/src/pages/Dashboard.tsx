@@ -15,6 +15,9 @@ const Dashboard = () => {
         sin mezclarlas con tu cuenta de acceso.
       </p>
       <p>
+        <Link to="/feeds">Abrir mi feed académico</Link>
+      </p>
+      <p>
         <Link to="/profile">Completar o editar mi perfil</Link>
       </p>
       <p>
