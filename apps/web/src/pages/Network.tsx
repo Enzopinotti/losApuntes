@@ -110,8 +110,16 @@ const Network = () => {
         </p>
       </header>
 
-      {feedback && <p className="community-success" role="status">{feedback}</p>}
-      {error && <p className="community-error" role="alert">{error}</p>}
+      {feedback && (
+        <p className="community-success" role="status">
+          {feedback}
+        </p>
+      )}
+      {error && (
+        <p className="community-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <section className="community-card">
         <h2>Buscar personas</h2>
@@ -220,7 +228,9 @@ const Network = () => {
                 <li key={connection.id}>
                   <div>
                     <strong>{connection.other.displayName}</strong>
-                    <span className="community-status">{connection.status}</span>
+                    <span className="community-status">
+                      {connection.status}
+                    </span>
                     {connection.status === "pending" && (
                       <small>
                         {connection.incoming
