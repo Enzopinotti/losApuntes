@@ -237,6 +237,18 @@ export class ProfileService {
     return { profile: this.ownerProfile(updated) };
   }
 
+  async searchPublicProfiles(query: string, limit: number) {
+    const rows = await this.store.searchPublicProfiles(cleanText(query), limit);
+
+    return {
+      items: rows.map((profile) => ({
+        profileId: profile.id,
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+      })),
+    };
+  }
+
   async getAttributionForUser(userId: string) {
     const profile = await this.store.findProfileByUserId(userId);
     if (!profile) return null;
