@@ -42,7 +42,9 @@ const PublicProfile = () => {
   if (error) {
     return (
       <section className="profile-page">
-        <p className="profile-error" role="alert">{error}</p>
+        <p className="profile-error" role="alert">
+          {error}
+        </p>
         <Link to="/">Volver al inicio</Link>
       </section>
     );
@@ -73,13 +75,20 @@ const PublicProfile = () => {
           <section className="profile-card">
             <h2>Habilidades e intereses</h2>
             {profile.skills.skills.length > 0 && (
-              <p><strong>Habilidades:</strong> {profile.skills.skills.join(", ")}</p>
+              <p>
+                <strong>Habilidades:</strong> {profile.skills.skills.join(", ")}
+              </p>
             )}
             {profile.skills.interests.length > 0 && (
-              <p><strong>Intereses:</strong> {profile.skills.interests.join(", ")}</p>
+              <p>
+                <strong>Intereses:</strong>{" "}
+                {profile.skills.interests.join(", ")}
+              </p>
             )}
             {profile.skills.languages.length > 0 && (
-              <p><strong>Idiomas:</strong> {profile.skills.languages.join(", ")}</p>
+              <p>
+                <strong>Idiomas:</strong> {profile.skills.languages.join(", ")}
+              </p>
             )}
           </section>
         )}
@@ -93,7 +102,8 @@ const PublicProfile = () => {
             </p>
             <p>
               <strong>Quiere aprender:</strong>{" "}
-              {profile.learning.learningTopics.join(", ") || "Sin temas publicados"}
+              {profile.learning.learningTopics.join(", ") ||
+                "Sin temas publicados"}
             </p>
           </section>
         )}
