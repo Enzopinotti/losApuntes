@@ -6,6 +6,10 @@ const VALID_DEPLOYMENT_PROFILES = new Set(['local', 'production']);
 const KNOWN_LOCAL_PRODUCTION_CREDENTIALS = new Map<string, Set<string>>([
   ['FILES_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
   ['FILES_S3_SECRET_ACCESS_KEY', new Set(['losapuntes-local-files-secret'])],
+  [
+    'ABUSE_CONTROL_HMAC_SECRET',
+    new Set(['losapuntes-local-abuse-hmac-secret-v1']),
+  ],
 ]);
 
 function optionalString(
@@ -327,12 +331,25 @@ export function validateRuntimeEnvironment(
     'FILES_S3_PUBLIC_ENDPOINT',
   );
   const trustedProxyCidrs = parseTrustedProxyCidrs(source.TRUSTED_PROXY_CIDRS);
+  const abuseControlHmacSecret = requiredString(
+    source,
+    'ABUSE_CONTROL_HMAC_SECRET',
+  );
+  if (abuseControlHmacSecret.length < 32) {
+    throw new Error('ABUSE_CONTROL_HMAC_SECRET must be at least 32 characters');
+  }
   const filesS3AccessKeyId = requiredString(source, 'FILES_S3_ACCESS_KEY_ID');
   const filesS3SecretAccessKey = requiredString(
     source,
     'FILES_S3_SECRET_ACCESS_KEY',
   );
 
+  rejectKnownLocalProductionCredential(
+    nodeEnv,
+    deploymentProfile,
+    'ABUSE_CONTROL_HMAC_SECRET',
+    abuseControlHmacSecret,
+  );
   rejectKnownLocalProductionCredential(
     nodeEnv,
     deploymentProfile,
@@ -395,6 +412,7 @@ export function validateRuntimeEnvironment(
       nodeEnv !== 'production',
     ),
     TRUSTED_PROXY_CIDRS: trustedProxyCidrs,
+    ABUSE_CONTROL_HMAC_SECRET: abuseControlHmacSecret,
     AUTH_EMAIL_DELIVERY_MODE: deliveryMode,
     AUTH_ACTION_BASE_URL: authActionBaseUrl,
     AUTH_SMTP_PORT: parsePort(source.AUTH_SMTP_PORT, 'AUTH_SMTP_PORT', 587),
