@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -130,7 +125,10 @@ const Organizations = () => {
   };
 
   return (
-    <section className="organizations-page" aria-labelledby="organizations-title">
+    <section
+      className="organizations-page"
+      aria-labelledby="organizations-title"
+    >
       <header className="organizations-hero">
         <div>
           <p className="organizations-eyebrow">Comunidad del campus</p>
@@ -195,7 +193,9 @@ const Organizations = () => {
           items.map((item) => (
             <article className="organization-card" key={item.id}>
               <div>
-                <span className="organization-type">{typeLabels[item.type]}</span>
+                <span className="organization-type">
+                  {typeLabels[item.type]}
+                </span>
                 <h2>{item.name}</h2>
                 <p>{item.institution.name}</p>
                 <span className="organization-verification">
