@@ -28,6 +28,17 @@ export type OrganizationVerificationState =
   (typeof ORGANIZATION_VERIFICATION_STATES)[number];
 
 export const ORGANIZATION_EVENT_STATES = ['scheduled', 'cancelled'] as const;
+
+export const ORGANIZATION_REPORT_REASONS = [
+  'spam',
+  'impersonation',
+  'misinformation',
+  'harassment',
+  'inappropriate',
+  'other',
+] as const;
+export type OrganizationReportReason =
+  (typeof ORGANIZATION_REPORT_REASONS)[number];
 export type OrganizationEventState =
   (typeof ORGANIZATION_EVENT_STATES)[number];
 
@@ -128,6 +139,22 @@ export interface OrganizationLinkRecord {
   createdByUserId: string;
   label: string;
   url: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrganizationReportRecord {
+  id: string;
+  targetType: 'organization_post' | 'organization_event';
+  targetId: string;
+  reporterUserId: string;
+  reason: OrganizationReportReason;
+  details: string | null;
+  status: 'pending' | 'resolved' | 'dismissed';
+  reviewedByUserId?: string;
+  reviewedAt?: Date;
+  reviewReason?: string;
+  reviewAction?: 'hide' | 'restore' | 'dismiss';
   createdAt: Date;
   updatedAt: Date;
 }
