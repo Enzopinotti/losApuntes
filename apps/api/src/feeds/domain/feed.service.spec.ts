@@ -708,9 +708,11 @@ describe('FeedService', () => {
       academic: { subject: null },
     });
     expect(result.items[0]?.why).toContain('organization_following');
-    expect(deps.profiles.getAttributionsForUsers).not.toHaveBeenCalledWith(
-      expect.arrayContaining(['manager-user']),
-    );
+    const attributedUserIds =
+      deps.profiles.getAttributionsForUsers.mock.calls.flatMap(
+        ([userIds]) => userIds,
+      );
+    expect(attributedUserIds).not.toContain('manager-user');
   });
 
   it('excludes organization posts when social feed signals are disabled', async () => {
@@ -724,7 +726,7 @@ describe('FeedService', () => {
       order: 'ranked',
     });
 
-    expect(deps.organizations.getFeedCandidates).not.toHaveBeenCalled();
+    expect(deps.organizations.getFeedCandidates.mock.calls).toHaveLength(0);
   });
 
   it('validates organization post feedback through Organization authority', async () => {
@@ -757,8 +759,8 @@ describe('FeedService', () => {
       ),
     ).resolves.toMatchObject({ changed: true, revision: 2 });
 
-    expect(deps.organizations.getFeedTarget).toHaveBeenCalledWith(
+    expect(deps.organizations.getFeedTarget.mock.calls[0]).toEqual([
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    );
+    ]);
   });
 });
