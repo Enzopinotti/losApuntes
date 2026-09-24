@@ -140,7 +140,9 @@ function isLoopbackHttpOrigin(value: string | undefined): boolean {
 
 function requireHttpsOrigin(value: string | undefined, key: string): void {
   if (!value || new URL(value).protocol !== 'https:') {
-    throw new Error(`${key} must use https in the production deployment profile`);
+    throw new Error(
+      `${key} must use https in the production deployment profile`,
+    );
   }
 }
 
@@ -208,9 +210,7 @@ function validIpOrCidr(value: string): boolean {
 
   const bits = Number(prefix);
   return (
-    Number.isInteger(bits) &&
-    bits >= 0 &&
-    bits <= (version === 4 ? 32 : 128)
+    Number.isInteger(bits) && bits >= 0 && bits <= (version === 4 ? 32 : 128)
   );
 }
 
@@ -361,10 +361,7 @@ export function validateRuntimeEnvironment(
   if (deploymentProfile === 'production') {
     requireHttpsOrigin(webOrigin, 'WEB_ORIGIN');
     requireHttpsOrigin(authActionBaseUrl, 'AUTH_ACTION_BASE_URL');
-    requireHttpsOrigin(
-      filesS3PublicEndpoint,
-      'FILES_S3_PUBLIC_ENDPOINT',
-    );
+    requireHttpsOrigin(filesS3PublicEndpoint, 'FILES_S3_PUBLIC_ENDPOINT');
   }
 
   if (Boolean(smtpUser) !== Boolean(smtpPass)) {
