@@ -502,14 +502,31 @@ export class AcademicService {
       });
     }
 
+    const roles = effectiveAcademicRelationshipRoles(
+      existing.status,
+      existing.roles,
+    );
+    if (!relationshipRolesCompatible(dto.status, roles)) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_AFFILIATION_ROLE_INVALID',
+        message: 'Academic relationship roles conflict with affiliation status',
+      });
+    }
+
     const updated = await this.store.runAtomically(async () => {
       const row = await this.store.updateAffiliationStatus(
         userId,
         id,
+        existing.status,
         dto.status,
         dto.endedOn,
       );
-      if (!row) this.notFound();
+      if (!row) {
+        throw new ConflictException({
+          code: 'ACADEMIC_AFFILIATION_CONFLICT',
+          message: 'Academic affiliation changed concurrently',
+        });
+      }
 
       await this.audit('academic.affiliation.updated', userId, row.id, {
         status: row.status,

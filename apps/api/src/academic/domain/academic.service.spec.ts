@@ -737,8 +737,7 @@ describe('AcademicService', () => {
     store.findAffiliationById.mockResolvedValue(created);
     store.updateAffiliationStatus.mockResolvedValue({
       ...created,
-      status: 'completed',
-      endedOn: '2026',
+      status: 'paused',
     });
 
     const createdResult = await service.createAffiliation('user-1', {
@@ -759,11 +758,57 @@ describe('AcademicService', () => {
       'user-1',
       created.id,
       {
-        status: 'completed',
-        endedOn: '2026',
+        status: 'paused',
       },
     );
-    expect(updatedResult.affiliation.status).toBe('completed');
+    expect(updatedResult.affiliation.status).toBe('paused');
+    expect(store.updateAffiliationStatus).toHaveBeenCalledWith(
+      'user-1',
+      created.id,
+      'active',
+      'paused',
+      undefined,
+    );
+  });
+
+  it('rejects status transitions that would leave incompatible roles', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    store.findAffiliationById.mockResolvedValue(
+      affiliation({ status: 'active', roles: ['student'] }),
+    );
+
+    await expect(
+      service.updateAffiliationStatus(
+        'user-1',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        { status: 'completed' },
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(store.updateAffiliationStatus).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when an affiliation status changes concurrently', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const existing = affiliation({ status: 'active', roles: ['mentor'] });
+    store.findAffiliationById.mockResolvedValue(existing);
+    store.updateAffiliationStatus.mockResolvedValue(null);
+
+    await expect(
+      service.updateAffiliationStatus('user-1', existing.id, {
+        status: 'completed',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(store.updateAffiliationStatus).toHaveBeenCalledWith(
+      'user-1',
+      existing.id,
+      'active',
+      'completed',
+      undefined,
+    );
   });
 
   it('returns not found when an affiliation status update is not owned', async () => {

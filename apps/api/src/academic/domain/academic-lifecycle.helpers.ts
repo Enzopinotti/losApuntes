@@ -17,7 +17,7 @@ export function effectiveAcademicRelationshipRoles(
   status: AcademicAffiliationStatus,
   roles: readonly AcademicRelationshipRole[] | undefined,
 ): AcademicRelationshipRole[] {
-  if (roles && roles.length > 0) return [...new Set(roles)];
+  if (roles !== undefined) return [...new Set(roles)];
 
   if (status === 'active' || status === 'paused') return ['student'];
   if (status === 'completed') return ['recent_graduate'];

@@ -411,6 +411,7 @@ describe('AcademicLifecycleService', () => {
     expect(lifecycleStore.updateAffiliationRoles.mock.calls).toContainEqual([
       'user-1',
       existing.id,
+      'active',
       ['advanced_student', 'mentor', 'research'],
     ]);
     expect(lifecycleStore.appendAuditEvent.mock.calls[0]?.[0]).toEqual(
@@ -439,18 +440,26 @@ describe('AcademicLifecycleService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
-  it('returns not found when role update disappears concurrently', async () => {
+  it('fails closed when the affiliation status changes before a role write', async () => {
     const lifecycleStore = store();
-    lifecycleStore.findAffiliationById.mockResolvedValue(affiliation());
+    const existing = affiliation({ status: 'active', roles: ['student'] });
+    lifecycleStore.findAffiliationById.mockResolvedValue(existing);
     lifecycleStore.updateAffiliationRoles.mockResolvedValue(null);
 
     await expect(
       new AcademicLifecycleService(lifecycleStore, academic()).updateRoles(
         'user-1',
-        '11111111-1111-4111-8111-111111111111',
+        existing.id,
         { roles: ['mentor'] },
       ),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(lifecycleStore.updateAffiliationRoles).toHaveBeenCalledWith(
+      'user-1',
+      existing.id,
+      'active',
+      ['mentor'],
+    );
   });
 
   it('follows and unfollows canonical institution/program identity sets', async () => {

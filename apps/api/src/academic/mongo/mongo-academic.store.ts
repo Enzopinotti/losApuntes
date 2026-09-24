@@ -251,6 +251,7 @@ export class MongoAcademicStore implements AcademicStore {
   async updateAffiliationStatus(
     userId: string,
     id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
     status: AcademicAffiliationRecord['status'],
     endedOn?: string,
   ): Promise<AcademicAffiliationRecord | null> {
@@ -259,7 +260,7 @@ export class MongoAcademicStore implements AcademicStore {
 
     return this.affiliations
       .findOneAndUpdate(
-        { id, userId },
+        { id, userId, status: expectedStatus },
         { $set: update },
         { new: true, session: this.session() },
       )
@@ -270,11 +271,12 @@ export class MongoAcademicStore implements AcademicStore {
   async updateAffiliationRoles(
     userId: string,
     id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
     roles: AcademicRelationshipRole[],
   ): Promise<AcademicAffiliationRecord | null> {
     return this.affiliations
       .findOneAndUpdate(
-        { id, userId },
+        { id, userId, status: expectedStatus },
         { $set: { roles } },
         { new: true, session: this.session() },
       )

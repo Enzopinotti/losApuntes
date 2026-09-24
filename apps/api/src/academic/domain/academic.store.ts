@@ -102,12 +102,14 @@ export interface AcademicStore {
   updateAffiliationStatus(
     userId: string,
     id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
     status: AcademicAffiliationRecord['status'],
     endedOn?: string,
   ): Promise<AcademicAffiliationRecord | null>;
   updateAffiliationRoles(
     userId: string,
     id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
     roles: AcademicRelationshipRole[],
   ): Promise<AcademicAffiliationRecord | null>;
   transitionAffiliationToAlumni(

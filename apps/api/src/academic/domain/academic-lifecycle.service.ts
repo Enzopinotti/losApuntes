@@ -205,8 +205,18 @@ export class AcademicLifecycleService {
     }
 
     const updated = await this.store.runAtomically(async () => {
-      const row = await this.store.updateAffiliationRoles(userId, id, roles);
-      if (!row) this.notFound();
+      const row = await this.store.updateAffiliationRoles(
+        userId,
+        id,
+        existing.status,
+        roles,
+      );
+      if (!row) {
+        throw new ConflictException({
+          code: 'ACADEMIC_AFFILIATION_CONFLICT',
+          message: 'Academic affiliation changed concurrently',
+        });
+      }
 
       await this.store.appendAuditEvent({
         id: randomUUID(),

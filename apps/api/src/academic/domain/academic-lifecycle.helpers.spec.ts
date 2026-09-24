@@ -9,9 +9,7 @@ describe('academic lifecycle helpers', () => {
     expect(effectiveAcademicRelationshipRoles('active', undefined)).toEqual([
       'student',
     ]);
-    expect(effectiveAcademicRelationshipRoles('paused', [])).toEqual([
-      'student',
-    ]);
+    expect(effectiveAcademicRelationshipRoles('paused', [])).toEqual([]);
     expect(effectiveAcademicRelationshipRoles('completed', undefined)).toEqual([
       'recent_graduate',
     ]);
@@ -21,6 +19,12 @@ describe('academic lifecycle helpers', () => {
     expect(effectiveAcademicRelationshipRoles('withdrawn', undefined)).toEqual(
       [],
     );
+  });
+
+  it('preserves explicitly empty role sets without inventing defaults', () => {
+    expect(effectiveAcademicRelationshipRoles('active', [])).toEqual([]);
+    expect(effectiveAcademicRelationshipRoles('completed', [])).toEqual([]);
+    expect(effectiveAcademicRelationshipRoles('alumni', [])).toEqual([]);
   });
 
   it('deduplicates explicit relationship roles without inventing defaults', () => {
