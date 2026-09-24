@@ -540,6 +540,29 @@ export class AcademicService {
   ) {
     const subject = await this.requireKind(subjectId, 'subject');
 
+    if (dto.state === 'current') {
+      const affiliations = await this.store.listAffiliationsForUser(userId);
+      let eligible = false;
+
+      for (const affiliation of affiliations) {
+        if (
+          (affiliation.status === 'active' || affiliation.status === 'paused') &&
+          (await this.participationBelongsToAffiliation(subject.id, affiliation))
+        ) {
+          eligible = true;
+          break;
+        }
+      }
+
+      if (!eligible) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+          message:
+            'Current subject requires an active or paused academic affiliation',
+        });
+      }
+    }
+
     let offeringId: string | undefined;
     if (dto.courseOfferingId) {
       const offering = await this.requireKind(
@@ -664,7 +687,10 @@ export class AcademicService {
     identityIds: string[];
   }> {
     const resolved = await this.resolveNode(id);
-    if (resolved.node.kind !== 'institution' && resolved.node.kind !== 'program') {
+    if (
+      resolved.node.status !== 'active' ||
+      (resolved.node.kind !== 'institution' && resolved.node.kind !== 'program')
+    ) {
       throw new UnprocessableEntityException({
         code: 'ACADEMIC_FOLLOW_KIND_INVALID',
         message: 'Only Institution or Program can be followed',
