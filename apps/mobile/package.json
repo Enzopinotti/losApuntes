@@ -1,0 +1,50 @@
+{
+  "name": "@losapuntes/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" app.config.ts",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" app.config.ts",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0",
+    "check:types": "tsc -p tsconfig.json --noEmit --pretty false",
+    "export": "expo export --platform ios && expo export --platform android",
+    "check:expo": "expo install --check",
+    "test": "node --experimental-strip-types --test src/**/*.test.ts",
+    "check": "pnpm format:check && pnpm lint && pnpm check:types && pnpm test && pnpm check:expo && pnpm export"
+  },
+  "dependencies": {
+    "expo": "~57.0.24",
+    "expo-auth-session": "~57.0.13",
+    "expo-constants": "~57.0.19",
+    "expo-crypto": "~57.0.3",
+    "expo-dev-client": "~57.0.19",
+    "expo-file-system": "~57.0.7",
+    "expo-image-picker": "~57.0.19",
+    "expo-linking": "~57.0.5",
+    "expo-router": "~57.0.22",
+    "expo-secure-store": "~57.0.4",
+    "expo-splash-screen": "~57.0.5",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
+    "expo-web-browser": "~57.0.2",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.1",
+    "@types/react": "~19.2.2",
+    "eslint": "^9.30.1",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.35.1"
+  }
+}
