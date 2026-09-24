@@ -19,6 +19,19 @@ class PasswordProbeDto {
 }
 
 @Controller('runtime-probe')
+function responseIp(body: unknown): string {
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('ip' in body) ||
+    typeof body.ip !== 'string'
+  ) {
+    throw new Error('Runtime IP probe returned an invalid response body');
+  }
+
+  return body.ip;
+}
+
 class RuntimeProbeController {
   @Get()
   ok() {
@@ -151,7 +164,7 @@ describe('HTTP runtime boundary', () => {
       .set('x-forwarded-for', '198.51.100.42')
       .expect(200);
 
-    expect(response.body.ip).not.toBe('198.51.100.42');
+    expect(responseIp(response.body as unknown)).not.toBe('198.51.100.42');
   });
 
   it('trusts forwarded client addresses only through an explicit proxy allowlist', async () => {
@@ -180,7 +193,7 @@ describe('HTTP runtime boundary', () => {
       .set('x-forwarded-for', '198.51.100.42')
       .expect(200);
 
-    expect(response.body.ip).toBe('198.51.100.42');
+    expect(responseIp(response.body as unknown)).toBe('198.51.100.42');
   });
 
   it('allows only the configured browser origin', async () => {
