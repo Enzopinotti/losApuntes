@@ -201,7 +201,8 @@ export class AcademicFollow {
   updatedAt!: Date;
 }
 
-export const AcademicFollowSchema = SchemaFactory.createForClass(AcademicFollow);
+export const AcademicFollowSchema =
+  SchemaFactory.createForClass(AcademicFollow);
 AcademicFollowSchema.index({ userId: 1, targetNodeId: 1 }, { unique: true });
 AcademicFollowSchema.index({ userId: 1, updatedAt: -1 });
 
