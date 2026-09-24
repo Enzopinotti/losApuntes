@@ -14,6 +14,8 @@ const validEnvironment = {
 const validProductionEnvironment = {
   ...validEnvironment,
   NODE_ENV: 'production',
+  FILES_S3_ACCESS_KEY_ID: 'prod-files-access',
+  FILES_S3_SECRET_ACCESS_KEY: 'prod-files-secret-value',
   AUTH_EMAIL_DELIVERY_MODE: 'smtp',
   AUTH_ACTION_BASE_URL: 'https://app.losapuntes.example',
   AUTH_EMAIL_FROM: 'Los Apuntes <no-reply@losapuntes.example>',
@@ -33,7 +35,40 @@ describe('validateRuntimeEnvironment', () => {
       AUTH_EMAIL_DELIVERY_MODE: 'disabled',
       GOOGLE_AUTH_ENABLED: false,
       GOOGLE_NATIVE_CLIENT_IDS: [],
+      TRUSTED_PROXY_CIDRS: [],
     });
+  });
+
+  it('normalizes an explicit trusted proxy allowlist', () => {
+    const result = validateRuntimeEnvironment({
+      ...validEnvironment,
+      TRUSTED_PROXY_CIDRS:
+        '127.0.0.1, 10.20.0.0/16,2001:db8::1,2001:db8:abcd::/48',
+    });
+
+    expect(result.TRUSTED_PROXY_CIDRS).toEqual([
+      '127.0.0.1',
+      '10.20.0.0/16',
+      '2001:db8::1',
+      '2001:db8:abcd::/48',
+    ]);
+  });
+
+  it.each([
+    '*',
+    'loopback',
+    '10.0.0.0/99',
+    '2001:db8::/129',
+    'proxy.example.com',
+  ])('rejects unsafe trusted proxy entry: %s', (entry) => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        TRUSTED_PROXY_CIDRS: entry,
+      }),
+    ).toThrow(
+      'TRUSTED_PROXY_CIDRS must contain only comma-separated IP addresses or CIDR ranges',
+    );
   });
 
   it('disables Swagger by default in a valid production environment', () => {
@@ -202,6 +237,26 @@ describe('validateRuntimeEnvironment', () => {
   it('requires the database URI before bootstrap', () => {
     expect(() => validateRuntimeEnvironment({})).toThrow(
       'MONGO_URI is required',
+    );
+  });
+
+  it('rejects the known local S3 credentials in production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        FILES_S3_ACCESS_KEY_ID: 'losapuntes-local',
+      }),
+    ).toThrow(
+      'FILES_S3_ACCESS_KEY_ID must not use the local development credential in production',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        FILES_S3_SECRET_ACCESS_KEY: 'losapuntes-local-files-secret',
+      }),
+    ).toThrow(
+      'FILES_S3_SECRET_ACCESS_KEY must not use the local development credential in production',
     );
   });
 

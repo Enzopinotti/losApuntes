@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IsString } from 'class-validator';
+import type { FastifyRequest } from 'fastify';
 import * as request from 'supertest';
 
 import { configureHttpRuntime, createHttpAdapter } from './http-runtime';
@@ -22,6 +23,11 @@ class RuntimeProbeController {
   @Get()
   ok() {
     return { ok: true };
+  }
+
+  @Get('ip')
+  ip(@Req() request: FastifyRequest) {
+    return { ip: request.ip };
   }
 
   @Get('fail')
@@ -137,6 +143,44 @@ describe('HTTP runtime boundary', () => {
     });
     expect(JSON.stringify(response.body)).not.toContain('private.example');
     expect(JSON.stringify(response.body)).not.toContain('password');
+  });
+
+  it('does not trust forwarded client addresses by default', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/runtime-probe/ip')
+      .set('x-forwarded-for', '198.51.100.42')
+      .expect(200);
+
+    expect(response.body.ip).not.toBe('198.51.100.42');
+  });
+
+  it('trusts forwarded client addresses only through an explicit proxy allowlist', async () => {
+    await app.close();
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [RuntimeProbeController],
+    }).compile();
+
+    app = module.createNestApplication<NestFastifyApplication>(
+      createHttpAdapter({ logger: false, trustProxy: ['127.0.0.1', '::1'] }),
+    );
+
+    configureHttpRuntime(
+      app,
+      new ConfigService({
+        WEB_ORIGIN: 'http://localhost:5173',
+      }),
+    );
+
+    await app.init();
+    await app.getHttpAdapter().getInstance().ready();
+
+    const response = await request(app.getHttpServer())
+      .get('/runtime-probe/ip')
+      .set('x-forwarded-for', '198.51.100.42')
+      .expect(200);
+
+    expect(response.body.ip).toBe('198.51.100.42');
   });
 
   it('allows only the configured browser origin', async () => {

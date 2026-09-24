@@ -1,5 +1,11 @@
+import { isIP } from 'node:net';
+
 const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
 const VALID_AUTH_EMAIL_DELIVERY_MODES = new Set(['disabled', 'smtp']);
+const KNOWN_LOCAL_PRODUCTION_CREDENTIALS = new Map<string, Set<string>>([
+  ['FILES_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
+  ['FILES_S3_SECRET_ACCESS_KEY', new Set(['losapuntes-local-files-secret'])],
+]);
 
 function optionalString(
   config: Record<string, unknown>,
@@ -164,6 +170,56 @@ function parseStringList(value: unknown, key: string): string[] {
   ];
 }
 
+function validIpOrCidr(value: string): boolean {
+  const [address, prefix, ...rest] = value.split('/');
+  if (rest.length > 0 || !address) {
+    return false;
+  }
+
+  const version = isIP(address);
+  if (version === 0) {
+    return false;
+  }
+
+  if (prefix === undefined) {
+    return true;
+  }
+
+  if (!/^\d+$/u.test(prefix)) {
+    return false;
+  }
+
+  const bits = Number(prefix);
+  return Number.isInteger(bits) && bits >= 0 && bits <= (version === 4 ? 32 : 128);
+}
+
+export function parseTrustedProxyCidrs(value: unknown): string[] {
+  const entries = parseStringList(value, 'TRUSTED_PROXY_CIDRS');
+
+  for (const entry of entries) {
+    if (!validIpOrCidr(entry)) {
+      throw new Error(
+        'TRUSTED_PROXY_CIDRS must contain only comma-separated IP addresses or CIDR ranges',
+      );
+    }
+  }
+
+  return entries;
+}
+
+function rejectKnownLocalProductionCredential(
+  nodeEnv: string,
+  key: string,
+  value: string,
+): void {
+  if (
+    nodeEnv === 'production' &&
+    KNOWN_LOCAL_PRODUCTION_CREDENTIALS.get(key)?.has(value)
+  ) {
+    throw new Error(`${key} must not use the local development credential in production`);
+  }
+}
+
 function authEmailDeliveryMode(
   source: Record<string, unknown>,
   nodeEnv: string,
@@ -231,6 +287,23 @@ export function validateRuntimeEnvironment(
     source.FILES_S3_PUBLIC_ENDPOINT,
     'FILES_S3_PUBLIC_ENDPOINT',
   );
+  const trustedProxyCidrs = parseTrustedProxyCidrs(source.TRUSTED_PROXY_CIDRS);
+  const filesS3AccessKeyId = requiredString(source, 'FILES_S3_ACCESS_KEY_ID');
+  const filesS3SecretAccessKey = requiredString(
+    source,
+    'FILES_S3_SECRET_ACCESS_KEY',
+  );
+
+  rejectKnownLocalProductionCredential(
+    nodeEnv,
+    'FILES_S3_ACCESS_KEY_ID',
+    filesS3AccessKeyId,
+  );
+  rejectKnownLocalProductionCredential(
+    nodeEnv,
+    'FILES_S3_SECRET_ACCESS_KEY',
+    filesS3SecretAccessKey,
+  );
 
   if (Boolean(smtpUser) !== Boolean(smtpPass)) {
     throw new Error(
@@ -261,6 +334,7 @@ export function validateRuntimeEnvironment(
       'SWAGGER_ENABLED',
       nodeEnv !== 'production',
     ),
+    TRUSTED_PROXY_CIDRS: trustedProxyCidrs,
     AUTH_EMAIL_DELIVERY_MODE: deliveryMode,
     AUTH_ACTION_BASE_URL: authActionBaseUrl,
     AUTH_SMTP_PORT: parsePort(source.AUTH_SMTP_PORT, 'AUTH_SMTP_PORT', 587),
@@ -284,11 +358,8 @@ export function validateRuntimeEnvironment(
       requiredString(source, 'FILES_S3_PUBLIC_ENDPOINT'),
     FILES_S3_REGION: requiredString(source, 'FILES_S3_REGION'),
     FILES_S3_BUCKET: requiredString(source, 'FILES_S3_BUCKET'),
-    FILES_S3_ACCESS_KEY_ID: requiredString(source, 'FILES_S3_ACCESS_KEY_ID'),
-    FILES_S3_SECRET_ACCESS_KEY: requiredString(
-      source,
-      'FILES_S3_SECRET_ACCESS_KEY',
-    ),
+    FILES_S3_ACCESS_KEY_ID: filesS3AccessKeyId,
+    FILES_S3_SECRET_ACCESS_KEY: filesS3SecretAccessKey,
     FILES_DOWNLOAD_URL_TTL_SECONDS: parseBoundedInteger(
       source.FILES_DOWNLOAD_URL_TTL_SECONDS,
       'FILES_DOWNLOAD_URL_TTL_SECONDS',
