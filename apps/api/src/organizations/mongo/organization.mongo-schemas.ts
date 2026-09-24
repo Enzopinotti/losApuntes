@@ -304,13 +304,13 @@ export class OrganizationFeaturedResource {
   updatedAt!: Date;
 }
 
-export const OrganizationFeaturedResourceSchema =
-  SchemaFactory.createForClass(OrganizationFeaturedResource);
+export const OrganizationFeaturedResourceSchema = SchemaFactory.createForClass(
+  OrganizationFeaturedResource,
+);
 OrganizationFeaturedResourceSchema.index(
   { organizationId: 1, resourceId: 1 },
   { unique: true },
 );
-
 
 @Schema({ collection: 'organization_reports', timestamps: true })
 export class OrganizationReport {
