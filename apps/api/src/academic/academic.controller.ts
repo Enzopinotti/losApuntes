@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -14,6 +15,7 @@ import {
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
+import { AcademicLifecycleService } from './domain/academic-lifecycle.service';
 import { AcademicService } from './domain/academic.service';
 import {
   AcademicCatalogChildrenDto,
@@ -22,9 +24,11 @@ import {
   CreateAcademicAffiliationDto,
   CreateAcademicCatalogNodeDto,
   CreateAcademicProposalDto,
+  GraduateAcademicAffiliationDto,
   MergeAcademicCatalogNodeDto,
   ReviewAcademicProposalDto,
   SetAcademicContextDto,
+  UpdateAcademicAffiliationRolesDto,
   UpdateAcademicAffiliationStatusDto,
   UpdateAcademicCatalogNodeDto,
   UpsertSubjectParticipationDto,
@@ -33,7 +37,10 @@ import { AcademicAdminGuard } from './guards/academic-admin.guard';
 
 @Controller('academic')
 export class AcademicController {
-  constructor(private readonly academic: AcademicService) {}
+  constructor(
+    private readonly academic: AcademicService,
+    private readonly lifecycle: AcademicLifecycleService,
+  ) {}
 
   @Get('catalog/search')
   search(@Query() query: AcademicCatalogSearchDto) {
@@ -76,6 +83,56 @@ export class AcademicController {
     @Body() dto: UpdateAcademicAffiliationStatusDto,
   ) {
     return this.academic.updateAffiliationStatus(request.user.id, id, dto);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Get('me/lifecycle')
+  lifecycleState(@Req() request: AuthenticatedRequest) {
+    return this.lifecycle.getLifecycle(request.user.id);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Post('me/affiliations/:id/graduate')
+  graduateAffiliation(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: GraduateAcademicAffiliationDto,
+  ) {
+    return this.lifecycle.graduate(request.user.id, id, dto);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Patch('me/affiliations/:id/roles')
+  updateAffiliationRoles(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateAcademicAffiliationRolesDto,
+  ) {
+    return this.lifecycle.updateRoles(request.user.id, id, dto);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Get('me/follows')
+  academicFollows(@Req() request: AuthenticatedRequest) {
+    return this.lifecycle.listFollows(request.user.id);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Put('me/follows/:nodeId')
+  followAcademicNode(
+    @Req() request: AuthenticatedRequest,
+    @Param('nodeId', new ParseUUIDPipe({ version: '4' })) nodeId: string,
+  ) {
+    return this.lifecycle.follow(request.user.id, nodeId);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Delete('me/follows/:nodeId')
+  async unfollowAcademicNode(
+    @Req() request: AuthenticatedRequest,
+    @Param('nodeId', new ParseUUIDPipe({ version: '4' })) nodeId: string,
+  ): Promise<void> {
+    await this.lifecycle.unfollow(request.user.id, nodeId);
   }
 
   @UseGuards(AuthSessionGuard)
