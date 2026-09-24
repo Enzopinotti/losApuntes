@@ -14,6 +14,15 @@ The application is authoritative for authentication, authorization and product b
 - the exact proxy IP/CIDR allowlist;
 - edge/WAF controls when used.
 
+## Deployment profile
+
+`DEPLOYMENT_PROFILE` separates framework mode from deployment security posture:
+
+- `local` is only for the isolated developer/CI stack;
+- `production` is the real deployment posture and is the default whenever `NODE_ENV=production` and no profile is supplied.
+
+The production profile requires HTTPS public Web, action-link and Files origins. The local profile may coexist with `NODE_ENV=production` only while those public origins remain loopback.
+
 ## Default
 
 `TRUSTED_PROXY_CIDRS` is empty by default.
