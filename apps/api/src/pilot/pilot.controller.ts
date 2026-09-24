@@ -62,7 +62,11 @@ export class PilotController {
   }
 
   private reportKind(value: string): PilotReportKind {
-    if (value !== 'resource' && value !== 'qa') {
+    if (
+      value !== 'resource' &&
+      value !== 'qa' &&
+      value !== 'organization'
+    ) {
       throw new UnprocessableEntityException({
         code: 'PILOT_REPORT_KIND_INVALID',
         message: 'Moderation report kind is invalid',
