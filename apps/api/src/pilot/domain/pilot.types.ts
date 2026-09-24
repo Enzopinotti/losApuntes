@@ -8,8 +8,13 @@ export type PilotReportStatus = (typeof PILOT_REPORT_STATUSES)[number];
 export const PILOT_MODERATION_ACTIONS = ['hide', 'restore', 'dismiss'] as const;
 export type PilotModerationAction = (typeof PILOT_MODERATION_ACTIONS)[number];
 
-export type PilotReportKind = 'resource' | 'qa';
-export type PilotModerationTargetKind = 'resource' | 'question' | 'answer';
+export type PilotReportKind = 'resource' | 'qa' | 'organization';
+export type PilotModerationTargetKind =
+  | 'resource'
+  | 'question'
+  | 'answer'
+  | 'organization_post'
+  | 'organization_event';
 
 export interface PilotModerationQueueItem {
   kind: PilotReportKind;
