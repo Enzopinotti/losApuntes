@@ -12,11 +12,7 @@ export const ORGANIZATION_TYPES = [
 
 export type OrganizationType = (typeof ORGANIZATION_TYPES)[number];
 
-export const ORGANIZATION_MANAGER_ROLES = [
-  'owner',
-  'admin',
-  'editor',
-] as const;
+export const ORGANIZATION_MANAGER_ROLES = ['owner', 'admin', 'editor'] as const;
 export type OrganizationManagerRole =
   (typeof ORGANIZATION_MANAGER_ROLES)[number];
 
@@ -39,8 +35,7 @@ export const ORGANIZATION_REPORT_REASONS = [
 ] as const;
 export type OrganizationReportReason =
   (typeof ORGANIZATION_REPORT_REASONS)[number];
-export type OrganizationEventState =
-  (typeof ORGANIZATION_EVENT_STATES)[number];
+export type OrganizationEventState = (typeof ORGANIZATION_EVENT_STATES)[number];
 
 export interface OrganizationRecord {
   id: string;
@@ -80,8 +75,7 @@ export const ORGANIZATION_AUDIT_EVENTS = [
   'organization.manager_changed',
   'organization.manager_revoked',
 ] as const;
-export type OrganizationAuditEvent =
-  (typeof ORGANIZATION_AUDIT_EVENTS)[number];
+export type OrganizationAuditEvent = (typeof ORGANIZATION_AUDIT_EVENTS)[number];
 
 export interface OrganizationAuditRecord {
   id: string;
