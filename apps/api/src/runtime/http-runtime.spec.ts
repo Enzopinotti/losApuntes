@@ -6,6 +6,7 @@ import { IsString } from 'class-validator';
 import type { FastifyRequest } from 'fastify';
 import * as request from 'supertest';
 
+import { RateLimitedException } from '../abuse-control/domain/rate-limited.exception';
 import { configureHttpRuntime, createHttpAdapter } from './http-runtime';
 
 class RuntimeProbeDto {
@@ -41,6 +42,11 @@ class RuntimeProbeController {
   @Get('ip')
   ip(@Req() request: FastifyRequest) {
     return { ip: request.ip };
+  }
+
+  @Get('limited')
+  limited(): never {
+    throw new RateLimitedException(37);
   }
 
   @Get('fail')
@@ -141,6 +147,21 @@ describe('HTTP runtime boundary', () => {
       'requestId',
       response.headers['x-request-id'],
     );
+  });
+
+  it('returns the stable rate-limit envelope and Retry-After header', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/runtime-probe/limited')
+      .expect(429);
+
+    expect(response.headers['retry-after']).toBe('37');
+    expect(response.body).toEqual({
+      statusCode: 429,
+      code: 'RATE_LIMITED',
+      message: 'Too many attempts',
+      requestId: response.headers['x-request-id'],
+      retryAfterSeconds: 37,
+    });
   });
 
   it('sanitizes unexpected server errors and keeps their request id', async () => {
