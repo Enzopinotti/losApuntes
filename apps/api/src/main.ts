@@ -5,6 +5,7 @@ import { type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
+import { parseTrustedProxyCidrs } from './config/runtime-environment';
 import {
   configureHttpRuntime,
   createHttpAdapter,
@@ -32,7 +33,9 @@ function configureSwagger(
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    createHttpAdapter(),
+    createHttpAdapter({
+      trustProxy: parseTrustedProxyCidrs(process.env.TRUSTED_PROXY_CIDRS),
+    }),
   );
 
   await app.register(fastifyCookie);

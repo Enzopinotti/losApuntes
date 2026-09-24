@@ -14,6 +14,11 @@ const validEnvironment = {
 const validProductionEnvironment = {
   ...validEnvironment,
   NODE_ENV: 'production',
+  DEPLOYMENT_PROFILE: 'production',
+  WEB_ORIGIN: 'https://app.losapuntes.example',
+  FILES_S3_PUBLIC_ENDPOINT: 'https://files.losapuntes.example',
+  FILES_S3_ACCESS_KEY_ID: 'prod-files-access',
+  FILES_S3_SECRET_ACCESS_KEY: 'prod-files-secret-value',
   AUTH_EMAIL_DELIVERY_MODE: 'smtp',
   AUTH_ACTION_BASE_URL: 'https://app.losapuntes.example',
   AUTH_EMAIL_FROM: 'Los Apuntes <no-reply@losapuntes.example>',
@@ -23,6 +28,95 @@ const validProductionEnvironment = {
 };
 
 describe('validateRuntimeEnvironment', () => {
+  it('uses the local deployment profile outside production by default', () => {
+    const result = validateRuntimeEnvironment(validEnvironment);
+
+    expect(result.DEPLOYMENT_PROFILE).toBe('local');
+  });
+
+  it('defaults production NODE_ENV to the production deployment profile', () => {
+    const result = validateRuntimeEnvironment({
+      ...validProductionEnvironment,
+      DEPLOYMENT_PROFILE: undefined,
+    });
+
+    expect(result.DEPLOYMENT_PROFILE).toBe('production');
+  });
+
+  it('allows known local storage credentials only for the isolated local production-mode stack', () => {
+    const result = validateRuntimeEnvironment({
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      DEPLOYMENT_PROFILE: 'local',
+      WEB_ORIGIN: 'http://localhost:5173',
+      AUTH_EMAIL_DELIVERY_MODE: 'smtp',
+      AUTH_ACTION_BASE_URL: 'http://localhost:5173',
+      AUTH_EMAIL_FROM: 'Los Apuntes <no-reply@losapuntes.local>',
+      AUTH_SMTP_HOST: 'mailpit',
+      AUTH_SMTP_PORT: '1025',
+      AUTH_SMTP_SECURE: 'false',
+      FILES_S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
+      FILES_S3_ACCESS_KEY_ID: 'losapuntes-local',
+      FILES_S3_SECRET_ACCESS_KEY: 'losapuntes-local-files-secret',
+    });
+
+    expect(result.DEPLOYMENT_PROFILE).toBe('local');
+  });
+
+  it('rejects local production-mode profile when any public origin is not loopback', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        DEPLOYMENT_PROFILE: 'local',
+        WEB_ORIGIN: 'https://app.example.com',
+        AUTH_EMAIL_DELIVERY_MODE: 'smtp',
+        AUTH_ACTION_BASE_URL: 'http://localhost:5173',
+        AUTH_EMAIL_FROM: 'Los Apuntes <no-reply@losapuntes.local>',
+        AUTH_SMTP_HOST: 'mailpit',
+        FILES_S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
+      }),
+    ).toThrow(
+      'DEPLOYMENT_PROFILE=local with NODE_ENV=production requires loopback public origins',
+    );
+  });
+
+  it('requires HTTPS public origins in the production deployment profile', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        WEB_ORIGIN: 'http://app.losapuntes.example',
+      }),
+    ).toThrow('WEB_ORIGIN must use https in the production deployment profile');
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        AUTH_ACTION_BASE_URL: 'http://app.losapuntes.example',
+      }),
+    ).toThrow(
+      'AUTH_ACTION_BASE_URL must use https in the production deployment profile',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        FILES_S3_PUBLIC_ENDPOINT: 'http://files.losapuntes.example',
+      }),
+    ).toThrow(
+      'FILES_S3_PUBLIC_ENDPOINT must use https in the production deployment profile',
+    );
+  });
+
+  it('rejects production deployment profile unless NODE_ENV is production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        DEPLOYMENT_PROFILE: 'production',
+      }),
+    ).toThrow('DEPLOYMENT_PROFILE=production requires NODE_ENV=production');
+  });
+
   it('normalizes defaults for local development', () => {
     const result = validateRuntimeEnvironment(validEnvironment);
 
@@ -33,7 +127,40 @@ describe('validateRuntimeEnvironment', () => {
       AUTH_EMAIL_DELIVERY_MODE: 'disabled',
       GOOGLE_AUTH_ENABLED: false,
       GOOGLE_NATIVE_CLIENT_IDS: [],
+      TRUSTED_PROXY_CIDRS: [],
     });
+  });
+
+  it('normalizes an explicit trusted proxy allowlist', () => {
+    const result = validateRuntimeEnvironment({
+      ...validEnvironment,
+      TRUSTED_PROXY_CIDRS:
+        '127.0.0.1, 10.20.0.0/16,2001:db8::1,2001:db8:abcd::/48',
+    });
+
+    expect(result.TRUSTED_PROXY_CIDRS).toEqual([
+      '127.0.0.1',
+      '10.20.0.0/16',
+      '2001:db8::1',
+      '2001:db8:abcd::/48',
+    ]);
+  });
+
+  it.each([
+    '*',
+    'loopback',
+    '10.0.0.0/99',
+    '2001:db8::/129',
+    'proxy.example.com',
+  ])('rejects unsafe trusted proxy entry: %s', (entry) => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        TRUSTED_PROXY_CIDRS: entry,
+      }),
+    ).toThrow(
+      'TRUSTED_PROXY_CIDRS must contain only comma-separated IP addresses or CIDR ranges',
+    );
   });
 
   it('disables Swagger by default in a valid production environment', () => {
@@ -202,6 +329,26 @@ describe('validateRuntimeEnvironment', () => {
   it('requires the database URI before bootstrap', () => {
     expect(() => validateRuntimeEnvironment({})).toThrow(
       'MONGO_URI is required',
+    );
+  });
+
+  it('rejects the known local S3 credentials in production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        FILES_S3_ACCESS_KEY_ID: 'losapuntes-local',
+      }),
+    ).toThrow(
+      'FILES_S3_ACCESS_KEY_ID must not use the local development credential in production',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        FILES_S3_SECRET_ACCESS_KEY: 'losapuntes-local-files-secret',
+      }),
+    ).toThrow(
+      'FILES_S3_SECRET_ACCESS_KEY must not use the local development credential in production',
     );
   });
 

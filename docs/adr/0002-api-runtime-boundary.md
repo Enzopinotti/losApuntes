@@ -22,7 +22,8 @@ The Fastify adapter explicitly configures:
 - a 120 second request receive timeout;
 - a 1 MiB global JSON/body limit;
 - prototype and constructor poisoning rejection;
-- `trustProxy: false`.
+- forwarded client-address headers are untrusted by default;
+- `trustProxy` becomes active only from the explicit `TRUSTED_PROXY_CIDRS` IP/CIDR allowlist; an empty allowlist is equivalent to `false`.
 
 Large files will not justify increasing the global body limit. Files/Notes will use a dedicated direct-to-object-storage design later.
 
@@ -87,7 +88,7 @@ Swagger remains available for development but is disabled by default when `NODE_
 ## Deliberately deferred
 
 - IP rate limiting;
-- `trustProxy` changes;
+- provider/ingress-specific proxy allowlist values;
 - Redis/distributed buckets;
 - OpenTelemetry/tracing vendor integration;
 - Auth/session redesign;
@@ -110,4 +111,4 @@ IP throttling remains deferred because enabling `trustProxy` without an authorit
 
 - readiness is temporarily Mongo-specific while the rescued persistence implementation remains active;
 - the global 1 MiB limit means future file work must use the dedicated Files architecture rather than posting large binaries through controllers;
-- rate limiting waits for deployment topology evidence instead of being added with unsafe proxy assumptions.
+- rate limiting waits for deployment topology evidence, but the runtime now has a fail-safe proxy allowlist contract so later IP controls can use a reviewed client-address authority instead of arbitrary forwarded headers.

@@ -31,6 +31,7 @@ const LOGGER_REDACT_PATHS = [
 
 export interface HttpAdapterOptions {
   logger?: boolean;
+  trustProxy?: string[];
 }
 
 function validationMessages(errors: ValidationError[]): string[] {
@@ -73,7 +74,10 @@ export function createHttpAdapter(
     bodyLimit: HTTP_BODY_LIMIT_BYTES,
     onProtoPoisoning: 'error',
     onConstructorPoisoning: 'error',
-    trustProxy: false,
+    trustProxy:
+      options.trustProxy && options.trustProxy.length > 0
+        ? options.trustProxy
+        : false,
   });
 }
 
