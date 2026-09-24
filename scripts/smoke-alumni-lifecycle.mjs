@@ -219,6 +219,59 @@ assert.equal(lifecycle.body.currentSubjectIds.length, 0);
 assert.equal(lifecycle.body.hasCurrentSubjectContext, false);
 assert.equal(['alumni', 'mixed'].includes(lifecycle.body.phase), true);
 
+const affiliationsAfterFirstGraduation = await request(
+  '/academic/me/affiliations',
+  {
+    headers: { authorization: bearer },
+  },
+);
+assert.equal(
+  affiliationsAfterFirstGraduation.response.status,
+  200,
+  JSON.stringify(affiliationsAfterFirstGraduation.body),
+);
+
+const remainingStudentAffiliations =
+  affiliationsAfterFirstGraduation.body.affiliations.filter(
+    (row) =>
+      row.id !== targetAffiliation.id &&
+      (row.status === 'active' || row.status === 'paused'),
+  );
+
+for (const remainingAffiliation of remainingStudentAffiliations) {
+  const remainingGraduation = await request(
+    '/academic/me/affiliations/' + remainingAffiliation.id + '/graduate',
+    json(
+      'POST',
+      {
+        graduatedOn: '2026-09',
+      },
+      bearer,
+    ),
+  );
+  assert.equal(
+    remainingGraduation.response.status,
+    201,
+    JSON.stringify(remainingGraduation.body),
+  );
+  assert.equal(remainingGraduation.body.affiliation.status, 'alumni');
+}
+
+const alumniOnlyLifecycle = await request('/academic/me/lifecycle', {
+  headers: { authorization: bearer },
+});
+assert.equal(
+  alumniOnlyLifecycle.response.status,
+  200,
+  JSON.stringify(alumniOnlyLifecycle.body),
+);
+assert.equal(alumniOnlyLifecycle.body.phase, 'alumni');
+assert.equal(alumniOnlyLifecycle.body.activeStudentAffiliationIds.length, 0);
+assert.equal(
+  alumniOnlyLifecycle.body.alumniAffiliationIds.includes(targetAffiliation.id),
+  true,
+);
+
 const context = await request('/academic/me/context', {
   headers: { authorization: bearer },
 });
@@ -318,6 +371,9 @@ console.log(
       'graduation-completes-current-subjects',
       'graduation-clears-subject-context',
       'graduation-idempotent',
+      'mixed-lifecycle-preserved',
+      'remaining-student-affiliations-graduated',
+      'alumni-only-lifecycle-before-cohort-metrics',
       'student-role-rejected-after-graduation',
       'alumni-community-home-continuity',
       'for-you-remains-separate',
