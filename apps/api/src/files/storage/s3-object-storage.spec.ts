@@ -4,7 +4,7 @@ const now = new Date('2026-09-23T13:00:00.000Z');
 
 function storage() {
   return createS3ObjectStorage({
-    endpoint: 'http://minio:9000',
+    endpoint: 'http://object-storage:9000',
     publicEndpoint: 'http://localhost:9000',
     bucket: 'losapuntes-files',
     region: 'us-east-1',
