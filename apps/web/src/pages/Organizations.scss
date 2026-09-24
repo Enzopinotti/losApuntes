@@ -1,0 +1,247 @@
+.organizations-page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 4rem;
+}
+
+.organizations-hero,
+.organizations-card,
+.organizations-create,
+.organization-card,
+.organizations-search {
+  background: #fff;
+  border: 1px solid #e7e7ef;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(20, 24, 40, 0.05);
+}
+
+.organizations-hero {
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.organizations-eyebrow {
+  margin: 0 0 0.35rem;
+  color: #5b5bd6;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.organizations-hero h1,
+.organizations-card h2,
+.organization-card h2 {
+  margin-top: 0;
+}
+
+.organizations-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) auto;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.organizations-search input,
+.organizations-search select,
+.organizations-form input,
+.organizations-form textarea,
+.organizations-form select,
+.organization-manager-form input,
+.organization-manager-form select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfcfd8;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.organizations-list,
+.organization-content-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.organization-card {
+  padding: 1.2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.organization-card p {
+  margin: 0.2rem 0 0.6rem;
+  color: #626274;
+}
+
+.organization-type,
+.organization-verification,
+.organization-source,
+.organization-badges span {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.78rem;
+  background: #f1f0ff;
+}
+
+.organization-verification {
+  background: #eef8f1;
+}
+
+.organizations-create {
+  margin-top: 1.25rem;
+  padding: 1.2rem;
+}
+
+.organizations-create summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.organizations-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.organizations-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.organizations-wide {
+  grid-column: 1 / -1;
+}
+
+.organizations-inline,
+.organization-manager-form,
+.organization-header-actions,
+.organization-badges {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.organization-institution-picker ul,
+.organization-compact-list,
+.organizations-card ul {
+  list-style: none;
+  padding: 0;
+}
+
+.organization-option-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.organization-option-list button {
+  width: 100%;
+  text-align: left;
+}
+
+.organizations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.organizations-card {
+  padding: 1.25rem;
+}
+
+.organization-compact-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.organization-compact-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #ececf1;
+}
+
+.organization-content-list article {
+  padding: 1rem;
+  border: 1px solid #ececf1;
+  border-radius: 14px;
+}
+
+.organization-content-list h3 {
+  margin-bottom: 0.35rem;
+}
+
+.organizations-success,
+.organizations-error,
+.organizations-login-note {
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.organizations-success {
+  background: #eefbf2;
+}
+
+.organizations-error {
+  background: #fff0f0;
+  color: #8b1e1e;
+}
+
+.organizations-login-note {
+  background: #f6f6fa;
+  margin-top: 1rem;
+}
+
+.organization-manager-form {
+  margin-top: 1rem;
+}
+
+.organization-manager-form input,
+.organization-manager-form select {
+  flex: 1 1 180px;
+}
+
+button.secondary {
+  background: transparent;
+  color: inherit;
+  border: 1px solid #cfcfd8;
+}
+
+@media (max-width: 760px) {
+  .organizations-hero,
+  .organization-card {
+    flex-direction: column;
+  }
+
+  .organizations-search,
+  .organizations-form,
+  .organizations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .organizations-wide {
+    grid-column: auto;
+  }
+
+  .organizations-inline,
+  .organization-manager-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
