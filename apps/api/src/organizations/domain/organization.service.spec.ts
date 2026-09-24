@@ -170,10 +170,7 @@ function defaults(
   });
   dependencies.profiles.getAttributionsForUsers.mockResolvedValue(
     new Map([
-      [
-        'owner-user',
-        { profileId, displayName: 'Owner', avatarUrl: null },
-      ],
+      ['owner-user', { profileId, displayName: 'Owner', avatarUrl: null }],
     ]),
   );
   dependencies.profiles.resolveUserIdByProfileId.mockResolvedValue(
@@ -246,14 +243,12 @@ async function expectCode(
     await promise;
     throw new Error(`Expected ${code}`);
   } catch (error) {
-    if (
-      !(
-        error instanceof ConflictException ||
-        error instanceof ForbiddenException ||
-        error instanceof NotFoundException ||
-        error instanceof UnprocessableEntityException
-      )
-    ) {
+    if (!(
+      error instanceof ConflictException ||
+      error instanceof ForbiddenException ||
+      error instanceof NotFoundException ||
+      error instanceof UnprocessableEntityException
+    )) {
       throw error;
     }
     expect(error.getResponse()).toMatchObject({ code });
@@ -528,14 +523,16 @@ describe('OrganizationService', () => {
       .mockResolvedValueOnce(organization())
       .mockResolvedValueOnce(organization({ managementRevision: 2 }));
 
-    const result = await service(
-      organizationStore,
-      dependencies,
-    ).changeManager('owner-user', orgId, profileId, {
-      role: 'editor',
-      reason: 'Comunicación',
-      expectedManagementRevision: 1,
-    });
+    const result = await service(organizationStore, dependencies).changeManager(
+      'owner-user',
+      orgId,
+      profileId,
+      {
+        role: 'editor',
+        reason: 'Comunicación',
+        expectedManagementRevision: 1,
+      },
+    );
 
     expect(result.managers).toHaveLength(2);
     expect(organizationStore.changeManager).toHaveBeenCalledWith(
@@ -810,7 +807,9 @@ describe('OrganizationService', () => {
     organizationStore.findPostById.mockResolvedValue(current);
     organizationStore.updatePost.mockResolvedValue(updated);
     organizationStore.listPosts.mockResolvedValue([updated]);
-    organizationStore.deletePost.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    organizationStore.deletePost
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
 
     const result = await service(organizationStore, dependencies).updatePost(
       'owner-user',
@@ -1031,7 +1030,9 @@ describe('OrganizationService', () => {
 
     organizationStore.listLinks.mockResolvedValue([]);
     organizationStore.createLink.mockResolvedValue(link);
-    organizationStore.deleteLink.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    organizationStore.deleteLink
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
 
     const result = await service(organizationStore, dependencies).createLink(
       'owner-user',
@@ -1071,14 +1072,10 @@ describe('OrganizationService', () => {
       })),
     );
     await expectCode(
-      service(organizationStore, dependencies).createLink(
-        'owner-user',
-        orgId,
-        {
-          label: 'Otro',
-          url: 'https://example.test/otro',
-        },
-      ),
+      service(organizationStore, dependencies).createLink('owner-user', orgId, {
+        label: 'Otro',
+        url: 'https://example.test/otro',
+      }),
       'ORGANIZATION_LINK_LIMIT',
     );
   });
@@ -1230,7 +1227,10 @@ describe('OrganizationService', () => {
     const dependencies = deps();
     defaults(organizationStore, dependencies);
     const row = organization({ normalizedName: 'centro' });
-    organizationStore.search.mockResolvedValue({ items: [row], hasMore: false });
+    organizationStore.search.mockResolvedValue({
+      items: [row],
+      hasMore: false,
+    });
 
     dependencies.academic.getCatalogNode.mockResolvedValueOnce({
       node: {
@@ -1393,10 +1393,9 @@ describe('OrganizationService', () => {
       },
     } as never);
 
-    const publicResult = await service(
-      organizationStore,
-      dependencies,
-    ).get(orgId);
+    const publicResult = await service(organizationStore, dependencies).get(
+      orgId,
+    );
     expect(publicResult.organization.managers[0]?.profile.displayName).toBe(
       'Usuario de Los Apuntes',
     );
@@ -1455,5 +1454,4 @@ describe('OrganizationService', () => {
       'ORGANIZATION_SCOPE_INVALID',
     );
   });
-
 });
