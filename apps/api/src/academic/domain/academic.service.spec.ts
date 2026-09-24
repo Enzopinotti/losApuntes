@@ -1263,8 +1263,7 @@ describe('AcademicService', () => {
     store.findAffiliationById.mockResolvedValue(row);
     store.updateAffiliationStatus.mockResolvedValue({
       ...row,
-      status: 'completed',
-      endedOn: '2026',
+      status: 'paused',
     });
 
     await expect(service.listAffiliations('user-1')).resolves.toEqual({
@@ -1275,15 +1274,20 @@ describe('AcademicService', () => {
       'user-1',
       row.id,
       {
-        status: 'completed',
-        endedOn: '2026',
+        status: 'paused',
       },
     );
     expect(updateResult.affiliation.id).toBe(row.id);
-    expect(updateResult.affiliation.status).toBe('completed');
-    expect(updateResult.affiliation.endedOn).toBe('2026');
+    expect(updateResult.affiliation.status).toBe('paused');
+    expect(store.updateAffiliationStatus).toHaveBeenCalledWith(
+      'user-1',
+      row.id,
+      'active',
+      'paused',
+      undefined,
+    );
 
-    store.updateAffiliationStatus.mockResolvedValueOnce(null);
+    store.findAffiliationById.mockResolvedValueOnce(null);
     await expect(
       service.updateAffiliationStatus('user-1', 'missing', {
         status: 'paused',
