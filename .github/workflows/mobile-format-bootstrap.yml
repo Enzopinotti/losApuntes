@@ -1,0 +1,48 @@
+name: mobile-format-bootstrap
+
+on:
+  push:
+    branches:
+      - feat/mobile-auth-v1
+    paths:
+      - .github/workflows/mobile-format-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: feat/mobile-auth-v1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical Mobile formatting
+        run: pnpm --filter @losapuntes/mobile format
+
+      - name: Commit canonical formatting
+        run: |
+          if git diff --quiet -- apps/mobile; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/mobile
+          git commit -m "style(mobile): apply canonical formatting"
+          git push origin HEAD:feat/mobile-auth-v1
