@@ -56,6 +56,20 @@ export type AcademicCatalogNodeRecord = {
 export type AcademicAffiliationStatus =
   'applicant' | 'active' | 'paused' | 'completed' | 'withdrawn' | 'alumni';
 
+export const ACADEMIC_RELATIONSHIP_ROLES = [
+  'student',
+  'advanced_student',
+  'recent_graduate',
+  'alumni',
+  'mentor',
+  'teaching',
+  'research',
+  'community',
+] as const;
+
+export type AcademicRelationshipRole =
+  (typeof ACADEMIC_RELATIONSHIP_ROLES)[number];
+
 export type AcademicAffiliationRecord = {
   id: string;
   userId: string;
@@ -65,6 +79,7 @@ export type AcademicAffiliationRecord = {
   programId?: string;
   curriculumId?: string;
   status: AcademicAffiliationStatus;
+  roles?: AcademicRelationshipRole[];
   startedOn?: string;
   endedOn?: string;
   createdAt: Date;
@@ -81,6 +96,15 @@ export type SubjectParticipationRecord = {
   courseOfferingId?: string;
   state: SubjectParticipationState;
   periodLabel?: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type AcademicFollowRecord = {
+  id: string;
+  userId: string;
+  targetNodeId: string;
+  targetKind: 'institution' | 'program';
   createdAt: Date;
   updatedAt: Date;
 };
@@ -119,6 +143,8 @@ export const ACADEMIC_AUDIT_EVENTS = [
   'academic.catalog.merged',
   'academic.affiliation.created',
   'academic.affiliation.updated',
+  'academic.affiliation.roles_updated',
+  'academic.affiliation.graduated',
   'academic.subject_participation.upserted',
   'academic.context.updated',
   'academic.proposal.created',
