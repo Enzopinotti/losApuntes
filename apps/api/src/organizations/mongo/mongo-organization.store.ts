@@ -302,7 +302,10 @@ export class MongoOrganizationStore implements OrganizationStore {
             throw new ManagerMutationAbort({ status: 'target_state_conflict' });
           }
 
-          if (input.nextRole === null && current?.role === 'owner') {
+          if (
+            current?.role === 'owner' &&
+            input.nextRole !== 'owner'
+          ) {
             const owners = await this.managers
               .countDocuments({
                 organizationId: input.organizationId,
