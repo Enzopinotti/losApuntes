@@ -39,6 +39,9 @@ Ver `docs/architecture/engineering-guardrails.md`.
 - [Pilot HTTP v1](docs/contracts/pilot-ops-http-v1.md)
 - [Pilot completion matrix](docs/product/pilot-v1-completion-matrix.md)
 - [Pilot operational runbook](docs/operations/pilot-v1-runbook.md)
+- [Alumni lifecycle v1](docs/domain/alumni-lifecycle-v1.md)
+- [Alumni lifecycle HTTP v1](docs/contracts/alumni-http-v1.md)
+- [Alumni lifecycle completion matrix](docs/product/alumni-lifecycle-v1-completion-matrix.md)
 
 El Mongo actual es un adapter de runtime, no la definición eterna del dominio.
 
@@ -100,7 +103,7 @@ pnpm audit:prod
 
 `pnpm check` ejecuta higiene, formato, lint, typecheck, tests y builds.
 
-La CI agrega gates críticos específicos de Auth, Academic Graph, Profile, Files/Resources, Search, Social/Q&A, Feeds y Pilot, además del audit de dependencias y el smoke del stack real.
+La CI agrega gates críticos específicos de Auth, Academic Graph, Profile, Files/Resources, Search, Social/Q&A, Feeds, Pilot, Organizations y Alumni, además del audit de dependencias y el smoke del stack real.
 
 ## Laboratorio local
 
@@ -111,7 +114,7 @@ pnpm runtime:smoke
 
 El stack publica el API en `http://localhost:4000`.
 
-El smoke cubre runtime base, Auth, Academic Graph, Profile, Files/Resources, Search/Contextual Discovery, Social/Q&A, Feeds y Pilot Operations contra Mongo replica-set y RustFS efímeros.
+El smoke cubre runtime base, Auth, Academic Graph, Profile, Files/Resources, Search/Contextual Discovery, Social/Q&A, Feeds, Pilot Operations, Organizations y Alumni lifecycle contra Mongo replica-set y RustFS efímeros.
 
 Para logs:
 

@@ -1,8 +1,10 @@
 # Alumni lifecycle v1
 
 **Issue:** #12  
-**Status:** In implementation  
-**Authority:** Academic Graph + Profile + Feeds + Pilot contracts
+**Status:** Implemented / Validated on `main`  
+**Authority:** Academic Graph + Profile + Feeds + Pilot contracts  
+**Implementation:** PR #67 → `f331c58d138659ccd460f1e2d7d4fbe032254150`  
+**Evidence:** candidate verify #851 (`bbf35aba3a6f330ae94c21fe3b3559d06934a6e3`) + post-merge verify #852 (`f331c58d138659ccd460f1e2d7d4fbe032254150`)
 
 ## 1. Mission
 
@@ -56,6 +58,10 @@ The transition is idempotent after a successful graduation. It never deletes pri
 
 The generic affiliation-status endpoint may not be used to bypass the graduation transition when setting `alumni`.
 
+Generic status and role writes are conditioned on the affiliation status observed before persistence. If a concurrent graduation wins the race, the stale write fails closed with `ACADEMIC_AFFILIATION_CONFLICT` instead of mutating the graduated record. Every requested status is validated against the effective relationship roles before persistence.
+
+Explicit `roles: []` is preserved as an explicit empty role set. Conservative status-derived defaults are synthesized only for historical rows where the `roles` field is absent.
+
 ## 4. Current context after graduation
 
 An alumni/completed affiliation may be selected as current context without a subject.
@@ -74,6 +80,8 @@ Users may explicitly follow canonical:
 These follows are separate from affiliation and do not imply enrollment, membership or endorsement.
 
 Follow identity is merge-safe: catalog redirects resolve to the canonical node and old IDs remain removable after a catalog merge.
+
+Stored follows whose targets are missing or no longer followable are omitted from lifecycle/Home projection. Unrelated validation and infrastructure failures still fail closed and are not swallowed.
 
 People/connection and Campus Organization follow semantics remain owned by their existing modules.
 

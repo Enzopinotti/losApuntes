@@ -170,6 +170,139 @@ assert.equal(
   true,
 );
 
+mongoEval(
+  [
+    'const email = ' + JSON.stringify(EMAIL) + ';',
+    "const result = db.users.updateOne({ email }, { $addToSet: { platform_permissions: 'academic:catalog:write' } });",
+    "if (result.matchedCount !== 1) { printjson(result); quit(2); }",
+  ].join('\n'),
+);
+
+const staleFollowProgramCreate = await request(
+  '/academic/admin/catalog',
+  json(
+    'POST',
+    {
+      kind: 'program',
+      name: 'Programa Alumni Follow Obsoleto',
+      parentIds: [institution.id],
+      provenance: {
+        authorityTier: 'C',
+        sourceKey: 'runtime-smoke-alumni',
+        sourceUrl: 'https://example.test/runtime-alumni',
+        externalId: 'stale-follow-program',
+      },
+    },
+    bearer,
+  ),
+);
+assert.equal(
+  staleFollowProgramCreate.response.status,
+  201,
+  JSON.stringify(staleFollowProgramCreate.body),
+);
+const staleFollowProgram = staleFollowProgramCreate.body.node;
+
+const followStaleProgram = await request(
+  '/academic/me/follows/' + staleFollowProgram.id,
+  {
+    method: 'PUT',
+    headers: { authorization: bearer },
+  },
+);
+assert.equal(
+  followStaleProgram.response.status,
+  200,
+  JSON.stringify(followStaleProgram.body),
+);
+
+const deactivateStaleProgram = await request(
+  '/academic/admin/catalog/' + staleFollowProgram.id,
+  json(
+    'PATCH',
+    {
+      expectedRevision: staleFollowProgram.revision,
+      status: 'inactive',
+    },
+    bearer,
+  ),
+);
+assert.equal(
+  deactivateStaleProgram.response.status,
+  200,
+  JSON.stringify(deactivateStaleProgram.body),
+);
+assert.equal(deactivateStaleProgram.body.node.status, 'inactive');
+
+const lifecycleWithStaleFollow = await request('/academic/me/lifecycle', {
+  headers: { authorization: bearer },
+});
+assert.equal(
+  lifecycleWithStaleFollow.response.status,
+  200,
+  JSON.stringify(lifecycleWithStaleFollow.body),
+);
+assert.equal(
+  lifecycleWithStaleFollow.body.follows.some(
+    (row) => row.targetId === staleFollowProgram.id,
+  ),
+  false,
+);
+assert.equal(
+  lifecycleWithStaleFollow.body.follows.some(
+    (row) => row.targetId === institution.id,
+  ),
+  true,
+);
+assert.equal(
+  lifecycleWithStaleFollow.body.follows.some((row) => row.targetId === program.id),
+  true,
+);
+
+const followsWithStaleTarget = await request('/academic/me/follows', {
+  headers: { authorization: bearer },
+});
+assert.equal(
+  followsWithStaleTarget.response.status,
+  200,
+  JSON.stringify(followsWithStaleTarget.body),
+);
+assert.equal(
+  followsWithStaleTarget.body.follows.some(
+    (row) => row.targetId === staleFollowProgram.id,
+  ),
+  false,
+);
+
+const homeWithStaleFollow = await request('/pilot/home', {
+  headers: { authorization: bearer },
+});
+assert.equal(
+  homeWithStaleFollow.response.status,
+  200,
+  JSON.stringify(homeWithStaleFollow.body),
+);
+assert.equal(
+  homeWithStaleFollow.body.lifecycle.follows.some(
+    (row) => row.targetId === staleFollowProgram.id,
+  ),
+  false,
+);
+assert.equal(
+  homeWithStaleFollow.body.lifecycle.follows.some(
+    (row) => row.targetId === institution.id,
+  ),
+  true,
+);
+
+mongoEval(
+  [
+    'const email = ' + JSON.stringify(EMAIL) + ';',
+    "const result = db.users.updateOne({ email }, { $pull: { platform_permissions: 'academic:catalog:write' } });",
+    "if (result.matchedCount !== 1) { printjson(result); quit(2); }",
+  ].join('\n'),
+);
+
 const graduated = await request(
   '/academic/me/affiliations/' + targetAffiliation.id + '/graduate',
   json(
@@ -367,6 +500,8 @@ console.log(
       'multi-role-update',
       'generic-status-bypass-rejected',
       'institution-program-follows',
+      'stale-follow-target-omitted-from-lifecycle',
+      'stale-follow-target-omitted-from-home',
       'graduation-preserves-affiliation-id',
       'graduation-completes-current-subjects',
       'graduation-clears-subject-context',
