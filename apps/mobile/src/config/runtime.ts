@@ -7,7 +7,9 @@ const parseApiOrigin = (raw: string | undefined): string => {
   try {
     url = new URL(raw);
   } catch {
-    throw new Error("EXPO_PUBLIC_API_ORIGIN must be an absolute HTTP(S) origin");
+    throw new Error(
+      "EXPO_PUBLIC_API_ORIGIN must be an absolute HTTP(S) origin",
+    );
   }
 
   if (
@@ -18,7 +20,9 @@ const parseApiOrigin = (raw: string | undefined): string => {
     url.search ||
     url.hash
   ) {
-    throw new Error("EXPO_PUBLIC_API_ORIGIN must be an absolute HTTP(S) origin");
+    throw new Error(
+      "EXPO_PUBLIC_API_ORIGIN must be an absolute HTTP(S) origin",
+    );
   }
 
   return url.origin;

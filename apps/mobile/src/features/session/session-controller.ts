@@ -4,10 +4,7 @@ import type {
   PasswordLoginInput,
 } from "@losapuntes/contracts";
 
-import {
-  ApiRequestError,
-  type MobileApiClient,
-} from "@/services/api/client";
+import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 import type { SessionCredentialStore } from "@/platform/session-credential-store";
 
 export type SessionSnapshot =
@@ -26,7 +23,8 @@ const bootstrapFailure = (error: ApiRequestError): SessionSnapshot => {
   if (error.code === "ACCOUNT_RESTRICTED") return { kind: "restricted" };
   if (error.kind === "offline") return { kind: "offline" };
   if (error.kind === "timeout") return { kind: "timeout" };
-  if (error.kind === "server_unavailable") return { kind: "server_unavailable" };
+  if (error.kind === "server_unavailable")
+    return { kind: "server_unavailable" };
   return { kind: "error" };
 };
 
@@ -85,12 +83,15 @@ export class SessionController {
       if (error instanceof ApiRequestError && error.kind === "unauthorized") {
         this.credential = null;
         await this.clearCredentialIfCurrent(generation);
-        if (this.isCurrent(generation)) this.publish({ kind: "unauthenticated" });
+        if (this.isCurrent(generation))
+          this.publish({ kind: "unauthenticated" });
         return;
       }
 
       this.publish(
-        error instanceof ApiRequestError ? bootstrapFailure(error) : { kind: "error" },
+        error instanceof ApiRequestError
+          ? bootstrapFailure(error)
+          : { kind: "error" },
       );
     }
   }
@@ -129,12 +130,17 @@ export class SessionController {
       });
     } catch (error) {
       if (!this.isCurrent(generation)) return;
-      if (error instanceof ApiRequestError && error.code === "ACCOUNT_RESTRICTED") {
+      if (
+        error instanceof ApiRequestError &&
+        error.code === "ACCOUNT_RESTRICTED"
+      ) {
         this.publish({ kind: "restricted" });
         return;
       }
       this.publish(
-        error instanceof ApiRequestError ? bootstrapFailure(error) : { kind: "error" },
+        error instanceof ApiRequestError
+          ? bootstrapFailure(error)
+          : { kind: "error" },
       );
       throw error;
     }
@@ -163,10 +169,7 @@ export class SessionController {
     credential: string,
     generation: number,
   ): Promise<void> {
-    if (
-      this.credential !== credential ||
-      this.generation !== generation
-    ) {
+    if (this.credential !== credential || this.generation !== generation) {
       return Promise.resolve();
     }
 

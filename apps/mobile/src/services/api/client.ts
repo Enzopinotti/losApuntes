@@ -48,7 +48,9 @@ const failureKind = (status: number): ApiFailureKind => {
   return "unexpected";
 };
 
-const parseErrorBody = async (response: Response): Promise<AuthApiErrorBody> => {
+const parseErrorBody = async (
+  response: Response,
+): Promise<AuthApiErrorBody> => {
   try {
     return (await response.json()) as AuthApiErrorBody;
   } catch {
@@ -62,7 +64,9 @@ const serverMessage = (body: AuthApiErrorBody): string => {
   }
 
   if (Array.isArray(body.message)) {
-    const joined = body.message.filter((item) => typeof item === "string").join(". ");
+    const joined = body.message
+      .filter((item) => typeof item === "string")
+      .join(". ");
     if (joined) return joined;
   }
 
@@ -107,7 +111,8 @@ export class MobileApiClient {
       const response = await fetch(url, {
         method: options.method ?? "GET",
         headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body:
+          options.body === undefined ? undefined : JSON.stringify(options.body),
         redirect: "error",
         signal: controller.signal,
       });
@@ -154,11 +159,14 @@ export class MobileApiClient {
   }
 
   mobileLogin(input: PasswordLoginInput, signal?: AbortSignal) {
-    return this.request<MobileAuthenticatedSessionResponse>("/auth/mobile/login", {
-      method: "POST",
-      body: input,
-      signal,
-    });
+    return this.request<MobileAuthenticatedSessionResponse>(
+      "/auth/mobile/login",
+      {
+        method: "POST",
+        body: input,
+        signal,
+      },
+    );
   }
 
   me(credential: string, signal?: AbortSignal) {

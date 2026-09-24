@@ -30,7 +30,9 @@ export default function SignInRoute() {
     try {
       await login(email, password);
     } catch {
-      setFormError("No pudimos iniciar sesión. Revisá tus datos e intentá de nuevo.");
+      setFormError(
+        "No pudimos iniciar sesión. Revisá tus datos e intentá de nuevo.",
+      );
     }
   };
 

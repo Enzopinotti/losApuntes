@@ -9,10 +9,11 @@ import {
 } from "react";
 
 import { mobileRuntime } from "@/config/runtime";
+import { createSerializedCredentialStore } from "@/features/session/serialized-credential-store";
 import {
-  createSerializedCredentialStore,
-} from "@/features/session/serialized-credential-store";
-import { SessionController, type SessionSnapshot } from "@/features/session/session-controller";
+  SessionController,
+  type SessionSnapshot,
+} from "@/features/session/session-controller";
 import { secureSessionCredentialStore } from "@/platform/session-credential-store";
 import { MobileApiClient } from "@/services/api/client";
 

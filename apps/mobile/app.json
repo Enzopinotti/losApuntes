@@ -6,11 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "losapuntes",
-    "plugins": [
-      "expo-router",
-      "expo-secure-store",
-      "expo-system-ui"
-    ],
+    "plugins": ["expo-router", "expo-secure-store", "expo-system-ui"],
     "experiments": {
       "typedRoutes": true
     },
