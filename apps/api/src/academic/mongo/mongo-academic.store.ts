@@ -412,11 +412,11 @@ export class MongoAcademicStore implements AcademicStore {
     }
 
     const row = await this.contexts
-      .findOneAndUpdate(
-        { userId: input.userId },
-        update,
-        { upsert: true, new: true, session: this.session() },
-      )
+      .findOneAndUpdate({ userId: input.userId }, update, {
+        upsert: true,
+        new: true,
+        session: this.session(),
+      })
       .lean<AcademicCurrentContextRecord>()
       .exec();
 
