@@ -35,7 +35,7 @@ pending FileAsset
 -> bounded signed GET only after an owning domain authorizes it
 ```
 
-The storage adapter is S3-compatible. Local/CI uses private MinIO. Production may use AWS S3 or another compatible provider without changing Resource semantics.
+The storage adapter is S3-compatible. Local/CI uses private RustFS. Production may use AWS S3 or another compatible provider without changing Resource semantics.
 
 The Files domain depends on an `ObjectStorage` port, not provider SDK types outside the adapter.
 
@@ -67,7 +67,7 @@ V1 accepts:
 Maximum object size: **50 MiB**.
 
 Upload intent TTL: **10 minutes**.  
-Download/preview intent TTL: **5 minutes by default**, runtime-bounded to **1–300 seconds**. Local/CI intentionally uses 2 seconds so expiry is proven against real MinIO rather than only asserted from configuration.
+Download/preview intent TTL: **5 minutes by default**, runtime-bounded to **1–300 seconds**. Local/CI intentionally uses 2 seconds so expiry is proven against a real S3-compatible RustFS runtime rather than only asserted from configuration.
 
 The upload URL is single-object and signed with immutable-create semantics. The signature binds the declared `Content-Type` and exact `Content-Length` as well as the create-only condition, so object storage rejects replacement attempts and wrong-sized request bodies before they become valid uploads. Finalization independently re-verifies object existence, exact size, stored Content-Type and a bounded byte prefix against the supported MIME signature.
 
@@ -124,7 +124,7 @@ Search/indexing can later become a separate projection without changing Resource
 ### Costs
 
 - object storage becomes an explicit runtime dependency for upload/download;
-- local/CI needs MinIO;
+- local/CI needs a maintained S3-compatible runtime (currently RustFS);
 - production needs a reviewed public presign origin, TLS and storage CORS;
 - cleanup worker becomes a required operational component.
 
@@ -148,4 +148,4 @@ Rejected. Resource lifecycle and asset lifecycle are distinct and may evolve ind
 
 ### Provider-specific authorization
 
-Rejected. S3/MinIO decides whether a signed storage request is valid; Los Apuntes decides whether a user may receive that signed request.
+Rejected. The S3-compatible storage backend decides whether a signed storage request is valid; Los Apuntes decides whether a user may receive that signed request.
