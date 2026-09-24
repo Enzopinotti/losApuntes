@@ -25,6 +25,7 @@ const validProductionEnvironment = {
   AUTH_SMTP_HOST: 'smtp.example',
   AUTH_SMTP_PORT: '587',
   AUTH_SMTP_SECURE: 'false',
+  AUTH_ABUSE_KEY_SECRET: 'production-auth-abuse-key-secret-2026',
 };
 
 describe('validateRuntimeEnvironment', () => {
@@ -160,6 +161,40 @@ describe('validateRuntimeEnvironment', () => {
       }),
     ).toThrow(
       'TRUSTED_PROXY_CIDRS must contain only comma-separated IP addresses or CIDR ranges',
+    );
+  });
+
+  it('uses the isolated local Auth abuse secret only for local profile', () => {
+    const result = validateRuntimeEnvironment(validEnvironment);
+
+    expect(result.AUTH_ABUSE_KEY_SECRET).toBe(
+      'losapuntes-local-auth-abuse-secret-2026',
+    );
+  });
+
+  it('requires a strong explicit Auth abuse key in production profile', () => {
+    const missing = { ...validProductionEnvironment };
+    delete (missing as Partial<typeof validProductionEnvironment>)
+      .AUTH_ABUSE_KEY_SECRET;
+
+    expect(() => validateRuntimeEnvironment(missing)).toThrow(
+      'AUTH_ABUSE_KEY_SECRET is required',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        AUTH_ABUSE_KEY_SECRET: 'too-short',
+      }),
+    ).toThrow('AUTH_ABUSE_KEY_SECRET must be at least 32 characters');
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        AUTH_ABUSE_KEY_SECRET: 'losapuntes-local-auth-abuse-secret-2026',
+      }),
+    ).toThrow(
+      'AUTH_ABUSE_KEY_SECRET must not use the local development credential in production',
     );
   });
 
