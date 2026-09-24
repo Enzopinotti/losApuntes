@@ -16,10 +16,7 @@ import {
   graduationRoles,
   relationshipRolesCompatible,
 } from './academic-lifecycle.helpers';
-import {
-  ACADEMIC_STORE,
-  type AcademicStore,
-} from './academic.store';
+import { ACADEMIC_STORE, type AcademicStore } from './academic.store';
 import { AcademicService } from './academic.service';
 import type {
   AcademicAffiliationRecord,
