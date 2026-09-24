@@ -37,6 +37,25 @@ Shared contract packages will be introduced only when there is a real contract t
 - Database choice is intentionally unresolved until DER/classes review.
 - Domain names are not finalized from AI suggestions alone.
 
+## Traceability and closure
+
+Delivery uses one traceable chain:
+
+`requirement ID -> external planning key -> issue/PR -> exact candidate SHA/run -> merged main SHA -> post-merge evidence`.
+
+Rules:
+
+- the project spreadsheet is the planning ledger; GitHub must not become a second backlog with divergent status;
+- every implementation carrier references stable external key(s) and requirement ID(s) when they exist;
+- work is registered before implementation and reconciled after every meaningful change;
+- exact-head evidence is mandatory: a green run for an older SHA never certifies a newer commit;
+- review feedback is work, not commentary to ignore: valid findings become explicit tasks/evidence before merge;
+- merge is not closure. Claims such as Implemented/Validated require the merged `main` SHA and post-merge evidence when the change crosses a verified boundary;
+- documentation completion matrices are promoted only after the evidence they claim actually exists;
+- human-readable text prepared for future TOP Tasks/comments is written in Spanish, while machine enums/IDs remain canonical.
+
+The operational procedure is defined in `docs/operations/delivery-traceability.md`.
+
 ## Quality contract
 
 The canonical repository command is `pnpm check`.

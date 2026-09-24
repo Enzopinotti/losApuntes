@@ -20,8 +20,13 @@ A concept documented here is not automatically one table, collection, aggregate,
 - [Academic Catalog source strategy](academic-catalog-source-strategy-2026.md)
 - [Files + Notes v1](files-notes-v1.md)
 - [Search + contextual discovery v1](search-discovery-v1.md)
+- [Social + Q&A v1](social-qa-v1.md)
+- [Feeds v1](feeds-v1.md)
+- [Pilot Operations v1](pilot-ops-v1.md)
+- [Campus Organizations v1](campus-organizations-v1.md)
+- [Alumni lifecycle v1](alumni-lifecycle-v1.md)
 
-The Academic Graph, Profile, Files/Resources and deterministic Search/Contextual Discovery slices are implemented behind explicit authority and replaceable persistence/storage boundaries.
+The implemented v1 baseline now covers Academic Graph, Profile, Files/Resources, deterministic Search/Contextual Discovery, Social/Q&A, healthy bounded Feeds/Home, Pilot Operations, Campus Organizations and Alumni lifecycle. Each slice remains behind explicit authority and replaceable persistence/storage boundaries.
 
 The future NotebookLM DER may revise physical representation and cardinalities. It is no longer a blocker for coding modules, but it remains an architecture reconciliation input.
 

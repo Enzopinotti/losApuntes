@@ -20,6 +20,16 @@ El repositorio activo vive en `main`. Las ramas históricas `frontend` y `backen
 
 Ver `docs/architecture/engineering-guardrails.md`.
 
+## Trazabilidad de delivery
+
+La planificación vive en el Excel operativo del proyecto y no se duplica como un segundo backlog dentro del repo. Cada carrier de implementación referencia su `external_key` estable y los `requirement_ids` aplicables; GitHub conserva la evidencia de implementación.
+
+Cadena esperada:
+
+`requisito -> external_key -> issue/PR -> SHA/run exacto -> merge main -> evidencia post-merge -> actualización del Excel`.
+
+Un merge no equivale por sí solo a cierre. Las reglas y el checklist operativo viven en [Delivery traceability](docs/operations/delivery-traceability.md).
+
 ## Dominio 2026
 
 - [Domain Contract 2026](docs/domain/domain-contract-2026.md)
@@ -35,6 +45,15 @@ Ver `docs/architecture/engineering-guardrails.md`.
 - [Search + contextual discovery v1](docs/domain/search-discovery-v1.md)
 - [Search + contextual discovery HTTP v1](docs/contracts/search-discovery-http-v1.md)
 - [Search + contextual discovery completion matrix](docs/product/search-discovery-v1-completion-matrix.md)
+- [Social + Q&A v1](docs/domain/social-qa-v1.md)
+- [Social + Q&A HTTP v1](docs/contracts/social-qa-http-v1.md)
+- [Social + Q&A completion matrix](docs/product/social-qa-v1-completion-matrix.md)
+- [Feeds v1](docs/domain/feeds-v1.md)
+- [Feeds HTTP v1](docs/contracts/feeds-http-v1.md)
+- [Feeds completion matrix](docs/product/feeds-v1-completion-matrix.md)
+- [Campus Organizations v1](docs/domain/campus-organizations-v1.md)
+- [Campus Organizations HTTP v1](docs/contracts/campus-organizations-http-v1.md)
+- [Campus Organizations completion matrix](docs/product/campus-organizations-v1-completion-matrix.md)
 - [Pilot Operations v1](docs/domain/pilot-ops-v1.md)
 - [Pilot HTTP v1](docs/contracts/pilot-ops-http-v1.md)
 - [Pilot completion matrix](docs/product/pilot-v1-completion-matrix.md)

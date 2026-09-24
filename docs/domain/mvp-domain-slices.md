@@ -60,21 +60,23 @@ Deterministic/scoped discovery is implemented over current Resource, Academic an
 
 ## Slice 6 — Social + lightweight Q&A
 
-Status: next product slice.
+Status: complete in Social + Q&A v1.
 
-Follow/Connection semantics, Question/Answer, Report and essential notifications.
-
-Academic proximity remains separate from social consent. This slice must not smuggle in Feed/For You ranking; Contextual Home remains Slice 7.
+Follow/Connection semantics, Question/Answer, Report and essential notifications are implemented without redefining academic proximity as social consent. Messaging, block/mute and generalized reactions remain separate post-core decisions.
 
 ## Slice 7 — Contextual Home
 
-Rule-based first Home over current subjects, resources, questions, people and followed sources.
+Status: complete in Feeds v1 and Pilot Operations v1.
+
+Academic Feed and For You are bounded, explainable projections with privacy eligibility before ranking, visible reasons, feedback controls, diversity constraints and a natural stop. Pilot Home adds operationally testable contextual continuity without using attention maximization as an objective.
 
 ## Slice 8 — Organizations and alumni lifecycle
 
-Organization management, memberships/follows, alumni/mentor transitions and events.
+Status: core v1 complete across Campus Organizations v1 and Alumni lifecycle v1.
 
-The AcademicAffiliation model already preserves history/multiple affiliations needed for this expansion.
+Organization identity is separate from Institution. Organization managers, claims/verification state, follows, posts/events/links, featured Resources and moderation are implemented. Alumni lifecycle preserves multi-affiliation history, audited graduation, roles, Institution/Program continuity follows, Home/feed continuity and pilot cohort metrics.
+
+Automated legal verification, RSVP/calendar sync, organization chat, paid promotion, diploma/registry verification, recent-graduate expiry and native Mobile acceptance remain explicit later concerns.
 
 ## Slice 9 — Opportunities and professional discovery
 
@@ -134,7 +136,7 @@ Still prohibited:
 
 ## Definition of slice completion
 
-A slice is not complete because models/controllers exist.
+A slice is not complete because models/controllers exist, because a PR merged, or because an older SHA was green.
 
 Each implemented slice should have:
 
@@ -145,4 +147,7 @@ Each implemented slice should have:
 - persistence/migration boundary;
 - degraded/error behavior;
 - exact-head CI evidence;
-- runtime smoke coverage when behavior crosses process/database/storage boundaries.
+- runtime smoke coverage when behavior crosses process/database/storage boundaries;
+- review findings reconciled before merge;
+- merged-main/post-merge evidence before documentation is promoted to Implemented/Validated;
+- planning-ledger reconciliation using the stable external key and requirement IDs.
