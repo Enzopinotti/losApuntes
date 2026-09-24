@@ -792,4 +792,668 @@ describe('OrganizationService', () => {
       'ORGANIZATION_NOT_FOUND',
     );
   });
+
+  it('updates, lists and deletes posts with optimistic concurrency', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    const current = post();
+    const subjectId = '66666666-6666-4666-8666-666666666666';
+    const updated = post({
+      title: null,
+      body: 'Contenido actualizado',
+      subjectId,
+      revision: 2,
+      updatedAt: new Date(now.getTime() + 1_000),
+    });
+
+    organizationStore.findPostById.mockResolvedValue(current);
+    organizationStore.updatePost.mockResolvedValue(updated);
+    organizationStore.listPosts.mockResolvedValue([updated]);
+    organizationStore.deletePost.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const result = await service(organizationStore, dependencies).updatePost(
+      'owner-user',
+      orgId,
+      current.id,
+      {
+        expectedRevision: 1,
+        title: null,
+        body: ' Contenido   actualizado ',
+        subjectId,
+      },
+    );
+
+    expect(result.post.body).toBe('Contenido actualizado');
+    expect(organizationStore.updatePost).toHaveBeenCalledWith(
+      orgId,
+      current.id,
+      1,
+      {
+        title: null,
+        body: 'Contenido actualizado',
+        subjectId,
+      },
+    );
+
+    const listed = await service(organizationStore, dependencies).listPosts(
+      orgId,
+      10,
+      '2026-09-25T00:00:00.000Z',
+    );
+    expect(listed.items).toHaveLength(1);
+    expect(organizationStore.listPosts).toHaveBeenCalledWith({
+      organizationId: orgId,
+      limit: 10,
+      before: new Date('2026-09-25T00:00:00.000Z'),
+    });
+
+    await expect(
+      service(organizationStore, dependencies).deletePost(
+        'owner-user',
+        orgId,
+        current.id,
+      ),
+    ).resolves.toBeUndefined();
+
+    await expectCode(
+      service(organizationStore, dependencies).deletePost(
+        'owner-user',
+        orgId,
+        current.id,
+      ),
+      'ORGANIZATION_NOT_FOUND',
+    );
+
+    await expectCode(
+      service(organizationStore, dependencies).updatePost(
+        'owner-user',
+        orgId,
+        current.id,
+        { expectedRevision: 1 },
+      ),
+      'ORGANIZATION_POST_UPDATE_EMPTY',
+    );
+
+    organizationStore.updatePost.mockResolvedValue(null);
+    await expectCode(
+      service(organizationStore, dependencies).updatePost(
+        'owner-user',
+        orgId,
+        current.id,
+        {
+          expectedRevision: 1,
+          body: 'Cambio concurrente',
+        },
+      ),
+      'ORGANIZATION_POST_REVISION_CONFLICT',
+    );
+
+    organizationStore.findPostById.mockResolvedValue(
+      post({ moderationState: 'hidden' }),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).updatePost(
+        'owner-user',
+        orgId,
+        current.id,
+        {
+          expectedRevision: 1,
+          body: 'No visible',
+        },
+      ),
+      'ORGANIZATION_NOT_FOUND',
+    );
+  });
+
+  it('updates and lists events across nullable and conflict branches', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    const current = event({
+      endsAt: new Date(now.getTime() + 7_200_000),
+      locationLabel: 'Aula 1',
+      externalUrl: 'https://example.test/event',
+    });
+    const changedStart = new Date(now.getTime() + 3_600_000);
+    const updated = event({
+      title: 'Encuentro actualizado',
+      description: null,
+      startsAt: changedStart,
+      endsAt: null,
+      locationLabel: 'Aula 2',
+      externalUrl: 'https://example.test/nuevo',
+      state: 'cancelled',
+      revision: 2,
+      updatedAt: new Date(now.getTime() + 1_000),
+    });
+
+    organizationStore.findEventById.mockResolvedValue(current);
+    organizationStore.updateEvent.mockResolvedValue(updated);
+    organizationStore.listEvents.mockResolvedValue([updated]);
+
+    const result = await service(organizationStore, dependencies).updateEvent(
+      'owner-user',
+      orgId,
+      current.id,
+      {
+        expectedRevision: 1,
+        title: ' Encuentro   actualizado ',
+        description: null,
+        startsAt: changedStart.toISOString(),
+        endsAt: null,
+        locationLabel: ' Aula 2 ',
+        externalUrl: 'https://example.test/nuevo',
+        state: 'cancelled',
+      },
+    );
+
+    expect(result.event.state).toBe('cancelled');
+    expect(organizationStore.updateEvent).toHaveBeenCalledWith(
+      orgId,
+      current.id,
+      1,
+      expect.objectContaining({
+        title: 'Encuentro actualizado',
+        description: null,
+        startsAt: changedStart,
+        endsAt: null,
+        locationLabel: 'Aula 2',
+        externalUrl: 'https://example.test/nuevo',
+        state: 'cancelled',
+      }),
+    );
+
+    const listed = await service(organizationStore, dependencies).listEvents(
+      orgId,
+      15,
+      now.toISOString(),
+    );
+    expect(listed.items).toHaveLength(1);
+    expect(organizationStore.listEvents).toHaveBeenCalledWith({
+      organizationId: orgId,
+      limit: 15,
+      from: now,
+    });
+
+    await expectCode(
+      service(organizationStore, dependencies).updateEvent(
+        'owner-user',
+        orgId,
+        current.id,
+        { expectedRevision: 1 },
+      ),
+      'ORGANIZATION_EVENT_UPDATE_EMPTY',
+    );
+
+    organizationStore.updateEvent.mockResolvedValue(null);
+    await expectCode(
+      service(organizationStore, dependencies).updateEvent(
+        'owner-user',
+        orgId,
+        current.id,
+        {
+          expectedRevision: 1,
+          title: 'Conflicto',
+        },
+      ),
+      'ORGANIZATION_EVENT_REVISION_CONFLICT',
+    );
+
+    organizationStore.findEventById.mockResolvedValue(null);
+    await expectCode(
+      service(organizationStore, dependencies).updateEvent(
+        'owner-user',
+        orgId,
+        current.id,
+        {
+          expectedRevision: 1,
+          title: 'No existe',
+        },
+      ),
+      'ORGANIZATION_NOT_FOUND',
+    );
+  });
+
+  it('creates and deletes useful links and enforces the bounded link set', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    const link = {
+      id: '88888888-8888-4888-8888-888888888888',
+      organizationId: orgId,
+      createdByUserId: 'owner-user',
+      label: 'Sitio oficial',
+      url: 'https://example.test/',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    organizationStore.listLinks.mockResolvedValue([]);
+    organizationStore.createLink.mockResolvedValue(link);
+    organizationStore.deleteLink.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const result = await service(organizationStore, dependencies).createLink(
+      'owner-user',
+      orgId,
+      {
+        label: ' Sitio   oficial ',
+        url: 'https://example.test',
+      },
+    );
+    expect(result.link).toEqual({
+      id: link.id,
+      label: 'Sitio oficial',
+      url: 'https://example.test/',
+    });
+
+    await expect(
+      service(organizationStore, dependencies).deleteLink(
+        'owner-user',
+        orgId,
+        link.id,
+      ),
+    ).resolves.toBeUndefined();
+
+    await expectCode(
+      service(organizationStore, dependencies).deleteLink(
+        'owner-user',
+        orgId,
+        link.id,
+      ),
+      'ORGANIZATION_NOT_FOUND',
+    );
+
+    organizationStore.listLinks.mockResolvedValue(
+      Array.from({ length: 20 }, (_, index) => ({
+        ...link,
+        id: `88888888-8888-4888-8${String(index).padStart(3, '0')}-888888888888`,
+      })),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).createLink(
+        'owner-user',
+        orgId,
+        {
+          label: 'Otro',
+          url: 'https://example.test/otro',
+        },
+      ),
+      'ORGANIZATION_LINK_LIMIT',
+    );
+  });
+
+  it('features and unfeatures public Resources while preserving limits and upstream errors', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    const resourceId = '77777777-7777-4777-8777-777777777777';
+
+    dependencies.resources.get.mockResolvedValue({ resource: {} } as never);
+    organizationStore.listFeaturedResources.mockResolvedValue([]);
+    organizationStore.featureResource.mockResolvedValue({
+      organizationId: orgId,
+      resourceId,
+      createdByUserId: 'owner-user',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(
+      service(organizationStore, dependencies).featureResource(
+        'owner-user',
+        orgId,
+        resourceId,
+      ),
+    ).resolves.toEqual({ featured: true });
+    expect(organizationStore.featureResource).toHaveBeenCalledWith({
+      organizationId: orgId,
+      resourceId,
+      createdByUserId: 'owner-user',
+    });
+
+    await expect(
+      service(organizationStore, dependencies).unfeatureResource(
+        'owner-user',
+        orgId,
+        resourceId,
+      ),
+    ).resolves.toBeUndefined();
+
+    organizationStore.listFeaturedResources.mockResolvedValue(
+      Array.from({ length: 20 }, (_, index) => ({
+        organizationId: orgId,
+        resourceId: `77777777-7777-4777-8${String(index).padStart(3, '0')}-777777777777`,
+        createdByUserId: 'owner-user',
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).featureResource(
+        'owner-user',
+        orgId,
+        '99999999-9999-4999-8999-999999999999',
+      ),
+      'ORGANIZATION_RESOURCE_LIMIT',
+    );
+
+    const upstream = new Error('resource backend unavailable');
+    dependencies.resources.get.mockRejectedValue(upstream);
+    await expect(
+      service(organizationStore, dependencies).featureResource(
+        'owner-user',
+        orgId,
+        resourceId,
+      ),
+    ).rejects.toBe(upstream);
+  });
+
+  it('covers manager no-op, capacity, missing-manager and revision conflicts', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+
+    organizationStore.findManager
+      .mockResolvedValueOnce(manager('owner'))
+      .mockResolvedValueOnce(manager('editor', 'target-user'))
+      .mockResolvedValueOnce(manager('owner'));
+    organizationStore.listManagers.mockResolvedValue([
+      manager('owner'),
+      manager('editor', 'target-user'),
+    ]);
+
+    const unchanged = await service(
+      organizationStore,
+      dependencies,
+    ).changeManager('owner-user', orgId, profileId, {
+      role: 'editor',
+      reason: 'Sin cambio',
+      expectedManagementRevision: 1,
+    });
+    expect(unchanged.managers).toHaveLength(2);
+    expect(organizationStore.changeManager).not.toHaveBeenCalled();
+
+    organizationStore.findById.mockResolvedValue(
+      organization({ managementRevision: 2 }),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).changeManager(
+        'owner-user',
+        orgId,
+        profileId,
+        {
+          role: 'admin',
+          reason: 'Stale',
+          expectedManagementRevision: 1,
+        },
+      ),
+      'ORGANIZATION_MANAGEMENT_REVISION_CONFLICT',
+    );
+
+    organizationStore.findById.mockResolvedValue(organization());
+    organizationStore.findManager
+      .mockReset()
+      .mockResolvedValueOnce(manager('owner'))
+      .mockResolvedValueOnce(null);
+    organizationStore.listManagers.mockResolvedValue(
+      Array.from({ length: 20 }, (_, index) =>
+        manager(index === 0 ? 'owner' : 'editor', `manager-${index}`),
+      ),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).changeManager(
+        'owner-user',
+        orgId,
+        profileId,
+        {
+          role: 'editor',
+          reason: 'Capacidad',
+          expectedManagementRevision: 1,
+        },
+      ),
+      'ORGANIZATION_MANAGER_LIMIT',
+    );
+
+    organizationStore.findManager.mockReset().mockResolvedValue(null);
+    await expectCode(
+      service(organizationStore, dependencies).managementSnapshot(
+        'stranger',
+        orgId,
+      ),
+      'ORGANIZATION_MANAGEMENT_FORBIDDEN',
+    );
+  });
+
+  it('covers search cursor decoding and canonical single-scope validation', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    const row = organization({ normalizedName: 'centro' });
+    organizationStore.search.mockResolvedValue({ items: [row], hasMore: false });
+
+    dependencies.academic.getCatalogNode.mockResolvedValueOnce({
+      node: {
+        id: institutionId,
+        kind: 'institution',
+        name: 'Universidad',
+        aliases: [],
+        parentIds: [],
+        status: 'active',
+        redirectToId: undefined,
+        provenance: {
+          authorityTier: 'C',
+          sourceKey: 'test',
+          sourceUrl: 'https://example.test',
+          externalId: undefined,
+          sourceObservedName: undefined,
+          sourceFingerprint: undefined,
+          verifiedAt: undefined,
+        },
+        revision: 1,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+      resolvedFromId: null,
+    });
+
+    const cursor = Buffer.from(
+      JSON.stringify({ normalizedName: 'anterior', id: orgId }),
+      'utf8',
+    ).toString('base64url');
+    await service(organizationStore, dependencies).search('viewer', {
+      institutionId,
+      limit: 10,
+      cursor,
+    });
+    expect(organizationStore.search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        institutionId,
+        after: { normalizedName: 'anterior', id: orgId },
+      }),
+    );
+
+    dependencies.academic.getCatalogNode.mockResolvedValueOnce({
+      node: {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        kind: 'program',
+        name: 'Programa',
+        aliases: [],
+        parentIds: [],
+        status: 'active',
+        redirectToId: undefined,
+        provenance: {
+          authorityTier: 'C',
+          sourceKey: 'test',
+          sourceUrl: 'https://example.test',
+          externalId: undefined,
+          sourceObservedName: undefined,
+          sourceFingerprint: undefined,
+          verifiedAt: undefined,
+        },
+        revision: 1,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+      resolvedFromId: null,
+    });
+    await service(organizationStore, dependencies).search(undefined, {
+      programId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      limit: 10,
+    });
+    expect(organizationStore.search).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        programId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      }),
+    );
+
+    dependencies.academic.getCatalogNode.mockResolvedValueOnce({
+      node: {
+        id: institutionId,
+        kind: 'subject',
+        name: 'No institución',
+        aliases: [],
+        parentIds: [],
+        status: 'active',
+        redirectToId: undefined,
+        provenance: {
+          authorityTier: 'C',
+          sourceKey: 'test',
+          sourceUrl: 'https://example.test',
+          externalId: undefined,
+          sourceObservedName: undefined,
+          sourceFingerprint: undefined,
+          verifiedAt: undefined,
+        },
+        revision: 1,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+      resolvedFromId: null,
+    });
+    await expectCode(
+      service(organizationStore, dependencies).search(undefined, {
+        institutionId,
+        limit: 10,
+      }),
+      'ORGANIZATION_SCOPE_INVALID',
+    );
+
+    await expectCode(
+      service(organizationStore, dependencies).search(undefined, {
+        limit: 10,
+        cursor: Buffer.from(JSON.stringify({ nope: true })).toString(
+          'base64url',
+        ),
+      }),
+      'ORGANIZATION_CURSOR_INVALID',
+    );
+  });
+
+  it('projects public managers/resources and resolves feed targets fail-closed', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    const link = {
+      id: '88888888-8888-4888-8888-888888888888',
+      organizationId: orgId,
+      createdByUserId: 'owner-user',
+      label: 'Sitio',
+      url: 'https://example.test/',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const featured = {
+      organizationId: orgId,
+      resourceId: '77777777-7777-4777-8777-777777777777',
+      createdByUserId: 'owner-user',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    organizationStore.listManagers.mockResolvedValue([
+      manager('owner'),
+      manager('editor', 'unknown-user'),
+    ]);
+    dependencies.profiles.getAttributionsForUsers.mockResolvedValue(new Map());
+    organizationStore.listLinks.mockResolvedValue([link]);
+    organizationStore.listFeaturedResources.mockResolvedValue([featured]);
+    organizationStore.listPosts.mockResolvedValue([post()]);
+    organizationStore.listEvents.mockResolvedValue([event()]);
+    dependencies.resources.get.mockResolvedValue({
+      resource: {
+        id: featured.resourceId,
+        title: 'Guía pública',
+        academic: {
+          subject: {
+            id: '66666666-6666-4666-8666-666666666666',
+            name: 'Materia',
+          },
+        },
+      },
+    } as never);
+
+    const publicResult = await service(
+      organizationStore,
+      dependencies,
+    ).get(orgId);
+    expect(publicResult.organization.managers[0]?.profile.displayName).toBe(
+      'Usuario de Los Apuntes',
+    );
+    expect(publicResult.organization.links).toEqual([
+      { id: link.id, label: link.label, url: link.url },
+    ]);
+    expect(publicResult.organization.featuredResources).toHaveLength(1);
+    expect(publicResult.organization.posts).toHaveLength(1);
+    expect(publicResult.organization.events).toHaveLength(1);
+    expect(publicResult.organization.viewer).toBeUndefined();
+
+    organizationStore.findPostByGlobalId.mockResolvedValue(post());
+    organizationStore.findById.mockResolvedValue(organization());
+    await expect(
+      service(organizationStore, dependencies).getFeedTarget(post().id),
+    ).resolves.toEqual({
+      post: post(),
+      organization: organization(),
+    });
+
+    organizationStore.findById.mockResolvedValue(
+      organization({ status: 'archived' }),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).getFeedTarget(post().id),
+      'ORGANIZATION_NOT_FOUND',
+    );
+  });
+
+  it('maps academic scope failures and unexpected feature errors without hiding them', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+
+    dependencies.academic.resolveOrganizationScope.mockRejectedValueOnce(
+      new NotFoundException('missing academic node'),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).create('owner-user', {
+        name: 'Centro',
+        type: 'student_center',
+        institutionId,
+      }),
+      'ORGANIZATION_SCOPE_INVALID',
+    );
+
+    dependencies.academic.resolveOrganizationScope.mockRejectedValueOnce(
+      new UnprocessableEntityException('bad scope'),
+    );
+    await expectCode(
+      service(organizationStore, dependencies).create('owner-user', {
+        name: 'Centro',
+        type: 'student_center',
+        institutionId,
+      }),
+      'ORGANIZATION_SCOPE_INVALID',
+    );
+  });
+
 });
