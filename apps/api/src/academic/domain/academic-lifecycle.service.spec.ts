@@ -454,12 +454,12 @@ describe('AcademicLifecycleService', () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(lifecycleStore.updateAffiliationRoles).toHaveBeenCalledWith(
+    expect(lifecycleStore.updateAffiliationRoles.mock.calls).toContainEqual([
       'user-1',
       existing.id,
       'active',
       ['mentor'],
-    );
+    ]);
   });
 
   it('follows and unfollows canonical institution/program identity sets', async () => {
