@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Los Apuntes",
+    "slug": "los-apuntes",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "losapuntes",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-system-ui"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.losapuntes.app"
+    },
+    "android": {
+      "package": "com.losapuntes.app",
+      "softwareKeyboardLayoutMode": "resize",
+      "predictiveBackGestureEnabled": false
+    }
+  }
+}
