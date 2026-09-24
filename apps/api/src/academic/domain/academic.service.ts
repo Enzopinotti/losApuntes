@@ -497,7 +497,7 @@ export class AcademicService {
       });
     }
 
-    if (existing.status === 'alumni' && dto.status !== 'alumni') {
+    if (existing.status === 'alumni') {
       throw new ConflictException({
         code: 'ACADEMIC_ALUMNI_HISTORY_IMMUTABLE',
         message: 'Alumni history is preserved; create a new affiliation instead',
