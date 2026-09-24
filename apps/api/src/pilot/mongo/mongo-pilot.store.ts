@@ -280,8 +280,9 @@ export class MongoPilotStore implements PilotStore {
       this.connection.collection<PilotEventDocument>('pilot_events');
     const resourceReports = this.connection.collection('resource_reports');
     const qaReports = this.connection.collection('qa_reports');
-    const organizationReports =
-      this.connection.collection('organization_reports');
+    const organizationReports = this.connection.collection(
+      'organization_reports',
+    );
 
     const onboardingRows = await users
       .aggregate<{ accountsCreated: number; profilesCompleted: number }>([
@@ -504,8 +505,7 @@ export class MongoPilotStore implements PilotStore {
       },
       moderation: {
         pending: resourcePending + qaPending + organizationPending,
-        reviewedInWindow:
-          resourceReviewed + qaReviewed + organizationReviewed,
+        reviewedInWindow: resourceReviewed + qaReviewed + organizationReviewed,
         oldestPendingAt,
       },
       subjects: allSubjects.slice(0, 100),
@@ -516,9 +516,7 @@ export class MongoPilotStore implements PilotStore {
   private async queueItem(
     kind: PilotReportKind,
     report:
-      | ResourceReportDocument
-      | QaReportDocument
-      | OrganizationReportDocument,
+      ResourceReportDocument | QaReportDocument | OrganizationReportDocument,
   ): Promise<PilotModerationQueueItem> {
     const target = this.targetIdentity(kind, report);
     const targetCollection =
@@ -570,9 +568,7 @@ export class MongoPilotStore implements PilotStore {
   private targetIdentity(
     kind: PilotReportKind,
     report:
-      | ResourceReportDocument
-      | QaReportDocument
-      | OrganizationReportDocument,
+      ResourceReportDocument | QaReportDocument | OrganizationReportDocument,
   ): {
     kind:
       | 'resource'
