@@ -9,6 +9,8 @@ import type {
   OrganizationManagerRole,
   OrganizationPostRecord,
   OrganizationRecord,
+  OrganizationReportReason,
+  OrganizationReportRecord,
   OrganizationType,
   OrganizationVerificationState,
 } from './organization.types';
@@ -188,4 +190,13 @@ export interface OrganizationStore {
   listFeaturedResources(
     organizationId: string,
   ): Promise<OrganizationFeaturedResourceRecord[]>;
+
+  upsertPendingReport(input: {
+    id: string;
+    targetType: 'organization_post' | 'organization_event';
+    targetId: string;
+    reporterUserId: string;
+    reason: OrganizationReportReason;
+    details: string | null;
+  }): Promise<OrganizationReportRecord>;
 }
