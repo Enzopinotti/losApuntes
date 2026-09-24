@@ -716,11 +716,7 @@ describe('FeedService', () => {
   it('excludes organization posts when social feed signals are disabled', async () => {
     const feedStore = store();
     const deps = dependencies();
-    configureDefaults(
-      feedStore,
-      deps,
-      preferences({ useSocial: false }),
-    );
+    configureDefaults(feedStore, deps, preferences({ useSocial: false }));
 
     await service(feedStore, deps).forYou('viewer', {
       limit: 10,
@@ -765,5 +761,4 @@ describe('FeedService', () => {
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     );
   });
-
 });
