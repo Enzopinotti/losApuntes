@@ -432,8 +432,65 @@ export class MongoPilotStore implements PilotStore {
         .toArray(),
     ]);
 
+    const cohortUserIds = [...new Set([...currentUsers, ...previousUsers])];
+    const affiliationRows =
+      cohortUserIds.length === 0
+        ? []
+        : await this.connection
+            .collection<{ userId: string; status: string }>(
+              'academic_affiliations',
+            )
+            .find({
+              userId: { $in: cohortUserIds },
+              status: { $in: ['active', 'paused', 'completed', 'alumni'] },
+            })
+            .project<{ userId: string; status: string }>({
+              _id: 0,
+              userId: 1,
+              status: 1,
+            })
+            .toArray();
+    const statusesByUser = new Map<string, Set<string>>();
+
+    for (const row of affiliationRows) {
+      const statuses = statusesByUser.get(row.userId) ?? new Set<string>();
+      statuses.add(row.status);
+      statusesByUser.set(row.userId, statuses);
+    }
+
+    const cohort = (userId: string): 'activeStudent' | 'alumni' | 'community' => {
+      const statuses = statusesByUser.get(userId);
+      if (statuses?.has('active') || statuses?.has('paused')) {
+        return 'activeStudent';
+      }
+      if (statuses?.has('alumni') || statuses?.has('completed')) {
+        return 'alumni';
+      }
+      return 'community';
+    };
+
     const previousSet = new Set(previousUsers);
     const returningUsers = currentUsers.filter((id) => previousSet.has(id));
+    const audience = {
+      activeStudents: { activeUsers: 0, returningUsers: 0 },
+      alumni: { activeUsers: 0, returningUsers: 0 },
+      community: { activeUsers: 0, returningUsers: 0 },
+    };
+
+    for (const userId of currentUsers) {
+      const key = cohort(userId);
+      if (key === 'activeStudent') {
+        audience.activeStudents.activeUsers += 1;
+        if (previousSet.has(userId)) audience.activeStudents.returningUsers += 1;
+      } else if (key === 'alumni') {
+        audience.alumni.activeUsers += 1;
+        if (previousSet.has(userId)) audience.alumni.returningUsers += 1;
+      } else {
+        audience.community.activeUsers += 1;
+        if (previousSet.has(userId)) audience.community.returningUsers += 1;
+      }
+    }
+
     const subjectMap = new Map<string, PilotSubjectDensity>();
 
     const ensure = (subjectId: string): PilotSubjectDensity => {
@@ -499,6 +556,7 @@ export class MongoPilotStore implements PilotStore {
         activeUsers: currentUsers.length,
         returningUsers: returningUsers.length,
       },
+      audience,
       contributions: {
         events: contributionEvents,
         contributors: contributorIds.length,
