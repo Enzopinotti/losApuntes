@@ -128,6 +128,7 @@ export interface OrganizationEventRecord {
   locationLabel: string | null;
   externalUrl: string | null;
   state: OrganizationEventState;
+  moderationState: 'available' | 'hidden';
   revision: number;
   createdAt: Date;
   updatedAt: Date;
