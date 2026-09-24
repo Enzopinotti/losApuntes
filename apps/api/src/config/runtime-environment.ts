@@ -2,6 +2,7 @@ import { isIP } from 'node:net';
 
 const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
 const VALID_AUTH_EMAIL_DELIVERY_MODES = new Set(['disabled', 'smtp']);
+const VALID_DEPLOYMENT_PROFILES = new Set(['local', 'production']);
 const KNOWN_LOCAL_PRODUCTION_CREDENTIALS = new Map<string, Set<string>>([
   ['FILES_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
   ['FILES_S3_SECRET_ACCESS_KEY', new Set(['losapuntes-local-files-secret'])],
@@ -127,6 +128,22 @@ function parseHttpOrigin(value: unknown, key: string): string | undefined {
   return url.origin;
 }
 
+function isLoopbackHttpOrigin(value: string | undefined): boolean {
+  if (!value) return false;
+
+  const url = new URL(value);
+  return (
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
+    ['http:', 'https:'].includes(url.protocol)
+  );
+}
+
+function requireHttpsOrigin(value: string | undefined, key: string): void {
+  if (!value || new URL(value).protocol !== 'https:') {
+    throw new Error(`${key} must use https in the production deployment profile`);
+  }
+}
+
 function parseHttpUrl(value: unknown, key: string): string | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined;
@@ -213,11 +230,13 @@ export function parseTrustedProxyCidrs(value: unknown): string[] {
 
 function rejectKnownLocalProductionCredential(
   nodeEnv: string,
+  deploymentProfile: string,
   key: string,
   value: string,
 ): void {
   if (
     nodeEnv === 'production' &&
+    deploymentProfile === 'production' &&
     KNOWN_LOCAL_PRODUCTION_CREDENTIALS.get(key)?.has(value)
   ) {
     throw new Error(
@@ -252,6 +271,20 @@ export function validateRuntimeEnvironment(
 
   if (!VALID_NODE_ENVIRONMENTS.has(nodeEnv)) {
     throw new Error('NODE_ENV must be development, test or production');
+  }
+
+  const deploymentProfile =
+    optionalString(source, 'DEPLOYMENT_PROFILE') ??
+    (nodeEnv === 'production' ? 'production' : 'local');
+
+  if (!VALID_DEPLOYMENT_PROFILES.has(deploymentProfile)) {
+    throw new Error('DEPLOYMENT_PROFILE must be local or production');
+  }
+
+  if (deploymentProfile === 'production' && nodeEnv !== 'production') {
+    throw new Error(
+      'DEPLOYMENT_PROFILE=production requires NODE_ENV=production',
+    );
   }
 
   const mongoUri = requiredString(source, 'MONGO_URI');
@@ -302,14 +335,37 @@ export function validateRuntimeEnvironment(
 
   rejectKnownLocalProductionCredential(
     nodeEnv,
+    deploymentProfile,
     'FILES_S3_ACCESS_KEY_ID',
     filesS3AccessKeyId,
   );
   rejectKnownLocalProductionCredential(
     nodeEnv,
+    deploymentProfile,
     'FILES_S3_SECRET_ACCESS_KEY',
     filesS3SecretAccessKey,
   );
+
+  if (nodeEnv === 'production' && deploymentProfile === 'local') {
+    if (
+      !isLoopbackHttpOrigin(webOrigin) ||
+      !isLoopbackHttpOrigin(authActionBaseUrl) ||
+      !isLoopbackHttpOrigin(filesS3PublicEndpoint)
+    ) {
+      throw new Error(
+        'DEPLOYMENT_PROFILE=local with NODE_ENV=production requires loopback public origins',
+      );
+    }
+  }
+
+  if (deploymentProfile === 'production') {
+    requireHttpsOrigin(webOrigin, 'WEB_ORIGIN');
+    requireHttpsOrigin(authActionBaseUrl, 'AUTH_ACTION_BASE_URL');
+    requireHttpsOrigin(
+      filesS3PublicEndpoint,
+      'FILES_S3_PUBLIC_ENDPOINT',
+    );
+  }
 
   if (Boolean(smtpUser) !== Boolean(smtpPass)) {
     throw new Error(
@@ -332,6 +388,7 @@ export function validateRuntimeEnvironment(
   const result: Record<string, unknown> = {
     ...source,
     NODE_ENV: nodeEnv,
+    DEPLOYMENT_PROFILE: deploymentProfile,
     PORT: parsePort(source.PORT, 'PORT', 4000),
     MONGO_URI: mongoUri,
     WEB_ORIGIN: webOrigin,
