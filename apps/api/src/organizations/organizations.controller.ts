@@ -105,11 +105,7 @@ export class OrganizationsController {
     return this.organizations.update(request.user.id, id, dto);
   }
 
-  @UseGuards(
-    AuthSessionGuard,
-    VerifiedEmailGuard,
-    OrganizationsVerifyGuard,
-  )
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard, OrganizationsVerifyGuard)
   @Patch(':id/verification')
   verification(
     @Req() request: AuthenticatedRequest,
@@ -200,12 +196,7 @@ export class OrganizationsController {
     @Param('postId', new ParseUUIDPipe({ version: '4' })) postId: string,
     @Body() dto: UpdateOrganizationPostDto,
   ) {
-    return this.organizations.updatePost(
-      request.user.id,
-      id,
-      postId,
-      dto,
-    );
+    return this.organizations.updatePost(request.user.id, id, postId, dto);
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
@@ -247,12 +238,7 @@ export class OrganizationsController {
     @Param('eventId', new ParseUUIDPipe({ version: '4' })) eventId: string,
     @Body() dto: UpdateOrganizationEventDto,
   ) {
-    return this.organizations.updateEvent(
-      request.user.id,
-      id,
-      eventId,
-      dto,
-    );
+    return this.organizations.updateEvent(request.user.id, id, eventId, dto);
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
@@ -283,11 +269,7 @@ export class OrganizationsController {
     @Param('resourceId', new ParseUUIDPipe({ version: '4' }))
     resourceId: string,
   ) {
-    return this.organizations.featureResource(
-      request.user.id,
-      id,
-      resourceId,
-    );
+    return this.organizations.featureResource(request.user.id, id, resourceId);
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
@@ -298,10 +280,6 @@ export class OrganizationsController {
     @Param('resourceId', new ParseUUIDPipe({ version: '4' }))
     resourceId: string,
   ): Promise<void> {
-    await this.organizations.unfeatureResource(
-      request.user.id,
-      id,
-      resourceId,
-    );
+    await this.organizations.unfeatureResource(request.user.id, id, resourceId);
   }
 }
