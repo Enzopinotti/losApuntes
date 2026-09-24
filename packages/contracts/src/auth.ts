@@ -39,8 +39,8 @@ export interface GoogleAvailabilityResponse {
 }
 
 export interface LoginMethodsResponse {
-  password: boolean;
-  google: boolean;
+  passwordConfigured: boolean;
+  googleConnected: boolean;
 }
 
 export interface AuthApiErrorBody {
