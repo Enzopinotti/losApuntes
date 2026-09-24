@@ -81,6 +81,7 @@ services:
       AUTH_SMTP_HOST: mailpit
       AUTH_SMTP_PORT: 1025
       AUTH_SMTP_SECURE: "false"
+      ABUSE_CONTROL_HMAC_SECRET: losapuntes-local-abuse-hmac-secret-v1
       FILES_STORAGE_PROVIDER: s3
       FILES_S3_ENDPOINT: http://rustfs:9000
       FILES_S3_PUBLIC_ENDPOINT: http://localhost:9000
@@ -129,6 +130,7 @@ services:
       AUTH_SMTP_HOST: mailpit
       AUTH_SMTP_PORT: 1025
       AUTH_SMTP_SECURE: "false"
+      ABUSE_CONTROL_HMAC_SECRET: losapuntes-local-abuse-hmac-secret-v1
       FILES_STORAGE_PROVIDER: s3
       FILES_S3_ENDPOINT: http://rustfs:9000
       FILES_S3_PUBLIC_ENDPOINT: http://localhost:9000
