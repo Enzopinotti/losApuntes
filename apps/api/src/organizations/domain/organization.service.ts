@@ -179,10 +179,7 @@ export class OrganizationService {
     });
 
     return {
-      organization: await this.detailProjection(
-        created.organization,
-        userId,
-      ),
+      organization: await this.detailProjection(created.organization, userId),
     };
   }
 
@@ -351,7 +348,11 @@ export class OrganizationService {
     if (!targetUserId) this.notFound();
 
     const current = await this.store.findManager(id, targetUserId);
-    this.assertManagerMutationAllowed(actor.role, current?.role ?? null, dto.role);
+    this.assertManagerMutationAllowed(
+      actor.role,
+      current?.role ?? null,
+      dto.role,
+    );
 
     if (current?.role === dto.role) {
       return this.managementSnapshot(userId, id);
@@ -545,11 +546,7 @@ export class OrganizationService {
     if (!deleted) this.notFound();
   }
 
-  async listPosts(
-    organizationId: string,
-    limit: number,
-    before?: string,
-  ) {
+  async listPosts(organizationId: string, limit: number, before?: string) {
     const organization = await this.requireActive(organizationId);
     const rows = await this.store.listPosts({
       organizationId,
@@ -660,11 +657,7 @@ export class OrganizationService {
     return { event: this.eventProjection(updated) };
   }
 
-  async listEvents(
-    organizationId: string,
-    limit: number,
-    from?: string,
-  ) {
+  async listEvents(organizationId: string, limit: number, from?: string) {
     await this.requireActive(organizationId);
     const rows = await this.store.listEvents({
       organizationId,
@@ -851,9 +844,9 @@ export class OrganizationService {
     });
     const organizations = new Map(
       (
-        await this.store.findManyByIds(
-          [...new Set(posts.map((row) => row.organizationId))],
-        )
+        await this.store.findManyByIds([
+          ...new Set(posts.map((row) => row.organizationId)),
+        ])
       ).map((row) => [row.id, row] as const),
     );
 
@@ -918,7 +911,9 @@ export class OrganizationService {
     const publicResources = [];
     for (const row of featured.slice(0, MAX_FEATURED_RESOURCES)) {
       try {
-        publicResources.push((await this.resources.get(row.resourceId)).resource);
+        publicResources.push(
+          (await this.resources.get(row.resourceId)).resource,
+        );
       } catch (error) {
         if (!(error instanceof NotFoundException)) throw error;
       }
@@ -1071,11 +1066,7 @@ export class OrganizationService {
     };
   }
 
-  private linkProjection(link: {
-    id: string;
-    label: string;
-    url: string;
-  }) {
+  private linkProjection(link: { id: string; label: string; url: string }) {
     return { id: link.id, label: link.label, url: link.url };
   }
 
