@@ -1,13 +1,19 @@
+import type { AcademicLifecycleResponse } from "../academic/interfaces";
 import type {
   AcademicFeedResponse,
+  FeedPageResponse,
   ForYouFeedResponse,
 } from "../feeds/interfaces";
 
 export type PilotHomeResponse = {
   profileReady: boolean;
+  lifecycle: AcademicLifecycleResponse;
   academic: {
     currentContext: unknown | null;
     currentSubjectIds: string[];
+  };
+  homeFeed: FeedPageResponse & {
+    kind: "subjects" | "community";
   };
   academicFeed: AcademicFeedResponse;
   forYou: ForYouFeedResponse;
@@ -66,6 +72,20 @@ export type PilotMetricsResponse = {
     activeUsers: number;
     returningUsers: number;
     returningRate: number;
+  };
+  audience: {
+    activeStudents: {
+      activeUsers: number;
+      returningUsers: number;
+    };
+    alumni: {
+      activeUsers: number;
+      returningUsers: number;
+    };
+    community: {
+      activeUsers: number;
+      returningUsers: number;
+    };
   };
   contributions: {
     events: number;

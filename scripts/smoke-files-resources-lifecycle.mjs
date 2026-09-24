@@ -59,6 +59,36 @@ function mongoEval(script) {
   ).trim();
 }
 
+function storageObjectExists(objectKey) {
+  const result = spawnSync(
+    'docker',
+    [
+      'compose',
+      '-f',
+      'compose.local.yml',
+      'run',
+      '--rm',
+      '-T',
+      '-e',
+      `SMOKE_OBJECT_KEY=${objectKey}`,
+      '--entrypoint',
+      '/bin/sh',
+      'rustfs-init',
+      '-c',
+      [
+        '/usr/bin/rc alias set local http://rustfs:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" >/dev/null',
+        '/usr/bin/rc stat "local/losapuntes-files/$SMOKE_OBJECT_KEY" >/dev/null',
+      ].join(' && '),
+    ],
+    { encoding: 'utf8' },
+  );
+
+  return {
+    exists: result.status === 0,
+    stderr: result.stderr,
+  };
+}
+
 async function createVerifiedUser(label) {
   const email = `files-${label}-${randomUUID()}@example.test`.toLowerCase();
   const password = `Files smoke ${randomUUID()} ${randomUUID()}`;
@@ -579,22 +609,8 @@ const cleanupObjectKey = mongoEval(
 );
 assert.ok(cleanupObjectKey.startsWith('resource-assets/'));
 
-const beforeCleanupStat = spawnSync(
-  'docker',
-  [
-    'compose',
-    '-f',
-    'compose.local.yml',
-    'exec',
-    '-T',
-    'minio',
-    'sh',
-    '-lc',
-    `mc alias set smoke http://127.0.0.1:9000 losapuntes-local losapuntes-local-files-secret >/dev/null && mc stat "smoke/losapuntes-files/${cleanupObjectKey}" >/dev/null`,
-  ],
-  { encoding: 'utf8' },
-);
-assert.equal(beforeCleanupStat.status, 0, beforeCleanupStat.stderr);
+const beforeCleanupStat = storageObjectExists(cleanupObjectKey);
+assert.equal(beforeCleanupStat.exists, true, beforeCleanupStat.stderr);
 
 mongoEval(
   [
@@ -606,24 +622,10 @@ mongoEval(
 
 await waitForReclaimed(cleanupIntent.body.file.id);
 
-const afterCleanupStat = spawnSync(
-  'docker',
-  [
-    'compose',
-    '-f',
-    'compose.local.yml',
-    'exec',
-    '-T',
-    'minio',
-    'sh',
-    '-lc',
-    `mc alias set smoke http://127.0.0.1:9000 losapuntes-local losapuntes-local-files-secret >/dev/null && mc stat "smoke/losapuntes-files/${cleanupObjectKey}" >/dev/null 2>&1`,
-  ],
-  { encoding: 'utf8' },
-);
-assert.notEqual(
-  afterCleanupStat.status,
-  0,
+const afterCleanupStat = storageObjectExists(cleanupObjectKey);
+assert.equal(
+  afterCleanupStat.exists,
+  false,
   'Cleanup worker must remove abandoned object bytes',
 );
 

@@ -18,11 +18,13 @@ import {
 
 import {
   ACADEMIC_NODE_KINDS,
+  ACADEMIC_RELATIONSHIP_ROLES,
   type AcademicAffiliationStatus,
   type AcademicAuthorityTier,
   type AcademicNodeKind,
   type AcademicNodeStatus,
   type AcademicProposalStatus,
+  type AcademicRelationshipRole,
   type SubjectParticipationState,
 } from '../domain/academic.types';
 
@@ -221,6 +223,12 @@ export class CreateAcademicAffiliationDto {
   status!: AcademicAffiliationStatus;
 
   @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsIn(ACADEMIC_RELATIONSHIP_ROLES, { each: true })
+  roles?: AcademicRelationshipRole[];
+
+  @IsOptional()
   @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
   startedOn?: string;
 
@@ -236,6 +244,18 @@ export class UpdateAcademicAffiliationStatusDto {
   @IsOptional()
   @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
   endedOn?: string;
+}
+
+export class UpdateAcademicAffiliationRolesDto {
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsIn(ACADEMIC_RELATIONSHIP_ROLES, { each: true })
+  roles!: AcademicRelationshipRole[];
+}
+
+export class GraduateAcademicAffiliationDto {
+  @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
+  graduatedOn!: string;
 }
 
 export class UpsertSubjectParticipationDto {

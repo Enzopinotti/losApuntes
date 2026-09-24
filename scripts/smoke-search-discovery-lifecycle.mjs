@@ -136,6 +136,52 @@ assert.equal(
   false,
 );
 
+async function findCatalogNode(kind, query, expectedName) {
+  const result = await request(
+    `/academic/catalog/search?kind=${kind}&q=${encodeURIComponent(query)}&limit=10`,
+  );
+  assert.equal(result.response.status, 200, JSON.stringify(result.body));
+  const node = result.body.items.find((item) => item.name === expectedName);
+  assert.ok(node, `Academic smoke must expose ${expectedName}`);
+  return node;
+}
+
+const institution = await findCatalogNode(
+  'institution',
+  'Universidad Runtime Smoke',
+  'Universidad Runtime Smoke',
+);
+const program = await findCatalogNode(
+  'program',
+  'Ingeniería Runtime',
+  'Ingeniería Runtime',
+);
+const curriculum = await findCatalogNode(
+  'curriculum',
+  'Plan 2026',
+  'Plan 2026',
+);
+
+const affiliation = await request(
+  '/academic/me/affiliations',
+  json(
+    'POST',
+    {
+      institutionId: institution.id,
+      programId: program.id,
+      curriculumId: curriculum.id,
+      status: 'active',
+      startedOn: '2026',
+    },
+    bearer,
+  ),
+);
+assert.equal(
+  affiliation.response.status,
+  201,
+  JSON.stringify(affiliation.body),
+);
+
 const participation = await request(
   `/academic/me/subjects/${subject.id}`,
   json(

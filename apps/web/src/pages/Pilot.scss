@@ -78,6 +78,30 @@
   padding: 1.25rem;
 }
 
+.pilot-cohort-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.pilot-cohort-grid article {
+  display: grid;
+  gap: 0.3rem;
+  padding: 1rem;
+  border: 1px solid #ececf2;
+  border-radius: 12px;
+}
+
+.pilot-cohort-grid article > strong {
+  font-size: 1.65rem;
+}
+
+.pilot-cohort-grid span,
+.pilot-cohort-grid small {
+  color: #626274;
+}
+
 .pilot-card-heading {
   display: flex;
   gap: 1rem;
@@ -246,7 +270,8 @@
   }
 
   .pilot-grid,
-  .pilot-metric-grid {
+  .pilot-metric-grid,
+  .pilot-cohort-grid {
     grid-template-columns: 1fr;
   }
 }

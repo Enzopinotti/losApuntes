@@ -16,6 +16,11 @@ function percentage(value: number): string {
   })}%`;
 }
 
+function returningRate(activeUsers: number, returningUsers: number): string {
+  if (activeUsers === 0) return "0%";
+  return percentage((returningUsers / activeUsers) * 100);
+}
+
 const AdminPilot = () => {
   const [metrics, setMetrics] = useState<PilotMetricsResponse | null>(null);
   const [queue, setQueue] = useState<PilotModerationItem[]>([]);
@@ -174,6 +179,50 @@ const AdminPilot = () => {
               </small>
             </article>
           </div>
+
+          <section className="pilot-card">
+            <h2>Valor por etapa académica</h2>
+            <p className="pilot-muted">
+              Alumni no se mezcla con estudiantes activos: medimos actividad y
+              retorno por etapa para no convertir DAU en el único criterio de
+              éxito.
+            </p>
+            <div className="pilot-cohort-grid">
+              <article>
+                <span>Estudiantes activos</span>
+                <strong>{metrics.audience.activeStudents.activeUsers}</strong>
+                <small>
+                  {metrics.audience.activeStudents.returningUsers} vuelven ·{" "}
+                  {returningRate(
+                    metrics.audience.activeStudents.activeUsers,
+                    metrics.audience.activeStudents.returningUsers,
+                  )}
+                </small>
+              </article>
+              <article>
+                <span>Alumni</span>
+                <strong>{metrics.audience.alumni.activeUsers}</strong>
+                <small>
+                  {metrics.audience.alumni.returningUsers} vuelven ·{" "}
+                  {returningRate(
+                    metrics.audience.alumni.activeUsers,
+                    metrics.audience.alumni.returningUsers,
+                  )}
+                </small>
+              </article>
+              <article>
+                <span>Comunidad / otros</span>
+                <strong>{metrics.audience.community.activeUsers}</strong>
+                <small>
+                  {metrics.audience.community.returningUsers} vuelven ·{" "}
+                  {returningRate(
+                    metrics.audience.community.activeUsers,
+                    metrics.audience.community.returningUsers,
+                  )}
+                </small>
+              </article>
+            </div>
+          </section>
 
           <section className="pilot-card">
             <h2>Densidad por materia</h2>

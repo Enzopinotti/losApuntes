@@ -145,12 +145,12 @@ Local/CI runtime includes:
 
 - Mongo replica set;
 - Mailpit;
-- private MinIO S3 API;
+- private RustFS S3-compatible API;
 - bucket bootstrap;
 - API;
 - dedicated Files cleanup worker.
 
-MinIO Console is not required by application runtime and must not become product ingress.
+RustFS Console is disabled in the application runtime and must not become product ingress.
 
 Production readiness later requires a dedicated HTTPS presign origin/CORS review. Local HTTP is development evidence only.
 
@@ -185,7 +185,7 @@ Permanent CI must prove on the exact final HEAD:
 - Profile critical coverage;
 - Files/Resources critical coverage;
 - production dependency audit;
-- real S3-compatible lifecycle against MinIO;
+- real S3-compatible lifecycle against RustFS;
 - container runtime smoke;
 - cross-user privacy negatives;
 - privacy transition revokes future signed issuance;

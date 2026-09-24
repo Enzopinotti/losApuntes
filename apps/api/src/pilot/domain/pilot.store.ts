@@ -48,6 +48,20 @@ export interface PilotMetricsSnapshot {
     activeUsers: number;
     returningUsers: number;
   };
+  audience: {
+    activeStudents: {
+      activeUsers: number;
+      returningUsers: number;
+    };
+    alumni: {
+      activeUsers: number;
+      returningUsers: number;
+    };
+    community: {
+      activeUsers: number;
+      returningUsers: number;
+    };
+  };
   contributions: {
     events: number;
     contributors: number;

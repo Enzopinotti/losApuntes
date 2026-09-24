@@ -6,6 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
+import { AcademicLifecycleService } from '../../academic/domain/academic-lifecycle.service';
 import { AcademicService } from '../../academic/domain/academic.service';
 import { FeedService } from '../../feeds/domain/feed.service';
 import { NotificationService } from '../../notifications/domain/notification.service';
@@ -41,6 +42,7 @@ export class PilotService {
     @Inject(PILOT_STORE)
     private readonly store: PilotStore,
     private readonly academic: AcademicService,
+    private readonly lifecycle: AcademicLifecycleService,
     private readonly profiles: ProfileService,
     private readonly feeds: FeedService,
     private readonly notifications: NotificationService,
@@ -50,6 +52,7 @@ export class PilotService {
   async home(userId: string) {
     const [
       profile,
+      lifecycle,
       currentContext,
       participations,
       academicFeed,
@@ -57,6 +60,7 @@ export class PilotService {
       notifications,
     ] = await Promise.all([
       this.profiles.getOwnerProfile(userId),
+      this.lifecycle.getLifecycle(userId),
       this.academic.getCurrentContext(userId),
       this.academic.listSubjectParticipations(userId),
       this.feeds.academicFeed(userId, { limit: 6 }),
@@ -75,6 +79,17 @@ export class PilotService {
           .map((row) => row.subjectId),
       ),
     ].sort();
+    const alumniContinuity =
+      currentSubjectIds.length === 0 &&
+      (lifecycle.phase === 'alumni' || lifecycle.phase === 'mixed');
+    const continuityFeed = alumniContinuity
+      ? await this.feeds.forYou(userId, {
+          limit: 6,
+          mode: 'community',
+          order: 'ranked',
+        })
+      : null;
+    const source = continuityFeed ?? academicFeed;
 
     await this.events.recordBestEffort({
       event: 'pilot.home_viewed',
@@ -83,9 +98,16 @@ export class PilotService {
 
     return {
       profileReady: !profile.onboardingRequired,
+      lifecycle,
       academic: {
         currentContext: currentContext.context,
         currentSubjectIds,
+      },
+      homeFeed: {
+        kind: alumniContinuity ? ('community' as const) : ('subjects' as const),
+        items: source.items,
+        nextCursor: source.nextCursor,
+        stopReason: source.stopReason,
       },
       academicFeed,
       forYou,
@@ -204,6 +226,7 @@ export class PilotService {
           snapshot.activity.activeUsers,
         ),
       },
+      audience: snapshot.audience,
       contributions: {
         ...snapshot.contributions,
         contributionRate: percentage(

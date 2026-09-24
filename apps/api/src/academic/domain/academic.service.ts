@@ -18,6 +18,10 @@ import type {
   UpsertSubjectParticipationDto,
 } from '../dto/academic.dto';
 import {
+  effectiveAcademicRelationshipRoles,
+  relationshipRolesCompatible,
+} from './academic-lifecycle.helpers';
+import {
   ACADEMIC_STORE,
   AcademicSourceIdentityConflictError,
   type AcademicStore,
@@ -441,6 +445,15 @@ export class AcademicService {
       });
     }
 
+    const roles = effectiveAcademicRelationshipRoles(dto.status, dto.roles);
+
+    if (!relationshipRolesCompatible(dto.status, roles)) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_AFFILIATION_ROLE_INVALID',
+        message: 'Academic relationship roles conflict with affiliation status',
+      });
+    }
+
     const created = await this.store.runAtomically(async () => {
       const row = await this.store.createAffiliation({
         id: randomUUID(),
@@ -451,6 +464,7 @@ export class AcademicService {
         programId: program?.id,
         curriculumId: curriculum?.id,
         status: dto.status,
+        roles,
         startedOn: dto.startedOn,
         endedOn: dto.endedOn,
       });
@@ -470,14 +484,49 @@ export class AcademicService {
     id: string,
     dto: UpdateAcademicAffiliationStatusDto,
   ) {
+    const existing = await this.store.findAffiliationById(id);
+    if (!existing || existing.userId !== userId) this.notFound();
+
+    if (dto.status === 'alumni') {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_GRADUATION_TRANSITION_REQUIRED',
+        message: 'Use the graduation transition to enter alumni status',
+      });
+    }
+
+    if (existing.status === 'alumni') {
+      throw new ConflictException({
+        code: 'ACADEMIC_ALUMNI_HISTORY_IMMUTABLE',
+        message:
+          'Alumni history is preserved; create a new affiliation instead',
+      });
+    }
+
+    const roles = effectiveAcademicRelationshipRoles(
+      existing.status,
+      existing.roles,
+    );
+    if (!relationshipRolesCompatible(dto.status, roles)) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_AFFILIATION_ROLE_INVALID',
+        message: 'Academic relationship roles conflict with affiliation status',
+      });
+    }
+
     const updated = await this.store.runAtomically(async () => {
       const row = await this.store.updateAffiliationStatus(
         userId,
         id,
+        existing.status,
         dto.status,
         dto.endedOn,
       );
-      if (!row) this.notFound();
+      if (!row) {
+        throw new ConflictException({
+          code: 'ACADEMIC_AFFILIATION_CONFLICT',
+          message: 'Academic affiliation changed concurrently',
+        });
+      }
 
       await this.audit('academic.affiliation.updated', userId, row.id, {
         status: row.status,
@@ -505,6 +554,33 @@ export class AcademicService {
     dto: UpsertSubjectParticipationDto,
   ) {
     const subject = await this.requireKind(subjectId, 'subject');
+
+    if (dto.state === 'current') {
+      const affiliations = await this.store.listAffiliationsForUser(userId);
+      let eligible = false;
+
+      for (const affiliation of affiliations) {
+        if (
+          (affiliation.status === 'active' ||
+            affiliation.status === 'paused') &&
+          (await this.participationBelongsToAffiliation(
+            subject.id,
+            affiliation,
+          ))
+        ) {
+          eligible = true;
+          break;
+        }
+      }
+
+      if (!eligible) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+          message:
+            'Current subject requires an active or paused academic affiliation',
+        });
+      }
+    }
 
     let offeringId: string | undefined;
     if (dto.courseOfferingId) {
@@ -564,6 +640,17 @@ export class AcademicService {
       | Awaited<ReturnType<AcademicStore['findSubjectParticipationById']>>
       | undefined;
 
+    if (
+      dto.subjectParticipationId &&
+      (affiliation.status === 'alumni' || affiliation.status === 'completed')
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+        message:
+          'Alumni/completed affiliation cannot carry current subject context',
+      });
+    }
+
     if (dto.subjectParticipationId) {
       participation = await this.store.findSubjectParticipationById(
         dto.subjectParticipationId,
@@ -600,6 +687,46 @@ export class AcademicService {
     });
 
     return { context: this.publicContext(context) };
+  }
+
+  async participationBelongsToAffiliation(
+    subjectId: string,
+    affiliation: AcademicAffiliationRecord,
+  ): Promise<boolean> {
+    const anchorId =
+      affiliation.curriculumId ??
+      affiliation.programId ??
+      affiliation.institutionId;
+    return this.isDescendantOf(subjectId, anchorId);
+  }
+
+  async resolveContinuityFollowTarget(id: string): Promise<{
+    targetId: string;
+    kind: 'institution' | 'program';
+    name: string;
+    identityIds: string[];
+  }> {
+    const resolved = await this.resolveNode(id);
+    if (
+      resolved.node.status !== 'active' ||
+      (resolved.node.kind !== 'institution' && resolved.node.kind !== 'program')
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_FOLLOW_KIND_INVALID',
+        message: 'Only Institution or Program can be followed',
+      });
+    }
+
+    return {
+      targetId: resolved.node.id,
+      kind: resolved.node.kind,
+      name: resolved.node.name,
+      identityIds: await this.catalogIdentitySet(resolved.node.id),
+    };
+  }
+
+  async projectAffiliationRecord(row: AcademicAffiliationRecord) {
+    return this.publicAffiliation(row);
   }
 
   async resolveOrganizationScope(input: {
@@ -988,6 +1115,7 @@ export class AcademicService {
       programId: await canonicalId(row.programId),
       curriculumId: await canonicalId(row.curriculumId),
       status: row.status,
+      roles: effectiveAcademicRelationshipRoles(row.status, row.roles),
       startedOn: row.startedOn,
       endedOn: row.endedOn,
       createdAt: row.createdAt.toISOString(),

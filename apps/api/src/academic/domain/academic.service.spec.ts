@@ -106,14 +106,22 @@ function createStore() {
     findAffiliationById: mockFn<AcademicStore['findAffiliationById']>(),
     listAffiliationsForUser: mockFn<AcademicStore['listAffiliationsForUser']>(),
     updateAffiliationStatus: mockFn<AcademicStore['updateAffiliationStatus']>(),
+    updateAffiliationRoles: mockFn<AcademicStore['updateAffiliationRoles']>(),
+    transitionAffiliationToAlumni:
+      mockFn<AcademicStore['transitionAffiliationToAlumni']>(),
     upsertSubjectParticipation:
       mockFn<AcademicStore['upsertSubjectParticipation']>(),
     findSubjectParticipationById:
       mockFn<AcademicStore['findSubjectParticipationById']>(),
     listSubjectParticipationsForUser:
       mockFn<AcademicStore['listSubjectParticipationsForUser']>(),
+    transitionSubjectParticipationStates:
+      mockFn<AcademicStore['transitionSubjectParticipationStates']>(),
     getCurrentContext: mockFn<AcademicStore['getCurrentContext']>(),
     setCurrentContext: mockFn<AcademicStore['setCurrentContext']>(),
+    upsertAcademicFollow: mockFn<AcademicStore['upsertAcademicFollow']>(),
+    listAcademicFollows: mockFn<AcademicStore['listAcademicFollows']>(),
+    removeAcademicFollows: mockFn<AcademicStore['removeAcademicFollows']>(),
     createProposal: mockFn<AcademicStore['createProposal']>(),
     findProposalById: mockFn<AcademicStore['findProposalById']>(),
     listProposals: mockFn<AcademicStore['listProposals']>(),
@@ -357,7 +365,7 @@ describe('AcademicService', () => {
     await expect(
       service.upsertSubjectParticipation('user-1', subject.id, {
         courseOfferingId: offering.id,
-        state: 'current',
+        state: 'completed',
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -726,10 +734,10 @@ describe('AcademicService', () => {
     );
     store.createAffiliation.mockResolvedValue(created);
     store.listAffiliationsForUser.mockResolvedValue([created]);
+    store.findAffiliationById.mockResolvedValue(created);
     store.updateAffiliationStatus.mockResolvedValue({
       ...created,
-      status: 'completed',
-      endedOn: '2026',
+      status: 'paused',
     });
 
     const createdResult = await service.createAffiliation('user-1', {
@@ -750,11 +758,57 @@ describe('AcademicService', () => {
       'user-1',
       created.id,
       {
-        status: 'completed',
-        endedOn: '2026',
+        status: 'paused',
       },
     );
-    expect(updatedResult.affiliation.status).toBe('completed');
+    expect(updatedResult.affiliation.status).toBe('paused');
+    expect(store.updateAffiliationStatus).toHaveBeenCalledWith(
+      'user-1',
+      created.id,
+      'active',
+      'paused',
+      undefined,
+    );
+  });
+
+  it('rejects status transitions that would leave incompatible roles', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    store.findAffiliationById.mockResolvedValue(
+      affiliation({ status: 'active', roles: ['student'] }),
+    );
+
+    await expect(
+      service.updateAffiliationStatus(
+        'user-1',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        { status: 'completed' },
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(store.updateAffiliationStatus).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when an affiliation status changes concurrently', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const existing = affiliation({ status: 'active', roles: ['mentor'] });
+    store.findAffiliationById.mockResolvedValue(existing);
+    store.updateAffiliationStatus.mockResolvedValue(null);
+
+    await expect(
+      service.updateAffiliationStatus('user-1', existing.id, {
+        status: 'completed',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(store.updateAffiliationStatus).toHaveBeenCalledWith(
+      'user-1',
+      existing.id,
+      'active',
+      'completed',
+      undefined,
+    );
   });
 
   it('returns not found when an affiliation status update is not owned', async () => {
@@ -786,7 +840,7 @@ describe('AcademicService', () => {
       'user-1',
       subject.id,
       {
-        state: 'current',
+        state: 'completed',
         periodLabel: '2026 S2',
       },
     );
@@ -1206,10 +1260,10 @@ describe('AcademicService', () => {
       ),
     );
     store.listAffiliationsForUser.mockResolvedValue([row]);
+    store.findAffiliationById.mockResolvedValue(row);
     store.updateAffiliationStatus.mockResolvedValue({
       ...row,
-      status: 'completed',
-      endedOn: '2026',
+      status: 'paused',
     });
 
     await expect(service.listAffiliations('user-1')).resolves.toEqual({
@@ -1220,15 +1274,20 @@ describe('AcademicService', () => {
       'user-1',
       row.id,
       {
-        status: 'completed',
-        endedOn: '2026',
+        status: 'paused',
       },
     );
     expect(updateResult.affiliation.id).toBe(row.id);
-    expect(updateResult.affiliation.status).toBe('completed');
-    expect(updateResult.affiliation.endedOn).toBe('2026');
+    expect(updateResult.affiliation.status).toBe('paused');
+    expect(store.updateAffiliationStatus).toHaveBeenCalledWith(
+      'user-1',
+      row.id,
+      'active',
+      'paused',
+      undefined,
+    );
 
-    store.updateAffiliationStatus.mockResolvedValueOnce(null);
+    store.findAffiliationById.mockResolvedValueOnce(null);
     await expect(
       service.updateAffiliationStatus('user-1', 'missing', {
         status: 'paused',

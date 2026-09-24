@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { AcademicController } from './academic.controller';
+import { AcademicLifecycleService } from './domain/academic-lifecycle.service';
 import { AcademicService } from './domain/academic.service';
 import { ACADEMIC_STORE } from './domain/academic.store';
 import { AcademicAdminGuard } from './guards/academic-admin.guard';
@@ -18,6 +19,8 @@ import {
   AcademicCatalogProposalSchema,
   AcademicCurrentContext,
   AcademicCurrentContextSchema,
+  AcademicFollow,
+  AcademicFollowSchema,
   AcademicSubjectParticipation,
   AcademicSubjectParticipationSchema,
 } from './mongo/academic.mongo-schemas';
@@ -39,6 +42,10 @@ import { MongoAcademicStore } from './mongo/mongo-academic.store';
         schema: AcademicCurrentContextSchema,
       },
       {
+        name: AcademicFollow.name,
+        schema: AcademicFollowSchema,
+      },
+      {
         name: AcademicCatalogProposal.name,
         schema: AcademicCatalogProposalSchema,
       },
@@ -47,6 +54,7 @@ import { MongoAcademicStore } from './mongo/mongo-academic.store';
   ],
   providers: [
     AcademicService,
+    AcademicLifecycleService,
     AcademicAdminGuard,
     MongoAcademicStore,
     {
@@ -55,6 +63,6 @@ import { MongoAcademicStore } from './mongo/mongo-academic.store';
     },
   ],
   controllers: [AcademicController],
-  exports: [AcademicService],
+  exports: [AcademicService, AcademicLifecycleService],
 })
 export class AcademicModule {}

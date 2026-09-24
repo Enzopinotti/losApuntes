@@ -6,11 +6,11 @@
 | Capability | API/domain | Web | Permanent evidence |
 | --- | --- | --- | --- |
 | Resource/FileAsset separation | Implemented | Respected | ADR + unit |
-| Private S3-compatible storage boundary | Implemented | Direct PUT only | MinIO runtime |
+| Private S3-compatible storage boundary | Implemented | Direct PUT only | RustFS runtime (current) |
 | Immutable upload intent | Implemented | Implemented | Unit + runtime |
 | Verified-email upload/finalize | Implemented | Error surfaced | Auth/runtime |
 | 50 MiB + MIME allowlist | Implemented | Prevalidated | DTO + unit |
-| Signed exact byte-length bound | Implemented | User-agent Content-Length | Unit + MinIO runtime |
+| Signed exact byte-length bound | Implemented | User-agent Content-Length | Unit + RustFS runtime (current) |
 | Byte-signature verification | Implemented | Server authority | Unit + runtime |
 | Exact size/Content-Type re-verification | Implemented | Server authority | Unit + runtime |
 | Finalize idempotency | Implemented | Safe retry | Unit + runtime |
@@ -31,7 +31,7 @@
 | Optional CourseOffering validation | Academic Graph authority | Contract-ready | Unit |
 | Metadata discovery/search | Bounded cursor API | Search/filter UI | Unit + build |
 | Preview/download issuance | Reauthorized signed GET | Implemented | Runtime |
-| Real signed URL expiry | Runtime bounded 1–300s | Ephemeral URL | MinIO smoke |
+| Real signed URL expiry | Runtime bounded 1–300s | Ephemeral URL | RustFS smoke (current) |
 | No objectKey/public bucket authority | Enforced | Never consumed | Static + runtime |
 | Reports | Durable/idempotent pending | Implemented | Unit + runtime |
 | Hidden moderation fail-closed | Implemented | Server projection | Unit |
@@ -42,7 +42,7 @@
 | Storage cookies/credentials | Forbidden | XHR does not send app credentials | Static contract |
 | Dedicated critical coverage | Enforced | N/A | CI |
 | Production dependency audit | Enforced | N/A | CI |
-| Full container lifecycle | Mongo + Mailpit + MinIO + worker | API contract | CI |
+| Full container lifecycle | Mongo + Mailpit + RustFS + worker | API contract | CI |
 
 ## Honest limitations
 
@@ -78,6 +78,6 @@ Both candidate and merged `main` passed:
 - Profile critical coverage;
 - Files Resources critical coverage;
 - Production dependency audit;
-- Container runtime smoke including real MinIO and cleanup worker.
+- Container runtime smoke including the real S3-compatible object-storage backend and cleanup worker. The original closure runs used MinIO; current CI uses RustFS after MinIO CE image distribution became unavailable.
 
 Issue #6 is closed. No earlier-SHA green result is used as closure evidence.

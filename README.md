@@ -87,7 +87,7 @@ La implementación depende de `AcademicStore`, no de Mongoose fuera del adapter 
 - NestJS/Fastify para el API
 - MongoDB como adapter transaccional actual
 - Mailpit para email local verificable
-- MinIO privado/S3-compatible para Files local/CI
+- RustFS privado/S3-compatible para Files local/CI
 - worker dedicado para cleanup de uploads abandonados
 
 ## Verificación local
@@ -111,7 +111,7 @@ pnpm runtime:smoke
 
 El stack publica el API en `http://localhost:4000`.
 
-El smoke cubre runtime base, Auth, Academic Graph, Profile, Files/Resources, Search/Contextual Discovery, Social/Q&A, Feeds y Pilot Operations contra Mongo replica-set y MinIO efímeros.
+El smoke cubre runtime base, Auth, Academic Graph, Profile, Files/Resources, Search/Contextual Discovery, Social/Q&A, Feeds y Pilot Operations contra Mongo replica-set y RustFS efímeros.
 
 Para logs:
 

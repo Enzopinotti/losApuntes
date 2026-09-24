@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import AccountRestricted from "../pages/AccountRestricted";
+import AcademicLifecycle from "../pages/AcademicLifecycle";
 import AdminPilot from "../pages/AdminPilot";
 import Dashboard from "../pages/Dashboard";
 import Feeds from "../pages/Feeds";
@@ -48,6 +49,14 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <Feeds />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "academic/lifecycle",
+        element: (
+          <PrivateRoute>
+            <AcademicLifecycle />
           </PrivateRoute>
         ),
       },
