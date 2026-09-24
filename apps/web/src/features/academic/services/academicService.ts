@@ -114,9 +114,7 @@ export const academicApi = {
       transitionedSubjectCount: number;
       lifecycle: AcademicLifecycleResponse;
     }>(
-      `/academic/me/affiliations/${encodeURIComponent(
-        affiliationId,
-      )}/graduate`,
+      `/academic/me/affiliations/${encodeURIComponent(affiliationId)}/graduate`,
       {
         method: "POST",
         body: JSON.stringify({ graduatedOn }),
@@ -127,13 +125,10 @@ export const academicApi = {
     request<{
       affiliation: AcademicAffiliation;
       lifecycle: AcademicLifecycleResponse;
-    }>(
-      `/academic/me/affiliations/${encodeURIComponent(affiliationId)}/roles`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ roles }),
-      },
-    ),
+    }>(`/academic/me/affiliations/${encodeURIComponent(affiliationId)}/roles`, {
+      method: "PATCH",
+      body: JSON.stringify({ roles }),
+    }),
 
   follows: () => request<{ follows: AcademicFollow[] }>("/academic/me/follows"),
 
