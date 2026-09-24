@@ -1,7 +1,7 @@
 # Campus Organizations v1
 
 **Issue:** #13  
-**Status:** In implementation  
+**Status:** Implemented / Validated  
 **Authority:** Domain Contract 2026 + current Social/Feeds/Pilot contracts
 
 ## 1. Mission
@@ -201,7 +201,14 @@ The browser uses existing HttpOnly-cookie auth and no bearer storage.
 
 ## 13. Acceptance evidence
 
-Before merge, exact-head CI must prove:
+Campus Organizations v1 is closed with candidate and post-merge evidence:
+
+- candidate SHA: `73c14a0c152930a32feb762dbb554b6532ecf8ca`;
+- candidate verify: #785 / run `36000949882`, success;
+- merge/main SHA: `8a055c16df8f2feaf3682b975d553b8a065c4bb5`;
+- post-merge verify: #786 / run `36001382607`, success.
+
+The verified gates include:
 
 - Organization service critical coverage;
 - organization-management negative authorization;
@@ -218,4 +225,4 @@ Before merge, exact-head CI must prove:
 - Web transport/static contract;
 - full container runtime smoke.
 
-Post-merge `main` must pass the same gates.
+The post-merge `main` run passed the same repository quality contract, so the v1 slice is Implemented / Validated within its stated boundaries.

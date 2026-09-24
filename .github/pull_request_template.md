@@ -2,13 +2,13 @@
 
 - External key(s):
 - Requirement ID(s):
-- Owning issue(s):
+- Owning issue(s), if one exists:
 - [ ] The work was registered in the project planning ledger before implementation.
 - [ ] This PR is one coherent carrier; it does not duplicate a separate backlog in GitHub.
 
 ## Scope
 
-Describe one coherent change. Link the issue that owns the work and explain any explicit non-goals.
+Describe one coherent change. Link the owning issue when one exists; otherwise this PR is the GitHub carrier for the registered external key. Explain any explicit non-goals.
 
 ## Verification
 

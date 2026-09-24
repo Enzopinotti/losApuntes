@@ -1,7 +1,7 @@
 # Pilot v1 — completion matrix
 
 **Issue:** #8  
-**Status:** Candidate — exact-head and post-merge evidence required
+**Status:** Implemented / Validated
 
 | Capability | Required evidence |
 | --- | --- |
@@ -30,8 +30,8 @@
 | Server-side allowlisted telemetry | unit |
 | Dedicated Pilot coverage gate | CI |
 | Container lifecycle smoke | CI |
-| Exact-head candidate green | PR evidence |
-| Post-merge main green | closure evidence |
+| Exact-head candidate green | #713 / run `35927435297` on `02bcb5c9871d391b41e8d7102e91bc0bc00f46e0` |
+| Post-merge main green | #714 / run `35927820127` on `77438de634c4f73bc53242dd010e2a8c542f52b9` |
 | Pilot scope/support/rollback runbook | `docs/operations/pilot-v1-runbook.md` |
 
 ## Honest boundaries
@@ -40,3 +40,10 @@ The Pilot dashboard is an operational review surface, not a general analytics pl
 
 It does not claim production SLA monitoring, native Mobile acceptance, organization/alumni workflows, automated moderation or formal long-horizon cohort analytics.
 
+
+
+## Closure evidence
+
+PR #65 merged the verified Pilot v1 implementation. Candidate verify #713 / run `35927435297` completed successfully on `02bcb5c9871d391b41e8d7102e91bc0bc00f46e0`. The merged `main` SHA `77438de634c4f73bc53242dd010e2a8c542f52b9` then passed verify #714 / run `35927820127`.
+
+This closes the implementation slice. It does not by itself certify a public pilot deployment; concrete launch inputs and production evidence remain separate operational gates.
