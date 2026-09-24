@@ -33,8 +33,9 @@ function messageFor(error: unknown): string {
 const OrganizationManage = () => {
   const { organizationId } = useParams();
   const [detail, setDetail] = useState<OrganizationDetail | null>(null);
-  const [management, setManagement] =
-    useState<OrganizationManagement | null>(null);
+  const [management, setManagement] = useState<OrganizationManagement | null>(
+    null,
+  );
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -138,9 +139,7 @@ const OrganizationManage = () => {
           title: eventTitle,
           description: eventDescription.trim() || undefined,
           startsAt: new Date(eventStartsAt).toISOString(),
-          endsAt: eventEndsAt
-            ? new Date(eventEndsAt).toISOString()
-            : undefined,
+          endsAt: eventEndsAt ? new Date(eventEndsAt).toISOString() : undefined,
         }),
       "Evento publicado.",
     );
@@ -154,7 +153,9 @@ const OrganizationManage = () => {
     return (
       <section className="organizations-page">
         {error ? (
-          <p className="organizations-error" role="alert">{error}</p>
+          <p className="organizations-error" role="alert">
+            {error}
+          </p>
         ) : (
           <p role="status">Cargando gestión…</p>
         )}
@@ -179,8 +180,16 @@ const OrganizationManage = () => {
         <Link to={`/organizations/${detail.id}`}>Ver página pública</Link>
       </header>
 
-      {feedback && <p className="organizations-success" role="status">{feedback}</p>}
-      {error && <p className="organizations-error" role="alert">{error}</p>}
+      {feedback && (
+        <p className="organizations-success" role="status">
+          {feedback}
+        </p>
+      )}
+      {error && (
+        <p className="organizations-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <div className="organizations-grid">
         {(management.actorRole === "owner" ||
@@ -225,7 +234,8 @@ const OrganizationManage = () => {
             {management.managers.map((manager, index) => (
               <li key={manager.profile.profileId ?? `${manager.role}:${index}`}>
                 <span>
-                  <strong>{manager.profile.displayName}</strong> · {manager.role}
+                  <strong>{manager.profile.displayName}</strong> ·{" "}
+                  {manager.role}
                 </span>
                 {manager.profile.profileId && (
                   <button
@@ -428,7 +438,8 @@ const OrganizationManage = () => {
             </button>
           </div>
           <small>
-            Solo Resources que continúen siendo públicos aparecerán en la página.
+            Solo Resources que continúen siendo públicos aparecerán en la
+            página.
           </small>
         </section>
 
