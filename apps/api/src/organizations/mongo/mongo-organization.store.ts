@@ -134,6 +134,14 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.organizations.findOne({ id }).lean<OrganizationRecord>().exec();
   }
 
+  async findManyByIds(ids: string[]): Promise<OrganizationRecord[]> {
+    if (ids.length === 0) return [];
+    return this.organizations
+      .find({ id: { $in: ids }, status: 'active' })
+      .lean<OrganizationRecord[]>()
+      .exec();
+  }
+
   async search(input: {
     q?: string;
     type?: OrganizationType;
@@ -516,6 +524,47 @@ export class MongoOrganizationStore implements OrganizationStore {
       .sort({ publishedAt: -1, id: 1 })
       .limit(input.limit)
       .lean<OrganizationPostRecord[]>()
+      .exec();
+  }
+
+  async listFeedPostsForFollower(input: {
+    userId: string;
+    anchorAt: Date;
+    limit: number;
+  }): Promise<OrganizationPostRecord[]> {
+    return this.posts
+      .aggregate<OrganizationPostRecord>([
+        {
+          $match: {
+            moderationState: 'available',
+            publishedAt: { $lte: input.anchorAt },
+          },
+        },
+        {
+          $lookup: {
+            from: 'organization_follows',
+            let: { organizationId: '$organizationId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$organizationId', '$organizationId'] },
+                      { $eq: ['$userId', input.userId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__viewerFollow',
+          },
+        },
+        { $match: { '__viewerFollow.0': { $exists: true } } },
+        { $sort: { publishedAt: -1, id: 1 } },
+        { $limit: input.limit },
+        { $project: { __viewerFollow: 0 } },
+      ])
       .exec();
   }
 
