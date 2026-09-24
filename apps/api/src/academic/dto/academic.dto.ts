@@ -223,6 +223,12 @@ export class CreateAcademicAffiliationDto {
   status!: AcademicAffiliationStatus;
 
   @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsIn(ACADEMIC_RELATIONSHIP_ROLES, { each: true })
+  roles?: AcademicRelationshipRole[];
+
+  @IsOptional()
   @Matches(/^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/u)
   startedOn?: string;
 
