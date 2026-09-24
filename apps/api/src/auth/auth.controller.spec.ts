@@ -2,6 +2,7 @@ import { HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import type { AbuseControlService } from '../abuse-control/domain/abuse-control.service';
 import type { AccountSecurityService } from './account-security.service';
 import type { AuthAuditService } from './audit/auth-audit.service';
 import { AuthController } from './auth.controller';
@@ -25,6 +26,10 @@ const USER = {
   email: 'enzo@example.com',
 };
 
+const PUBLIC_REQUEST = {
+  ip: '127.0.0.1',
+} as unknown as FastifyRequest;
+
 async function rejectedHttpException(
   operation: Promise<unknown>,
 ): Promise<HttpException> {
@@ -41,6 +46,7 @@ async function rejectedHttpException(
 }
 
 describe('AuthController', () => {
+  const enforceAbuseControl = jest.fn();
   const register = jest.fn();
   const login = jest.fn();
   const requestEmailVerification = jest.fn();
@@ -55,6 +61,10 @@ describe('AuthController', () => {
   const revokeAll = jest.fn();
   const changePassword = jest.fn();
   const auditRecord = jest.fn();
+
+  const abuseControl = {
+    enforce: enforceAbuseControl,
+  } as unknown as AbuseControlService;
 
   const authService = {
     register,
@@ -90,6 +100,7 @@ describe('AuthController', () => {
   });
 
   const controller = new AuthController(
+    abuseControl,
     authService,
     lifecycle,
     security,
@@ -100,13 +111,14 @@ describe('AuthController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    enforceAbuseControl.mockResolvedValue(undefined);
   });
 
   it('registers without issuing an authenticated session', async () => {
     register.mockResolvedValue(undefined);
 
     await expect(
-      controller.register({
+      controller.register(PUBLIC_REQUEST, {
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
@@ -123,7 +135,7 @@ describe('AuthController', () => {
     register.mockRejectedValue(new AuthEmailDeliveryUnavailableError());
 
     await expect(
-      controller.register({
+      controller.register(PUBLIC_REQUEST, {
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
@@ -136,7 +148,7 @@ describe('AuthController', () => {
     );
 
     await expect(
-      controller.requestEmailVerification({
+      controller.requestEmailVerification(PUBLIC_REQUEST, {
         email: 'enzo@example.com',
       }),
     ).resolves.toEqual({ accepted: true });
@@ -148,7 +160,7 @@ describe('AuthController', () => {
     );
 
     await expect(
-      controller.requestPasswordRecovery({
+      controller.requestPasswordRecovery(PUBLIC_REQUEST, {
         email: 'enzo@example.com',
       }),
     ).resolves.toEqual({ accepted: true });
@@ -158,7 +170,7 @@ describe('AuthController', () => {
     inspectEmailVerification.mockResolvedValue(true);
 
     await expect(
-      controller.inspectEmailVerification({
+      controller.inspectEmailVerification(PUBLIC_REQUEST, {
         token: 'v'.repeat(43),
       }),
     ).resolves.toEqual({
@@ -172,7 +184,7 @@ describe('AuthController', () => {
     inspectEmailVerification.mockResolvedValue(false);
 
     const error = await rejectedHttpException(
-      controller.inspectEmailVerification({
+      controller.inspectEmailVerification(PUBLIC_REQUEST, {
         token: 'v'.repeat(43),
       }),
     );
@@ -198,6 +210,7 @@ describe('AuthController', () => {
 
     await expect(
       controller.login(
+        PUBLIC_REQUEST,
         {
           email: 'enzo@example.com',
           password: 'correct-horse-battery',
@@ -233,7 +246,7 @@ describe('AuthController', () => {
     });
 
     await expect(
-      controller.mobileLogin({
+      controller.mobileLogin(PUBLIC_REQUEST, {
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
@@ -253,6 +266,7 @@ describe('AuthController', () => {
 
     const error = await rejectedHttpException(
       controller.login(
+        PUBLIC_REQUEST,
         {
           email: 'missing@example.com',
           password: 'incorrect-password',
@@ -278,6 +292,7 @@ describe('AuthController', () => {
 
     const error = await rejectedHttpException(
       controller.login(
+        PUBLIC_REQUEST,
         {
           email: 'enzo@example.com',
           password: 'correct-horse-battery',
