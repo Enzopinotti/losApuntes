@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
+import type { Connection, FilterQuery, Model } from 'mongoose';
 
 import type {
   ManagerChangeResult,
@@ -216,7 +216,7 @@ export class MongoOrganizationStore implements OrganizationStore {
       input.expectedRevision,
       {
         verificationState: input.verificationState,
-      } as UpdateOrganizationRecord,
+      },
       input.audit,
     );
   }
