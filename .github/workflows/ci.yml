@@ -73,9 +73,9 @@ jobs:
 
       - name: Print canonical Alumni formatting payloads
         run: |
-          pnpm --filter @losapuntes/api exec prettier --write             src/academic/mongo/academic.mongo-schemas.ts             src/academic/mongo/mongo-academic.store.ts
-          pnpm --filter @losapuntes/web exec prettier --write             src/pages/AcademicLifecycle.tsx             src/pages/Home.tsx
-          for file in             apps/api/src/academic/mongo/academic.mongo-schemas.ts             apps/api/src/academic/mongo/mongo-academic.store.ts             apps/web/src/pages/AcademicLifecycle.tsx             apps/web/src/pages/Home.tsx; do
+          pnpm --filter @losapuntes/api format
+          pnpm --filter @losapuntes/web format
+          git diff --name-only -- apps/api/src apps/web/src | while IFS= read -r file; do
             echo "FORMAT_FILE_BEGIN:$file"
             base64 -w0 "$file"
             echo
