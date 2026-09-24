@@ -547,6 +547,59 @@ const finalRevoke = await request('/auth/sessions', {
 assert.equal(finalRevoke.response.status, 204);
 assert.equal(finalRevoke.text, '');
 
+const abuseEmail = 'runtime-abuse-target@example.test';
+
+for (let attempt = 1; attempt <= 6; attempt += 1) {
+  const allowed = await requestJson(
+    '/auth/password/recovery/request',
+    jsonRequest(
+      'POST',
+      { email: abuseEmail },
+      {
+        'x-forwarded-for': `198.51.100.${attempt}`,
+      },
+    ),
+  );
+
+  assert.equal(allowed.response.status, 202);
+  assert.deepEqual(allowed.body, { accepted: true });
+}
+
+const limited = await requestJson(
+  '/auth/password/recovery/request',
+  jsonRequest(
+    'POST',
+    { email: abuseEmail },
+    {
+      'x-forwarded-for': '198.51.100.200',
+    },
+  ),
+);
+
+assert.equal(limited.response.status, 429);
+assert.equal(limited.body.code, 'RATE_LIMITED');
+assert.equal(
+  Number.isSafeInteger(limited.body.retryAfterSeconds),
+  true,
+);
+assert.equal(limited.body.retryAfterSeconds > 0, true);
+assert.equal(
+  limited.response.headers.get('retry-after'),
+  String(limited.body.retryAfterSeconds),
+);
+assertRequestId(limited.response);
+
+const independentIdentifier = await requestJson(
+  '/auth/password/recovery/request',
+  jsonRequest('POST', {
+    email: 'runtime-abuse-independent@example.test',
+  }),
+);
+
+assert.equal(independentIdentifier.response.status, 202);
+assert.deepEqual(independentIdentifier.body, { accepted: true });
+assertRequestId(independentIdentifier.response);
+
 console.log(
   JSON.stringify({
     event: 'auth.lifecycle.smoke.ok',
@@ -578,6 +631,9 @@ console.log(
       'restricted-wrong-password-nondisclosure',
       'restricted-session-revocation',
       'account-status-restoration',
+      'auth-abuse-untrusted-forwarded-ip',
+      'auth-abuse-stable-rate-limited',
+      'auth-abuse-no-global-identifier-lockout',
     ],
   }),
 );

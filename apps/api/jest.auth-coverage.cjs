@@ -4,6 +4,8 @@ module.exports = {
   ...baseJest,
   collectCoverageFrom: [
     'auth/auth.service.ts',
+    'auth/abuse/auth-abuse.service.ts',
+    'auth/abuse/mongo-auth-abuse.store.ts',
     'auth/account-security.service.ts',
     'auth/password.service.ts',
     'auth/password-policy.ts',

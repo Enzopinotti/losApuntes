@@ -39,12 +39,14 @@ Raw IP and raw email are never stored in abuse-bucket documents. Bucket identiti
 
 There is deliberately **no global email/account bucket**.
 
-Each operation consumes:
+Registration, verification resend and recovery request consume:
 
-1. a broad `origin` bucket keyed by client IP;
-2. a stricter `origin_identifier` bucket keyed by the pair `(client IP, normalized email)`.
+1. a stricter `origin_identifier` bucket keyed by the pair `(client IP, normalized email)`;
+2. only when that pair is still admitted, a broad `origin` bucket keyed by client IP.
 
 The pair bucket is evaluated first. Once it is exhausted, subsequent attempts for that pair do not keep draining the broader origin bucket.
+
+Password login is intentionally different: the broad origin bucket is consumed before password verification, while the pair bucket records only `INVALID_CREDENTIALS` outcomes. A proven credential is never rejected because another actor exhausted the failure bucket for that origin/email pair.
 
 Therefore an attacker who knows another person's email can rate-limit their own origin/email pair, but cannot consume a durable/global bucket that prevents the legitimate user from authenticating from another origin.
 

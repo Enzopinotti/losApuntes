@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -41,6 +48,18 @@ class RuntimeProbeController {
   @Get('ip')
   ip(@Req() request: FastifyRequest) {
     return { ip: request.ip };
+  }
+
+  @Get('rate-limited')
+  rateLimited(): never {
+    throw new HttpException(
+      {
+        code: 'RATE_LIMITED',
+        message: 'Too many authentication attempts',
+        retryAfterSeconds: 17,
+      },
+      429,
+    );
   }
 
   @Get('fail')
@@ -141,6 +160,21 @@ describe('HTTP runtime boundary', () => {
       'requestId',
       response.headers['x-request-id'],
     );
+  });
+
+  it('propagates stable Retry-After metadata for bounded 429 responses', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/runtime-probe/rate-limited')
+      .expect(429);
+
+    expect(response.headers['retry-after']).toBe('17');
+    expect(response.body).toMatchObject({
+      statusCode: 429,
+      code: 'RATE_LIMITED',
+      message: 'Too many authentication attempts',
+      retryAfterSeconds: 17,
+      requestId: response.headers['x-request-id'],
+    });
   });
 
   it('sanitizes unexpected server errors and keeps their request id', async () => {
