@@ -43,15 +43,13 @@ describe('academic lifecycle helpers', () => {
     ).toBe(true);
     expect(relationshipRolesCompatible('active', ['alumni'])).toBe(false);
     expect(relationshipRolesCompatible('alumni', ['student'])).toBe(false);
-    expect(
-      relationshipRolesCompatible('alumni', ['alumni', 'mentor']),
-    ).toBe(true);
-    expect(
-      relationshipRolesCompatible('withdrawn', ['recent_graduate']),
-    ).toBe(false);
-    expect(
-      relationshipRolesCompatible('withdrawn', ['community']),
-    ).toBe(true);
+    expect(relationshipRolesCompatible('alumni', ['alumni', 'mentor'])).toBe(
+      true,
+    );
+    expect(relationshipRolesCompatible('withdrawn', ['recent_graduate'])).toBe(
+      false,
+    );
+    expect(relationshipRolesCompatible('withdrawn', ['community'])).toBe(true);
   });
 
   it('converts student roles to alumni roles while preserving unrelated roles', () => {
