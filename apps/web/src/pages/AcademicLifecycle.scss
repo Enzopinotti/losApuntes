@@ -1,0 +1,184 @@
+.academic-lifecycle-page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 4rem;
+}
+
+.academic-lifecycle-hero,
+.academic-lifecycle-card,
+.academic-affiliation {
+  background: #fff;
+  border: 1px solid #e7e7ef;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(20, 24, 40, 0.05);
+}
+
+.academic-lifecycle-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.academic-lifecycle-eyebrow {
+  color: #5b5bd6;
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.academic-lifecycle-hero h1,
+.academic-lifecycle-card h2 {
+  margin-top: 0;
+}
+
+.academic-lifecycle-summary {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 210px;
+}
+
+.academic-lifecycle-summary span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.academic-lifecycle-card {
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.academic-affiliation-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.academic-affiliation {
+  padding: 1rem;
+}
+
+.academic-affiliation > header,
+.academic-follow-list li,
+.academic-graduation {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.academic-affiliation > header div,
+.academic-follow-list li div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.academic-affiliation > header span,
+.academic-follow-list li span {
+  color: #626274;
+}
+
+.academic-status {
+  border-radius: 999px;
+  background: #f0f0f7;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.academic-affiliation fieldset {
+  margin: 1rem 0;
+  border: 1px solid #ececf2;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.academic-role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.8rem 0 1rem;
+}
+
+.academic-role-grid label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.academic-graduation {
+  border-top: 1px solid #ececf2;
+  padding-top: 1rem;
+}
+
+.academic-graduation label,
+.academic-follow-search label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.academic-lifecycle-page input,
+.academic-lifecycle-page select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #cfcfd8;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.academic-follow-search {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-top: 1rem;
+}
+
+.academic-follow-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.academic-follow-list li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #ececf2;
+}
+
+.academic-lifecycle-success,
+.academic-lifecycle-error {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+}
+
+.academic-lifecycle-success {
+  background: #eefbf2;
+}
+
+.academic-lifecycle-error {
+  background: #fff0f0;
+  color: #8b1e1e;
+}
+
+@media (max-width: 760px) {
+  .academic-lifecycle-hero,
+  .academic-affiliation > header,
+  .academic-graduation,
+  .academic-follow-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .academic-role-grid,
+  .academic-follow-search {
+    grid-template-columns: 1fr;
+  }
+
+  .academic-lifecycle-summary {
+    min-width: auto;
+  }
+}
