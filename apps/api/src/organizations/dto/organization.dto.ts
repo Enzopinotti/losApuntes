@@ -309,7 +309,6 @@ export class CreateOrganizationLinkDto {
   url!: string;
 }
 
-
 export class CreateOrganizationReportDto {
   @IsIn(ORGANIZATION_REPORT_REASONS)
   reason!: OrganizationReportReason;
