@@ -35,7 +35,8 @@ export interface AcceptedResponse {
 }
 
 export interface GoogleAvailabilityResponse {
-  enabled: boolean;
+  webEnabled: boolean;
+  mobileEnabled: boolean;
 }
 
 export interface LoginMethodsResponse {
