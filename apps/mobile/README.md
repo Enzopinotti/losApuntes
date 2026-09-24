@@ -6,7 +6,7 @@ Current carrier: #49 under #7.
 
 ## Local start
 
-1. copy `.env.example` to `.env.local` and point `EXPO_PUBLIC_API_ORIGIN` at a reachable API origin;
+1. copy `env.example` to an ignored `.env.local` and point `EXPO_PUBLIC_API_ORIGIN` at a reachable API origin;
 2. run `pnpm install` from the repository root;
 3. run `pnpm --filter @losapuntes/mobile start` for JS iteration;
 4. use a development/release build for SecureStore, native provider and deep-link acceptance.
