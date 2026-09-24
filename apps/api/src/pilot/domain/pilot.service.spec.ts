@@ -38,7 +38,7 @@ function deps() {
       getCatalogNode: jest.fn(),
     },
     lifecycle: {
-      getLifecycle: jest.fn(),
+      getLifecycle: jest.fn().mockResolvedValue({ phase: 'student' }),
     },
     profiles: {
       getOwnerProfile: jest.fn(),
