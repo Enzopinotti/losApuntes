@@ -18,6 +18,7 @@ import type {
   OrganizationManagerRole,
   OrganizationPostRecord,
   OrganizationRecord,
+  OrganizationReportRecord,
   OrganizationType,
   OrganizationVerificationState,
 } from '../domain/organization.types';
@@ -30,6 +31,7 @@ import {
   OrganizationLink,
   OrganizationManager,
   OrganizationPost,
+  OrganizationReport,
 } from './organization.mongo-schemas';
 
 function escapeRegex(value: string): string {
@@ -75,6 +77,8 @@ export class MongoOrganizationStore implements OrganizationStore {
     private readonly links: Model<OrganizationLink>,
     @InjectModel(OrganizationFeaturedResource.name)
     private readonly featuredResources: Model<OrganizationFeaturedResource>,
+    @InjectModel(OrganizationReport.name)
+    private readonly reports: Model<OrganizationReport>,
   ) {}
 
   async createWithOwner(input: {
@@ -707,5 +711,31 @@ export class MongoOrganizationStore implements OrganizationStore {
       .sort({ createdAt: -1, resourceId: 1 })
       .lean<OrganizationFeaturedResourceRecord[]>()
       .exec();
+  }
+
+  async upsertPendingReport(
+    input: Parameters<OrganizationStore['upsertPendingReport']>[0],
+  ): Promise<OrganizationReportRecord> {
+    const row = await this.reports
+      .findOneAndUpdate(
+        {
+          targetType: input.targetType,
+          targetId: input.targetId,
+          reporterUserId: input.reporterUserId,
+          status: 'pending',
+        },
+        {
+          $setOnInsert: {
+            ...input,
+            status: 'pending',
+          },
+        },
+        { upsert: true, new: true },
+      )
+      .lean<OrganizationReportRecord>()
+      .exec();
+
+    if (!row) throw new Error('Organization report upsert returned no row');
+    return row;
   }
 }
