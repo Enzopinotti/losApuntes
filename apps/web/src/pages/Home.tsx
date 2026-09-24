@@ -224,7 +224,9 @@ const Home = () => {
           </div>
 
           <section className="pilot-card pilot-shortcuts">
-            <h2>{alumniContinuity ? "Seguir conectado" : "Seguir estudiando"}</h2>
+            <h2>
+              {alumniContinuity ? "Seguir conectado" : "Seguir estudiando"}
+            </h2>
             <div className="pilot-actions">
               <Link to="/academic/lifecycle">Mi trayectoria</Link>
               <Link to="/resources">Buscar o subir apuntes</Link>
