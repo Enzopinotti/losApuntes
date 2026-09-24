@@ -463,6 +463,15 @@ export class MongoOrganizationStore implements OrganizationStore {
       .exec();
   }
 
+  async findPostByGlobalId(
+    postId: string,
+  ): Promise<OrganizationPostRecord | null> {
+    return this.posts
+      .findOne({ id: postId })
+      .lean<OrganizationPostRecord>()
+      .exec();
+  }
+
   async updatePost(
     organizationId: string,
     postId: string,
