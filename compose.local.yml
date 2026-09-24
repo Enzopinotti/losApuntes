@@ -25,36 +25,42 @@ services:
     ports:
       - "127.0.0.1:8025:8025"
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+  rustfs:
+    image: rustfs/rustfs:1.0.1
     restart: "no"
-    command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: losapuntes-local
-      MINIO_ROOT_PASSWORD: losapuntes-local-files-secret
-      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:5173
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_ACCESS_KEY: losapuntes-local
+      RUSTFS_SECRET_KEY: losapuntes-local-files-secret
+      RUSTFS_CORS_ALLOWED_ORIGINS: http://localhost:5173
     tmpfs:
-      - /data
+      - /data:uid=10001,gid=10001,mode=0770
     ports:
       - "127.0.0.1:9000:9000"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9000/health/ready"]
       interval: 2s
       timeout: 5s
       retries: 30
       start_period: 5s
 
-  minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+  rustfs-init:
+    image: rustfs/rc:v0.1.30
     restart: "no"
     entrypoint: ["/bin/sh", "-c"]
+    environment:
+      RUSTFS_ACCESS_KEY: losapuntes-local
+      RUSTFS_SECRET_KEY: losapuntes-local-files-secret
     command:
       - >
-        mc alias set local http://minio:9000 losapuntes-local
-        losapuntes-local-files-secret &&
-        mc mb --ignore-existing local/losapuntes-files
+        /usr/bin/rc alias set local http://rustfs:9000 "$$RUSTFS_ACCESS_KEY"
+        "$$RUSTFS_SECRET_KEY" >/dev/null &&
+        /usr/bin/rc mb --ignore-existing local/losapuntes-files >/dev/null
     depends_on:
-      minio:
+      rustfs:
         condition: service_healthy
 
   api:
@@ -75,7 +81,7 @@ services:
       AUTH_SMTP_PORT: 1025
       AUTH_SMTP_SECURE: "false"
       FILES_STORAGE_PROVIDER: s3
-      FILES_S3_ENDPOINT: http://minio:9000
+      FILES_S3_ENDPOINT: http://rustfs:9000
       FILES_S3_PUBLIC_ENDPOINT: http://localhost:9000
       FILES_S3_REGION: us-east-1
       FILES_S3_BUCKET: losapuntes-files
@@ -89,7 +95,7 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
-      minio-init:
+      rustfs-init:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -122,7 +128,7 @@ services:
       AUTH_SMTP_PORT: 1025
       AUTH_SMTP_SECURE: "false"
       FILES_STORAGE_PROVIDER: s3
-      FILES_S3_ENDPOINT: http://minio:9000
+      FILES_S3_ENDPOINT: http://rustfs:9000
       FILES_S3_PUBLIC_ENDPOINT: http://localhost:9000
       FILES_S3_REGION: us-east-1
       FILES_S3_BUCKET: losapuntes-files
@@ -134,5 +140,5 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
-      minio-init:
+      rustfs-init:
         condition: service_completed_successfully
