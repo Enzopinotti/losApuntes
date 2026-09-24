@@ -43,6 +43,8 @@ These facts are separate.
 
 A verified user may create an organization and becomes its initial owner manager. That proves account control of the page, not external institutional endorsement.
 
+In v1, user-created organizations always begin as `claimed`. The `unclaimed` state is reserved for a future authoritative import/curation workflow; v1 does **not** claim to implement creation of unclaimed pages, claim requests or claim transfer. Those flows require their own evidence, abuse controls and audit contract before activation.
+
 Only an explicit platform permission may change `verificationState`.
 
 Verification confirms identity evidence reviewed by Los Apuntes. It does not imply endorsement, ideological alignment, sponsorship or quality ranking.
