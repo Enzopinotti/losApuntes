@@ -18,7 +18,6 @@ class PasswordProbeDto {
   newPassword!: string;
 }
 
-@Controller('runtime-probe')
 function responseIp(body: unknown): string {
   if (
     typeof body !== 'object' ||
@@ -32,6 +31,7 @@ function responseIp(body: unknown): string {
   return body.ip;
 }
 
+@Controller('runtime-probe')
 class RuntimeProbeController {
   @Get()
   ok() {
