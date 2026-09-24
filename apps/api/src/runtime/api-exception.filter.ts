@@ -62,6 +62,21 @@ function clientMessage(exception: HttpException): ClientMessage {
   return exception.message;
 }
 
+function retryAfterSeconds(
+  exception: HttpException,
+  statusCode: number,
+): number | null {
+  if (statusCode !== 429) return null;
+
+  const value = responseObject(exception)?.retryAfterSeconds;
+  return typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 1 &&
+    value <= 86_400
+    ? value
+    : null;
+}
+
 function clientCode(exception: HttpException, statusCode: number): string {
   const code = responseObject(exception)?.code;
 
@@ -98,6 +113,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
         ? clientMessage(exception)
         : 'Request failed';
 
+    const retryAfter =
+      exception instanceof HttpException
+        ? retryAfterSeconds(exception, statusCode)
+        : null;
+
     if (isServerError) {
       request.log?.error(
         {
@@ -112,10 +132,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
       );
     }
 
-    reply.header('x-request-id', requestId).status(statusCode).send({
+    reply.header('x-request-id', requestId);
+
+    if (retryAfter !== null) {
+      reply.header('retry-after', String(retryAfter));
+    }
+
+    reply.status(statusCode).send({
       statusCode,
       code,
       message,
+      ...(retryAfter !== null
+        ? { retryAfterSeconds: retryAfter }
+        : {}),
       requestId,
     });
   }

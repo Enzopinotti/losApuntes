@@ -3,9 +3,12 @@ import { isIP } from 'node:net';
 const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
 const VALID_AUTH_EMAIL_DELIVERY_MODES = new Set(['disabled', 'smtp']);
 const VALID_DEPLOYMENT_PROFILES = new Set(['local', 'production']);
+const LOCAL_AUTH_ABUSE_KEY_SECRET =
+  'losapuntes-local-auth-abuse-secret-2026';
 const KNOWN_LOCAL_PRODUCTION_CREDENTIALS = new Map<string, Set<string>>([
   ['FILES_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
   ['FILES_S3_SECRET_ACCESS_KEY', new Set(['losapuntes-local-files-secret'])],
+  ['AUTH_ABUSE_KEY_SECRET', new Set([LOCAL_AUTH_ABUSE_KEY_SECRET])],
 ]);
 
 function optionalString(
@@ -327,6 +330,25 @@ export function validateRuntimeEnvironment(
     'FILES_S3_PUBLIC_ENDPOINT',
   );
   const trustedProxyCidrs = parseTrustedProxyCidrs(source.TRUSTED_PROXY_CIDRS);
+  const authAbuseKeySecret =
+    optionalString(source, 'AUTH_ABUSE_KEY_SECRET') ??
+    (deploymentProfile === 'local' ? LOCAL_AUTH_ABUSE_KEY_SECRET : undefined);
+
+  if (!authAbuseKeySecret) {
+    throw new Error('AUTH_ABUSE_KEY_SECRET is required');
+  }
+
+  if (authAbuseKeySecret.length < 32) {
+    throw new Error('AUTH_ABUSE_KEY_SECRET must be at least 32 characters');
+  }
+
+  rejectKnownLocalProductionCredential(
+    nodeEnv,
+    deploymentProfile,
+    'AUTH_ABUSE_KEY_SECRET',
+    authAbuseKeySecret,
+  );
+
   const filesS3AccessKeyId = requiredString(source, 'FILES_S3_ACCESS_KEY_ID');
   const filesS3SecretAccessKey = requiredString(
     source,
@@ -396,6 +418,7 @@ export function validateRuntimeEnvironment(
     ),
     TRUSTED_PROXY_CIDRS: trustedProxyCidrs,
     AUTH_EMAIL_DELIVERY_MODE: deliveryMode,
+    AUTH_ABUSE_KEY_SECRET: authAbuseKeySecret,
     AUTH_ACTION_BASE_URL: authActionBaseUrl,
     AUTH_SMTP_PORT: parsePort(source.AUTH_SMTP_PORT, 'AUTH_SMTP_PORT', 587),
     AUTH_SMTP_SECURE: parseBoolean(
