@@ -1,8 +1,20 @@
 import type {
+  AcceptedResponse,
+  ActionTokenInput,
   AuthApiErrorBody,
+  AuthSessionListResponse,
   AuthenticatedSessionResponse,
+  EmailActionRequestInput,
+  GoogleAvailabilityResponse,
+  GoogleMobileInput,
+  GoogleMobileLinkInput,
+  GoogleUnlinkInput,
+  LoginMethodsResponse,
   MobileAuthenticatedSessionResponse,
+  PasswordChangeInput,
   PasswordLoginInput,
+  PasswordRecoveryCompleteInput,
+  RegisterInput,
 } from "@losapuntes/contracts";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -161,6 +173,77 @@ export class MobileApiClient {
     }
   }
 
+  register(input: RegisterInput, signal?: AbortSignal) {
+    return this.request<AcceptedResponse>("/auth/register", {
+      method: "POST",
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  requestEmailVerification(
+    input: EmailActionRequestInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<AcceptedResponse>("/auth/email-verification/request", {
+      method: "POST",
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  inspectEmailVerification(input: ActionTokenInput, signal?: AbortSignal) {
+    return this.request<{ verification: { available: true } }>(
+      "/auth/email-verification/inspect",
+      {
+        method: "POST",
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  completeEmailVerification(input: ActionTokenInput, signal?: AbortSignal) {
+    return this.request<void>("/auth/email-verification/complete", {
+      method: "POST",
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  requestPasswordRecovery(
+    input: EmailActionRequestInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<AcceptedResponse>("/auth/password/recovery/request", {
+      method: "POST",
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  inspectPasswordRecovery(input: ActionTokenInput, signal?: AbortSignal) {
+    return this.request<{ recovery: { available: true } }>(
+      "/auth/password/recovery/inspect",
+      {
+        method: "POST",
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  completePasswordRecovery(
+    input: PasswordRecoveryCompleteInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<void>("/auth/password/recovery/complete", {
+      method: "POST",
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
   mobileLogin(input: PasswordLoginInput, signal?: AbortSignal) {
     return this.request<MobileAuthenticatedSessionResponse>(
       "/auth/mobile/login",
@@ -186,4 +269,97 @@ export class MobileApiClient {
       ...(signal ? { signal } : {}),
     });
   }
+  listSessions(credential: string, signal?: AbortSignal) {
+    return this.request<AuthSessionListResponse>("/auth/sessions", {
+      credential,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  revokeSession(
+    credential: string,
+    sessionId: string,
+    signal?: AbortSignal,
+  ) {
+    return this.request<void>(
+      `/auth/sessions/${encodeURIComponent(sessionId)}`,
+      {
+        method: "DELETE",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  revokeAllSessions(credential: string, signal?: AbortSignal) {
+    return this.request<void>("/auth/sessions", {
+      method: "DELETE",
+      credential,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  changePassword(
+    credential: string,
+    input: PasswordChangeInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<void>("/auth/password/change", {
+      method: "POST",
+      credential,
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  googleStatus(signal?: AbortSignal) {
+    return this.request<GoogleAvailabilityResponse>("/auth/google/status", {
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  googleMobileLogin(input: GoogleMobileInput, signal?: AbortSignal) {
+    return this.request<MobileAuthenticatedSessionResponse>(
+      "/auth/google/mobile",
+      {
+        method: "POST",
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  googleMobileLink(
+    credential: string,
+    input: GoogleMobileLinkInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<void>("/auth/google/mobile/link", {
+      method: "POST",
+      credential,
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  loginMethods(credential: string, signal?: AbortSignal) {
+    return this.request<LoginMethodsResponse>("/auth/login-methods", {
+      credential,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  unlinkGoogle(
+    credential: string,
+    input: GoogleUnlinkInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<void>("/auth/google", {
+      method: "DELETE",
+      credential,
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
 }
