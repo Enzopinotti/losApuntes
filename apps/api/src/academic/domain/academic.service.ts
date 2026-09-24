@@ -602,6 +602,49 @@ export class AcademicService {
     return { context: this.publicContext(context) };
   }
 
+  async resolveOrganizationScope(input: {
+    institutionId: string;
+    campusId?: string;
+    academicUnitId?: string;
+    programId?: string;
+  }): Promise<{
+    institutionId: string;
+    campusId: string | null;
+    academicUnitId: string | null;
+    programId: string | null;
+  }> {
+    const institution = await this.requireKind(input.institutionId, 'institution');
+    const campus = input.campusId
+      ? await this.requireKind(input.campusId, 'campus')
+      : undefined;
+    const academicUnit = input.academicUnitId
+      ? await this.requireKind(input.academicUnitId, 'academic_unit')
+      : undefined;
+    const program = input.programId
+      ? await this.requireKind(input.programId, 'program')
+      : undefined;
+
+    for (const candidate of [
+      campus?.id,
+      academicUnit?.id,
+      program?.id,
+    ].filter((value): value is string => Boolean(value))) {
+      if (!(await this.isDescendantOf(candidate, institution.id))) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_MISMATCH',
+          message: 'Organization scope nodes do not share one institution',
+        });
+      }
+    }
+
+    return {
+      institutionId: institution.id,
+      campusId: campus?.id ?? null,
+      academicUnitId: academicUnit?.id ?? null,
+      programId: program?.id ?? null,
+    };
+  }
+
   async resolveResourceContext(
     subjectId: string,
     courseOfferingId?: string,
