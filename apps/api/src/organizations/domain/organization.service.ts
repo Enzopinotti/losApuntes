@@ -17,6 +17,7 @@ import type {
   CreateOrganizationEventDto,
   CreateOrganizationLinkDto,
   CreateOrganizationPostDto,
+  CreateOrganizationReportDto,
   OrganizationSearchDto,
   RemoveOrganizationManagerDto,
   UpdateOrganizationDto,
@@ -589,6 +590,7 @@ export class OrganizationService {
       locationLabel: cleanNullable(dto.locationLabel),
       externalUrl: httpsUrl(dto.externalUrl),
       state: 'scheduled',
+      moderationState: 'available',
       revision: 1,
     });
 
@@ -773,6 +775,72 @@ export class OrganizationService {
       'editor',
     ]);
     await this.store.unfeatureResource(organizationId, resourceId);
+  }
+
+  async reportPost(
+    userId: string,
+    organizationId: string,
+    postId: string,
+    dto: CreateOrganizationReportDto,
+  ) {
+    await this.requireActive(organizationId);
+    const post = await this.store.findPostById(organizationId, postId);
+    if (!post || post.moderationState !== 'available') this.notFound();
+
+    return this.createReport(
+      userId,
+      'organization_post',
+      post.id,
+      dto.reason,
+      dto.details,
+    );
+  }
+
+  async reportEvent(
+    userId: string,
+    organizationId: string,
+    eventId: string,
+    dto: CreateOrganizationReportDto,
+  ) {
+    await this.requireActive(organizationId);
+    const event = await this.store.findEventById(organizationId, eventId);
+    if (!event || event.moderationState !== 'available') this.notFound();
+
+    return this.createReport(
+      userId,
+      'organization_event',
+      event.id,
+      dto.reason,
+      dto.details,
+    );
+  }
+
+  private async createReport(
+    userId: string,
+    targetType: 'organization_post' | 'organization_event',
+    targetId: string,
+    reason: Parameters<OrganizationStore['upsertPendingReport']>[0]['reason'],
+    details?: string | null,
+  ) {
+    const row = await this.store.upsertPendingReport({
+      id: randomUUID(),
+      targetType,
+      targetId,
+      reporterUserId: userId,
+      reason,
+      details: details == null ? null : cleanText(details),
+    });
+
+    return {
+      report: {
+        id: row.id,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        reason: row.reason,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+      },
+    };
   }
 
   async getFeedCandidates(userId: string, anchorAt: Date, limit: number) {
