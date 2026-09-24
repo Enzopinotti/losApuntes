@@ -2,6 +2,7 @@ import { validateRuntimeEnvironment } from './runtime-environment';
 
 const validEnvironment = {
   MONGO_URI: 'mongodb://127.0.0.1:27017/losapuntes',
+  ABUSE_CONTROL_HMAC_SECRET: 'test-abuse-control-hmac-secret-value',
   FILES_STORAGE_PROVIDER: 's3',
   FILES_S3_ENDPOINT: 'http://127.0.0.1:9000',
   FILES_S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
@@ -17,6 +18,7 @@ const validProductionEnvironment = {
   DEPLOYMENT_PROFILE: 'production',
   WEB_ORIGIN: 'https://app.losapuntes.example',
   FILES_S3_PUBLIC_ENDPOINT: 'https://files.losapuntes.example',
+  ABUSE_CONTROL_HMAC_SECRET: 'prod-abuse-control-hmac-secret-value',
   FILES_S3_ACCESS_KEY_ID: 'prod-files-access',
   FILES_S3_SECRET_ACCESS_KEY: 'prod-files-secret-value',
   AUTH_EMAIL_DELIVERY_MODE: 'smtp',
@@ -271,6 +273,26 @@ describe('validateRuntimeEnvironment', () => {
       ).toThrow('PORT must be an integer between 1 and 65535');
     },
   );
+
+  it('requires a sufficiently long abuse-control HMAC secret', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        ABUSE_CONTROL_HMAC_SECRET: 'too-short',
+      }),
+    ).toThrow('ABUSE_CONTROL_HMAC_SECRET must be at least 32 characters');
+  });
+
+  it('rejects the known local abuse-control secret in production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        ABUSE_CONTROL_HMAC_SECRET: 'losapuntes-local-abuse-hmac-secret-v1',
+      }),
+    ).toThrow(
+      'ABUSE_CONTROL_HMAC_SECRET must not use the local development credential in production',
+    );
+  });
 
   it('normalizes required Files configuration', () => {
     const result = validateRuntimeEnvironment(validEnvironment);
