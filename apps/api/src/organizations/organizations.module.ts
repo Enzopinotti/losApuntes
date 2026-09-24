@@ -26,6 +26,8 @@ import {
   OrganizationManagerSchema,
   OrganizationPost,
   OrganizationPostSchema,
+  OrganizationReport,
+  OrganizationReportSchema,
   OrganizationSchema,
 } from './mongo/organization.mongo-schemas';
 import { OrganizationsController } from './organizations.controller';
@@ -44,6 +46,7 @@ import { OrganizationsController } from './organizations.controller';
       { name: OrganizationFollow.name, schema: OrganizationFollowSchema },
       { name: OrganizationPost.name, schema: OrganizationPostSchema },
       { name: OrganizationEvent.name, schema: OrganizationEventSchema },
+      { name: OrganizationReport.name, schema: OrganizationReportSchema },
       { name: OrganizationLink.name, schema: OrganizationLinkSchema },
       {
         name: OrganizationFeaturedResource.name,
