@@ -307,22 +307,19 @@ describe('OrganizationService', () => {
     );
 
     expect(result.organization.verificationState).toBe('unverified');
-    expect(organizationStore.createWithOwner).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ownerUserId: 'owner-user',
-        organization: expect.objectContaining({
-          name: 'Centro de Estudiantes',
-          normalizedName: 'centro de estudiantes',
-          claimState: 'claimed',
-          verificationState: 'unverified',
-          institutionId,
-        }),
-        audit: expect.objectContaining({
-          event: 'organization.created',
-          nextRole: 'owner',
-        }),
-      }),
-    );
+    const createInput = organizationStore.createWithOwner.mock.calls[0]?.[0];
+    expect(createInput?.ownerUserId).toBe('owner-user');
+    expect(createInput?.organization).toMatchObject({
+      name: 'Centro de Estudiantes',
+      normalizedName: 'centro de estudiantes',
+      claimState: 'claimed',
+      verificationState: 'unverified',
+      institutionId,
+    });
+    expect(createInput?.audit).toMatchObject({
+      event: 'organization.created',
+      nextRole: 'owner',
+    });
   });
 
   it('rejects non-HTTPS organization URLs', async () => {
@@ -359,13 +356,11 @@ describe('OrganizationService', () => {
       },
     );
 
-    expect(organizationStore.search).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: 'centro',
-        institutionId,
-        limit: 10,
-      }),
-    );
+    expect(organizationStore.search.mock.calls[0]?.[0]).toMatchObject({
+      q: 'centro',
+      institutionId,
+      limit: 10,
+    });
     expect(result.items[0]?.name).toBe('Centro de Estudiantes');
     expect(result.nextCursor).toEqual(expect.any(String));
   });
@@ -404,14 +399,12 @@ describe('OrganizationService', () => {
     );
 
     expect(result.organization.name).toBe('Centro Actualizado');
-    expect(organizationStore.updateOwnedProfile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        patch: expect.objectContaining({
-          name: 'Centro Actualizado',
-          normalizedName: 'centro actualizado',
-        }),
-      }),
-    );
+    expect(
+      organizationStore.updateOwnedProfile.mock.calls[0]?.[0]?.patch,
+    ).toMatchObject({
+      name: 'Centro Actualizado',
+      normalizedName: 'centro actualizado',
+    });
 
     organizationStore.findById.mockResolvedValue(organization({ revision: 2 }));
     await expectCode(
@@ -452,7 +445,7 @@ describe('OrganizationService', () => {
       expectedRevision: 1,
     });
     expect(unchanged.changed).toBe(false);
-    expect(organizationStore.updateVerification).not.toHaveBeenCalled();
+    expect(organizationStore.updateVerification.mock.calls).toHaveLength(0);
 
     organizationStore.updateVerification.mockResolvedValue(
       organization({ verificationState: 'verified', revision: 2 }),
@@ -466,15 +459,13 @@ describe('OrganizationService', () => {
       expectedRevision: 1,
     });
     expect(changed.changed).toBe(true);
-    expect(organizationStore.updateVerification).toHaveBeenCalledWith(
-      expect.objectContaining({
-        audit: expect.objectContaining({
-          event: 'organization.verification_updated',
-          actorUserId: 'platform-user',
-          reason: 'Evidence reviewed',
-        }),
-      }),
-    );
+    expect(
+      organizationStore.updateVerification.mock.calls[0]?.[0]?.audit,
+    ).toMatchObject({
+      event: 'organization.verification_updated',
+      actorUserId: 'platform-user',
+      reason: 'Evidence reviewed',
+    });
   });
 
   it('prevents admins from granting or mutating owner roles', async () => {
@@ -535,16 +526,14 @@ describe('OrganizationService', () => {
     );
 
     expect(result.managers).toHaveLength(2);
-    expect(organizationStore.changeManager).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetUserId: 'target-user',
-        expectedTargetRole: null,
-        nextRole: 'editor',
-        audit: expect.objectContaining({
-          event: 'organization.manager_granted',
-        }),
-      }),
-    );
+    expect(organizationStore.changeManager.mock.calls[0]?.[0]).toMatchObject({
+      targetUserId: 'target-user',
+      expectedTargetRole: null,
+      nextRole: 'editor',
+      audit: {
+        event: 'organization.manager_granted',
+      },
+    });
   });
 
   it('maps final-owner and manager revision races to stable conflicts', async () => {
@@ -669,9 +658,9 @@ describe('OrganizationService', () => {
         startsAt: now.toISOString(),
       },
     );
-    expect(organizationStore.createEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ moderationState: 'available' }),
-    );
+    expect(organizationStore.createEvent.mock.calls[0]?.[0]).toMatchObject({
+      moderationState: 'available',
+    });
   });
 
   it('features only currently public Resources and reauthorizes them on read', async () => {
@@ -824,7 +813,7 @@ describe('OrganizationService', () => {
     );
 
     expect(result.post.body).toBe('Contenido actualizado');
-    expect(organizationStore.updatePost).toHaveBeenCalledWith(
+    expect(organizationStore.updatePost.mock.calls[0]).toEqual([
       orgId,
       current.id,
       1,
@@ -833,7 +822,7 @@ describe('OrganizationService', () => {
         body: 'Contenido actualizado',
         subjectId,
       },
-    );
+    ]);
 
     const listed = await service(organizationStore, dependencies).listPosts(
       orgId,
@@ -841,7 +830,7 @@ describe('OrganizationService', () => {
       '2026-09-25T00:00:00.000Z',
     );
     expect(listed.items).toHaveLength(1);
-    expect(organizationStore.listPosts).toHaveBeenCalledWith({
+    expect(organizationStore.listPosts.mock.calls.at(-1)?.[0]).toEqual({
       organizationId: orgId,
       limit: 10,
       before: new Date('2026-09-25T00:00:00.000Z'),
@@ -948,20 +937,17 @@ describe('OrganizationService', () => {
     );
 
     expect(result.event.state).toBe('cancelled');
-    expect(organizationStore.updateEvent).toHaveBeenCalledWith(
-      orgId,
-      current.id,
-      1,
-      expect.objectContaining({
-        title: 'Encuentro actualizado',
-        description: null,
-        startsAt: changedStart,
-        endsAt: null,
-        locationLabel: 'Aula 2',
-        externalUrl: 'https://example.test/nuevo',
-        state: 'cancelled',
-      }),
-    );
+    const updateEventCall = organizationStore.updateEvent.mock.calls[0];
+    expect(updateEventCall?.slice(0, 3)).toEqual([orgId, current.id, 1]);
+    expect(updateEventCall?.[3]).toMatchObject({
+      title: 'Encuentro actualizado',
+      description: null,
+      startsAt: changedStart,
+      endsAt: null,
+      locationLabel: 'Aula 2',
+      externalUrl: 'https://example.test/nuevo',
+      state: 'cancelled',
+    });
 
     const listed = await service(organizationStore, dependencies).listEvents(
       orgId,
@@ -969,7 +955,7 @@ describe('OrganizationService', () => {
       now.toISOString(),
     );
     expect(listed.items).toHaveLength(1);
-    expect(organizationStore.listEvents).toHaveBeenCalledWith({
+    expect(organizationStore.listEvents.mock.calls.at(-1)?.[0]).toEqual({
       organizationId: orgId,
       limit: 15,
       from: now,
@@ -1103,7 +1089,7 @@ describe('OrganizationService', () => {
         resourceId,
       ),
     ).resolves.toEqual({ featured: true });
-    expect(organizationStore.featureResource).toHaveBeenCalledWith({
+    expect(organizationStore.featureResource.mock.calls[0]?.[0]).toEqual({
       organizationId: orgId,
       resourceId,
       createdByUserId: 'owner-user',
@@ -1169,7 +1155,7 @@ describe('OrganizationService', () => {
       expectedManagementRevision: 1,
     });
     expect(unchanged.managers).toHaveLength(2);
-    expect(organizationStore.changeManager).not.toHaveBeenCalled();
+    expect(organizationStore.changeManager.mock.calls).toHaveLength(0);
 
     organizationStore.findById.mockResolvedValue(
       organization({ managementRevision: 2 }),
@@ -1266,12 +1252,10 @@ describe('OrganizationService', () => {
       limit: 10,
       cursor,
     });
-    expect(organizationStore.search).toHaveBeenCalledWith(
-      expect.objectContaining({
-        institutionId,
-        after: { normalizedName: 'anterior', id: orgId },
-      }),
-    );
+    expect(organizationStore.search.mock.calls[0]?.[0]).toMatchObject({
+      institutionId,
+      after: { normalizedName: 'anterior', id: orgId },
+    });
 
     dependencies.academic.getCatalogNode.mockResolvedValueOnce({
       node: {
@@ -1301,11 +1285,9 @@ describe('OrganizationService', () => {
       programId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       limit: 10,
     });
-    expect(organizationStore.search).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        programId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      }),
-    );
+    expect(organizationStore.search.mock.calls.at(-1)?.[0]).toMatchObject({
+      programId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
 
     dependencies.academic.getCatalogNode.mockResolvedValueOnce({
       node: {
