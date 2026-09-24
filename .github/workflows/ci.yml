@@ -71,10 +71,15 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
-      - name: Show canonical formatting diff
+      - name: Show canonical formatting payloads
         run: |
           pnpm --filter @losapuntes/api exec prettier --write src/config/runtime-environment.ts src/config/runtime-environment.spec.ts
-          git diff --no-ext-diff --unified=30 -- src/config/runtime-environment.ts src/config/runtime-environment.spec.ts
+          for file in apps/api/src/config/runtime-environment.ts apps/api/src/config/runtime-environment.spec.ts; do
+            echo "FORMAT_FILE_BEGIN:$file"
+            base64 -w0 "$file"
+            echo
+            echo "FORMAT_FILE_END:$file"
+          done
 
   auth-critical-coverage:
     name: Auth critical coverage
