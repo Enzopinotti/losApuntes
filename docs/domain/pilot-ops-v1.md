@@ -1,7 +1,7 @@
 # Pilot Operations v1
 
 **Issue:** #8  
-**Status:** Candidate — implementation complete, CI closure pending  
+**Status:** Implemented / Validated  
 **Date:** 2026-09-23
 
 ## Product purpose
@@ -211,7 +211,14 @@ Pilot Operations v1 does not claim:
 
 ## Verification
 
-Before #8 closes, exact-head and post-merge main must pass:
+Issue #8 is closed with candidate and post-merge evidence:
+
+- candidate SHA: `02bcb5c9871d391b41e8d7102e91bc0bc00f46e0`;
+- candidate verify: #713 / run `35927435297`, success;
+- merge/main SHA: `77438de634c4f73bc53242dd010e2a8c542f52b9`;
+- post-merge verify: #714 / run `35927820127`, success.
+
+The verified gates include:
 
 - Quality Gate;
 - all existing critical coverage gates;
@@ -219,4 +226,6 @@ Before #8 closes, exact-head and post-merge main must pass:
 - production dependency audit;
 - container runtime smoke including moderation and pilot metrics;
 - Web static contract for authenticated Home/admin privacy and cookie transport.
+
+This evidence closes Pilot Operations v1 as implemented/validated. A real public pilot remains separately gated by deployment inputs such as institution scope, accountable owners, support channel, production release/rollback SHAs and change-window evidence.
 
