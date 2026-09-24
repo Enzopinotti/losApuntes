@@ -1,6 +1,6 @@
 export type FeedMode = "balanced" | "study" | "discover" | "community";
 export type FeedOrder = "ranked" | "chronological";
-export type FeedTargetType = "resource" | "question";
+export type FeedTargetType = "resource" | "question" | "organization_post";
 export type FeedFeedbackSignal = "more" | "less";
 
 export type FeedReasonCode =
@@ -8,6 +8,7 @@ export type FeedReasonCode =
   | "prioritized_subject"
   | "connection"
   | "following"
+  | "organization_following"
   | "interest_match"
   | "unanswered_question"
   | "fresh"
@@ -24,11 +25,22 @@ export type FeedItem = {
     displayName: string;
     avatarUrl: string | null;
   };
+  source:
+    | { kind: "personal_user" }
+    | {
+        kind: "campus_organization";
+        organization: {
+          id: string;
+          name: string;
+          avatarUrl: string | null;
+          verificationState: "unverified" | "verified";
+        };
+      };
   academic: {
     subject: {
       id: string;
       name: string;
-    };
+    } | null;
   };
   why: FeedReasonCode[];
   createdAt: string;
