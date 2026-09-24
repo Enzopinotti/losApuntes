@@ -445,10 +445,7 @@ export class AcademicService {
       });
     }
 
-    const roles = effectiveAcademicRelationshipRoles(
-      dto.status,
-      dto.roles,
-    );
+    const roles = effectiveAcademicRelationshipRoles(dto.status, dto.roles);
 
     if (!relationshipRolesCompatible(dto.status, roles)) {
       throw new UnprocessableEntityException({
@@ -500,7 +497,8 @@ export class AcademicService {
     if (existing.status === 'alumni') {
       throw new ConflictException({
         code: 'ACADEMIC_ALUMNI_HISTORY_IMMUTABLE',
-        message: 'Alumni history is preserved; create a new affiliation instead',
+        message:
+          'Alumni history is preserved; create a new affiliation instead',
       });
     }
 
@@ -546,8 +544,12 @@ export class AcademicService {
 
       for (const affiliation of affiliations) {
         if (
-          (affiliation.status === 'active' || affiliation.status === 'paused') &&
-          (await this.participationBelongsToAffiliation(subject.id, affiliation))
+          (affiliation.status === 'active' ||
+            affiliation.status === 'paused') &&
+          (await this.participationBelongsToAffiliation(
+            subject.id,
+            affiliation,
+          ))
         ) {
           eligible = true;
           break;
@@ -627,7 +629,8 @@ export class AcademicService {
     ) {
       throw new UnprocessableEntityException({
         code: 'ACADEMIC_CONTEXT_INELIGIBLE',
-        message: 'Alumni/completed affiliation cannot carry current subject context',
+        message:
+          'Alumni/completed affiliation cannot carry current subject context',
       });
     }
 
