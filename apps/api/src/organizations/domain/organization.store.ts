@@ -111,6 +111,7 @@ export interface OrganizationStore {
     organizationId: string,
     postId: string,
   ): Promise<OrganizationPostRecord | null>;
+  findPostByGlobalId(postId: string): Promise<OrganizationPostRecord | null>;
   updatePost(
     organizationId: string,
     postId: string,
