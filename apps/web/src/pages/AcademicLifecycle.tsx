@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 import type {
   AcademicAffiliation,
   AcademicCatalogNode,
@@ -22,7 +28,9 @@ const roleLabels: Record<AcademicRelationshipRole, string> = {
   community: "Comunidad",
 };
 
-function rolesFor(status: AcademicAffiliation["status"]): AcademicRelationshipRole[] {
+function rolesFor(
+  status: AcademicAffiliation["status"],
+): AcademicRelationshipRole[] {
   if (status === "active" || status === "paused") {
     return [
       "student",
@@ -76,8 +84,9 @@ const AcademicLifecycle = () => {
   const [roleDrafts, setRoleDrafts] = useState<
     Record<string, AcademicRelationshipRole[]>
   >({});
-  const [searchKind, setSearchKind] =
-    useState<"institution" | "program">("institution");
+  const [searchKind, setSearchKind] = useState<"institution" | "program">(
+    "institution",
+  );
   const [searchText, setSearchText] = useState("");
   const [results, setResults] = useState<AcademicCatalogNode[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -313,9 +322,11 @@ const AcademicLifecycle = () => {
             {affiliations.map((affiliation) => {
               const availableRoles = rolesFor(affiliation.status);
               const selected = roleDrafts[affiliation.id] ?? [];
-              const graduationEligible = ["active", "paused", "completed"].includes(
-                affiliation.status,
-              );
+              const graduationEligible = [
+                "active",
+                "paused",
+                "completed",
+              ].includes(affiliation.status);
 
               return (
                 <article key={affiliation.id} className="academic-affiliation">
@@ -323,9 +334,10 @@ const AcademicLifecycle = () => {
                     <div>
                       <strong>
                         {affiliation.programId
-                          ? labels[affiliation.programId] ?? affiliation.programId
-                          : labels[affiliation.institutionId] ??
-                            affiliation.institutionId}
+                          ? (labels[affiliation.programId] ??
+                            affiliation.programId)
+                          : (labels[affiliation.institutionId] ??
+                            affiliation.institutionId)}
                       </strong>
                       <span>
                         {labels[affiliation.institutionId] ??
@@ -379,8 +391,8 @@ const AcademicLifecycle = () => {
                       <div>
                         <strong>Pasar esta afiliación a alumni</strong>
                         <p>
-                          Conserva todo el historial y cierra como completadas las
-                          materias actuales de este mismo alcance.
+                          Conserva todo el historial y cierra como completadas
+                          las materias actuales de este mismo alcance.
                         </p>
                       </div>
                       <button
@@ -412,7 +424,9 @@ const AcademicLifecycle = () => {
               <li key={item.targetId}>
                 <div>
                   <strong>{item.name}</strong>
-                  <span>{item.kind === "institution" ? "Institución" : "Carrera"}</span>
+                  <span>
+                    {item.kind === "institution" ? "Institución" : "Carrera"}
+                  </span>
                 </div>
                 <button
                   type="button"
