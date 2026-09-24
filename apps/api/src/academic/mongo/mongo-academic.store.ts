@@ -432,7 +432,6 @@ export class MongoAcademicStore implements AcademicStore {
         { userId: input.userId, targetNodeId: input.targetNodeId },
         {
           $setOnInsert: input,
-          $set: { targetKind: input.targetKind },
         },
         { upsert: true, new: true, session: this.session() },
       )
