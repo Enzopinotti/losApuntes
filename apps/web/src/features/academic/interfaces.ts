@@ -9,12 +9,7 @@ export type AcademicRelationshipRole =
   | "community";
 
 export type AcademicAffiliationStatus =
-  | "applicant"
-  | "active"
-  | "paused"
-  | "completed"
-  | "withdrawn"
-  | "alumni";
+  "applicant" | "active" | "paused" | "completed" | "withdrawn" | "alumni";
 
 export type AcademicAffiliation = {
   id: string;
@@ -38,10 +33,7 @@ export type AcademicFollow = {
 };
 
 export type AcademicLifecyclePhase =
-  | "student"
-  | "alumni"
-  | "mixed"
-  | "community";
+  "student" | "alumni" | "mixed" | "community";
 
 export type AcademicLifecycleResponse = {
   phase: AcademicLifecyclePhase;
