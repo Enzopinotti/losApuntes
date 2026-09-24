@@ -417,7 +417,7 @@ jobs:
           for image in \
             mongo:8.0 \
             axllent/mailpit:v1.31.1 \
-            rustfs/rustfs:1.0.1 \
+            rustfs/rustfs:1.0.0-rc.6 \
             rustfs/rc:v0.1.30; do
             pulled=false
             for attempt in 1 2 3; do
