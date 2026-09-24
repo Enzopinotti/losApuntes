@@ -190,7 +190,11 @@ function validIpOrCidr(value: string): boolean {
   }
 
   const bits = Number(prefix);
-  return Number.isInteger(bits) && bits >= 0 && bits <= (version === 4 ? 32 : 128);
+  return (
+    Number.isInteger(bits) &&
+    bits >= 0 &&
+    bits <= (version === 4 ? 32 : 128)
+  );
 }
 
 export function parseTrustedProxyCidrs(value: unknown): string[] {
@@ -216,7 +220,9 @@ function rejectKnownLocalProductionCredential(
     nodeEnv === 'production' &&
     KNOWN_LOCAL_PRODUCTION_CREDENTIALS.get(key)?.has(value)
   ) {
-    throw new Error(`${key} must not use the local development credential in production`);
+    throw new Error(
+      `${key} must not use the local development credential in production`,
+    );
   }
 }
 
