@@ -16,6 +16,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import { AbuseControlService } from '../abuse-control/domain/abuse-control.service';
 import { AccountSecurityService } from './account-security.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import type { AuthenticatedRequest } from './auth.types';
@@ -90,6 +91,7 @@ function unavailable(
 @UseInterceptors(AuthNoStoreInterceptor)
 export class AuthController {
   constructor(
+    private readonly abuseControl: AbuseControlService,
     private readonly auth: AuthService,
     private readonly lifecycle: AuthLifecycleService,
     private readonly security: AccountSecurityService,
@@ -100,7 +102,16 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
-  async register(@Body() dto: RegisterDto) {
+  async register(
+    @Req() request: FastifyRequest,
+    @Body() dto: RegisterDto,
+  ) {
+    await this.abuseControl.enforce(
+      'auth.register',
+      request.ip,
+      dto.email,
+    );
+
     try {
       await this.auth.register(dto);
     } catch (error) {
@@ -114,7 +125,16 @@ export class AuthController {
 
   @Post('email-verification/request')
   @HttpCode(HttpStatus.ACCEPTED)
-  async requestEmailVerification(@Body() dto: EmailAddressDto) {
+  async requestEmailVerification(
+    @Req() request: FastifyRequest,
+    @Body() dto: EmailAddressDto,
+  ) {
+    await this.abuseControl.enforce(
+      'auth.email_verification.request',
+      request.ip,
+      dto.email,
+    );
+
     try {
       await this.lifecycle.requestEmailVerification(dto.email);
     } catch (error) {
@@ -128,7 +148,15 @@ export class AuthController {
 
   @Post('email-verification/inspect')
   @HttpCode(HttpStatus.OK)
-  async inspectEmailVerification(@Body() dto: ActionTokenDto) {
+  async inspectEmailVerification(
+    @Req() request: FastifyRequest,
+    @Body() dto: ActionTokenDto,
+  ) {
+    await this.abuseControl.enforce(
+      'auth.email_verification.inspect',
+      request.ip,
+    );
+
     if (!(await this.lifecycle.inspectEmailVerification(dto.token))) {
       throw unavailable('VERIFICATION_NOT_AVAILABLE');
     }
@@ -142,7 +170,15 @@ export class AuthController {
 
   @Post('email-verification/complete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async completeEmailVerification(@Body() dto: ActionTokenDto): Promise<void> {
+  async completeEmailVerification(
+    @Req() request: FastifyRequest,
+    @Body() dto: ActionTokenDto,
+  ): Promise<void> {
+    await this.abuseControl.enforce(
+      'auth.email_verification.complete',
+      request.ip,
+    );
+
     if (!(await this.lifecycle.completeEmailVerification(dto.token))) {
       throw unavailable('VERIFICATION_NOT_AVAILABLE');
     }
@@ -150,7 +186,16 @@ export class AuthController {
 
   @Post('password/recovery/request')
   @HttpCode(HttpStatus.ACCEPTED)
-  async requestPasswordRecovery(@Body() dto: EmailAddressDto) {
+  async requestPasswordRecovery(
+    @Req() request: FastifyRequest,
+    @Body() dto: EmailAddressDto,
+  ) {
+    await this.abuseControl.enforce(
+      'auth.password_recovery.request',
+      request.ip,
+      dto.email,
+    );
+
     try {
       await this.lifecycle.requestPasswordRecovery(dto.email);
     } catch (error) {
@@ -164,7 +209,15 @@ export class AuthController {
 
   @Post('password/recovery/inspect')
   @HttpCode(HttpStatus.OK)
-  async inspectPasswordRecovery(@Body() dto: ActionTokenDto) {
+  async inspectPasswordRecovery(
+    @Req() request: FastifyRequest,
+    @Body() dto: ActionTokenDto,
+  ) {
+    await this.abuseControl.enforce(
+      'auth.password_recovery.inspect',
+      request.ip,
+    );
+
     if (!(await this.lifecycle.inspectPasswordRecovery(dto.token))) {
       throw unavailable('RECOVERY_NOT_AVAILABLE');
     }
@@ -179,8 +232,14 @@ export class AuthController {
   @Post('password/recovery/complete')
   @HttpCode(HttpStatus.NO_CONTENT)
   async completePasswordRecovery(
+    @Req() request: FastifyRequest,
     @Body() dto: PasswordRecoveryCompleteDto,
   ): Promise<void> {
+    await this.abuseControl.enforce(
+      'auth.password_recovery.complete',
+      request.ip,
+    );
+
     if (
       !(await this.lifecycle.completePasswordRecovery(
         dto.token,
@@ -199,6 +258,12 @@ export class AuthController {
     @Body() dto: PasswordChangeDto,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<void> {
+    await this.abuseControl.enforce(
+      'auth.password.change',
+      request.ip,
+      request.user.id,
+    );
+
     const outcome = await this.security.changePassword(
       request.user.id,
       request.authCredentialVersion,
@@ -242,9 +307,12 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
+    @Req() request: FastifyRequest,
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
+    await this.abuseControl.enforce('auth.login', request.ip, dto.email);
+
     const result = authenticatedOutcome(await this.auth.login(dto, 'web'));
 
     const nodeEnv = this.config.get<string>('NODE_ENV');
@@ -262,7 +330,12 @@ export class AuthController {
 
   @Post('mobile/login')
   @HttpCode(HttpStatus.OK)
-  async mobileLogin(@Body() dto: LoginDto) {
+  async mobileLogin(
+    @Req() request: FastifyRequest,
+    @Body() dto: LoginDto,
+  ) {
+    await this.abuseControl.enforce('auth.login', request.ip, dto.email);
+
     const result = authenticatedOutcome(await this.auth.login(dto, 'mobile'));
 
     return {
