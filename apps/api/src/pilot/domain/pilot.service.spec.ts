@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
+import type { AcademicLifecycleService } from '../../academic/domain/academic-lifecycle.service';
 import type { AcademicService } from '../../academic/domain/academic.service';
 import type { FeedService } from '../../feeds/domain/feed.service';
 import type { NotificationService } from '../../notifications/domain/notification.service';
@@ -36,6 +37,9 @@ function deps() {
       listSubjectParticipations: jest.fn(),
       getCatalogNode: jest.fn(),
     },
+    lifecycle: {
+      getLifecycle: jest.fn(),
+    },
     profiles: {
       getOwnerProfile: jest.fn(),
     },
@@ -59,6 +63,7 @@ function service(
   return new PilotService(
     pilotStore,
     dependencies.academic as unknown as AcademicService,
+    dependencies.lifecycle as unknown as AcademicLifecycleService,
     dependencies.profiles as unknown as ProfileService,
     dependencies.feeds as unknown as FeedService,
     dependencies.notifications as unknown as NotificationService,
@@ -109,6 +114,20 @@ function metrics(
     activity: {
       activeUsers: 8,
       returningUsers: 4,
+    },
+    audience: {
+      activeStudents: {
+        activeUsers: 5,
+        returningUsers: 3,
+      },
+      alumni: {
+        activeUsers: 2,
+        returningUsers: 1,
+      },
+      community: {
+        activeUsers: 1,
+        returningUsers: 0,
+      },
     },
     contributions: {
       events: 12,
