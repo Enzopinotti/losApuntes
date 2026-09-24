@@ -65,9 +65,10 @@ export class AuthenticatedMobileApi {
   }
 
   async revokeSession(sessionId: string, signal?: AbortSignal): Promise<void> {
+    const sessionSnapshot = this.session.getSnapshot();
     const currentSession =
-      this.session.getSnapshot().kind === "authenticated"
-        ? this.session.getSnapshot().session.id
+      sessionSnapshot.kind === "authenticated"
+        ? sessionSnapshot.session.id
         : null;
     const result = await this.execute((credential) =>
       this.api.revokeSession(credential, sessionId, signal),
