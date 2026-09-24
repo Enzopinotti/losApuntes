@@ -33,6 +33,12 @@ const Layout = () => {
             Buscar
           </NavLink>
           <NavLink
+            to="/organizations"
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
+            Organizaciones
+          </NavLink>
+          <NavLink
             to="/questions"
             className={({ isActive }) => (isActive ? "active" : "")}
           >
