@@ -53,6 +53,7 @@ export interface OrganizationStore {
   }>;
 
   findById(id: string): Promise<OrganizationRecord | null>;
+  findManyByIds(ids: string[]): Promise<OrganizationRecord[]>;
   search(input: {
     q?: string;
     type?: OrganizationType;
@@ -126,6 +127,11 @@ export interface OrganizationStore {
   }): Promise<OrganizationPostRecord[]>;
   listFeedPosts(input: {
     organizationIds: string[];
+    anchorAt: Date;
+    limit: number;
+  }): Promise<OrganizationPostRecord[]>;
+  listFeedPostsForFollower(input: {
+    userId: string;
     anchorAt: Date;
     limit: number;
   }): Promise<OrganizationPostRecord[]>;
