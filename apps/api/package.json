@@ -28,7 +28,8 @@
     "test:social-qa:coverage": "jest --config ./jest.social-qa-coverage.cjs --runInBand --coverage",
     "test:feeds:coverage": "jest --config ./jest.feeds-coverage.cjs --runInBand --coverage",
     "test:pilot:coverage": "jest --config ./jest.pilot-coverage.cjs --runInBand --coverage",
-    "test:organizations:coverage": "jest --config ./jest.organizations-coverage.cjs --runInBand --coverage"
+    "test:organizations:coverage": "jest --config ./jest.organizations-coverage.cjs --runInBand --coverage",
+    "test:alumni:coverage": "jest --config ./jest.alumni-coverage.cjs --runInBand --coverage"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
