@@ -94,7 +94,9 @@ const Organization = () => {
   if (error && !organization) {
     return (
       <section className="organizations-page">
-        <p className="organizations-error" role="alert">{error}</p>
+        <p className="organizations-error" role="alert">
+          {error}
+        </p>
         <Link to="/organizations">Volver al directorio</Link>
       </section>
     );
@@ -109,7 +111,10 @@ const Organization = () => {
   }
 
   return (
-    <section className="organizations-page" aria-labelledby="organization-title">
+    <section
+      className="organizations-page"
+      aria-labelledby="organization-title"
+    >
       <header className="organizations-hero organization-public-hero">
         <div>
           <p className="organizations-eyebrow">
@@ -149,21 +154,38 @@ const Organization = () => {
         </div>
       </header>
 
-      {feedback && <p className="organizations-success" role="status">{feedback}</p>}
-      {error && <p className="organizations-error" role="alert">{error}</p>}
+      {feedback && (
+        <p className="organizations-success" role="status">
+          {feedback}
+        </p>
+      )}
+      {error && (
+        <p className="organizations-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <div className="organizations-grid">
         <section className="organizations-card">
           <h2>Contexto</h2>
-          <p><strong>Institución:</strong> {organization.scope.institution.name}</p>
+          <p>
+            <strong>Institución:</strong> {organization.scope.institution.name}
+          </p>
           {organization.scope.campus && (
-            <p><strong>Sede:</strong> {organization.scope.campus.name}</p>
+            <p>
+              <strong>Sede:</strong> {organization.scope.campus.name}
+            </p>
           )}
           {organization.scope.academicUnit && (
-            <p><strong>Unidad académica:</strong> {organization.scope.academicUnit.name}</p>
+            <p>
+              <strong>Unidad académica:</strong>{" "}
+              {organization.scope.academicUnit.name}
+            </p>
           )}
           {organization.scope.program && (
-            <p><strong>Carrera:</strong> {organization.scope.program.name}</p>
+            <p>
+              <strong>Carrera:</strong> {organization.scope.program.name}
+            </p>
           )}
           {organization.websiteUrl && (
             <a href={organization.websiteUrl} target="_blank" rel="noreferrer">
@@ -183,8 +205,8 @@ const Organization = () => {
             ))}
           </ul>
           <small>
-            La verificación de la organización no convierte a todos sus
-            miembros en managers.
+            La verificación de la organización no convierte a todos sus miembros
+            en managers.
           </small>
         </section>
 
@@ -240,7 +262,11 @@ const Organization = () => {
                   </p>
                   {event.locationLabel && <p>{event.locationLabel}</p>}
                   {event.externalUrl && (
-                    <a href={event.externalUrl} target="_blank" rel="noreferrer">
+                    <a
+                      href={event.externalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       Más información
                     </a>
                   )}
