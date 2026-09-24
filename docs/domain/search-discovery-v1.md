@@ -118,7 +118,7 @@ The permanent verification contract includes:
 - contextual discovery tests;
 - static Web transport/privacy contract;
 - a self-contained container smoke that creates its own public Profile fixture;
-- real Mongo + MinIO lifecycle inherited from the full runtime smoke;
+- real Mongo + RustFS S3-compatible lifecycle inherited from the full runtime smoke;
 - exact-head verification before merge and a fresh full verification on merged `main`.
 
 The Search smoke is deliberately independent from Profile smoke state. It creates its own user/Profile fixture so ordering or cleanup in another module cannot make Search appear green or red accidentally.
