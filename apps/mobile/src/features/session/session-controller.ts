@@ -6,7 +6,7 @@ import type {
   PasswordLoginInput,
 } from "@losapuntes/contracts";
 
-import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
+import { ApiRequestError } from "@/services/api/client";
 import type { SessionCredentialStore } from "@/platform/session-credential-store";
 
 export type SessionSnapshot =
@@ -183,6 +183,29 @@ export class SessionController {
     credential: string,
     generation: number,
   ): Promise<void> {
+    return this.clearAuthorityIfAuthoritative(
+      credential,
+      generation,
+      { kind: "unauthenticated" },
+    );
+  }
+
+  restrictIfAuthoritative(
+    credential: string,
+    generation: number,
+  ): Promise<void> {
+    return this.clearAuthorityIfAuthoritative(
+      credential,
+      generation,
+      { kind: "restricted" },
+    );
+  }
+
+  private clearAuthorityIfAuthoritative(
+    credential: string,
+    generation: number,
+    next: SessionSnapshot,
+  ): Promise<void> {
     if (this.credential !== credential || this.generation !== generation) {
       return Promise.resolve();
     }
@@ -191,7 +214,7 @@ export class SessionController {
     this.activeOperation?.abort();
     this.activeOperation = null;
     this.credential = null;
-    this.publish({ kind: "unauthenticated" });
+    this.publish(next);
     return this.credentials.clear().catch(() => undefined);
   }
 
