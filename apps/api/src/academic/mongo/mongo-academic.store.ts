@@ -9,7 +9,9 @@ import type {
   AcademicCatalogNodeRecord,
   AcademicCatalogProposalRecord,
   AcademicCurrentContextRecord,
+  AcademicFollowRecord,
   AcademicProposalStatus,
+  AcademicRelationshipRole,
   SubjectParticipationRecord,
 } from '../domain/academic.types';
 import { AcademicSourceIdentityConflictError } from '../domain/academic.store';
@@ -29,6 +31,7 @@ import {
   AcademicCatalogNode,
   AcademicCatalogProposal,
   AcademicCurrentContext,
+  AcademicFollow,
   AcademicSubjectParticipation,
 } from './academic.mongo-schemas';
 
@@ -73,6 +76,8 @@ export class MongoAcademicStore implements AcademicStore {
     private readonly participations: Model<AcademicSubjectParticipation>,
     @InjectModel(AcademicCurrentContext.name)
     private readonly contexts: Model<AcademicCurrentContext>,
+    @InjectModel(AcademicFollow.name)
+    private readonly follows: Model<AcademicFollow>,
     @InjectModel(AcademicCatalogProposal.name)
     private readonly proposals: Model<AcademicCatalogProposal>,
     @InjectModel(AcademicAuditEvent.name)
@@ -262,6 +267,47 @@ export class MongoAcademicStore implements AcademicStore {
       .exec();
   }
 
+  async updateAffiliationRoles(
+    userId: string,
+    id: string,
+    roles: AcademicRelationshipRole[],
+  ): Promise<AcademicAffiliationRecord | null> {
+    return this.affiliations
+      .findOneAndUpdate(
+        { id, userId },
+        { $set: { roles } },
+        { new: true, session: this.session() },
+      )
+      .lean<AcademicAffiliationRecord>()
+      .exec();
+  }
+
+  async transitionAffiliationToAlumni(
+    userId: string,
+    id: string,
+    graduatedOn: string,
+    roles: AcademicRelationshipRole[],
+  ): Promise<AcademicAffiliationRecord | null> {
+    return this.affiliations
+      .findOneAndUpdate(
+        {
+          id,
+          userId,
+          status: { $in: ['active', 'paused', 'completed'] },
+        },
+        {
+          $set: {
+            status: 'alumni',
+            roles,
+            endedOn: graduatedOn,
+          },
+        },
+        { new: true, session: this.session() },
+      )
+      .lean<AcademicAffiliationRecord>()
+      .exec();
+  }
+
   async upsertSubjectParticipation(
     input: CreateSubjectParticipationRecord,
   ): Promise<SubjectParticipationRecord> {
@@ -314,6 +360,25 @@ export class MongoAcademicStore implements AcademicStore {
       .exec();
   }
 
+  async transitionSubjectParticipationStates(
+    userId: string,
+    ids: string[],
+    from: SubjectParticipationRecord['state'],
+    to: SubjectParticipationRecord['state'],
+  ): Promise<number> {
+    if (ids.length === 0) return 0;
+
+    const result = await this.participations
+      .updateMany(
+        { id: { $in: ids }, userId, state: from },
+        { $set: { state: to } },
+        { session: this.session() },
+      )
+      .exec();
+
+    return result.modifiedCount;
+  }
+
   async getCurrentContext(
     userId: string,
   ): Promise<AcademicCurrentContextRecord | null> {
@@ -326,16 +391,30 @@ export class MongoAcademicStore implements AcademicStore {
   async setCurrentContext(
     input: Omit<AcademicCurrentContextRecord, 'createdAt' | 'updatedAt'>,
   ): Promise<AcademicCurrentContextRecord> {
+    const update: {
+      $set: {
+        affiliationId: string;
+        subjectParticipationId?: string;
+      };
+      $setOnInsert: { userId: string };
+      $unset?: { subjectParticipationId: 1 };
+    } = {
+      $set: {
+        affiliationId: input.affiliationId,
+      },
+      $setOnInsert: { userId: input.userId },
+    };
+
+    if (input.subjectParticipationId) {
+      update.$set.subjectParticipationId = input.subjectParticipationId;
+    } else {
+      update.$unset = { subjectParticipationId: 1 };
+    }
+
     const row = await this.contexts
       .findOneAndUpdate(
         { userId: input.userId },
-        {
-          $set: {
-            affiliationId: input.affiliationId,
-            subjectParticipationId: input.subjectParticipationId,
-          },
-          $setOnInsert: { userId: input.userId },
-        },
+        update,
         { upsert: true, new: true, session: this.session() },
       )
       .lean<AcademicCurrentContextRecord>()
@@ -343,6 +422,47 @@ export class MongoAcademicStore implements AcademicStore {
 
     if (!row) throw new Error('Academic current context upsert failed');
     return row;
+  }
+
+  async upsertAcademicFollow(
+    input: Omit<AcademicFollowRecord, 'createdAt' | 'updatedAt'>,
+  ): Promise<AcademicFollowRecord> {
+    const row = await this.follows
+      .findOneAndUpdate(
+        { userId: input.userId, targetNodeId: input.targetNodeId },
+        {
+          $setOnInsert: input,
+          $set: { targetKind: input.targetKind },
+        },
+        { upsert: true, new: true, session: this.session() },
+      )
+      .lean<AcademicFollowRecord>()
+      .exec();
+
+    if (!row) throw new Error('Academic follow upsert failed');
+    return row;
+  }
+
+  async listAcademicFollows(userId: string): Promise<AcademicFollowRecord[]> {
+    return this.follows
+      .find({ userId })
+      .sort({ updatedAt: -1, id: 1 })
+      .lean<AcademicFollowRecord[]>()
+      .exec();
+  }
+
+  async removeAcademicFollows(
+    userId: string,
+    targetNodeIds: string[],
+  ): Promise<number> {
+    if (targetNodeIds.length === 0) return 0;
+    const result = await this.follows
+      .deleteMany(
+        { userId, targetNodeId: { $in: targetNodeIds } },
+        { session: this.session() },
+      )
+      .exec();
+    return result.deletedCount;
   }
 
   async createProposal(
