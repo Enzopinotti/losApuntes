@@ -125,6 +125,11 @@ const Home = () => {
     return <Landing />;
   }
 
+  const alumniContinuity =
+    snapshot?.academic.currentSubjectIds.length === 0 &&
+    (snapshot.lifecycle.phase === "alumni" ||
+      snapshot.lifecycle.phase === "mixed");
+
   return (
     <section className="pilot-page" aria-labelledby="pilot-home-title">
       <header className="pilot-hero">
@@ -174,23 +179,41 @@ const Home = () => {
             </section>
           )}
 
-          {snapshot.academic.currentSubjectIds.length === 0 && (
+          {snapshot.academic.currentSubjectIds.length === 0 &&
+            !alumniContinuity && (
+              <section className="pilot-callout">
+                <div>
+                  <strong>Falta tu contexto académico actual.</strong>
+                  <p>
+                    El feed no inventa materias: necesita participaciones
+                    académicas reales para contextualizar el inicio.
+                  </p>
+                </div>
+                <Link to="/search">Explorar materias y contenido</Link>
+              </section>
+            )}
+
+          {alumniContinuity && (
             <section className="pilot-callout">
               <div>
-                <strong>Falta tu contexto académico actual.</strong>
+                <strong>Tu etapa cambió, tu comunidad sigue.</strong>
                 <p>
-                  El feed no inventa materias: necesita participaciones
-                  académicas reales para contextualizar el inicio.
+                  Conservamos tu historial y priorizamos universidad, carrera,
+                  personas y organizaciones que elegiste seguir.
                 </p>
               </div>
-              <Link to="/search">Explorar materias y contenido</Link>
+              <Link to="/academic/lifecycle">Revisar mi trayectoria</Link>
             </section>
           )}
 
           <div className="pilot-grid">
             <FeedPreview
-              title="Mis materias"
-              items={snapshot.academicFeed.items}
+              title={
+                snapshot.homeFeed.kind === "community"
+                  ? "Universidad y comunidad"
+                  : "Mis materias"
+              }
+              items={snapshot.homeFeed.items}
               moreTo="/feeds"
             />
             <FeedPreview
@@ -201,11 +224,13 @@ const Home = () => {
           </div>
 
           <section className="pilot-card pilot-shortcuts">
-            <h2>Seguir estudiando</h2>
+            <h2>{alumniContinuity ? "Seguir conectado" : "Seguir estudiando"}</h2>
             <div className="pilot-actions">
+              <Link to="/academic/lifecycle">Mi trayectoria</Link>
               <Link to="/resources">Buscar o subir apuntes</Link>
               <Link to="/questions">Preguntar o responder</Link>
               <Link to="/network">Revisar mi red</Link>
+              <Link to="/organizations">Organizaciones</Link>
               <Link to="/search">Buscar en Los Apuntes</Link>
             </div>
           </section>
