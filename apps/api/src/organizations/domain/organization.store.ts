@@ -172,10 +172,7 @@ export interface OrganizationStore {
   createLink(
     input: Omit<OrganizationLinkRecord, 'createdAt' | 'updatedAt'>,
   ): Promise<OrganizationLinkRecord>;
-  deleteLink(
-    organizationId: string,
-    linkId: string,
-  ): Promise<boolean>;
+  deleteLink(organizationId: string, linkId: string): Promise<boolean>;
   listLinks(organizationId: string): Promise<OrganizationLinkRecord[]>;
 
   featureResource(input: {
@@ -183,10 +180,7 @@ export interface OrganizationStore {
     resourceId: string;
     createdByUserId: string;
   }): Promise<OrganizationFeaturedResourceRecord>;
-  unfeatureResource(
-    organizationId: string,
-    resourceId: string,
-  ): Promise<void>;
+  unfeatureResource(organizationId: string, resourceId: string): Promise<void>;
   listFeaturedResources(
     organizationId: string,
   ): Promise<OrganizationFeaturedResourceRecord[]>;
