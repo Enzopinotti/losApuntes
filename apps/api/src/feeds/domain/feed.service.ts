@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { AcademicService } from '../../academic/domain/academic.service';
+import { OrganizationService } from '../../organizations/domain/organization.service';
 import { ProfileService } from '../../profile/domain/profile.service';
 import { QaService } from '../../qa/domain/qa.service';
 import type { QuestionRecord } from '../../qa/domain/qa.types';
@@ -162,6 +163,7 @@ export class FeedService {
     private readonly resources: ResourceService,
     private readonly qa: QaService,
     private readonly social: SocialService,
+    private readonly organizations: OrganizationService,
   ) {}
 
   async getPreferences(userId: string) {
@@ -266,6 +268,7 @@ export class FeedService {
         prioritizedSubjectIds: new Set<string>(),
         followingUserIds: new Set<string>(),
         connectionUserIds: new Set<string>(),
+        followedOrganizationIds: new Set<string>(),
         interestTerms: [],
       },
     );
@@ -355,15 +358,47 @@ export class FeedService {
           ])
         : [];
 
-    const raw =
+    const [personalRaw, organizationRows] = await Promise.all([
       dto.order === 'chronological'
-        ? await this.candidates(userId, { anchorAt, exploration: true })
-        : await this.candidates(userId, {
+        ? this.candidates(userId, { anchorAt, exploration: true })
+        : this.candidates(userId, {
             subjectIds: subjectSignals,
             authorUserIds: socialUserIds,
             anchorAt,
             exploration: true,
-          });
+          }),
+      effectiveSocial
+        ? this.organizations.getFeedCandidates(
+            userId,
+            anchorAt,
+            CANDIDATE_LIMIT,
+          )
+        : Promise.resolve([]),
+    ]);
+    const organizationCandidates: FeedCandidate[] = organizationRows.map(
+      (row) => ({
+        type: 'organization_post',
+        id: row.id,
+        authorUserId: row.createdByUserId,
+        authorProfileId: null,
+        subjectId: row.subjectId,
+        organization: {
+          id: row.organizationId,
+          name: row.organizationName,
+          avatarUrl: row.organizationAvatarUrl,
+          verificationState: row.verificationState,
+        },
+        publisherKey: `organization:${row.organizationId}`,
+        title: row.title,
+        summary: excerpt(row.body),
+        searchableText: normalized(row.title + ' ' + row.body),
+        createdAt: row.publishedAt,
+      }),
+    );
+    const raw = [...personalRaw, ...organizationCandidates];
+    const followedOrganizationIds = new Set(
+      organizationCandidates.map((candidate) => candidate.organization!.id),
+    );
 
     const prepared = await this.prepareCandidates(
       userId,
@@ -384,6 +419,7 @@ export class FeedService {
         connectionUserIds: effectiveSocial
           ? new Set(relations.connectionUserIds)
           : new Set<string>(),
+        followedOrganizationIds,
         interestTerms,
       },
     );
@@ -557,13 +593,29 @@ export class FeedService {
     anchorAt: Date,
     input: Omit<FeedRankingContext, 'anchorAt' | 'feedback'>,
   ): Promise<CandidateWithProjection[]> {
-    const attributions = await this.profiles.getAttributionsForUsers(
-      unique(raw.map((candidate) => candidate.authorUserId)),
+    const personalUserIds = unique(
+      raw
+        .filter((candidate) => !candidate.organization)
+        .map((candidate) => candidate.authorUserId),
     );
+    const attributions =
+      await this.profiles.getAttributionsForUsers(personalUserIds);
     const mutedSubjects = new Set(preferences.mutedSubjectIds);
     const mutedProfiles = new Set(preferences.mutedProfileIds);
     const eligible = raw
       .map((candidate) => {
+        if (candidate.organization) {
+          return {
+            ...candidate,
+            authorProfileId: null,
+            author: {
+              profileId: null,
+              displayName: candidate.organization.name,
+              avatarUrl: candidate.organization.avatarUrl,
+            },
+          };
+        }
+
         const author = attributions.get(candidate.authorUserId) ?? null;
         return {
           ...candidate,
@@ -577,8 +629,9 @@ export class FeedService {
       })
       .filter(
         (candidate) =>
-          !mutedSubjects.has(candidate.subjectId) &&
-          (!candidate.author.profileId ||
+          (!candidate.subjectId || !mutedSubjects.has(candidate.subjectId)) &&
+          (candidate.organization ||
+            !candidate.author.profileId ||
             !mutedProfiles.has(candidate.author.profileId)),
       );
 
@@ -632,39 +685,67 @@ export class FeedService {
   }
 
   private async projectItems(candidates: RankedFeedCandidate[]) {
+    const subjectIds = unique(
+      candidates
+        .map((candidate) => candidate.subjectId)
+        .filter((subjectId): subjectId is string => Boolean(subjectId)),
+    );
     const subjects = new Map(
       await Promise.all(
-        unique(candidates.map((candidate) => candidate.subjectId)).map(
-          async (subjectId) => {
-            const node = await this.academic.getCatalogNode(subjectId);
-            return [
-              subjectId,
-              { id: node.node.id, name: node.node.name },
-            ] as const;
-          },
-        ),
+        subjectIds.map(async (subjectId) => {
+          const node = await this.academic.getCatalogNode(subjectId);
+          return [
+            subjectId,
+            { id: node.node.id, name: node.node.name },
+          ] as const;
+        }),
       ),
     );
-    const attributions = await this.profiles.getAttributionsForUsers(
-      unique(candidates.map((candidate) => candidate.authorUserId)),
+    const personalUserIds = unique(
+      candidates
+        .filter((candidate) => !candidate.organization)
+        .map((candidate) => candidate.authorUserId),
     );
+    const attributions =
+      await this.profiles.getAttributionsForUsers(personalUserIds);
 
-    return candidates.map((candidate) => ({
-      type: candidate.type,
-      id: candidate.id,
-      title: candidate.title,
-      summary: candidate.summary,
-      author: attributions.get(candidate.authorUserId) ?? {
-        profileId: null,
-        displayName: 'Usuario de Los Apuntes',
-        avatarUrl: null,
-      },
-      academic: {
-        subject: subjects.get(candidate.subjectId),
-      },
-      why: candidate.why,
-      createdAt: candidate.createdAt.toISOString(),
-    }));
+    return candidates.map((candidate) => {
+      const organization = candidate.organization;
+      const author = organization
+        ? {
+            profileId: null,
+            displayName: organization.name,
+            avatarUrl: organization.avatarUrl,
+          }
+        : (attributions.get(candidate.authorUserId) ?? {
+            profileId: null,
+            displayName: 'Usuario de Los Apuntes',
+            avatarUrl: null,
+          });
+
+      return {
+        type: candidate.type,
+        id: candidate.id,
+        title: candidate.title,
+        summary: candidate.summary,
+        author,
+        source: organization
+          ? {
+              kind: 'campus_organization' as const,
+              organization,
+            }
+          : {
+              kind: 'personal_user' as const,
+            },
+        academic: {
+          subject: candidate.subjectId
+            ? (subjects.get(candidate.subjectId) ?? null)
+            : null,
+        },
+        why: candidate.why,
+        createdAt: candidate.createdAt.toISOString(),
+      };
+    });
   }
 
   private cursor(
@@ -771,8 +852,10 @@ export class FeedService {
     try {
       if (targetType === 'resource') {
         await this.resources.get(targetId, userId);
-      } else {
+      } else if (targetType === 'question') {
         await this.qa.get(targetId, userId);
+      } else {
+        await this.organizations.getFeedTarget(targetId);
       }
     } catch (error) {
       if (error instanceof NotFoundException) {

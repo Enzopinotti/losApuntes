@@ -15,7 +15,11 @@ export class PilotModerationAudit {
   @Prop({ required: true, index: true })
   operatorUserId!: string;
 
-  @Prop({ required: true, enum: ['resource', 'qa'], index: true })
+  @Prop({
+    required: true,
+    enum: ['resource', 'qa', 'organization'],
+    index: true,
+  })
   reportKind!: PilotReportKind;
 
   @Prop({ required: true, index: true })
@@ -23,7 +27,13 @@ export class PilotModerationAudit {
 
   @Prop({
     required: true,
-    enum: ['resource', 'question', 'answer'],
+    enum: [
+      'resource',
+      'question',
+      'answer',
+      'organization_post',
+      'organization_event',
+    ],
     index: true,
   })
   targetKind!: PilotModerationTargetKind;

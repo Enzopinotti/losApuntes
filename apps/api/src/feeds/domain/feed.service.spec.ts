@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import type { AcademicService } from '../../academic/domain/academic.service';
+import type { OrganizationService } from '../../organizations/domain/organization.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { QaService } from '../../qa/domain/qa.service';
 import type { QuestionRecord } from '../../qa/domain/qa.types';
@@ -117,8 +118,12 @@ function dependencies() {
   const social = {
     getFeedRelations: jest.fn(),
   } as unknown as jest.Mocked<SocialService>;
+  const organizations = {
+    getFeedCandidates: jest.fn(),
+    getFeedTarget: jest.fn(),
+  } as unknown as jest.Mocked<OrganizationService>;
 
-  return { academic, profiles, resources, qa, social };
+  return { academic, profiles, resources, qa, social, organizations };
 }
 
 async function expectHttpCode(
@@ -210,6 +215,7 @@ function configureDefaults(
     connectionUserIds: [],
     truncated: false,
   });
+  deps.organizations.getFeedCandidates.mockResolvedValue([]);
 }
 
 function service(
@@ -223,6 +229,7 @@ function service(
     deps.resources,
     deps.qa,
     deps.social,
+    deps.organizations,
   );
 }
 
@@ -656,5 +663,104 @@ describe('FeedService', () => {
         order: 'ranked',
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('includes organization posts only from explicitly followed organizations', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    configureDefaults(feedStore, deps);
+    deps.organizations.getFeedCandidates.mockResolvedValue([
+      {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        organizationName: 'Centro de Estudiantes',
+        organizationAvatarUrl: null,
+        verificationState: 'verified',
+        createdByUserId: 'manager-user',
+        subjectId: null,
+        title: 'Asamblea abierta',
+        body: 'Encuentro informativo para estudiantes.',
+        publishedAt: now,
+      },
+    ]);
+
+    const result = await service(feedStore, deps).forYou('viewer', {
+      limit: 10,
+      mode: 'community',
+      order: 'ranked',
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      type: 'organization_post',
+      title: 'Asamblea abierta',
+      author: {
+        profileId: null,
+        displayName: 'Centro de Estudiantes',
+      },
+      source: {
+        kind: 'campus_organization',
+        organization: {
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          verificationState: 'verified',
+        },
+      },
+      academic: { subject: null },
+    });
+    expect(result.items[0]?.why).toContain('organization_following');
+    const attributedUserIds =
+      deps.profiles.getAttributionsForUsers.mock.calls.flatMap(
+        ([userIds]) => userIds,
+      );
+    expect(attributedUserIds).not.toContain('manager-user');
+  });
+
+  it('excludes organization posts when social feed signals are disabled', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    configureDefaults(feedStore, deps, preferences({ useSocial: false }));
+
+    await service(feedStore, deps).forYou('viewer', {
+      limit: 10,
+      mode: 'balanced',
+      order: 'ranked',
+    });
+
+    expect(deps.organizations.getFeedCandidates.mock.calls).toHaveLength(0);
+  });
+
+  it('validates organization post feedback through Organization authority', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    configureDefaults(feedStore, deps);
+    deps.organizations.getFeedTarget.mockResolvedValue({
+      post: {},
+      organization: {},
+    } as never);
+    feedStore.setFeedback.mockResolvedValue({
+      feedback: {
+        userId: 'viewer',
+        targetType: 'organization_post',
+        targetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        signal: 'more',
+        createdAt: now,
+        updatedAt: now,
+      },
+      changed: true,
+      revision: 2,
+    });
+
+    await expect(
+      service(feedStore, deps).setFeedback(
+        'viewer',
+        'organization_post',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        'more',
+      ),
+    ).resolves.toMatchObject({ changed: true, revision: 2 });
+
+    expect(deps.organizations.getFeedTarget.mock.calls[0]).toEqual([
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
   });
 });

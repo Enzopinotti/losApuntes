@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { ProfileModule } from '../profile/profile.module';
 import { QaModule } from '../qa/qa.module';
 import { ResourcesModule } from '../resources/resources.module';
@@ -26,6 +27,7 @@ import { MongoFeedStore } from './mongo/mongo-feed.store';
     AcademicModule,
     ProfileModule,
     ResourcesModule,
+    OrganizationsModule,
     QaModule,
     SocialModule,
     MongooseModule.forFeature([

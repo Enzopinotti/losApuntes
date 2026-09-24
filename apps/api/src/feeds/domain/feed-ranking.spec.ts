@@ -36,6 +36,7 @@ function context(
     prioritizedSubjectIds: new Set(),
     followingUserIds: new Set(),
     connectionUserIds: new Set(),
+    followedOrganizationIds: new Set(),
     interestTerms: [],
     feedback: new Map(),
     ...overrides,
@@ -48,8 +49,8 @@ describe('Feed ranking', () => {
     const ranked = rankFeedCandidate(
       row,
       context({
-        currentSubjectIds: new Set([row.subjectId]),
-        prioritizedSubjectIds: new Set([row.subjectId]),
+        currentSubjectIds: new Set([row.subjectId!]),
+        prioritizedSubjectIds: new Set([row.subjectId!]),
         connectionUserIds: new Set([row.authorUserId]),
         followingUserIds: new Set([row.authorUserId]),
         interestTerms: ['SQL', 'normalización'],
@@ -103,13 +104,13 @@ describe('Feed ranking', () => {
     const row = candidate({ type: 'question', answerCount: 0 });
     const balanced = rankFeedCandidate(
       row,
-      context({ currentSubjectIds: new Set([row.subjectId]) }),
+      context({ currentSubjectIds: new Set([row.subjectId!]) }),
     );
     const study = rankFeedCandidate(
       row,
       context({
         mode: 'study',
-        currentSubjectIds: new Set([row.subjectId]),
+        currentSubjectIds: new Set([row.subjectId!]),
       }),
     );
 
@@ -251,5 +252,61 @@ describe('Feed ranking', () => {
     const page = takeAcademicPage(rows, 5);
     expect(page.selected).toHaveLength(3);
     expect(page.remaining).toHaveLength(2);
+  });
+
+  it('uses explicit organization follow without inheriting manager relations', () => {
+    const row = candidate({
+      type: 'organization_post',
+      authorUserId: 'manager-user',
+      authorProfileId: null,
+      subjectId: null,
+      organization: {
+        id: '99999999-9999-4999-8999-999999999999',
+        name: 'Centro de Estudiantes',
+        avatarUrl: null,
+        verificationState: 'verified',
+      },
+      publisherKey: 'organization:99999999-9999-4999-8999-999999999999',
+    });
+
+    const ranked = rankFeedCandidate(
+      row,
+      context({
+        followedOrganizationIds: new Set([row.organization!.id]),
+        followingUserIds: new Set(['manager-user']),
+        connectionUserIds: new Set(['manager-user']),
+      }),
+    );
+
+    expect(ranked.why).toContain('organization_following');
+    expect(ranked.why).not.toContain('following');
+    expect(ranked.why).not.toContain('connection');
+  });
+
+  it('does not treat a manager relation as an organization-follow signal', () => {
+    const row = candidate({
+      type: 'organization_post',
+      authorUserId: 'manager-user',
+      authorProfileId: null,
+      organization: {
+        id: '99999999-9999-4999-8999-999999999999',
+        name: 'Club de Robótica',
+        avatarUrl: null,
+        verificationState: 'unverified',
+      },
+      publisherKey: 'organization:99999999-9999-4999-8999-999999999999',
+    });
+
+    const ranked = rankFeedCandidate(
+      row,
+      context({
+        followingUserIds: new Set(['manager-user']),
+        connectionUserIds: new Set(['manager-user']),
+      }),
+    );
+
+    expect(ranked.why).not.toContain('organization_following');
+    expect(ranked.why).not.toContain('following');
+    expect(ranked.why).not.toContain('connection');
   });
 });

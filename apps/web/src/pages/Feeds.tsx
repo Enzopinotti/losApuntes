@@ -21,6 +21,7 @@ const reasonLabels: Record<FeedReasonCode, string> = {
   prioritized_subject: "Materia priorizada",
   connection: "Conexión",
   following: "Persona que seguís",
+  organization_following: "Organización que seguís",
   interest_match: "Coincide con tus intereses",
   unanswered_question: "Pregunta sin responder",
   fresh: "Reciente",
@@ -337,11 +338,18 @@ const Feeds = () => {
               <header>
                 <div>
                   <span className="feed-kind">
-                    {item.type === "resource" ? "Apunte" : "Pregunta"}
+                    {item.type === "resource"
+                      ? "Apunte"
+                      : item.type === "question"
+                        ? "Pregunta"
+                        : "Organización"}
                   </span>
                   <h2>{item.title}</h2>
                   <p className="feed-meta">
-                    {item.author.displayName} · {item.academic.subject.name}
+                    {item.author.displayName}
+                    {item.academic.subject
+                      ? ` · ${item.academic.subject.name}`
+                      : ""}
                   </p>
                 </div>
                 <time dateTime={item.createdAt}>
@@ -362,11 +370,24 @@ const Feeds = () => {
                   <Link to={`/questions?id=${encodeURIComponent(item.id)}`}>
                     Abrir pregunta
                   </Link>
+                ) : item.type === "organization_post" &&
+                  item.source.kind === "campus_organization" ? (
+                  <Link
+                    to={`/organizations/${encodeURIComponent(
+                      item.source.organization.id,
+                    )}`}
+                  >
+                    Ver organización
+                  </Link>
                 ) : (
                   <Link
-                    to={`/resources?q=${encodeURIComponent(
-                      item.title,
-                    )}&subjectId=${encodeURIComponent(item.academic.subject.id)}`}
+                    to={`/resources?q=${encodeURIComponent(item.title)}${
+                      item.academic.subject
+                        ? `&subjectId=${encodeURIComponent(
+                            item.academic.subject.id,
+                          )}`
+                        : ""
+                    }`}
                   >
                     Buscar apunte
                   </Link>
@@ -387,32 +408,36 @@ const Feeds = () => {
                 >
                   Ver menos así
                 </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy === "preferences"}
-                  onClick={() =>
-                    void updateSubjectPreference(
-                      item.academic.subject.id,
-                      "prioritize",
-                    )
-                  }
-                >
-                  Priorizar materia
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy === "preferences"}
-                  onClick={() =>
-                    void updateSubjectPreference(
-                      item.academic.subject.id,
-                      "mute",
-                    )
-                  }
-                >
-                  Silenciar materia
-                </button>
+                {item.academic.subject && (
+                  <>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy === "preferences"}
+                      onClick={() =>
+                        void updateSubjectPreference(
+                          item.academic.subject!.id,
+                          "prioritize",
+                        )
+                      }
+                    >
+                      Priorizar materia
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy === "preferences"}
+                      onClick={() =>
+                        void updateSubjectPreference(
+                          item.academic.subject!.id,
+                          "mute",
+                        )
+                      }
+                    >
+                      Silenciar materia
+                    </button>
+                  </>
+                )}
                 {item.author.profileId && (
                   <button
                     type="button"

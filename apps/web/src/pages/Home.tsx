@@ -30,15 +30,30 @@ function FeedPreview({
         </p>
       ) : (
         <ul className="pilot-feed-preview">
-          {items.map((item) => (
-            <li key={`${item.type}:${item.id}`}>
-              <span>{item.type === "resource" ? "Apunte" : "Pregunta"}</span>
-              <strong>{item.title}</strong>
-              <small>
-                {item.academic.subject.name} · {item.author.displayName}
-              </small>
-            </li>
-          ))}
+          {items.map((item) => {
+            const kindLabel =
+              item.type === "resource"
+                ? "Apunte"
+                : item.type === "question"
+                  ? "Pregunta"
+                  : "Organización";
+            const sourceLabel =
+              item.source.kind === "campus_organization"
+                ? item.source.organization.name
+                : item.author.displayName;
+
+            return (
+              <li key={`${item.type}:${item.id}`}>
+                <span>{kindLabel}</span>
+                <strong>{item.title}</strong>
+                <small>
+                  {item.academic.subject
+                    ? `${item.academic.subject.name} · ${sourceLabel}`
+                    : sourceLabel}
+                </small>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

@@ -10,7 +10,14 @@ export interface FeedCandidate {
   id: string;
   authorUserId: string;
   authorProfileId: string | null;
-  subjectId: string;
+  subjectId: string | null;
+  organization?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+    verificationState: 'unverified' | 'verified';
+  };
+  publisherKey?: string;
   title: string;
   summary: string;
   searchableText: string;
@@ -30,6 +37,7 @@ export interface FeedRankingContext {
   prioritizedSubjectIds: ReadonlySet<string>;
   followingUserIds: ReadonlySet<string>;
   connectionUserIds: ReadonlySet<string>;
+  followedOrganizationIds: ReadonlySet<string>;
   interestTerms: readonly string[];
   feedback: ReadonlyMap<string, FeedFeedbackSignal>;
 }
@@ -84,22 +92,36 @@ export function rankFeedCandidate(
   let score = 0;
   const why: FeedReasonCode[] = [];
 
-  if (context.currentSubjectIds.has(candidate.subjectId)) {
+  if (
+    candidate.subjectId &&
+    context.currentSubjectIds.has(candidate.subjectId)
+  ) {
     score += context.mode === 'study' ? 50 : 40;
     pushReason(why, 'current_subject');
   }
 
-  if (context.prioritizedSubjectIds.has(candidate.subjectId)) {
+  if (
+    candidate.subjectId &&
+    context.prioritizedSubjectIds.has(candidate.subjectId)
+  ) {
     score += context.mode === 'study' ? 30 : 20;
     pushReason(why, 'prioritized_subject');
   }
 
-  if (context.connectionUserIds.has(candidate.authorUserId)) {
-    score += context.mode === 'community' ? 45 : 30;
-    pushReason(why, 'connection');
-  } else if (context.followingUserIds.has(candidate.authorUserId)) {
-    score += context.mode === 'community' ? 30 : 20;
-    pushReason(why, 'following');
+  if (
+    candidate.organization &&
+    context.followedOrganizationIds.has(candidate.organization.id)
+  ) {
+    score += context.mode === 'community' ? 40 : 25;
+    pushReason(why, 'organization_following');
+  } else if (!candidate.organization) {
+    if (context.connectionUserIds.has(candidate.authorUserId)) {
+      score += context.mode === 'community' ? 45 : 30;
+      pushReason(why, 'connection');
+    } else if (context.followingUserIds.has(candidate.authorUserId)) {
+      score += context.mode === 'community' ? 30 : 20;
+      pushReason(why, 'following');
+    }
   }
 
   const matches = interestMatches(
@@ -136,6 +158,7 @@ export function rankFeedCandidate(
       'prioritized_subject',
       'connection',
       'following',
+      'organization_following',
       'interest_match',
       'unanswered_question',
       'explicit_more',
@@ -180,15 +203,16 @@ export function takeAcademicPage(
   selected: RankedFeedCandidate[];
   remaining: RankedFeedCandidate[];
 } {
-  const authorCounts = new Map<string, number>();
+  const publisherCounts = new Map<string, number>();
   const selected: RankedFeedCandidate[] = [];
   const remaining: RankedFeedCandidate[] = [];
 
   for (const candidate of candidates) {
-    const authorCount = authorCounts.get(candidate.authorUserId) ?? 0;
-    if (selected.length < limit && authorCount < 3) {
+    const publisherKey = candidate.publisherKey ?? candidate.authorUserId;
+    const publisherCount = publisherCounts.get(publisherKey) ?? 0;
+    if (selected.length < limit && publisherCount < 3) {
       selected.push(candidate);
-      authorCounts.set(candidate.authorUserId, authorCount + 1);
+      publisherCounts.set(publisherKey, publisherCount + 1);
     } else {
       remaining.push(candidate);
     }
@@ -204,7 +228,7 @@ export function takeForYouPage(
   selected: RankedFeedCandidate[];
   remaining: RankedFeedCandidate[];
 } {
-  const authorCounts = new Map<string, number>();
+  const publisherCounts = new Map<string, number>();
   const subjectCounts = new Map<string, number>();
   const typeCounts = new Map<FeedTargetType, number>();
   const selected: RankedFeedCandidate[] = [];
@@ -215,8 +239,14 @@ export function takeForYouPage(
     candidate: RankedFeedCandidate,
     enforceTypeCap: boolean,
   ): boolean => {
-    if ((authorCounts.get(candidate.authorUserId) ?? 0) >= 2) return false;
-    if ((subjectCounts.get(candidate.subjectId) ?? 0) >= 4) return false;
+    const publisherKey = candidate.publisherKey ?? candidate.authorUserId;
+    if ((publisherCounts.get(publisherKey) ?? 0) >= 2) return false;
+    if (
+      candidate.subjectId &&
+      (subjectCounts.get(candidate.subjectId) ?? 0) >= 4
+    ) {
+      return false;
+    }
     if (enforceTypeCap && (typeCounts.get(candidate.type) ?? 0) >= typeCap) {
       return false;
     }
@@ -225,14 +255,17 @@ export function takeForYouPage(
 
   const take = (candidate: RankedFeedCandidate) => {
     selected.push(candidate);
-    authorCounts.set(
-      candidate.authorUserId,
-      (authorCounts.get(candidate.authorUserId) ?? 0) + 1,
+    const publisherKey = candidate.publisherKey ?? candidate.authorUserId;
+    publisherCounts.set(
+      publisherKey,
+      (publisherCounts.get(publisherKey) ?? 0) + 1,
     );
-    subjectCounts.set(
-      candidate.subjectId,
-      (subjectCounts.get(candidate.subjectId) ?? 0) + 1,
-    );
+    if (candidate.subjectId) {
+      subjectCounts.set(
+        candidate.subjectId,
+        (subjectCounts.get(candidate.subjectId) ?? 0) + 1,
+      );
+    }
     typeCounts.set(candidate.type, (typeCounts.get(candidate.type) ?? 0) + 1);
   };
 
