@@ -632,6 +632,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.events
       .find({
         organizationId: input.organizationId,
+        moderationState: 'available',
         ...(input.from ? { startsAt: { $gte: input.from } } : {}),
       })
       .sort({ startsAt: 1, id: 1 })
