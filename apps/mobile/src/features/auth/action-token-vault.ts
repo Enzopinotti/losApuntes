@@ -1,9 +1,7 @@
-import { randomUUID } from "expo-crypto";
-
 export type AuthActionKind = "email_verification" | "password_recovery";
 
 const ACTION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
-const HANDLE_PATTERN = /^[0-9a-f-]{36}$/u;
+const HANDLE_PATTERN = /^auth-[0-9]+-[0-9]+$/u;
 const MAX_ENTRIES = 4;
 const ENTRY_TTL_MS = 5 * 60 * 1000;
 
@@ -21,6 +19,7 @@ export interface AuthActionTokenVault {
 
 export const createAuthActionTokenVault = (): AuthActionTokenVault => {
   const entries = new Map<string, Entry>();
+  let sequence = 0;
 
   const sweep = (now: number) => {
     for (const [handle, entry] of entries) {
@@ -39,7 +38,8 @@ export const createAuthActionTokenVault = (): AuthActionTokenVault => {
         entries.delete(oldest);
       }
 
-      const handle = randomUUID();
+      sequence += 1;
+      const handle = `auth-${now}-${sequence}`;
       entries.set(handle, {
         kind,
         token,
