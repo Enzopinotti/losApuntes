@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { AbuseControlModule } from '../abuse-control/abuse-control.module';
 import { UsersModule } from '../users/users.module';
 import { AuthActionTokenService } from './action-token/auth-action-token.service';
 import { AUTH_ACTION_TOKEN_STORE } from './action-token/auth-action-token.types';
@@ -54,6 +55,7 @@ import {
 
 @Module({
   imports: [
+    AbuseControlModule,
     UsersModule,
     MongooseModule.forFeature([
       { name: AuthSession.name, schema: AuthSessionSchema },
