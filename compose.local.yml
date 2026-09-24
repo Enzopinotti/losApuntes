@@ -70,6 +70,7 @@ services:
     restart: "no"
     environment:
       NODE_ENV: production
+      DEPLOYMENT_PROFILE: local
       PORT: 4000
       MONGO_URI: mongodb://mongo:27017/losapuntes_local?replicaSet=rs0&directConnection=true
       WEB_ORIGIN: http://localhost:5173
@@ -118,6 +119,7 @@ services:
     command: ["node", "dist/files/files-cleanup.worker.js"]
     environment:
       NODE_ENV: production
+      DEPLOYMENT_PROFILE: local
       MONGO_URI: mongodb://mongo:27017/losapuntes_local?replicaSet=rs0&directConnection=true
       WEB_ORIGIN: http://localhost:5173
       SWAGGER_ENABLED: "false"
