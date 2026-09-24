@@ -127,7 +127,8 @@ export class MongoOrganizationStore implements OrganizationStore {
         };
       });
 
-      if (!output) throw new Error('Organization transaction produced no output');
+      if (!output)
+        throw new Error('Organization transaction produced no output');
       return output;
     } finally {
       await session.endSession();
@@ -157,7 +158,8 @@ export class MongoOrganizationStore implements OrganizationStore {
     const filters: FilterQuery<Organization>[] = [{ status: 'active' }];
 
     if (input.type) filters.push({ type: input.type });
-    if (input.institutionId) filters.push({ institutionId: input.institutionId });
+    if (input.institutionId)
+      filters.push({ institutionId: input.institutionId });
     if (input.programId) filters.push({ programId: input.programId });
     if (input.q) {
       filters.push({
@@ -212,7 +214,9 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.updateOrganizationWithAudit(
       input.organizationId,
       input.expectedRevision,
-      { verificationState: input.verificationState } as UpdateOrganizationRecord,
+      {
+        verificationState: input.verificationState,
+      } as UpdateOrganizationRecord,
       input.audit,
     );
   }
@@ -314,10 +318,7 @@ export class MongoOrganizationStore implements OrganizationStore {
             throw new ManagerMutationAbort({ status: 'target_state_conflict' });
           }
 
-          if (
-            current?.role === 'owner' &&
-            input.nextRole !== 'owner'
-          ) {
+          if (current?.role === 'owner' && input.nextRole !== 'owner') {
             const owners = await this.managers
               .countDocuments({
                 organizationId: input.organizationId,
@@ -494,10 +495,7 @@ export class MongoOrganizationStore implements OrganizationStore {
       .exec();
   }
 
-  async deletePost(
-    organizationId: string,
-    postId: string,
-  ): Promise<boolean> {
+  async deletePost(organizationId: string, postId: string): Promise<boolean> {
     const result = await this.posts
       .deleteOne({ organizationId, id: postId })
       .exec();
@@ -647,19 +645,14 @@ export class MongoOrganizationStore implements OrganizationStore {
     return toPlain<OrganizationLinkRecord>(await this.links.create(input));
   }
 
-  async deleteLink(
-    organizationId: string,
-    linkId: string,
-  ): Promise<boolean> {
+  async deleteLink(organizationId: string, linkId: string): Promise<boolean> {
     const result = await this.links
       .deleteOne({ organizationId, id: linkId })
       .exec();
     return result.deletedCount === 1;
   }
 
-  async listLinks(
-    organizationId: string,
-  ): Promise<OrganizationLinkRecord[]> {
+  async listLinks(organizationId: string): Promise<OrganizationLinkRecord[]> {
     return this.links
       .find({ organizationId })
       .sort({ createdAt: 1, id: 1 })
