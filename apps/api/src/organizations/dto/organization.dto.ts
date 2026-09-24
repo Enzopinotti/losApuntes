@@ -14,10 +14,12 @@ import {
 import {
   ORGANIZATION_EVENT_STATES,
   ORGANIZATION_MANAGER_ROLES,
+  ORGANIZATION_REPORT_REASONS,
   ORGANIZATION_TYPES,
   ORGANIZATION_VERIFICATION_STATES,
   type OrganizationEventState,
   type OrganizationManagerRole,
+  type OrganizationReportReason,
   type OrganizationType,
   type OrganizationVerificationState,
 } from '../domain/organization.types';
@@ -305,4 +307,15 @@ export class CreateOrganizationLinkDto {
   @IsString()
   @Length(8, 2048)
   url!: string;
+}
+
+
+export class CreateOrganizationReportDto {
+  @IsIn(ORGANIZATION_REPORT_REASONS)
+  reason!: OrganizationReportReason;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 1500)
+  details?: string | null;
 }
