@@ -1,6 +1,8 @@
 import type {
   AuthSession,
+  AuthenticatedSessionResponse,
   AuthUser,
+  MobileAuthenticatedSessionResponse,
   PasswordLoginInput,
 } from "@losapuntes/contracts";
 
@@ -19,6 +21,18 @@ export type SessionSnapshot =
 
 type Listener = (snapshot: SessionSnapshot) => void;
 
+export interface SessionApi {
+  mobileLogin(
+    input: PasswordLoginInput,
+    signal?: AbortSignal,
+  ): Promise<MobileAuthenticatedSessionResponse>;
+  me(
+    credential: string,
+    signal?: AbortSignal,
+  ): Promise<AuthenticatedSessionResponse>;
+  logout(credential: string, signal?: AbortSignal): Promise<void>;
+}
+
 const bootstrapFailure = (error: ApiRequestError): SessionSnapshot => {
   if (error.code === "ACCOUNT_RESTRICTED") return { kind: "restricted" };
   if (error.kind === "offline") return { kind: "offline" };
@@ -36,7 +50,7 @@ export class SessionController {
   private activeOperation: AbortController | null = null;
 
   constructor(
-    private readonly api: MobileApiClient,
+    private readonly api: SessionApi,
     private readonly credentials: SessionCredentialStore,
   ) {}
 
