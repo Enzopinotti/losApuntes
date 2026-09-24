@@ -12,6 +12,8 @@ These rules exist before feature development so the easiest path is also the saf
 - A candidate is verified at its exact SHA; an older green run does not certify a newer commit.
 - Third-party GitHub Actions used by verification are pinned to immutable commit SHAs.
 - Main changes arrive through reviewable PRs.
+- Feature closure follows `docs/operations/delivery-evidence-contract.md`: exact-head candidate evidence, resolved review threads, protected merge, post-merge `main` evidence and reconciled documentation.
+- Notes/comments intended for future TOP task visibility are written in Spanish; canonical code identifiers and error codes are preserved as-is.
 
 ## Security authority
 

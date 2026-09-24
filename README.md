@@ -18,7 +18,7 @@ El repositorio activo vive en `main`. Las ramas históricas `frontend` y `backen
 - Un PR no está listo por compilar: debe pasar el quality contract completo sobre su HEAD exacto.
 - Dependencias de producción con vulnerabilidades high/critical bloquean el merge.
 
-Ver `docs/architecture/engineering-guardrails.md`.
+Ver `docs/architecture/engineering-guardrails.md` y `docs/operations/delivery-evidence-contract.md`.
 
 ## Dominio 2026
 
