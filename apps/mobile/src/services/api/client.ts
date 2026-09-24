@@ -108,14 +108,17 @@ export class MobileApiClient {
         headers.Authorization = `Bearer ${options.credential}`;
       }
 
-      const response = await fetch(url, {
+      const init: RequestInit = {
         method: options.method ?? "GET",
         headers,
-        body:
-          options.body === undefined ? undefined : JSON.stringify(options.body),
         redirect: "error",
         signal: controller.signal,
-      });
+        ...(options.body === undefined
+          ? {}
+          : { body: JSON.stringify(options.body) }),
+      };
+
+      const response = await fetch(url.toString(), init);
 
       if (!response.ok) {
         const body = await parseErrorBody(response);
@@ -164,7 +167,7 @@ export class MobileApiClient {
       {
         method: "POST",
         body: input,
-        signal,
+        ...(signal ? { signal } : {}),
       },
     );
   }
@@ -172,7 +175,7 @@ export class MobileApiClient {
   me(credential: string, signal?: AbortSignal) {
     return this.request<AuthenticatedSessionResponse>("/auth/me", {
       credential,
-      signal,
+      ...(signal ? { signal } : {}),
     });
   }
 
@@ -180,7 +183,7 @@ export class MobileApiClient {
     return this.request<void>("/auth/session", {
       method: "DELETE",
       credential,
-      signal,
+      ...(signal ? { signal } : {}),
     });
   }
 }
