@@ -309,5 +309,4 @@ describe('Feed ranking', () => {
     expect(ranked.why).not.toContain('following');
     expect(ranked.why).not.toContain('connection');
   });
-
 });
