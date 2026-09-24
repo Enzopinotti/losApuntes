@@ -84,13 +84,13 @@ behavior change and must pass the same evidence path.
 
 | Scope | Dimensions | Limit | Window |
 | --- | --- | ---: | ---: |
-| auth login (Web + Mobile together) | IP | 30 | 5 min |
+| auth login (Web + Mobile together) | IP | 120 | 5 min |
 | auth login | IP + email | 5 | 5 min |
-| registration | IP | 12 | 60 min |
+| registration | IP | 120 | 60 min |
 | registration | IP + email | 3 | 60 min |
-| email verification request | IP | 20 | 60 min |
+| email verification request | IP | 120 | 60 min |
 | email verification request | IP + email | 5 | 60 min |
-| password recovery request | IP | 20 | 60 min |
+| password recovery request | IP | 120 | 60 min |
 | password recovery request | IP + email | 5 | 60 min |
 | verification/recovery token inspect | IP | 60 | 5 min |
 | verification/recovery token complete | IP | 20 | 15 min |
@@ -98,6 +98,12 @@ behavior change and must pass the same evidence path.
 
 Web and Mobile login deliberately share one scope so alternating transports
 cannot bypass the same password-guessing budget.
+
+The broad IP ceilings are intentionally much higher than the IP+target ceilings.
+A campus, classroom, carrier NAT or household may legitimately share one public
+address. The low pair limits contain repeated attacks on one target while the
+broad ceiling remains an emergency abuse bound rather than a routine shared-NAT
+lockout.
 
 ## Failure semantics
 

@@ -24,15 +24,15 @@ const POLICIES: Readonly<
 > = Object.freeze({
   'auth.login': [
     { dimension: 'ip-target', limit: 5, windowMs: 5 * MINUTE_MS },
-    { dimension: 'ip', limit: 30, windowMs: 5 * MINUTE_MS },
+    { dimension: 'ip', limit: 120, windowMs: 5 * MINUTE_MS },
   ],
   'auth.register': [
     { dimension: 'ip-target', limit: 3, windowMs: 60 * MINUTE_MS },
-    { dimension: 'ip', limit: 12, windowMs: 60 * MINUTE_MS },
+    { dimension: 'ip', limit: 120, windowMs: 60 * MINUTE_MS },
   ],
   'auth.email_verification.request': [
     { dimension: 'ip-target', limit: 5, windowMs: 60 * MINUTE_MS },
-    { dimension: 'ip', limit: 20, windowMs: 60 * MINUTE_MS },
+    { dimension: 'ip', limit: 120, windowMs: 60 * MINUTE_MS },
   ],
   'auth.email_verification.inspect': [
     { dimension: 'ip', limit: 60, windowMs: 5 * MINUTE_MS },
@@ -42,7 +42,7 @@ const POLICIES: Readonly<
   ],
   'auth.password_recovery.request': [
     { dimension: 'ip-target', limit: 5, windowMs: 60 * MINUTE_MS },
-    { dimension: 'ip', limit: 20, windowMs: 60 * MINUTE_MS },
+    { dimension: 'ip', limit: 120, windowMs: 60 * MINUTE_MS },
   ],
   'auth.password_recovery.inspect': [
     { dimension: 'ip', limit: 60, windowMs: 5 * MINUTE_MS },
