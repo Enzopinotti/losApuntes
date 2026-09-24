@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import type { AccountSecurityService } from './account-security.service';
+import type { AuthAbuseService } from './abuse/auth-abuse.service';
 import type { AuthAuditService } from './audit/auth-audit.service';
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
@@ -54,12 +55,21 @@ describe('AuthController', () => {
   const revokeOwned = jest.fn();
   const revokeAll = jest.fn();
   const changePassword = jest.fn();
+  const admit = jest.fn();
+  const admitLoginOrigin = jest.fn();
+  const recordInvalidLogin = jest.fn();
   const auditRecord = jest.fn();
 
   const authService = {
     register,
     login,
   } as unknown as AuthService;
+
+  const abuse = {
+    admit,
+    admitLoginOrigin,
+    recordInvalidLogin,
+  } as unknown as AuthAbuseService;
 
   const lifecycle = {
     requestEmailVerification,
@@ -91,6 +101,7 @@ describe('AuthController', () => {
 
   const controller = new AuthController(
     authService,
+    abuse,
     lifecycle,
     security,
     sessionService,
@@ -98,15 +109,22 @@ describe('AuthController', () => {
     config,
   );
 
+  const publicRequest = {
+    ip: '203.0.113.10',
+  } as FastifyRequest;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    admit.mockResolvedValue(undefined);
+    admitLoginOrigin.mockResolvedValue(undefined);
+    recordInvalidLogin.mockResolvedValue(undefined);
   });
 
   it('registers without issuing an authenticated session', async () => {
     register.mockResolvedValue(undefined);
 
     await expect(
-      controller.register({
+      controller.register(publicRequest, {
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
@@ -119,11 +137,75 @@ describe('AuthController', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('applies registration admission before account work', async () => {
+    register.mockResolvedValue(undefined);
+
+    await controller.register(publicRequest, {
+      email: 'enzo@example.com',
+      password: 'correct-horse-battery',
+    });
+
+    expect(admit).toHaveBeenCalledWith(
+      'registration',
+      '203.0.113.10',
+      'enzo@example.com',
+    );
+    expect(admit.mock.invocationCallOrder[0]).toBeLessThan(
+      register.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
+    );
+  });
+
+  it('records invalid login pairs but never pair-blocks proven credentials', async () => {
+    const reply = {
+      setCookie: jest.fn(),
+    } as unknown as FastifyReply;
+
+    login.mockResolvedValueOnce({ kind: 'invalid_credentials' });
+
+    await expect(
+      controller.login(
+        publicRequest,
+        {
+          email: 'enzo@example.com',
+          password: 'wrong-password',
+        },
+        reply,
+      ),
+    ).rejects.toBeInstanceOf(HttpException);
+
+    expect(admitLoginOrigin).toHaveBeenCalledWith('203.0.113.10');
+    expect(recordInvalidLogin).toHaveBeenCalledWith(
+      '203.0.113.10',
+      'enzo@example.com',
+    );
+
+    jest.clearAllMocks();
+    admitLoginOrigin.mockResolvedValue(undefined);
+    recordInvalidLogin.mockResolvedValue(undefined);
+    login.mockResolvedValue({
+      kind: 'authenticated',
+      user: USER,
+      sessionToken: 'a'.repeat(43),
+      session: SESSION,
+    });
+
+    await controller.login(
+      publicRequest,
+      {
+        email: 'enzo@example.com',
+        password: 'correct-horse-battery',
+      },
+      reply,
+    );
+
+    expect(recordInvalidLogin).not.toHaveBeenCalled();
+  });
+
   it('keeps registration bounded when verification delivery fails', async () => {
     register.mockRejectedValue(new AuthEmailDeliveryUnavailableError());
 
     await expect(
-      controller.register({
+      controller.register(publicRequest, {
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
@@ -136,7 +218,7 @@ describe('AuthController', () => {
     );
 
     await expect(
-      controller.requestEmailVerification({
+      controller.requestEmailVerification(publicRequest, {
         email: 'enzo@example.com',
       }),
     ).resolves.toEqual({ accepted: true });
@@ -148,7 +230,7 @@ describe('AuthController', () => {
     );
 
     await expect(
-      controller.requestPasswordRecovery({
+      controller.requestPasswordRecovery(publicRequest, {
         email: 'enzo@example.com',
       }),
     ).resolves.toEqual({ accepted: true });
@@ -198,6 +280,7 @@ describe('AuthController', () => {
 
     await expect(
       controller.login(
+        publicRequest,
         {
           email: 'enzo@example.com',
           password: 'correct-horse-battery',
@@ -233,7 +316,7 @@ describe('AuthController', () => {
     });
 
     await expect(
-      controller.mobileLogin({
+      controller.mobileLogin(publicRequest, {
         email: 'enzo@example.com',
         password: 'correct-horse-battery',
       }),
@@ -253,6 +336,7 @@ describe('AuthController', () => {
 
     const error = await rejectedHttpException(
       controller.login(
+        publicRequest,
         {
           email: 'missing@example.com',
           password: 'incorrect-password',
@@ -278,6 +362,7 @@ describe('AuthController', () => {
 
     const error = await rejectedHttpException(
       controller.login(
+        publicRequest,
         {
           email: 'enzo@example.com',
           password: 'correct-horse-battery',
