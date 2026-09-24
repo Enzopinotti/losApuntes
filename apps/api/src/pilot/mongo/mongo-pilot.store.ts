@@ -432,7 +432,15 @@ export class MongoPilotStore implements PilotStore {
         .toArray(),
     ]);
 
-    const cohortUserIds = [...new Set([...currentUsers, ...previousUsers])];
+    const definedCurrentUsers = currentUsers.filter(
+      (userId): userId is string => typeof userId === 'string',
+    );
+    const definedPreviousUsers = previousUsers.filter(
+      (userId): userId is string => typeof userId === 'string',
+    );
+    const cohortUserIds = [
+      ...new Set([...definedCurrentUsers, ...definedPreviousUsers]),
+    ];
     const affiliationRows =
       cohortUserIds.length === 0
         ? []
@@ -471,15 +479,17 @@ export class MongoPilotStore implements PilotStore {
       return 'community';
     };
 
-    const previousSet = new Set(previousUsers);
-    const returningUsers = currentUsers.filter((id) => previousSet.has(id));
+    const previousSet = new Set(definedPreviousUsers);
+    const returningUsers = definedCurrentUsers.filter((id) =>
+      previousSet.has(id),
+    );
     const audience = {
       activeStudents: { activeUsers: 0, returningUsers: 0 },
       alumni: { activeUsers: 0, returningUsers: 0 },
       community: { activeUsers: 0, returningUsers: 0 },
     };
 
-    for (const userId of currentUsers) {
+    for (const userId of definedCurrentUsers) {
       const key = cohort(userId);
       if (key === 'activeStudent') {
         audience.activeStudents.activeUsers += 1;
@@ -556,7 +566,7 @@ export class MongoPilotStore implements PilotStore {
         noResultSearches,
       },
       activity: {
-        activeUsers: currentUsers.length,
+        activeUsers: definedCurrentUsers.length,
         returningUsers: returningUsers.length,
       },
       audience,
