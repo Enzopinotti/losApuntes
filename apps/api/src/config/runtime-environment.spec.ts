@@ -87,9 +87,7 @@ describe('validateRuntimeEnvironment', () => {
         ...validProductionEnvironment,
         WEB_ORIGIN: 'http://app.losapuntes.example',
       }),
-    ).toThrow(
-      'WEB_ORIGIN must use https in the production deployment profile',
-    );
+    ).toThrow('WEB_ORIGIN must use https in the production deployment profile');
 
     expect(() =>
       validateRuntimeEnvironment({
@@ -116,9 +114,7 @@ describe('validateRuntimeEnvironment', () => {
         ...validEnvironment,
         DEPLOYMENT_PROFILE: 'production',
       }),
-    ).toThrow(
-      'DEPLOYMENT_PROFILE=production requires NODE_ENV=production',
-    );
+    ).toThrow('DEPLOYMENT_PROFILE=production requires NODE_ENV=production');
   });
 
   it('normalizes defaults for local development', () => {
