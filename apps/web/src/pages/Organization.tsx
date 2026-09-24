@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
@@ -24,7 +24,7 @@ const Organization = () => {
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!organizationId) return;
     setError(null);
     try {
@@ -37,11 +37,11 @@ const Organization = () => {
       }
       setError(messageFor(nextError));
     }
-  };
+  }, [organizationId]);
 
   useEffect(() => {
     void load();
-  }, [organizationId]);
+  }, [load]);
 
   const follow = async () => {
     if (!organization) return;
