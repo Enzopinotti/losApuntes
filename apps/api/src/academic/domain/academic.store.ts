@@ -144,7 +144,10 @@ export interface AcademicStore {
     input: Omit<AcademicFollowRecord, 'createdAt' | 'updatedAt'>,
   ): Promise<AcademicFollowRecord>;
   listAcademicFollows(userId: string): Promise<AcademicFollowRecord[]>;
-  removeAcademicFollows(userId: string, targetNodeIds: string[]): Promise<number>;
+  removeAcademicFollows(
+    userId: string,
+    targetNodeIds: string[],
+  ): Promise<number>;
 
   createProposal(
     input: CreateProposalRecord,
