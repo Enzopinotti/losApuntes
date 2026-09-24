@@ -42,6 +42,11 @@ type QaReportDocument = ReportDocument & {
   targetId: string;
 };
 
+type OrganizationReportDocument = ReportDocument & {
+  targetType: 'organization_post' | 'organization_event';
+  targetId: string;
+};
+
 type ModeratedTarget = {
   id: string;
   title?: string;
@@ -89,6 +94,12 @@ export class MongoPilotStore implements PilotStore {
       .sort({ createdAt: 1, id: 1 })
       .limit(input.limit)
       .toArray();
+    const organizationReports = await this.connection
+      .collection<OrganizationReportDocument>('organization_reports')
+      .find({ status: input.status })
+      .sort({ createdAt: 1, id: 1 })
+      .limit(input.limit)
+      .toArray();
 
     const rows = [
       ...resourceReports.map((report) => ({
@@ -96,6 +107,10 @@ export class MongoPilotStore implements PilotStore {
         report,
       })),
       ...qaReports.map((report) => ({ kind: 'qa' as const, report })),
+      ...organizationReports.map((report) => ({
+        kind: 'organization' as const,
+        report,
+      })),
     ]
       .sort(
         (left, right) =>
@@ -121,7 +136,10 @@ export class MongoPilotStore implements PilotStore {
     let reviewed:
       | {
           kind: PilotReportKind;
-          report: ResourceReportDocument | QaReportDocument;
+          report:
+            | ResourceReportDocument
+            | QaReportDocument
+            | OrganizationReportDocument;
         }
       | undefined;
 
@@ -132,7 +150,11 @@ export class MongoPilotStore implements PilotStore {
             ? this.connection.collection<ResourceReportDocument>(
                 'resource_reports',
               )
-            : this.connection.collection<QaReportDocument>('qa_reports');
+            : input.kind === 'qa'
+              ? this.connection.collection<QaReportDocument>('qa_reports')
+              : this.connection.collection<OrganizationReportDocument>(
+                  'organization_reports',
+                );
         const existing = await reportCollection.findOne(
           { id: input.reportId },
           { session },
@@ -149,7 +171,15 @@ export class MongoPilotStore implements PilotStore {
             ? this.connection.collection<ModeratedTarget>('resources')
             : target.kind === 'question'
               ? this.connection.collection<ModeratedTarget>('questions')
-              : this.connection.collection<ModeratedTarget>('answers');
+              : target.kind === 'answer'
+                ? this.connection.collection<ModeratedTarget>('answers')
+                : target.kind === 'organization_post'
+                  ? this.connection.collection<ModeratedTarget>(
+                      'organization_posts',
+                    )
+                  : this.connection.collection<ModeratedTarget>(
+                      'organization_events',
+                    );
         const currentTarget = await targetCollection.findOne(
           { id: target.id },
           { session },
@@ -250,6 +280,8 @@ export class MongoPilotStore implements PilotStore {
       this.connection.collection<PilotEventDocument>('pilot_events');
     const resourceReports = this.connection.collection('resource_reports');
     const qaReports = this.connection.collection('qa_reports');
+    const organizationReports =
+      this.connection.collection('organization_reports');
 
     const onboardingRows = await users
       .aggregate<{ accountsCreated: number; profilesCompleted: number }>([
@@ -290,10 +322,13 @@ export class MongoPilotStore implements PilotStore {
       contributorIds,
       resourcePending,
       qaPending,
+      organizationPending,
       resourceReviewed,
       qaReviewed,
+      organizationReviewed,
       oldestResource,
       oldestQa,
+      oldestOrganization,
       participantRows,
       resourceRows,
       questionRows,
@@ -339,10 +374,14 @@ export class MongoPilotStore implements PilotStore {
       }),
       resourceReports.countDocuments({ status: 'pending' }),
       qaReports.countDocuments({ status: 'pending' }),
+      organizationReports.countDocuments({ status: 'pending' }),
       resourceReports.countDocuments({
         reviewedAt: { $gte: input.from, $lt: input.to },
       }),
       qaReports.countDocuments({
+        reviewedAt: { $gte: input.from, $lt: input.to },
+      }),
+      organizationReports.countDocuments({
         reviewedAt: { $gte: input.from, $lt: input.to },
       }),
       resourceReports.findOne(
@@ -350,6 +389,10 @@ export class MongoPilotStore implements PilotStore {
         { sort: { createdAt: 1 }, projection: { createdAt: 1 } },
       ),
       qaReports.findOne(
+        { status: 'pending' },
+        { sort: { createdAt: 1 }, projection: { createdAt: 1 } },
+      ),
+      organizationReports.findOne(
         { status: 'pending' },
         { sort: { createdAt: 1 }, projection: { createdAt: 1 } },
       ),
@@ -431,6 +474,7 @@ export class MongoPilotStore implements PilotStore {
       [
         oldestResource?.createdAt as Date | undefined,
         oldestQa?.createdAt as Date | undefined,
+        oldestOrganization?.createdAt as Date | undefined,
       ]
         .filter((value): value is Date => value instanceof Date)
         .sort((left, right) => left.getTime() - right.getTime())[0] ?? null;
@@ -459,8 +503,9 @@ export class MongoPilotStore implements PilotStore {
         contributors: contributorIds.length,
       },
       moderation: {
-        pending: resourcePending + qaPending,
-        reviewedInWindow: resourceReviewed + qaReviewed,
+        pending: resourcePending + qaPending + organizationPending,
+        reviewedInWindow:
+          resourceReviewed + qaReviewed + organizationReviewed,
         oldestPendingAt,
       },
       subjects: allSubjects.slice(0, 100),
@@ -470,7 +515,10 @@ export class MongoPilotStore implements PilotStore {
 
   private async queueItem(
     kind: PilotReportKind,
-    report: ResourceReportDocument | QaReportDocument,
+    report:
+      | ResourceReportDocument
+      | QaReportDocument
+      | OrganizationReportDocument,
   ): Promise<PilotModerationQueueItem> {
     const target = this.targetIdentity(kind, report);
     const targetCollection =
@@ -478,7 +526,15 @@ export class MongoPilotStore implements PilotStore {
         ? this.connection.collection<ModeratedTarget>('resources')
         : target.kind === 'question'
           ? this.connection.collection<ModeratedTarget>('questions')
-          : this.connection.collection<ModeratedTarget>('answers');
+          : target.kind === 'answer'
+            ? this.connection.collection<ModeratedTarget>('answers')
+            : target.kind === 'organization_post'
+              ? this.connection.collection<ModeratedTarget>(
+                  'organization_posts',
+                )
+              : this.connection.collection<ModeratedTarget>(
+                  'organization_events',
+                );
     const row = await targetCollection.findOne({ id: target.id });
 
     return {
@@ -500,7 +556,11 @@ export class MongoPilotStore implements PilotStore {
       target: {
         title:
           row?.title ??
-          (target.kind === 'answer' ? 'Respuesta' : 'Contenido no disponible'),
+          (target.kind === 'answer'
+            ? 'Respuesta'
+            : target.kind === 'organization_event'
+              ? 'Evento'
+              : 'Contenido no disponible'),
         preview: preview(row?.description ?? row?.body),
         moderationState: row?.moderationState ?? 'hidden',
       },
@@ -509,9 +569,17 @@ export class MongoPilotStore implements PilotStore {
 
   private targetIdentity(
     kind: PilotReportKind,
-    report: ResourceReportDocument | QaReportDocument,
+    report:
+      | ResourceReportDocument
+      | QaReportDocument
+      | OrganizationReportDocument,
   ): {
-    kind: 'resource' | 'question' | 'answer';
+    kind:
+      | 'resource'
+      | 'question'
+      | 'answer'
+      | 'organization_post'
+      | 'organization_event';
     id: string;
   } {
     if (kind === 'resource') {
@@ -519,8 +587,13 @@ export class MongoPilotStore implements PilotStore {
       return { kind: 'resource', id: resource.resourceId };
     }
 
-    const qa = report as QaReportDocument;
-    return { kind: qa.targetType, id: qa.targetId };
+    if (kind === 'qa') {
+      const qa = report as QaReportDocument;
+      return { kind: qa.targetType, id: qa.targetId };
+    }
+
+    const organization = report as OrganizationReportDocument;
+    return { kind: organization.targetType, id: organization.targetId };
   }
 
   private async countBySubject(
