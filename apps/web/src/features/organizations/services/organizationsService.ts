@@ -133,7 +133,9 @@ export const organizationsApi = {
       `/organizations/${encodeURIComponent(id)}/manage`,
     ),
 
-  searchInstitutions: async (q: string): Promise<AcademicInstitutionOption[]> => {
+  searchInstitutions: async (
+    q: string,
+  ): Promise<AcademicInstitutionOption[]> => {
     const query = new URLSearchParams({
       kind: "institution",
       q,
