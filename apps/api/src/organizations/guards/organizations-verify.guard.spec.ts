@@ -28,10 +28,10 @@ describe('OrganizationsVerifyGuard', () => {
     const guard = new OrganizationsVerifyGuard(users);
 
     await expect(guard.canActivate(context())).resolves.toBe(true);
-    expect(users.hasPlatformPermission).toHaveBeenCalledWith(
+    expect(users.hasPlatformPermission.mock.calls[0]).toEqual([
       'user-1',
       ORGANIZATIONS_VERIFY_PERMISSION,
-    );
+    ]);
   });
 
   it('denies managers without platform verification permission', async () => {
