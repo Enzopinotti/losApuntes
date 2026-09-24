@@ -71,6 +71,12 @@ const Layout = () => {
                 Dashboard
               </NavLink>
               <NavLink
+                to="/academic/lifecycle"
+                className={({ isActive }) => (isActive ? "active" : "")}
+              >
+                Trayectoria
+              </NavLink>
+              <NavLink
                 to="/network"
                 className={({ isActive }) => (isActive ? "active" : "")}
               >
