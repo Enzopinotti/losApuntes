@@ -26,6 +26,7 @@ import {
   CreateOrganizationEventDto,
   CreateOrganizationLinkDto,
   CreateOrganizationPostDto,
+  CreateOrganizationReportDto,
   OrganizationEventListDto,
   OrganizationPostListDto,
   OrganizationSearchDto,
@@ -180,6 +181,17 @@ export class OrganizationsController {
     return this.organizations.createPost(request.user.id, id, dto);
   }
 
+  @UseGuards(AuthSessionGuard)
+  @Post(':id/posts/:postId/reports')
+  reportPost(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('postId', new ParseUUIDPipe({ version: '4' })) postId: string,
+    @Body() dto: CreateOrganizationReportDto,
+  ) {
+    return this.organizations.reportPost(request.user.id, id, postId, dto);
+  }
+
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
   @Patch(':id/posts/:postId')
   updatePost(
@@ -214,6 +226,17 @@ export class OrganizationsController {
     @Body() dto: CreateOrganizationEventDto,
   ) {
     return this.organizations.createEvent(request.user.id, id, dto);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Post(':id/events/:eventId/reports')
+  reportEvent(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('eventId', new ParseUUIDPipe({ version: '4' })) eventId: string,
+    @Body() dto: CreateOrganizationReportDto,
+  ) {
+    return this.organizations.reportEvent(request.user.id, id, eventId, dto);
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
