@@ -613,7 +613,10 @@ export class AcademicService {
     academicUnitId: string | null;
     programId: string | null;
   }> {
-    const institution = await this.requireKind(input.institutionId, 'institution');
+    const institution = await this.requireKind(
+      input.institutionId,
+      'institution',
+    );
     const campus = input.campusId
       ? await this.requireKind(input.campusId, 'campus')
       : undefined;
@@ -624,11 +627,9 @@ export class AcademicService {
       ? await this.requireKind(input.programId, 'program')
       : undefined;
 
-    for (const candidate of [
-      campus?.id,
-      academicUnit?.id,
-      program?.id,
-    ].filter((value): value is string => Boolean(value))) {
+    for (const candidate of [campus?.id, academicUnit?.id, program?.id].filter(
+      (value): value is string => Boolean(value),
+    )) {
       if (!(await this.isDescendantOf(candidate, institution.id))) {
         throw new UnprocessableEntityException({
           code: 'ACADEMIC_CONTEXT_MISMATCH',
