@@ -365,7 +365,7 @@ describe('AcademicService', () => {
     await expect(
       service.upsertSubjectParticipation('user-1', subject.id, {
         courseOfferingId: offering.id,
-        state: 'current',
+        state: 'completed',
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -734,6 +734,7 @@ describe('AcademicService', () => {
     );
     store.createAffiliation.mockResolvedValue(created);
     store.listAffiliationsForUser.mockResolvedValue([created]);
+    store.findAffiliationById.mockResolvedValue(created);
     store.updateAffiliationStatus.mockResolvedValue({
       ...created,
       status: 'completed',
@@ -794,7 +795,7 @@ describe('AcademicService', () => {
       'user-1',
       subject.id,
       {
-        state: 'current',
+        state: 'completed',
         periodLabel: '2026 S2',
       },
     );
@@ -1214,6 +1215,7 @@ describe('AcademicService', () => {
       ),
     );
     store.listAffiliationsForUser.mockResolvedValue([row]);
+    store.findAffiliationById.mockResolvedValue(row);
     store.updateAffiliationStatus.mockResolvedValue({
       ...row,
       status: 'completed',
