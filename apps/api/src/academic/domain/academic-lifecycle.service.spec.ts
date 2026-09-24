@@ -47,7 +47,9 @@ function participation(
   };
 }
 
-function follow(overrides: Partial<AcademicFollowRecord> = {}): AcademicFollowRecord {
+function follow(
+  overrides: Partial<AcademicFollowRecord> = {},
+): AcademicFollowRecord {
   return {
     id: '66666666-6666-4666-8666-666666666666',
     userId: 'user-1',
@@ -61,7 +63,9 @@ function follow(overrides: Partial<AcademicFollowRecord> = {}): AcademicFollowRe
 
 function store(): jest.Mocked<AcademicStore> {
   const value = {
-    runAtomically: jest.fn(async <T>(operation: () => Promise<T>) => operation()),
+    runAtomically: jest.fn(async <T>(operation: () => Promise<T>) =>
+      operation(),
+    ),
     findAffiliationById: jest.fn(),
     listAffiliationsForUser: jest.fn().mockResolvedValue([]),
     listSubjectParticipationsForUser: jest.fn().mockResolvedValue([]),
@@ -81,15 +85,17 @@ function store(): jest.Mocked<AcademicStore> {
 
 function academic(): jest.Mocked<AcademicService> {
   const value = {
-    projectAffiliationRecord: jest.fn(async (row: AcademicAffiliationRecord) => ({
-      id: row.id,
-      status: row.status,
-      roles: row.roles ?? [],
-      institutionId: row.institutionId,
-      programId: row.programId,
-      startedOn: row.startedOn,
-      endedOn: row.endedOn,
-    })),
+    projectAffiliationRecord: jest.fn(
+      async (row: AcademicAffiliationRecord) => ({
+        id: row.id,
+        status: row.status,
+        roles: row.roles ?? [],
+        institutionId: row.institutionId,
+        programId: row.programId,
+        startedOn: row.startedOn,
+        endedOn: row.endedOn,
+      }),
+    ),
     participationBelongsToAffiliation: jest.fn().mockResolvedValue(false),
     resolveContinuityFollowTarget: jest.fn(),
   };
@@ -132,45 +138,45 @@ describe('AcademicLifecycleService', () => {
       affiliations: [],
       expected: 'community',
     },
-  ])('derives $label lifecycle phase without persisted flags', async ({
-    affiliations,
-    expected,
-  }) => {
-    const lifecycleStore = store();
-    const academicService = academic();
-    lifecycleStore.listAffiliationsForUser.mockResolvedValue(affiliations);
-    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue([
-      participation(),
-      participation({
-        id: '88888888-8888-4888-8888-888888888888',
-        subjectId: '99999999-9999-4999-8999-999999999999',
-        state: 'completed',
-      }),
-    ]);
-    lifecycleStore.getCurrentContext.mockResolvedValue({
-      userId: 'user-1',
-      affiliationId: affiliations[0]?.id ?? 'none',
-      subjectParticipationId:
-        expected === 'student' || expected === 'mixed'
-          ? '44444444-4444-4444-8444-444444444444'
-          : undefined,
-      createdAt: now,
-      updatedAt: now,
-    });
+  ])(
+    'derives $label lifecycle phase without persisted flags',
+    async ({ affiliations, expected }) => {
+      const lifecycleStore = store();
+      const academicService = academic();
+      lifecycleStore.listAffiliationsForUser.mockResolvedValue(affiliations);
+      lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue([
+        participation(),
+        participation({
+          id: '88888888-8888-4888-8888-888888888888',
+          subjectId: '99999999-9999-4999-8999-999999999999',
+          state: 'completed',
+        }),
+      ]);
+      lifecycleStore.getCurrentContext.mockResolvedValue({
+        userId: 'user-1',
+        affiliationId: affiliations[0]?.id ?? 'none',
+        subjectParticipationId:
+          expected === 'student' || expected === 'mixed'
+            ? '44444444-4444-4444-8444-444444444444'
+            : undefined,
+        createdAt: now,
+        updatedAt: now,
+      });
 
-    const result = await new AcademicLifecycleService(
-      lifecycleStore,
-      academicService,
-    ).getLifecycle('user-1');
+      const result = await new AcademicLifecycleService(
+        lifecycleStore,
+        academicService,
+      ).getLifecycle('user-1');
 
-    expect(result.phase).toBe(expected);
-    expect(result.currentSubjectIds).toEqual([
-      '55555555-5555-4555-8555-555555555555',
-    ]);
-    expect(result.hasCurrentSubjectContext).toBe(
-      expected === 'student' || expected === 'mixed',
-    );
-  });
+      expect(result.phase).toBe(expected);
+      expect(result.currentSubjectIds).toEqual([
+        '55555555-5555-4555-8555-555555555555',
+      ]);
+      expect(result.hasCurrentSubjectContext).toBe(
+        expected === 'student' || expected === 'mixed',
+      );
+    },
+  );
 
   it('graduates atomically, completes scoped current subjects and clears subject context', async () => {
     const lifecycleStore = store();
@@ -192,10 +198,7 @@ describe('AcademicLifecycleService', () => {
     lifecycleStore.findAffiliationById.mockResolvedValue(active);
     lifecycleStore.listSubjectParticipationsForUser
       .mockResolvedValueOnce([scoped, outside])
-      .mockResolvedValueOnce([
-        { ...scoped, state: 'completed' },
-        outside,
-      ]);
+      .mockResolvedValueOnce([{ ...scoped, state: 'completed' }, outside]);
     academicService.participationBelongsToAffiliation
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false);
@@ -236,12 +239,9 @@ describe('AcademicLifecycleService', () => {
         roles: ['mentor', 'recent_graduate', 'alumni'],
       }),
     );
-    expect(lifecycleStore.transitionSubjectParticipationStates).toHaveBeenCalledWith(
-      'user-1',
-      [scoped.id],
-      'current',
-      'completed',
-    );
+    expect(
+      lifecycleStore.transitionSubjectParticipationStates,
+    ).toHaveBeenCalledWith('user-1', [scoped.id], 'current', 'completed');
     expect(lifecycleStore.setCurrentContext).toHaveBeenCalledWith({
       userId: 'user-1',
       affiliationId: active.id,
@@ -470,10 +470,7 @@ describe('AcademicLifecycleService', () => {
       'user-1',
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     );
-    await service.unfollow(
-      'user-1',
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    );
+    await service.unfollow('user-1', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
 
     expect(followed).toEqual({
       following: true,
@@ -557,10 +554,9 @@ describe('AcademicLifecycleService', () => {
     );
 
     await expect(
-      new AcademicLifecycleService(
-        lifecycleStore,
-        academicService,
-      ).listFollows('user-1'),
+      new AcademicLifecycleService(lifecycleStore, academicService).listFollows(
+        'user-1',
+      ),
     ).rejects.toThrow('catalog unavailable');
   });
 });
