@@ -797,7 +797,9 @@ export class OrganizationService {
           id: post.id,
           organizationId: organization.id,
           organizationName: organization.name,
+          organizationAvatarUrl: organization.avatarUrl,
           verificationState: organization.verificationState,
+          createdByUserId: post.createdByUserId,
           subjectId: post.subjectId,
           title: post.title ?? organization.name,
           body: post.body,
@@ -805,6 +807,14 @@ export class OrganizationService {
         },
       ];
     });
+  }
+
+  async getFeedTarget(postId: string) {
+    const post = await this.store.findPostByGlobalId(postId);
+    if (!post || post.moderationState !== 'available') this.notFound();
+    const organization = await this.store.findById(post.organizationId);
+    if (!organization || organization.status !== 'active') this.notFound();
+    return { post, organization };
   }
 
   private async detailProjection(
