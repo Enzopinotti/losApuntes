@@ -102,10 +102,7 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
-  async register(
-    @Req() request: FastifyRequest,
-    @Body() dto: RegisterDto,
-  ) {
+  async register(@Req() request: FastifyRequest, @Body() dto: RegisterDto) {
     await this.abuse.admit('registration', request.ip, dto.email);
 
     try {
@@ -125,11 +122,7 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Body() dto: EmailAddressDto,
   ) {
-    await this.abuse.admit(
-      'verification_request',
-      request.ip,
-      dto.email,
-    );
+    await this.abuse.admit('verification_request', request.ip, dto.email);
 
     try {
       await this.lifecycle.requestEmailVerification(dto.email);
@@ -291,10 +284,7 @@ export class AuthController {
 
   @Post('mobile/login')
   @HttpCode(HttpStatus.OK)
-  async mobileLogin(
-    @Req() request: FastifyRequest,
-    @Body() dto: LoginDto,
-  ) {
+  async mobileLogin(@Req() request: FastifyRequest, @Body() dto: LoginDto) {
     await this.abuse.admitLoginOrigin(request.ip);
     const outcome = await this.auth.login(dto, 'mobile');
 

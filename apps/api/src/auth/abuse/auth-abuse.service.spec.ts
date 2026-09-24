@@ -34,12 +34,7 @@ describe('AuthAbuseService', () => {
     }));
     const abuse = service(abuseStore);
 
-    await abuse.admit(
-      'registration',
-      '203.0.113.10',
-      'Enzo@Example.com',
-      NOW,
-    );
+    await abuse.admit('registration', '203.0.113.10', 'Enzo@Example.com', NOW);
 
     expect(abuseStore.consume).toHaveBeenCalledTimes(2);
     expect(abuseStore.consume.mock.calls[0]?.[0]).toMatchObject({
@@ -61,12 +56,7 @@ describe('AuthAbuseService', () => {
     const abuse = service(abuseStore);
 
     await expect(
-      abuse.admit(
-        'registration',
-        '203.0.113.10',
-        'victim@example.com',
-        NOW,
-      ),
+      abuse.admit('registration', '203.0.113.10', 'victim@example.com', NOW),
     ).rejects.toMatchObject({
       retryAfterSeconds: 3_300,
     } satisfies Partial<AuthRateLimitedError>);
@@ -160,11 +150,7 @@ describe('AuthAbuseService', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      abuse.recordInvalidLogin(
-        '203.0.113.20',
-        'guess-target@example.com',
-        NOW,
-      ),
+      abuse.recordInvalidLogin('203.0.113.20', 'guess-target@example.com', NOW),
     ).rejects.toBeInstanceOf(AuthRateLimitedError);
 
     expect(abuseStore.consume.mock.calls[0]?.[0]).toMatchObject({
@@ -183,12 +169,7 @@ describe('AuthAbuseService', () => {
     const abuse = service(abuseStore);
 
     await expect(
-      abuse.admit(
-        'recovery_request',
-        '203.0.113.30',
-        'user@example.com',
-        NOW,
-      ),
+      abuse.admit('recovery_request', '203.0.113.30', 'user@example.com', NOW),
     ).rejects.toBeInstanceOf(AuthAbuseControlUnavailableError);
   });
 });

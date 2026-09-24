@@ -7,10 +7,7 @@ export const AUTH_ABUSE_OPERATIONS = [
 
 export type AuthAbuseOperation = (typeof AUTH_ABUSE_OPERATIONS)[number];
 
-export const AUTH_ABUSE_DIMENSIONS = [
-  'origin',
-  'origin_identifier',
-] as const;
+export const AUTH_ABUSE_DIMENSIONS = ['origin', 'origin_identifier'] as const;
 
 export type AuthAbuseDimension = (typeof AUTH_ABUSE_DIMENSIONS)[number];
 

@@ -3,8 +3,7 @@ import { isIP } from 'node:net';
 const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
 const VALID_AUTH_EMAIL_DELIVERY_MODES = new Set(['disabled', 'smtp']);
 const VALID_DEPLOYMENT_PROFILES = new Set(['local', 'production']);
-const LOCAL_AUTH_ABUSE_KEY_SECRET =
-  'losapuntes-local-auth-abuse-secret-2026';
+const LOCAL_AUTH_ABUSE_KEY_SECRET = 'losapuntes-local-auth-abuse-secret-2026';
 const KNOWN_LOCAL_PRODUCTION_CREDENTIALS = new Map<string, Set<string>>([
   ['FILES_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
   ['FILES_S3_SECRET_ACCESS_KEY', new Set(['losapuntes-local-files-secret'])],

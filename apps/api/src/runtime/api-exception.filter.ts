@@ -142,9 +142,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       statusCode,
       code,
       message,
-      ...(retryAfter !== null
-        ? { retryAfterSeconds: retryAfter }
-        : {}),
+      ...(retryAfter !== null ? { retryAfterSeconds: retryAfter } : {}),
       requestId,
     });
   }

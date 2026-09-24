@@ -18,9 +18,7 @@ function isDuplicateKeyError(error: unknown): boolean {
   );
 }
 
-function toRecord(
-  document: AuthAbuseBucketDocument,
-): AuthAbuseBucketRecord {
+function toRecord(document: AuthAbuseBucketDocument): AuthAbuseBucketRecord {
   return {
     bucketKey: document.bucketKey,
     operation: document.operation,

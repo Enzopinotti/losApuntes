@@ -8,10 +8,7 @@ import {
   AuthAbuseControlUnavailableError,
   AuthRateLimitedError,
 } from './auth-abuse.errors';
-import {
-  AUTH_ABUSE_STORE,
-  type AuthAbuseStore,
-} from './auth-abuse.store';
+import { AUTH_ABUSE_STORE, type AuthAbuseStore } from './auth-abuse.store';
 import type {
   AuthAbuseDimension,
   AuthAbuseOperation,
@@ -171,9 +168,7 @@ export class AuthAbuseService {
           dimension,
         });
 
-        throw new AuthRateLimitedError(
-          retryAfterSeconds(now, windowEndsAt),
-        );
+        throw new AuthRateLimitedError(retryAfterSeconds(now, windowEndsAt));
       }
     } catch (error) {
       if (error instanceof AuthRateLimitedError) throw error;
