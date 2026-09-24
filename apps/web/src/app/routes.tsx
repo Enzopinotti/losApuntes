@@ -9,6 +9,9 @@ import Home from "../pages/Home";
 import Login from "../pages/Login";
 import Network from "../pages/Network";
 import Notifications from "../pages/Notifications";
+import Organization from "../pages/Organization";
+import OrganizationManage from "../pages/OrganizationManage";
+import Organizations from "../pages/Organizations";
 import Questions from "../pages/Questions";
 import Profile from "../pages/Profile";
 import PublicProfile from "../pages/PublicProfile";
@@ -38,6 +41,8 @@ export const routes: RouteObject[] = [
       { path: "resources", element: <Resources /> },
       { path: "search", element: <Search /> },
       { path: "questions", element: <Questions /> },
+      { path: "organizations", element: <Organizations /> },
+      { path: "organizations/:organizationId", element: <Organization /> },
       {
         path: "feeds",
         element: (
@@ -67,6 +72,14 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <Network />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "organizations/:organizationId/manage",
+        element: (
+          <PrivateRoute>
+            <OrganizationManage />
           </PrivateRoute>
         ),
       },
