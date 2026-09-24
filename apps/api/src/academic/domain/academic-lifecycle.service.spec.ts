@@ -558,6 +558,44 @@ describe('AcademicLifecycleService', () => {
     ]);
   });
 
+  it('skips follows whose canonical target is no longer followable', async () => {
+    const lifecycleStore = store();
+    const academicService = academic();
+    lifecycleStore.listAcademicFollows.mockResolvedValue([
+      follow(),
+      follow({
+        id: '77777777-7777-4777-8777-777777777777',
+        targetNodeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      }),
+    ]);
+    academicService.resolveContinuityFollowTarget
+      .mockRejectedValueOnce(
+        new UnprocessableEntityException({
+          code: 'ACADEMIC_FOLLOW_KIND_INVALID',
+          message: 'Only Institution or Program can be followed',
+        }),
+      )
+      .mockResolvedValueOnce({
+        targetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        kind: 'institution',
+        name: 'Universidad vigente',
+        identityIds: [],
+      });
+
+    const result = await new AcademicLifecycleService(
+      lifecycleStore,
+      academicService,
+    ).listFollows('user-1');
+
+    expect(result.follows).toEqual([
+      {
+        targetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        kind: 'institution',
+        name: 'Universidad vigente',
+      },
+    ]);
+  });
+
   it('rethrows unexpected follow projection failures', async () => {
     const lifecycleStore = store();
     const academicService = academic();
@@ -571,5 +609,23 @@ describe('AcademicLifecycleService', () => {
         'user-1',
       ),
     ).rejects.toThrow('catalog unavailable');
+  });
+
+  it('rethrows unrelated validation failures while projecting follows', async () => {
+    const lifecycleStore = store();
+    const academicService = academic();
+    lifecycleStore.listAcademicFollows.mockResolvedValue([follow()]);
+    academicService.resolveContinuityFollowTarget.mockRejectedValue(
+      new UnprocessableEntityException({
+        code: 'ACADEMIC_CONTEXT_MISMATCH',
+        message: 'Unexpected validation failure',
+      }),
+    );
+
+    await expect(
+      new AcademicLifecycleService(lifecycleStore, academicService).listFollows(
+        'user-1',
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });

@@ -294,7 +294,7 @@ export class AcademicLifecycleService {
           name: target.name,
         });
       } catch (error) {
-        if (error instanceof NotFoundException) continue;
+        if (this.isUnavailableFollowTarget(error)) continue;
         throw error;
       }
     }
@@ -303,6 +303,19 @@ export class AcademicLifecycleService {
       (left, right) =>
         left.kind.localeCompare(right.kind) ||
         left.name.localeCompare(right.name, 'es'),
+    );
+  }
+
+  private isUnavailableFollowTarget(error: unknown): boolean {
+    if (error instanceof NotFoundException) return true;
+    if (!(error instanceof UnprocessableEntityException)) return false;
+
+    const response = error.getResponse();
+    return (
+      typeof response === 'object' &&
+      response !== null &&
+      'code' in response &&
+      response.code === 'ACADEMIC_FOLLOW_KIND_INVALID'
     );
   }
 
