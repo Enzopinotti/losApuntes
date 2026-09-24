@@ -8,6 +8,7 @@ One release candidate should be reconstructable from one bounded record. Copy th
 
 - Release identifier:
 - Environment:
+- Deployment profile:
 - Candidate Git SHA:
 - Candidate workflow/run:
 - Candidate critical jobs:
