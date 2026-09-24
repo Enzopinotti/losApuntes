@@ -1722,6 +1722,91 @@ describe('AcademicService', () => {
     }
   });
 
+  it('resolves a canonical organization scope across optional academic levels', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const institution = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+      parentIds: ['11111111-1111-4111-8111-111111111111'],
+    });
+    const campus = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'campus',
+      parentIds: [institution.id],
+    });
+    const academicUnit = catalogNode({
+      id: '44444444-4444-4444-8444-444444444444',
+      kind: 'academic_unit',
+      parentIds: [campus.id],
+    });
+    const program = catalogNode({
+      id: '55555555-5555-4555-8555-555555555555',
+      kind: 'program',
+      parentIds: [academicUnit.id],
+    });
+    const nodes = [institution, campus, academicUnit, program];
+
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(nodes.find((node) => node.id === id) ?? null),
+    );
+
+    const scope = await service.resolveOrganizationScope({
+      institutionId: institution.id,
+      campusId: campus.id,
+      academicUnitId: academicUnit.id,
+      programId: program.id,
+    });
+
+    expect(scope).toEqual({
+      institutionId: institution.id,
+      campusId: campus.id,
+      academicUnitId: academicUnit.id,
+      programId: program.id,
+    });
+  });
+
+  it('keeps organization scope minimal and rejects nodes from another institution', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const institution = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const foreignInstitution = catalogNode({
+      id: '66666666-6666-4666-8666-666666666666',
+      kind: 'institution',
+    });
+    const foreignProgram = catalogNode({
+      id: '77777777-7777-4777-8777-777777777777',
+      kind: 'program',
+      parentIds: [foreignInstitution.id],
+    });
+    const nodes = [institution, foreignInstitution, foreignProgram];
+
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(nodes.find((node) => node.id === id) ?? null),
+    );
+
+    await expect(
+      service.resolveOrganizationScope({
+        institutionId: institution.id,
+        programId: foreignProgram.id,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    await expect(
+      service.resolveOrganizationScope({
+        institutionId: institution.id,
+      }),
+    ).resolves.toEqual({
+      institutionId: institution.id,
+      campusId: null,
+      academicUnitId: null,
+      programId: null,
+    });
+  });
+
   it('keeps children and affiliation projections canonical after a parent merge', async () => {
     const store = createStore();
     const service = new AcademicService(store);
