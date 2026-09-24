@@ -62,15 +62,19 @@ Body:
 Rules:
 
 - role set is explicit and deduplicated;
+- `roles: []` is a valid explicit empty set and is preserved;
 - roles are relationship labels, not permissions/verification;
 - student roles are invalid on an `alumni` affiliation;
-- alumni/recent-graduate roles are invalid on applicant/withdrawn affiliations.
+- alumni/recent-graduate roles are invalid on applicant/withdrawn affiliations;
+- the write is conditioned on the affiliation status validated before persistence, so concurrent lifecycle changes fail closed.
 
 ## Academic continuity follows
 
 ### GET /academic/me/follows
 
 Returns canonical Institution/Program follows.
+
+Stored follows whose targets are now missing or no longer followable are omitted from the projection. Other validation or infrastructure failures are not hidden.
 
 ### PUT /academic/me/follows/:nodeId
 
@@ -87,6 +91,7 @@ Following does not change affiliation or feed eligibility by itself.
 - `ACADEMIC_GRADUATION_TRANSITION_REQUIRED`;
 - `ACADEMIC_GRADUATION_INELIGIBLE`;
 - `ACADEMIC_AFFILIATION_ROLE_INVALID`;
+- `ACADEMIC_AFFILIATION_CONFLICT`;
 - `ACADEMIC_FOLLOW_KIND_INVALID`;
 - existing `ACADEMIC_NOT_FOUND` / context errors.
 
