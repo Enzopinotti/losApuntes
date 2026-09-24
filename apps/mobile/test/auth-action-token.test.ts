@@ -30,10 +30,7 @@ test("vault exchanges a secret action token for a non-secret one-time handle", (
   const handle = vault.capture("email_verification", TOKEN, 1_000);
 
   assert.ok(handle);
-  assert.equal(
-    vault.take(handle, "email_verification", 1_001),
-    TOKEN,
-  );
+  assert.equal(vault.take(handle, "email_verification", 1_001), TOKEN);
   assert.equal(vault.take(handle, "email_verification", 1_002), null);
 });
 

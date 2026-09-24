@@ -276,11 +276,7 @@ export class MobileApiClient {
     });
   }
 
-  revokeSession(
-    credential: string,
-    sessionId: string,
-    signal?: AbortSignal,
-  ) {
+  revokeSession(credential: string, sessionId: string, signal?: AbortSignal) {
     return this.request<void>(
       `/auth/sessions/${encodeURIComponent(sessionId)}`,
       {
@@ -361,5 +357,4 @@ export class MobileApiClient {
       ...(signal ? { signal } : {}),
     });
   }
-
 }
