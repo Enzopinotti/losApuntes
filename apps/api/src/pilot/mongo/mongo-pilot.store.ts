@@ -458,7 +458,9 @@ export class MongoPilotStore implements PilotStore {
       statusesByUser.set(row.userId, statuses);
     }
 
-    const cohort = (userId: string): 'activeStudent' | 'alumni' | 'community' => {
+    const cohort = (
+      userId: string,
+    ): 'activeStudent' | 'alumni' | 'community' => {
       const statuses = statusesByUser.get(userId);
       if (statuses?.has('active') || statuses?.has('paused')) {
         return 'activeStudent';
@@ -481,7 +483,8 @@ export class MongoPilotStore implements PilotStore {
       const key = cohort(userId);
       if (key === 'activeStudent') {
         audience.activeStudents.activeUsers += 1;
-        if (previousSet.has(userId)) audience.activeStudents.returningUsers += 1;
+        if (previousSet.has(userId))
+          audience.activeStudents.returningUsers += 1;
       } else if (key === 'alumni') {
         audience.alumni.activeUsers += 1;
         if (previousSet.has(userId)) audience.alumni.returningUsers += 1;
