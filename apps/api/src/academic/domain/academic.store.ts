@@ -4,8 +4,10 @@ import type {
   AcademicCatalogNodeRecord,
   AcademicCatalogProposalRecord,
   AcademicCurrentContextRecord,
+  AcademicFollowRecord,
   AcademicNodeKind,
   AcademicProposalStatus,
+  AcademicRelationshipRole,
   SubjectParticipationRecord,
 } from './academic.types';
 
@@ -103,6 +105,17 @@ export interface AcademicStore {
     status: AcademicAffiliationRecord['status'],
     endedOn?: string,
   ): Promise<AcademicAffiliationRecord | null>;
+  updateAffiliationRoles(
+    userId: string,
+    id: string,
+    roles: AcademicRelationshipRole[],
+  ): Promise<AcademicAffiliationRecord | null>;
+  transitionAffiliationToAlumni(
+    userId: string,
+    id: string,
+    graduatedOn: string,
+    roles: AcademicRelationshipRole[],
+  ): Promise<AcademicAffiliationRecord | null>;
 
   upsertSubjectParticipation(
     input: CreateSubjectParticipationRecord,
@@ -113,6 +126,12 @@ export interface AcademicStore {
   listSubjectParticipationsForUser(
     userId: string,
   ): Promise<SubjectParticipationRecord[]>;
+  transitionSubjectParticipationStates(
+    userId: string,
+    ids: string[],
+    from: SubjectParticipationRecord['state'],
+    to: SubjectParticipationRecord['state'],
+  ): Promise<number>;
 
   getCurrentContext(
     userId: string,
@@ -120,6 +139,12 @@ export interface AcademicStore {
   setCurrentContext(
     input: Omit<AcademicCurrentContextRecord, 'createdAt' | 'updatedAt'>,
   ): Promise<AcademicCurrentContextRecord>;
+
+  upsertAcademicFollow(
+    input: Omit<AcademicFollowRecord, 'createdAt' | 'updatedAt'>,
+  ): Promise<AcademicFollowRecord>;
+  listAcademicFollows(userId: string): Promise<AcademicFollowRecord[]>;
+  removeAcademicFollows(userId: string, targetNodeIds: string[]): Promise<number>;
 
   createProposal(
     input: CreateProposalRecord,
