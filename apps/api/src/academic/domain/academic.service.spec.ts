@@ -106,14 +106,22 @@ function createStore() {
     findAffiliationById: mockFn<AcademicStore['findAffiliationById']>(),
     listAffiliationsForUser: mockFn<AcademicStore['listAffiliationsForUser']>(),
     updateAffiliationStatus: mockFn<AcademicStore['updateAffiliationStatus']>(),
+    updateAffiliationRoles: mockFn<AcademicStore['updateAffiliationRoles']>(),
+    transitionAffiliationToAlumni:
+      mockFn<AcademicStore['transitionAffiliationToAlumni']>(),
     upsertSubjectParticipation:
       mockFn<AcademicStore['upsertSubjectParticipation']>(),
     findSubjectParticipationById:
       mockFn<AcademicStore['findSubjectParticipationById']>(),
     listSubjectParticipationsForUser:
       mockFn<AcademicStore['listSubjectParticipationsForUser']>(),
+    transitionSubjectParticipationStates:
+      mockFn<AcademicStore['transitionSubjectParticipationStates']>(),
     getCurrentContext: mockFn<AcademicStore['getCurrentContext']>(),
     setCurrentContext: mockFn<AcademicStore['setCurrentContext']>(),
+    upsertAcademicFollow: mockFn<AcademicStore['upsertAcademicFollow']>(),
+    listAcademicFollows: mockFn<AcademicStore['listAcademicFollows']>(),
+    removeAcademicFollows: mockFn<AcademicStore['removeAcademicFollows']>(),
     createProposal: mockFn<AcademicStore['createProposal']>(),
     findProposalById: mockFn<AcademicStore['findProposalById']>(),
     listProposals: mockFn<AcademicStore['listProposals']>(),
