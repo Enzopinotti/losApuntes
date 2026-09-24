@@ -12,6 +12,7 @@ import { FeedsModule } from './feeds/feeds.module';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 import { PilotModule } from './pilot/pilot.module';
 import { ProfileModule } from './profile/profile.module';
 import { QaModule } from './qa/qa.module';
@@ -42,6 +43,7 @@ import { UsersModule } from './users/users.module';
     SearchDiscoveryModule,
     FeedsModule,
     NotificationsModule,
+    OrganizationsModule,
     PilotModule,
     SocialModule,
     QaModule,
