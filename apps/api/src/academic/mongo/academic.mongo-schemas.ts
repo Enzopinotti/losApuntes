@@ -3,12 +3,14 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   ACADEMIC_AUDIT_EVENTS,
   ACADEMIC_NODE_KINDS,
+  ACADEMIC_RELATIONSHIP_ROLES,
   type AcademicAffiliationStatus,
   type AcademicAuditEventRecord,
   type AcademicAuthorityTier,
   type AcademicNodeKind,
   type AcademicNodeStatus,
   type AcademicProposalStatus,
+  type AcademicRelationshipRole,
   type SubjectParticipationState,
 } from '../domain/academic.types';
 
@@ -129,6 +131,9 @@ export class AcademicAffiliation {
   })
   status!: AcademicAffiliationStatus;
 
+  @Prop({ type: [String], enum: ACADEMIC_RELATIONSHIP_ROLES, default: [] })
+  roles!: AcademicRelationshipRole[];
+
   @Prop()
   startedOn?: string;
 
@@ -177,6 +182,28 @@ AcademicSubjectParticipationSchema.index(
   { userId: 1, subjectId: 1, courseOfferingId: 1 },
   { unique: true },
 );
+
+@Schema({ collection: 'academic_follows', timestamps: true })
+export class AcademicFollow {
+  @Prop({ required: true, unique: true, index: true })
+  id!: string;
+
+  @Prop({ required: true, index: true })
+  userId!: string;
+
+  @Prop({ required: true, index: true })
+  targetNodeId!: string;
+
+  @Prop({ required: true, enum: ['institution', 'program'], index: true })
+  targetKind!: 'institution' | 'program';
+
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const AcademicFollowSchema = SchemaFactory.createForClass(AcademicFollow);
+AcademicFollowSchema.index({ userId: 1, targetNodeId: 1 }, { unique: true });
+AcademicFollowSchema.index({ userId: 1, updatedAt: -1 });
 
 @Schema({ collection: 'academic_current_contexts', timestamps: true })
 export class AcademicCurrentContext {
