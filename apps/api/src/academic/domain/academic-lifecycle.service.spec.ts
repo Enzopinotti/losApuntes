@@ -85,8 +85,8 @@ function store(): jest.Mocked<AcademicStore> {
 
 function academic(): jest.Mocked<AcademicService> {
   const value = {
-    projectAffiliationRecord: jest.fn(
-      async (row: AcademicAffiliationRecord) => ({
+    projectAffiliationRecord: jest.fn((row: AcademicAffiliationRecord) =>
+      Promise.resolve({
         id: row.id,
         status: row.status,
         roles: row.roles ?? [],
@@ -240,13 +240,15 @@ describe('AcademicLifecycleService', () => {
       }),
     );
     expect(
-      lifecycleStore.transitionSubjectParticipationStates,
-    ).toHaveBeenCalledWith('user-1', [scoped.id], 'current', 'completed');
-    expect(lifecycleStore.setCurrentContext).toHaveBeenCalledWith({
-      userId: 'user-1',
-      affiliationId: active.id,
-    });
-    expect(lifecycleStore.appendAuditEvent).toHaveBeenCalledWith(
+      lifecycleStore.transitionSubjectParticipationStates.mock.calls,
+    ).toContainEqual(['user-1', [scoped.id], 'current', 'completed']);
+    expect(lifecycleStore.setCurrentContext.mock.calls).toContainEqual([
+      {
+        userId: 'user-1',
+        affiliationId: active.id,
+      },
+    ]);
+    expect(lifecycleStore.appendAuditEvent.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         event: 'academic.affiliation.graduated',
         actorUserId: 'user-1',
@@ -286,7 +288,7 @@ describe('AcademicLifecycleService', () => {
       academicService,
     ).graduate('user-1', active.id, { graduatedOn: '2026-09' });
 
-    expect(lifecycleStore.setCurrentContext).not.toHaveBeenCalled();
+    expect(lifecycleStore.setCurrentContext.mock.calls).toHaveLength(0);
   });
 
   it.each(['applicant', 'withdrawn'] as const)(
@@ -324,8 +326,10 @@ describe('AcademicLifecycleService', () => {
     ).graduate('user-1', alumni.id, { graduatedOn: '2026-09' });
 
     expect(result.transitionedSubjectCount).toBe(0);
-    expect(lifecycleStore.transitionAffiliationToAlumni).not.toHaveBeenCalled();
-    expect(lifecycleStore.appendAuditEvent).not.toHaveBeenCalled();
+    expect(
+      lifecycleStore.transitionAffiliationToAlumni.mock.calls,
+    ).toHaveLength(0);
+    expect(lifecycleStore.appendAuditEvent.mock.calls).toHaveLength(0);
   });
 
   it('accepts a concurrent successful graduation as idempotent', async () => {
@@ -404,12 +408,12 @@ describe('AcademicLifecycleService', () => {
       roles: ['advanced_student', 'mentor', 'research', 'mentor'],
     });
 
-    expect(lifecycleStore.updateAffiliationRoles).toHaveBeenCalledWith(
+    expect(lifecycleStore.updateAffiliationRoles.mock.calls).toContainEqual([
       'user-1',
       existing.id,
       ['advanced_student', 'mentor', 'research'],
-    );
-    expect(lifecycleStore.appendAuditEvent).toHaveBeenCalledWith(
+    ]);
+    expect(lifecycleStore.appendAuditEvent.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         event: 'academic.affiliation.roles_updated',
         metadata: { roleCount: 3 },
@@ -480,20 +484,20 @@ describe('AcademicLifecycleService', () => {
         name: 'Universidad Nacional',
       },
     });
-    expect(lifecycleStore.upsertAcademicFollow).toHaveBeenCalledWith(
+    expect(lifecycleStore.upsertAcademicFollow.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         userId: 'user-1',
         targetNodeId: '22222222-2222-4222-8222-222222222222',
         targetKind: 'institution',
       }),
     );
-    expect(lifecycleStore.removeAcademicFollows).toHaveBeenCalledWith(
+    expect(lifecycleStore.removeAcademicFollows.mock.calls).toContainEqual([
       'user-1',
       [
         '22222222-2222-4222-8222-222222222222',
         'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       ],
-    );
+    ]);
   });
 
   it('projects merge-safe follows, deduplicates canonical targets and skips missing targets', async () => {
