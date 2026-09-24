@@ -56,3 +56,5 @@ jobs:
           git add pnpm-lock.yaml apps/mobile
           git commit -m "chore(mobile): refresh lockfile and canonical test formatting"
           git push origin HEAD:feat/mobile-auth-v1
+
+# revision: test-types
