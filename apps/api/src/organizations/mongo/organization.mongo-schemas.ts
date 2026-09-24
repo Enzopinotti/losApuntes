@@ -242,6 +242,14 @@ export class OrganizationEvent {
   @Prop({ required: true, enum: ORGANIZATION_EVENT_STATES, index: true })
   state!: OrganizationEventState;
 
+  @Prop({
+    required: true,
+    enum: ['available', 'hidden'],
+    default: 'available',
+    index: true,
+  })
+  moderationState!: 'available' | 'hidden';
+
   @Prop({ required: true, min: 1 })
   revision!: number;
 
