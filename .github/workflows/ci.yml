@@ -73,18 +73,32 @@ jobs:
 
       - name: Print canonical Organizations formatting payloads
         run: |
-          pnpm --filter @losapuntes/api exec prettier --write "src/academic/domain/academic.service.ts"
-          pnpm --filter @losapuntes/web exec prettier --write \
-            "src/features/organizations/services/organizationsService.ts" \
-            "src/pages/Organization.tsx" \
-            "src/pages/OrganizationManage.tsx" \
-            "src/pages/Organizations.tsx"
+          pnpm --filter @losapuntes/api exec prettier --write \
+            "src/feeds/domain/feed-ranking.spec.ts" \
+            "src/feeds/domain/feed.service.spec.ts" \
+            "src/organizations/domain/organization.service.spec.ts" \
+            "src/organizations/domain/organization.service.ts" \
+            "src/organizations/domain/organization.store.ts" \
+            "src/organizations/domain/organization.types.ts" \
+            "src/organizations/dto/organization.dto.ts" \
+            "src/organizations/mongo/mongo-organization.store.ts" \
+            "src/organizations/mongo/organization.mongo-schemas.ts" \
+            "src/organizations/organizations.controller.ts" \
+            "src/pilot/mongo/mongo-pilot.store.ts" \
+            "src/pilot/pilot.controller.ts"
           for file in \
-            apps/api/src/academic/domain/academic.service.ts \
-            apps/web/src/features/organizations/services/organizationsService.ts \
-            apps/web/src/pages/Organization.tsx \
-            apps/web/src/pages/OrganizationManage.tsx \
-            apps/web/src/pages/Organizations.tsx; do
+            apps/api/src/feeds/domain/feed-ranking.spec.ts \
+            apps/api/src/feeds/domain/feed.service.spec.ts \
+            apps/api/src/organizations/domain/organization.service.spec.ts \
+            apps/api/src/organizations/domain/organization.service.ts \
+            apps/api/src/organizations/domain/organization.store.ts \
+            apps/api/src/organizations/domain/organization.types.ts \
+            apps/api/src/organizations/dto/organization.dto.ts \
+            apps/api/src/organizations/mongo/mongo-organization.store.ts \
+            apps/api/src/organizations/mongo/organization.mongo-schemas.ts \
+            apps/api/src/organizations/organizations.controller.ts \
+            apps/api/src/pilot/mongo/mongo-pilot.store.ts \
+            apps/api/src/pilot/pilot.controller.ts; do
             echo "FORMAT_FILE_BEGIN:$file"
             base64 -w0 "$file"
             echo
