@@ -4,11 +4,13 @@ import {
   ORGANIZATION_AUDIT_EVENTS,
   ORGANIZATION_EVENT_STATES,
   ORGANIZATION_MANAGER_ROLES,
+  ORGANIZATION_REPORT_REASONS,
   ORGANIZATION_TYPES,
   ORGANIZATION_VERIFICATION_STATES,
   type OrganizationAuditEvent,
   type OrganizationEventState,
   type OrganizationManagerRole,
+  type OrganizationReportReason,
   type OrganizationType,
   type OrganizationVerificationState,
 } from '../domain/organization.types';
@@ -300,3 +302,60 @@ OrganizationFeaturedResourceSchema.index(
   { organizationId: 1, resourceId: 1 },
   { unique: true },
 );
+
+
+@Schema({ collection: 'organization_reports', timestamps: true })
+export class OrganizationReport {
+  @Prop({ required: true, unique: true, index: true })
+  id!: string;
+
+  @Prop({
+    required: true,
+    enum: ['organization_post', 'organization_event'],
+    index: true,
+  })
+  targetType!: 'organization_post' | 'organization_event';
+
+  @Prop({ required: true, index: true })
+  targetId!: string;
+
+  @Prop({ required: true, index: true })
+  reporterUserId!: string;
+
+  @Prop({ required: true, enum: ORGANIZATION_REPORT_REASONS })
+  reason!: OrganizationReportReason;
+
+  @Prop({ type: String, default: null })
+  details!: string | null;
+
+  @Prop({
+    required: true,
+    enum: ['pending', 'resolved', 'dismissed'],
+    default: 'pending',
+    index: true,
+  })
+  status!: 'pending' | 'resolved' | 'dismissed';
+
+  @Prop()
+  reviewedByUserId?: string;
+
+  @Prop({ type: Date })
+  reviewedAt?: Date;
+
+  @Prop()
+  reviewReason?: string;
+
+  @Prop({ enum: ['hide', 'restore', 'dismiss'] })
+  reviewAction?: 'hide' | 'restore' | 'dismiss';
+
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const OrganizationReportSchema =
+  SchemaFactory.createForClass(OrganizationReport);
+OrganizationReportSchema.index(
+  { targetType: 1, targetId: 1, reporterUserId: 1, status: 1 },
+  { unique: true },
+);
+OrganizationReportSchema.index({ status: 1, createdAt: 1, id: 1 });
