@@ -31,9 +31,7 @@ const CLIENT_ERROR_CODES: Record<number, string> = {
   429: 'TOO_MANY_REQUESTS',
 };
 
-const EXPOSED_SERVER_ERROR_CODES = new Set([
-  'AUTH_ABUSE_CONTROL_UNAVAILABLE',
-]);
+const EXPOSED_SERVER_ERROR_CODES = new Set(['AUTH_ABUSE_CONTROL_UNAVAILABLE']);
 
 function responseObject(
   exception: HttpException,
