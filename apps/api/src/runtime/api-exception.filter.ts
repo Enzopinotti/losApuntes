@@ -31,6 +31,10 @@ const CLIENT_ERROR_CODES: Record<number, string> = {
   429: 'TOO_MANY_REQUESTS',
 };
 
+const EXPOSED_SERVER_ERROR_CODES = new Set([
+  'AUTH_ABUSE_CONTROL_UNAVAILABLE',
+]);
+
 function responseObject(
   exception: HttpException,
 ): Record<string, unknown> | null {
@@ -87,6 +91,12 @@ function clientCode(exception: HttpException, statusCode: number): string {
   return CLIENT_ERROR_CODES[statusCode] ?? 'HTTP_ERROR';
 }
 
+function canExposeServerError(exception: HttpException): boolean {
+  const code = responseObject(exception)?.code;
+
+  return typeof code === 'string' && EXPOSED_SERVER_ERROR_CODES.has(code);
+}
+
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
@@ -101,16 +111,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const statusCode =
       exception instanceof HttpException ? exception.getStatus() : 500;
     const isServerError = statusCode >= 500;
+    const exposedHttpError =
+      exception instanceof HttpException &&
+      (!isServerError || canExposeServerError(exception));
 
-    const code = isServerError
-      ? 'INTERNAL_SERVER_ERROR'
-      : exception instanceof HttpException
-        ? clientCode(exception, statusCode)
+    const code = exposedHttpError
+      ? clientCode(exception, statusCode)
+      : isServerError
+        ? 'INTERNAL_SERVER_ERROR'
         : 'HTTP_ERROR';
-    const message: ClientMessage = isServerError
-      ? 'Internal server error'
-      : exception instanceof HttpException
-        ? clientMessage(exception)
+    const message: ClientMessage = exposedHttpError
+      ? clientMessage(exception)
+      : isServerError
+        ? 'Internal server error'
         : 'Request failed';
 
     const retryAfter =
