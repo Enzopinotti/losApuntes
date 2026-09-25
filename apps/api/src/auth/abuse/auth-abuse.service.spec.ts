@@ -10,15 +10,19 @@ import type { AuthAbuseStore } from './auth-abuse.store';
 const NOW = new Date('2026-09-24T12:05:00.000Z');
 const KEY_SECRET = 'test-auth-abuse-key-secret-value-2026';
 
-function store() {
-  return {
-    consume: jest.fn(),
-  };
+interface TestAuthAbuseStore extends AuthAbuseStore {
+  consume: jest.MockedFunction<AuthAbuseStore['consume']>;
 }
 
-function service(abuseStore: ReturnType<typeof store>): AuthAbuseService {
+function store(): TestAuthAbuseStore {
+  const consume: jest.MockedFunction<AuthAbuseStore['consume']> = jest.fn();
+
+  return { consume };
+}
+
+function service(abuseStore: AuthAbuseStore): AuthAbuseService {
   return new AuthAbuseService(
-    abuseStore as unknown as AuthAbuseStore,
+    abuseStore,
     new ConfigService({
       AUTH_ABUSE_KEY_SECRET: KEY_SECRET,
     }),
@@ -28,10 +32,12 @@ function service(abuseStore: ReturnType<typeof store>): AuthAbuseService {
 describe('AuthAbuseService', () => {
   it('consumes the pair before the broad origin bucket', async () => {
     const abuseStore = store();
-    abuseStore.consume.mockImplementation(async (input) => ({
-      ...input,
-      count: 1,
-    }));
+    abuseStore.consume.mockImplementation((input) =>
+      Promise.resolve({
+        ...input,
+        count: 1,
+      }),
+    );
     const abuse = service(abuseStore);
 
     await abuse.admit('registration', '203.0.113.10', 'Enzo@Example.com', NOW);
@@ -49,10 +55,12 @@ describe('AuthAbuseService', () => {
 
   it('rejects an exhausted pair without draining the origin bucket', async () => {
     const abuseStore = store();
-    abuseStore.consume.mockImplementation(async (input) => ({
-      ...input,
-      count: input.dimension === 'origin_identifier' ? 6 : 1,
-    }));
+    abuseStore.consume.mockImplementation((input) =>
+      Promise.resolve({
+        ...input,
+        count: input.dimension === 'origin_identifier' ? 6 : 1,
+      }),
+    );
     const abuse = service(abuseStore);
 
     await expect(
@@ -69,10 +77,12 @@ describe('AuthAbuseService', () => {
 
   it('does not create a global account bucket across origins', async () => {
     const abuseStore = store();
-    abuseStore.consume.mockImplementation(async (input) => ({
-      ...input,
-      count: 1,
-    }));
+    abuseStore.consume.mockImplementation((input) =>
+      Promise.resolve({
+        ...input,
+        count: 1,
+      }),
+    );
     const abuse = service(abuseStore);
 
     await abuse.admit(
@@ -89,7 +99,7 @@ describe('AuthAbuseService', () => {
     );
 
     const pairKeys = abuseStore.consume.mock.calls
-      .map((call) => call[0])
+      .map(([input]) => input)
       .filter((input) => input.dimension === 'origin_identifier')
       .map((input) => input.bucketKey);
 
@@ -106,10 +116,12 @@ describe('AuthAbuseService', () => {
 
   it('normalizes IPv4-mapped origins to one security identity', async () => {
     const abuseStore = store();
-    abuseStore.consume.mockImplementation(async (input) => ({
-      ...input,
-      count: 1,
-    }));
+    abuseStore.consume.mockImplementation((input) =>
+      Promise.resolve({
+        ...input,
+        count: 1,
+      }),
+    );
     const abuse = service(abuseStore);
 
     await abuse.admit(
@@ -126,7 +138,7 @@ describe('AuthAbuseService', () => {
     );
 
     const pairKeys = abuseStore.consume.mock.calls
-      .map((call) => call[0])
+      .map(([input]) => input)
       .filter((input) => input.dimension === 'origin_identifier')
       .map((input) => input.bucketKey);
 
@@ -135,14 +147,16 @@ describe('AuthAbuseService', () => {
 
   it('shares the password-login origin policy and limits only invalid pairs', async () => {
     const abuseStore = store();
-    abuseStore.consume.mockImplementation(async (input) => ({
-      ...input,
-      count:
-        input.operation === 'password_login' &&
-        input.dimension === 'origin_identifier'
-          ? 11
-          : 1,
-    }));
+    abuseStore.consume.mockImplementation((input) =>
+      Promise.resolve({
+        ...input,
+        count:
+          input.operation === 'password_login' &&
+          input.dimension === 'origin_identifier'
+            ? 11
+            : 1,
+      }),
+    );
     const abuse = service(abuseStore);
 
     await expect(
