@@ -35,13 +35,17 @@ describe('MongoAuthAbuseStore', () => {
 
     expect(findOneAndUpdate).toHaveBeenCalledWith(
       { bucketKey: INPUT.bucketKey },
-      expect.objectContaining({
+      {
+        $setOnInsert: {
+          bucketKey: INPUT.bucketKey,
+          operation: INPUT.operation,
+          dimension: INPUT.dimension,
+          windowStartedAt: INPUT.windowStartedAt,
+          windowEndsAt: INPUT.windowEndsAt,
+          expiresAt: INPUT.expiresAt,
+        },
         $inc: { count: 1 },
-        $setOnInsert: expect.objectContaining({
-          operation: 'password_login',
-          dimension: 'origin',
-        }),
-      }),
+      },
       { upsert: true, new: true },
     );
   });
