@@ -76,6 +76,7 @@ services:
       WEB_ORIGIN: http://localhost:5173
       SWAGGER_ENABLED: "false"
       AUTH_EMAIL_DELIVERY_MODE: smtp
+      AUTH_ABUSE_KEY_SECRET: losapuntes-local-auth-abuse-secret-2026
       AUTH_ACTION_BASE_URL: http://localhost:5173
       AUTH_EMAIL_FROM: Los Apuntes <no-reply@losapuntes.local>
       AUTH_SMTP_HOST: mailpit
@@ -124,6 +125,7 @@ services:
       WEB_ORIGIN: http://localhost:5173
       SWAGGER_ENABLED: "false"
       AUTH_EMAIL_DELIVERY_MODE: smtp
+      AUTH_ABUSE_KEY_SECRET: losapuntes-local-auth-abuse-secret-2026
       AUTH_ACTION_BASE_URL: http://localhost:5173
       AUTH_EMAIL_FROM: Los Apuntes <no-reply@losapuntes.local>
       AUTH_SMTP_HOST: mailpit

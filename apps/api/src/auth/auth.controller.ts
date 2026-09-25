@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { AccountSecurityService } from './account-security.service';
+import { AuthAbuseService } from './abuse/auth-abuse.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import type { AuthenticatedRequest } from './auth.types';
 import {
@@ -91,6 +92,7 @@ function unavailable(
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly abuse: AuthAbuseService,
     private readonly lifecycle: AuthLifecycleService,
     private readonly security: AccountSecurityService,
     private readonly sessions: AuthSessionService,
@@ -100,7 +102,9 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
-  async register(@Body() dto: RegisterDto) {
+  async register(@Req() request: FastifyRequest, @Body() dto: RegisterDto) {
+    await this.abuse.admit('registration', request.ip, dto.email);
+
     try {
       await this.auth.register(dto);
     } catch (error) {
@@ -114,7 +118,12 @@ export class AuthController {
 
   @Post('email-verification/request')
   @HttpCode(HttpStatus.ACCEPTED)
-  async requestEmailVerification(@Body() dto: EmailAddressDto) {
+  async requestEmailVerification(
+    @Req() request: FastifyRequest,
+    @Body() dto: EmailAddressDto,
+  ) {
+    await this.abuse.admit('verification_request', request.ip, dto.email);
+
     try {
       await this.lifecycle.requestEmailVerification(dto.email);
     } catch (error) {
@@ -150,7 +159,12 @@ export class AuthController {
 
   @Post('password/recovery/request')
   @HttpCode(HttpStatus.ACCEPTED)
-  async requestPasswordRecovery(@Body() dto: EmailAddressDto) {
+  async requestPasswordRecovery(
+    @Req() request: FastifyRequest,
+    @Body() dto: EmailAddressDto,
+  ) {
+    await this.abuse.admit('recovery_request', request.ip, dto.email);
+
     try {
       await this.lifecycle.requestPasswordRecovery(dto.email);
     } catch (error) {
@@ -242,10 +256,18 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
+    @Req() request: FastifyRequest,
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const result = authenticatedOutcome(await this.auth.login(dto, 'web'));
+    await this.abuse.admitLoginOrigin(request.ip);
+    const outcome = await this.auth.login(dto, 'web');
+
+    if (outcome.kind === 'invalid_credentials') {
+      await this.abuse.recordInvalidLogin(request.ip, dto.email);
+    }
+
+    const result = authenticatedOutcome(outcome);
 
     const nodeEnv = this.config.get<string>('NODE_ENV');
     reply.setCookie(
@@ -262,8 +284,15 @@ export class AuthController {
 
   @Post('mobile/login')
   @HttpCode(HttpStatus.OK)
-  async mobileLogin(@Body() dto: LoginDto) {
-    const result = authenticatedOutcome(await this.auth.login(dto, 'mobile'));
+  async mobileLogin(@Req() request: FastifyRequest, @Body() dto: LoginDto) {
+    await this.abuse.admitLoginOrigin(request.ip);
+    const outcome = await this.auth.login(dto, 'mobile');
+
+    if (outcome.kind === 'invalid_credentials') {
+      await this.abuse.recordInvalidLogin(request.ip, dto.email);
+    }
+
+    const result = authenticatedOutcome(outcome);
 
     return {
       user: result.user,

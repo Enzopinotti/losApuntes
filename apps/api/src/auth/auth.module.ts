@@ -4,6 +4,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { UsersModule } from '../users/users.module';
 import { AuthActionTokenService } from './action-token/auth-action-token.service';
+import { AuthAbuseService } from './abuse/auth-abuse.service';
+import { AUTH_ABUSE_STORE } from './abuse/auth-abuse.store';
+import { MongoAuthAbuseStore } from './abuse/mongo-auth-abuse.store';
+import {
+  AuthAbuseBucket,
+  AuthAbuseBucketSchema,
+} from './abuse/schemas/auth-abuse-bucket.schema';
 import { AUTH_ACTION_TOKEN_STORE } from './action-token/auth-action-token.types';
 import { MongoAuthActionTokenStore } from './action-token/mongo-auth-action-token.store';
 import {
@@ -57,6 +64,7 @@ import {
     UsersModule,
     MongooseModule.forFeature([
       { name: AuthSession.name, schema: AuthSessionSchema },
+      { name: AuthAbuseBucket.name, schema: AuthAbuseBucketSchema },
       { name: AuthActionToken.name, schema: AuthActionTokenSchema },
       {
         name: GoogleExternalIdentity.name,
@@ -70,6 +78,7 @@ import {
   ],
   providers: [
     AuthService,
+    AuthAbuseService,
     AccountSecurityService,
     AuthLifecycleService,
     AuthAuditService,
@@ -83,12 +92,17 @@ import {
     GoogleIdentityService,
     GoogleOAuthAttemptService,
     MongoAuthActionTokenStore,
+    MongoAuthAbuseStore,
     MongoAuthSessionStore,
     MongoGoogleExternalIdentityStore,
     MongoGoogleOAuthAttemptStore,
     ConfigurableAuthEmailDelivery,
     LoggerAuthAuditSink,
     OfficialGoogleIdentityProvider,
+    {
+      provide: AUTH_ABUSE_STORE,
+      useExisting: MongoAuthAbuseStore,
+    },
     {
       provide: AUTH_AUDIT_SINK,
       useExisting: LoggerAuthAuditSink,
