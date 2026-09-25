@@ -5,6 +5,7 @@ import {
   HttpException,
   Post,
   Req,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -60,6 +61,14 @@ class RuntimeProbeController {
       },
       429,
     );
+  }
+
+  @Get('auth-abuse-unavailable')
+  authAbuseUnavailable(): never {
+    throw new ServiceUnavailableException({
+      code: 'AUTH_ABUSE_CONTROL_UNAVAILABLE',
+      message: 'Authentication admission control is temporarily unavailable',
+    });
   }
 
   @Get('fail')
@@ -173,6 +182,19 @@ describe('HTTP runtime boundary', () => {
       code: 'RATE_LIMITED',
       message: 'Too many authentication attempts',
       retryAfterSeconds: 17,
+      requestId: response.headers['x-request-id'],
+    });
+  });
+
+  it('preserves the bounded abuse-control unavailable contract', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/runtime-probe/auth-abuse-unavailable')
+      .expect(503);
+
+    expect(response.body).toEqual({
+      statusCode: 503,
+      code: 'AUTH_ABUSE_CONTROL_UNAVAILABLE',
+      message: 'Authentication admission control is temporarily unavailable',
       requestId: response.headers['x-request-id'],
     });
   });
