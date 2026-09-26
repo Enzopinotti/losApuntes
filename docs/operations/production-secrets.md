@@ -10,6 +10,7 @@ Current server-side sensitive configuration includes:
 
 - Mongo connection credentials when the production URI contains credentials;
 - SMTP credentials;
+- Auth abuse-control HMAC key (`AUTH_ABUSE_KEY_SECRET`);
 - Google OAuth Web client secret;
 - S3-compatible access key and secret key;
 - infrastructure/provider credentials used outside the application process.
@@ -77,13 +78,13 @@ Never paste secret values into the release evidence package, GitHub issue, PR, s
 
 ## Local credentials
 
-The local Compose environment intentionally uses fixed RustFS credentials for isolated developer/CI runtime only.
+The local Compose environment intentionally uses fixed RustFS credentials and a fixed Auth abuse-control HMAC key for isolated developer/CI runtime only.
 
 It runs application code with `NODE_ENV=production` to exercise production framework behavior, but declares `DEPLOYMENT_PROFILE=local`. That local profile is accepted in production-mode execution only while the browser, action-link and public Files origins are loopback.
 
 A real deployment uses `DEPLOYMENT_PROFILE=production` (the default whenever `NODE_ENV=production` and the profile is omitted). In that profile:
 
-- known repository-local storage credentials are rejected;
+- known repository-local storage credentials and the local abuse-control key are rejected;
 - public Web, action-link and Files origins must use HTTPS.
 
 The profile distinction is a guardrail against accidental promotion, not a substitute for a real secret manager, network isolation or rotation policy.
