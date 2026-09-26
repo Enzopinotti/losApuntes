@@ -290,6 +290,8 @@ export function validateRuntimeEnvironment(
     );
   }
 
+  const mongoUri = requiredString(source, 'MONGO_URI');
+  const deliveryMode = authEmailDeliveryMode(source, nodeEnv);
   const secretsSource =
     optionalString(source, 'SECRETS_SOURCE') ??
     (deploymentProfile === 'production' ? undefined : 'local');
@@ -321,8 +323,6 @@ export function validateRuntimeEnvironment(
     );
   }
 
-  const mongoUri = requiredString(source, 'MONGO_URI');
-  const deliveryMode = authEmailDeliveryMode(source, nodeEnv);
   const authActionBaseUrl = parseHttpOrigin(
     source.AUTH_ACTION_BASE_URL,
     'AUTH_ACTION_BASE_URL',
