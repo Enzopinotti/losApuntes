@@ -65,6 +65,8 @@ One release candidate should be reconstructable from one bounded record. Copy th
 
 - Production dependency audit:
 - Secret store/provider:
+- Secrets source (`SECRETS_SOURCE`):
+- Secrets revision (`SECRETS_REVISION`):
 - Secret rotation references:
 - Edge/WAF controls:
 - API rate-limit controls:

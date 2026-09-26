@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 const VALID_NODE_ENVIRONMENTS = new Set(['development', 'test', 'production']);
 const VALID_AUTH_EMAIL_DELIVERY_MODES = new Set(['disabled', 'smtp']);
 const VALID_DEPLOYMENT_PROFILES = new Set(['local', 'production']);
+const VALID_SECRETS_SOURCES = new Set(['local', 'external']);
 const LOCAL_AUTH_ABUSE_KEY_SECRET = 'losapuntes-local-auth-abuse-secret-2026';
 const KNOWN_LOCAL_PRODUCTION_CREDENTIALS = new Map<string, Set<string>>([
   ['FILES_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
@@ -291,6 +292,37 @@ export function validateRuntimeEnvironment(
 
   const mongoUri = requiredString(source, 'MONGO_URI');
   const deliveryMode = authEmailDeliveryMode(source, nodeEnv);
+  const secretsSource =
+    optionalString(source, 'SECRETS_SOURCE') ??
+    (deploymentProfile === 'production' ? undefined : 'local');
+
+  if (!secretsSource || !VALID_SECRETS_SOURCES.has(secretsSource)) {
+    throw new Error('SECRETS_SOURCE must be local or external');
+  }
+
+  if (deploymentProfile === 'production' && secretsSource !== 'external') {
+    throw new Error(
+      'SECRETS_SOURCE must be external in the production deployment profile',
+    );
+  }
+
+  const secretsRevision = optionalString(source, 'SECRETS_REVISION');
+
+  if (deploymentProfile === 'production' && !secretsRevision) {
+    throw new Error(
+      'SECRETS_REVISION is required in the production deployment profile',
+    );
+  }
+
+  if (
+    secretsRevision &&
+    !/^[A-Za-z0-9][A-Za-z0-9._:@/-]{1,127}$/u.test(secretsRevision)
+  ) {
+    throw new Error(
+      'SECRETS_REVISION must be a bounded non-secret deployment reference',
+    );
+  }
+
   const authActionBaseUrl = parseHttpOrigin(
     source.AUTH_ACTION_BASE_URL,
     'AUTH_ACTION_BASE_URL',
@@ -407,6 +439,8 @@ export function validateRuntimeEnvironment(
     ...source,
     NODE_ENV: nodeEnv,
     DEPLOYMENT_PROFILE: deploymentProfile,
+    SECRETS_SOURCE: secretsSource,
+    SECRETS_REVISION: secretsRevision,
     PORT: parsePort(source.PORT, 'PORT', 4000),
     MONGO_URI: mongoUri,
     WEB_ORIGIN: webOrigin,
