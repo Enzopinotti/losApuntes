@@ -20,9 +20,19 @@ Public identifiers such as OAuth client IDs, bucket names, regions and origins a
 
 Production secrets must be injected at runtime by the deployment platform or a dedicated secret manager.
 
+Every real production deployment must declare:
+
+- `SECRETS_SOURCE=external`;
+- `SECRETS_REVISION=<non-secret reference>`.
+
+`SECRETS_REVISION` is metadata only. It may identify a Vault version, cloud secret revision, orchestrator release revision or an equivalent immutable deployment reference. It must never contain a secret value.
+
 The repository stores only variable names/placeholders.
 
 The application:
+
+- refuses `DEPLOYMENT_PROFILE=production` unless secret provenance is declared as external;
+- refuses production startup when the secret revision is absent or malformed;
 
 - fails startup when required configuration is absent;
 - never logs secret values intentionally;
@@ -41,7 +51,9 @@ For each secret:
 4. verify readiness and the affected provider path;
 5. revoke the previous credential;
 6. verify again after revocation;
-7. record only secret name/version/reference, timestamps and evidence IDs — never the value.
+7. advance `SECRETS_REVISION` to the new non-secret revision/reference;
+8. verify the application boots with the new revision and affected provider path;
+9. record only secret name/version/reference, timestamps and evidence IDs — never the value.
 
 When a provider supports overlap, prefer create → deploy → verify → revoke.
 
@@ -50,6 +62,9 @@ For compromise, revoke first when necessary and accept temporary provider degrad
 ## Required release evidence
 
 Record:
+
+- `SECRETS_SOURCE`;
+- `SECRETS_REVISION`;
 
 - secret store/provider used;
 - secret reference/version for each required class;
@@ -72,3 +87,5 @@ A real deployment uses `DEPLOYMENT_PROFILE=production` (the default whenever `NO
 - public Web, action-link and Files origins must use HTTPS.
 
 The profile distinction is a guardrail against accidental promotion, not a substitute for a real secret manager, network isolation or rotation policy.
+
+Declaring `SECRETS_SOURCE=external` is also not proof that the external mechanism exists. Release evidence must still identify the real secret-store/provider and the deployed revision without exposing values.
