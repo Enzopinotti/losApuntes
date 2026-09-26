@@ -15,6 +15,8 @@ const validProductionEnvironment = {
   ...validEnvironment,
   NODE_ENV: 'production',
   DEPLOYMENT_PROFILE: 'production',
+  SECRETS_SOURCE: 'external',
+  SECRETS_REVISION: 'prod-2026-09-26-r1',
   WEB_ORIGIN: 'https://app.losapuntes.example',
   FILES_S3_PUBLIC_ENDPOINT: 'https://files.losapuntes.example',
   FILES_S3_ACCESS_KEY_ID: 'prod-files-access',
@@ -33,6 +35,49 @@ describe('validateRuntimeEnvironment', () => {
     const result = validateRuntimeEnvironment(validEnvironment);
 
     expect(result.DEPLOYMENT_PROFILE).toBe('local');
+    expect(result.SECRETS_SOURCE).toBe('local');
+  });
+
+  it('requires external secret provenance for the production deployment profile', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        SECRETS_SOURCE: 'local',
+      }),
+    ).toThrow(
+      'SECRETS_SOURCE must be external in the production deployment profile',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        SECRETS_SOURCE: undefined,
+      }),
+    ).toThrow('SECRETS_SOURCE must be local or external');
+  });
+
+  it('requires a bounded secret revision for production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        SECRETS_REVISION: undefined,
+      }),
+    ).toThrow(
+      'SECRETS_REVISION is required in the production deployment profile',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        SECRETS_REVISION: 'contains spaces',
+      }),
+    ).toThrow(
+      'SECRETS_REVISION must be a bounded non-secret deployment reference',
+    );
+
+    expect(
+      validateRuntimeEnvironment(validProductionEnvironment).SECRETS_REVISION,
+    ).toBe('prod-2026-09-26-r1');
   });
 
   it('defaults production NODE_ENV to the production deployment profile', () => {
