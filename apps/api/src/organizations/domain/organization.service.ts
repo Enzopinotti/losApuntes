@@ -27,6 +27,7 @@ import type {
 } from '../dto/organization.dto';
 import {
   ORGANIZATION_STORE,
+  OrganizationManagerAuthorityLostError,
   type OrganizationStore,
 } from './organization.store';
 import type {
@@ -42,6 +43,11 @@ import type {
 const MAX_MANAGERS = 20;
 const MAX_LINKS = 20;
 const MAX_FEATURED_RESOURCES = 20;
+const ORGANIZATION_CONTENT_MANAGER_ROLES = [
+  'owner',
+  'admin',
+  'editor',
+] as const satisfies readonly OrganizationManagerRole[];
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -457,25 +463,31 @@ export class OrganizationService {
     dto: CreateOrganizationPostDto,
   ) {
     const organization = await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
-      'owner',
-      'admin',
-      'editor',
-    ]);
+    await this.requireRole(
+      organizationId,
+      userId,
+      ORGANIZATION_CONTENT_MANAGER_ROLES,
+    );
     const subjectId = dto.subjectId
       ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
       : null;
-    const post = await this.store.createPost({
-      id: randomUUID(),
-      organizationId,
-      createdByUserId: userId,
-      title: cleanNullable(dto.title),
-      body: cleanText(dto.body),
-      subjectId,
-      moderationState: 'available',
-      revision: 1,
-      publishedAt: new Date(),
-    });
+    const post = await this.managerAuthorizedWrite(() =>
+      this.store.createPost({
+        actorUserId: userId,
+        allowedRoles: ORGANIZATION_CONTENT_MANAGER_ROLES,
+        post: {
+          id: randomUUID(),
+          organizationId,
+          createdByUserId: userId,
+          title: cleanNullable(dto.title),
+          body: cleanText(dto.body),
+          subjectId,
+          moderationState: 'available',
+          revision: 1,
+          publishedAt: new Date(),
+        },
+      }),
+    );
 
     return { post: await this.postProjection(post, organization) };
   }
@@ -487,11 +499,11 @@ export class OrganizationService {
     dto: UpdateOrganizationPostDto,
   ) {
     const organization = await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
-      'owner',
-      'admin',
-      'editor',
-    ]);
+    await this.requireRole(
+      organizationId,
+      userId,
+      ORGANIZATION_CONTENT_MANAGER_ROLES,
+    );
     const current = await this.store.findPostById(organizationId, postId);
     if (!current || current.moderationState !== 'available') this.notFound();
 
@@ -515,11 +527,15 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updatePost(
-      organizationId,
-      postId,
-      dto.expectedRevision,
-      patch,
+    const updated = await this.managerAuthorizedWrite(() =>
+      this.store.updatePost({
+        actorUserId: userId,
+        allowedRoles: ORGANIZATION_CONTENT_MANAGER_ROLES,
+        organizationId,
+        postId,
+        expectedRevision: dto.expectedRevision,
+        patch,
+      }),
     );
     if (!updated) {
       throw new ConflictException({
@@ -537,12 +553,19 @@ export class OrganizationService {
     postId: string,
   ): Promise<void> {
     await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
-      'owner',
-      'admin',
-      'editor',
-    ]);
-    const deleted = await this.store.deletePost(organizationId, postId);
+    await this.requireRole(
+      organizationId,
+      userId,
+      ORGANIZATION_CONTENT_MANAGER_ROLES,
+    );
+    const deleted = await this.managerAuthorizedWrite(() =>
+      this.store.deletePost({
+        actorUserId: userId,
+        allowedRoles: ORGANIZATION_CONTENT_MANAGER_ROLES,
+        organizationId,
+        postId,
+      }),
+    );
     if (!deleted) this.notFound();
   }
 
@@ -567,29 +590,35 @@ export class OrganizationService {
     dto: CreateOrganizationEventDto,
   ) {
     await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
-      'owner',
-      'admin',
-      'editor',
-    ]);
+    await this.requireRole(
+      organizationId,
+      userId,
+      ORGANIZATION_CONTENT_MANAGER_ROLES,
+    );
     const startsAt = new Date(dto.startsAt);
     const endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
     this.assertEventPeriod(startsAt, endsAt);
 
-    const event = await this.store.createEvent({
-      id: randomUUID(),
-      organizationId,
-      createdByUserId: userId,
-      title: cleanText(dto.title),
-      description: cleanNullable(dto.description),
-      startsAt,
-      endsAt,
-      locationLabel: cleanNullable(dto.locationLabel),
-      externalUrl: httpsUrl(dto.externalUrl),
-      state: 'scheduled',
-      moderationState: 'available',
-      revision: 1,
-    });
+    const event = await this.managerAuthorizedWrite(() =>
+      this.store.createEvent({
+        actorUserId: userId,
+        allowedRoles: ORGANIZATION_CONTENT_MANAGER_ROLES,
+        event: {
+          id: randomUUID(),
+          organizationId,
+          createdByUserId: userId,
+          title: cleanText(dto.title),
+          description: cleanNullable(dto.description),
+          startsAt,
+          endsAt,
+          locationLabel: cleanNullable(dto.locationLabel),
+          externalUrl: httpsUrl(dto.externalUrl),
+          state: 'scheduled',
+          moderationState: 'available',
+          revision: 1,
+        },
+      }),
+    );
 
     return { event: this.eventProjection(event) };
   }
@@ -601,11 +630,11 @@ export class OrganizationService {
     dto: UpdateOrganizationEventDto,
   ) {
     await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
-      'owner',
-      'admin',
-      'editor',
-    ]);
+    await this.requireRole(
+      organizationId,
+      userId,
+      ORGANIZATION_CONTENT_MANAGER_ROLES,
+    );
     const current = await this.store.findEventById(organizationId, eventId);
     if (!current) this.notFound();
 
@@ -641,11 +670,15 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updateEvent(
-      organizationId,
-      eventId,
-      dto.expectedRevision,
-      patch,
+    const updated = await this.managerAuthorizedWrite(() =>
+      this.store.updateEvent({
+        actorUserId: userId,
+        allowedRoles: ORGANIZATION_CONTENT_MANAGER_ROLES,
+        organizationId,
+        eventId,
+        expectedRevision: dto.expectedRevision,
+        patch,
+      }),
     );
     if (!updated) {
       throw new ConflictException({
@@ -1142,7 +1175,7 @@ export class OrganizationService {
   private async requireRole(
     organizationId: string,
     userId: string,
-    allowed: OrganizationManagerRole[],
+    allowed: readonly OrganizationManagerRole[],
   ) {
     const manager = await this.requireManager(organizationId, userId);
     if (!allowed.includes(manager.role)) {
@@ -1152,6 +1185,22 @@ export class OrganizationService {
       });
     }
     return manager;
+  }
+
+  private async managerAuthorizedWrite<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof OrganizationManagerAuthorityLostError) {
+        throw new ForbiddenException({
+          code: 'ORGANIZATION_MANAGEMENT_FORBIDDEN',
+          message: 'Organization management permission required',
+        });
+      }
+      throw error;
+    }
   }
 
   private assertManagerMutationAllowed(
