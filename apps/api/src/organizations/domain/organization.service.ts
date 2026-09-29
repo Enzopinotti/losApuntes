@@ -648,7 +648,7 @@ export class OrganizationService {
           : null;
     this.assertEventPeriod(startsAt, endsAt);
 
-    const patch: Parameters<OrganizationStore['updateEvent']>[3] = {};
+    const patch: Parameters<OrganizationStore['updateEvent']>[0]['patch'] = {};
     if (dto.title !== undefined) patch.title = cleanText(dto.title);
     if (dto.description !== undefined) {
       patch.description = cleanNullable(dto.description);
