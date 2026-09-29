@@ -17,6 +17,13 @@ import type {
 
 export const ORGANIZATION_STORE = Symbol('ORGANIZATION_STORE');
 
+export class OrganizationManagerAuthorityLostError extends Error {
+  constructor() {
+    super('Organization manager authority changed before commit');
+    this.name = 'OrganizationManagerAuthorityLostError';
+  }
+}
+
 export type CreateOrganizationRecord = Omit<
   OrganizationRecord,
   'createdAt' | 'updatedAt'
@@ -106,23 +113,32 @@ export interface OrganizationStore {
     limit: number,
   ): Promise<{ ids: string[]; truncated: boolean }>;
 
-  createPost(
-    input: Omit<OrganizationPostRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationPostRecord>;
+  createPost(input: {
+    actorUserId: string;
+    allowedRoles: readonly OrganizationManagerRole[];
+    post: Omit<OrganizationPostRecord, 'createdAt' | 'updatedAt'>;
+  }): Promise<OrganizationPostRecord>;
   findPostById(
     organizationId: string,
     postId: string,
   ): Promise<OrganizationPostRecord | null>;
   findPostByGlobalId(postId: string): Promise<OrganizationPostRecord | null>;
-  updatePost(
-    organizationId: string,
-    postId: string,
-    expectedRevision: number,
+  updatePost(input: {
+    actorUserId: string;
+    allowedRoles: readonly OrganizationManagerRole[];
+    organizationId: string;
+    postId: string;
+    expectedRevision: number;
     patch: Partial<
       Pick<OrganizationPostRecord, 'title' | 'body' | 'subjectId'>
-    >,
-  ): Promise<OrganizationPostRecord | null>;
-  deletePost(organizationId: string, postId: string): Promise<boolean>;
+    >;
+  }): Promise<OrganizationPostRecord | null>;
+  deletePost(input: {
+    actorUserId: string;
+    allowedRoles: readonly OrganizationManagerRole[];
+    organizationId: string;
+    postId: string;
+  }): Promise<boolean>;
   listPosts(input: {
     organizationId: string;
     limit: number;
@@ -139,17 +155,21 @@ export interface OrganizationStore {
     limit: number;
   }): Promise<OrganizationPostRecord[]>;
 
-  createEvent(
-    input: Omit<OrganizationEventRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationEventRecord>;
+  createEvent(input: {
+    actorUserId: string;
+    allowedRoles: readonly OrganizationManagerRole[];
+    event: Omit<OrganizationEventRecord, 'createdAt' | 'updatedAt'>;
+  }): Promise<OrganizationEventRecord>;
   findEventById(
     organizationId: string,
     eventId: string,
   ): Promise<OrganizationEventRecord | null>;
-  updateEvent(
-    organizationId: string,
-    eventId: string,
-    expectedRevision: number,
+  updateEvent(input: {
+    actorUserId: string;
+    allowedRoles: readonly OrganizationManagerRole[];
+    organizationId: string;
+    eventId: string;
+    expectedRevision: number;
     patch: Partial<
       Pick<
         OrganizationEventRecord,
@@ -161,8 +181,8 @@ export interface OrganizationStore {
         | 'externalUrl'
         | 'state'
       >
-    >,
-  ): Promise<OrganizationEventRecord | null>;
+    >;
+  }): Promise<OrganizationEventRecord | null>;
   listEvents(input: {
     organizationId: string;
     limit: number;
