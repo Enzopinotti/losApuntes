@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, FilterQuery, Model } from 'mongoose';
+import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
 
+import { OrganizationManagerAuthorityLostError } from '../domain/organization.store';
 import type {
   ManagerChangeResult,
   OrganizationStore,
@@ -80,6 +81,71 @@ export class MongoOrganizationStore implements OrganizationStore {
     @InjectModel(OrganizationReport.name)
     private readonly reports: Model<OrganizationReport>,
   ) {}
+
+  private async withManagerAuthority<T>(
+    input: {
+      organizationId: string;
+      actorUserId: string;
+      allowedRoles: readonly OrganizationManagerRole[];
+    },
+    mutate: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.connection.startSession();
+
+    try {
+      let completed = false;
+      let output: T | undefined;
+
+      await session.withTransaction(async () => {
+        const organization = await this.organizations
+          .findOneAndUpdate(
+            {
+              id: input.organizationId,
+              status: 'active',
+            },
+            { $inc: { authorityFenceRevision: 1 } },
+            {
+              new: true,
+              session,
+              timestamps: false,
+            },
+          )
+          .select({ id: 1 })
+          .lean<{ id: string }>()
+          .exec();
+
+        if (!organization) {
+          throw new OrganizationManagerAuthorityLostError();
+        }
+
+        const manager = await this.managers
+          .findOne({
+            organizationId: input.organizationId,
+            userId: input.actorUserId,
+            role: { $in: [...input.allowedRoles] },
+          })
+          .session(session)
+          .select({ _id: 1 })
+          .lean<{ _id: unknown }>()
+          .exec();
+
+        if (!manager) {
+          throw new OrganizationManagerAuthorityLostError();
+        }
+
+        output = await mutate(session);
+        completed = true;
+      });
+
+      if (!completed) {
+        throw new Error('Organization authority transaction produced no output');
+      }
+
+      return output as T;
+    } finally {
+      await session.endSession();
+    }
+  }
 
   async createWithOwner(input: {
     organization: Omit<OrganizationRecord, 'createdAt' | 'updatedAt'>;
@@ -453,9 +519,14 @@ export class MongoOrganizationStore implements OrganizationStore {
   }
 
   async createPost(
-    input: Omit<OrganizationPostRecord, 'createdAt' | 'updatedAt'>,
+    input: Parameters<OrganizationStore['createPost']>[0],
   ): Promise<OrganizationPostRecord> {
-    return toPlain<OrganizationPostRecord>(await this.posts.create(input));
+    return this.withManagerAuthority(input, async (session) => {
+      const created = await this.posts.create([input.post], { session });
+      const row = created[0];
+      if (!row) throw new Error('Organization Post creation returned no row');
+      return toPlain<OrganizationPostRecord>(row);
+    });
   }
 
   async findPostById(
@@ -478,28 +549,36 @@ export class MongoOrganizationStore implements OrganizationStore {
   }
 
   async updatePost(
-    organizationId: string,
-    postId: string,
-    expectedRevision: number,
-    patch: Partial<
-      Pick<OrganizationPostRecord, 'title' | 'body' | 'subjectId'>
-    >,
+    input: Parameters<OrganizationStore['updatePost']>[0],
   ): Promise<OrganizationPostRecord | null> {
-    return this.posts
-      .findOneAndUpdate(
-        { organizationId, id: postId, revision: expectedRevision },
-        { $set: patch, $inc: { revision: 1 } },
-        { new: true },
-      )
-      .lean<OrganizationPostRecord>()
-      .exec();
+    return this.withManagerAuthority(input, (session) =>
+      this.posts
+        .findOneAndUpdate(
+          {
+            organizationId: input.organizationId,
+            id: input.postId,
+            revision: input.expectedRevision,
+          },
+          { $set: input.patch, $inc: { revision: 1 } },
+          { new: true, session },
+        )
+        .lean<OrganizationPostRecord>()
+        .exec(),
+    );
   }
 
-  async deletePost(organizationId: string, postId: string): Promise<boolean> {
-    const result = await this.posts
-      .deleteOne({ organizationId, id: postId })
-      .exec();
-    return result.deletedCount === 1;
+  async deletePost(
+    input: Parameters<OrganizationStore['deletePost']>[0],
+  ): Promise<boolean> {
+    return this.withManagerAuthority(input, async (session) => {
+      const result = await this.posts
+        .deleteOne(
+          { organizationId: input.organizationId, id: input.postId },
+          { session },
+        )
+        .exec();
+      return result.deletedCount === 1;
+    });
   }
 
   async listPosts(input: {
@@ -580,9 +659,14 @@ export class MongoOrganizationStore implements OrganizationStore {
   }
 
   async createEvent(
-    input: Omit<OrganizationEventRecord, 'createdAt' | 'updatedAt'>,
+    input: Parameters<OrganizationStore['createEvent']>[0],
   ): Promise<OrganizationEventRecord> {
-    return toPlain<OrganizationEventRecord>(await this.events.create(input));
+    return this.withManagerAuthority(input, async (session) => {
+      const created = await this.events.create([input.event], { session });
+      const row = created[0];
+      if (!row) throw new Error('Organization Event creation returned no row');
+      return toPlain<OrganizationEventRecord>(row);
+    });
   }
 
   async findEventById(
@@ -596,30 +680,22 @@ export class MongoOrganizationStore implements OrganizationStore {
   }
 
   async updateEvent(
-    organizationId: string,
-    eventId: string,
-    expectedRevision: number,
-    patch: Partial<
-      Pick<
-        OrganizationEventRecord,
-        | 'title'
-        | 'description'
-        | 'startsAt'
-        | 'endsAt'
-        | 'locationLabel'
-        | 'externalUrl'
-        | 'state'
-      >
-    >,
+    input: Parameters<OrganizationStore['updateEvent']>[0],
   ): Promise<OrganizationEventRecord | null> {
-    return this.events
-      .findOneAndUpdate(
-        { organizationId, id: eventId, revision: expectedRevision },
-        { $set: patch, $inc: { revision: 1 } },
-        { new: true },
-      )
-      .lean<OrganizationEventRecord>()
-      .exec();
+    return this.withManagerAuthority(input, (session) =>
+      this.events
+        .findOneAndUpdate(
+          {
+            organizationId: input.organizationId,
+            id: input.eventId,
+            revision: input.expectedRevision,
+          },
+          { $set: input.patch, $inc: { revision: 1 } },
+          { new: true, session },
+        )
+        .lean<OrganizationEventRecord>()
+        .exec(),
+    );
   }
 
   async listEvents(input: {
