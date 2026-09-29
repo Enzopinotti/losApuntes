@@ -72,6 +72,11 @@ export class Organization {
   @Prop({ required: true, min: 1 })
   managementRevision!: number;
 
+  // Internal serialization fence for manager-authorized business writes.
+  // It is not part of the public Organization contract.
+  @Prop({ required: true, default: 0, min: 0, select: false })
+  authorityFenceRevision!: number;
+
   createdAt!: Date;
   updatedAt!: Date;
 }
