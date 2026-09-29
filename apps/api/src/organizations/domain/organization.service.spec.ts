@@ -8,7 +8,10 @@ import {
 import type { AcademicService } from '../../academic/domain/academic.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { ResourceService } from '../../resources/domain/resource.service';
-import type { OrganizationStore } from './organization.store';
+import {
+  OrganizationManagerAuthorityLostError,
+  type OrganizationStore,
+} from './organization.store';
 import { OrganizationService } from './organization.service';
 import type {
   OrganizationEventRecord,
@@ -659,8 +662,49 @@ describe('OrganizationService', () => {
       },
     );
     expect(organizationStore.createEvent.mock.calls[0]?.[0]).toMatchObject({
-      moderationState: 'available',
+      actorUserId: 'owner-user',
+      allowedRoles: ['owner', 'admin', 'editor'],
+      event: {
+        moderationState: 'available',
+      },
     });
+  });
+
+  it('maps commit-time manager authority loss to the stable management denial', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+
+    organizationStore.createPost.mockRejectedValue(
+      new OrganizationManagerAuthorityLostError(),
+    );
+
+    await expectCode(
+      service(organizationStore, dependencies).createPost(
+        'owner-user',
+        orgId,
+        {
+          body: 'Contenido que perdió autoridad antes del commit',
+        },
+      ),
+      'ORGANIZATION_MANAGEMENT_FORBIDDEN',
+    );
+
+    organizationStore.createEvent.mockRejectedValue(
+      new OrganizationManagerAuthorityLostError(),
+    );
+
+    await expectCode(
+      service(organizationStore, dependencies).createEvent(
+        'owner-user',
+        orgId,
+        {
+          title: 'Evento revocado',
+          startsAt: now.toISOString(),
+        },
+      ),
+      'ORGANIZATION_MANAGEMENT_FORBIDDEN',
+    );
   });
 
   it('features only currently public Resources and reauthorizes them on read', async () => {
@@ -813,16 +857,18 @@ describe('OrganizationService', () => {
     );
 
     expect(result.post.body).toBe('Contenido actualizado');
-    expect(organizationStore.updatePost.mock.calls[0]).toEqual([
-      orgId,
-      current.id,
-      1,
-      {
+    expect(organizationStore.updatePost.mock.calls[0]?.[0]).toEqual({
+      actorUserId: 'owner-user',
+      allowedRoles: ['owner', 'admin', 'editor'],
+      organizationId: orgId,
+      postId: current.id,
+      expectedRevision: 1,
+      patch: {
         title: null,
         body: 'Contenido actualizado',
         subjectId,
       },
-    ]);
+    });
 
     const listed = await service(organizationStore, dependencies).listPosts(
       orgId,
@@ -937,16 +983,22 @@ describe('OrganizationService', () => {
     );
 
     expect(result.event.state).toBe('cancelled');
-    const updateEventCall = organizationStore.updateEvent.mock.calls[0];
-    expect(updateEventCall?.slice(0, 3)).toEqual([orgId, current.id, 1]);
-    expect(updateEventCall?.[3]).toMatchObject({
-      title: 'Encuentro actualizado',
-      description: null,
-      startsAt: changedStart,
-      endsAt: null,
-      locationLabel: 'Aula 2',
-      externalUrl: 'https://example.test/nuevo',
-      state: 'cancelled',
+    const updateEventCall = organizationStore.updateEvent.mock.calls[0]?.[0];
+    expect(updateEventCall).toMatchObject({
+      actorUserId: 'owner-user',
+      allowedRoles: ['owner', 'admin', 'editor'],
+      organizationId: orgId,
+      eventId: current.id,
+      expectedRevision: 1,
+      patch: {
+        title: 'Encuentro actualizado',
+        description: null,
+        startsAt: changedStart,
+        endsAt: null,
+        locationLabel: 'Aula 2',
+        externalUrl: 'https://example.test/nuevo',
+        state: 'cancelled',
+      },
     });
 
     const listed = await service(organizationStore, dependencies).listEvents(
