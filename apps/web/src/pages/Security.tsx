@@ -25,6 +25,8 @@ const Security = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [sessions, setSessions] = useState<PublicAuthSession[]>([]);
+  const [sessionsTruncated, setSessionsTruncated] = useState(false);
+  const [sessionInventoryLimit, setSessionInventoryLimit] = useState(20);
   const [methods, setMethods] = useState<LoginMethods | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -54,6 +56,8 @@ const Security = () => {
       ]);
 
       setSessions(sessionResult.sessions);
+      setSessionsTruncated(sessionResult.truncated);
+      setSessionInventoryLimit(sessionResult.limit);
       setMethods(loginMethods);
       setGoogleEnabled(googleStatus.webEnabled);
     } catch (nextError) {
@@ -300,6 +304,15 @@ const Security = () => {
               Mostramos solo información necesaria; no guardamos una ubicación
               precisa ni un fingerprint del dispositivo para esta pantalla.
             </p>
+
+            {sessionsTruncated && (
+              <p role="status">
+                Mostramos hasta {sessionInventoryLimit} sesiones activas,
+                incluyendo esta sesión cuando corresponde. Hay sesiones
+                adicionales que siguen activas aunque no aparezcan en esta
+                lista. “Cerrar todas las sesiones” también las revoca.
+              </p>
+            )}
 
             {sessions.length === 0 ? (
               <p>No hay otras sesiones activas para mostrar.</p>
