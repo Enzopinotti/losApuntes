@@ -72,6 +72,19 @@ function page<T>(items: T[], hasMore = false): BoundedAcademicPage<T> {
   return { items, hasMore };
 }
 
+async function rejectedConflict(
+  operation: Promise<unknown>,
+): Promise<ConflictException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof ConflictException) return error;
+    throw error;
+  }
+
+  throw new Error('Expected operation to reject with ConflictException');
+}
+
 function store(): jest.Mocked<AcademicStore> {
   const value = {
     runAtomically: jest.fn(async <T>(operation: () => Promise<T>) =>
@@ -190,6 +203,10 @@ describe('AcademicLifecycleService', () => {
       expect(result.hasCurrentSubjectContext).toBe(
         expected === 'student' || expected === 'mixed',
       );
+      expect(lifecycleStore.listAcademicFollows.mock.calls).toContainEqual([
+        'user-1',
+        ACADEMIC_FOLLOW_LIFECYCLE_LIMIT,
+      ]);
     },
   );
 
@@ -197,21 +214,22 @@ describe('AcademicLifecycleService', () => {
     const lifecycleStore = store();
     lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([], true));
 
-    await expect(
+    const error = await rejectedConflict(
       new AcademicLifecycleService(lifecycleStore, academic()).getLifecycle(
         'user-1',
       ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'ACADEMIC_INVENTORY_OVERFLOW',
-        collection: 'affiliations',
-      }),
-    });
+    );
 
-    expect(lifecycleStore.listAffiliationsForUser).toHaveBeenCalledWith({
-      userId: 'user-1',
-      limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_INVENTORY_OVERFLOW',
+      collection: 'affiliations',
     });
+    expect(lifecycleStore.listAffiliationsForUser.mock.calls).toContainEqual([
+      {
+        userId: 'user-1',
+        limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+      },
+    ]);
   });
 
   it('graduates atomically, completes scoped current subjects and clears subject context', async () => {
@@ -308,27 +326,30 @@ describe('AcademicLifecycleService', () => {
       page([], true),
     );
 
-    await expect(
+    const error = await rejectedConflict(
       new AcademicLifecycleService(lifecycleStore, academic()).graduate(
         'user-1',
         active.id,
         { graduatedOn: '2026-09' },
       ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'ACADEMIC_INVENTORY_OVERFLOW',
-        collection: 'current_subject_participations',
-      }),
-    });
+    );
 
-    expect(
-      lifecycleStore.listSubjectParticipationsForUser,
-    ).toHaveBeenCalledWith({
-      userId: 'user-1',
-      states: ['current'],
-      limit: ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_INVENTORY_OVERFLOW',
+      collection: 'current_subject_participations',
     });
-    expect(lifecycleStore.transitionAffiliationToAlumni).not.toHaveBeenCalled();
+    expect(
+      lifecycleStore.listSubjectParticipationsForUser.mock.calls,
+    ).toContainEqual([
+      {
+        userId: 'user-1',
+        states: ['current'],
+        limit: ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
+      },
+    ]);
+    expect(
+      lifecycleStore.transitionAffiliationToAlumni.mock.calls,
+    ).toHaveLength(0);
   });
 
   it('does not clear context when graduating affiliation has no current subject context', async () => {
@@ -629,10 +650,10 @@ describe('AcademicLifecycleService', () => {
     ]);
     expect(result.truncated).toBe(false);
     expect(result.limit).toBe(ACADEMIC_FOLLOW_VISIBLE_LIMIT);
-    expect(lifecycleStore.listAcademicFollows).toHaveBeenCalledWith(
+    expect(lifecycleStore.listAcademicFollows.mock.calls).toContainEqual([
       'user-1',
       ACADEMIC_FOLLOW_VISIBLE_LIMIT,
-    );
+    ]);
   });
 
   it('skips follows whose canonical target is no longer followable', async () => {
