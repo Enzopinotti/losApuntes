@@ -168,6 +168,60 @@ describe('AuthActionTokenService', () => {
     ]);
   });
 
+  it('allows issuance when the latest active token is outside the cooldown', async () => {
+    const { store, mocks } = createStore();
+    mocks.findLatestActiveForUserPurpose.mockResolvedValue(
+      record({
+        createdAt: new Date(NOW.getTime() - 61_000),
+      }),
+    );
+    const service = new AuthActionTokenService(store);
+
+    await expect(
+      service.issueIfAllowed('user-1', 'email_verification', undefined, NOW),
+    ).resolves.not.toBeNull();
+
+    expect(mocks.createIfBucketAvailable).toHaveBeenCalledTimes(1);
+    expect(mocks.trimActiveForUserPurpose).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses server time defaults without weakening action-token boundaries', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthActionTokenService(store);
+    const token = 'd'.repeat(43);
+    const available = record({
+      tokenHash: hashActionToken(token),
+      purpose: 'password_recovery',
+    });
+    mocks.findAvailableByTokenHash.mockResolvedValue(available);
+    mocks.claimAvailableByTokenHash.mockResolvedValue(available);
+
+    await expect(
+      service.issueIfAllowed('user-1', 'email_verification', undefined),
+    ).resolves.not.toBeNull();
+    await expect(
+      service.inspect(token, 'password_recovery'),
+    ).resolves.toEqual(available);
+    await expect(
+      service.claim(token, 'password_recovery'),
+    ).resolves.toEqual(available);
+    await expect(
+      service.invalidateAll('user-1', 'password_recovery'),
+    ).resolves.toBeUndefined();
+
+    const issueNow =
+      mocks.findLatestActiveForUserPurpose.mock.calls.at(-1)?.[2];
+    const inspectNow = mocks.findAvailableByTokenHash.mock.calls.at(-1)?.[2];
+    const claimNow = mocks.claimAvailableByTokenHash.mock.calls.at(-1)?.[2];
+    const invalidateNow =
+      mocks.invalidateAllForUserPurpose.mock.calls.at(-1)?.[2];
+
+    expect(issueNow).toBeInstanceOf(Date);
+    expect(inspectNow).toBeInstanceOf(Date);
+    expect(claimNow).toBeInstanceOf(Date);
+    expect(invalidateNow).toBeInstanceOf(Date);
+  });
+
   it('rejects malformed inspect and claim tokens before persistence lookup', async () => {
     const { store, mocks } = createStore();
     const service = new AuthActionTokenService(store);
