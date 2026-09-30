@@ -55,6 +55,7 @@ export interface OrganizationRecord {
   status: 'active' | 'archived';
   revision: number;
   managementRevision: number;
+  capacityRevision?: number;
   createdAt: Date;
   updatedAt: Date;
 }
