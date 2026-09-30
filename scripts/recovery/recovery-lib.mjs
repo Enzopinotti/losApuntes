@@ -327,7 +327,8 @@ export async function readInventory(filename) {
       typeof row.key !== 'string' ||
       row.key.length < 1 ||
       row.key.startsWith('/') ||
-      row.key.includes('..') ||
+      row.key.split('/').some((segment) => segment === '..') ||
+      row.key.includes('\\') ||
       !Number.isSafeInteger(row.byteSize) ||
       row.byteSize < 0 ||
       !/^[0-9a-f]{64}$/u.test(row.sha256)
