@@ -14,15 +14,14 @@ function query<T>(value: T) {
 
 function session() {
   return {
-    withTransaction: jest.fn(async (callback: () => Promise<void>) => callback()),
+    withTransaction: jest.fn(async (callback: () => Promise<void>) =>
+      callback(),
+    ),
     endSession: jest.fn().mockResolvedValue(undefined),
   };
 }
 
-function models(input: {
-  organization?: unknown;
-  manager?: unknown;
-}) {
+function models(input: { organization?: unknown; manager?: unknown }) {
   const activeSession = session();
   const connection = {
     startSession: jest.fn().mockResolvedValue(activeSession),
@@ -186,10 +185,9 @@ describe('MongoOrganizationStore commit authority', () => {
         body: 'Contenido',
       },
     });
-    expect(fixture.posts.create).toHaveBeenCalledWith(
-      [input.mutation.record],
-      { session: fixture.activeSession },
-    );
+    expect(fixture.posts.create).toHaveBeenCalledWith([input.mutation.record], {
+      session: fixture.activeSession,
+    });
     expect(fixture.audits.create).toHaveBeenCalledWith([input.audit], {
       session: fixture.activeSession,
     });
