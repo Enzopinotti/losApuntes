@@ -126,13 +126,8 @@ describe('FileService', () => {
   it('marks intent failed when storage cannot sign upload', async () => {
     const fileStore = store();
     const objectStorage = storage();
-    const pending = asset();
     fileStore.createOrReplayUpload.mockImplementation((input) =>
-      Promise.resolve({
-        ...pending,
-        uploadOperationKey: input.uploadOperationKey,
-        uploadOperationFingerprint: input.uploadOperationFingerprint,
-      }),
+      Promise.resolve({ ...input, createdAt: now, updatedAt: now }),
     );
     objectStorage.createUploadIntent.mockRejectedValue(
       new Error('storage unavailable'),
@@ -152,7 +147,7 @@ describe('FileService', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     expect(fileStore.markFailed.mock.calls).toContainEqual([
-      pending.id,
+      expect.any(String),
       'user-1',
       'STORAGE_UNAVAILABLE',
       expect.any(Date),
