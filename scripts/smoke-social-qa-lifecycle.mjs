@@ -684,6 +684,64 @@ assert.equal(answerCreate.response.status, 201, JSON.stringify(answerCreate.body
 const answerId = answerCreate.body.answer.id;
 assert.match(answerId, UUID_V4);
 
+const secondAnswerCreate = await request(
+  `/questions/${questionId}/answers`,
+  json(
+    'POST',
+    {
+      body: 'Una segunda respuesta para verificar la paginación bounded.',
+    },
+    carla.bearer,
+  ),
+);
+assert.equal(
+  secondAnswerCreate.response.status,
+  201,
+  JSON.stringify(secondAnswerCreate.body),
+);
+const secondAnswerId = secondAnswerCreate.body.answer.id;
+assert.match(secondAnswerId, UUID_V4);
+
+const answerPageOne = await request(
+  `/questions/${questionId}/answers?limit=1`,
+);
+assert.equal(answerPageOne.response.status, 200);
+assert.equal(answerPageOne.body.items.length, 1);
+assert.equal(typeof answerPageOne.body.nextCursor, 'string');
+
+const answerPageTwo = await request(
+  `/questions/${questionId}/answers?limit=1&cursor=${encodeURIComponent(
+    answerPageOne.body.nextCursor,
+  )}`,
+);
+assert.equal(answerPageTwo.response.status, 200);
+assert.equal(answerPageTwo.body.items.length, 1);
+assert.notEqual(answerPageOne.body.items[0].id, answerPageTwo.body.items[0].id);
+assert.equal(
+  new Set([answerPageOne.body.items[0].id, answerPageTwo.body.items[0].id]).has(
+    answerId,
+  ),
+  true,
+);
+assert.equal(
+  new Set([answerPageOne.body.items[0].id, answerPageTwo.body.items[0].id]).has(
+    secondAnswerId,
+  ),
+  true,
+);
+
+const invalidAnswerCursor = await request(
+  `/questions/${questionId}/answers?limit=1&cursor=not-a-valid-cursor`,
+);
+assert.equal(invalidAnswerCursor.response.status, 422);
+assert.equal(invalidAnswerCursor.body.code, 'ANSWER_CURSOR_INVALID');
+
+const detailAfterAnswers = await request(`/questions/${questionId}`);
+assert.equal(detailAfterAnswers.response.status, 200);
+assert.equal(detailAfterAnswers.body.answersLimit, 25);
+assert.equal(detailAfterAnswers.body.answersNextCursor, null);
+assert.equal(detailAfterAnswers.body.answers.length, 2);
+
 const afterAnswerNotifications = await notifications(alice);
 const answeredNotification = afterAnswerNotifications.find(
   (item) =>
@@ -869,6 +927,9 @@ console.log(
       'question-cursor-pagination',
       'closed-question-rejects-answer',
       'answer-edit',
+      'answer-cursor-pagination',
+      'answer-cursor-validation',
+      'answer-detail-pagination-metadata',
       'answer-question-membership',
       'accepted-answer-notification',
       'report-idempotency',
