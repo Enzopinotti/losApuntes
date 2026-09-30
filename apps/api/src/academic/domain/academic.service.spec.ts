@@ -866,7 +866,15 @@ describe('AcademicService', () => {
   it('returns honest truncation metadata for visible affiliations', async () => {
     const store = createStore();
     const service = new AcademicService(store);
-    const row = affiliation();
+    const institution = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const row = affiliation({
+      programId: undefined,
+      curriculumId: undefined,
+    });
+    store.findCatalogNodeById.mockResolvedValue(institution);
     store.listAffiliationsForUser.mockResolvedValue(page([row], true));
 
     await expect(service.listAffiliations('user-1')).resolves.toMatchObject({
