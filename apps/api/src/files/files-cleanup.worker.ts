@@ -2,7 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { AppModule } from '../app.module';
+import { HealthService } from '../health/health.service';
 import { FileService } from './domain/file.service';
+import {
+  clearFilesWorkerHealth,
+  filesWorkerHealthValidityMs,
+  writeFilesWorkerHealth,
+} from './files-worker-health';
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 const BATCH_SIZE = 100;
@@ -30,7 +36,9 @@ async function bootstrap(): Promise<void> {
     logger: ['error', 'warn', 'log'],
   });
   const files = app.get(FileService);
+  const health = app.get(HealthService);
   const intervalMs = cleanupIntervalMs();
+  const healthValidityMs = filesWorkerHealthValidityMs(intervalMs);
   let stopping = false;
   const shutdown = new AbortController();
 
@@ -41,16 +49,46 @@ async function bootstrap(): Promise<void> {
 
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
+  await clearFilesWorkerHealth();
 
   try {
     while (!stopping) {
-      const result = await files.cleanupExpiredAssets(BATCH_SIZE);
-      if (result.reclaimed > 0) {
-        console.log(
+      try {
+        const diagnostics = await health.diagnostics();
+        const dependenciesReady = diagnostics.checks.every(
+          (check) => check.status === 'ok',
+        );
+
+        if (!dependenciesReady) {
+          await writeFilesWorkerHealth('not_ready', healthValidityMs);
+          console.warn(
+            JSON.stringify({
+              event: 'files.cleanup.dependencies_unavailable',
+              status: diagnostics.status,
+            }),
+          );
+        } else {
+          const result = await files.cleanupExpiredAssets(BATCH_SIZE);
+          await writeFilesWorkerHealth('ready', healthValidityMs);
+
+          if (result.reclaimed > 0) {
+            console.log(
+              JSON.stringify({
+                event: 'files.cleanup.completed',
+                examined: result.examined,
+                reclaimed: result.reclaimed,
+              }),
+            );
+          }
+        }
+      } catch (error) {
+        await writeFilesWorkerHealth('not_ready', healthValidityMs).catch(
+          () => undefined,
+        );
+        console.warn(
           JSON.stringify({
-            event: 'files.cleanup.completed',
-            examined: result.examined,
-            reclaimed: result.reclaimed,
+            event: 'files.cleanup.iteration_failed',
+            errorType: error instanceof Error ? error.name : 'UnknownError',
           }),
         );
       }
@@ -65,11 +103,17 @@ async function bootstrap(): Promise<void> {
       }
     }
   } finally {
+    await clearFilesWorkerHealth().catch(() => undefined);
     await app.close();
   }
 }
 
 void bootstrap().catch((error: unknown) => {
-  console.error('files.cleanup.worker_failed', error);
+  console.error(
+    JSON.stringify({
+      event: 'files.cleanup.worker_failed',
+      errorType: error instanceof Error ? error.name : 'UnknownError',
+    }),
+  );
   process.exitCode = 1;
 });
