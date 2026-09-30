@@ -126,12 +126,15 @@ export const feedsApi = {
     );
   },
 
-  forYou: (input: {
-    limit?: number;
-    cursor?: string;
-    mode: FeedMode;
-    order: FeedOrder;
-  }, signal?: AbortSignal) => {
+  forYou: (
+    input: {
+      limit?: number;
+      cursor?: string;
+      mode: FeedMode;
+      order: FeedOrder;
+    },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({
       limit: String(input.limit ?? 20),
       mode: input.mode,
