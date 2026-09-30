@@ -141,10 +141,9 @@ export const feedsApi = {
       order: input.order,
     });
     if (input.cursor) query.set("cursor", input.cursor);
-    return request<ForYouFeedResponse>(
-      `/feeds/for-you?${query.toString()}`,
-      { signal },
-    );
+    return request<ForYouFeedResponse>(`/feeds/for-you?${query.toString()}`, {
+      signal,
+    });
   },
 
   preferences: (signal?: AbortSignal) =>
@@ -197,11 +196,7 @@ export const feedsApi = {
       },
     ),
 
-  clearFeedback: (
-    type: FeedTargetType,
-    id: string,
-    signal?: AbortSignal,
-  ) =>
+  clearFeedback: (type: FeedTargetType, id: string, signal?: AbortSignal) =>
     request<{ changed: boolean; revision: number }>(
       `/feeds/feedback/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
       { method: "DELETE", signal },
