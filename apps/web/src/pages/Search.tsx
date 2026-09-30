@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import type {
   ContextualDiscoveryResponse,
   SearchResponse,
@@ -18,8 +19,25 @@ function messageFor(error: unknown): string {
 }
 
 const Search = () => {
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginContextRequest,
+    isCurrent: isContextRequestCurrent,
+    finish: finishContextRequest,
+    invalidate: invalidateContextRequest,
+  } = useAsyncAuthorityFence(`search-context:${authorityScope}`);
+  const {
+    begin: beginSearchRequest,
+    isCurrent: isSearchRequestCurrent,
+    finish: finishSearchRequest,
+    invalidate: invalidateSearchRequest,
+  } = useAsyncAuthorityFence(`search:${authorityScope}`);
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<SearchScope>("all");
   const [result, setResult] = useState<SearchResponse | null>(null);
@@ -31,44 +49,60 @@ const Search = () => {
 
   useEffect(() => {
     if (!authenticated) {
+      invalidateContextRequest();
       setContextual(null);
+      setContextLoading(false);
       return;
     }
 
-    let active = true;
+    const ticket = beginContextRequest();
     setContextLoading(true);
 
     void searchApi
-      .contextual()
+      .contextual({}, ticket.signal)
       .then((value) => {
-        if (active) setContextual(value);
+        if (isContextRequestCurrent(ticket)) setContextual(value);
       })
       .catch(() => {
-        if (active) setContextual(null);
+        if (isContextRequestCurrent(ticket)) setContextual(null);
       })
       .finally(() => {
-        if (active) setContextLoading(false);
+        if (finishContextRequest(ticket)) setContextLoading(false);
       });
 
     return () => {
-      active = false;
+      invalidateContextRequest();
     };
-  }, [authenticated]);
+  }, [
+    authenticated,
+    beginContextRequest,
+    finishContextRequest,
+    invalidateContextRequest,
+    isContextRequestCurrent,
+  ]);
 
   const runSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const q = query.trim();
     if (q.length < 2) return;
 
+    const ticket = beginSearchRequest();
     setLoading(true);
     setError(null);
 
     try {
-      setResult(await searchApi.search({ q, scope }));
+      const nextResult = await searchApi.search({ q, scope }, ticket.signal);
+      if (isSearchRequestCurrent(ticket)) {
+        setResult(nextResult);
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isSearchRequestCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setLoading(false);
+      if (finishSearchRequest(ticket)) {
+        setLoading(false);
+      }
     }
   };
 
@@ -91,7 +125,11 @@ const Search = () => {
             minLength={2}
             maxLength={120}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              invalidateSearchRequest();
+              setLoading(false);
+              setQuery(event.target.value);
+            }}
             placeholder="Ej. Base de Datos, Ana, resumen de SQL"
           />
         </label>
@@ -99,7 +137,11 @@ const Search = () => {
           Alcance
           <select
             value={scope}
-            onChange={(event) => setScope(event.target.value as SearchScope)}
+            onChange={(event) => {
+              invalidateSearchRequest();
+              setLoading(false);
+              setScope(event.target.value as SearchScope);
+            }}
           >
             <option value="all">Todo</option>
             <option value="resources">Apuntes</option>

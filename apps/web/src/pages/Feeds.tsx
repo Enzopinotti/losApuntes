@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type {
   FeedFeedbackSignal,
   FeedItem,
@@ -12,6 +13,7 @@ import {
   feedsApi,
   isFeedsApiError,
 } from "../features/feeds/services/feedsService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Feeds.scss";
 
 type FeedView = "academic" | "for-you";
@@ -41,6 +43,7 @@ function messageFor(error: unknown): string {
 }
 
 const Feeds = () => {
+  const { status, user, session } = useAuth();
   const [view, setView] = useState<FeedView>("academic");
   const [mode, setMode] = useState<FeedMode>("balanced");
   const [order, setOrder] = useState<FeedOrder>("ranked");
@@ -60,17 +63,55 @@ const Feeds = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginPreferencesRequest,
+    isCurrent: isPreferencesRequestCurrent,
+    finish: finishPreferencesRequest,
+  } = useAsyncAuthorityFence(`feeds-preferences:${authorityScope}`);
+  const {
+    begin: beginFeedRequest,
+    isCurrent: isFeedRequestCurrent,
+    finish: finishFeedRequest,
+  } = useAsyncAuthorityFence(
+    `feeds:${authorityScope}:${view}:${mode}:${order}`,
+  );
+  const {
+    begin: beginActionRequest,
+    isCurrent: isActionRequestCurrent,
+    finish: finishActionRequest,
+  } = useAsyncAuthorityFence(
+    `feeds-action:${authorityScope}:${view}:${mode}:${order}`,
+  );
 
   const loadPreferences = useCallback(async () => {
+    const ticket = beginPreferencesRequest();
+
     try {
-      setPreferences(await feedsApi.preferences());
+      const nextPreferences = await feedsApi.preferences(ticket.signal);
+      if (isPreferencesRequestCurrent(ticket)) {
+        setPreferences(nextPreferences);
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isPreferencesRequestCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
+    } finally {
+      finishPreferencesRequest(ticket);
     }
-  }, []);
+  }, [
+    beginPreferencesRequest,
+    finishPreferencesRequest,
+    isPreferencesRequestCurrent,
+  ]);
 
   const loadFeed = useCallback(
     async (cursor?: string, append = false) => {
+      const ticket = beginFeedRequest();
       if (append) setBusy("more");
       else setLoading(true);
       setError(null);
@@ -78,8 +119,13 @@ const Feeds = () => {
       try {
         const result =
           view === "academic"
-            ? await feedsApi.academic({ limit: 8, cursor })
-            : await feedsApi.forYou({ limit: 8, cursor, mode, order });
+            ? await feedsApi.academic({ limit: 8, cursor }, ticket.signal)
+            : await feedsApi.forYou(
+                { limit: 8, cursor, mode, order },
+                ticket.signal,
+              );
+
+        if (!isFeedRequestCurrent(ticket)) return;
 
         setItems((current) =>
           append ? [...current, ...result.items] : result.items,
@@ -90,14 +136,24 @@ const Feeds = () => {
           "effectiveSignals" in result ? result.effectiveSignals : null,
         );
       } catch (nextError) {
+        if (!isFeedRequestCurrent(ticket)) return;
         setError(messageFor(nextError));
         if (!append) setItems([]);
       } finally {
-        setLoading(false);
-        setBusy(null);
+        if (finishFeedRequest(ticket)) {
+          setLoading(false);
+          setBusy(null);
+        }
       }
     },
-    [mode, order, view],
+    [
+      beginFeedRequest,
+      finishFeedRequest,
+      isFeedRequestCurrent,
+      mode,
+      order,
+      view,
+    ],
   );
 
   useEffect(() => {
@@ -112,6 +168,7 @@ const Feeds = () => {
     patch: Parameters<typeof feedsApi.updatePreferences>[1],
   ) => {
     if (!preferences) return;
+    const ticket = beginActionRequest();
     setBusy("preferences");
     setError(null);
 
@@ -119,14 +176,19 @@ const Feeds = () => {
       const next = await feedsApi.updatePreferences(
         preferences.preferences,
         patch,
+        ticket.signal,
       );
+      if (!isActionRequestCurrent(ticket)) return;
       setPreferences(next);
       await loadFeed();
     } catch (nextError) {
+      if (!isActionRequestCurrent(ticket)) return;
       setError(messageFor(nextError));
       await loadPreferences();
     } finally {
-      setBusy(null);
+      if (finishActionRequest(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
@@ -156,18 +218,24 @@ const Feeds = () => {
   };
 
   const feedback = async (item: FeedItem, signal: FeedFeedbackSignal) => {
+    const ticket = beginActionRequest();
     const key = `${item.type}:${item.id}:${signal}`;
     setBusy(key);
     setError(null);
 
     try {
-      await feedsApi.setFeedback(item.type, item.id, signal);
+      await feedsApi.setFeedback(item.type, item.id, signal, ticket.signal);
+      if (!isActionRequestCurrent(ticket)) return;
       await loadPreferences();
       await loadFeed();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionRequestCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishActionRequest(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
