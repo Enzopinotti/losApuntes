@@ -148,3 +148,98 @@ describe('MongoAcademicStore bounded user inventories', () => {
     expect(result.hasMore).toBe(true);
   });
 });
+
+describe('MongoAcademicStore bounded redirect fan-out', () => {
+  it('uses one limit+1 query for all frontier targets', async () => {
+    const rows = Array.from({ length: 4 }, (_, index) => ({
+      id: `redirect-${index}`,
+      status: 'merged',
+      redirectToId: index % 2 === 0 ? 'target-a' : 'target-b',
+    }));
+    const chain = query(rows);
+    const catalog = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoAcademicStore(
+      {} as never,
+      catalog as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await store.findDirectRedirectSources(
+      ['target-a', 'target-b'],
+      3,
+    );
+
+    expect(catalog.find).toHaveBeenCalledWith({
+      status: 'merged',
+      redirectToId: { $in: ['target-a', 'target-b'] },
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(4);
+    expect(result.items).toHaveLength(3);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('bumps canonical target revision with optimistic concurrency', async () => {
+    const row = {
+      id: 'target-node',
+      revision: 8,
+      toObject: () => ({ id: 'target-node', revision: 8 }),
+    };
+    const chain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(row),
+    };
+    chain.lean.mockReturnValue(chain);
+    const catalog = {
+      findOneAndUpdate: jest.fn().mockReturnValue(chain),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      catalog as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.bumpCatalogNodeRevision('target-node', 7),
+    ).resolves.toMatchObject({
+      id: 'target-node',
+      revision: 8,
+    });
+
+    expect(catalog.findOneAndUpdate).toHaveBeenCalledWith(
+      { id: 'target-node', revision: 7 },
+      { $inc: { revision: 1 } },
+      { new: true, session: undefined },
+    );
+  });
+
+  it('short-circuits an empty redirect frontier without querying Mongo', async () => {
+    const catalog = { find: jest.fn() };
+    const store = new MongoAcademicStore(
+      {} as never,
+      catalog as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(store.findDirectRedirectSources([], 10)).resolves.toEqual({
+      items: [],
+      hasMore: false,
+    });
+    expect(catalog.find).not.toHaveBeenCalled();
+  });
+});

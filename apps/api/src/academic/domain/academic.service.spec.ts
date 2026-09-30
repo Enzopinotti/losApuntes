@@ -14,7 +14,10 @@ import {
   AcademicSourceIdentityConflictError,
   type AcademicStore,
 } from './academic.store';
-import { AcademicService } from './academic.service';
+import {
+  ACADEMIC_REDIRECT_IDENTITY_LIMIT,
+  AcademicService,
+} from './academic.service';
 import type {
   AcademicAffiliationRecord,
   AcademicCatalogNodeRecord,
@@ -96,6 +99,21 @@ async function rejectedConflict(
   throw new Error('Expected operation to reject with ConflictException');
 }
 
+async function rejectedUnprocessable(
+  operation: Promise<unknown>,
+): Promise<UnprocessableEntityException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof UnprocessableEntityException) return error;
+    throw error;
+  }
+
+  throw new Error(
+    'Expected operation to reject with UnprocessableEntityException',
+  );
+}
+
 function mockFn<T extends (...args: any[]) => any>() {
   return jest.fn<ReturnType<T>, Parameters<T>>();
 }
@@ -103,7 +121,7 @@ function mockFn<T extends (...args: any[]) => any>() {
 function createStore() {
   const findDirectRedirectSources =
     mockFn<AcademicStore['findDirectRedirectSources']>();
-  findDirectRedirectSources.mockResolvedValue([]);
+  findDirectRedirectSources.mockResolvedValue(page([]));
 
   const findCatalogNodesByIds =
     mockFn<AcademicStore['findCatalogNodesByIds']>();
@@ -113,6 +131,18 @@ function createStore() {
   findCatalogNodeById.mockImplementation(async (id) => {
     const rows = await findCatalogNodesByIds([id]);
     return rows[0] ?? null;
+  });
+
+  const bumpCatalogNodeRevision =
+    mockFn<AcademicStore['bumpCatalogNodeRevision']>();
+  bumpCatalogNodeRevision.mockImplementation(async (id, expectedRevision) => {
+    const node = await findCatalogNodeById(id);
+    if (!node || node.revision !== expectedRevision) return null;
+    return {
+      ...node,
+      revision: node.revision + 1,
+      updatedAt: new Date(node.updatedAt.getTime() + 1),
+    };
   });
 
   return {
@@ -125,6 +155,7 @@ function createStore() {
     searchCatalog: mockFn<AcademicStore['searchCatalog']>(),
     createCatalogNode: mockFn<AcademicStore['createCatalogNode']>(),
     updateCatalogNode: mockFn<AcademicStore['updateCatalogNode']>(),
+    bumpCatalogNodeRevision,
     createAffiliation: mockFn<AcademicStore['createAffiliation']>(),
     findAffiliationById: mockFn<AcademicStore['findAffiliationById']>(),
     listAffiliationsForUser: mockFn<AcademicStore['listAffiliationsForUser']>(),
@@ -676,6 +707,36 @@ describe('AcademicService', () => {
         targetId: source.id,
       }),
     );
+  });
+
+  it('does not mutate source when canonical target revision changed concurrently', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const target = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+    });
+
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(
+        id === source.id ? source : id === target.id ? target : null,
+      ),
+    );
+    store.bumpCatalogNodeRevision.mockResolvedValueOnce(null);
+
+    const error = await rejectedConflict(
+      service.mergeCatalogNode('admin-1', source.id, target.id, 1),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REVISION_CONFLICT',
+    });
+    expect(store.updateCatalogNode.mock.calls).toHaveLength(0);
+    expect(store.appendAuditEvent.mock.calls).toHaveLength(0);
   });
 
   it('rejects self merges, kind mismatches and merge revision conflicts', async () => {
@@ -1949,6 +2010,191 @@ describe('AcademicService', () => {
     });
   });
 
+  it('fails closed when reverse redirect ancestry exceeds the depth budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const root = catalogNode({
+      id: 'root-node',
+      kind: 'institution',
+    });
+    store.findCatalogNodeById.mockResolvedValue(root);
+
+    let level = 0;
+    store.findDirectRedirectSources.mockImplementation((targetIds) => {
+      const current = targetIds[0];
+      if (!current) return Promise.resolve(page([]));
+
+      level += 1;
+      return Promise.resolve(
+        page([
+          catalogNode({
+            id: `reverse-${level}`,
+            kind: 'institution',
+            status: 'merged',
+            redirectToId: current,
+          }),
+        ]),
+      );
+    });
+
+    const error = await rejectedConflict(
+      service.listChildren(root.id, 'program', 25),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REDIRECT_TOO_DEEP',
+    });
+    expect(store.searchCatalog.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects an indirect self merge through an alias that resolves to source', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const alias = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+      status: 'merged',
+      redirectToId: source.id,
+    });
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(
+        id === alias.id ? alias : id === source.id ? source : null,
+      ),
+    );
+
+    const error = await rejectedUnprocessable(
+      service.mergeCatalogNode('admin-1', source.id, alias.id, 1),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_MERGE_SELF',
+    });
+    expect(store.updateCatalogNode.mock.calls).toHaveLength(0);
+  });
+
+  it('traverses reverse redirects with one bounded query per level', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const target = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const source = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+      status: 'merged',
+      redirectToId: target.id,
+    });
+    const legacy = catalogNode({
+      id: '44444444-4444-4444-8444-444444444444',
+      kind: 'institution',
+      status: 'merged',
+      redirectToId: source.id,
+    });
+
+    store.findCatalogNodeById.mockResolvedValue(target);
+    store.findDirectRedirectSources.mockImplementation((targetIds) => {
+      if (targetIds.includes(target.id)) return Promise.resolve(page([source]));
+      if (targetIds.includes(source.id)) return Promise.resolve(page([legacy]));
+      return Promise.resolve(page([]));
+    });
+    store.searchCatalog.mockResolvedValue({ items: [], hasMore: false });
+
+    await service.listChildren(target.id, 'program', 25);
+
+    expect(store.findDirectRedirectSources.mock.calls).toEqual([
+      [[target.id], ACADEMIC_REDIRECT_IDENTITY_LIMIT - 1],
+      [[source.id], ACADEMIC_REDIRECT_IDENTITY_LIMIT - 2],
+      [[legacy.id], ACADEMIC_REDIRECT_IDENTITY_LIMIT - 3],
+    ]);
+    expect(store.searchCatalog).toHaveBeenCalledWith({
+      kind: 'program',
+      parentIds: [target.id, source.id, legacy.id],
+      limit: 25,
+    });
+  });
+
+  it('fails closed when a redirect level exceeds the identity budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const target = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    store.findCatalogNodeById.mockResolvedValue(target);
+    store.findDirectRedirectSources.mockResolvedValue({
+      items: [],
+      hasMore: true,
+    });
+
+    const error = await rejectedConflict(
+      service.listChildren(target.id, 'program', 25),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REDIRECT_FANOUT_OVERFLOW',
+      limit: ACADEMIC_REDIRECT_IDENTITY_LIMIT,
+    });
+    expect(store.searchCatalog.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects a merge whose combined canonical identity set exceeds the budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const target = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+    });
+    const sourceAliases = Array.from({ length: 128 }, (_, index) =>
+      catalogNode({
+        id: `source-alias-${index}`,
+        kind: 'institution',
+        status: 'merged',
+        redirectToId: source.id,
+      }),
+    );
+    const targetAliases = Array.from({ length: 128 }, (_, index) =>
+      catalogNode({
+        id: `target-alias-${index}`,
+        kind: 'institution',
+        status: 'merged',
+        redirectToId: target.id,
+      }),
+    );
+
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(
+        id === source.id ? source : id === target.id ? target : null,
+      ),
+    );
+    store.findDirectRedirectSources.mockImplementation((targetIds) => {
+      if (targetIds.includes(source.id)) {
+        return Promise.resolve(page(sourceAliases));
+      }
+      if (targetIds.includes(target.id)) {
+        return Promise.resolve(page(targetAliases));
+      }
+      return Promise.resolve(page([]));
+    });
+
+    const error = await rejectedConflict(
+      service.mergeCatalogNode('admin-1', source.id, target.id, 1),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REDIRECT_FANOUT_OVERFLOW',
+    });
+    expect(store.updateCatalogNode.mock.calls).toHaveLength(0);
+  });
+
   it('keeps children and affiliation projections canonical after a parent merge', async () => {
     const store = createStore();
     const service = new AcademicService(store);
@@ -1986,8 +2232,8 @@ describe('AcademicService', () => {
               : null,
       ),
     );
-    store.findDirectRedirectSources.mockImplementation((id) =>
-      Promise.resolve(id === target.id ? [source] : []),
+    store.findDirectRedirectSources.mockImplementation((targetIds) =>
+      Promise.resolve(page(targetIds.includes(target.id) ? [source] : [])),
     );
     store.searchCatalog.mockResolvedValue({ items: [child], hasMore: false });
     store.listAffiliationsForUser.mockResolvedValue(page([row]));

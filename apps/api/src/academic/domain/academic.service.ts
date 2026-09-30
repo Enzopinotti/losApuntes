@@ -43,6 +43,7 @@ import {
 } from './academic.types';
 
 const MAX_REDIRECT_DEPTH = 8;
+export const ACADEMIC_REDIRECT_IDENTITY_LIMIT = 256;
 const MAX_ANCESTRY_DEPTH = 16;
 
 function normalizeName(value: string): string {
@@ -352,6 +353,13 @@ export class AcademicService {
     const target = await this.resolveNode(targetId);
 
     if (!source) this.notFound();
+    if (source.id === target.node.id) {
+      throw new UnprocessableEntityException({
+        code: 'ACADEMIC_MERGE_SELF',
+        message:
+          'Academic node cannot be merged into its own canonical identity',
+      });
+    }
     if (source.status === 'merged') {
       throw new ConflictException({
         code: 'ACADEMIC_NODE_MERGED',
@@ -365,13 +373,36 @@ export class AcademicService {
       });
     }
 
-    const updated = await this.store.runAtomically(async () => {
+    const [sourceIdentities, targetIdentities] = await Promise.all([
+      this.catalogIdentitySet(source.id),
+      this.catalogIdentitySet(target.node.id),
+    ]);
+    if (
+      uniqueStrings([...sourceIdentities, ...targetIdentities]).length >
+      ACADEMIC_REDIRECT_IDENTITY_LIMIT
+    ) {
+      this.redirectFanoutOverflow();
+    }
+
+    const merged = await this.store.runAtomically(async () => {
+      const canonicalTarget = await this.store.bumpCatalogNodeRevision(
+        target.node.id,
+        target.node.revision,
+      );
+
+      if (!canonicalTarget) {
+        throw new ConflictException({
+          code: 'ACADEMIC_REVISION_CONFLICT',
+          message: 'Academic catalog node changed concurrently',
+        });
+      }
+
       const node = await this.store.updateCatalogNode(
         source.id,
         expectedRevision,
         {
           status: 'merged',
-          redirectToId: target.node.id,
+          redirectToId: canonicalTarget.id,
         },
       );
 
@@ -383,16 +414,20 @@ export class AcademicService {
       }
 
       await this.audit('academic.catalog.merged', actorUserId, source.id, {
-        targetId: target.node.id,
+        targetId: canonicalTarget.id,
         revision: node.revision,
+        targetRevision: canonicalTarget.revision,
       });
 
-      return node;
+      return {
+        source: node,
+        target: canonicalTarget,
+      };
     });
 
     return {
-      source: publicNode(updated),
-      target: publicNode(target.node),
+      source: publicNode(merged.source),
+      target: publicNode(merged.target),
     };
   }
 
@@ -1029,24 +1064,58 @@ export class AcademicService {
     let frontier = [node.id];
 
     for (let depth = 0; depth < MAX_REDIRECT_DEPTH; depth += 1) {
-      const batches = await Promise.all(
-        frontier.map((targetId) =>
-          this.store.findDirectRedirectSources(targetId),
-        ),
+      const remaining = ACADEMIC_REDIRECT_IDENTITY_LIMIT - identities.size;
+      const page = await this.store.findDirectRedirectSources(
+        frontier,
+        Math.max(1, remaining),
       );
+
+      if (remaining === 0) {
+        if (page.items.length > 0 || page.hasMore) {
+          this.redirectFanoutOverflow();
+        }
+        break;
+      }
+
+      if (page.hasMore) {
+        this.redirectFanoutOverflow();
+      }
+
       const next = uniqueStrings(
-        batches
-          .flat()
+        page.items
           .map((source) => source.id)
           .filter((sourceId) => !identities.has(sourceId)),
       );
 
+      if (next.length > remaining) {
+        this.redirectFanoutOverflow();
+      }
       if (next.length === 0) break;
+
       next.forEach((sourceId) => identities.add(sourceId));
       frontier = next;
+
+      if (depth === MAX_REDIRECT_DEPTH - 1) {
+        const deeper = await this.store.findDirectRedirectSources(frontier, 1);
+        if (deeper.items.length > 0 || deeper.hasMore) {
+          throw new ConflictException({
+            code: 'ACADEMIC_REDIRECT_TOO_DEEP',
+            message: 'Academic catalog redirect graph is too deep',
+          });
+        }
+      }
     }
 
     return [...identities];
+  }
+
+  private redirectFanoutOverflow(): never {
+    throw new ConflictException({
+      code: 'ACADEMIC_REDIRECT_FANOUT_OVERFLOW',
+      message:
+        'Academic catalog redirect graph exceeds the safe identity budget',
+      limit: ACADEMIC_REDIRECT_IDENTITY_LIMIT,
+    });
   }
 
   private async assertParentKinds(

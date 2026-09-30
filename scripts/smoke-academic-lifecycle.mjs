@@ -470,6 +470,8 @@ const mergeResult = await request(
 assert.equal(mergeResult.response.status, 201);
 assert.equal(mergeResult.body.source.status, 'merged');
 assert.equal(mergeResult.body.source.redirectToId, institution.id);
+assert.equal(mergeResult.body.target.id, institution.id);
+assert.equal(mergeResult.body.target.revision, institution.revision + 1);
 
 const redirected = await request(
   `/academic/catalog/${duplicateInstitution.id}`,
@@ -544,6 +546,7 @@ console.log(
       'proposal-admin-review',
       'proposal-review-replay-conflict',
       'merge-redirect',
+      'merge-target-revision-fence',
       'merge-preserves-child-discovery',
       'merge-canonicalizes-affiliation-projection',
       'transaction-backed-audit',
