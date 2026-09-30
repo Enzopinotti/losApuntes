@@ -17,6 +17,8 @@ const validProductionEnvironment = {
   DEPLOYMENT_PROFILE: 'production',
   SECRETS_SOURCE: 'external',
   SECRETS_REVISION: 'prod-2026-09-26-r1',
+  RELEASE_ID: 'beta-2026-09-30.1',
+  RELEASE_SHA: 'a'.repeat(40),
   WEB_ORIGIN: 'https://app.losapuntes.example',
   FILES_S3_PUBLIC_ENDPOINT: 'https://files.losapuntes.example',
   FILES_S3_ACCESS_KEY_ID: 'prod-files-access',
@@ -35,7 +37,42 @@ describe('validateRuntimeEnvironment', () => {
     const result = validateRuntimeEnvironment(validEnvironment);
 
     expect(result.DEPLOYMENT_PROFILE).toBe('local');
+    expect(result.RELEASE_ID).toBe('local-runtime');
+    expect(result.RELEASE_SHA).toBeUndefined();
     expect(result.SECRETS_SOURCE).toBe('local');
+  });
+
+  it('requires exact release identity for production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        RELEASE_ID: undefined,
+      }),
+    ).toThrow('RELEASE_ID is required in the production deployment profile');
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        RELEASE_SHA: undefined,
+      }),
+    ).toThrow('RELEASE_SHA is required in the production deployment profile');
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        RELEASE_SHA: 'not-a-sha',
+      }),
+    ).toThrow('RELEASE_SHA must be an exact 40-character Git SHA');
+
+    expect(
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        RELEASE_SHA: 'A'.repeat(40),
+      }),
+    ).toMatchObject({
+      RELEASE_ID: 'beta-2026-09-30.1',
+      RELEASE_SHA: 'a'.repeat(40),
+    });
   });
 
   it('requires external secret provenance for the production deployment profile', () => {
