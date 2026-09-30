@@ -1,4 +1,7 @@
-import { filesWorkerHealthValidityMs, isFilesWorkerHealthCurrent } from './files-worker-health';
+import {
+  filesWorkerHealthValidityMs,
+  isFilesWorkerHealthCurrent,
+} from './files-worker-health';
 
 describe('Files worker health marker', () => {
   it('uses a bounded validity window derived from the cleanup interval', () => {
