@@ -115,19 +115,30 @@ describe('MongoAuthSessionStore bounded inventory', () => {
       limit: 20,
     });
 
-    expect(model.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        $and: [
-          {
-            $or: [
-              { credentialVersion: 1 },
-              { credentialVersion: { $exists: false } },
-            ],
-          },
-          expect.any(Object),
-        ],
-      }),
-    );
+    expect(model.find).toHaveBeenCalledWith({
+      userId: 'user-1',
+      expiresAt: { $gt: NOW },
+      $and: [
+        {
+          $or: [
+            { credentialVersion: 1 },
+            { credentialVersion: { $exists: false } },
+          ],
+        },
+        {
+          $or: [
+            {
+              clientType: 'web',
+              lastSeenAt: { $gt: WEB_IDLE_AFTER },
+            },
+            {
+              clientType: 'mobile',
+              lastSeenAt: { $gt: MOBILE_IDLE_AFTER },
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it('looks up the current session with bounded account and credential scope', async () => {
