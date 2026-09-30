@@ -259,6 +259,8 @@ describe('SearchDiscoveryService', () => {
           state: 'current',
         },
       ] as never[],
+      truncated: false,
+      limit: 100,
     });
 
     academicApi.getCatalogNode.mockImplementation((id) =>
@@ -323,6 +325,8 @@ describe('SearchDiscoveryService', () => {
           state: 'completed',
         },
       ] as never[],
+      truncated: false,
+      limit: 100,
     });
 
     const result = await service(
@@ -350,6 +354,8 @@ describe('SearchDiscoveryService', () => {
         subjectId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
         state: 'current',
       })) as never[],
+      truncated: false,
+      limit: 100,
     });
     academicApi.getCatalogNode.mockImplementation((id) =>
       Promise.resolve({
