@@ -238,12 +238,15 @@ describe('AuthSessionService', () => {
     ]);
   });
 
-  it('marks only the current session in inventory', async () => {
+  it('marks only the current session and returns honest inventory metadata', async () => {
     const { store, mocks } = createStore();
-    mocks.listActiveForUser.mockResolvedValue([
-      record({ id: SESSION_A }),
-      record({ id: SESSION_B, clientType: 'mobile' }),
-    ]);
+    mocks.listActiveForUser.mockResolvedValue({
+      items: [
+        record({ id: SESSION_A }),
+        record({ id: SESSION_B, clientType: 'mobile' }),
+      ],
+      hasMore: false,
+    });
 
     const service = new AuthSessionService(store);
     await expect(
@@ -253,14 +256,18 @@ describe('AuthSessionService', () => {
         1,
         new Date('2026-09-22T13:00:00.000Z'),
       ),
-    ).resolves.toEqual([
-      expect.objectContaining({ id: SESSION_A, current: false }),
-      expect.objectContaining({
-        id: SESSION_B,
-        clientType: 'mobile',
-        current: true,
-      }),
-    ]);
+    ).resolves.toEqual({
+      sessions: [
+        expect.objectContaining({ id: SESSION_A, current: false }),
+        expect.objectContaining({
+          id: SESSION_B,
+          clientType: 'mobile',
+          current: true,
+        }),
+      ],
+      truncated: false,
+      limit: AUTH_SESSION_INVENTORY_LIMIT,
+    });
   });
 
   it('revokes only a hash derived from a valid current bearer', async () => {
@@ -288,61 +295,100 @@ describe('AuthSessionService', () => {
     expect(mocks.revokeOwnedById).not.toHaveBeenCalled();
   });
 
-  it('hides sessions issued under an older credential version', async () => {
+  it('scopes the bounded query to the current credential version', async () => {
     const { store, mocks } = createStore();
-    mocks.listActiveForUser.mockResolvedValue([
-      record({ id: SESSION_A, credentialVersion: 1 }),
-      record({ id: SESSION_B, credentialVersion: 2 }),
-    ]);
+    const now = new Date('2026-09-22T13:00:00.000Z');
+    mocks.listActiveForUser.mockResolvedValue({
+      items: [record({ id: SESSION_B, credentialVersion: 2 })],
+      hasMore: false,
+    });
 
     const service = new AuthSessionService(store);
 
     await expect(
-      service.listForUser(
-        'user-1',
-        SESSION_B,
-        2,
-        new Date('2026-09-22T13:00:00.000Z'),
-      ),
-    ).resolves.toEqual([
+      service.listForUser('user-1', SESSION_B, 2, now),
+    ).resolves.toMatchObject({
+      sessions: [
+        expect.objectContaining({
+          id: SESSION_B,
+          current: true,
+        }),
+      ],
+      truncated: false,
+      limit: AUTH_SESSION_INVENTORY_LIMIT,
+    });
+
+    expect(mocks.listActiveForUser).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: SESSION_B,
-        current: true,
+        userId: 'user-1',
+        credentialVersion: 2,
+        now,
+        limit: AUTH_SESSION_INVENTORY_LIMIT,
       }),
-    ]);
+    );
   });
 
-  it('hides an idle session from inventory even before absolute TTL cleanup', async () => {
+  it('passes client-specific idle cutoffs into the bounded inventory query', async () => {
     const { store, mocks } = createStore();
-    mocks.listActiveForUser.mockResolvedValue([
-      record({
-        id: SESSION_A,
-        clientType: 'web',
-        lastSeenAt: new Date('2026-09-20T12:00:00.000Z'),
-      }),
-      record({
-        id: SESSION_B,
-        clientType: 'mobile',
-        lastSeenAt: new Date('2026-09-20T12:00:00.000Z'),
-      }),
-    ]);
+    const now = new Date('2026-09-22T12:00:00.000Z');
+    mocks.listActiveForUser.mockResolvedValue({
+      items: [record({ id: SESSION_B, clientType: 'mobile' })],
+      hasMore: false,
+    });
 
     const service = new AuthSessionService(store);
 
-    await expect(
-      service.listForUser(
-        'user-1',
-        SESSION_B,
-        1,
-        new Date('2026-09-22T12:00:00.000Z'),
-      ),
-    ).resolves.toEqual([
-      expect.objectContaining({
+    await service.listForUser('user-1', SESSION_B, 1, now);
+
+    expect(mocks.listActiveForUser).toHaveBeenCalledWith({
+      userId: 'user-1',
+      credentialVersion: 1,
+      now,
+      webIdleAfter: new Date('2026-09-21T12:00:00.000Z'),
+      mobileIdleAfter: new Date('2026-09-08T12:00:00.000Z'),
+      limit: AUTH_SESSION_INVENTORY_LIMIT,
+    });
+  });
+
+  it('preserves the current session when the inventory window is truncated', async () => {
+    const { store, mocks } = createStore();
+    const now = new Date('2026-09-22T13:00:00.000Z');
+    const overflow = Array.from(
+      { length: AUTH_SESSION_INVENTORY_LIMIT },
+      (_, index) =>
+        record({
+          id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+          lastSeenAt: new Date(now.getTime() - index * 1_000),
+        }),
+    );
+    mocks.listActiveForUser.mockResolvedValue({
+      items: overflow,
+      hasMore: true,
+    });
+    mocks.findActiveOwnedById.mockResolvedValue(
+      record({
         id: SESSION_B,
         clientType: 'mobile',
-        current: true,
+        lastSeenAt: new Date(now.getTime() - 30_000),
       }),
-    ]);
+    );
+
+    const service = new AuthSessionService(store);
+    const result = await service.listForUser('user-1', SESSION_B, 1, now);
+
+    expect(result.sessions).toHaveLength(AUTH_SESSION_INVENTORY_LIMIT);
+    expect(result.sessions.at(-1)).toMatchObject({
+      id: SESSION_B,
+      current: true,
+    });
+    expect(result.truncated).toBe(true);
+    expect(result.limit).toBe(AUTH_SESSION_INVENTORY_LIMIT);
+    expect(mocks.findActiveOwnedById).toHaveBeenCalledWith(
+      'user-1',
+      SESSION_B,
+      1,
+      now,
+    );
   });
 
   it('delegates revoke-all to the account-scoped store operation', async () => {
