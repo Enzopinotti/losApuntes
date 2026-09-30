@@ -47,7 +47,7 @@ export type ManagerChangeResult =
 export type OrganizationWriteAuthority = {
   actorUserId: string;
   expectedManagementRevision: number;
-  allowedRoles: OrganizationManagerRole[];
+  allowedRoles: readonly OrganizationManagerRole[];
 };
 
 export type AuthorizedOrganizationMutation =
