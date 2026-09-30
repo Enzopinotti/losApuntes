@@ -85,6 +85,46 @@ function parseBoundedInteger(
   return parsed;
 }
 
+function parseReleaseId(
+  source: Record<string, unknown>,
+  deploymentProfile: string,
+): string {
+  const value = optionalString(source, 'RELEASE_ID');
+
+  if (!value) {
+    if (deploymentProfile === 'production') {
+      throw new Error('RELEASE_ID is required in the production deployment profile');
+    }
+    return 'local-runtime';
+  }
+
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/u.test(value)) {
+    throw new Error('RELEASE_ID must be a bounded non-secret release identifier');
+  }
+
+  return value;
+}
+
+function parseReleaseSha(
+  source: Record<string, unknown>,
+  deploymentProfile: string,
+): string | undefined {
+  const value = optionalString(source, 'RELEASE_SHA');
+
+  if (!value) {
+    if (deploymentProfile === 'production') {
+      throw new Error('RELEASE_SHA is required in the production deployment profile');
+    }
+    return undefined;
+  }
+
+  if (!/^[0-9a-f]{40}$/iu.test(value)) {
+    throw new Error('RELEASE_SHA must be an exact 40-character Git SHA');
+  }
+
+  return value.toLowerCase();
+}
+
 function parseBoolean(value: unknown, key: string, fallback: boolean): boolean {
   if (value === undefined || value === null || value === '') {
     return fallback;
@@ -290,6 +330,8 @@ export function validateRuntimeEnvironment(
     );
   }
 
+  const releaseId = parseReleaseId(source, deploymentProfile);
+  const releaseSha = parseReleaseSha(source, deploymentProfile);
   const mongoUri = requiredString(source, 'MONGO_URI');
   const deliveryMode = authEmailDeliveryMode(source, nodeEnv);
   const secretsSource =
@@ -439,6 +481,8 @@ export function validateRuntimeEnvironment(
     ...source,
     NODE_ENV: nodeEnv,
     DEPLOYMENT_PROFILE: deploymentProfile,
+    RELEASE_ID: releaseId,
+    RELEASE_SHA: releaseSha,
     SECRETS_SOURCE: secretsSource,
     SECRETS_REVISION: secretsRevision,
     PORT: parsePort(source.PORT, 'PORT', 4000),
