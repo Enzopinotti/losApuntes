@@ -45,7 +45,7 @@ Policy:
 - reusing the same operation key for different filename/MIME/byte size fails with `FILE_UPLOAD_IDEMPOTENCY_CONFLICT`;
 - a still-valid replay may receive a freshly signed PUT for the same private object key.
 
-Response is explicitly `Cache-Control: no-store` because it contains a short-lived storage capability.
+Authenticated capability responses are explicitly `Cache-Control: private, no-store` because they contain short-lived storage capabilities.
 
 Response includes:
 
@@ -175,7 +175,7 @@ Body:
 
 `disposition` is `inline | attachment`.
 
-The API reauthorizes the Resource **before every issuance** and then returns a short-lived signed GET URL plus public file metadata. The API capability response is `Cache-Control: no-store`, while the signed S3-compatible GET additionally requests `Cache-Control: private, no-store` for the downloaded private bytes. Possessing a file id or old signed URL never grants issuance of a new one.
+The API reauthorizes the Resource **before every issuance** and then returns a short-lived signed GET URL plus public file metadata. The authenticated API capability response is `Cache-Control: private, no-store`, and the signed S3-compatible GET also requests `Cache-Control: private, no-store` for the downloaded private bytes. Possessing a file id or old signed URL never grants issuance of a new one.
 
 Default TTL is 300 seconds. Runtime configuration is bounded to 1–300 seconds. CI uses a shorter TTL only to prove real expiry.
 
