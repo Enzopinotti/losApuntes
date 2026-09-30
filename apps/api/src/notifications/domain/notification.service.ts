@@ -6,7 +6,13 @@ import {
 } from '@nestjs/common';
 
 import { ProfileService } from '../../profile/domain/profile.service';
-import type { NotificationCursor } from './notification.types';
+import {
+  assertNotificationFanoutBudget,
+} from './notification-fanout';
+import type {
+  CreateNotificationRecord,
+  NotificationCursor,
+} from './notification.types';
 import {
   NOTIFICATION_STORE,
   type NotificationStore,
@@ -53,6 +59,15 @@ export class NotificationService {
     private readonly store: NotificationStore,
     private readonly profiles: ProfileService,
   ) {}
+
+  async createMany(records: CreateNotificationRecord[]) {
+    assertNotificationFanoutBudget(records);
+    if (records.length === 0) return { created: 0 };
+
+    return {
+      created: await this.store.createMany(records),
+    };
+  }
 
   async list(
     userId: string,
