@@ -210,8 +210,8 @@ describe('FileService', () => {
       ),
     ).toEqual(['resource-assets/replay/file', 'resource-assets/replay/file']);
 
-    await expect(
-      service.createUploadIntent(
+    try {
+      await service.createUploadIntent(
         'user-1',
         {
           operationKey,
@@ -220,12 +220,17 @@ describe('FileService', () => {
           byteSize: 8,
         },
         now,
-      ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'FILE_UPLOAD_IDEMPOTENCY_CONFLICT',
-      }),
-    });
+      );
+      throw new Error('Expected idempotency conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConflictException);
+      if (!(error instanceof ConflictException)) throw error;
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({
+          code: 'FILE_UPLOAD_IDEMPOTENCY_CONFLICT',
+        }),
+      );
+    }
   });
 
   it('finalizes a valid PDF and is idempotent after ready', async () => {
