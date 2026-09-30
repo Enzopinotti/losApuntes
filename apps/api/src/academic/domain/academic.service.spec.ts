@@ -722,7 +722,9 @@ describe('AcademicService', () => {
     });
 
     store.findCatalogNodeById.mockImplementation((id) =>
-      Promise.resolve(id === source.id ? source : id === target.id ? target : null),
+      Promise.resolve(
+        id === source.id ? source : id === target.id ? target : null,
+      ),
     );
     store.bumpCatalogNodeRevision.mockResolvedValueOnce(null);
 
@@ -2059,7 +2061,9 @@ describe('AcademicService', () => {
       redirectToId: source.id,
     });
     store.findCatalogNodeById.mockImplementation((id) =>
-      Promise.resolve(id === alias.id ? alias : id === source.id ? source : null),
+      Promise.resolve(
+        id === alias.id ? alias : id === source.id ? source : null,
+      ),
     );
 
     const error = await rejectedUnprocessable(
@@ -2227,9 +2231,7 @@ describe('AcademicService', () => {
       ),
     );
     store.findDirectRedirectSources.mockImplementation((targetIds) =>
-      Promise.resolve(
-        page(targetIds.includes(target.id) ? [source] : []),
-      ),
+      Promise.resolve(page(targetIds.includes(target.id) ? [source] : [])),
     );
     store.searchCatalog.mockResolvedValue({ items: [child], hasMore: false });
     store.listAffiliationsForUser.mockResolvedValue(page([row]));
