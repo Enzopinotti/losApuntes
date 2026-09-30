@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 
 import type { CreateFileUploadIntentDto } from '../dto/file.dto';
@@ -43,6 +43,16 @@ function cleanFilename(value: string): string {
   }
 
   return cleaned.slice(0, 180);
+}
+
+function uploadOperationFingerprint(input: {
+  filename: string;
+  mimeType: string;
+  byteSize: number;
+}): string {
+  return createHash('sha256')
+    .update(JSON.stringify([input.filename, input.mimeType, input.byteSize]))
+    .digest('hex');
 }
 
 function publicAsset(asset: FileAssetRecord): PublicFileAsset {
@@ -88,24 +98,55 @@ export class FileService {
       });
     }
 
-    const id = randomUUID();
-    const asset = await this.store.create({
-      id,
+    const filename = cleanFilename(dto.filename);
+    const fingerprint = uploadOperationFingerprint({
+      filename,
+      mimeType,
+      byteSize: dto.byteSize,
+    });
+    const proposedId = randomUUID();
+    const asset = await this.store.createOrReplayUpload({
+      id: proposedId,
       creatorUserId: userId,
       purpose: 'resource-asset',
       provider: this.storage.providerId,
-      objectKey: `resource-assets/${id}/${randomUUID()}`,
-      originalFilename: cleanFilename(dto.filename),
+      objectKey: `resource-assets/${proposedId}/${randomUUID()}`,
+      originalFilename: filename,
       declaredMimeType: mimeType,
       expectedByteSize: dto.byteSize,
+      uploadOperationKey: dto.operationKey,
+      uploadOperationFingerprint: fingerprint,
       state: 'pending',
       expiresAt: new Date(now.getTime() + PENDING_RECLAIM_MS),
     });
+    const created = asset.id === proposedId;
+
+    if (asset.uploadOperationFingerprint !== fingerprint) {
+      throw new ConflictException({
+        code: 'FILE_UPLOAD_IDEMPOTENCY_CONFLICT',
+        message: 'Upload operation key was already used for another file',
+      });
+    }
+
+    if (asset.state !== 'pending') {
+      throw new ConflictException({
+        code: 'FILE_UPLOAD_OPERATION_STATE_CONFLICT',
+        message: 'Upload operation can no longer issue upload credentials',
+      });
+    }
+
+    if (asset.expiresAt && asset.expiresAt <= now) {
+      await this.failAndDelete(asset, 'UPLOAD_EXPIRED', now);
+      throw new ConflictException({
+        code: 'FILE_UPLOAD_EXPIRED',
+        message: 'File upload intent expired',
+      });
+    }
 
     try {
       const upload = await this.storage.createUploadIntent({
         objectKey: asset.objectKey,
-        contentType: mimeType,
+        contentType: asset.declaredMimeType,
         contentLength: asset.expectedByteSize,
         expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
       });
@@ -126,12 +167,14 @@ export class FileService {
         },
       };
     } catch {
-      await this.store.markFailed(
-        asset.id,
-        userId,
-        'STORAGE_UNAVAILABLE',
-        new Date(now.getTime() + FAILED_RECLAIM_MS),
-      );
+      if (created) {
+        await this.store.markFailed(
+          asset.id,
+          userId,
+          'STORAGE_UNAVAILABLE',
+          new Date(now.getTime() + FAILED_RECLAIM_MS),
+        );
+      }
 
       throw new ServiceUnavailableException({
         code: 'FILE_STORAGE_UNAVAILABLE',

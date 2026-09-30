@@ -27,6 +27,8 @@ export interface FileAssetRecord {
   declaredMimeType: ResourceFileMimeType;
   verifiedMimeType?: ResourceFileMimeType;
   expectedByteSize: number;
+  uploadOperationKey?: string;
+  uploadOperationFingerprint?: string;
   actualByteSize?: number;
   etag?: string;
   state: FileAssetState;

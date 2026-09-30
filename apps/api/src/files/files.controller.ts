@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Header,
   Param,
   ParseUUIDPipe,
   Post,
@@ -20,6 +21,7 @@ export class FilesController {
   constructor(private readonly files: FileService) {}
 
   @Post('upload-intents')
+  @Header('Cache-Control', 'no-store')
   createUploadIntent(
     @Req() request: AuthenticatedRequest,
     @Body() dto: CreateFileUploadIntentDto,

@@ -32,7 +32,9 @@ function asset(overrides: Partial<FileAssetRecord> = {}): FileAssetRecord {
 
 function store(): jest.Mocked<FileAssetStore> {
   return {
-    create: jest.fn(),
+    createOrReplayUpload: jest.fn((input) =>
+      Promise.resolve({ ...input, createdAt: now, updatedAt: now }),
+    ),
     findOwned: jest.fn(),
     findById: jest.fn(),
     markReady: jest.fn(),
@@ -58,7 +60,7 @@ describe('FileService', () => {
   it('creates a private upload intent without exposing object keys', async () => {
     const fileStore = store();
     const objectStorage = storage();
-    fileStore.create.mockImplementation((input) =>
+    fileStore.createOrReplayUpload.mockImplementation((input) =>
       Promise.resolve({
         ...input,
         createdAt: now,
@@ -81,6 +83,7 @@ describe('FileService', () => {
     ).createUploadIntent(
       'user-1',
       {
+        operationKey: '22222222-2222-4222-8222-222222222222',
         filename: '../Apunte final.pdf',
         mimeType: 'application/pdf',
         byteSize: 8,
@@ -108,6 +111,7 @@ describe('FileService', () => {
       new FileService(fileStore, objectStorage).createUploadIntent(
         'user-1',
         {
+          operationKey: '22222222-2222-4222-8222-222222222222',
           filename: 'virus.exe',
           mimeType: 'application/octet-stream',
           byteSize: 10,
@@ -116,14 +120,15 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
-    expect(fileStore.create.mock.calls).toHaveLength(0);
+    expect(fileStore.createOrReplayUpload.mock.calls).toHaveLength(0);
   });
 
   it('marks intent failed when storage cannot sign upload', async () => {
     const fileStore = store();
     const objectStorage = storage();
-    const pending = asset();
-    fileStore.create.mockResolvedValue(pending);
+    fileStore.createOrReplayUpload.mockImplementation((input) =>
+      Promise.resolve({ ...input, createdAt: now, updatedAt: now }),
+    );
     objectStorage.createUploadIntent.mockRejectedValue(
       new Error('storage unavailable'),
     );
@@ -132,6 +137,7 @@ describe('FileService', () => {
       new FileService(fileStore, objectStorage).createUploadIntent(
         'user-1',
         {
+          operationKey: '22222222-2222-4222-8222-222222222222',
           filename: 'apunte.pdf',
           mimeType: 'application/pdf',
           byteSize: 8,
@@ -141,11 +147,90 @@ describe('FileService', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     expect(fileStore.markFailed.mock.calls).toContainEqual([
-      pending.id,
+      expect.any(String),
       'user-1',
       'STORAGE_UNAVAILABLE',
       expect.any(Date),
     ]);
+  });
+
+  it('replays the same upload operation and rejects semantic key reuse', async () => {
+    const fileStore = store();
+    const objectStorage = storage();
+    let replay: FileAssetRecord | null = null;
+
+    fileStore.createOrReplayUpload.mockImplementation((input) => {
+      replay ??= {
+        ...input,
+        id: '33333333-3333-4333-8333-333333333333',
+        objectKey: 'resource-assets/replay/file',
+        createdAt: now,
+        updatedAt: now,
+      };
+      return Promise.resolve(replay);
+    });
+    objectStorage.createUploadIntent.mockResolvedValue({
+      url: 'http://storage.test/signed-put',
+      method: 'PUT',
+      headers: {
+        'content-type': 'application/pdf',
+        'if-none-match': '*',
+      },
+      expiresAt: new Date(now.getTime() + 600_000),
+    });
+
+    const service = new FileService(fileStore, objectStorage);
+    const operationKey = '44444444-4444-4444-8444-444444444444';
+    const first = await service.createUploadIntent(
+      'user-1',
+      {
+        operationKey,
+        filename: 'apunte.pdf',
+        mimeType: 'application/pdf',
+        byteSize: 8,
+      },
+      now,
+    );
+    const second = await service.createUploadIntent(
+      'user-1',
+      {
+        operationKey,
+        filename: 'apunte.pdf',
+        mimeType: 'application/pdf',
+        byteSize: 8,
+      },
+      now,
+    );
+
+    expect(first.file.id).toBe(second.file.id);
+    expect(objectStorage.createUploadIntent.mock.calls).toHaveLength(2);
+    expect(
+      objectStorage.createUploadIntent.mock.calls.map(
+        ([input]) => input.objectKey,
+      ),
+    ).toEqual(['resource-assets/replay/file', 'resource-assets/replay/file']);
+
+    try {
+      await service.createUploadIntent(
+        'user-1',
+        {
+          operationKey,
+          filename: 'otro.pdf',
+          mimeType: 'application/pdf',
+          byteSize: 8,
+        },
+        now,
+      );
+      throw new Error('Expected idempotency conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConflictException);
+      if (!(error instanceof ConflictException)) throw error;
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({
+          code: 'FILE_UPLOAD_IDEMPOTENCY_CONFLICT',
+        }),
+      );
+    }
   });
 
   it('finalizes a valid PDF and is idempotent after ready', async () => {
@@ -335,6 +420,7 @@ describe('FileService', () => {
       new FileService(fileStore, objectStorage).createUploadIntent(
         'user-1',
         {
+          operationKey: '22222222-2222-4222-8222-222222222222',
           filename: '../\u0000',
           mimeType: 'application/pdf',
           byteSize: 8,
