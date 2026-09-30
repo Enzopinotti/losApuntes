@@ -61,18 +61,50 @@ export class MongoAuthSessionStore implements AuthSessionStore {
   }
 
   async listActiveForUser(
-    userId: string,
-    now: Date,
-  ): Promise<AuthSessionRecord[]> {
+    input: Parameters<AuthSessionStore['listActiveForUser']>[0],
+  ): ReturnType<AuthSessionStore['listActiveForUser']> {
     const documents = await this.model
       .find({
-        userId,
-        expiresAt: { $gt: now },
+        userId: input.userId,
+        credentialVersion: input.credentialVersion,
+        expiresAt: { $gt: input.now },
+        $or: [
+          {
+            clientType: 'web',
+            lastSeenAt: { $gt: input.webIdleAfter },
+          },
+          {
+            clientType: 'mobile',
+            lastSeenAt: { $gt: input.mobileIdleAfter },
+          },
+        ],
       })
-      .sort({ createdAt: -1, sessionId: -1 })
+      .sort({ lastSeenAt: -1, sessionId: -1 })
+      .limit(input.limit + 1)
       .exec();
 
-    return documents.map(toRecord);
+    return {
+      items: documents.slice(0, input.limit).map(toRecord),
+      hasMore: documents.length > input.limit,
+    };
+  }
+
+  async findActiveOwnedById(
+    userId: string,
+    sessionId: string,
+    credentialVersion: number,
+    now: Date,
+  ): Promise<AuthSessionRecord | null> {
+    const document = await this.model
+      .findOne({
+        userId,
+        sessionId,
+        credentialVersion,
+        expiresAt: { $gt: now },
+      })
+      .exec();
+
+    return document ? toRecord(document) : null;
   }
 
   async touchLastSeen(sessionId: string, lastSeenAt: Date): Promise<void> {
