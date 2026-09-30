@@ -13,6 +13,8 @@ const forbiddenPathPatterns = [
   /\.wt$/,
   /(^|\/)mongod\.lock$/,
   /(^|\/)journal\//,
+  /(^|\/)\.recovery\//,
+  /(^|\/)recovery-artifacts\//,
   /(^|\/)package-lock\.json$/,
   /\.(?:pem|key|p12|pfx|jks)$/,
   /\.(?:sqlite|sqlite3|db)$/,

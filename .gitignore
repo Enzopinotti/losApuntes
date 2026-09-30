@@ -35,3 +35,6 @@ Thumbs.db
 
 .expo/
 apps/mobile/.expo/
+
+.recovery/
+recovery-artifacts/
