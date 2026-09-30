@@ -27,6 +27,7 @@ import type {
 } from '../dto/organization.dto';
 import {
   ORGANIZATION_STORE,
+  type AuthorizedOrganizationMutationResult,
   type OrganizationStore,
 } from './organization.store';
 import type {
@@ -42,6 +43,16 @@ import type {
 const MAX_MANAGERS = 20;
 const MAX_LINKS = 20;
 const MAX_FEATURED_RESOURCES = 20;
+
+type AuthorizedMutationSuccess = Extract<
+  AuthorizedOrganizationMutationResult,
+  { status: 'ok' }
+>;
+type AuthorizedMutationKind = AuthorizedMutationSuccess['kind'];
+type AuthorizedMutationValue<K extends AuthorizedMutationKind> = Extract<
+  AuthorizedMutationSuccess,
+  { kind: K }
+>['value'];
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -1152,6 +1163,49 @@ export class OrganizationService {
       });
     }
     return manager;
+  }
+
+  private writeAuthority(
+    organization: OrganizationRecord,
+    userId: string,
+    allowedRoles: OrganizationManagerRole[],
+  ) {
+    return {
+      actorUserId: userId,
+      expectedManagementRevision: organization.managementRevision,
+      allowedRoles,
+    };
+  }
+
+  private authorizedValue<K extends AuthorizedMutationKind>(
+    result: AuthorizedOrganizationMutationResult,
+    kind: K,
+    stateConflict?: { code: string; message: string },
+  ): AuthorizedMutationValue<K> {
+    if (result.status === 'authority_stale') {
+      throw new ConflictException({
+        code: 'ORGANIZATION_AUTHORITY_STALE',
+        message:
+          'Organization management authority changed; refresh and retry the action',
+      });
+    }
+
+    if (result.status === 'state_conflict') {
+      if (stateConflict) {
+        throw new ConflictException(stateConflict);
+      }
+      this.revisionConflict();
+    }
+
+    if (result.status === 'not_found') {
+      this.notFound();
+    }
+
+    if (result.status !== 'ok' || result.kind !== kind) {
+      throw new Error('Organization authorized mutation returned wrong kind');
+    }
+
+    return result.value as AuthorizedMutationValue<K>;
   }
 
   private assertManagerMutationAllowed(
