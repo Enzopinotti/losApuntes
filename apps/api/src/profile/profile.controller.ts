@@ -19,6 +19,7 @@ import {
   CreateProfileActivityDto,
   CreateProfileDto,
   DeleteProfileActivityQueryDto,
+  ProfileActivityPageQueryDto,
   UpdateProfileActivityDto,
   UpdateProfileDto,
 } from './dto/profile.dto';
@@ -43,6 +44,15 @@ export class ProfileController {
   @Patch('profile/me')
   update(@Req() request: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
     return this.profile.updateProfile(request.user.id, dto);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Get('profile/me/activities')
+  activities(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: ProfileActivityPageQueryDto,
+  ) {
+    return this.profile.listOwnerActivities(request.user.id, query);
   }
 
   @UseGuards(AuthSessionGuard)
@@ -76,6 +86,14 @@ export class ProfileController {
       id,
       query.expectedRevision,
     );
+  }
+
+  @Get('profiles/:profileId/activities')
+  publicActivities(
+    @Param('profileId', new ParseUUIDPipe({ version: '4' })) profileId: string,
+    @Query() query: ProfileActivityPageQueryDto,
+  ) {
+    return this.profile.listPublicActivities(profileId, query);
   }
 
   @Get('profiles/:profileId')

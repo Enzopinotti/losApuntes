@@ -123,6 +123,8 @@ assert.equal(owner.response.status, 200);
 assert.equal(owner.body.onboardingRequired, false);
 assert.equal(Array.isArray(owner.body.academic.affiliations), true);
 assert.equal(Array.isArray(owner.body.activities), true);
+assert.equal(owner.body.activitiesNextCursor, null);
+assert.equal(owner.body.activitiesLimit, 20);
 
 const publicDefault = await request(`/profiles/${profileId}`);
 assert.equal(publicDefault.response.status, 200);
@@ -154,6 +156,7 @@ const updated = await request(
       expectedRevision: created.body.profile.revision,
       visibility: {
         academic: 'public',
+        activities: 'public',
         skills: 'public',
         professional: 'public',
       },
@@ -215,6 +218,55 @@ assert.equal(activity.response.status, 201, JSON.stringify(activity.body));
 assert.match(activity.body.activity.id, UUID_V4);
 assert.equal(activity.body.activity.title, 'Proyecto integrador');
 
+const secondActivity = await request(
+  '/profile/me/activities',
+  json(
+    'POST',
+    {
+      type: 'research',
+      title: 'Investigación de runtime',
+      description: 'Segunda fila para validar el cursor',
+    },
+    bearer,
+  ),
+);
+assert.equal(
+  secondActivity.response.status,
+  201,
+  JSON.stringify(secondActivity.body),
+);
+assert.match(secondActivity.body.activity.id, UUID_V4);
+
+const ownerActivitiesFirst = await request('/profile/me/activities?limit=1', {
+  headers: { authorization: bearer },
+});
+assert.equal(ownerActivitiesFirst.response.status, 200);
+assert.equal(ownerActivitiesFirst.body.items.length, 1);
+assert.equal(typeof ownerActivitiesFirst.body.nextCursor, 'string');
+
+const ownerActivitiesSecond = await request(
+  `/profile/me/activities?limit=1&cursor=${encodeURIComponent(
+    ownerActivitiesFirst.body.nextCursor,
+  )}`,
+  { headers: { authorization: bearer } },
+);
+assert.equal(ownerActivitiesSecond.response.status, 200);
+assert.equal(ownerActivitiesSecond.body.items.length, 1);
+assert.notEqual(
+  ownerActivitiesSecond.body.items[0].id,
+  ownerActivitiesFirst.body.items[0].id,
+);
+
+const invalidActivityCursor = await request(
+  '/profile/me/activities?limit=1&cursor=not-a-cursor',
+  { headers: { authorization: bearer } },
+);
+assert.equal(invalidActivityCursor.response.status, 422);
+assert.equal(
+  invalidActivityCursor.body.code,
+  'PROFILE_ACTIVITY_CURSOR_INVALID',
+);
+
 const publicAfter = await request(`/profiles/${profileId}`);
 assert.equal(publicAfter.response.status, 200);
 assert.equal(Array.isArray(publicAfter.body.profile.academic.affiliations), true);
@@ -228,6 +280,15 @@ assert.equal(
   false,
 );
 assert.equal('recommendationSignals' in publicAfter.body.profile, false);
+assert.equal(Array.isArray(publicAfter.body.profile.activities), true);
+assert.equal(publicAfter.body.profile.activitiesLimit, 20);
+
+const publicActivitiesFirst = await request(
+  `/profiles/${profileId}/activities?limit=1`,
+);
+assert.equal(publicActivitiesFirst.response.status, 200);
+assert.equal(publicActivitiesFirst.body.items.length, 1);
+assert.equal(typeof publicActivitiesFirst.body.nextCursor, 'string');
 
 const activityUpdated = await request(
   `/profile/me/activities/${activity.body.activity.id}`,
@@ -266,6 +327,15 @@ const deleted = await request(
 );
 assert.equal(deleted.response.status, 200);
 
+const secondDeleted = await request(
+  `/profile/me/activities/${secondActivity.body.activity.id}?expectedRevision=1`,
+  {
+    method: 'DELETE',
+    headers: { authorization: bearer },
+  },
+);
+assert.equal(secondDeleted.response.status, 200);
+
 console.log(
   JSON.stringify({
     event: 'profile.lifecycle.smoke.ok',
@@ -281,6 +351,9 @@ console.log(
       'career-opt-in-not-publicly-leaked',
       'activity-period-validation',
       'activity-create-update-delete',
+      'bounded-owner-activity-pagination',
+      'bounded-public-activity-pagination',
+      'activity-cursor-validation',
       'optimistic-activity-revision',
     ],
   }),

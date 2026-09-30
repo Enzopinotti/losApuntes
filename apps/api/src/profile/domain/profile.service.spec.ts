@@ -80,6 +80,25 @@ function activity(
   };
 }
 
+function activityPage(items: ProfileActivityRecord[], hasMore = false) {
+  return { items, hasMore };
+}
+
+async function rejectedUnprocessable(
+  operation: Promise<unknown>,
+): Promise<UnprocessableEntityException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof UnprocessableEntityException) return error;
+    throw error;
+  }
+
+  throw new Error(
+    'Expected operation to reject with UnprocessableEntityException',
+  );
+}
+
 function store(): jest.Mocked<ProfileStore> {
   return {
     findProfileByUserId: jest.fn(),
@@ -276,7 +295,7 @@ describe('ProfileService', () => {
     const act = activity();
 
     profileStore.findProfileByUserId.mockResolvedValue(row);
-    profileStore.listActivitiesForUser.mockResolvedValue([act]);
+    profileStore.listActivitiesForUser.mockResolvedValue(activityPage([act]));
     academicService.listAffiliations.mockResolvedValue({
       affiliations: [{ id: 'aff-1' }] as never[],
       truncated: false,
@@ -307,7 +326,80 @@ describe('ProfileService', () => {
 
     expect(result.academic.affiliations).toHaveLength(1);
     expect(result.activities[0]?.id).toBe(act.id);
+    expect(result.activitiesNextCursor).toBeNull();
+    expect(result.activitiesLimit).toBe(20);
+    expect(profileStore.listActivitiesForUser.mock.calls).toContainEqual([
+      { userId: 'user-1', limit: 20, after: undefined },
+    ]);
     expect(result.contributions.available).toBe(false);
+  });
+
+  it('continues owner activity inventory with an opaque stable cursor', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    configureAcademic(academicService);
+    const first = activity({
+      id: '22222222-2222-4222-8222-222222222222',
+      createdAt: new Date('2026-09-23T03:00:00.000Z'),
+    });
+    const second = activity({
+      id: '33333333-3333-4333-8333-333333333333',
+      createdAt: new Date('2026-09-22T03:00:00.000Z'),
+    });
+
+    profileStore.findProfileByUserId.mockResolvedValue(profile());
+    profileStore.listActivitiesForUser
+      .mockResolvedValueOnce(activityPage([first], true))
+      .mockResolvedValueOnce(activityPage([second]));
+
+    const initial = await service(
+      profileStore,
+      academicService,
+    ).getOwnerProfile('user-1');
+
+    if (initial.onboardingRequired) {
+      throw new Error('Expected onboarded profile');
+    }
+    expect(initial.activitiesNextCursor).toEqual(expect.any(String));
+
+    const next = await service(
+      profileStore,
+      academicService,
+    ).listOwnerActivities('user-1', {
+      limit: 20,
+      cursor: initial.activitiesNextCursor ?? undefined,
+    });
+
+    expect(next.items.map((item) => item.id)).toEqual([second.id]);
+    expect(next.nextCursor).toBeNull();
+    expect(profileStore.listActivitiesForUser.mock.calls.at(-1)).toEqual([
+      {
+        userId: 'user-1',
+        limit: 20,
+        after: {
+          createdAt: first.createdAt,
+          id: first.id,
+        },
+      },
+    ]);
+  });
+
+  it('rejects malformed activity cursors before querying persistence', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileByUserId.mockResolvedValue(profile());
+
+    const error = await rejectedUnprocessable(
+      service(profileStore, academicService).listOwnerActivities('user-1', {
+        limit: 20,
+        cursor: 'not-a-valid-cursor',
+      }),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'PROFILE_ACTIVITY_CURSOR_INVALID',
+    });
+    expect(profileStore.listActivitiesForUser.mock.calls).toHaveLength(0);
   });
 
   it('updates nested settings with optimistic concurrency', async () => {
@@ -440,7 +532,9 @@ describe('ProfileService', () => {
       },
     });
     profileStore.findProfileById.mockResolvedValue(row);
-    profileStore.listActivitiesForUser.mockResolvedValue([activity()]);
+    profileStore.listActivitiesForUser.mockResolvedValue(
+      activityPage([activity()]),
+    );
 
     const result = await service(
       profileStore,
@@ -450,6 +544,45 @@ describe('ProfileService', () => {
     expect(result.profile).toHaveProperty('academic');
     expect(result.profile).toHaveProperty('activities');
     expect(academicService.listAffiliations).toHaveBeenCalledWith('user-1');
+  });
+
+  it('paginates public activities only when that section is public', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const publicRow = profile({
+      visibility: {
+        ...profile().visibility,
+        activities: 'public',
+      },
+    });
+    const hiddenRow = profile({
+      visibility: {
+        ...profile().visibility,
+        activities: 'private',
+      },
+    });
+    profileStore.findProfileById
+      .mockResolvedValueOnce(publicRow)
+      .mockResolvedValueOnce(hiddenRow);
+    profileStore.listActivitiesForUser.mockResolvedValue(
+      activityPage([activity()], true),
+    );
+
+    const visible = await service(
+      profileStore,
+      academicService,
+    ).listPublicActivities(publicRow.id, { limit: 10 });
+    expect(visible.items).toHaveLength(1);
+    expect(visible.nextCursor).toEqual(expect.any(String));
+
+    await expect(
+      service(profileStore, academicService).listPublicActivities(
+        hiddenRow.id,
+        { limit: 10 },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(profileStore.listActivitiesForUser.mock.calls).toHaveLength(1);
   });
 
   it('requires an owner profile before creating activities', async () => {
@@ -796,7 +929,7 @@ describe('ProfileService', () => {
       },
     });
     profileStore.findProfileById.mockResolvedValue(row);
-    profileStore.listActivitiesForUser.mockResolvedValue([]);
+    profileStore.listActivitiesForUser.mockResolvedValue(activityPage([]));
 
     const result = await service(
       profileStore,

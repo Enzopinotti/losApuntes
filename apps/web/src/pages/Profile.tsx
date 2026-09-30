@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type {
   OwnerProfileResponse,
+  ProfileActivity,
   ProfileActivityType,
   ProfileSection,
   ProfileVisibility,
@@ -42,6 +43,15 @@ function toList(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function appendActivities(
+  current: ProfileActivity[],
+  next: ProfileActivity[],
+): ProfileActivity[] {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  for (const item of next) byId.set(item.id, item);
+  return [...byId.values()];
 }
 
 function messageFor(error: unknown): string {
@@ -185,6 +195,33 @@ const Profile = () => {
       });
       await load();
       setFeedback("Perfil actualizado.");
+    } catch (nextError) {
+      setError(messageFor(nextError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadMoreActivities = async () => {
+    if (!snapshot?.activitiesNextCursor) return;
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const page = await profileApi.activities(
+        snapshot.activitiesNextCursor,
+        snapshot.activitiesLimit,
+      );
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              activities: appendActivities(current.activities, page.items),
+              activitiesNextCursor: page.nextCursor,
+            }
+          : current,
+      );
     } catch (nextError) {
       setError(messageFor(nextError));
     } finally {
@@ -516,6 +553,17 @@ const Profile = () => {
               </li>
             ))}
           </ul>
+        )}
+
+        {snapshot.activitiesNextCursor && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => void loadMoreActivities()}
+          >
+            Cargar más actividades
+          </button>
         )}
 
         <form onSubmit={addActivity} className="profile-activity-form">

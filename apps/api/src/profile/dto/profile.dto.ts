@@ -262,6 +262,19 @@ export class UpdateProfileActivityDto {
   endedOn?: string | null;
 }
 
+export class ProfileActivityPageQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 20;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 2048)
+  cursor?: string;
+}
+
 export class DeleteProfileActivityQueryDto {
   @Type(() => Number)
   @IsInt()

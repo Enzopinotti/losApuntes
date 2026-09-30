@@ -162,7 +162,7 @@ export class ProfileActivity {
 export const ProfileActivitySchema =
   SchemaFactory.createForClass(ProfileActivity);
 
-ProfileActivitySchema.index({ userId: 1, updatedAt: -1, id: 1 });
+ProfileActivitySchema.index({ userId: 1, createdAt: -1, id: 1 });
 
 // Compile-time witnesses keep raw nested schema enums aligned with domain types.
 const _accent: ProfileAccentPreset | undefined = undefined;
