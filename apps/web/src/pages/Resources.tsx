@@ -79,6 +79,7 @@ const Resources = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const uploadAbort = useRef<AbortController | null>(null);
+  const uploadOperationKey = useRef<string | null>(null);
   const [shareInputs, setShareInputs] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -150,8 +151,12 @@ const Resources = () => {
     setError(null);
     setFeedback(null);
 
+    const operationKey =
+      uploadOperationKey.current ?? crypto.randomUUID();
+    uploadOperationKey.current = operationKey;
+
     try {
-      const intent = await resourcesApi.createUploadIntent(file);
+      const intent = await resourcesApi.createUploadIntent(file, operationKey);
       await resourcesApi.uploadDirect(
         intent.upload,
         file,
@@ -169,6 +174,7 @@ const Resources = () => {
       });
 
       setFile(null);
+      uploadOperationKey.current = null;
       setTitle("");
       setDescription("");
       setTags("");
@@ -379,7 +385,13 @@ const Resources = () => {
                 type="file"
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  const selected = event.target.files?.[0] ?? null;
+                  setFile(selected);
+                  uploadOperationKey.current = selected
+                    ? crypto.randomUUID()
+                    : null;
+                }}
               />
               <small>PDF, JPG, PNG o WebP · máximo 50 MiB.</small>
             </label>
@@ -469,7 +481,10 @@ const Resources = () => {
                 <button
                   type="button"
                   className="secondary"
-                  onClick={() => uploadAbort.current?.abort()}
+                  onClick={() => {
+                    uploadOperationKey.current = null;
+                    uploadAbort.current?.abort();
+                  }}
                 >
                   Cancelar subida
                 </button>
