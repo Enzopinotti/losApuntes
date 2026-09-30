@@ -99,22 +99,22 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 export const searchApi = {
-  search: (input: {
-    q: string;
-    scope: SearchScope;
-    limit?: number;
-    subjectId?: string;
-  }, signal?: AbortSignal) => {
+  search: (
+    input: {
+      q: string;
+      scope: SearchScope;
+      limit?: number;
+      subjectId?: string;
+    },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({
       q: input.q,
       scope: input.scope,
       limit: String(input.limit ?? 8),
     });
     if (input.subjectId) query.set("subjectId", input.subjectId);
-    return request<SearchResponse>(
-      `/search?${query.toString()}`,
-      signal,
-    );
+    return request<SearchResponse>(`/search?${query.toString()}`, signal);
   },
 
   contextual: (
