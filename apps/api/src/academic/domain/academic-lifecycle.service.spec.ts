@@ -68,10 +68,7 @@ function follow(
   };
 }
 
-function page<T>(
-  items: T[],
-  hasMore = false,
-): BoundedAcademicPage<T> {
+function page<T>(items: T[], hasMore = false): BoundedAcademicPage<T> {
   return { items, hasMore };
 }
 
@@ -157,7 +154,9 @@ describe('AcademicLifecycleService', () => {
     async ({ affiliations, expected }) => {
       const lifecycleStore = store();
       const academicService = academic();
-      lifecycleStore.listAffiliationsForUser.mockResolvedValue(page(affiliations));
+      lifecycleStore.listAffiliationsForUser.mockResolvedValue(
+        page(affiliations),
+      );
       lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue(
         page([
           participation(),
