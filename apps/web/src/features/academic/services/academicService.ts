@@ -1,5 +1,6 @@
 import type {
   AcademicAffiliation,
+  AcademicAffiliationListResponse,
   AcademicCatalogSearchResponse,
   AcademicFollow,
   AcademicLifecycleResponse,
@@ -104,9 +105,7 @@ export const academicApi = {
   lifecycle: () => request<AcademicLifecycleResponse>("/academic/me/lifecycle"),
 
   affiliations: () =>
-    request<{ affiliations: AcademicAffiliation[] }>(
-      "/academic/me/affiliations",
-    ),
+    request<AcademicAffiliationListResponse>("/academic/me/affiliations"),
 
   graduate: (affiliationId: string, graduatedOn: string) =>
     request<{
@@ -130,7 +129,10 @@ export const academicApi = {
       body: JSON.stringify({ roles }),
     }),
 
-  follows: () => request<{ follows: AcademicFollow[] }>("/academic/me/follows"),
+  follows: () =>
+    request<{ follows: AcademicFollow[]; truncated: boolean; limit: number }>(
+      "/academic/me/follows",
+    ),
 
   follow: (nodeId: string) =>
     request<{
