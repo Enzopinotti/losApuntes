@@ -16,6 +16,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { PilotModule } from './pilot/pilot.module';
 import { ProfileModule } from './profile/profile.module';
 import { QaModule } from './qa/qa.module';
+import { ReleaseModule } from './release/release.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
 import { SocialModule } from './social/social.module';
@@ -48,6 +49,7 @@ import { UsersModule } from './users/users.module';
     SocialModule,
     QaModule,
     HealthModule,
+    ReleaseModule,
   ],
   controllers: [AppController],
   providers: [AppService],
