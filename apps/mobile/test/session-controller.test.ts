@@ -241,7 +241,6 @@ test("an obsolete credential generation cannot clear a newer login", async () =>
   assert.equal(store.value, second);
 });
 
-
 test("foreground revalidation preserves authenticated authority on transient failure", async () => {
   const credential = "f".repeat(43);
   const store = new MemoryCredentialStore();
