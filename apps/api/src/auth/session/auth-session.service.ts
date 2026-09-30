@@ -176,9 +176,11 @@ export class AuthSessionService {
     }
 
     return {
-      sessions: sessions.map((session) =>
-        toPublicSession(session, session.id === currentSessionId),
-      ),
+      sessions: sessions
+        .slice(0, AUTH_SESSION_INVENTORY_LIMIT)
+        .map((session) =>
+          toPublicSession(session, session.id === currentSessionId),
+        ),
       truncated,
       limit: AUTH_SESSION_INVENTORY_LIMIT,
     };
