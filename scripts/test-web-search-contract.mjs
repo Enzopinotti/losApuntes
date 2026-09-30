@@ -14,6 +14,7 @@ const service = await read(
 assert.match(service, /credentials:\s*"include"/u);
 assert.match(service, /cache:\s*"no-store"/u);
 assert.match(service, /AbortSignal\.timeout\(15_000\)/u);
+assert.match(service, /AbortSignal\.any/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
@@ -22,6 +23,12 @@ const page = await read('apps/web/src/pages/Search.tsx');
 assert.match(page, /searchApi\s*\.\s*search\s*\(/u);
 assert.match(page, /searchApi\s*\.\s*contextual\s*\(/u);
 assert.match(page, /status\s*===\s*"authenticated"/u);
+assert.match(page, /useAsyncAuthorityFence/u);
+assert.match(page, /beginSearchRequest/u);
+assert.match(page, /isSearchRequestCurrent/u);
+assert.match(page, /finishSearchRequest/u);
+assert.match(page, /ticket\.signal/u);
+assert.doesNotMatch(page, /let\s+active\s*=\s*true/u);
 assert.doesNotMatch(page, /localStorage|sessionStorage/u);
 assert.doesNotMatch(page, /careerDiscoveryOptIn|recommendationSignals/u);
 
