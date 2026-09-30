@@ -48,6 +48,6 @@ import { createS3ObjectStorage } from './storage/s3-object-storage';
         }),
     },
   ],
-  exports: [FileService, MongooseModule],
+  exports: [FileService, MongooseModule, OBJECT_STORAGE],
 })
 export class FilesModule {}
