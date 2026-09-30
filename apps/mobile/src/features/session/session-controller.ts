@@ -173,6 +173,68 @@ export class SessionController {
     await Promise.allSettled([clear, revoke]);
   }
 
+  suspend(): void {
+    this.generation += 1;
+    this.activeOperation?.abort();
+    this.activeOperation = null;
+  }
+
+  async revalidateCurrent(): Promise<void> {
+    const credential = this.credential;
+    if (!credential) {
+      await this.restore();
+      return;
+    }
+
+    const preserved = this.snapshot;
+    const generation = this.startOperation();
+
+    try {
+      const result = await this.api.me(credential, this.activeOperation?.signal);
+      if (!this.isCurrent(generation)) return;
+
+      this.publish({
+        kind: "authenticated",
+        user: result.user,
+        session: result.session,
+      });
+    } catch (error) {
+      if (!this.isCurrent(generation)) return;
+
+      if (error instanceof ApiRequestError && error.kind === "unauthorized") {
+        this.credential = null;
+        await this.clearCredentialIfCurrent(generation);
+        if (this.isCurrent(generation)) {
+          this.publish({ kind: "unauthenticated" });
+        }
+        return;
+      }
+
+      if (
+        error instanceof ApiRequestError &&
+        error.code === "ACCOUNT_RESTRICTED"
+      ) {
+        this.credential = null;
+        await this.clearCredentialIfCurrent(generation);
+        if (this.isCurrent(generation)) {
+          this.publish({ kind: "restricted" });
+        }
+        return;
+      }
+
+      if (preserved.kind === "authenticated") {
+        this.publish(preserved);
+        return;
+      }
+
+      this.publish(
+        error instanceof ApiRequestError
+          ? bootstrapFailure(error)
+          : { kind: "error" },
+      );
+    }
+  }
+
   getCredentialSnapshot(): { credential: string; generation: number } | null {
     return this.credential
       ? { credential: this.credential, generation: this.generation }
@@ -215,10 +277,15 @@ export class SessionController {
   }
 
   private beginOperation(snapshot: SessionSnapshot): number {
+    const generation = this.startOperation();
+    this.publish(snapshot);
+    return generation;
+  }
+
+  private startOperation(): number {
     this.generation += 1;
     this.activeOperation?.abort();
     this.activeOperation = new AbortController();
-    this.publish(snapshot);
     return this.generation;
   }
 
