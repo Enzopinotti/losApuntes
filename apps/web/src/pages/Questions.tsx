@@ -15,6 +15,15 @@ import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
 import "./Community.scss";
 
+function appendAnswers(
+  current: AnswerView[],
+  next: AnswerView[],
+): AnswerView[] {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  for (const item of next) byId.set(item.id, item);
+  return [...byId.values()];
+}
+
 function messageFor(error: unknown): string {
   if (!isCommunityApiError(error)) {
     return "No pudimos completar la operación.";
@@ -155,6 +164,35 @@ const Questions = () => {
       setFeedback("Pregunta publicada.");
       await loadList();
       await openQuestion(result.question.id);
+    } catch (nextError) {
+      setError(messageFor(nextError));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const loadMoreAnswers = async () => {
+    if (!selected?.answersNextCursor) return;
+
+    const questionId = selected.question.id;
+    setBusy("answers-more");
+    setError(null);
+
+    try {
+      const page = await communityApi.answers(
+        questionId,
+        selected.answersNextCursor,
+        selected.answersLimit,
+      );
+      setSelected((current) =>
+        current && current.question.id === questionId
+          ? {
+              ...current,
+              answers: appendAnswers(current.answers, page.items),
+              answersNextCursor: page.nextCursor,
+            }
+          : current,
+      );
     } catch (nextError) {
       setError(messageFor(nextError));
     } finally {
@@ -576,6 +614,19 @@ const Questions = () => {
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {selected.answersNextCursor && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy === "answers-more"}
+                  onClick={() => void loadMoreAnswers()}
+                >
+                  {busy === "answers-more"
+                    ? "Cargando…"
+                    : "Cargar más respuestas"}
+                </button>
               )}
 
               {authenticated && selected.question.viewer.canAnswer && (
