@@ -1,5 +1,6 @@
 import type { Connection } from 'mongoose';
 
+import type { ObjectStorage } from '../files/storage/object-storage';
 import { HealthService } from './health.service';
 
 function connectionStub(
@@ -14,10 +15,24 @@ function connectionStub(
   } as unknown as Connection;
 }
 
+function storageStub(
+  headObject: ObjectStorage['headObject'] = () => Promise.resolve(null),
+): ObjectStorage {
+  return {
+    providerId: 's3',
+    createUploadIntent: jest.fn(),
+    headObject,
+    readPrefix: jest.fn(),
+    createDownloadIntent: jest.fn(),
+    deleteObject: jest.fn(),
+  };
+}
+
 describe('HealthService', () => {
-  it('keeps liveness independent from Mongo state', () => {
+  it('keeps liveness independent from dependency state', () => {
     const service = new HealthService(
       connectionStub(0, () => Promise.reject(new Error('offline'))),
+      storageStub(() => Promise.reject(new Error('storage offline'))),
     );
 
     expect(service.liveness()).toEqual({
@@ -26,25 +41,45 @@ describe('HealthService', () => {
     });
   });
 
-  it('reports ready only after a successful Mongo ping', async () => {
+  it('reports ready publicly without exposing dependency names', async () => {
     const ping = jest.fn(() => Promise.resolve({ ok: 1 }));
-    const service = new HealthService(connectionStub(1, ping));
+    const headObject = jest.fn(() => Promise.resolve(null));
+    const service = new HealthService(
+      connectionStub(1, ping),
+      storageStub(headObject),
+    );
 
     await expect(service.readiness()).resolves.toEqual({
       status: 'ready',
       service: 'api',
-      checks: [
-        {
-          name: 'mongo',
-          status: 'ok',
-          required: true,
-        },
-      ],
     });
     expect(ping).toHaveBeenCalledTimes(1);
+    expect(headObject).toHaveBeenCalledWith('__health__/probe', 1_500);
   });
 
-  it('sanitizes a Mongo readiness failure', async () => {
+  it('keeps optional storage failure degraded instead of not-ready', async () => {
+    const service = new HealthService(
+      connectionStub(1, () => Promise.resolve({ ok: 1 })),
+      storageStub(() =>
+        Promise.reject(new Error('https://secret-storage.example.invalid')),
+      ),
+    );
+
+    await expect(service.readiness()).resolves.toEqual({
+      status: 'degraded',
+      service: 'api',
+    });
+
+    const diagnostics = await service.diagnostics();
+    expect(diagnostics.status).toBe('degraded');
+    expect(diagnostics.checks).toEqual([
+      { name: 'mongo', status: 'ok', required: true },
+      { name: 'storage', status: 'failed', required: false },
+    ]);
+    expect(JSON.stringify(diagnostics)).not.toContain('secret-storage');
+  });
+
+  it('returns not_ready when required Mongo authority fails', async () => {
     const service = new HealthService(
       connectionStub(1, () =>
         Promise.reject(
@@ -53,6 +88,7 @@ describe('HealthService', () => {
           ),
         ),
       ),
+      storageStub(),
     );
 
     const result = await service.readiness();
@@ -60,13 +96,6 @@ describe('HealthService', () => {
     expect(result).toEqual({
       status: 'not_ready',
       service: 'api',
-      checks: [
-        {
-          name: 'mongo',
-          status: 'failed',
-          required: true,
-        },
-      ],
     });
     expect(JSON.stringify(result)).not.toContain('private.example');
     expect(JSON.stringify(result)).not.toContain('password');
@@ -75,6 +104,7 @@ describe('HealthService', () => {
   it('bounds a hanging Mongo readiness check', async () => {
     const service = new HealthService(
       connectionStub(1, () => new Promise(() => undefined)),
+      storageStub(),
     );
 
     const startedAt = Date.now();

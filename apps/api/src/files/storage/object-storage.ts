@@ -24,7 +24,10 @@ export interface ObjectStorage {
     contentLength: number;
     expiresInSeconds: number;
   }): Promise<ObjectStorageUploadIntent>;
-  headObject(objectKey: string): Promise<ObjectStorageHead | null>;
+  headObject(
+    objectKey: string,
+    timeoutMs?: number,
+  ): Promise<ObjectStorageHead | null>;
   readPrefix(objectKey: string, maximumBytes: number): Promise<Uint8Array>;
   createDownloadIntent(input: {
     objectKey: string;

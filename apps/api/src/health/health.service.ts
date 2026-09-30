@@ -1,19 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ConnectionStates, type Connection } from 'mongoose';
 
-const MONGO_READINESS_TIMEOUT_MS = 1_500;
+import {
+  OBJECT_STORAGE,
+  type ObjectStorage,
+} from '../files/storage/object-storage';
+
+const READINESS_TIMEOUT_MS = 1_500;
+const STORAGE_PROBE_KEY = '__health__/probe';
+
+export type HealthStatus = 'ready' | 'degraded' | 'not_ready';
 
 export type HealthCheckResult = {
-  name: 'mongo';
+  name: 'mongo' | 'storage';
   status: 'ok' | 'failed';
-  required: true;
+  required: boolean;
 };
 
 export type ReadinessResult = {
-  status: 'ready' | 'not_ready';
+  status: HealthStatus;
   service: 'api';
+};
+
+export type OperatorHealthResult = ReadinessResult & {
   checks: HealthCheckResult[];
+  checkedAt: string;
 };
 
 async function withTimeout(
@@ -27,7 +39,7 @@ async function withTimeout(
       operation,
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(
-          () => reject(new Error('Mongo readiness check timed out')),
+          () => reject(new Error('Readiness check timed out')),
           timeoutMs,
         );
       }),
@@ -41,7 +53,10 @@ async function withTimeout(
 
 @Injectable()
 export class HealthService {
-  constructor(@InjectConnection() private readonly connection: Connection) {}
+  constructor(
+    @InjectConnection() private readonly connection: Connection,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+  ) {}
 
   liveness() {
     return {
@@ -50,15 +65,34 @@ export class HealthService {
     };
   }
 
-  async readiness(
-    timeoutMs = MONGO_READINESS_TIMEOUT_MS,
-  ): Promise<ReadinessResult> {
-    const check = await this.mongoCheck(timeoutMs);
+  async readiness(timeoutMs = READINESS_TIMEOUT_MS): Promise<ReadinessResult> {
+    const diagnostics = await this.diagnostics(timeoutMs);
 
     return {
-      status: check.status === 'ok' ? 'ready' : 'not_ready',
+      status: diagnostics.status,
+      service: diagnostics.service,
+    };
+  }
+
+  async diagnostics(
+    timeoutMs = READINESS_TIMEOUT_MS,
+  ): Promise<OperatorHealthResult> {
+    const [mongo, storage] = await Promise.all([
+      this.mongoCheck(timeoutMs),
+      this.storageCheck(timeoutMs),
+    ]);
+    const checks = [mongo, storage];
+
+    return {
+      status:
+        mongo.status === 'failed'
+          ? 'not_ready'
+          : storage.status === 'failed'
+            ? 'degraded'
+            : 'ready',
       service: 'api',
-      checks: [check],
+      checks,
+      checkedAt: new Date().toISOString(),
     };
   }
 
@@ -87,6 +121,24 @@ export class HealthService {
         name: 'mongo',
         status: 'failed',
         required: true,
+      };
+    }
+  }
+
+  private async storageCheck(timeoutMs: number): Promise<HealthCheckResult> {
+    try {
+      await this.storage.headObject(STORAGE_PROBE_KEY, timeoutMs);
+
+      return {
+        name: 'storage',
+        status: 'ok',
+        required: false,
+      };
+    } catch {
+      return {
+        name: 'storage',
+        status: 'failed',
+        required: false,
       };
     }
   }
