@@ -53,13 +53,11 @@ const ready = await requestJson('/health/ready');
 assert.equal(ready.response.status, 200);
 assert.equal(ready.body.status, 'ready');
 assert.equal(ready.body.service, 'api');
-assert.deepEqual(ready.body.checks, [
-  {
-    name: 'mongo',
-    status: 'ok',
-    required: true,
-  },
-]);
+assert.deepEqual(ready.body, {
+  status: 'ready',
+  service: 'api',
+});
+assert.equal('checks' in ready.body, false);
 assertRequestId(ready.response);
 
 const missing = await requestJson('/__runtime_smoke_missing__');
