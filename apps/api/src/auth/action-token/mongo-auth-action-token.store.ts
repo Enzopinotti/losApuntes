@@ -126,12 +126,14 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
     return document ? toRecord(document) : null;
   }
 
-  async listActiveForUserPurpose(
+  async trimActiveForUserPurpose(
     userId: string,
     purpose: AuthActionPurpose,
     now: Date,
-  ): Promise<AuthActionTokenRecord[]> {
-    const documents = await this.model
+    keep: number,
+    consumedAt: Date,
+  ): Promise<void> {
+    const retained = await this.model
       .find({
         userId,
         purpose,
@@ -139,9 +141,36 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
         expiresAt: { $gt: now },
       })
       .sort({ createdAt: -1, tokenId: -1 })
+      .limit(keep)
+      .select({ tokenId: 1, createdAt: 1, _id: 0 })
+      .lean<Array<{ tokenId: string; createdAt: Date }>>()
       .exec();
 
-    return documents.map(toRecord);
+    if (retained.length < keep) return;
+
+    const cutoff = retained.at(-1);
+    if (!cutoff) return;
+
+    await this.model
+      .updateMany(
+        {
+          userId,
+          purpose,
+          consumedAt: null,
+          expiresAt: { $gt: now },
+          $or: [
+            { createdAt: { $lt: cutoff.createdAt } },
+            {
+              createdAt: cutoff.createdAt,
+              tokenId: { $lt: cutoff.tokenId },
+            },
+          ],
+        },
+        {
+          $set: { consumedAt },
+        },
+      )
+      .exec();
   }
 
   async invalidateByIds(
