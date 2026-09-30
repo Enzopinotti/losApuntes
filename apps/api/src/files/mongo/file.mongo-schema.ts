@@ -36,6 +36,12 @@ export class FileAsset {
   @Prop({ required: true, min: 1 })
   expectedByteSize!: number;
 
+  @Prop()
+  uploadOperationKey?: string;
+
+  @Prop()
+  uploadOperationFingerprint?: string;
+
   @Prop({ min: 0 })
   actualByteSize?: number;
 
@@ -75,5 +81,13 @@ FileAssetSchema.index(
   {
     unique: true,
     partialFilterExpression: { claimRef: { $type: 'string' } },
+  },
+);
+
+FileAssetSchema.index(
+  { creatorUserId: 1, purpose: 1, uploadOperationKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { uploadOperationKey: { $type: 'string' } },
   },
 );

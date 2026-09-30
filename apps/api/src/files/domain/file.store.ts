@@ -7,8 +7,15 @@ export type CreateFileAssetRecord = Omit<
   'createdAt' | 'updatedAt'
 >;
 
+export type CreateUploadFileAssetRecord = CreateFileAssetRecord & {
+  uploadOperationKey: string;
+  uploadOperationFingerprint: string;
+};
+
 export interface FileAssetStore {
-  create(input: CreateFileAssetRecord): Promise<FileAssetRecord>;
+  createOrReplayUpload(
+    input: CreateUploadFileAssetRecord,
+  ): Promise<FileAssetRecord>;
   findOwned(id: string, creatorUserId: string): Promise<FileAssetRecord | null>;
   findById(id: string): Promise<FileAssetRecord | null>;
   markReady(

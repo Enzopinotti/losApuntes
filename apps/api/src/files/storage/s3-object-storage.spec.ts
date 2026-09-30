@@ -65,9 +65,13 @@ describe('S3ObjectStorage', () => {
       'X-Amz-Expires',
       'X-Amz-Signature',
       'X-Amz-SignedHeaders',
+      'response-cache-control',
       'response-content-disposition',
       'response-content-type',
     ]);
+    expect(url.searchParams.get('response-cache-control')).toBe(
+      'private, no-store',
+    );
     expect(url.searchParams.get('response-content-type')).toBe(
       'application/pdf',
     );
