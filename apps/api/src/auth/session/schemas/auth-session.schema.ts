@@ -39,3 +39,10 @@ export const AuthSessionSchema = SchemaFactory.createForClass(AuthSession);
 
 AuthSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 AuthSessionSchema.index({ userId: 1, expiresAt: -1, createdAt: -1 });
+AuthSessionSchema.index({
+  userId: 1,
+  credentialVersion: 1,
+  clientType: 1,
+  lastSeenAt: -1,
+  sessionId: -1,
+});
