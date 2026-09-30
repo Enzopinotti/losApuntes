@@ -1,15 +1,28 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { PublicProfileResponse } from "../features/profile/interfaces";
+import type {
+  ProfileActivity,
+  PublicProfileResponse,
+} from "../features/profile/interfaces";
 import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
 import "./Profile.scss";
 
+function appendActivities(
+  current: ProfileActivity[],
+  next: ProfileActivity[],
+): ProfileActivity[] {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  for (const item of next) byId.set(item.id, item);
+  return [...byId.values()];
+}
+
 const PublicProfile = () => {
   const { profileId } = useParams();
   const [snapshot, setSnapshot] = useState<PublicProfileResponse | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +51,37 @@ const PublicProfile = () => {
       active = false;
     };
   }, [profileId]);
+
+  const loadMoreActivities = async () => {
+    if (!profileId || !snapshot?.profile.activitiesNextCursor) return;
+
+    setLoadingMore(true);
+    setError(null);
+
+    try {
+      const page = await profileApi.publicActivities(
+        profileId,
+        snapshot.profile.activitiesNextCursor,
+        snapshot.profile.activitiesLimit ?? 20,
+      );
+      setSnapshot((current) => {
+        if (!current?.profile.activities) return current;
+
+        return {
+          ...current,
+          profile: {
+            ...current.profile,
+            activities: appendActivities(current.profile.activities, page.items),
+            activitiesNextCursor: page.nextCursor,
+          },
+        };
+      });
+    } catch {
+      setError("No pudimos cargar más actividades de este perfil.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   if (error) {
     return (
@@ -142,6 +186,16 @@ const PublicProfile = () => {
                   </li>
                 ))}
               </ul>
+            )}
+            {profile.activitiesNextCursor && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={loadingMore}
+                onClick={() => void loadMoreActivities()}
+              >
+                {loadingMore ? "Cargando…" : "Cargar más actividades"}
+              </button>
             )}
           </section>
         )}
