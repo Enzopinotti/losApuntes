@@ -240,3 +240,113 @@ test("an obsolete credential generation cannot clear a newer login", async () =>
   assert.equal(controller.getCredentialSnapshot()?.credential, second);
   assert.equal(store.value, second);
 });
+
+
+test("foreground revalidation preserves authenticated authority on transient failure", async () => {
+  const credential = "f".repeat(43);
+  const store = new MemoryCredentialStore();
+  let failRevalidation = false;
+  const controller = new SessionController(
+    api({
+      mobileLogin: async () => authResult(credential),
+      me: async () => {
+        if (failRevalidation) {
+          throw new ApiRequestError(
+            "offline",
+            null,
+            "NETWORK_UNAVAILABLE",
+            "offline",
+          );
+        }
+        return { user: USER, session: SESSION };
+      },
+    }),
+    store,
+  );
+
+  await controller.login({
+    email: "student@example.edu",
+    password: "correct horse battery staple",
+  });
+  failRevalidation = true;
+
+  await controller.revalidateCurrent();
+
+  assert.equal(controller.getSnapshot().kind, "authenticated");
+  assert.equal(controller.getCredentialSnapshot()?.credential, credential);
+  assert.equal(store.value, credential);
+});
+
+test("foreground revalidation clears a revoked authoritative credential", async () => {
+  const credential = "g".repeat(43);
+  const store = new MemoryCredentialStore();
+  let revoked = false;
+  const controller = new SessionController(
+    api({
+      mobileLogin: async () => authResult(credential),
+      me: async () => {
+        if (revoked) {
+          throw new ApiRequestError(
+            "unauthorized",
+            401,
+            "AUTHENTICATION_REQUIRED",
+            "Authentication required",
+          );
+        }
+        return { user: USER, session: SESSION };
+      },
+    }),
+    store,
+  );
+
+  await controller.login({
+    email: "student@example.edu",
+    password: "correct horse battery staple",
+  });
+  revoked = true;
+
+  await controller.revalidateCurrent();
+
+  assert.equal(controller.getSnapshot().kind, "unauthenticated");
+  assert.equal(controller.getCredentialSnapshot(), null);
+  assert.equal(store.value, null);
+});
+
+test("background suspension fences an in-flight foreground revalidation", async () => {
+  const credential = "h".repeat(43);
+  const pending = deferred<AuthenticatedSessionResponse>();
+  const store = new MemoryCredentialStore();
+  let revalidating = false;
+  const controller = new SessionController(
+    api({
+      mobileLogin: async () => authResult(credential),
+      me: async () =>
+        revalidating ? pending.promise : { user: USER, session: SESSION },
+    }),
+    store,
+  );
+
+  await controller.login({
+    email: "student@example.edu",
+    password: "correct horse battery staple",
+  });
+  revalidating = true;
+
+  const revalidation = controller.revalidateCurrent();
+  await Promise.resolve();
+  controller.suspend();
+
+  pending.resolve({
+    user: { ...USER, email: "stale@example.edu" },
+    session: { ...SESSION, id: "stale-session" },
+  });
+  await revalidation;
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "authenticated");
+  if (snapshot.kind === "authenticated") {
+    assert.equal(snapshot.user.email, USER.email);
+    assert.equal(snapshot.session.id, SESSION.id);
+  }
+  assert.equal(store.value, credential);
+});
