@@ -81,11 +81,20 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - Support owner/channel:
 - Incident escalation channel:
 
-## Rollback
+## Recovery / rollback
 
 - Previous known-good SHA/image:
 - Data/schema migration involved:
-- Backup/snapshot reference:
+- Recovery required for this release: yes/no
+- Recovery backup set id:
+- Recovery point source SHA:
+- Recovery point created-at / age at deployment:
+- Recovery gate result:
+- Off-host copy reference:
+- Last isolated restore drill reference:
+- Observed restore-drill RPO:
+- Observed restore-drill RTO:
+- Schema/data rollback compatibility:
 - Rollback command/runbook:
 - Rollback rehearsal/evidence:
 - Post-rollback smoke:
@@ -105,4 +114,5 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - every CI/run reference must belong to the exact SHA it claims to verify;
 - local smoke does not replace provider/production evidence;
 - a deployment is not launch-ready while any required field is unknown or any high/critical blocker remains open;
+- a data-sensitive/destructive release with existing durable data requires a recent verified recovery point; only a genuinely empty first install may record recovery as N/A;
 - keep the project Excel reconciled with this record rather than creating a second planning backlog here.
