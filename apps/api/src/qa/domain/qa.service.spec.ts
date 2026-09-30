@@ -273,20 +273,16 @@ describe('QaService', () => {
         hasMore: false,
       });
 
-    const first = await service(
-      qaStore,
-      academicApi,
-      profileApi,
-    ).listAnswers(questionId, { limit: 1 }, 'user-a');
+    const first = await service(qaStore, academicApi, profileApi).listAnswers(
+      questionId,
+      { limit: 1 },
+      'user-a',
+    );
 
     expect(typeof first.nextCursor).toBe('string');
     expect(first.items.map((item) => item.id)).toEqual([firstAnswer.id]);
 
-    const second = await service(
-      qaStore,
-      academicApi,
-      profileApi,
-    ).listAnswers(
+    const second = await service(qaStore, academicApi, profileApi).listAnswers(
       questionId,
       {
         limit: 1,
