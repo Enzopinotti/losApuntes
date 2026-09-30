@@ -15,9 +15,7 @@ export type BoundedAcademicPage<T> = {
 
 export function requireCompleteAcademicPage<T>(
   page: BoundedAcademicPage<T>,
-  collection:
-    | 'affiliations'
-    | 'current_subject_participations',
+  collection: 'affiliations' | 'current_subject_participations',
 ): T[] {
   if (page.hasMore) {
     throw new ConflictException({
