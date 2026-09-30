@@ -18,18 +18,32 @@ assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
 
+const interfaces = await read('apps/web/src/features/profile/interfaces.ts');
+assert.match(interfaces, /activitiesTruncated:\s*boolean/u);
+assert.match(interfaces, /activitiesLimit:\s*number/u);
+assert.match(interfaces, /affiliationsTruncated:\s*boolean/u);
+assert.match(interfaces, /participationsTruncated:\s*boolean/u);
+
 const owner = await read('apps/web/src/pages/Profile.tsx');
 assert.match(owner, /profileApi\.me\(\)/u);
 assert.match(owner, /profileApi\.update\(/u);
 assert.match(owner, /profileApi\.createActivity\(/u);
 assert.doesNotMatch(owner, /localStorage|sessionStorage/u);
 assert.doesNotMatch(owner, /career_id|cohort_year/u);
+assert.match(owner, /snapshot\.activitiesTruncated/u);
+assert.match(owner, /snapshot\.activitiesLimit/u);
+assert.match(owner, /academic\.affiliationsTruncated/u);
+assert.match(owner, /academic\.participationsTruncated/u);
 
 const publicPage = await read('apps/web/src/pages/PublicProfile.tsx');
 assert.match(publicPage, /profileApi\s*\.\s*publicProfile\s*\(/u);
 assert.doesNotMatch(publicPage, /profileApi\.me\(\)/u);
 assert.doesNotMatch(publicPage, /careerDiscoveryOptIn|recommendationSignals/u);
 assert.doesNotMatch(publicPage, /localStorage|sessionStorage/u);
+assert.match(publicPage, /profile\.activitiesTruncated/u);
+assert.match(publicPage, /profile\.activitiesLimit/u);
+assert.match(publicPage, /academic\.affiliationsTruncated/u);
+assert.match(publicPage, /academic\.participationsTruncated/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(routes, /path:\s*"profile"/u);
