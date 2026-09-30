@@ -58,7 +58,11 @@ export type ProfileActivity = {
 
 export type AcademicProfileProjection = {
   affiliations: unknown[];
+  affiliationsTruncated: boolean;
+  affiliationLimit: number;
   participations: unknown[];
+  participationsTruncated: boolean;
+  participationLimit: number;
   currentContext: unknown | null;
 };
 
@@ -71,6 +75,8 @@ export type OwnerProfileResponse =
       profile: OwnerProfile;
       academic: AcademicProfileProjection;
       activities: ProfileActivity[];
+      activitiesTruncated: boolean;
+      activitiesLimit: number;
       contributions: {
         available: false;
         items: never[];
@@ -98,6 +104,8 @@ export type PublicProfileResponse = {
       learningTopics: string[];
     };
     activities?: ProfileActivity[];
+    activitiesTruncated?: boolean;
+    activitiesLimit?: number;
     skills?: {
       languages: string[];
       skills: string[];
