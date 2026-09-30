@@ -236,9 +236,7 @@ describe('MongoAcademicStore bounded redirect fan-out', () => {
       {} as never,
     );
 
-    await expect(
-      store.findDirectRedirectSources([], 10),
-    ).resolves.toEqual({
+    await expect(store.findDirectRedirectSources([], 10)).resolves.toEqual({
       items: [],
       hasMore: false,
     });
