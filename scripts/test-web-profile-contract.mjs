@@ -14,6 +14,8 @@ const service = await read(
 assert.match(service, /credentials:\s*"include"/u);
 assert.match(service, /cache:\s*"no-store"/u);
 assert.match(service, /AbortSignal\.timeout\(15_000\)/u);
+assert.match(service, /profile\/me\/activities\?limit=/u);
+assert.match(service, /profiles\/\$\{encodeURIComponent\(profileId\)\}\/activities/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
@@ -22,11 +24,17 @@ const owner = await read('apps/web/src/pages/Profile.tsx');
 assert.match(owner, /profileApi\.me\(\)/u);
 assert.match(owner, /profileApi\.update\(/u);
 assert.match(owner, /profileApi\.createActivity\(/u);
+assert.match(owner, /profileApi\.activities\(/u);
+assert.match(owner, /activitiesNextCursor/u);
+assert.match(owner, /appendActivities/u);
 assert.doesNotMatch(owner, /localStorage|sessionStorage/u);
 assert.doesNotMatch(owner, /career_id|cohort_year/u);
 
 const publicPage = await read('apps/web/src/pages/PublicProfile.tsx');
 assert.match(publicPage, /profileApi\s*\.\s*publicProfile\s*\(/u);
+assert.match(publicPage, /profileApi\.publicActivities\(/u);
+assert.match(publicPage, /activitiesNextCursor/u);
+assert.match(publicPage, /appendActivities/u);
 assert.doesNotMatch(publicPage, /profileApi\.me\(\)/u);
 assert.doesNotMatch(publicPage, /careerDiscoveryOptIn|recommendationSignals/u);
 assert.doesNotMatch(publicPage, /localStorage|sessionStorage/u);
