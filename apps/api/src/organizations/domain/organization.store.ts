@@ -44,6 +44,83 @@ export type ManagerChangeResult =
   | { status: 'target_state_conflict' }
   | { status: 'final_owner' };
 
+export type OrganizationWriteAuthority = {
+  actorUserId: string;
+  expectedManagementRevision: number;
+  allowedRoles: OrganizationManagerRole[];
+};
+
+export type AuthorizedOrganizationMutation =
+  | {
+      kind: 'organization.update';
+      expectedRevision: number;
+      patch: UpdateOrganizationRecord;
+    }
+  | {
+      kind: 'post.create';
+      record: Omit<OrganizationPostRecord, 'createdAt' | 'updatedAt'>;
+    }
+  | {
+      kind: 'post.update';
+      postId: string;
+      expectedRevision: number;
+      patch: Partial<
+        Pick<OrganizationPostRecord, 'title' | 'body' | 'subjectId'>
+      >;
+    }
+  | { kind: 'post.delete'; postId: string }
+  | {
+      kind: 'event.create';
+      record: Omit<OrganizationEventRecord, 'createdAt' | 'updatedAt'>;
+    }
+  | {
+      kind: 'event.update';
+      eventId: string;
+      expectedRevision: number;
+      patch: Partial<
+        Pick<
+          OrganizationEventRecord,
+          | 'title'
+          | 'description'
+          | 'startsAt'
+          | 'endsAt'
+          | 'locationLabel'
+          | 'externalUrl'
+          | 'state'
+        >
+      >;
+    }
+  | {
+      kind: 'link.create';
+      record: Omit<OrganizationLinkRecord, 'createdAt' | 'updatedAt'>;
+    }
+  | { kind: 'link.delete'; linkId: string }
+  | {
+      kind: 'resource.feature';
+      resourceId: string;
+      createdByUserId: string;
+    }
+  | { kind: 'resource.unfeature'; resourceId: string };
+
+export type AuthorizedOrganizationMutationResult =
+  | { status: 'authority_stale' }
+  | { status: 'state_conflict' }
+  | { status: 'not_found' }
+  | { status: 'ok'; kind: 'organization.update'; value: OrganizationRecord }
+  | { status: 'ok'; kind: 'post.create'; value: OrganizationPostRecord }
+  | { status: 'ok'; kind: 'post.update'; value: OrganizationPostRecord }
+  | { status: 'ok'; kind: 'post.delete'; value: true }
+  | { status: 'ok'; kind: 'event.create'; value: OrganizationEventRecord }
+  | { status: 'ok'; kind: 'event.update'; value: OrganizationEventRecord }
+  | { status: 'ok'; kind: 'link.create'; value: OrganizationLinkRecord }
+  | { status: 'ok'; kind: 'link.delete'; value: true }
+  | {
+      status: 'ok';
+      kind: 'resource.feature';
+      value: OrganizationFeaturedResourceRecord;
+    }
+  | { status: 'ok'; kind: 'resource.unfeature'; value: true };
+
 export interface OrganizationStore {
   createWithOwner(input: {
     organization: CreateOrganizationRecord;
@@ -65,12 +142,12 @@ export interface OrganizationStore {
     after?: OrganizationCursor;
   }): Promise<{ items: OrganizationRecord[]; hasMore: boolean }>;
 
-  updateOwnedProfile(input: {
+  commitAuthorizedMutation(input: {
     organizationId: string;
-    expectedRevision: number;
-    patch: UpdateOrganizationRecord;
+    authority: OrganizationWriteAuthority;
+    mutation: AuthorizedOrganizationMutation;
     audit: OrganizationAuditRecord;
-  }): Promise<OrganizationRecord | null>;
+  }): Promise<AuthorizedOrganizationMutationResult>;
 
   updateVerification(input: {
     organizationId: string;
@@ -106,23 +183,11 @@ export interface OrganizationStore {
     limit: number,
   ): Promise<{ ids: string[]; truncated: boolean }>;
 
-  createPost(
-    input: Omit<OrganizationPostRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationPostRecord>;
   findPostById(
     organizationId: string,
     postId: string,
   ): Promise<OrganizationPostRecord | null>;
   findPostByGlobalId(postId: string): Promise<OrganizationPostRecord | null>;
-  updatePost(
-    organizationId: string,
-    postId: string,
-    expectedRevision: number,
-    patch: Partial<
-      Pick<OrganizationPostRecord, 'title' | 'body' | 'subjectId'>
-    >,
-  ): Promise<OrganizationPostRecord | null>;
-  deletePost(organizationId: string, postId: string): Promise<boolean>;
   listPosts(input: {
     organizationId: string;
     limit: number;
@@ -139,29 +204,9 @@ export interface OrganizationStore {
     limit: number;
   }): Promise<OrganizationPostRecord[]>;
 
-  createEvent(
-    input: Omit<OrganizationEventRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationEventRecord>;
   findEventById(
     organizationId: string,
     eventId: string,
-  ): Promise<OrganizationEventRecord | null>;
-  updateEvent(
-    organizationId: string,
-    eventId: string,
-    expectedRevision: number,
-    patch: Partial<
-      Pick<
-        OrganizationEventRecord,
-        | 'title'
-        | 'description'
-        | 'startsAt'
-        | 'endsAt'
-        | 'locationLabel'
-        | 'externalUrl'
-        | 'state'
-      >
-    >,
   ): Promise<OrganizationEventRecord | null>;
   listEvents(input: {
     organizationId: string;
@@ -169,18 +214,8 @@ export interface OrganizationStore {
     from?: Date;
   }): Promise<OrganizationEventRecord[]>;
 
-  createLink(
-    input: Omit<OrganizationLinkRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationLinkRecord>;
-  deleteLink(organizationId: string, linkId: string): Promise<boolean>;
   listLinks(organizationId: string): Promise<OrganizationLinkRecord[]>;
 
-  featureResource(input: {
-    organizationId: string;
-    resourceId: string;
-    createdByUserId: string;
-  }): Promise<OrganizationFeaturedResourceRecord>;
-  unfeatureResource(organizationId: string, resourceId: string): Promise<void>;
   listFeaturedResources(
     organizationId: string,
   ): Promise<OrganizationFeaturedResourceRecord[]>;
