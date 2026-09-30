@@ -2,7 +2,7 @@ import { MongoAuthActionTokenStore } from './mongo-auth-action-token.store';
 
 const NOW = new Date('2026-09-30T15:00:00.000Z');
 
-function boundedFind(rows: Array<{ tokenId: string }>) {
+function boundedFind(rows: Array<{ tokenId: string; createdAt: Date }>) {
   const chain = {
     sort: jest.fn(),
     limit: jest.fn(),
