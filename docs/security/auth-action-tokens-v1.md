@@ -103,6 +103,22 @@ Policy:
   - TTL expires;
   - active-token cap removes older tokens.
 
+The active-token cap is enforced with a bounded retention operation:
+
+1. read only the 3 newest active rows for the account/purpose;
+2. order by `createdAt DESC, tokenId DESC`;
+3. use the third retained row as a stable cutoff;
+4. invalidate every still-active row strictly older than that cutoff with one
+   server-side `updateMany`.
+
+The service never materializes the full active-token set in memory.
+
+The cutoff is intentional for concurrency safety. A token created after the
+retained read is newer than the cutoff, so the cleanup query does not
+accidentally invalidate it.
+
+If fewer than 3 active rows exist, no overflow update is issued.
+
 After successful verification or recovery, remaining same-purpose tokens are invalidated.
 
 ---
@@ -401,6 +417,7 @@ The security contract depends on capabilities, not Mongo-specific documents:
 - TTL/expiry;
 - atomic single-token claim;
 - bounded concurrent issuance;
+- constant-read active-token retention;
 - compare-and-swap account credential version;
 - invalidate same-purpose tokens.
 
@@ -419,6 +436,9 @@ Unit/integration/runtime evidence must prove:
 - expired token unavailable;
 - replay unavailable;
 - concurrent same-token claim has one winner;
+- active-token cap reads only the retained set;
+- overflow cleanup removes all rows older than the retention cutoff;
+- a concurrently newer row is not matched by overflow cleanup;
 - verification is monotonic;
 - remaining verification links collapse after success;
 - recovery token carries credential version;
