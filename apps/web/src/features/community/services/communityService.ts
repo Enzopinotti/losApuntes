@@ -1,4 +1,5 @@
 import type {
+  AnswerPageResponse,
   AnswerView,
   ConnectionStatus,
   ConnectionView,
@@ -175,6 +176,15 @@ export const communityApi = {
 
   question: (id: string) =>
     request<QuestionDetailResponse>(`/questions/${encodeURIComponent(id)}`),
+
+  answers: (questionId: string, cursor?: string, limit = 25) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (cursor) query.set("cursor", cursor);
+
+    return request<AnswerPageResponse>(
+      `/questions/${encodeURIComponent(questionId)}/answers?${query.toString()}`,
+    );
+  },
 
   createQuestion: (input: { subjectId: string; title: string; body: string }) =>
     request<{ question: QuestionView }>("/questions", {
