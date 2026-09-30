@@ -84,19 +84,17 @@ describe('MongoAuthSessionStore bounded inventory', () => {
     };
     const store = new MongoAuthSessionStore(model as never);
 
-    await expect(
-      store.listActiveForUser({
-        userId: 'user-1',
-        credentialVersion: 3,
-        now: NOW,
-        webIdleAfter: WEB_IDLE_AFTER,
-        mobileIdleAfter: MOBILE_IDLE_AFTER,
-        limit: 20,
-      }),
-    ).resolves.toMatchObject({
-      hasMore: false,
-      items: expect.any(Array),
+    const result = await store.listActiveForUser({
+      userId: 'user-1',
+      credentialVersion: 3,
+      now: NOW,
+      webIdleAfter: WEB_IDLE_AFTER,
+      mobileIdleAfter: MOBILE_IDLE_AFTER,
+      limit: 20,
     });
+
+    expect(result.hasMore).toBe(false);
+    expect(result.items).toHaveLength(20);
   });
 
   it('keeps legacy version-one rows eligible for bounded inventory', async () => {
