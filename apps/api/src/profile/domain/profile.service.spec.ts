@@ -80,10 +80,7 @@ function activity(
   };
 }
 
-function activityPage(
-  items: ProfileActivityRecord[],
-  hasMore = false,
-) {
+function activityPage(items: ProfileActivityRecord[], hasMore = false) {
   return { items, hasMore };
 }
 
@@ -97,7 +94,9 @@ async function rejectedUnprocessable(
     throw error;
   }
 
-  throw new Error('Expected operation to reject with UnprocessableEntityException');
+  throw new Error(
+    'Expected operation to reject with UnprocessableEntityException',
+  );
 }
 
 function store(): jest.Mocked<ProfileStore> {
@@ -533,7 +532,9 @@ describe('ProfileService', () => {
       },
     });
     profileStore.findProfileById.mockResolvedValue(row);
-    profileStore.listActivitiesForUser.mockResolvedValue(activityPage([activity()]));
+    profileStore.listActivitiesForUser.mockResolvedValue(
+      activityPage([activity()]),
+    );
 
     const result = await service(
       profileStore,
