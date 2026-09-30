@@ -511,14 +511,10 @@ describe('OrganizationService', () => {
     });
 
     await expectCode(
-      service(organizationStore, dependencies).createPost(
-        'owner-user',
-        orgId,
-        {
-          title: 'Novedad',
-          body: 'Contenido',
-        },
-      ),
+      service(organizationStore, dependencies).createPost('owner-user', orgId, {
+        title: 'Novedad',
+        body: 'Contenido',
+      }),
       'ORGANIZATION_AUTHORITY_STALE',
     );
 
