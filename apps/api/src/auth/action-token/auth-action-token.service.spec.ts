@@ -199,12 +199,12 @@ describe('AuthActionTokenService', () => {
     await expect(
       service.issueIfAllowed('user-1', 'email_verification', undefined),
     ).resolves.not.toBeNull();
-    await expect(
-      service.inspect(token, 'password_recovery'),
-    ).resolves.toEqual(available);
-    await expect(
-      service.claim(token, 'password_recovery'),
-    ).resolves.toEqual(available);
+    await expect(service.inspect(token, 'password_recovery')).resolves.toEqual(
+      available,
+    );
+    await expect(service.claim(token, 'password_recovery')).resolves.toEqual(
+      available,
+    );
     await expect(
       service.invalidateAll('user-1', 'password_recovery'),
     ).resolves.toBeUndefined();
