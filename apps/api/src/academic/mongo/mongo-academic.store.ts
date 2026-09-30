@@ -193,6 +193,20 @@ export class MongoAcademicStore implements AcademicStore {
     };
   }
 
+  async bumpCatalogNodeRevision(
+    id: string,
+    expectedRevision: number,
+  ): Promise<AcademicCatalogNodeRecord | null> {
+    return this.catalog
+      .findOneAndUpdate(
+        { id, revision: expectedRevision },
+        { $inc: { revision: 1 } },
+        { new: true, session: this.session() },
+      )
+      .lean<AcademicCatalogNodeRecord>()
+      .exec();
+  }
+
   async createCatalogNode(
     input: CreateCatalogNodeRecord,
   ): Promise<AcademicCatalogNodeRecord> {
