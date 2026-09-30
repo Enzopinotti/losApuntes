@@ -6,9 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { ProfileService } from '../../profile/domain/profile.service';
-import {
-  assertNotificationFanoutBudget,
-} from './notification-fanout';
+import { assertNotificationFanoutBudget } from './notification-fanout';
 import type {
   CreateNotificationRecord,
   NotificationCursor,
