@@ -42,7 +42,8 @@ export type ManagerChangeResult =
     }
   | { status: 'revision_conflict' }
   | { status: 'target_state_conflict' }
-  | { status: 'final_owner' };
+  | { status: 'final_owner' }
+  | { status: 'limit_reached' };
 
 export type OrganizationWriteAuthority = {
   actorUserId: string;
@@ -92,20 +93,34 @@ export type AuthorizedOrganizationMutation =
     }
   | {
       kind: 'link.create';
+      expectedOrganizationRevision: number;
       record: Omit<OrganizationLinkRecord, 'createdAt' | 'updatedAt'>;
     }
-  | { kind: 'link.delete'; linkId: string }
+  | {
+      kind: 'link.delete';
+      linkId: string;
+      expectedOrganizationRevision: number;
+    }
   | {
       kind: 'resource.feature';
       resourceId: string;
       createdByUserId: string;
+      expectedOrganizationRevision: number;
     }
-  | { kind: 'resource.unfeature'; resourceId: string };
+  | {
+      kind: 'resource.unfeature';
+      resourceId: string;
+      expectedOrganizationRevision: number;
+    };
 
 export type AuthorizedOrganizationMutationResult =
   | { status: 'authority_stale' }
   | { status: 'state_conflict' }
   | { status: 'not_found' }
+  | {
+      status: 'limit_reached';
+      collection: 'links' | 'featured_resources';
+    }
   | { status: 'ok'; kind: 'organization.update'; value: OrganizationRecord }
   | { status: 'ok'; kind: 'post.create'; value: OrganizationPostRecord }
   | { status: 'ok'; kind: 'post.update'; value: OrganizationPostRecord }
@@ -160,7 +175,10 @@ export interface OrganizationStore {
     organizationId: string,
     userId: string,
   ): Promise<OrganizationManagerRecord | null>;
-  listManagers(organizationId: string): Promise<OrganizationManagerRecord[]>;
+  listManagers(
+    organizationId: string,
+    limit: number,
+  ): Promise<OrganizationManagerRecord[]>;
   changeManager(input: {
     organizationId: string;
     actorUserId: string;
@@ -214,10 +232,14 @@ export interface OrganizationStore {
     from?: Date;
   }): Promise<OrganizationEventRecord[]>;
 
-  listLinks(organizationId: string): Promise<OrganizationLinkRecord[]>;
+  listLinks(
+    organizationId: string,
+    limit: number,
+  ): Promise<OrganizationLinkRecord[]>;
 
   listFeaturedResources(
     organizationId: string,
+    limit: number,
   ): Promise<OrganizationFeaturedResourceRecord[]>;
 
   upsertPendingReport(input: {
