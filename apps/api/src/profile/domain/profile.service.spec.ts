@@ -6,7 +6,10 @@ import {
 
 import type { AcademicService } from '../../academic/domain/academic.service';
 import { ProfileAlreadyExistsError, type ProfileStore } from './profile.store';
-import { ProfileService } from './profile.service';
+import {
+  PROFILE_ACTIVITY_VISIBLE_LIMIT,
+  ProfileService,
+} from './profile.service';
 import type { ProfileActivityRecord, ProfileRecord } from './profile.types';
 
 const now = new Date('2026-09-23T03:00:00.000Z');
@@ -276,7 +279,10 @@ describe('ProfileService', () => {
     const act = activity();
 
     profileStore.findProfileByUserId.mockResolvedValue(row);
-    profileStore.listActivitiesForUser.mockResolvedValue([act]);
+    profileStore.listActivitiesForUser.mockResolvedValue({
+      items: [act],
+      hasMore: false,
+    });
     academicService.listAffiliations.mockResolvedValue({
       affiliations: [{ id: 'aff-1' }] as never[],
       truncated: false,
@@ -307,7 +313,40 @@ describe('ProfileService', () => {
 
     expect(result.academic.affiliations).toHaveLength(1);
     expect(result.activities[0]?.id).toBe(act.id);
+    expect(result.activitiesTruncated).toBe(false);
+    expect(result.activitiesLimit).toBe(PROFILE_ACTIVITY_VISIBLE_LIMIT);
+    expect(profileStore.listActivitiesForUser.mock.calls).toEqual([
+      ['user-1', PROFILE_ACTIVITY_VISIBLE_LIMIT],
+    ]);
+    expect(result.academic.affiliationsTruncated).toBe(false);
+    expect(result.academic.affiliationLimit).toBe(50);
+    expect(result.academic.participationsTruncated).toBe(false);
+    expect(result.academic.participationLimit).toBe(100);
     expect(result.contributions.available).toBe(false);
+  });
+
+  it('returns honest activity truncation metadata to the owner', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    configureAcademic(academicService);
+    profileStore.findProfileByUserId.mockResolvedValue(profile());
+    profileStore.listActivitiesForUser.mockResolvedValue({
+      items: [activity()],
+      hasMore: true,
+    });
+
+    const result = await service(
+      profileStore,
+      academicService,
+    ).getOwnerProfile('user-1');
+
+    if (result.onboardingRequired) {
+      throw new Error('Expected an onboarded profile');
+    }
+
+    expect(result.activities).toHaveLength(1);
+    expect(result.activitiesTruncated).toBe(true);
+    expect(result.activitiesLimit).toBe(PROFILE_ACTIVITY_VISIBLE_LIMIT);
   });
 
   it('updates nested settings with optimistic concurrency', async () => {
@@ -440,7 +479,10 @@ describe('ProfileService', () => {
       },
     });
     profileStore.findProfileById.mockResolvedValue(row);
-    profileStore.listActivitiesForUser.mockResolvedValue([activity()]);
+    profileStore.listActivitiesForUser.mockResolvedValue({
+      items: [activity()],
+      hasMore: false,
+    });
 
     const result = await service(
       profileStore,
@@ -449,7 +491,41 @@ describe('ProfileService', () => {
 
     expect(result.profile).toHaveProperty('academic');
     expect(result.profile).toHaveProperty('activities');
+    expect(result.profile.activitiesTruncated).toBe(false);
+    expect(result.profile.activitiesLimit).toBe(PROFILE_ACTIVITY_VISIBLE_LIMIT);
+    expect(result.profile.academic?.affiliationsTruncated).toBe(false);
+    expect(result.profile.academic?.participationsTruncated).toBe(false);
+    expect(profileStore.listActivitiesForUser.mock.calls).toContainEqual([
+      'user-1',
+      PROFILE_ACTIVITY_VISIBLE_LIMIT,
+    ]);
     expect(academicService.listAffiliations).toHaveBeenCalledWith('user-1');
+  });
+
+  it('exposes activity truncation only when the public activities section is visible', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    configureAcademic(academicService);
+    const row = profile({
+      visibility: {
+        ...profile().visibility,
+        activities: 'public',
+      },
+    });
+    profileStore.findProfileById.mockResolvedValue(row);
+    profileStore.listActivitiesForUser.mockResolvedValue({
+      items: [activity()],
+      hasMore: true,
+    });
+
+    const result = await service(
+      profileStore,
+      academicService,
+    ).getPublicProfile(row.id);
+
+    expect(result.profile.activities).toHaveLength(1);
+    expect(result.profile.activitiesTruncated).toBe(true);
+    expect(result.profile.activitiesLimit).toBe(PROFILE_ACTIVITY_VISIBLE_LIMIT);
   });
 
   it('requires an owner profile before creating activities', async () => {
@@ -796,7 +872,10 @@ describe('ProfileService', () => {
       },
     });
     profileStore.findProfileById.mockResolvedValue(row);
-    profileStore.listActivitiesForUser.mockResolvedValue([]);
+    profileStore.listActivitiesForUser.mockResolvedValue({
+      items: [],
+      hasMore: false,
+    });
 
     const result = await service(
       profileStore,
