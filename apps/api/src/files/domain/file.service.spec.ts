@@ -205,7 +205,9 @@ describe('FileService', () => {
     expect(first.file.id).toBe(second.file.id);
     expect(objectStorage.createUploadIntent.mock.calls).toHaveLength(2);
     expect(
-      objectStorage.createUploadIntent.mock.calls.map(([input]) => input.objectKey),
+      objectStorage.createUploadIntent.mock.calls.map(
+        ([input]) => input.objectKey,
+      ),
     ).toEqual(['resource-assets/replay/file', 'resource-assets/replay/file']);
 
     await expect(
