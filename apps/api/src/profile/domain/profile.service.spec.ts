@@ -279,9 +279,13 @@ describe('ProfileService', () => {
     profileStore.listActivitiesForUser.mockResolvedValue([act]);
     academicService.listAffiliations.mockResolvedValue({
       affiliations: [{ id: 'aff-1' }] as never[],
+      truncated: false,
+      limit: 50,
     });
     academicService.listSubjectParticipations.mockResolvedValue({
       participations: [{ id: 'part-1' }] as never[],
+      truncated: false,
+      limit: 100,
     });
     academicService.getCurrentContext.mockResolvedValue({
       context: { affiliationId: 'aff-1' } as never,
