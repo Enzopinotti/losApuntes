@@ -72,6 +72,9 @@ export class Organization {
   @Prop({ required: true, min: 1 })
   managementRevision!: number;
 
+  @Prop({ required: false, min: 1, default: 1 })
+  capacityRevision!: number;
+
   createdAt!: Date;
   updatedAt!: Date;
 }
