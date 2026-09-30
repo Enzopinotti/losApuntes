@@ -502,6 +502,39 @@ describe('OrganizationService', () => {
     );
   });
 
+  it('fails a managed write when authority changes after the fast precheck', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    organizationStore.commitAuthorizedMutation.mockResolvedValueOnce({
+      status: 'authority_stale',
+    });
+
+    await expectCode(
+      service(organizationStore, dependencies).createPost(
+        'owner-user',
+        orgId,
+        {
+          title: 'Novedad',
+          body: 'Contenido',
+        },
+      ),
+      'ORGANIZATION_AUTHORITY_STALE',
+    );
+
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls[0]?.[0],
+    ).toMatchObject({
+      organizationId: orgId,
+      authority: {
+        actorUserId: 'owner-user',
+        expectedManagementRevision: 1,
+        allowedRoles: ['owner', 'admin', 'editor'],
+      },
+      mutation: { kind: 'post.create' },
+    });
+  });
+
   it('denies profile edits to editors', async () => {
     const organizationStore = store();
     const dependencies = deps();
