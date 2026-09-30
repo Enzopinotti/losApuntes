@@ -22,7 +22,6 @@ function mongoErrorCode(error: unknown): number | null {
   return null;
 }
 
-
 @Injectable()
 export class MongoFileAssetStore implements FileAssetStore {
   constructor(
