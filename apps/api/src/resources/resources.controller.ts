@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -79,6 +80,7 @@ export class ResourcesController {
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
   @Post(':id/access')
+  @Header('Cache-Control', 'no-store')
   access(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
