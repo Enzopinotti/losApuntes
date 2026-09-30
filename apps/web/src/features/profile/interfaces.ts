@@ -62,6 +62,11 @@ export type AcademicProfileProjection = {
   currentContext: unknown | null;
 };
 
+export type ProfileActivityPageResponse = {
+  items: ProfileActivity[];
+  nextCursor: string | null;
+};
+
 export type OwnerProfileResponse =
   | {
       profile: null;
@@ -71,6 +76,8 @@ export type OwnerProfileResponse =
       profile: OwnerProfile;
       academic: AcademicProfileProjection;
       activities: ProfileActivity[];
+      activitiesNextCursor: string | null;
+      activitiesLimit: number;
       contributions: {
         available: false;
         items: never[];
@@ -98,6 +105,8 @@ export type PublicProfileResponse = {
       learningTopics: string[];
     };
     activities?: ProfileActivity[];
+    activitiesNextCursor?: string | null;
+    activitiesLimit?: number;
     skills?: {
       languages: string[];
       skills: string[];
