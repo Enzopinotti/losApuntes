@@ -3,11 +3,24 @@ import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 
 import {
-  type CreateFileAssetRecord,
+  type CreateUploadFileAssetRecord,
   type FileAssetStore,
 } from '../domain/file.store';
 import type { FileAssetRecord, FileAssetState } from '../domain/file.types';
 import { FileAsset } from './file.mongo-schema';
+
+function mongoErrorCode(error: unknown): number | null {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as { code?: unknown }).code === 'number'
+  ) {
+    return (error as { code: number }).code;
+  }
+
+  return null;
+}
 
 function toPlain<T>(value: { toObject(): unknown } | T): T {
   if (
@@ -29,9 +42,40 @@ export class MongoFileAssetStore implements FileAssetStore {
     private readonly assets: Model<FileAsset>,
   ) {}
 
-  async create(input: CreateFileAssetRecord): Promise<FileAssetRecord> {
-    const created = await this.assets.create(input);
-    return toPlain<FileAssetRecord>(created);
+  async createOrReplayUpload(
+    input: CreateUploadFileAssetRecord,
+  ): Promise<FileAssetRecord> {
+    const identity = {
+      creatorUserId: input.creatorUserId,
+      purpose: input.purpose,
+      uploadOperationKey: input.uploadOperationKey,
+    };
+
+    try {
+      const record = await this.assets
+        .findOneAndUpdate(
+          identity,
+          { $setOnInsert: input },
+          { new: true, upsert: true },
+        )
+        .lean<FileAssetRecord>()
+        .exec();
+
+      if (!record) {
+        throw new Error('Upload idempotency upsert returned no record');
+      }
+
+      return record;
+    } catch (error) {
+      if (mongoErrorCode(error) !== 11000) throw error;
+
+      const replay = await this.assets
+        .findOne(identity)
+        .lean<FileAssetRecord>()
+        .exec();
+      if (!replay) throw error;
+      return replay;
+    }
   }
 
   async findById(id: string): Promise<FileAssetRecord | null> {
