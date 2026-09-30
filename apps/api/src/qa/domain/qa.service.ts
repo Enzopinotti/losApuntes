@@ -18,7 +18,49 @@ import type {
   UpdateQuestionDto,
 } from '../dto/qa.dto';
 import { QA_STORE, type QaStore } from './qa.store';
-import type { AnswerRecord, QuestionCursor, QuestionRecord } from './qa.types';
+import type {
+  AnswerCursor,
+  AnswerRecord,
+  QuestionCursor,
+  QuestionRecord,
+} from './qa.types';
+
+export const QA_ANSWER_DEFAULT_LIMIT = 25;
+export const QA_ANSWER_MAX_LIMIT = 50;
+
+function encodeAnswerCursor(cursor: AnswerCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      createdAt: cursor.createdAt.toISOString(),
+      id: cursor.id,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAnswerCursor(value?: string): AnswerCursor | undefined {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string') {
+      throw new Error('invalid cursor');
+    }
+
+    const createdAt = new Date(parsed.createdAt);
+    if (Number.isNaN(createdAt.getTime())) throw new Error('invalid date');
+
+    return { createdAt, id: parsed.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ANSWER_CURSOR_INVALID',
+      message: 'Answer cursor is invalid',
+    });
+  }
+}
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -100,14 +142,29 @@ export class QaService {
 
   async get(id: string, viewerUserId?: string) {
     const question = await this.requireVisibleQuestion(id);
-    const answers = await this.store.listAnswers(id, 100);
+    const answers = await this.answerPage(
+      id,
+      {
+        limit: QA_ANSWER_DEFAULT_LIMIT,
+      },
+      viewerUserId,
+    );
 
     return {
       question: await this.questionProjection(question, viewerUserId),
-      answers: await Promise.all(
-        answers.map((answer) => this.answerProjection(answer, viewerUserId)),
-      ),
+      answers: answers.items,
+      answersNextCursor: answers.nextCursor,
+      answersLimit: QA_ANSWER_DEFAULT_LIMIT,
     };
+  }
+
+  async listAnswers(
+    questionId: string,
+    input: { limit: number; cursor?: string },
+    viewerUserId?: string,
+  ) {
+    await this.requireVisibleQuestion(questionId);
+    return this.answerPage(questionId, input, viewerUserId);
   }
 
   async create(userId: string, dto: CreateQuestionDto) {
@@ -362,6 +419,35 @@ export class QaService {
         status: row.status,
         createdAt: row.createdAt.toISOString(),
       },
+    };
+  }
+
+  private async answerPage(
+    questionId: string,
+    input: { limit: number; cursor?: string },
+    viewerUserId?: string,
+  ) {
+    const limit = Math.min(input.limit, QA_ANSWER_MAX_LIMIT);
+    const page = await this.store.listAnswers({
+      questionId,
+      limit,
+      after: decodeAnswerCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: await Promise.all(
+        page.items.map((answer) =>
+          this.answerProjection(answer, viewerUserId),
+        ),
+      ),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAnswerCursor({
+              createdAt: last.createdAt,
+              id: last.id,
+            })
+          : null,
     };
   }
 
