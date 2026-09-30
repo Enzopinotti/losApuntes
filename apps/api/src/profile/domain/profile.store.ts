@@ -37,6 +37,16 @@ export type CreateProfileActivityRecord = Omit<
   'createdAt' | 'updatedAt'
 >;
 
+export type ProfileActivityCursor = {
+  createdAt: Date;
+  id: string;
+};
+
+export type ProfileActivityPage = {
+  items: ProfileActivityRecord[];
+  hasMore: boolean;
+};
+
 export type UpdateProfileActivityRecord = Partial<
   Pick<
     ProfileActivityRecord,
@@ -56,7 +66,11 @@ export interface ProfileStore {
     patch: UpdateProfileRecord,
   ): Promise<ProfileRecord | null>;
 
-  listActivitiesForUser(userId: string): Promise<ProfileActivityRecord[]>;
+  listActivitiesForUser(input: {
+    userId: string;
+    limit: number;
+    after?: ProfileActivityCursor;
+  }): Promise<ProfileActivityPage>;
   findActivityForUser(
     userId: string,
     id: string,
