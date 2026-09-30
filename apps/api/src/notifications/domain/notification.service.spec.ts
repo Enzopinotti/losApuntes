@@ -132,7 +132,6 @@ describe('NotificationService', () => {
     expect(notificationStore.createMany.mock.calls).toHaveLength(0);
   });
 
-
   it('projects only store-owned inbox rows with privacy-safe actors', async () => {
     const notificationStore = store();
     const profileApi = profiles();
