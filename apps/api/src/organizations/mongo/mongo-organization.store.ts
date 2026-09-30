@@ -2,6 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
 
+import {
+  ORGANIZATION_FEATURED_RESOURCE_LIMIT,
+  ORGANIZATION_FEATURED_RESOURCE_READ_LIMIT,
+  ORGANIZATION_LINK_LIMIT,
+  ORGANIZATION_LINK_READ_LIMIT,
+  ORGANIZATION_MANAGER_LIMIT,
+  ORGANIZATION_MANAGER_READ_LIMIT,
+} from '../domain/organization-limits';
 import type {
   AuthorizedOrganizationMutationResult,
   ManagerChangeResult,
@@ -53,7 +61,14 @@ function toPlain<T>(value: { toObject(): unknown } | T): T {
 
 type AuthorizedMutationFailure = Extract<
   AuthorizedOrganizationMutationResult,
-  { status: 'authority_stale' | 'state_conflict' | 'not_found' }
+  {
+    status:
+      | 'authority_stale'
+      | 'state_conflict'
+      | 'capacity_conflict'
+      | 'limit_exceeded'
+      | 'not_found';
+  }
 >;
 
 class AuthorizedMutationAbort extends Error {
