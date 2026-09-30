@@ -49,16 +49,20 @@ describe('MongoAuthSessionStore bounded inventory', () => {
 
     expect(model.find).toHaveBeenCalledWith({
       userId: 'user-1',
-      credentialVersion: 3,
       expiresAt: { $gt: NOW },
-      $or: [
+      $and: [
+        { credentialVersion: 3 },
         {
-          clientType: 'web',
-          lastSeenAt: { $gt: WEB_IDLE_AFTER },
-        },
-        {
-          clientType: 'mobile',
-          lastSeenAt: { $gt: MOBILE_IDLE_AFTER },
+          $or: [
+            {
+              clientType: 'web',
+              lastSeenAt: { $gt: WEB_IDLE_AFTER },
+            },
+            {
+              clientType: 'mobile',
+              lastSeenAt: { $gt: MOBILE_IDLE_AFTER },
+            },
+          ],
         },
       ],
     });
@@ -95,6 +99,37 @@ describe('MongoAuthSessionStore bounded inventory', () => {
     });
   });
 
+  it('keeps legacy version-one rows eligible for bounded inventory', async () => {
+    const chain = inventoryQuery([]);
+    const model = {
+      find: jest.fn().mockReturnValue(chain),
+    };
+    const store = new MongoAuthSessionStore(model as never);
+
+    await store.listActiveForUser({
+      userId: 'user-1',
+      credentialVersion: 1,
+      now: NOW,
+      webIdleAfter: WEB_IDLE_AFTER,
+      mobileIdleAfter: MOBILE_IDLE_AFTER,
+      limit: 20,
+    });
+
+    expect(model.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $and: [
+          {
+            $or: [
+              { credentialVersion: 1 },
+              { credentialVersion: { $exists: false } },
+            ],
+          },
+          expect.any(Object),
+        ],
+      }),
+    );
+  });
+
   it('looks up the current session with bounded account and credential scope', async () => {
     const doc = document(1);
     const exec = jest.fn().mockResolvedValue(doc);
@@ -114,8 +149,8 @@ describe('MongoAuthSessionStore bounded inventory', () => {
     expect(model.findOne).toHaveBeenCalledWith({
       userId: 'user-1',
       sessionId: doc.sessionId,
-      credentialVersion: 3,
       expiresAt: { $gt: NOW },
+      credentialVersion: 3,
     });
   });
 });
