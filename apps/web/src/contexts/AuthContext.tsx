@@ -10,6 +10,10 @@ import type {
   AuthUser,
   PublicAuthSession,
 } from "../features/auth/interfaces";
+import {
+  publishAuthAuthorityChanged,
+  subscribeAuthAuthorityChanged,
+} from "../features/auth/authAuthorityChannel";
 import { authApi, isAuthApiError } from "../features/auth/services/authService";
 import { AuthContext } from "./auth-context";
 
@@ -27,11 +31,15 @@ const initialState: AuthState = {
   lastErrorCode: null,
 };
 
+const FOREGROUND_REVALIDATE_AFTER_MS = 30_000;
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<AuthState>(initialState);
   const generationRef = useRef(0);
+  const lastValidatedAtRef = useRef(0);
+  const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const performRefresh = useCallback(async (): Promise<boolean> => {
     const generation = ++generationRef.current;
 
     try {
@@ -41,6 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
+      lastValidatedAtRef.current = Date.now();
       setState({
         status: "authenticated",
         user: snapshot.user,
@@ -55,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (isAuthApiError(error)) {
         if (error.code === "ACCOUNT_RESTRICTED") {
+          lastValidatedAtRef.current = Date.now();
           setState({
             status: "restricted",
             user: null,
@@ -65,6 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (error.code === "AUTHENTICATION_REQUIRED" || error.status === 401) {
+          lastValidatedAtRef.current = Date.now();
           setState({
             status: "anonymous",
             user: null,
@@ -107,9 +118,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const refresh = useCallback((): Promise<boolean> => {
+    const existing = refreshInFlightRef.current;
+    if (existing) return existing;
+
+    const operation = performRefresh().finally(() => {
+      if (refreshInFlightRef.current === operation) {
+        refreshInFlightRef.current = null;
+      }
+    });
+    refreshInFlightRef.current = operation;
+    return operation;
+  }, [performRefresh]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const maybeRevalidate = () => {
+      if (document.visibilityState !== "visible") return;
+      if (
+        Date.now() - lastValidatedAtRef.current <
+        FOREGROUND_REVALIDATE_AFTER_MS
+      ) {
+        return;
+      }
+
+      void refresh();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        maybeRevalidate();
+      }
+    };
+
+    window.addEventListener("focus", maybeRevalidate);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", maybeRevalidate);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [refresh]);
+
+  useEffect(
+    () =>
+      subscribeAuthAuthorityChanged(() => {
+        lastValidatedAtRef.current = 0;
+        void refresh();
+      }),
+    [refresh],
+  );
 
   const login = useCallback(
     async (email: string, password: string): Promise<void> => {
@@ -122,12 +183,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
+        lastValidatedAtRef.current = Date.now();
         setState({
           status: "authenticated",
           user: snapshot.user,
           session: snapshot.session,
           lastErrorCode: null,
         });
+        publishAuthAuthorityChanged();
       } catch (error) {
         if (generation !== generationRef.current) {
           return;
@@ -169,12 +232,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      lastValidatedAtRef.current = Date.now();
       setState({
         status: "anonymous",
         user: null,
         session: null,
         lastErrorCode: null,
       });
+      publishAuthAuthorityChanged();
     } catch (error) {
       if (generation !== generationRef.current) {
         return;

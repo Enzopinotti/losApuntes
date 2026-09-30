@@ -5,6 +5,7 @@ import {
   authErrorMessage,
   authErrorRequestId,
 } from "../features/auth/authMessages";
+import { publishAuthAuthorityChanged } from "../features/auth/authAuthorityChannel";
 import type {
   LoginMethods,
   PublicAuthSession,
@@ -104,6 +105,7 @@ const Security = () => {
 
     try {
       await authApi.changePassword(currentPassword, newPassword);
+      publishAuthAuthorityChanged();
       await refresh();
       navigate("/login?password=changed", { replace: true });
     } catch (nextError) {
@@ -125,6 +127,7 @@ const Security = () => {
       await authApi.revokeSession(target.id);
 
       if (target.current || target.id === session?.id) {
+        publishAuthAuthorityChanged();
         await refresh();
         navigate("/login", { replace: true });
         return;
@@ -151,6 +154,7 @@ const Security = () => {
 
     try {
       await authApi.revokeAllSessions();
+      publishAuthAuthorityChanged();
       await refresh();
       navigate("/login", { replace: true });
     } catch (nextError) {
