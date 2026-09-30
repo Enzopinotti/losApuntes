@@ -133,6 +133,18 @@ function createStore() {
     return rows[0] ?? null;
   });
 
+  const bumpCatalogNodeRevision =
+    mockFn<AcademicStore['bumpCatalogNodeRevision']>();
+  bumpCatalogNodeRevision.mockImplementation(async (id, expectedRevision) => {
+    const node = await findCatalogNodeById(id);
+    if (!node || node.revision !== expectedRevision) return null;
+    return {
+      ...node,
+      revision: node.revision + 1,
+      updatedAt: new Date(node.updatedAt.getTime() + 1),
+    };
+  });
+
   return {
     runAtomically: <T>(operation: () => Promise<T>) => operation(),
     findCatalogNodeById,
@@ -143,6 +155,7 @@ function createStore() {
     searchCatalog: mockFn<AcademicStore['searchCatalog']>(),
     createCatalogNode: mockFn<AcademicStore['createCatalogNode']>(),
     updateCatalogNode: mockFn<AcademicStore['updateCatalogNode']>(),
+    bumpCatalogNodeRevision,
     createAffiliation: mockFn<AcademicStore['createAffiliation']>(),
     findAffiliationById: mockFn<AcademicStore['findAffiliationById']>(),
     listAffiliationsForUser: mockFn<AcademicStore['listAffiliationsForUser']>(),
@@ -694,6 +707,34 @@ describe('AcademicService', () => {
         targetId: source.id,
       }),
     );
+  });
+
+  it('does not mutate source when canonical target revision changed concurrently', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const target = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+    });
+
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(id === source.id ? source : id === target.id ? target : null),
+    );
+    store.bumpCatalogNodeRevision.mockResolvedValueOnce(null);
+
+    const error = await rejectedConflict(
+      service.mergeCatalogNode('admin-1', source.id, target.id, 1),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REVISION_CONFLICT',
+    });
+    expect(store.updateCatalogNode.mock.calls).toHaveLength(0);
+    expect(store.appendAuditEvent.mock.calls).toHaveLength(0);
   });
 
   it('rejects self merges, kind mismatches and merge revision conflicts', async () => {
