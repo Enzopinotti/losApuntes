@@ -21,8 +21,8 @@ const NONPRODUCTION_ACK =
   'I_HAVE_VERIFIED_THIS_TARGET_IS_NON_PRODUCTION';
 
 async function main() {
-  const setDirectory = await existingDirectory(
-    requireEnv('BACKUP_SET_DIR', 4096),
+  const setDirectory = assertArtifactRootOutsideRepo(
+    await existingDirectory(requireEnv('BACKUP_SET_DIR', 4096)),
   );
   const { manifest, mongoPath, filesPath, inventory } =
     await verifyBackupSet(setDirectory);
