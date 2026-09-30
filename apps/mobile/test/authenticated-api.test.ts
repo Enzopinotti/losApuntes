@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {
+  AuthSessionListResponse,
   AuthenticatedSessionResponse,
   MobileAuthenticatedSessionResponse,
   PasswordLoginInput,
@@ -67,7 +68,7 @@ const sessionApi = (tokenRef: { value: string }): SessionApi => ({
 const transport = (
   overrides: Partial<AuthenticatedApiTransport> = {},
 ): AuthenticatedApiTransport => ({
-  listSessions: async () => ({ sessions: [] }),
+  listSessions: async () => ({ sessions: [], truncated: false, limit: 20 }),
   revokeSession: async () => undefined,
   revokeAllSessions: async () => undefined,
   changePassword: async () => undefined,
@@ -112,7 +113,7 @@ test("a delayed 401 from an old generation cannot clear a newer login", async ()
   await session.login({ email: "a@example.edu", password: "password" });
 
   let rejectOld!: (reason: unknown) => void;
-  const oldCall = new Promise<{ sessions: [] }>((_resolve, reject) => {
+  const oldCall = new Promise<AuthSessionListResponse>((_resolve, reject) => {
     rejectOld = reject;
   });
   const api = new AuthenticatedMobileApi(
