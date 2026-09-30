@@ -16,6 +16,11 @@ export function useAsyncAuthorityFence(scopeKey: string) {
     epochRef.current += 1;
   }
 
+  useEffect(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+  }, [scopeKey]);
+
   useEffect(
     () => () => {
       epochRef.current += 1;
