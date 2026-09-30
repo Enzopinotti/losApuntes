@@ -14,7 +14,10 @@ import {
   AcademicSourceIdentityConflictError,
   type AcademicStore,
 } from './academic.store';
-import { AcademicService } from './academic.service';
+import {
+  ACADEMIC_REDIRECT_IDENTITY_LIMIT,
+  AcademicService,
+} from './academic.service';
 import type {
   AcademicAffiliationRecord,
   AcademicCatalogNodeRecord,
@@ -103,7 +106,7 @@ function mockFn<T extends (...args: any[]) => any>() {
 function createStore() {
   const findDirectRedirectSources =
     mockFn<AcademicStore['findDirectRedirectSources']>();
-  findDirectRedirectSources.mockResolvedValue([]);
+  findDirectRedirectSources.mockResolvedValue(page([]));
 
   const findCatalogNodesByIds =
     mockFn<AcademicStore['findCatalogNodesByIds']>();
@@ -1949,6 +1952,123 @@ describe('AcademicService', () => {
     });
   });
 
+  it('traverses reverse redirects with one bounded query per level', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const target = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const source = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+      status: 'merged',
+      redirectToId: target.id,
+    });
+    const legacy = catalogNode({
+      id: '44444444-4444-4444-8444-444444444444',
+      kind: 'institution',
+      status: 'merged',
+      redirectToId: source.id,
+    });
+
+    store.findCatalogNodeById.mockResolvedValue(target);
+    store.findDirectRedirectSources.mockImplementation((targetIds) => {
+      if (targetIds.includes(target.id)) return Promise.resolve(page([source]));
+      if (targetIds.includes(source.id)) return Promise.resolve(page([legacy]));
+      return Promise.resolve(page([]));
+    });
+    store.searchCatalog.mockResolvedValue({ items: [], hasMore: false });
+
+    await service.listChildren(target.id, 'program', 25);
+
+    expect(store.findDirectRedirectSources.mock.calls).toEqual([
+      [[target.id], ACADEMIC_REDIRECT_IDENTITY_LIMIT - 1],
+      [[source.id], ACADEMIC_REDIRECT_IDENTITY_LIMIT - 2],
+      [[legacy.id], ACADEMIC_REDIRECT_IDENTITY_LIMIT - 3],
+    ]);
+    expect(store.searchCatalog).toHaveBeenCalledWith({
+      kind: 'program',
+      parentIds: [target.id, source.id, legacy.id],
+      limit: 25,
+    });
+  });
+
+  it('fails closed when a redirect level exceeds the identity budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const target = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    store.findCatalogNodeById.mockResolvedValue(target);
+    store.findDirectRedirectSources.mockResolvedValue({
+      items: [],
+      hasMore: true,
+    });
+
+    const error = await rejectedConflict(
+      service.listChildren(target.id, 'program', 25),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REDIRECT_FANOUT_OVERFLOW',
+      limit: ACADEMIC_REDIRECT_IDENTITY_LIMIT,
+    });
+    expect(store.searchCatalog.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects a merge whose combined canonical identity set exceeds the budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const target = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+    });
+    const sourceAliases = Array.from({ length: 128 }, (_, index) =>
+      catalogNode({
+        id: `source-alias-${index}`,
+        kind: 'institution',
+        status: 'merged',
+        redirectToId: source.id,
+      }),
+    );
+    const targetAliases = Array.from({ length: 128 }, (_, index) =>
+      catalogNode({
+        id: `target-alias-${index}`,
+        kind: 'institution',
+        status: 'merged',
+        redirectToId: target.id,
+      }),
+    );
+
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(id === source.id ? source : id === target.id ? target : null),
+    );
+    store.findDirectRedirectSources.mockImplementation((targetIds) => {
+      if (targetIds.includes(source.id)) {
+        return Promise.resolve(page(sourceAliases));
+      }
+      if (targetIds.includes(target.id)) {
+        return Promise.resolve(page(targetAliases));
+      }
+      return Promise.resolve(page([]));
+    });
+
+    const error = await rejectedConflict(
+      service.mergeCatalogNode('admin-1', source.id, target.id, 1),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REDIRECT_FANOUT_OVERFLOW',
+    });
+    expect(store.updateCatalogNode.mock.calls).toHaveLength(0);
+  });
+
   it('keeps children and affiliation projections canonical after a parent merge', async () => {
     const store = createStore();
     const service = new AcademicService(store);
@@ -1986,8 +2106,10 @@ describe('AcademicService', () => {
               : null,
       ),
     );
-    store.findDirectRedirectSources.mockImplementation((id) =>
-      Promise.resolve(id === target.id ? [source] : []),
+    store.findDirectRedirectSources.mockImplementation((targetIds) =>
+      Promise.resolve(
+        page(targetIds.includes(target.id) ? [source] : []),
+      ),
     );
     store.searchCatalog.mockResolvedValue({ items: [child], hasMore: false });
     store.listAffiliationsForUser.mockResolvedValue(page([row]));
