@@ -2171,7 +2171,9 @@ describe('AcademicService', () => {
     );
 
     store.findCatalogNodeById.mockImplementation((id) =>
-      Promise.resolve(id === source.id ? source : id === target.id ? target : null),
+      Promise.resolve(
+        id === source.id ? source : id === target.id ? target : null,
+      ),
     );
     store.findDirectRedirectSources.mockImplementation((targetIds) => {
       if (targetIds.includes(source.id)) {
