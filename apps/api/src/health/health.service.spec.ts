@@ -16,7 +16,7 @@ function connectionStub(
 }
 
 function storageStub(
-  headObject: ObjectStorage['headObject'] = async () => null,
+  headObject: ObjectStorage['headObject'] = () => Promise.resolve(null),
 ): ObjectStorage {
   return {
     providerId: 's3',
@@ -32,9 +32,7 @@ describe('HealthService', () => {
   it('keeps liveness independent from dependency state', () => {
     const service = new HealthService(
       connectionStub(0, () => Promise.reject(new Error('offline'))),
-      storageStub(async () => {
-        throw new Error('storage offline');
-      }),
+      storageStub(() => Promise.reject(new Error('storage offline'))),
     );
 
     expect(service.liveness()).toEqual({
@@ -62,9 +60,9 @@ describe('HealthService', () => {
   it('keeps optional storage failure degraded instead of not-ready', async () => {
     const service = new HealthService(
       connectionStub(1, () => Promise.resolve({ ok: 1 })),
-      storageStub(async () => {
-        throw new Error('https://secret-storage.example.invalid');
-      }),
+      storageStub(() =>
+        Promise.reject(new Error('https://secret-storage.example.invalid')),
+      ),
     );
 
     await expect(service.readiness()).resolves.toEqual({
