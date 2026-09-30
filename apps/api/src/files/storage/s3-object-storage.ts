@@ -383,6 +383,7 @@ export function createS3ObjectStorage(
         secretAccessKey: options.secretAccessKey,
         expiresInSeconds: input.expiresInSeconds,
         query: [
+          ['response-cache-control', 'private, no-store'],
           ['response-content-type', input.contentType],
           [
             'response-content-disposition',
