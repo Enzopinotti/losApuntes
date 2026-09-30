@@ -638,30 +638,50 @@ export class OrganizationService {
     organizationId: string,
     dto: CreateOrganizationEventDto,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const startsAt = new Date(dto.startsAt);
     const endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
     this.assertEventPeriod(startsAt, endsAt);
 
-    const event = await this.store.createEvent({
-      id: randomUUID(),
+    const eventId = randomUUID();
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      createdByUserId: userId,
-      title: cleanText(dto.title),
-      description: cleanNullable(dto.description),
-      startsAt,
-      endsAt,
-      locationLabel: cleanNullable(dto.locationLabel),
-      externalUrl: httpsUrl(dto.externalUrl),
-      state: 'scheduled',
-      moderationState: 'available',
-      revision: 1,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'event.create',
+        record: {
+          id: eventId,
+          organizationId,
+          createdByUserId: userId,
+          title: cleanText(dto.title),
+          description: cleanNullable(dto.description),
+          startsAt,
+          endsAt,
+          locationLabel: cleanNullable(dto.locationLabel),
+          externalUrl: httpsUrl(dto.externalUrl),
+          state: 'scheduled',
+          moderationState: 'available',
+          revision: 1,
+        },
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.event_created',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization event created',
+        metadata: { eventId },
+      }),
     });
+    const event = this.authorizedValue(result, 'event.create');
 
     return { event: this.eventProjection(event) };
   }
@@ -672,12 +692,13 @@ export class OrganizationService {
     eventId: string,
     dto: UpdateOrganizationEventDto,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const current = await this.store.findEventById(organizationId, eventId);
     if (!current) this.notFound();
 
@@ -691,7 +712,18 @@ export class OrganizationService {
           : null;
     this.assertEventPeriod(startsAt, endsAt);
 
-    const patch: Parameters<OrganizationStore['updateEvent']>[3] = {};
+    const patch: Partial<
+      Pick<
+        OrganizationEventRecord,
+        | 'title'
+        | 'description'
+        | 'startsAt'
+        | 'endsAt'
+        | 'locationLabel'
+        | 'externalUrl'
+        | 'state'
+      >
+    > = {};
     if (dto.title !== undefined) patch.title = cleanText(dto.title);
     if (dto.description !== undefined) {
       patch.description = cleanNullable(dto.description);
@@ -713,18 +745,30 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updateEvent(
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      eventId,
-      dto.expectedRevision,
-      patch,
-    );
-    if (!updated) {
-      throw new ConflictException({
-        code: 'ORGANIZATION_EVENT_REVISION_CONFLICT',
-        message: 'Organization event changed concurrently',
-      });
-    }
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'event.update',
+        eventId,
+        expectedRevision: dto.expectedRevision,
+        patch,
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.event_updated',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization event updated',
+        metadata: { eventId, changedFields: Object.keys(patch).length },
+      }),
+    });
+    const updated = this.authorizedValue(result, 'event.update', {
+      code: 'ORGANIZATION_EVENT_REVISION_CONFLICT',
+      message: 'Organization event changed concurrently',
+    });
 
     return { event: this.eventProjection(updated) };
   }
