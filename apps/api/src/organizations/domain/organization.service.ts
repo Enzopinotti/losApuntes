@@ -228,7 +228,7 @@ export class OrganizationService {
   async managementSnapshot(userId: string, id: string) {
     const organization = await this.requireActive(id);
     const actor = await this.requireManager(id, userId);
-    const managers = await this.store.listManagers(id);
+    const managers = await this.store.listManagers(id, ORGANIZATION_MANAGER_LIMIT);
     const profiles = await this.profiles.getAttributionsForUsers(
       managers.map((row) => row.userId),
     );
@@ -376,7 +376,7 @@ export class OrganizationService {
     }
 
     if (!current) {
-      const managers = await this.store.listManagers(id);
+      const managers = await this.store.listManagers(id, ORGANIZATION_MANAGER_LIMIT);
       if (managers.length >= ORGANIZATION_MANAGER_LIMIT) {
         throw new UnprocessableEntityException({
           code: 'ORGANIZATION_MANAGER_LIMIT',
@@ -793,7 +793,7 @@ export class OrganizationService {
       'editor',
     ];
     await this.requireRole(organizationId, userId, allowedRoles);
-    const links = await this.store.listLinks(organizationId);
+    const links = await this.store.listLinks(organizationId, ORGANIZATION_LINK_LIMIT);
     if (links.length >= ORGANIZATION_LINK_LIMIT) {
       throw new UnprocessableEntityException({
         code: 'ORGANIZATION_LINK_LIMIT',
@@ -807,6 +807,7 @@ export class OrganizationService {
       authority: this.writeAuthority(organization, userId, allowedRoles),
       mutation: {
         kind: 'link.create',
+        expectedOrganizationRevision: organization.revision,
         record: {
           id: linkId,
           organizationId,
@@ -846,7 +847,11 @@ export class OrganizationService {
     const result = await this.store.commitAuthorizedMutation({
       organizationId,
       authority: this.writeAuthority(organization, userId, allowedRoles),
-      mutation: { kind: 'link.delete', linkId },
+      mutation: {
+        kind: 'link.delete',
+        linkId,
+        expectedOrganizationRevision: organization.revision,
+      },
       audit: this.audit({
         organizationId,
         event: 'organization.link_deleted',
@@ -886,7 +891,10 @@ export class OrganizationService {
       throw error;
     }
 
-    const current = await this.store.listFeaturedResources(organizationId);
+    const current = await this.store.listFeaturedResources(
+      organizationId,
+      ORGANIZATION_FEATURED_RESOURCE_LIMIT,
+    );
     if (
       !current.some((row) => row.resourceId === resourceId) &&
       current.length >= ORGANIZATION_FEATURED_RESOURCE_LIMIT
@@ -904,6 +912,7 @@ export class OrganizationService {
         kind: 'resource.feature',
         resourceId,
         createdByUserId: userId,
+        expectedOrganizationRevision: organization.revision,
       },
       audit: this.audit({
         organizationId,
@@ -936,7 +945,11 @@ export class OrganizationService {
     const result = await this.store.commitAuthorizedMutation({
       organizationId,
       authority: this.writeAuthority(organization, userId, allowedRoles),
-      mutation: { kind: 'resource.unfeature', resourceId },
+      mutation: {
+        kind: 'resource.unfeature',
+        resourceId,
+        expectedOrganizationRevision: organization.revision,
+      },
       audit: this.audit({
         organizationId,
         event: 'organization.resource_unfeatured',
@@ -1066,9 +1079,15 @@ export class OrganizationService {
     const [followers, managers, links, featured, posts, events, viewerManager] =
       await Promise.all([
         this.store.countFollowers(organization.id),
-        this.store.listManagers(organization.id),
-        this.store.listLinks(organization.id),
-        this.store.listFeaturedResources(organization.id),
+        this.store.listManagers(
+          organization.id,
+          ORGANIZATION_MANAGER_LIMIT,
+        ),
+        this.store.listLinks(organization.id, ORGANIZATION_LINK_LIMIT),
+        this.store.listFeaturedResources(
+          organization.id,
+          ORGANIZATION_FEATURED_RESOURCE_LIMIT,
+        ),
         this.store.listPosts({ organizationId: organization.id, limit: 10 }),
         this.store.listEvents({
           organizationId: organization.id,
@@ -1371,6 +1390,20 @@ export class OrganizationService {
       this.notFound();
     }
 
+    if (result.status === 'limit_reached') {
+      if (result.collection === 'links') {
+        throw new UnprocessableEntityException({
+          code: 'ORGANIZATION_LINK_LIMIT',
+          message: 'Organization link limit reached',
+        });
+      }
+
+      throw new UnprocessableEntityException({
+        code: 'ORGANIZATION_RESOURCE_LIMIT',
+        message: 'Featured Resource limit reached',
+      });
+    }
+
     if (result.status !== 'ok' || result.kind !== kind) {
       throw new Error('Organization authorized mutation returned wrong kind');
     }
@@ -1398,6 +1431,12 @@ export class OrganizationService {
     result: Awaited<ReturnType<OrganizationStore['changeManager']>>,
   ): void {
     if (result.status === 'ok') return;
+    if (result.status === 'limit_reached') {
+      throw new UnprocessableEntityException({
+        code: 'ORGANIZATION_MANAGER_LIMIT',
+        message: 'Organization manager limit reached',
+      });
+    }
     if (result.status === 'final_owner') {
       throw new ConflictException({
         code: 'ORGANIZATION_FINAL_OWNER_REQUIRED',
