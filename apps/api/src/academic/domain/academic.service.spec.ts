@@ -79,10 +79,7 @@ function participation(
   };
 }
 
-function page<T>(
-  items: T[],
-  hasMore = false,
-): BoundedAcademicPage<T> {
+function page<T>(items: T[], hasMore = false): BoundedAcademicPage<T> {
   return { items, hasMore };
 }
 
