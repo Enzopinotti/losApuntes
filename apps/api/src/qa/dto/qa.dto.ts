@@ -81,6 +81,20 @@ export class UpdateQuestionDto {
   status?: QuestionState;
 }
 
+export class AnswerPageQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 25;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
+}
+
 export class CreateAnswerDto {
   @IsString()
   @Length(2, 5000)
