@@ -81,6 +81,27 @@ const transport = (
   ...overrides,
 });
 
+test("session inventory keeps truncation metadata from the shared contract", async () => {
+  const token = { value: "a".repeat(43) };
+  const store = new Store();
+  const session = new SessionController(sessionApi(token), store);
+  await session.login({ email: "a@example.edu", password: "password" });
+
+  const expected: AuthSessionListResponse = {
+    sessions: [sessionRecord("session-visible")],
+    truncated: true,
+    limit: 20,
+  };
+  const api = new AuthenticatedMobileApi(
+    session,
+    transport({
+      listSessions: async () => expected,
+    }),
+  );
+
+  await assert.deepEqual(await api.listSessions(), expected);
+});
+
 test("a 401 from an authoritative credential clears that session", async () => {
   const token = { value: "a".repeat(43) };
   const store = new Store();
