@@ -7,7 +7,6 @@ import type {
   ManagerChangeResult,
   OrganizationStore,
   OrganizationWriteAuthority,
-  UpdateOrganizationRecord,
 } from '../domain/organization.store';
 import type {
   OrganizationAuditRecord,
