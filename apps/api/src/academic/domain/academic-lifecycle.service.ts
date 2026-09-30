@@ -12,6 +12,13 @@ import type {
   UpdateAcademicAffiliationRolesDto,
 } from '../dto/academic.dto';
 import {
+  ACADEMIC_AFFILIATION_DECISION_LIMIT,
+  ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
+  ACADEMIC_FOLLOW_LIFECYCLE_LIMIT,
+  ACADEMIC_FOLLOW_VISIBLE_LIMIT,
+  requireCompleteAcademicPage,
+} from './academic-bounds';
+import {
   effectiveAcademicRelationshipRoles,
   graduationRoles,
   relationshipRolesCompatible,
@@ -34,12 +41,29 @@ export class AcademicLifecycleService {
   ) {}
 
   async getLifecycle(userId: string) {
-    const [affiliations, participations, context, follows] = await Promise.all([
-      this.store.listAffiliationsForUser(userId),
-      this.store.listSubjectParticipationsForUser(userId),
-      this.store.getCurrentContext(userId),
-      this.store.listAcademicFollows(userId),
-    ]);
+    const [affiliationPage, participationPage, context, followPage] =
+      await Promise.all([
+        this.store.listAffiliationsForUser({
+          userId,
+          limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+        }),
+        this.store.listSubjectParticipationsForUser({
+          userId,
+          states: ['current'],
+          limit: ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
+        }),
+        this.store.getCurrentContext(userId),
+        this.store.listAcademicFollows(userId, ACADEMIC_FOLLOW_LIFECYCLE_LIMIT),
+      ]);
+
+    const affiliations = requireCompleteAcademicPage(
+      affiliationPage,
+      'affiliations',
+    );
+    const participations = requireCompleteAcademicPage(
+      participationPage,
+      'current_subject_participations',
+    );
 
     const activeStudentAffiliationIds = affiliations
       .filter((row) => {
@@ -77,7 +101,9 @@ export class AcademicLifecycleService {
       currentSubjectIds,
       hasCurrentSubjectContext: Boolean(context?.subjectParticipationId),
       currentAffiliationId: context?.affiliationId ?? null,
-      follows: await this.followProjection(follows),
+      follows: await this.followProjection(followPage.items),
+      followsTruncated: followPage.hasMore,
+      followsLimit: ACADEMIC_FOLLOW_LIFECYCLE_LIMIT,
     };
   }
 
@@ -110,17 +136,22 @@ export class AcademicLifecycleService {
     let updated: AcademicAffiliationRecord | null = null;
 
     await this.store.runAtomically(async () => {
-      const currentParticipations =
-        await this.store.listSubjectParticipationsForUser(userId);
+      const currentParticipations = requireCompleteAcademicPage(
+        await this.store.listSubjectParticipationsForUser({
+          userId,
+          states: ['current'],
+          limit: ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
+        }),
+        'current_subject_participations',
+      );
       const scopedCurrentIds: string[] = [];
 
       for (const participation of currentParticipations) {
         if (
-          participation.state === 'current' &&
-          (await this.academic.participationBelongsToAffiliation(
+          await this.academic.participationBelongsToAffiliation(
             participation.subjectId,
             existing,
-          ))
+          )
         ) {
           scopedCurrentIds.push(participation.id);
         }
@@ -239,10 +270,15 @@ export class AcademicLifecycleService {
   }
 
   async listFollows(userId: string) {
+    const page = await this.store.listAcademicFollows(
+      userId,
+      ACADEMIC_FOLLOW_VISIBLE_LIMIT,
+    );
+
     return {
-      follows: await this.followProjection(
-        await this.store.listAcademicFollows(userId),
-      ),
+      follows: await this.followProjection(page.items),
+      truncated: page.hasMore,
+      limit: ACADEMIC_FOLLOW_VISIBLE_LIMIT,
     };
   }
 
