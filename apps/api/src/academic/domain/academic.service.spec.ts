@@ -99,6 +99,21 @@ async function rejectedConflict(
   throw new Error('Expected operation to reject with ConflictException');
 }
 
+async function rejectedUnprocessable(
+  operation: Promise<unknown>,
+): Promise<UnprocessableEntityException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof UnprocessableEntityException) return error;
+    throw error;
+  }
+
+  throw new Error(
+    'Expected operation to reject with UnprocessableEntityException',
+  );
+}
+
 function mockFn<T extends (...args: any[]) => any>() {
   return jest.fn<ReturnType<T>, Parameters<T>>();
 }
@@ -2006,12 +2021,12 @@ describe('AcademicService', () => {
       Promise.resolve(id === alias.id ? alias : id === source.id ? source : null),
     );
 
-    await expect(
+    const error = await rejectedUnprocessable(
       service.mergeCatalogNode('admin-1', source.id, alias.id, 1),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'ACADEMIC_MERGE_SELF',
-      }),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_MERGE_SELF',
     });
     expect(store.updateCatalogNode.mock.calls).toHaveLength(0);
   });
