@@ -153,6 +153,28 @@ describe('AuthActionTokenService', () => {
     expect(mocks.createIfBucketAvailable).not.toHaveBeenCalled();
   });
 
+  it('issues again after an existing token has cleared the cooldown', async () => {
+    const { store, mocks } = createStore();
+    mocks.findLatestActiveForUserPurpose.mockResolvedValue(
+      record({
+        createdAt: new Date(NOW.getTime() - 61_000),
+      }),
+    );
+    const service = new AuthActionTokenService(store);
+
+    await expect(
+      service.issueIfAllowed('user-1', 'email_verification', undefined, NOW),
+    ).resolves.not.toBeNull();
+
+    expect(mocks.createIfBucketAvailable).toHaveBeenCalledTimes(1);
+    expect(mocks.retainNewestActiveForUserPurpose).toHaveBeenCalledWith(
+      'user-1',
+      'email_verification',
+      NOW,
+      3,
+    );
+  });
+
   it('retains at most three active tokens per account and purpose', async () => {
     const { store, mocks } = createStore();
     const service = new AuthActionTokenService(store);
