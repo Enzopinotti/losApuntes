@@ -538,20 +538,6 @@ export class MongoOrganizationStore implements OrganizationStore {
     }
   }
 
-  async updateOwnedProfile(input: {
-    organizationId: string;
-    expectedRevision: number;
-    patch: UpdateOrganizationRecord;
-    audit: OrganizationAuditRecord;
-  }): Promise<OrganizationRecord | null> {
-    return this.updateOrganizationWithAudit(
-      input.organizationId,
-      input.expectedRevision,
-      input.patch,
-      input.audit,
-    );
-  }
-
   async updateVerification(input: {
     organizationId: string;
     expectedRevision: number;
@@ -799,12 +785,6 @@ export class MongoOrganizationStore implements OrganizationStore {
     };
   }
 
-  async createPost(
-    input: Omit<OrganizationPostRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationPostRecord> {
-    return toPlain<OrganizationPostRecord>(await this.posts.create(input));
-  }
-
   async findPostById(
     organizationId: string,
     postId: string,
@@ -822,31 +802,6 @@ export class MongoOrganizationStore implements OrganizationStore {
       .findOne({ id: postId })
       .lean<OrganizationPostRecord>()
       .exec();
-  }
-
-  async updatePost(
-    organizationId: string,
-    postId: string,
-    expectedRevision: number,
-    patch: Partial<
-      Pick<OrganizationPostRecord, 'title' | 'body' | 'subjectId'>
-    >,
-  ): Promise<OrganizationPostRecord | null> {
-    return this.posts
-      .findOneAndUpdate(
-        { organizationId, id: postId, revision: expectedRevision },
-        { $set: patch, $inc: { revision: 1 } },
-        { new: true },
-      )
-      .lean<OrganizationPostRecord>()
-      .exec();
-  }
-
-  async deletePost(organizationId: string, postId: string): Promise<boolean> {
-    const result = await this.posts
-      .deleteOne({ organizationId, id: postId })
-      .exec();
-    return result.deletedCount === 1;
   }
 
   async listPosts(input: {
@@ -926,45 +881,12 @@ export class MongoOrganizationStore implements OrganizationStore {
       .exec();
   }
 
-  async createEvent(
-    input: Omit<OrganizationEventRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationEventRecord> {
-    return toPlain<OrganizationEventRecord>(await this.events.create(input));
-  }
-
   async findEventById(
     organizationId: string,
     eventId: string,
   ): Promise<OrganizationEventRecord | null> {
     return this.events
       .findOne({ organizationId, id: eventId })
-      .lean<OrganizationEventRecord>()
-      .exec();
-  }
-
-  async updateEvent(
-    organizationId: string,
-    eventId: string,
-    expectedRevision: number,
-    patch: Partial<
-      Pick<
-        OrganizationEventRecord,
-        | 'title'
-        | 'description'
-        | 'startsAt'
-        | 'endsAt'
-        | 'locationLabel'
-        | 'externalUrl'
-        | 'state'
-      >
-    >,
-  ): Promise<OrganizationEventRecord | null> {
-    return this.events
-      .findOneAndUpdate(
-        { organizationId, id: eventId, revision: expectedRevision },
-        { $set: patch, $inc: { revision: 1 } },
-        { new: true },
-      )
       .lean<OrganizationEventRecord>()
       .exec();
   }
@@ -986,61 +908,11 @@ export class MongoOrganizationStore implements OrganizationStore {
       .exec();
   }
 
-  async createLink(
-    input: Omit<OrganizationLinkRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<OrganizationLinkRecord> {
-    return toPlain<OrganizationLinkRecord>(await this.links.create(input));
-  }
-
-  async deleteLink(organizationId: string, linkId: string): Promise<boolean> {
-    const result = await this.links
-      .deleteOne({ organizationId, id: linkId })
-      .exec();
-    return result.deletedCount === 1;
-  }
-
   async listLinks(organizationId: string): Promise<OrganizationLinkRecord[]> {
     return this.links
       .find({ organizationId })
       .sort({ createdAt: 1, id: 1 })
       .lean<OrganizationLinkRecord[]>()
-      .exec();
-  }
-
-  async featureResource(input: {
-    organizationId: string;
-    resourceId: string;
-    createdByUserId: string;
-  }): Promise<OrganizationFeaturedResourceRecord> {
-    await this.featuredResources
-      .updateOne(
-        {
-          organizationId: input.organizationId,
-          resourceId: input.resourceId,
-        },
-        { $setOnInsert: input },
-        { upsert: true },
-      )
-      .exec();
-
-    const row = await this.featuredResources
-      .findOne({
-        organizationId: input.organizationId,
-        resourceId: input.resourceId,
-      })
-      .lean<OrganizationFeaturedResourceRecord>()
-      .exec();
-
-    if (!row) throw new Error('Featured Resource upsert returned no row');
-    return row;
-  }
-
-  async unfeatureResource(
-    organizationId: string,
-    resourceId: string,
-  ): Promise<void> {
-    await this.featuredResources
-      .deleteOne({ organizationId, resourceId })
       .exec();
   }
 
