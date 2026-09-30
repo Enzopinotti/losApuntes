@@ -4,6 +4,13 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
+import {
+  ACADEMIC_AFFILIATION_DECISION_LIMIT,
+  ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
+  ACADEMIC_FOLLOW_LIFECYCLE_LIMIT,
+  ACADEMIC_FOLLOW_VISIBLE_LIMIT,
+  type BoundedAcademicPage,
+} from './academic-bounds';
 import type { AcademicStore } from './academic.store';
 import type { AcademicService } from './academic.service';
 import { AcademicLifecycleService } from './academic-lifecycle.service';
@@ -61,21 +68,38 @@ function follow(
   };
 }
 
+function page<T>(items: T[], hasMore = false): BoundedAcademicPage<T> {
+  return { items, hasMore };
+}
+
+async function rejectedConflict(
+  operation: Promise<unknown>,
+): Promise<ConflictException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof ConflictException) return error;
+    throw error;
+  }
+
+  throw new Error('Expected operation to reject with ConflictException');
+}
+
 function store(): jest.Mocked<AcademicStore> {
   const value = {
     runAtomically: jest.fn(async <T>(operation: () => Promise<T>) =>
       operation(),
     ),
     findAffiliationById: jest.fn(),
-    listAffiliationsForUser: jest.fn().mockResolvedValue([]),
-    listSubjectParticipationsForUser: jest.fn().mockResolvedValue([]),
+    listAffiliationsForUser: jest.fn().mockResolvedValue(page([])),
+    listSubjectParticipationsForUser: jest.fn().mockResolvedValue(page([])),
     getCurrentContext: jest.fn().mockResolvedValue(null),
     setCurrentContext: jest.fn(),
     transitionAffiliationToAlumni: jest.fn(),
     transitionSubjectParticipationStates: jest.fn().mockResolvedValue(0),
     updateAffiliationRoles: jest.fn(),
     upsertAcademicFollow: jest.fn(),
-    listAcademicFollows: jest.fn().mockResolvedValue([]),
+    listAcademicFollows: jest.fn().mockResolvedValue(page([])),
     removeAcademicFollows: jest.fn(),
     appendAuditEvent: jest.fn().mockResolvedValue(undefined),
   };
@@ -143,15 +167,19 @@ describe('AcademicLifecycleService', () => {
     async ({ affiliations, expected }) => {
       const lifecycleStore = store();
       const academicService = academic();
-      lifecycleStore.listAffiliationsForUser.mockResolvedValue(affiliations);
-      lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue([
-        participation(),
-        participation({
-          id: '88888888-8888-4888-8888-888888888888',
-          subjectId: '99999999-9999-4999-8999-999999999999',
-          state: 'completed',
-        }),
-      ]);
+      lifecycleStore.listAffiliationsForUser.mockResolvedValue(
+        page(affiliations),
+      );
+      lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue(
+        page([
+          participation(),
+          participation({
+            id: '88888888-8888-4888-8888-888888888888',
+            subjectId: '99999999-9999-4999-8999-999999999999',
+            state: 'completed',
+          }),
+        ]),
+      );
       lifecycleStore.getCurrentContext.mockResolvedValue({
         userId: 'user-1',
         affiliationId: affiliations[0]?.id ?? 'none',
@@ -175,8 +203,34 @@ describe('AcademicLifecycleService', () => {
       expect(result.hasCurrentSubjectContext).toBe(
         expected === 'student' || expected === 'mixed',
       );
+      expect(lifecycleStore.listAcademicFollows.mock.calls).toContainEqual([
+        'user-1',
+        ACADEMIC_FOLLOW_LIFECYCLE_LIMIT,
+      ]);
     },
   );
+
+  it('fails closed when lifecycle decisions exceed the affiliation snapshot budget', async () => {
+    const lifecycleStore = store();
+    lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([], true));
+
+    const error = await rejectedConflict(
+      new AcademicLifecycleService(lifecycleStore, academic()).getLifecycle(
+        'user-1',
+      ),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_INVENTORY_OVERFLOW',
+      collection: 'affiliations',
+    });
+    expect(lifecycleStore.listAffiliationsForUser.mock.calls).toContainEqual([
+      {
+        userId: 'user-1',
+        limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+      },
+    ]);
+  });
 
   it('graduates atomically, completes scoped current subjects and clears subject context', async () => {
     const lifecycleStore = store();
@@ -197,8 +251,10 @@ describe('AcademicLifecycleService', () => {
 
     lifecycleStore.findAffiliationById.mockResolvedValue(active);
     lifecycleStore.listSubjectParticipationsForUser
-      .mockResolvedValueOnce([scoped, outside])
-      .mockResolvedValueOnce([{ ...scoped, state: 'completed' }, outside]);
+      .mockResolvedValueOnce(page([scoped, outside]))
+      .mockResolvedValueOnce(
+        page([{ ...scoped, state: 'completed' }, outside]),
+      );
     academicService.participationBelongsToAffiliation
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false);
@@ -224,7 +280,7 @@ describe('AcademicLifecycleService', () => {
       createdAt: now,
       updatedAt: now,
     });
-    lifecycleStore.listAffiliationsForUser.mockResolvedValue([graduated]);
+    lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([graduated]));
 
     const result = await new AcademicLifecycleService(
       lifecycleStore,
@@ -262,6 +318,40 @@ describe('AcademicLifecycleService', () => {
     expect(result.lifecycle.phase).toBe('alumni');
   });
 
+  it('does not graduate from an incomplete current-subject snapshot', async () => {
+    const lifecycleStore = store();
+    const active = affiliation();
+    lifecycleStore.findAffiliationById.mockResolvedValue(active);
+    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue(
+      page([], true),
+    );
+
+    const error = await rejectedConflict(
+      new AcademicLifecycleService(lifecycleStore, academic()).graduate(
+        'user-1',
+        active.id,
+        { graduatedOn: '2026-09' },
+      ),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_INVENTORY_OVERFLOW',
+      collection: 'current_subject_participations',
+    });
+    expect(
+      lifecycleStore.listSubjectParticipationsForUser.mock.calls,
+    ).toContainEqual([
+      {
+        userId: 'user-1',
+        states: ['current'],
+        limit: ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
+      },
+    ]);
+    expect(
+      lifecycleStore.transitionAffiliationToAlumni.mock.calls,
+    ).toHaveLength(0);
+  });
+
   it('does not clear context when graduating affiliation has no current subject context', async () => {
     const lifecycleStore = store();
     const academicService = academic();
@@ -273,7 +363,7 @@ describe('AcademicLifecycleService', () => {
     });
 
     lifecycleStore.findAffiliationById.mockResolvedValue(active);
-    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue([]);
+    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue(page([]));
     lifecycleStore.transitionAffiliationToAlumni.mockResolvedValue(graduated);
     lifecycleStore.getCurrentContext.mockResolvedValue({
       userId: 'user-1',
@@ -281,7 +371,7 @@ describe('AcademicLifecycleService', () => {
       createdAt: now,
       updatedAt: now,
     });
-    lifecycleStore.listAffiliationsForUser.mockResolvedValue([graduated]);
+    lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([graduated]));
 
     await new AcademicLifecycleService(
       lifecycleStore,
@@ -318,7 +408,7 @@ describe('AcademicLifecycleService', () => {
       endedOn: '2026-09',
     });
     lifecycleStore.findAffiliationById.mockResolvedValue(alumni);
-    lifecycleStore.listAffiliationsForUser.mockResolvedValue([alumni]);
+    lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([alumni]));
 
     const result = await new AcademicLifecycleService(
       lifecycleStore,
@@ -346,8 +436,8 @@ describe('AcademicLifecycleService', () => {
       .mockResolvedValueOnce(active)
       .mockResolvedValueOnce(alumni);
     lifecycleStore.transitionAffiliationToAlumni.mockResolvedValue(null);
-    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue([]);
-    lifecycleStore.listAffiliationsForUser.mockResolvedValue([alumni]);
+    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue(page([]));
+    lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([alumni]));
 
     const result = await new AcademicLifecycleService(
       lifecycleStore,
@@ -363,7 +453,7 @@ describe('AcademicLifecycleService', () => {
     const lifecycleStore = store();
     const active = affiliation();
     lifecycleStore.findAffiliationById.mockResolvedValue(active);
-    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue([]);
+    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue(page([]));
     lifecycleStore.transitionAffiliationToAlumni.mockResolvedValue(null);
 
     await expect(
@@ -399,7 +489,7 @@ describe('AcademicLifecycleService', () => {
     });
     lifecycleStore.findAffiliationById.mockResolvedValue(existing);
     lifecycleStore.updateAffiliationRoles.mockResolvedValue(updated);
-    lifecycleStore.listAffiliationsForUser.mockResolvedValue([updated]);
+    lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([updated]));
 
     const result = await new AcademicLifecycleService(
       lifecycleStore,
@@ -512,18 +602,20 @@ describe('AcademicLifecycleService', () => {
   it('projects merge-safe follows, deduplicates canonical targets and skips missing targets', async () => {
     const lifecycleStore = store();
     const academicService = academic();
-    lifecycleStore.listAcademicFollows.mockResolvedValue([
-      follow(),
-      follow({
-        id: '77777777-7777-4777-8777-777777777777',
-        targetNodeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      }),
-      follow({
-        id: '88888888-8888-4888-8888-888888888888',
-        targetNodeId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-        targetKind: 'program',
-      }),
-    ]);
+    lifecycleStore.listAcademicFollows.mockResolvedValue(
+      page([
+        follow(),
+        follow({
+          id: '77777777-7777-4777-8777-777777777777',
+          targetNodeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        }),
+        follow({
+          id: '88888888-8888-4888-8888-888888888888',
+          targetNodeId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          targetKind: 'program',
+        }),
+      ]),
+    );
     academicService.resolveContinuityFollowTarget
       .mockResolvedValueOnce({
         targetId: '22222222-2222-4222-8222-222222222222',
@@ -556,18 +648,26 @@ describe('AcademicLifecycleService', () => {
         name: 'Universidad',
       },
     ]);
+    expect(result.truncated).toBe(false);
+    expect(result.limit).toBe(ACADEMIC_FOLLOW_VISIBLE_LIMIT);
+    expect(lifecycleStore.listAcademicFollows.mock.calls).toContainEqual([
+      'user-1',
+      ACADEMIC_FOLLOW_VISIBLE_LIMIT,
+    ]);
   });
 
   it('skips follows whose canonical target is no longer followable', async () => {
     const lifecycleStore = store();
     const academicService = academic();
-    lifecycleStore.listAcademicFollows.mockResolvedValue([
-      follow(),
-      follow({
-        id: '77777777-7777-4777-8777-777777777777',
-        targetNodeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      }),
-    ]);
+    lifecycleStore.listAcademicFollows.mockResolvedValue(
+      page([
+        follow(),
+        follow({
+          id: '77777777-7777-4777-8777-777777777777',
+          targetNodeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        }),
+      ]),
+    );
     academicService.resolveContinuityFollowTarget
       .mockRejectedValueOnce(
         new UnprocessableEntityException({
@@ -599,7 +699,7 @@ describe('AcademicLifecycleService', () => {
   it('rethrows unexpected follow projection failures', async () => {
     const lifecycleStore = store();
     const academicService = academic();
-    lifecycleStore.listAcademicFollows.mockResolvedValue([follow()]);
+    lifecycleStore.listAcademicFollows.mockResolvedValue(page([follow()]));
     academicService.resolveContinuityFollowTarget.mockRejectedValue(
       new Error('catalog unavailable'),
     );
@@ -614,7 +714,7 @@ describe('AcademicLifecycleService', () => {
   it('rethrows unrelated validation failures while projecting follows', async () => {
     const lifecycleStore = store();
     const academicService = academic();
-    lifecycleStore.listAcademicFollows.mockResolvedValue([follow()]);
+    lifecycleStore.listAcademicFollows.mockResolvedValue(page([follow()]));
     academicService.resolveContinuityFollowTarget.mockRejectedValue(
       new UnprocessableEntityException({
         code: 'ACADEMIC_CONTEXT_MISMATCH',

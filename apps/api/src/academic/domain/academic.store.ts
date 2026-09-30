@@ -1,3 +1,4 @@
+import type { BoundedAcademicPage } from './academic-bounds';
 import type {
   AcademicAffiliationRecord,
   AcademicAuditEventRecord,
@@ -98,7 +99,11 @@ export interface AcademicStore {
     input: CreateAffiliationRecord,
   ): Promise<AcademicAffiliationRecord>;
   findAffiliationById(id: string): Promise<AcademicAffiliationRecord | null>;
-  listAffiliationsForUser(userId: string): Promise<AcademicAffiliationRecord[]>;
+  listAffiliationsForUser(input: {
+    userId: string;
+    limit: number;
+    statuses?: AcademicAffiliationRecord['status'][];
+  }): Promise<BoundedAcademicPage<AcademicAffiliationRecord>>;
   updateAffiliationStatus(
     userId: string,
     id: string,
@@ -125,9 +130,11 @@ export interface AcademicStore {
   findSubjectParticipationById(
     id: string,
   ): Promise<SubjectParticipationRecord | null>;
-  listSubjectParticipationsForUser(
-    userId: string,
-  ): Promise<SubjectParticipationRecord[]>;
+  listSubjectParticipationsForUser(input: {
+    userId: string;
+    limit: number;
+    states?: SubjectParticipationRecord['state'][];
+  }): Promise<BoundedAcademicPage<SubjectParticipationRecord>>;
   transitionSubjectParticipationStates(
     userId: string,
     ids: string[],
@@ -145,7 +152,10 @@ export interface AcademicStore {
   upsertAcademicFollow(
     input: Omit<AcademicFollowRecord, 'createdAt' | 'updatedAt'>,
   ): Promise<AcademicFollowRecord>;
-  listAcademicFollows(userId: string): Promise<AcademicFollowRecord[]>;
+  listAcademicFollows(
+    userId: string,
+    limit: number,
+  ): Promise<BoundedAcademicPage<AcademicFollowRecord>>;
   removeAcademicFollows(
     userId: string,
     targetNodeIds: string[],

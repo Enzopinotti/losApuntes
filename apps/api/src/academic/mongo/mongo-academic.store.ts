@@ -239,13 +239,22 @@ export class MongoAcademicStore implements AcademicStore {
   }
 
   async listAffiliationsForUser(
-    userId: string,
-  ): Promise<AcademicAffiliationRecord[]> {
-    return this.affiliations
-      .find({ userId })
+    input: Parameters<AcademicStore['listAffiliationsForUser']>[0],
+  ): ReturnType<AcademicStore['listAffiliationsForUser']> {
+    const rows = await this.affiliations
+      .find({
+        userId: input.userId,
+        ...(input.statuses?.length ? { status: { $in: input.statuses } } : {}),
+      })
       .sort({ updatedAt: -1, id: 1 })
+      .limit(input.limit + 1)
       .lean<AcademicAffiliationRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async updateAffiliationStatus(
@@ -353,13 +362,22 @@ export class MongoAcademicStore implements AcademicStore {
   }
 
   async listSubjectParticipationsForUser(
-    userId: string,
-  ): Promise<SubjectParticipationRecord[]> {
-    return this.participations
-      .find({ userId })
+    input: Parameters<AcademicStore['listSubjectParticipationsForUser']>[0],
+  ): ReturnType<AcademicStore['listSubjectParticipationsForUser']> {
+    const rows = await this.participations
+      .find({
+        userId: input.userId,
+        ...(input.states?.length ? { state: { $in: input.states } } : {}),
+      })
       .sort({ updatedAt: -1, id: 1 })
+      .limit(input.limit + 1)
       .lean<SubjectParticipationRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async transitionSubjectParticipationStates(
@@ -444,12 +462,21 @@ export class MongoAcademicStore implements AcademicStore {
     return row;
   }
 
-  async listAcademicFollows(userId: string): Promise<AcademicFollowRecord[]> {
-    return this.follows
+  async listAcademicFollows(
+    userId: string,
+    limit: number,
+  ): ReturnType<AcademicStore['listAcademicFollows']> {
+    const rows = await this.follows
       .find({ userId })
       .sort({ updatedAt: -1, id: 1 })
+      .limit(limit + 1)
       .lean<AcademicFollowRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
   }
 
   async removeAcademicFollows(

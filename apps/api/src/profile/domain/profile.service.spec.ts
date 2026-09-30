@@ -122,9 +122,15 @@ function service(
 function configureAcademic(
   academicService: jest.Mocked<AcademicProjectionApi>,
 ): void {
-  academicService.listAffiliations.mockResolvedValue({ affiliations: [] });
+  academicService.listAffiliations.mockResolvedValue({
+    affiliations: [],
+    truncated: false,
+    limit: 50,
+  });
   academicService.listSubjectParticipations.mockResolvedValue({
     participations: [],
+    truncated: false,
+    limit: 100,
   });
   academicService.getCurrentContext.mockResolvedValue({ context: null });
 }
@@ -273,9 +279,13 @@ describe('ProfileService', () => {
     profileStore.listActivitiesForUser.mockResolvedValue([act]);
     academicService.listAffiliations.mockResolvedValue({
       affiliations: [{ id: 'aff-1' }] as never[],
+      truncated: false,
+      limit: 50,
     });
     academicService.listSubjectParticipations.mockResolvedValue({
       participations: [{ id: 'part-1' }] as never[],
+      truncated: false,
+      limit: 100,
     });
     academicService.getCurrentContext.mockResolvedValue({
       context: { affiliationId: 'aff-1' } as never,

@@ -18,6 +18,12 @@ import type {
   UpsertSubjectParticipationDto,
 } from '../dto/academic.dto';
 import {
+  ACADEMIC_AFFILIATION_DECISION_LIMIT,
+  ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
+  ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+  requireCompleteAcademicPage,
+} from './academic-bounds';
+import {
   effectiveAcademicRelationshipRoles,
   relationshipRolesCompatible,
 } from './academic-lifecycle.helpers';
@@ -391,12 +397,17 @@ export class AcademicService {
   }
 
   async listAffiliations(userId: string) {
-    const rows = await this.store.listAffiliationsForUser(userId);
+    const page = await this.store.listAffiliationsForUser({
+      userId,
+      limit: ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
+    });
 
     return {
       affiliations: await Promise.all(
-        rows.map((row) => this.publicAffiliation(row)),
+        page.items.map((row) => this.publicAffiliation(row)),
       ),
+      truncated: page.hasMore,
+      limit: ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
     };
   }
 
@@ -539,12 +550,17 @@ export class AcademicService {
   }
 
   async listSubjectParticipations(userId: string) {
-    const rows = await this.store.listSubjectParticipationsForUser(userId);
+    const page = await this.store.listSubjectParticipationsForUser({
+      userId,
+      limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+    });
 
     return {
       participations: await Promise.all(
-        rows.map((row) => this.publicParticipation(row)),
+        page.items.map((row) => this.publicParticipation(row)),
       ),
+      truncated: page.hasMore,
+      limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
     };
   }
 
@@ -556,17 +572,19 @@ export class AcademicService {
     const subject = await this.requireKind(subjectId, 'subject');
 
     if (dto.state === 'current') {
-      const affiliations = await this.store.listAffiliationsForUser(userId);
+      const affiliations = requireCompleteAcademicPage(
+        await this.store.listAffiliationsForUser({
+          userId,
+          statuses: ['active', 'paused'],
+          limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+        }),
+        'affiliations',
+      );
       let eligible = false;
 
       for (const affiliation of affiliations) {
         if (
-          (affiliation.status === 'active' ||
-            affiliation.status === 'paused') &&
-          (await this.participationBelongsToAffiliation(
-            subject.id,
-            affiliation,
-          ))
+          await this.participationBelongsToAffiliation(subject.id, affiliation)
         ) {
           eligible = true;
           break;
