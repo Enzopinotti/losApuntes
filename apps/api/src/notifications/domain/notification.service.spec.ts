@@ -97,6 +97,27 @@ describe('NotificationService', () => {
     expect(notificationStore.createMany.mock.calls).toHaveLength(0);
   });
 
+  it('rejects record amplification even when all rows target one recipient', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const records = Array.from(
+      { length: MAX_NOTIFICATION_SYNC_RECIPIENTS + 1 },
+      (_, index) => ({
+        ...createRecord(index),
+        userId: 'same-recipient',
+      }),
+    );
+
+    await expect(
+      new NotificationService(
+        notificationStore,
+        profileApi as unknown as ProfileService,
+      ).createMany(records),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(notificationStore.createMany.mock.calls).toHaveLength(0);
+  });
+
   it('does not touch persistence for an empty notification batch', async () => {
     const notificationStore = store();
     const profileApi = profiles();
