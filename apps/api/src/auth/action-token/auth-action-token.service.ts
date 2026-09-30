@@ -66,20 +66,12 @@ export class AuthActionTokenService {
 
     if (!created) return null;
 
-    const active = await this.store.listActiveForUserPurpose(
+    await this.store.retainNewestActiveForUserPurpose(
       userId,
       purpose,
       now,
+      MAX_ACTIVE_TOKENS_PER_PURPOSE,
     );
-
-    if (active.length > MAX_ACTIVE_TOKENS_PER_PURPOSE) {
-      await this.store.invalidateByIds(
-        userId,
-        purpose,
-        active.slice(MAX_ACTIVE_TOKENS_PER_PURPOSE).map((record) => record.id),
-        now,
-      );
-    }
 
     return {
       token,
