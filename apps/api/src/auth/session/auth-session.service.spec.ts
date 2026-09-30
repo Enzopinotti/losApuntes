@@ -1,9 +1,14 @@
 import {
+  type ActiveAuthSessionInventoryPage,
+  type ActiveAuthSessionInventoryQuery,
   type AuthSessionRecord,
   type AuthSessionStore,
   type CreateAuthSessionRecord,
 } from './auth-session.types';
-import { AuthSessionService } from './auth-session.service';
+import {
+  AUTH_SESSION_INVENTORY_LIMIT,
+  AuthSessionService,
+} from './auth-session.service';
 import { hashSessionToken } from './session-token';
 
 const SESSION_A = 'a9a77b19-44e9-47fa-af61-e706ddf63125';
@@ -33,8 +38,12 @@ function createStore() {
     [string, Date]
   >();
   const listActiveForUser = jest.fn<
-    Promise<AuthSessionRecord[]>,
-    [string, Date]
+    Promise<ActiveAuthSessionInventoryPage>,
+    [ActiveAuthSessionInventoryQuery]
+  >();
+  const findActiveOwnedById = jest.fn<
+    Promise<AuthSessionRecord | null>,
+    [string, string, number, Date]
   >();
   const touchLastSeen = jest.fn<Promise<void>, [string, Date]>();
   const revokeByTokenHash = jest.fn<Promise<void>, [string]>();
@@ -47,6 +56,7 @@ function createStore() {
     create,
     findActiveByTokenHash,
     listActiveForUser,
+    findActiveOwnedById,
     touchLastSeen,
     revokeByTokenHash,
     revokeOwnedById,
@@ -59,6 +69,7 @@ function createStore() {
       create,
       findActiveByTokenHash,
       listActiveForUser,
+      findActiveOwnedById,
       touchLastSeen,
       revokeByTokenHash,
       revokeOwnedById,
