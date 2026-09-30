@@ -91,7 +91,10 @@ async function main() {
     },
   );
   assert.equal(access.response.status, 201);
-  assert.equal(access.response.headers.get('cache-control'), 'no-store');
+  assert.equal(
+    access.response.headers.get('cache-control'),
+    'private, no-store',
+  );
   assert.equal(typeof access.body?.access?.url, 'string');
 
   const bytesResponse = await fetch(access.body.access.url, {
