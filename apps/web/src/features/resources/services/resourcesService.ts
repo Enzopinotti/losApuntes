@@ -141,10 +141,11 @@ export const resourcesApi = {
     return result.items.map(({ id, name }) => ({ id, name }));
   },
 
-  createUploadIntent: (file: File) =>
+  createUploadIntent: (file: File, operationKey: string) =>
     request<FileUploadIntent>("/files/upload-intents", {
       method: "POST",
       body: json({
+        operationKey,
         filename: file.name,
         mimeType: file.type,
         byteSize: file.size,
