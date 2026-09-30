@@ -5,6 +5,12 @@ import {
 } from '@nestjs/common';
 
 import {
+  ACADEMIC_AFFILIATION_DECISION_LIMIT,
+  ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
+  ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+  type BoundedAcademicPage,
+} from './academic-bounds';
+import {
   AcademicSourceIdentityConflictError,
   type AcademicStore,
 } from './academic.store';
@@ -71,6 +77,13 @@ function participation(
     updatedAt: now,
     ...overrides,
   };
+}
+
+function page<T>(
+  items: T[],
+  hasMore = false,
+): BoundedAcademicPage<T> {
+  return { items, hasMore };
 }
 
 function mockFn<T extends (...args: any[]) => any>() {
@@ -733,7 +746,7 @@ describe('AcademicService', () => {
       Promise.resolve(ids.includes(program.id) ? [program] : []),
     );
     store.createAffiliation.mockResolvedValue(created);
-    store.listAffiliationsForUser.mockResolvedValue([created]);
+    store.listAffiliationsForUser.mockResolvedValue(page([created]));
     store.findAffiliationById.mockResolvedValue(created);
     store.updateAffiliationStatus.mockResolvedValue({
       ...created,
@@ -834,7 +847,7 @@ describe('AcademicService', () => {
 
     store.findCatalogNodeById.mockResolvedValue(subject);
     store.upsertSubjectParticipation.mockResolvedValue(row);
-    store.listSubjectParticipationsForUser.mockResolvedValue([row]);
+    store.listSubjectParticipationsForUser.mockResolvedValue(page([row]));
 
     const upsertResult = await service.upsertSubjectParticipation(
       'user-1',
@@ -848,6 +861,53 @@ describe('AcademicService', () => {
 
     const listResult = await service.listSubjectParticipations('user-1');
     expect(listResult.participations.map((item) => item.id)).toEqual([row.id]);
+  });
+
+  it('returns honest truncation metadata for visible affiliations', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const row = affiliation();
+    store.listAffiliationsForUser.mockResolvedValue(page([row], true));
+
+    await expect(service.listAffiliations('user-1')).resolves.toMatchObject({
+      affiliations: [expect.objectContaining({ id: row.id })],
+      truncated: true,
+      limit: ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
+    });
+
+    expect(store.listAffiliationsForUser).toHaveBeenCalledWith({
+      userId: 'user-1',
+      limit: ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
+    });
+  });
+
+  it('fails closed when current-subject eligibility exceeds affiliation decision budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const subject = catalogNode({
+      id: '55555555-5555-4555-8555-555555555555',
+      kind: 'subject',
+    });
+    store.findCatalogNodeById.mockResolvedValue(subject);
+    store.listAffiliationsForUser.mockResolvedValue(page([], true));
+
+    await expect(
+      service.upsertSubjectParticipation('user-1', subject.id, {
+        state: 'current',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'ACADEMIC_INVENTORY_OVERFLOW',
+        collection: 'affiliations',
+      }),
+    });
+
+    expect(store.listAffiliationsForUser).toHaveBeenCalledWith({
+      userId: 'user-1',
+      statuses: ['active', 'paused'],
+      limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+    });
+    expect(store.upsertSubjectParticipation).not.toHaveBeenCalled();
   });
 
   it('returns and updates current academic context without accepting withdrawn context', async () => {
@@ -1259,7 +1319,7 @@ describe('AcademicService', () => {
               : null,
       ),
     );
-    store.listAffiliationsForUser.mockResolvedValue([row]);
+    store.listAffiliationsForUser.mockResolvedValue(page([row]));
     store.findAffiliationById.mockResolvedValue(row);
     store.updateAffiliationStatus.mockResolvedValue({
       ...row,
@@ -1268,6 +1328,8 @@ describe('AcademicService', () => {
 
     await expect(service.listAffiliations('user-1')).resolves.toEqual({
       affiliations: [expect.objectContaining({ id: row.id, status: 'active' })],
+      truncated: false,
+      limit: ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
     });
 
     const updateResult = await service.updateAffiliationStatus(
@@ -1367,7 +1429,7 @@ describe('AcademicService', () => {
     });
     const row = participation();
 
-    store.listSubjectParticipationsForUser.mockResolvedValue([row]);
+    store.listSubjectParticipationsForUser.mockResolvedValue(page([row]));
     store.findCatalogNodeById.mockResolvedValue(subject);
     store.upsertSubjectParticipation.mockImplementation((input) =>
       Promise.resolve({
@@ -1381,6 +1443,8 @@ describe('AcademicService', () => {
       participations: [
         expect.objectContaining({ id: row.id, state: 'current' }),
       ],
+      truncated: false,
+      limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
     });
 
     const result = await service.upsertSubjectParticipation(
@@ -1907,7 +1971,7 @@ describe('AcademicService', () => {
       Promise.resolve(id === target.id ? [source] : []),
     );
     store.searchCatalog.mockResolvedValue({ items: [child], hasMore: false });
-    store.listAffiliationsForUser.mockResolvedValue([row]);
+    store.listAffiliationsForUser.mockResolvedValue(page([row]));
 
     const children = await service.listChildren(target.id, 'program', 25);
     expect(children.items.map((item) => item.id)).toEqual([child.id]);
