@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import type { FilterQuery, Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import type { Connection, FilterQuery, Model } from 'mongoose';
 
 import type {
+  CreateNotificationRecord,
   NotificationCursor,
   NotificationRecord,
 } from '../domain/notification.types';
@@ -12,9 +13,27 @@ import { Notification } from './notification.mongo-schema';
 @Injectable()
 export class MongoNotificationStore implements NotificationStore {
   constructor(
+    @InjectConnection()
+    private readonly connection: Connection,
     @InjectModel(Notification.name)
     private readonly notifications: Model<Notification>,
   ) {}
+
+  async createMany(records: CreateNotificationRecord[]): Promise<number> {
+    if (records.length === 0) return 0;
+
+    const session = await this.connection.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        await this.notifications.create(records, { session });
+      });
+
+      return records.length;
+    } finally {
+      await session.endSession();
+    }
+  }
 
   async list(input: {
     userId: string;
