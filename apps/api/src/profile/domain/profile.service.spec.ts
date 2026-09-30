@@ -87,6 +87,19 @@ function activityPage(
   return { items, hasMore };
 }
 
+async function rejectedUnprocessable(
+  operation: Promise<unknown>,
+): Promise<UnprocessableEntityException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof UnprocessableEntityException) return error;
+    throw error;
+  }
+
+  throw new Error('Expected operation to reject with UnprocessableEntityException');
+}
+
 function store(): jest.Mocked<ProfileStore> {
   return {
     findProfileByUserId: jest.fn(),
@@ -377,17 +390,16 @@ describe('ProfileService', () => {
     const academicService = academic();
     profileStore.findProfileByUserId.mockResolvedValue(profile());
 
-    await expect(
+    const error = await rejectedUnprocessable(
       service(profileStore, academicService).listOwnerActivities('user-1', {
         limit: 20,
         cursor: 'not-a-valid-cursor',
       }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'PROFILE_ACTIVITY_CURSOR_INVALID',
-      }),
-    });
+    );
 
+    expect(error.getResponse()).toMatchObject({
+      code: 'PROFILE_ACTIVITY_CURSOR_INVALID',
+    });
     expect(profileStore.listActivitiesForUser.mock.calls).toHaveLength(0);
   });
 
