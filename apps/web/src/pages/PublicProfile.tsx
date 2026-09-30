@@ -71,7 +71,10 @@ const PublicProfile = () => {
           ...current,
           profile: {
             ...current.profile,
-            activities: appendActivities(current.profile.activities, page.items),
+            activities: appendActivities(
+              current.profile.activities,
+              page.items,
+            ),
             activitiesNextCursor: page.nextCursor,
           },
         };
