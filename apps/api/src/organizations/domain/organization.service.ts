@@ -255,7 +255,8 @@ export class OrganizationService {
 
   async update(userId: string, id: string, dto: UpdateOrganizationDto) {
     const organization = await this.requireActive(id);
-    await this.requireRole(id, userId, ['owner', 'admin']);
+    const allowedRoles: OrganizationManagerRole[] = ['owner', 'admin'];
+    await this.requireRole(id, userId, allowedRoles);
 
     if (organization.revision !== dto.expectedRevision) {
       this.revisionConflict();
@@ -281,10 +282,18 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updateOwnedProfile({
+    const result = await this.store.commitAuthorizedMutation({
       organizationId: id,
-      expectedRevision: dto.expectedRevision,
-      patch,
+      authority: this.writeAuthority(
+        organization,
+        userId,
+        allowedRoles,
+      ),
+      mutation: {
+        kind: 'organization.update',
+        expectedRevision: dto.expectedRevision,
+        patch,
+      },
       audit: this.audit({
         organizationId: id,
         event: 'organization.updated',
@@ -297,7 +306,7 @@ export class OrganizationService {
       }),
     });
 
-    if (!updated) this.revisionConflict();
+    const updated = this.authorizedValue(result, 'organization.update');
     return { organization: await this.detailProjection(updated, userId) };
   }
 
