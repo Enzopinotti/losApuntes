@@ -284,11 +284,7 @@ export class OrganizationService {
 
     const result = await this.store.commitAuthorizedMutation({
       organizationId: id,
-      authority: this.writeAuthority(
-        organization,
-        userId,
-        allowedRoles,
-      ),
+      authority: this.writeAuthority(organization, userId, allowedRoles),
       mutation: {
         kind: 'organization.update',
         expectedRevision: dto.expectedRevision,
