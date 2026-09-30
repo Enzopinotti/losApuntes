@@ -477,25 +477,45 @@ export class OrganizationService {
     dto: CreateOrganizationPostDto,
   ) {
     const organization = await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const subjectId = dto.subjectId
       ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
       : null;
-    const post = await this.store.createPost({
-      id: randomUUID(),
+    const postId = randomUUID();
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      createdByUserId: userId,
-      title: cleanNullable(dto.title),
-      body: cleanText(dto.body),
-      subjectId,
-      moderationState: 'available',
-      revision: 1,
-      publishedAt: new Date(),
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'post.create',
+        record: {
+          id: postId,
+          organizationId,
+          createdByUserId: userId,
+          title: cleanNullable(dto.title),
+          body: cleanText(dto.body),
+          subjectId,
+          moderationState: 'available',
+          revision: 1,
+          publishedAt: new Date(),
+        },
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.post_created',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization post created',
+        metadata: { postId },
+      }),
     });
+    const post = this.authorizedValue(result, 'post.create');
 
     return { post: await this.postProjection(post, organization) };
   }
@@ -535,18 +555,35 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updatePost(
+    const allowedRoles: OrganizationManagerRole[] = [
+      'owner',
+      'admin',
+      'editor',
+    ];
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      postId,
-      dto.expectedRevision,
-      patch,
-    );
-    if (!updated) {
-      throw new ConflictException({
-        code: 'ORGANIZATION_POST_REVISION_CONFLICT',
-        message: 'Organization post changed concurrently',
-      });
-    }
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'post.update',
+        postId,
+        expectedRevision: dto.expectedRevision,
+        patch,
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.post_updated',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization post updated',
+        metadata: { postId, changedFields: Object.keys(patch).length },
+      }),
+    });
+    const updated = this.authorizedValue(result, 'post.update', {
+      code: 'ORGANIZATION_POST_REVISION_CONFLICT',
+      message: 'Organization post changed concurrently',
+    });
 
     return { post: await this.postProjection(updated, organization) };
   }
@@ -556,14 +593,29 @@ export class OrganizationService {
     organizationId: string,
     postId: string,
   ): Promise<void> {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
-    const deleted = await this.store.deletePost(organizationId, postId);
-    if (!deleted) this.notFound();
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
+    const result = await this.store.commitAuthorizedMutation({
+      organizationId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: { kind: 'post.delete', postId },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.post_deleted',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization post deleted',
+        metadata: { postId },
+      }),
+    });
+    this.authorizedValue(result, 'post.delete');
   }
 
   async listPosts(organizationId: string, limit: number, before?: string) {
