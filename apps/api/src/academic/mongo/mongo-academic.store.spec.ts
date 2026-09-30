@@ -184,6 +184,45 @@ describe('MongoAcademicStore bounded redirect fan-out', () => {
     expect(result.hasMore).toBe(true);
   });
 
+  it('bumps canonical target revision with optimistic concurrency', async () => {
+    const row = {
+      id: 'target-node',
+      revision: 8,
+      toObject: () => ({ id: 'target-node', revision: 8 }),
+    };
+    const chain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(row),
+    };
+    chain.lean.mockReturnValue(chain);
+    const catalog = {
+      findOneAndUpdate: jest.fn().mockReturnValue(chain),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      catalog as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.bumpCatalogNodeRevision('target-node', 7),
+    ).resolves.toMatchObject({
+      id: 'target-node',
+      revision: 8,
+    });
+
+    expect(catalog.findOneAndUpdate).toHaveBeenCalledWith(
+      { id: 'target-node', revision: 7 },
+      { $inc: { revision: 1 } },
+      { new: true, session: undefined },
+    );
+  });
+
   it('short-circuits an empty redirect frontier without querying Mongo', async () => {
     const catalog = { find: jest.fn() };
     const store = new MongoAcademicStore(
