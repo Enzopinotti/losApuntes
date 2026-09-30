@@ -1,6 +1,7 @@
 import type {
   OwnerProfileResponse,
   ProfileActivity,
+  ProfileActivityPageResponse,
   ProfileActivityType,
   PublicProfileResponse,
   UpdateProfileInput,
@@ -128,6 +129,16 @@ export const profileApi = {
   publicProfile: (profileId: string) =>
     request<PublicProfileResponse>(
       `/profiles/${encodeURIComponent(profileId)}`,
+    ),
+
+  activities: (cursor?: string, limit = 20) =>
+    request<ProfileActivityPageResponse>(
+      `/profile/me/activities?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+    ),
+
+  publicActivities: (profileId: string, cursor?: string, limit = 20) =>
+    request<ProfileActivityPageResponse>(
+      `/profiles/${encodeURIComponent(profileId)}/activities?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
     ),
 
   createActivity: (input: {
