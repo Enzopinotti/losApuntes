@@ -206,6 +206,7 @@ function defaults(
   organizationStore.findManager.mockResolvedValue(manager());
   organizationStore.commitAuthorizedMutation.mockImplementation(
     async ({ mutation }) => {
+      await Promise.resolve();
       switch (mutation.kind) {
         case 'organization.update':
           return {
@@ -1174,8 +1175,8 @@ describe('OrganizationService', () => {
         url: 'https://example.test',
       },
     );
+    expect(typeof result.link.id).toBe('string');
     expect(result.link).toMatchObject({
-      id: expect.any(String),
       label: 'Sitio oficial',
       url: 'https://example.test/',
     });
