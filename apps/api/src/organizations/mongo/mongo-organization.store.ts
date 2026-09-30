@@ -527,7 +527,7 @@ export class MongoOrganizationStore implements OrganizationStore {
       .findOne({
         organizationId,
         userId: authority.actorUserId,
-        role: { $in: authority.allowedRoles },
+        role: { $in: [...authority.allowedRoles] },
       })
       .session(session)
       .lean<OrganizationManagerRecord>()
