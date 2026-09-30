@@ -789,12 +789,13 @@ export class OrganizationService {
     organizationId: string,
     dto: CreateOrganizationLinkDto,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const links = await this.store.listLinks(organizationId);
     if (links.length >= MAX_LINKS) {
       throw new UnprocessableEntityException({
@@ -803,13 +804,32 @@ export class OrganizationService {
       });
     }
 
-    const link = await this.store.createLink({
-      id: randomUUID(),
+    const linkId = randomUUID();
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      createdByUserId: userId,
-      label: cleanText(dto.label),
-      url: httpsUrl(dto.url)!,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'link.create',
+        record: {
+          id: linkId,
+          organizationId,
+          createdByUserId: userId,
+          label: cleanText(dto.label),
+          url: httpsUrl(dto.url)!,
+        },
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.link_created',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization link created',
+        metadata: { linkId },
+      }),
     });
+    const link = this.authorizedValue(result, 'link.create');
 
     return { link: this.linkProjection(link) };
   }
@@ -819,13 +839,29 @@ export class OrganizationService {
     organizationId: string,
     linkId: string,
   ): Promise<void> {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
-    if (!(await this.store.deleteLink(organizationId, linkId))) this.notFound();
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
+    const result = await this.store.commitAuthorizedMutation({
+      organizationId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: { kind: 'link.delete', linkId },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.link_deleted',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization link deleted',
+        metadata: { linkId },
+      }),
+    });
+    this.authorizedValue(result, 'link.delete');
   }
 
   async featureResource(
@@ -833,12 +869,13 @@ export class OrganizationService {
     organizationId: string,
     resourceId: string,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
 
     try {
       await this.resources.get(resourceId);
@@ -863,11 +900,26 @@ export class OrganizationService {
       });
     }
 
-    await this.store.featureResource({
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      resourceId,
-      createdByUserId: userId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'resource.feature',
+        resourceId,
+        createdByUserId: userId,
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.resource_featured',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization Resource featured',
+        metadata: { resourceId },
+      }),
     });
+    this.authorizedValue(result, 'resource.feature');
 
     return { featured: true };
   }
@@ -877,13 +929,29 @@ export class OrganizationService {
     organizationId: string,
     resourceId: string,
   ): Promise<void> {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
-    await this.store.unfeatureResource(organizationId, resourceId);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
+    const result = await this.store.commitAuthorizedMutation({
+      organizationId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: { kind: 'resource.unfeature', resourceId },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.resource_unfeatured',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization Resource unfeatured',
+        metadata: { resourceId },
+      }),
+    });
+    this.authorizedValue(result, 'resource.unfeature');
   }
 
   async reportPost(
