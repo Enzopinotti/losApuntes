@@ -125,12 +125,25 @@ const PublicProfile = () => {
             <p>
               {profile.academic.participations.length} materia(s) asociada(s).
             </p>
+            {(profile.academic.affiliationsTruncated ||
+              profile.academic.participationsTruncated) && (
+              <p role="status">
+                Este perfil muestra una ventana acotada de su trayectoria
+                académica publicada.
+              </p>
+            )}
           </section>
         )}
 
         {profile.activities && (
           <section className="profile-card profile-wide">
             <h2>Proyectos y actividades</h2>
+            {profile.activitiesTruncated && (
+              <p role="status">
+                Mostramos hasta {profile.activitiesLimit} actividades públicas
+                recientes.
+              </p>
+            )}
             {profile.activities.length === 0 ? (
               <p>No hay actividades publicadas.</p>
             ) : (
