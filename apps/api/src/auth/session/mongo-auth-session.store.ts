@@ -63,19 +63,33 @@ export class MongoAuthSessionStore implements AuthSessionStore {
   async listActiveForUser(
     input: Parameters<AuthSessionStore['listActiveForUser']>[0],
   ): ReturnType<AuthSessionStore['listActiveForUser']> {
+    const credentialVersionFilter =
+      input.credentialVersion === 1
+        ? {
+            $or: [
+              { credentialVersion: 1 },
+              { credentialVersion: { $exists: false } },
+            ],
+          }
+        : { credentialVersion: input.credentialVersion };
+
     const documents = await this.model
       .find({
         userId: input.userId,
-        credentialVersion: input.credentialVersion,
         expiresAt: { $gt: input.now },
-        $or: [
+        $and: [
+          credentialVersionFilter,
           {
-            clientType: 'web',
-            lastSeenAt: { $gt: input.webIdleAfter },
-          },
-          {
-            clientType: 'mobile',
-            lastSeenAt: { $gt: input.mobileIdleAfter },
+            $or: [
+              {
+                clientType: 'web',
+                lastSeenAt: { $gt: input.webIdleAfter },
+              },
+              {
+                clientType: 'mobile',
+                lastSeenAt: { $gt: input.mobileIdleAfter },
+              },
+            ],
           },
         ],
       })
@@ -95,12 +109,22 @@ export class MongoAuthSessionStore implements AuthSessionStore {
     credentialVersion: number,
     now: Date,
   ): Promise<AuthSessionRecord | null> {
+    const credentialVersionFilter =
+      credentialVersion === 1
+        ? {
+            $or: [
+              { credentialVersion: 1 },
+              { credentialVersion: { $exists: false } },
+            ],
+          }
+        : { credentialVersion };
+
     const document = await this.model
       .findOne({
         userId,
         sessionId,
-        credentialVersion,
         expiresAt: { $gt: now },
+        ...credentialVersionFilter,
       })
       .exec();
 
