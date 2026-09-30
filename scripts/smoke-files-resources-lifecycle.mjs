@@ -273,7 +273,7 @@ assert.equal(uploadReplayFirst.response.status, 201);
 assert.equal(uploadReplaySecond.response.status, 201);
 assert.equal(
   uploadReplayFirst.response.headers.get('cache-control'),
-  'no-store',
+  'private, no-store',
 );
 assert.equal(uploadReplayFirst.body.file.id, uploadReplaySecond.body.file.id);
 const replayRows = Number(
