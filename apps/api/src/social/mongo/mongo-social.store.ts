@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { Connection, FilterQuery, Model } from 'mongoose';
 
+import { assertNotificationFanoutBudget } from '../../notifications/domain/notification-fanout';
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import { Notification } from '../../notifications/mongo/notification.mongo-schema';
 import type { SocialStore } from '../domain/social.store';
@@ -45,6 +46,7 @@ export class MongoSocialStore implements SocialStore {
     followeeUserId: string;
     notification: CreateNotificationRecord;
   }): Promise<{ follow: FollowRecord; created: boolean }> {
+    assertNotificationFanoutBudget([input.notification]);
     const session = await this.connection.startSession();
 
     try {
@@ -145,6 +147,7 @@ export class MongoSocialStore implements SocialStore {
     notification: CreateNotificationRecord;
     now: Date;
   }): Promise<{ connection: ConnectionRecord; changed: boolean }> {
+    assertNotificationFanoutBudget([input.notification]);
     const [userLowId, userHighId] = pair(
       input.requesterUserId,
       input.targetUserId,
@@ -289,6 +292,9 @@ export class MongoSocialStore implements SocialStore {
     notification?: CreateNotificationRecord;
     now: Date;
   }): Promise<ConnectionRecord | null> {
+    if (input.notification) {
+      assertNotificationFanoutBudget([input.notification]);
+    }
     const session = await this.connection.startSession();
 
     try {

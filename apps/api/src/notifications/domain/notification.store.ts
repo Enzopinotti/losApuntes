@@ -1,4 +1,5 @@
 import type {
+  CreateNotificationRecord,
   NotificationCursor,
   NotificationRecord,
 } from './notification.types';
@@ -6,6 +7,7 @@ import type {
 export const NOTIFICATION_STORE = Symbol('NOTIFICATION_STORE');
 
 export interface NotificationStore {
+  createMany: (records: CreateNotificationRecord[]) => Promise<number>;
   list: (input: {
     userId: string;
     unreadOnly: boolean;

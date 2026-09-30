@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { Connection, FilterQuery, Model } from 'mongoose';
 
+import { assertNotificationFanoutBudget } from '../../notifications/domain/notification-fanout';
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import { Notification } from '../../notifications/mongo/notification.mongo-schema';
 import type {
@@ -178,6 +179,9 @@ export class MongoQaStore implements QaStore {
     answer: CreateAnswerRecord;
     notification?: CreateNotificationRecord;
   }): Promise<AnswerRecord | null> {
+    if (input.notification) {
+      assertNotificationFanoutBudget([input.notification]);
+    }
     const session = await this.connection.startSession();
 
     try {
@@ -244,6 +248,9 @@ export class MongoQaStore implements QaStore {
     expectedRevision: number;
     notification?: CreateNotificationRecord;
   }): Promise<QuestionRecord | null> {
+    if (input.notification) {
+      assertNotificationFanoutBudget([input.notification]);
+    }
     const session = await this.connection.startSession();
 
     try {

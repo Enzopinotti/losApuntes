@@ -4,9 +4,13 @@ import {
 } from '@nestjs/common';
 
 import type { ProfileService } from '../../profile/domain/profile.service';
+import { MAX_NOTIFICATION_SYNC_RECIPIENTS } from './notification-fanout';
 import type { NotificationStore } from './notification.store';
 import { NotificationService } from './notification.service';
-import type { NotificationRecord } from './notification.types';
+import type {
+  CreateNotificationRecord,
+  NotificationRecord,
+} from './notification.types';
 
 const now = new Date('2026-09-23T15:00:00.000Z');
 
@@ -20,10 +24,23 @@ function profiles(): jest.Mocked<ProfileApi> {
 
 function store(): jest.Mocked<NotificationStore> {
   return {
+    createMany: jest.fn(),
     list: jest.fn(),
     markRead: jest.fn(),
     markAllRead: jest.fn(),
     countUnread: jest.fn(),
+  };
+}
+
+function createRecord(index: number): CreateNotificationRecord {
+  return {
+    id: `notification-${index}`,
+    userId: `user-${index}`,
+    type: 'social.followed',
+    actorUserId: 'actor-user',
+    targetType: 'profile',
+    targetId: `profile-${index}`,
+    readAt: null,
   };
 }
 
@@ -43,6 +60,78 @@ function row(overrides: Partial<NotificationRecord> = {}): NotificationRecord {
 }
 
 describe('NotificationService', () => {
+  it('persists a synchronous fan-out at the recipient budget', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const records = Array.from(
+      { length: MAX_NOTIFICATION_SYNC_RECIPIENTS },
+      (_, index) => createRecord(index),
+    );
+    notificationStore.createMany.mockResolvedValue(records.length);
+
+    await expect(
+      new NotificationService(
+        notificationStore,
+        profileApi as unknown as ProfileService,
+      ).createMany(records),
+    ).resolves.toEqual({ created: MAX_NOTIFICATION_SYNC_RECIPIENTS });
+
+    expect(notificationStore.createMany.mock.calls).toEqual([[records]]);
+  });
+
+  it('rejects fan-out overflow before persistence', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const records = Array.from(
+      { length: MAX_NOTIFICATION_SYNC_RECIPIENTS + 1 },
+      (_, index) => createRecord(index),
+    );
+
+    await expect(
+      new NotificationService(
+        notificationStore,
+        profileApi as unknown as ProfileService,
+      ).createMany(records),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(notificationStore.createMany.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects record amplification even when all rows target one recipient', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const records = Array.from(
+      { length: MAX_NOTIFICATION_SYNC_RECIPIENTS + 1 },
+      (_, index) => ({
+        ...createRecord(index),
+        userId: 'same-recipient',
+      }),
+    );
+
+    await expect(
+      new NotificationService(
+        notificationStore,
+        profileApi as unknown as ProfileService,
+      ).createMany(records),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(notificationStore.createMany.mock.calls).toHaveLength(0);
+  });
+
+  it('does not touch persistence for an empty notification batch', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+
+    await expect(
+      new NotificationService(
+        notificationStore,
+        profileApi as unknown as ProfileService,
+      ).createMany([]),
+    ).resolves.toEqual({ created: 0 });
+
+    expect(notificationStore.createMany.mock.calls).toHaveLength(0);
+  });
+
   it('projects only store-owned inbox rows with privacy-safe actors', async () => {
     const notificationStore = store();
     const profileApi = profiles();
