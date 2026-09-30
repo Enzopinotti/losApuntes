@@ -42,9 +42,9 @@ function createStore() {
     Promise<AuthActionTokenRecord | null>,
     [string, AuthActionPurpose, Date]
   >();
-  const listActiveForUserPurpose = jest.fn<
-    Promise<AuthActionTokenRecord[]>,
-    [string, AuthActionPurpose, Date]
+  const trimActiveForUserPurpose = jest.fn<
+    Promise<void>,
+    [string, AuthActionPurpose, Date, number, Date]
   >();
   const invalidateByIds = jest.fn<
     Promise<void>,
@@ -59,14 +59,13 @@ function createStore() {
     Promise.resolve(record(input)),
   );
   findLatestActiveForUserPurpose.mockResolvedValue(null);
-  listActiveForUserPurpose.mockResolvedValue([]);
 
   const store: AuthActionTokenStore = {
     createIfBucketAvailable,
     findAvailableByTokenHash,
     claimAvailableByTokenHash,
     findLatestActiveForUserPurpose,
-    listActiveForUserPurpose,
+    trimActiveForUserPurpose,
     invalidateByIds,
     invalidateAllForUserPurpose,
   };
@@ -78,7 +77,7 @@ function createStore() {
       findAvailableByTokenHash,
       claimAvailableByTokenHash,
       findLatestActiveForUserPurpose,
-      listActiveForUserPurpose,
+      trimActiveForUserPurpose,
       invalidateByIds,
       invalidateAllForUserPurpose,
     },
@@ -157,15 +156,6 @@ describe('AuthActionTokenService', () => {
     const { store, mocks } = createStore();
     const ids = ['newest', 'second', 'third', 'oldest'];
 
-    mocks.listActiveForUserPurpose.mockResolvedValue(
-      ids.map((id, index) =>
-        record({
-          id,
-          createdAt: new Date(NOW.getTime() - index * 61_000),
-        }),
-      ),
-    );
-
     const service = new AuthActionTokenService(store);
 
     await service.issueIfAllowed(
@@ -175,8 +165,8 @@ describe('AuthActionTokenService', () => {
       NOW,
     );
 
-    expect(mocks.invalidateByIds.mock.calls).toEqual([
-      ['user-1', 'email_verification', ['oldest'], NOW],
+    expect(mocks.trimActiveForUserPurpose.mock.calls).toEqual([
+      ['user-1', 'email_verification', NOW, 3, NOW],
     ]);
   });
 
@@ -236,23 +226,20 @@ describe('AuthActionTokenService', () => {
       service.issueIfAllowed('user-1', 'email_verification', undefined, NOW),
     ).resolves.toBeNull();
 
-    expect(mocks.listActiveForUserPurpose).not.toHaveBeenCalled();
+    expect(mocks.trimActiveForUserPurpose).not.toHaveBeenCalled();
   });
 
-  it('does not invalidate anything when exactly three active tokens remain', async () => {
+  it('delegates active-token overflow trimming after successful issuance', async () => {
     const { store, mocks } = createStore();
-    mocks.listActiveForUserPurpose.mockResolvedValue([
-      record({ id: 'one' }),
-      record({ id: 'two' }),
-      record({ id: 'three' }),
-    ]);
     const service = new AuthActionTokenService(store);
 
     await expect(
       service.issueIfAllowed('user-1', 'email_verification', undefined, NOW),
     ).resolves.not.toBeNull();
 
-    expect(mocks.invalidateByIds).not.toHaveBeenCalled();
+    expect(mocks.trimActiveForUserPurpose.mock.calls).toEqual([
+      ['user-1', 'email_verification', NOW, 3, NOW],
+    ]);
   });
 
   it('inspects a valid bearer only through its hash and purpose', async () => {
