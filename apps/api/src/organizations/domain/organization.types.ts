@@ -74,6 +74,15 @@ export const ORGANIZATION_AUDIT_EVENTS = [
   'organization.manager_granted',
   'organization.manager_changed',
   'organization.manager_revoked',
+  'organization.post_created',
+  'organization.post_updated',
+  'organization.post_deleted',
+  'organization.event_created',
+  'organization.event_updated',
+  'organization.link_created',
+  'organization.link_deleted',
+  'organization.resource_featured',
+  'organization.resource_unfeatured',
 ] as const;
 export type OrganizationAuditEvent = (typeof ORGANIZATION_AUDIT_EVENTS)[number];
 
