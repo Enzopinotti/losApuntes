@@ -38,11 +38,12 @@ export interface AuthActionTokenStore {
     purpose: AuthActionPurpose,
     now: Date,
   ): Promise<AuthActionTokenRecord | null>;
-  listActiveForUserPurpose(
+  retainNewestActiveForUserPurpose(
     userId: string,
     purpose: AuthActionPurpose,
     now: Date,
-  ): Promise<AuthActionTokenRecord[]>;
+    keep: number,
+  ): Promise<void>;
   invalidateByIds(
     userId: string,
     purpose: AuthActionPurpose,
