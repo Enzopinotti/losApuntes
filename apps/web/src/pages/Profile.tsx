@@ -476,6 +476,14 @@ const Profile = () => {
               {snapshot.academic.currentContext ? "Configurado" : "Pendiente"}
             </strong>
           </p>
+          {(snapshot.academic.affiliationsTruncated ||
+            snapshot.academic.participationsTruncated) && (
+            <p role="status">
+              Este resumen académico muestra una ventana acotada. Tu historia
+              completa sigue preservada en Academic y no se usa truncada para
+              decisiones de lifecycle.
+            </p>
+          )}
           <small>
             Estos datos no se editan acá para evitar dos fuentes de verdad.
           </small>
@@ -490,6 +498,12 @@ const Profile = () => {
 
       <section className="profile-card profile-activities">
         <h2>Proyectos y actividades</h2>
+        {snapshot.activitiesTruncated && (
+          <p role="status">
+            Mostramos hasta {snapshot.activitiesLimit} actividades recientes.
+            Las anteriores siguen guardadas aunque no aparezcan en esta vista.
+          </p>
+        )}
         {snapshot.activities.length === 0 ? (
           <p>Todavía no agregaste actividades.</p>
         ) : (
