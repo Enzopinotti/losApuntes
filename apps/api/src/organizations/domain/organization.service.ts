@@ -27,6 +27,7 @@ import type {
 } from '../dto/organization.dto';
 import {
   ORGANIZATION_STORE,
+  type AuthorizedOrganizationMutationResult,
   type OrganizationStore,
 } from './organization.store';
 import type {
@@ -42,6 +43,16 @@ import type {
 const MAX_MANAGERS = 20;
 const MAX_LINKS = 20;
 const MAX_FEATURED_RESOURCES = 20;
+
+type AuthorizedMutationSuccess = Extract<
+  AuthorizedOrganizationMutationResult,
+  { status: 'ok' }
+>;
+type AuthorizedMutationKind = AuthorizedMutationSuccess['kind'];
+type AuthorizedMutationValue<K extends AuthorizedMutationKind> = Extract<
+  AuthorizedMutationSuccess,
+  { kind: K }
+>['value'];
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -244,7 +255,8 @@ export class OrganizationService {
 
   async update(userId: string, id: string, dto: UpdateOrganizationDto) {
     const organization = await this.requireActive(id);
-    await this.requireRole(id, userId, ['owner', 'admin']);
+    const allowedRoles: OrganizationManagerRole[] = ['owner', 'admin'];
+    await this.requireRole(id, userId, allowedRoles);
 
     if (organization.revision !== dto.expectedRevision) {
       this.revisionConflict();
@@ -270,10 +282,14 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updateOwnedProfile({
+    const result = await this.store.commitAuthorizedMutation({
       organizationId: id,
-      expectedRevision: dto.expectedRevision,
-      patch,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'organization.update',
+        expectedRevision: dto.expectedRevision,
+        patch,
+      },
       audit: this.audit({
         organizationId: id,
         event: 'organization.updated',
@@ -286,7 +302,7 @@ export class OrganizationService {
       }),
     });
 
-    if (!updated) this.revisionConflict();
+    const updated = this.authorizedValue(result, 'organization.update');
     return { organization: await this.detailProjection(updated, userId) };
   }
 
@@ -457,25 +473,45 @@ export class OrganizationService {
     dto: CreateOrganizationPostDto,
   ) {
     const organization = await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const subjectId = dto.subjectId
       ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
       : null;
-    const post = await this.store.createPost({
-      id: randomUUID(),
+    const postId = randomUUID();
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      createdByUserId: userId,
-      title: cleanNullable(dto.title),
-      body: cleanText(dto.body),
-      subjectId,
-      moderationState: 'available',
-      revision: 1,
-      publishedAt: new Date(),
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'post.create',
+        record: {
+          id: postId,
+          organizationId,
+          createdByUserId: userId,
+          title: cleanNullable(dto.title),
+          body: cleanText(dto.body),
+          subjectId,
+          moderationState: 'available',
+          revision: 1,
+          publishedAt: new Date(),
+        },
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.post_created',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization post created',
+        metadata: { postId },
+      }),
     });
+    const post = this.authorizedValue(result, 'post.create');
 
     return { post: await this.postProjection(post, organization) };
   }
@@ -515,18 +551,35 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updatePost(
+    const allowedRoles: OrganizationManagerRole[] = [
+      'owner',
+      'admin',
+      'editor',
+    ];
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      postId,
-      dto.expectedRevision,
-      patch,
-    );
-    if (!updated) {
-      throw new ConflictException({
-        code: 'ORGANIZATION_POST_REVISION_CONFLICT',
-        message: 'Organization post changed concurrently',
-      });
-    }
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'post.update',
+        postId,
+        expectedRevision: dto.expectedRevision,
+        patch,
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.post_updated',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization post updated',
+        metadata: { postId, changedFields: Object.keys(patch).length },
+      }),
+    });
+    const updated = this.authorizedValue(result, 'post.update', {
+      code: 'ORGANIZATION_POST_REVISION_CONFLICT',
+      message: 'Organization post changed concurrently',
+    });
 
     return { post: await this.postProjection(updated, organization) };
   }
@@ -536,14 +589,29 @@ export class OrganizationService {
     organizationId: string,
     postId: string,
   ): Promise<void> {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
-    const deleted = await this.store.deletePost(organizationId, postId);
-    if (!deleted) this.notFound();
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
+    const result = await this.store.commitAuthorizedMutation({
+      organizationId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: { kind: 'post.delete', postId },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.post_deleted',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization post deleted',
+        metadata: { postId },
+      }),
+    });
+    this.authorizedValue(result, 'post.delete');
   }
 
   async listPosts(organizationId: string, limit: number, before?: string) {
@@ -566,30 +634,50 @@ export class OrganizationService {
     organizationId: string,
     dto: CreateOrganizationEventDto,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const startsAt = new Date(dto.startsAt);
     const endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
     this.assertEventPeriod(startsAt, endsAt);
 
-    const event = await this.store.createEvent({
-      id: randomUUID(),
+    const eventId = randomUUID();
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      createdByUserId: userId,
-      title: cleanText(dto.title),
-      description: cleanNullable(dto.description),
-      startsAt,
-      endsAt,
-      locationLabel: cleanNullable(dto.locationLabel),
-      externalUrl: httpsUrl(dto.externalUrl),
-      state: 'scheduled',
-      moderationState: 'available',
-      revision: 1,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'event.create',
+        record: {
+          id: eventId,
+          organizationId,
+          createdByUserId: userId,
+          title: cleanText(dto.title),
+          description: cleanNullable(dto.description),
+          startsAt,
+          endsAt,
+          locationLabel: cleanNullable(dto.locationLabel),
+          externalUrl: httpsUrl(dto.externalUrl),
+          state: 'scheduled',
+          moderationState: 'available',
+          revision: 1,
+        },
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.event_created',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization event created',
+        metadata: { eventId },
+      }),
     });
+    const event = this.authorizedValue(result, 'event.create');
 
     return { event: this.eventProjection(event) };
   }
@@ -600,12 +688,13 @@ export class OrganizationService {
     eventId: string,
     dto: UpdateOrganizationEventDto,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const current = await this.store.findEventById(organizationId, eventId);
     if (!current) this.notFound();
 
@@ -619,7 +708,18 @@ export class OrganizationService {
           : null;
     this.assertEventPeriod(startsAt, endsAt);
 
-    const patch: Parameters<OrganizationStore['updateEvent']>[3] = {};
+    const patch: Partial<
+      Pick<
+        OrganizationEventRecord,
+        | 'title'
+        | 'description'
+        | 'startsAt'
+        | 'endsAt'
+        | 'locationLabel'
+        | 'externalUrl'
+        | 'state'
+      >
+    > = {};
     if (dto.title !== undefined) patch.title = cleanText(dto.title);
     if (dto.description !== undefined) {
       patch.description = cleanNullable(dto.description);
@@ -641,18 +741,30 @@ export class OrganizationService {
       });
     }
 
-    const updated = await this.store.updateEvent(
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      eventId,
-      dto.expectedRevision,
-      patch,
-    );
-    if (!updated) {
-      throw new ConflictException({
-        code: 'ORGANIZATION_EVENT_REVISION_CONFLICT',
-        message: 'Organization event changed concurrently',
-      });
-    }
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'event.update',
+        eventId,
+        expectedRevision: dto.expectedRevision,
+        patch,
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.event_updated',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization event updated',
+        metadata: { eventId, changedFields: Object.keys(patch).length },
+      }),
+    });
+    const updated = this.authorizedValue(result, 'event.update', {
+      code: 'ORGANIZATION_EVENT_REVISION_CONFLICT',
+      message: 'Organization event changed concurrently',
+    });
 
     return { event: this.eventProjection(updated) };
   }
@@ -673,12 +785,13 @@ export class OrganizationService {
     organizationId: string,
     dto: CreateOrganizationLinkDto,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
     const links = await this.store.listLinks(organizationId);
     if (links.length >= MAX_LINKS) {
       throw new UnprocessableEntityException({
@@ -687,13 +800,32 @@ export class OrganizationService {
       });
     }
 
-    const link = await this.store.createLink({
-      id: randomUUID(),
+    const linkId = randomUUID();
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      createdByUserId: userId,
-      label: cleanText(dto.label),
-      url: httpsUrl(dto.url)!,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'link.create',
+        record: {
+          id: linkId,
+          organizationId,
+          createdByUserId: userId,
+          label: cleanText(dto.label),
+          url: httpsUrl(dto.url)!,
+        },
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.link_created',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization link created',
+        metadata: { linkId },
+      }),
     });
+    const link = this.authorizedValue(result, 'link.create');
 
     return { link: this.linkProjection(link) };
   }
@@ -703,13 +835,29 @@ export class OrganizationService {
     organizationId: string,
     linkId: string,
   ): Promise<void> {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
-    if (!(await this.store.deleteLink(organizationId, linkId))) this.notFound();
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
+    const result = await this.store.commitAuthorizedMutation({
+      organizationId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: { kind: 'link.delete', linkId },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.link_deleted',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization link deleted',
+        metadata: { linkId },
+      }),
+    });
+    this.authorizedValue(result, 'link.delete');
   }
 
   async featureResource(
@@ -717,12 +865,13 @@ export class OrganizationService {
     organizationId: string,
     resourceId: string,
   ) {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
 
     try {
       await this.resources.get(resourceId);
@@ -747,11 +896,26 @@ export class OrganizationService {
       });
     }
 
-    await this.store.featureResource({
+    const result = await this.store.commitAuthorizedMutation({
       organizationId,
-      resourceId,
-      createdByUserId: userId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: {
+        kind: 'resource.feature',
+        resourceId,
+        createdByUserId: userId,
+      },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.resource_featured',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization Resource featured',
+        metadata: { resourceId },
+      }),
     });
+    this.authorizedValue(result, 'resource.feature');
 
     return { featured: true };
   }
@@ -761,13 +925,29 @@ export class OrganizationService {
     organizationId: string,
     resourceId: string,
   ): Promise<void> {
-    await this.requireActive(organizationId);
-    await this.requireRole(organizationId, userId, [
+    const organization = await this.requireActive(organizationId);
+    const allowedRoles: OrganizationManagerRole[] = [
       'owner',
       'admin',
       'editor',
-    ]);
-    await this.store.unfeatureResource(organizationId, resourceId);
+    ];
+    await this.requireRole(organizationId, userId, allowedRoles);
+    const result = await this.store.commitAuthorizedMutation({
+      organizationId,
+      authority: this.writeAuthority(organization, userId, allowedRoles),
+      mutation: { kind: 'resource.unfeature', resourceId },
+      audit: this.audit({
+        organizationId,
+        event: 'organization.resource_unfeatured',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason: 'Organization Resource unfeatured',
+        metadata: { resourceId },
+      }),
+    });
+    this.authorizedValue(result, 'resource.unfeature');
   }
 
   async reportPost(
@@ -1152,6 +1332,49 @@ export class OrganizationService {
       });
     }
     return manager;
+  }
+
+  private writeAuthority(
+    organization: OrganizationRecord,
+    userId: string,
+    allowedRoles: OrganizationManagerRole[],
+  ) {
+    return {
+      actorUserId: userId,
+      expectedManagementRevision: organization.managementRevision,
+      allowedRoles,
+    };
+  }
+
+  private authorizedValue<K extends AuthorizedMutationKind>(
+    result: AuthorizedOrganizationMutationResult,
+    kind: K,
+    stateConflict?: { code: string; message: string },
+  ): AuthorizedMutationValue<K> {
+    if (result.status === 'authority_stale') {
+      throw new ConflictException({
+        code: 'ORGANIZATION_AUTHORITY_STALE',
+        message:
+          'Organization management authority changed; refresh and retry the action',
+      });
+    }
+
+    if (result.status === 'state_conflict') {
+      if (stateConflict) {
+        throw new ConflictException(stateConflict);
+      }
+      this.revisionConflict();
+    }
+
+    if (result.status === 'not_found') {
+      this.notFound();
+    }
+
+    if (result.status !== 'ok' || result.kind !== kind) {
+      throw new Error('Organization authorized mutation returned wrong kind');
+    }
+
+    return result.value as AuthorizedMutationValue<K>;
   }
 
   private assertManagerMutationAllowed(
