@@ -79,8 +79,9 @@ export interface AcademicStore {
   findCatalogNodeById(id: string): Promise<AcademicCatalogNodeRecord | null>;
   findCatalogNodesByIds(ids: string[]): Promise<AcademicCatalogNodeRecord[]>;
   findDirectRedirectSources(
-    targetId: string,
-  ): Promise<AcademicCatalogNodeRecord[]>;
+    targetIds: string[],
+    limit: number,
+  ): Promise<BoundedAcademicPage<AcademicCatalogNodeRecord>>;
   findCatalogNodeBySourceIdentity(
     sourceKey: string,
     externalId: string,
