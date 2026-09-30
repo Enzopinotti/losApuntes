@@ -174,7 +174,71 @@ describe('validateRuntimeEnvironment', () => {
       GOOGLE_AUTH_ENABLED: false,
       GOOGLE_NATIVE_CLIENT_IDS: [],
       TRUSTED_PROXY_CIDRS: [],
+      API_MAX_IN_FLIGHT_REQUESTS: 256,
+      API_ADMISSION_RETRY_AFTER_SECONDS: 1,
     });
+  });
+
+  it('validates bounded API admission settings', () => {
+    expect(
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        API_MAX_IN_FLIGHT_REQUESTS: '32',
+        API_ADMISSION_RETRY_AFTER_SECONDS: '7',
+      }),
+    ).toMatchObject({
+      API_MAX_IN_FLIGHT_REQUESTS: 32,
+      API_ADMISSION_RETRY_AFTER_SECONDS: 7,
+    });
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        API_MAX_IN_FLIGHT_REQUESTS: 0,
+      }),
+    ).toThrow(
+      'API_MAX_IN_FLIGHT_REQUESTS must be an integer between 1 and 10000',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        API_ADMISSION_RETRY_AFTER_SECONDS: 61,
+      }),
+    ).toThrow(
+      'API_ADMISSION_RETRY_AFTER_SECONDS must be an integer between 1 and 60',
+    );
+  });
+
+  it('validates bounded API admission settings', () => {
+    expect(
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        API_MAX_IN_FLIGHT_REQUESTS: '32',
+        API_ADMISSION_RETRY_AFTER_SECONDS: '7',
+      }),
+    ).toMatchObject({
+      API_MAX_IN_FLIGHT_REQUESTS: 32,
+      API_ADMISSION_RETRY_AFTER_SECONDS: 7,
+    });
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        API_MAX_IN_FLIGHT_REQUESTS: 0,
+      }),
+    ).toThrow(
+      'API_MAX_IN_FLIGHT_REQUESTS must be an integer between 1 and 10000',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        API_ADMISSION_RETRY_AFTER_SECONDS: 61,
+      }),
+    ).toThrow(
+      'API_ADMISSION_RETRY_AFTER_SECONDS must be an integer between 1 and 60',
+    );
   });
 
   it('normalizes an explicit trusted proxy allowlist', () => {

@@ -6,12 +6,15 @@ import {
 } from '@nestjs/platform-fastify';
 import type { ValidationError } from 'class-validator';
 import { randomUUID } from 'node:crypto';
-import { LogController } from 'fastify';
+import { type FastifyReply, type FastifyRequest, LogController } from 'fastify';
 
+import { ApiAdmissionBudget } from './api-admission';
 import { ApiExceptionFilter } from './api-exception.filter';
 
 const HTTP_REQUEST_TIMEOUT_MS = 120_000;
 const HTTP_BODY_LIMIT_BYTES = 1024 * 1024;
+const DEFAULT_API_MAX_IN_FLIGHT_REQUESTS = 256;
+const DEFAULT_API_ADMISSION_RETRY_AFTER_SECONDS = 1;
 
 const LOGGER_REDACT_PATHS = [
   'req.headers.authorization',
@@ -34,6 +37,10 @@ export interface HttpAdapterOptions {
   trustProxy?: string[];
 }
 
+type AuthAwareRequest = FastifyRequest & {
+  user?: unknown;
+};
+
 function validationMessages(errors: ValidationError[]): string[] {
   return errors.flatMap((error) => [
     ...Object.values(error.constraints ?? {}),
@@ -51,6 +58,26 @@ function validationException(errors: ValidationError[]): BadRequestException {
     code: passwordInvalid ? 'INVALID_PASSWORD' : 'BAD_REQUEST',
     message: validationMessages(errors),
   });
+}
+
+function cacheControlFor(request: FastifyRequest): string {
+  const authenticated = (request as AuthAwareRequest).user !== undefined;
+  return authenticated ? 'private, no-store' : 'no-store';
+}
+
+export function requestCompletionLogFields(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Record<string, string | number | undefined> {
+  return {
+    event: 'http.request.completed',
+    requestId: request.id,
+    correlationId: request.id,
+    method: request.method,
+    route: request.routeOptions.url,
+    statusCode: reply.statusCode,
+    durationMs: Math.round(reply.elapsedTime * 100) / 100,
+  };
 }
 
 export function createHttpAdapter(
@@ -110,11 +137,61 @@ export function configureHttpRuntime(
     });
   }
 
+  const maximumInFlight =
+    config.get<number>('API_MAX_IN_FLIGHT_REQUESTS') ??
+    DEFAULT_API_MAX_IN_FLIGHT_REQUESTS;
+  const retryAfterSeconds =
+    config.get<number>('API_ADMISSION_RETRY_AFTER_SECONDS') ??
+    DEFAULT_API_ADMISSION_RETRY_AFTER_SECONDS;
+  const admission = new ApiAdmissionBudget(maximumInFlight);
+
   const adapter = app.getHttpAdapter() as FastifyAdapter;
   const server = adapter.getInstance();
 
+  server.addHook('onRequest', (request, reply, done) => {
+    const decision = admission.tryAcquire(request.id);
+
+    if (!decision.admitted) {
+      request.log.warn(
+        {
+          event: 'http.request.capacity_rejected',
+          requestId: request.id,
+          correlationId: request.id,
+          statusCode: 429,
+          activeRequests: decision.active,
+          maximumInFlight: decision.maximum,
+        },
+        'HTTP request rejected by API capacity budget',
+      );
+
+      reply.header('retry-after', String(retryAfterSeconds));
+      reply.header('cache-control', 'no-store');
+      reply.status(429).send({
+        statusCode: 429,
+        code: 'API_CAPACITY_LIMITED',
+        message: 'API capacity is temporarily limited',
+        retryAfterSeconds,
+        requestId: request.id,
+      });
+      return;
+    }
+
+    done();
+  });
+
+  server.addHook('onRequestAbort', (request, done) => {
+    admission.release(request.id);
+    done();
+  });
+
+  server.addHook('onTimeout', (request, _reply, done) => {
+    admission.release(request.id);
+    done();
+  });
+
   server.addHook('onSend', (request, reply, payload, done) => {
     reply.header('x-request-id', request.id);
+    reply.header('cache-control', cacheControlFor(request));
     reply.header('x-content-type-options', 'nosniff');
     reply.header('x-frame-options', 'DENY');
     reply.header('referrer-policy', 'no-referrer');
@@ -128,16 +205,9 @@ export function configureHttpRuntime(
   });
 
   server.addHook('onResponse', (request, reply, done) => {
+    admission.release(request.id);
     request.log.info(
-      {
-        event: 'http.request.completed',
-        requestId: request.id,
-        correlationId: request.id,
-        method: request.method,
-        route: request.routeOptions.url,
-        statusCode: reply.statusCode,
-        durationMs: Math.round(reply.elapsedTime * 100) / 100,
-      },
+      requestCompletionLogFields(request, reply),
       'HTTP request completed',
     );
     done();

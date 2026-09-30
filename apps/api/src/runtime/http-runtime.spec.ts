@@ -11,10 +11,14 @@ import { ConfigService } from '@nestjs/config';
 import { type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IsString } from 'class-validator';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import * as request from 'supertest';
 
-import { configureHttpRuntime, createHttpAdapter } from './http-runtime';
+import {
+  configureHttpRuntime,
+  createHttpAdapter,
+  requestCompletionLogFields,
+} from './http-runtime';
 
 class RuntimeProbeDto {
   @IsString()
@@ -25,6 +29,26 @@ class PasswordProbeDto {
   @IsString()
   newPassword!: string;
 }
+
+type AuthAwareProbeRequest = FastifyRequest & {
+  user?: { id: string };
+};
+
+let holdStarted: Promise<void>;
+let signalHoldStarted: () => void = () => undefined;
+let holdRelease: Promise<void>;
+let releaseHold: () => void = () => undefined;
+
+function resetHoldGate(): void {
+  holdStarted = new Promise((resolve) => {
+    signalHoldStarted = resolve;
+  });
+  holdRelease = new Promise((resolve) => {
+    releaseHold = resolve;
+  });
+}
+
+resetHoldGate();
 
 function responseIp(body: unknown): string {
   if (
@@ -46,9 +70,22 @@ class RuntimeProbeController {
     return { ok: true };
   }
 
+  @Get('private-cache')
+  privateCache(@Req() probeRequest: AuthAwareProbeRequest) {
+    probeRequest.user = { id: 'user-1' };
+    return { ok: true };
+  }
+
+  @Get('hold')
+  async hold() {
+    signalHoldStarted();
+    await holdRelease;
+    return { ok: true };
+  }
+
   @Get('ip')
-  ip(@Req() request: FastifyRequest) {
-    return { ip: request.ip };
+  ip(@Req() probeRequest: FastifyRequest) {
+    return { ip: probeRequest.ip };
   }
 
   @Get('rate-limited')
@@ -93,6 +130,8 @@ describe('HTTP runtime boundary', () => {
   let app: NestFastifyApplication;
 
   beforeEach(async () => {
+    resetHoldGate();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [RuntimeProbeController],
     }).compile();
@@ -113,6 +152,7 @@ describe('HTTP runtime boundary', () => {
   });
 
   afterEach(async () => {
+    releaseHold();
     await app.close();
   });
 
@@ -126,6 +166,7 @@ describe('HTTP runtime boundary', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
     expect(response.headers['x-request-id']).not.toBe('attacker-controlled');
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-frame-options']).toBe('DENY');
     expect(response.headers['referrer-policy']).toBe('no-referrer');
@@ -133,6 +174,27 @@ describe('HTTP runtime boundary', () => {
       'camera=(), geolocation=(), microphone=()',
     );
     expect(response.headers['x-permitted-cross-domain-policies']).toBe('none');
+  });
+
+  it('marks authenticated responses private and non-cacheable', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/runtime-probe/private-cache')
+      .expect(200);
+
+    expect(response.headers['cache-control']).toBe('private, no-store');
+  });
+
+  it('keeps client and server error envelopes non-cacheable', async () => {
+    const badRequest = await request(app.getHttpServer())
+      .post('/runtime-probe')
+      .send({ value: 'ok', unexpected: true })
+      .expect(400);
+    const serverError = await request(app.getHttpServer())
+      .get('/runtime-probe/fail')
+      .expect(500);
+
+    expect(badRequest.headers['cache-control']).toBe('no-store');
+    expect(serverError.headers['cache-control']).toBe('no-store');
   });
 
   it('rejects unknown DTO fields with the stable error envelope', async () => {
@@ -186,6 +248,54 @@ describe('HTTP runtime boundary', () => {
     });
   });
 
+  it('rejects excess in-flight work with bounded retry metadata', async () => {
+    await app.close();
+    resetHoldGate();
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [RuntimeProbeController],
+    }).compile();
+
+    app = module.createNestApplication<NestFastifyApplication>(
+      createHttpAdapter({ logger: false }),
+    );
+    configureHttpRuntime(
+      app,
+      new ConfigService({
+        WEB_ORIGIN: 'http://localhost:5173',
+        API_MAX_IN_FLIGHT_REQUESTS: 1,
+        API_ADMISSION_RETRY_AFTER_SECONDS: 3,
+      }),
+    );
+    await app.init();
+    await app.getHttpAdapter().getInstance().ready();
+
+    const firstRequest = request(app.getHttpServer()).get(
+      '/runtime-probe/hold',
+    );
+    const firstPromise = firstRequest.then((response) => response);
+
+    await holdStarted;
+
+    const rejected = await request(app.getHttpServer())
+      .get('/runtime-probe')
+      .expect(429);
+
+    expect(rejected.headers['retry-after']).toBe('3');
+    expect(rejected.headers['cache-control']).toBe('no-store');
+    expect(rejected.body).toEqual({
+      statusCode: 429,
+      code: 'API_CAPACITY_LIMITED',
+      message: 'API capacity is temporarily limited',
+      retryAfterSeconds: 3,
+      requestId: rejected.headers['x-request-id'],
+    });
+
+    releaseHold();
+    const admitted = await firstPromise;
+    expect(admitted.status).toBe(200);
+  });
+
   it('preserves the bounded abuse-control unavailable contract', async () => {
     const response = await request(app.getHttpServer())
       .get('/runtime-probe/auth-abuse-unavailable')
@@ -212,6 +322,32 @@ describe('HTTP runtime boundary', () => {
     });
     expect(JSON.stringify(response.body)).not.toContain('private.example');
     expect(JSON.stringify(response.body)).not.toContain('password');
+  });
+
+  it('logs only the route template, never the request query', () => {
+    const fields = requestCompletionLogFields(
+      {
+        id: 'request-1',
+        method: 'GET',
+        url: '/runtime-probe?token=sensitive-value',
+        routeOptions: { url: '/runtime-probe' },
+      } as unknown as FastifyRequest,
+      {
+        statusCode: 200,
+        elapsedTime: 12.345,
+      } as FastifyReply,
+    );
+
+    expect(fields).toMatchObject({
+      event: 'http.request.completed',
+      requestId: 'request-1',
+      method: 'GET',
+      route: '/runtime-probe',
+      statusCode: 200,
+      durationMs: 12.35,
+    });
+    expect(JSON.stringify(fields)).not.toContain('sensitive-value');
+    expect(JSON.stringify(fields)).not.toContain('?token=');
   });
 
   it('does not trust forwarded client addresses by default', async () => {
