@@ -83,6 +83,19 @@ function page<T>(items: T[], hasMore = false): BoundedAcademicPage<T> {
   return { items, hasMore };
 }
 
+async function rejectedConflict(
+  operation: Promise<unknown>,
+): Promise<ConflictException> {
+  try {
+    await operation;
+  } catch (error) {
+    if (error instanceof ConflictException) return error;
+    throw error;
+  }
+
+  throw new Error('Expected operation to reject with ConflictException');
+}
+
 function mockFn<T extends (...args: any[]) => any>() {
   return jest.fn<ReturnType<T>, Parameters<T>>();
 }
@@ -896,23 +909,24 @@ describe('AcademicService', () => {
     store.findCatalogNodeById.mockResolvedValue(subject);
     store.listAffiliationsForUser.mockResolvedValue(page([], true));
 
-    await expect(
+    const error = await rejectedConflict(
       service.upsertSubjectParticipation('user-1', subject.id, {
         state: 'current',
       }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'ACADEMIC_INVENTORY_OVERFLOW',
-        collection: 'affiliations',
-      }),
-    });
+    );
 
-    expect(store.listAffiliationsForUser).toHaveBeenCalledWith({
-      userId: 'user-1',
-      statuses: ['active', 'paused'],
-      limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_INVENTORY_OVERFLOW',
+      collection: 'affiliations',
     });
-    expect(store.upsertSubjectParticipation).not.toHaveBeenCalled();
+    expect(store.listAffiliationsForUser.mock.calls).toContainEqual([
+      {
+        userId: 'user-1',
+        statuses: ['active', 'paused'],
+        limit: ACADEMIC_AFFILIATION_DECISION_LIMIT,
+      },
+    ]);
+    expect(store.upsertSubjectParticipation.mock.calls).toHaveLength(0);
   });
 
   it('returns and updates current academic context without accepting withdrawn context', async () => {
