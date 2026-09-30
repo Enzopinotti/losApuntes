@@ -21,6 +21,7 @@ import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
 import { QaService } from './domain/qa.service';
 import {
   AcceptAnswerDto,
+  AnswerPageQueryDto,
   CreateAnswerDto,
   CreateQaReportDto,
   CreateQuestionDto,
@@ -65,6 +66,16 @@ export class QuestionsController {
     @Body() dto: UpdateQuestionDto,
   ) {
     return this.qa.update(request.user.id, id, dto);
+  }
+
+  @UseGuards(OptionalAuthSessionGuard)
+  @Get('questions/:id/answers')
+  listAnswers(
+    @Req() request: OptionallyAuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Query() query: AnswerPageQueryDto,
+  ) {
+    return this.qa.listAnswers(id, query, request.user?.id);
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
