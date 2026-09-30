@@ -1,5 +1,14 @@
 # Contracts
 
-Reserved for real shared API/domain contracts used by more than one application.
+Shared transport contracts for Los Apuntes clients.
 
-Do not add speculative DTO mirrors here. Contracts enter this package when API + web/mobile actually share them.
+Rules:
+
+- contracts describe public API payloads, not persistence models;
+- server-side authorization remains authoritative;
+- no secrets, provider credentials or database-specific types belong here;
+- Web and Mobile may consume these contracts, but UI state machines stay client-owned.
+
+Current contract slices:
+
+- `src/auth.ts` — Identity/Auth request/response types and stable error codes.

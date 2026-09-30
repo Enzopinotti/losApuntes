@@ -16,3 +16,4 @@ Planned future ADRs:
 - derived-file/preview processing if richer formats or OCR are introduced.
 
 An ADR records context, decision, consequences and rejected alternatives.
+- [0006 — Expo native foundation for Mobile v1](./0006-mobile-expo-native-foundation.md)

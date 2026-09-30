@@ -1,0 +1,15 @@
+{
+  "name": "@losapuntes/contracts",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check:types": "tsc -p tsconfig.json --pretty false"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}
