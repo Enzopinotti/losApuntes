@@ -91,6 +91,11 @@ AcademicCatalogNodeSchema.index({
   id: 1,
 });
 AcademicCatalogNodeSchema.index({ parentIds: 1, status: 1, kind: 1 });
+AcademicCatalogNodeSchema.index({
+  status: 1,
+  redirectToId: 1,
+  id: 1,
+});
 AcademicCatalogNodeSchema.index(
   { 'provenance.sourceKey': 1, 'provenance.externalId': 1 },
   {
