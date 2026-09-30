@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import type { AccountSecurityService } from './account-security.service';
+import type { AuthenticatedRequest } from './auth.types';
 import type { AuthAbuseService } from './abuse/auth-abuse.service';
 import type { AuthAuditService } from './audit/auth-audit.service';
 import { AuthController } from './auth.controller';
@@ -118,6 +119,26 @@ describe('AuthController', () => {
     admit.mockResolvedValue(undefined);
     admitLoginOrigin.mockResolvedValue(undefined);
     recordInvalidLogin.mockResolvedValue(undefined);
+  });
+
+  it('returns bounded active-session inventory metadata unchanged', async () => {
+    listForUser.mockResolvedValue({
+      sessions: [SESSION],
+      truncated: true,
+      limit: 20,
+    });
+    const request = {
+      user: USER,
+      authSession: SESSION,
+      authCredentialVersion: 1,
+    } as unknown as AuthenticatedRequest;
+
+    await expect(controller.listSessions(request)).resolves.toEqual({
+      sessions: [SESSION],
+      truncated: true,
+      limit: 20,
+    });
+    expect(listForUser).toHaveBeenCalledWith(USER.id, SESSION.id, 1);
   });
 
   it('registers without issuing an authenticated session', async () => {
