@@ -207,7 +207,9 @@ export class MongoOrganizationStore implements OrganizationStore {
   async commitAuthorizedMutation(input: {
     organizationId: string;
     authority: OrganizationWriteAuthority;
-    mutation: Parameters<OrganizationStore['commitAuthorizedMutation']>[0]['mutation'];
+    mutation: Parameters<
+      OrganizationStore['commitAuthorizedMutation']
+    >[0]['mutation'];
     audit: OrganizationAuditRecord;
   }): Promise<AuthorizedOrganizationMutationResult> {
     const session = await this.connection.startSession();
