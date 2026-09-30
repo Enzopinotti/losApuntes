@@ -43,6 +43,14 @@ export type AcademicLifecycleResponse = {
   hasCurrentSubjectContext: boolean;
   currentAffiliationId: string | null;
   follows: AcademicFollow[];
+  followsTruncated: boolean;
+  followsLimit: number;
+};
+
+export type AcademicAffiliationListResponse = {
+  affiliations: AcademicAffiliation[];
+  truncated: boolean;
+  limit: number;
 };
 
 export type AcademicCatalogNode = {
