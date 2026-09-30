@@ -383,13 +383,25 @@ export class AcademicService {
       this.redirectFanoutOverflow();
     }
 
-    const updated = await this.store.runAtomically(async () => {
+    const merged = await this.store.runAtomically(async () => {
+      const canonicalTarget = await this.store.bumpCatalogNodeRevision(
+        target.node.id,
+        target.node.revision,
+      );
+
+      if (!canonicalTarget) {
+        throw new ConflictException({
+          code: 'ACADEMIC_REVISION_CONFLICT',
+          message: 'Academic catalog node changed concurrently',
+        });
+      }
+
       const node = await this.store.updateCatalogNode(
         source.id,
         expectedRevision,
         {
           status: 'merged',
-          redirectToId: target.node.id,
+          redirectToId: canonicalTarget.id,
         },
       );
 
@@ -401,16 +413,20 @@ export class AcademicService {
       }
 
       await this.audit('academic.catalog.merged', actorUserId, source.id, {
-        targetId: target.node.id,
+        targetId: canonicalTarget.id,
         revision: node.revision,
+        targetRevision: canonicalTarget.revision,
       });
 
-      return node;
+      return {
+        source: node,
+        target: canonicalTarget,
+      };
     });
 
     return {
-      source: publicNode(updated),
-      target: publicNode(target.node),
+      source: publicNode(merged.source),
+      target: publicNode(merged.target),
     };
   }
 
