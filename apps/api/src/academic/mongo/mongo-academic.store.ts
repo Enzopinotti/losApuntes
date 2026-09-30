@@ -117,13 +117,27 @@ export class MongoAcademicStore implements AcademicStore {
   }
 
   async findDirectRedirectSources(
-    targetId: string,
-  ): Promise<AcademicCatalogNodeRecord[]> {
-    return this.catalog
-      .find({ status: 'merged', redirectToId: targetId })
+    targetIds: string[],
+    limit: number,
+  ): ReturnType<AcademicStore['findDirectRedirectSources']> {
+    if (targetIds.length === 0) {
+      return { items: [], hasMore: false };
+    }
+
+    const rows = await this.catalog
+      .find({
+        status: 'merged',
+        redirectToId: { $in: targetIds },
+      })
       .sort({ id: 1 })
+      .limit(limit + 1)
       .lean<AcademicCatalogNodeRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
   }
 
   async findCatalogNodeBySourceIdentity(
