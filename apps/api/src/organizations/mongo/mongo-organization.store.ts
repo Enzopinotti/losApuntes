@@ -233,7 +233,7 @@ export class MongoOrganizationStore implements OrganizationStore {
 
       try {
         await session.withTransaction(async () => {
-          await this.assertWriteAuthority(
+          const organization = await this.assertWriteAuthority(
             input.organizationId,
             input.authority,
             session,
@@ -398,6 +398,22 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.create': {
+              await this.claimCapacityRevision(
+                organization,
+                input.authority,
+                session,
+              );
+              const linkCount = await this.links
+                .countDocuments({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+              if (linkCount >= ORGANIZATION_LINK_LIMIT) {
+                throw new AuthorizedMutationAbort({
+                  status: 'limit_exceeded',
+                  collection: 'links',
+                });
+              }
+
               const created = await this.links.create([mutation.record], {
                 session,
               });
@@ -414,6 +430,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.delete': {
+              await this.claimCapacityRevision(
+                organization,
+                input.authority,
+                session,
+              );
               const deleted = await this.links
                 .deleteOne(
                   {
@@ -456,6 +477,22 @@ export class MongoOrganizationStore implements OrganizationStore {
                 return;
               }
 
+              await this.claimCapacityRevision(
+                organization,
+                input.authority,
+                session,
+              );
+              const featuredCount = await this.featuredResources
+                .countDocuments({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+              if (featuredCount >= ORGANIZATION_FEATURED_RESOURCE_LIMIT) {
+                throw new AuthorizedMutationAbort({
+                  status: 'limit_exceeded',
+                  collection: 'featured_resources',
+                });
+              }
+
               const created = await this.featuredResources.create(
                 [
                   {
@@ -483,6 +520,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'resource.unfeature': {
+              await this.claimCapacityRevision(
+                organization,
+                input.authority,
+                session,
+              );
               const deleted = await this.featuredResources
                 .deleteOne(
                   {
@@ -524,7 +566,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     organizationId: string,
     authority: OrganizationWriteAuthority,
     session: ClientSession,
-  ): Promise<void> {
+  ): Promise<OrganizationRecord> {
     const organization = await this.organizations
       .findOne({
         id: organizationId,
@@ -552,6 +594,37 @@ export class MongoOrganizationStore implements OrganizationStore {
     if (!manager) {
       throw new AuthorizedMutationAbort({ status: 'authority_stale' });
     }
+
+    return organization;
+  }
+
+  private async claimCapacityRevision(
+    organization: OrganizationRecord,
+    authority: OrganizationWriteAuthority,
+    session: ClientSession,
+  ): Promise<void> {
+    const observed = organization.capacityRevision;
+    const claimed = await this.organizations
+      .findOneAndUpdate(
+        {
+          id: organization.id,
+          status: 'active',
+          managementRevision: authority.expectedManagementRevision,
+          ...(observed === undefined
+            ? { capacityRevision: { $exists: false } }
+            : { capacityRevision: observed }),
+        },
+        { $inc: { capacityRevision: 1 } },
+        { new: true, session },
+      )
+      .lean<OrganizationRecord>()
+      .exec();
+
+    if (!claimed) {
+      throw new AuthorizedMutationAbort({ status: 'capacity_conflict' });
+    }
+
+    organization.capacityRevision = claimed.capacityRevision;
   }
 
   async updateVerification(input: {
@@ -620,6 +693,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.managers
       .find({ organizationId })
       .sort({ role: 1, createdAt: 1, userId: 1 })
+      .limit(ORGANIZATION_MANAGER_READ_LIMIT)
       .lean<OrganizationManagerRecord[]>()
       .exec();
   }
@@ -665,6 +739,16 @@ export class MongoOrganizationStore implements OrganizationStore {
 
           if ((current?.role ?? null) !== input.expectedTargetRole) {
             throw new ManagerMutationAbort({ status: 'target_state_conflict' });
+          }
+
+          if (!current && input.nextRole !== null) {
+            const managerCount = await this.managers
+              .countDocuments({ organizationId: input.organizationId })
+              .session(session)
+              .exec();
+            if (managerCount >= ORGANIZATION_MANAGER_LIMIT) {
+              throw new ManagerMutationAbort({ status: 'manager_limit' });
+            }
           }
 
           if (current?.role === 'owner' && input.nextRole !== 'owner') {
@@ -928,6 +1012,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.links
       .find({ organizationId })
       .sort({ createdAt: 1, id: 1 })
+      .limit(ORGANIZATION_LINK_READ_LIMIT)
       .lean<OrganizationLinkRecord[]>()
       .exec();
   }
@@ -938,6 +1023,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.featuredResources
       .find({ organizationId })
       .sort({ createdAt: -1, resourceId: 1 })
+      .limit(ORGANIZATION_FEATURED_RESOURCE_READ_LIMIT)
       .lean<OrganizationFeaturedResourceRecord[]>()
       .exec();
   }
