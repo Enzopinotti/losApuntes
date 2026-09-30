@@ -2,7 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ConnectionStates, type Connection } from 'mongoose';
 
-import { OBJECT_STORAGE, type ObjectStorage } from '../files/storage/object-storage';
+import {
+  OBJECT_STORAGE,
+  type ObjectStorage,
+} from '../files/storage/object-storage';
 
 const READINESS_TIMEOUT_MS = 1_500;
 const STORAGE_PROBE_KEY = '__health__/probe';
