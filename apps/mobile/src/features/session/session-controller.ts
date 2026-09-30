@@ -183,22 +183,18 @@ export class SessionController {
     credential: string,
     generation: number,
   ): Promise<void> {
-    return this.clearAuthorityIfAuthoritative(
-      credential,
-      generation,
-      { kind: "unauthenticated" },
-    );
+    return this.clearAuthorityIfAuthoritative(credential, generation, {
+      kind: "unauthenticated",
+    });
   }
 
   restrictIfAuthoritative(
     credential: string,
     generation: number,
   ): Promise<void> {
-    return this.clearAuthorityIfAuthoritative(
-      credential,
-      generation,
-      { kind: "restricted" },
-    );
+    return this.clearAuthorityIfAuthoritative(credential, generation, {
+      kind: "restricted",
+    });
   }
 
   private clearAuthorityIfAuthoritative(
