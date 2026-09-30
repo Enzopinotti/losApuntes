@@ -20,10 +20,7 @@ export interface AuthenticatedApiTransport {
     sessionId: string,
     signal?: AbortSignal,
   ): Promise<void>;
-  revokeAllSessions(
-    credential: string,
-    signal?: AbortSignal,
-  ): Promise<void>;
+  revokeAllSessions(credential: string, signal?: AbortSignal): Promise<void>;
   changePassword(
     credential: string,
     input: PasswordChangeInput,
