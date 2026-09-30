@@ -322,6 +322,39 @@ assert.equal(
   participationId,
 );
 
+const visibleAffiliations = await request('/academic/me/affiliations', {
+  headers: { authorization: bearer },
+});
+assert.equal(visibleAffiliations.response.status, 200);
+assert.equal(visibleAffiliations.body.truncated, false);
+assert.equal(visibleAffiliations.body.limit, 50);
+assert.equal(
+  visibleAffiliations.body.affiliations.some(
+    (affiliation) => affiliation.id === affiliationId,
+  ),
+  true,
+);
+
+const visibleSubjects = await request('/academic/me/subjects', {
+  headers: { authorization: bearer },
+});
+assert.equal(visibleSubjects.response.status, 200);
+assert.equal(visibleSubjects.body.truncated, false);
+assert.equal(visibleSubjects.body.limit, 100);
+assert.equal(
+  visibleSubjects.body.participations.some(
+    (participation) => participation.id === participationId,
+  ),
+  true,
+);
+
+const lifecycleSnapshot = await request('/academic/me/lifecycle', {
+  headers: { authorization: bearer },
+});
+assert.equal(lifecycleSnapshot.response.status, 200);
+assert.equal(lifecycleSnapshot.body.followsTruncated, false);
+assert.equal(lifecycleSnapshot.body.followsLimit, 256);
+
 const proposalResult = await request(
   '/academic/proposals',
   json(
@@ -458,6 +491,8 @@ const affiliationsAfterMerge = await request('/academic/me/affiliations', {
   headers: { authorization: bearer },
 });
 assert.equal(affiliationsAfterMerge.response.status, 200);
+assert.equal(affiliationsAfterMerge.body.truncated, false);
+assert.equal(affiliationsAfterMerge.body.limit, 50);
 const canonicalizedLegacyAffiliation =
   affiliationsAfterMerge.body.affiliations.find(
     (affiliation) => affiliation.id === legacyAffiliationId,
@@ -500,8 +535,11 @@ console.log(
       'hierarchy-validation',
       'alias-search',
       'affiliation',
+      'bounded-affiliation-inventory',
       'subject-participation',
+      'bounded-subject-inventory',
       'current-context',
+      'bounded-lifecycle-snapshot',
       'provisional-proposal',
       'proposal-admin-review',
       'proposal-review-replay-conflict',
