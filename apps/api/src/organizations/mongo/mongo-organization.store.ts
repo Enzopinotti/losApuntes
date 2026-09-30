@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, FilterQuery, Model } from 'mongoose';
+import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
 
 import type {
+  AuthorizedOrganizationMutationResult,
   ManagerChangeResult,
   OrganizationStore,
+  OrganizationWriteAuthority,
   UpdateOrganizationRecord,
 } from '../domain/organization.store';
 import type {
@@ -48,6 +50,17 @@ function toPlain<T>(value: { toObject(): unknown } | T): T {
     return value.toObject() as T;
   }
   return value as T;
+}
+
+type AuthorizedMutationFailure = Extract<
+  AuthorizedOrganizationMutationResult,
+  { status: 'authority_stale' | 'state_conflict' | 'not_found' }
+>;
+
+class AuthorizedMutationAbort extends Error {
+  constructor(readonly result: AuthorizedMutationFailure) {
+    super(result.status);
+  }
 }
 
 class ManagerMutationAbort extends Error {
@@ -189,6 +202,362 @@ export class MongoOrganizationStore implements OrganizationStore {
       items: rows.slice(0, input.limit),
       hasMore: rows.length > input.limit,
     };
+  }
+
+  async commitAuthorizedMutation(input: {
+    organizationId: string;
+    authority: OrganizationWriteAuthority;
+    mutation: Parameters<OrganizationStore['commitAuthorizedMutation']>[0]['mutation'];
+    audit: OrganizationAuditRecord;
+  }): Promise<AuthorizedOrganizationMutationResult> {
+    const session = await this.connection.startSession();
+
+    try {
+      let output: AuthorizedOrganizationMutationResult | undefined;
+
+      try {
+        await session.withTransaction(async () => {
+          const organization = await this.organizations
+            .findOne({
+              id: input.organizationId,
+              status: 'active',
+              managementRevision: input.authority.expectedManagementRevision,
+            })
+            .session(session)
+            .lean<OrganizationRecord>()
+            .exec();
+
+          if (!organization) {
+            throw new AuthorizedMutationAbort({ status: 'authority_stale' });
+          }
+
+          const manager = await this.managers
+            .findOne({
+              organizationId: input.organizationId,
+              userId: input.authority.actorUserId,
+              role: { $in: input.authority.allowedRoles },
+            })
+            .session(session)
+            .lean<OrganizationManagerRecord>()
+            .exec();
+
+          if (!manager) {
+            throw new AuthorizedMutationAbort({ status: 'authority_stale' });
+          }
+
+          const mutation = input.mutation;
+
+          switch (mutation.kind) {
+            case 'organization.update': {
+              const updated = await this.organizations
+                .findOneAndUpdate(
+                  {
+                    id: input.organizationId,
+                    status: 'active',
+                    revision: mutation.expectedRevision,
+                    managementRevision:
+                      input.authority.expectedManagementRevision,
+                  },
+                  {
+                    $set: mutation.patch,
+                    $inc: { revision: 1 },
+                  },
+                  { new: true, session },
+                )
+                .lean<OrganizationRecord>()
+                .exec();
+
+              if (!updated) {
+                throw new AuthorizedMutationAbort({
+                  status: 'state_conflict',
+                });
+              }
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: updated,
+              };
+              return;
+            }
+
+            case 'post.create': {
+              const created = await this.posts.create([mutation.record], {
+                session,
+              });
+              const post = created[0];
+              if (!post) throw new Error('Post transaction returned no row');
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: toPlain<OrganizationPostRecord>(post),
+              };
+              return;
+            }
+
+            case 'post.update': {
+              const updated = await this.posts
+                .findOneAndUpdate(
+                  {
+                    organizationId: input.organizationId,
+                    id: mutation.postId,
+                    revision: mutation.expectedRevision,
+                    moderationState: 'available',
+                  },
+                  {
+                    $set: mutation.patch,
+                    $inc: { revision: 1 },
+                  },
+                  { new: true, session },
+                )
+                .lean<OrganizationPostRecord>()
+                .exec();
+
+              if (!updated) {
+                throw new AuthorizedMutationAbort({
+                  status: 'state_conflict',
+                });
+              }
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: updated,
+              };
+              return;
+            }
+
+            case 'post.delete': {
+              const deleted = await this.posts
+                .deleteOne(
+                  {
+                    organizationId: input.organizationId,
+                    id: mutation.postId,
+                  },
+                  { session },
+                )
+                .exec();
+
+              if (deleted.deletedCount !== 1) {
+                throw new AuthorizedMutationAbort({ status: 'not_found' });
+              }
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: true,
+              };
+              return;
+            }
+
+            case 'event.create': {
+              const created = await this.events.create([mutation.record], {
+                session,
+              });
+              const event = created[0];
+              if (!event) throw new Error('Event transaction returned no row');
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: toPlain<OrganizationEventRecord>(event),
+              };
+              return;
+            }
+
+            case 'event.update': {
+              const updated = await this.events
+                .findOneAndUpdate(
+                  {
+                    organizationId: input.organizationId,
+                    id: mutation.eventId,
+                    revision: mutation.expectedRevision,
+                  },
+                  {
+                    $set: mutation.patch,
+                    $inc: { revision: 1 },
+                  },
+                  { new: true, session },
+                )
+                .lean<OrganizationEventRecord>()
+                .exec();
+
+              if (!updated) {
+                throw new AuthorizedMutationAbort({
+                  status: 'state_conflict',
+                });
+              }
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: updated,
+              };
+              return;
+            }
+
+            case 'link.create': {
+              const created = await this.links.create([mutation.record], {
+                session,
+              });
+              const link = created[0];
+              if (!link) throw new Error('Link transaction returned no row');
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: toPlain<OrganizationLinkRecord>(link),
+              };
+              return;
+            }
+
+            case 'link.delete': {
+              const deleted = await this.links
+                .deleteOne(
+                  {
+                    organizationId: input.organizationId,
+                    id: mutation.linkId,
+                  },
+                  { session },
+                )
+                .exec();
+
+              if (deleted.deletedCount !== 1) {
+                throw new AuthorizedMutationAbort({ status: 'not_found' });
+              }
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: true,
+              };
+              return;
+            }
+
+            case 'resource.feature': {
+              const existing = await this.featuredResources
+                .findOne({
+                  organizationId: input.organizationId,
+                  resourceId: mutation.resourceId,
+                })
+                .session(session)
+                .lean<OrganizationFeaturedResourceRecord>()
+                .exec();
+
+              if (existing) {
+                output = {
+                  status: 'ok',
+                  kind: mutation.kind,
+                  value: existing,
+                };
+                return;
+              }
+
+              const created = await this.featuredResources.create(
+                [
+                  {
+                    organizationId: input.organizationId,
+                    resourceId: mutation.resourceId,
+                    createdByUserId: mutation.createdByUserId,
+                  },
+                ],
+                { session },
+              );
+              const featured = created[0];
+              if (!featured) {
+                throw new Error(
+                  'Featured Resource transaction returned no row',
+                );
+              }
+
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: toPlain<OrganizationFeaturedResourceRecord>(featured),
+              };
+              return;
+            }
+
+            case 'resource.unfeature': {
+              const deleted = await this.featuredResources
+                .deleteOne(
+                  {
+                    organizationId: input.organizationId,
+                    resourceId: mutation.resourceId,
+                  },
+                  { session },
+                )
+                .exec();
+
+              if (deleted.deletedCount === 1) {
+                await this.audits.create([input.audit], { session });
+              }
+
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: true,
+              };
+              return;
+            }
+          }
+        });
+      } catch (error) {
+        if (error instanceof AuthorizedMutationAbort) return error.result;
+        throw error;
+      }
+
+      if (!output) {
+        throw new Error('Authorized mutation transaction produced no output');
+      }
+      return output;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  private async assertWriteAuthority(
+    organizationId: string,
+    authority: OrganizationWriteAuthority,
+    session: ClientSession,
+  ): Promise<void> {
+    const organization = await this.organizations
+      .findOne({
+        id: organizationId,
+        status: 'active',
+        managementRevision: authority.expectedManagementRevision,
+      })
+      .session(session)
+      .lean<OrganizationRecord>()
+      .exec();
+
+    if (!organization) {
+      throw new AuthorizedMutationAbort({ status: 'authority_stale' });
+    }
+
+    const manager = await this.managers
+      .findOne({
+        organizationId,
+        userId: authority.actorUserId,
+        role: { $in: authority.allowedRoles },
+      })
+      .session(session)
+      .lean<OrganizationManagerRecord>()
+      .exec();
+
+    if (!manager) {
+      throw new AuthorizedMutationAbort({ status: 'authority_stale' });
+    }
   }
 
   async updateOwnedProfile(input: {
