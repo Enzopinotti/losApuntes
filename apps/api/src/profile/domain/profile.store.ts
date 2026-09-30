@@ -44,6 +44,11 @@ export type UpdateProfileActivityRecord = Partial<
   >
 >;
 
+export type ProfileActivityPage = {
+  items: ProfileActivityRecord[];
+  hasMore: boolean;
+};
+
 export interface ProfileStore {
   findProfileByUserId(userId: string): Promise<ProfileRecord | null>;
   findProfileById(id: string): Promise<ProfileRecord | null>;
@@ -56,7 +61,10 @@ export interface ProfileStore {
     patch: UpdateProfileRecord,
   ): Promise<ProfileRecord | null>;
 
-  listActivitiesForUser(userId: string): Promise<ProfileActivityRecord[]>;
+  listActivitiesForUser(
+    userId: string,
+    limit: number,
+  ): Promise<ProfileActivityPage>;
   findActivityForUser(
     userId: string,
     id: string,
