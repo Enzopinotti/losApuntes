@@ -437,9 +437,7 @@ export class QaService {
 
     return {
       items: await Promise.all(
-        page.items.map((answer) =>
-          this.answerProjection(answer, viewerUserId),
-        ),
+        page.items.map((answer) => this.answerProjection(answer, viewerUserId)),
       ),
       nextCursor:
         page.hasMore && last
