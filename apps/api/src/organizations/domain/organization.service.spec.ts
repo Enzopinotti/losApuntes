@@ -109,7 +109,7 @@ function store(): jest.Mocked<OrganizationStore> {
     findById: jest.fn(),
     findManyByIds: jest.fn(),
     search: jest.fn(),
-    updateOwnedProfile: jest.fn(),
+    commitAuthorizedMutation: jest.fn(),
     updateVerification: jest.fn(),
     findManager: jest.fn(),
     listManagers: jest.fn(),
@@ -119,23 +119,14 @@ function store(): jest.Mocked<OrganizationStore> {
     isFollowing: jest.fn(),
     countFollowers: jest.fn(),
     listFollowedOrganizationIds: jest.fn(),
-    createPost: jest.fn(),
     findPostById: jest.fn(),
     findPostByGlobalId: jest.fn(),
-    updatePost: jest.fn(),
-    deletePost: jest.fn(),
     listPosts: jest.fn(),
     listFeedPosts: jest.fn(),
     listFeedPostsForFollower: jest.fn(),
-    createEvent: jest.fn(),
     findEventById: jest.fn(),
-    updateEvent: jest.fn(),
     listEvents: jest.fn(),
-    createLink: jest.fn(),
-    deleteLink: jest.fn(),
     listLinks: jest.fn(),
-    featureResource: jest.fn(),
-    unfeatureResource: jest.fn(),
     listFeaturedResources: jest.fn(),
     upsertPendingReport: jest.fn(),
   };
@@ -213,6 +204,91 @@ function defaults(
   );
   organizationStore.findById.mockResolvedValue(organization());
   organizationStore.findManager.mockResolvedValue(manager());
+  organizationStore.commitAuthorizedMutation.mockImplementation(
+    async ({ mutation }) => {
+      switch (mutation.kind) {
+        case 'organization.update':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: organization({
+              ...mutation.patch,
+              revision: mutation.expectedRevision + 1,
+            }),
+          };
+        case 'post.create':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: {
+              ...mutation.record,
+              createdAt: now,
+              updatedAt: now,
+            },
+          };
+        case 'post.update':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: post({
+              ...mutation.patch,
+              id: mutation.postId,
+              revision: mutation.expectedRevision + 1,
+              updatedAt: new Date(now.getTime() + 1_000),
+            }),
+          };
+        case 'post.delete':
+          return { status: 'ok', kind: mutation.kind, value: true };
+        case 'event.create':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: {
+              ...mutation.record,
+              createdAt: now,
+              updatedAt: now,
+            },
+          };
+        case 'event.update':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: event({
+              ...mutation.patch,
+              id: mutation.eventId,
+              revision: mutation.expectedRevision + 1,
+              updatedAt: new Date(now.getTime() + 1_000),
+            }),
+          };
+        case 'link.create':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: {
+              ...mutation.record,
+              createdAt: now,
+              updatedAt: now,
+            },
+          };
+        case 'link.delete':
+          return { status: 'ok', kind: mutation.kind, value: true };
+        case 'resource.feature':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: {
+              organizationId: orgId,
+              resourceId: mutation.resourceId,
+              createdByUserId: mutation.createdByUserId,
+              createdAt: now,
+              updatedAt: now,
+            },
+          };
+        case 'resource.unfeature':
+          return { status: 'ok', kind: mutation.kind, value: true };
+      }
+    },
+  );
   organizationStore.listManagers.mockResolvedValue([manager()]);
   organizationStore.countFollowers.mockResolvedValue(0);
   organizationStore.isFollowing.mockResolvedValue(false);
