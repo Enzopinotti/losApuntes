@@ -46,6 +46,11 @@ function message(envelope: ErrorEnvelope): string {
   return envelope.message || "No pudimos completar la operación.";
 }
 
+function requestSignal(signal?: AbortSignal | null): AbortSignal {
+  const timeout = AbortSignal.timeout(15_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
 
@@ -59,7 +64,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: init.signal ?? AbortSignal.timeout(15_000),
+      signal: requestSignal(init.signal),
     });
   } catch {
     throw new FeedsApiError(
@@ -107,12 +112,18 @@ function json(value: unknown): string {
 }
 
 export const feedsApi = {
-  academic: (input: { limit?: number; cursor?: string }) => {
+  academic: (
+    input: { limit?: number; cursor?: string },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({
       limit: String(input.limit ?? 20),
     });
     if (input.cursor) query.set("cursor", input.cursor);
-    return request<AcademicFeedResponse>(`/feeds/academic?${query.toString()}`);
+    return request<AcademicFeedResponse>(
+      `/feeds/academic?${query.toString()}`,
+      { signal },
+    );
   },
 
   forYou: (input: {
@@ -120,17 +131,21 @@ export const feedsApi = {
     cursor?: string;
     mode: FeedMode;
     order: FeedOrder;
-  }) => {
+  }, signal?: AbortSignal) => {
     const query = new URLSearchParams({
       limit: String(input.limit ?? 20),
       mode: input.mode,
       order: input.order,
     });
     if (input.cursor) query.set("cursor", input.cursor);
-    return request<ForYouFeedResponse>(`/feeds/for-you?${query.toString()}`);
+    return request<ForYouFeedResponse>(
+      `/feeds/for-you?${query.toString()}`,
+      { signal },
+    );
   },
 
-  preferences: () => request<FeedPreferencesResponse>("/feeds/preferences"),
+  preferences: (signal?: AbortSignal) =>
+    request<FeedPreferencesResponse>("/feeds/preferences", { signal }),
 
   updatePreferences: (
     current: FeedPreferencesResponse["preferences"],
@@ -145,16 +160,23 @@ export const feedsApi = {
         | "prioritizedSubjectIds"
       >
     >,
+    signal?: AbortSignal,
   ) =>
     request<FeedPreferencesResponse>("/feeds/preferences", {
       method: "PATCH",
+      signal,
       body: json({
         expectedRevision: current.revision,
         ...patch,
       }),
     }),
 
-  setFeedback: (type: FeedTargetType, id: string, signal: FeedFeedbackSignal) =>
+  setFeedback: (
+    type: FeedTargetType,
+    id: string,
+    feedbackSignal: FeedFeedbackSignal,
+    signal?: AbortSignal,
+  ) =>
     request<{
       feedback: {
         targetType: FeedTargetType;
@@ -167,14 +189,19 @@ export const feedsApi = {
       `/feeds/feedback/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
       {
         method: "PUT",
-        body: json({ signal }),
+        body: json({ signal: feedbackSignal }),
+        signal,
       },
     ),
 
-  clearFeedback: (type: FeedTargetType, id: string) =>
+  clearFeedback: (
+    type: FeedTargetType,
+    id: string,
+    signal?: AbortSignal,
+  ) =>
     request<{ changed: boolean; revision: number }>(
       `/feeds/feedback/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
+      { method: "DELETE", signal },
     ),
 };
 
