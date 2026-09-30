@@ -11,9 +11,7 @@ export class ApiAdmissionBudget {
       maximumInFlight < 1 ||
       maximumInFlight > 10_000
     ) {
-      throw new Error(
-        'maximumInFlight must be an integer between 1 and 10000',
-      );
+      throw new Error('maximumInFlight must be an integer between 1 and 10000');
     }
   }
 
