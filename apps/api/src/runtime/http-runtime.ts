@@ -6,11 +6,7 @@ import {
 } from '@nestjs/platform-fastify';
 import type { ValidationError } from 'class-validator';
 import { randomUUID } from 'node:crypto';
-import {
-  type FastifyReply,
-  type FastifyRequest,
-  LogController,
-} from 'fastify';
+import { type FastifyReply, type FastifyRequest, LogController } from 'fastify';
 
 import { ApiAdmissionBudget } from './api-admission';
 import { ApiExceptionFilter } from './api-exception.filter';
