@@ -190,7 +190,10 @@ export class SessionController {
     const generation = this.startOperation();
 
     try {
-      const result = await this.api.me(credential, this.activeOperation?.signal);
+      const result = await this.api.me(
+        credential,
+        this.activeOperation?.signal,
+      );
       if (!this.isCurrent(generation)) return;
 
       this.publish({
