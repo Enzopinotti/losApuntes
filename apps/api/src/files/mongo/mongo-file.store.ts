@@ -22,18 +22,6 @@ function mongoErrorCode(error: unknown): number | null {
   return null;
 }
 
-function toPlain<T>(value: { toObject(): unknown } | T): T {
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'toObject' in value &&
-    typeof value.toObject === 'function'
-  ) {
-    return value.toObject() as T;
-  }
-
-  return value as T;
-}
 
 @Injectable()
 export class MongoFileAssetStore implements FileAssetStore {
