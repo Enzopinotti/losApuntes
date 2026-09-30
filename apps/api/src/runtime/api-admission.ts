@@ -1,6 +1,10 @@
 export type AdmissionDecision =
   | { admitted: true }
-  | { admitted: false; active: number; maximum: number };
+  | {
+      admitted: false;
+      active: number;
+      maximum: number;
+    };
 
 export class ApiAdmissionBudget {
   private readonly activeRequestIds = new Set<string>();
@@ -11,7 +15,9 @@ export class ApiAdmissionBudget {
       maximumInFlight < 1 ||
       maximumInFlight > 10_000
     ) {
-      throw new Error('maximumInFlight must be an integer between 1 and 10000');
+      throw new Error(
+        'maximumInFlight must be an integer between 1 and 10000',
+      );
     }
   }
 
