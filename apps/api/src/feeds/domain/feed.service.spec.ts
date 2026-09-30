@@ -364,6 +364,8 @@ describe('FeedService', () => {
           updatedAt: now.toISOString(),
         },
       ],
+      truncated: false,
+      limit: 100,
     } as never);
     deps.resources.getFeedCandidates.mockResolvedValue([
       resource(2),
@@ -444,6 +446,8 @@ describe('FeedService', () => {
     configureDefaults(feedStore, deps);
     deps.academic.listSubjectParticipations.mockResolvedValue({
       participations: [{ id: 'part', subjectId, state: 'current' }],
+      truncated: false,
+      limit: 100,
     } as never);
     deps.social.getFeedRelations.mockResolvedValue({
       followingUserIds: ['followed'],
