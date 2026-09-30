@@ -151,8 +151,7 @@ const Resources = () => {
     setError(null);
     setFeedback(null);
 
-    const operationKey =
-      uploadOperationKey.current ?? crypto.randomUUID();
+    const operationKey = uploadOperationKey.current ?? crypto.randomUUID();
     uploadOperationKey.current = operationKey;
 
     try {
