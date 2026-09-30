@@ -20,9 +20,9 @@ function boundedFind(rows: Array<{ tokenId: string }>) {
 describe('MongoAuthActionTokenStore bounded overflow trimming', () => {
   it('reads only the retained set and invalidates every other active token', async () => {
     const findChain = boundedFind([
-      { tokenId: 'newest' },
-      { tokenId: 'second' },
-      { tokenId: 'third' },
+      { tokenId: 'newest', createdAt: new Date('2026-09-30T14:59:00.000Z') },
+      { tokenId: 'second', createdAt: new Date('2026-09-30T14:58:00.000Z') },
+      { tokenId: 'third', createdAt: new Date('2026-09-30T14:57:00.000Z') },
     ]);
     const updateExec = jest.fn().mockResolvedValue({ modifiedCount: 17 });
     const model = {
@@ -50,7 +50,11 @@ describe('MongoAuthActionTokenStore bounded overflow trimming', () => {
       tokenId: -1,
     });
     expect(findChain.limit).toHaveBeenCalledWith(3);
-    expect(findChain.select).toHaveBeenCalledWith({ tokenId: 1, _id: 0 });
+    expect(findChain.select).toHaveBeenCalledWith({
+      tokenId: 1,
+      createdAt: 1,
+      _id: 0,
+    });
 
     expect(model.updateMany).toHaveBeenCalledWith(
       {
@@ -58,7 +62,13 @@ describe('MongoAuthActionTokenStore bounded overflow trimming', () => {
         purpose: 'email_verification',
         consumedAt: null,
         expiresAt: { $gt: NOW },
-        tokenId: { $nin: ['newest', 'second', 'third'] },
+        $or: [
+          { createdAt: { $lt: new Date('2026-09-30T14:57:00.000Z') } },
+          {
+            createdAt: new Date('2026-09-30T14:57:00.000Z'),
+            tokenId: { $lt: 'third' },
+          },
+        ],
       },
       {
         $set: { consumedAt: NOW },
@@ -67,12 +77,14 @@ describe('MongoAuthActionTokenStore bounded overflow trimming', () => {
     expect(updateExec).toHaveBeenCalledTimes(1);
   });
 
-  it('still performs server-side cleanup when no retained rows exist', async () => {
-    const findChain = boundedFind([]);
-    const updateExec = jest.fn().mockResolvedValue({ modifiedCount: 0 });
+  it('does not issue an overflow update when fewer than the retained budget exist', async () => {
+    const findChain = boundedFind([
+      { tokenId: 'newest', createdAt: new Date('2026-09-30T14:59:00.000Z') },
+      { tokenId: 'second', createdAt: new Date('2026-09-30T14:58:00.000Z') },
+    ]);
     const model = {
       find: jest.fn().mockReturnValue(findChain),
-      updateMany: jest.fn().mockReturnValue({ exec: updateExec }),
+      updateMany: jest.fn(),
     };
     const store = new MongoAuthActionTokenStore(model as never);
 
@@ -84,16 +96,6 @@ describe('MongoAuthActionTokenStore bounded overflow trimming', () => {
       NOW,
     );
 
-    expect(model.updateMany).toHaveBeenCalledWith(
-      {
-        userId: 'user-1',
-        purpose: 'password_recovery',
-        consumedAt: null,
-        expiresAt: { $gt: NOW },
-      },
-      {
-        $set: { consumedAt: NOW },
-      },
-    );
+    expect(model.updateMany).not.toHaveBeenCalled();
   });
 });
