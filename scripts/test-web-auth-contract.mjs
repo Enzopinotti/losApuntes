@@ -110,4 +110,10 @@ const login = await read(
 );
 assert.match(login, /autoComplete="current-password"/u);
 
+const security = await read('apps/web/src/pages/Security.tsx');
+assert.match(security, /sessionsTruncated/u);
+assert.match(security, /sessionInventoryLimit/u);
+assert.match(security, /Hay sesiones\s+adicionales que siguen activas/u);
+assert.match(security, /Cerrar todas las sesiones/u);
+
 console.log('PASS Web Auth security contract');

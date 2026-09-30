@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {
+  AuthSessionListResponse,
   AuthenticatedSessionResponse,
   MobileAuthenticatedSessionResponse,
   PasswordLoginInput,
@@ -67,7 +68,7 @@ const sessionApi = (tokenRef: { value: string }): SessionApi => ({
 const transport = (
   overrides: Partial<AuthenticatedApiTransport> = {},
 ): AuthenticatedApiTransport => ({
-  listSessions: async () => ({ sessions: [] }),
+  listSessions: async () => ({ sessions: [], truncated: false, limit: 20 }),
   revokeSession: async () => undefined,
   revokeAllSessions: async () => undefined,
   changePassword: async () => undefined,
@@ -78,6 +79,27 @@ const transport = (
   }),
   unlinkGoogle: async () => undefined,
   ...overrides,
+});
+
+test("session inventory keeps truncation metadata from the shared contract", async () => {
+  const token = { value: "a".repeat(43) };
+  const store = new Store();
+  const session = new SessionController(sessionApi(token), store);
+  await session.login({ email: "a@example.edu", password: "password" });
+
+  const expected: AuthSessionListResponse = {
+    sessions: [sessionRecord("session-visible")],
+    truncated: true,
+    limit: 20,
+  };
+  const api = new AuthenticatedMobileApi(
+    session,
+    transport({
+      listSessions: async () => expected,
+    }),
+  );
+
+  await assert.deepEqual(await api.listSessions(), expected);
 });
 
 test("a 401 from an authoritative credential clears that session", async () => {
@@ -112,7 +134,7 @@ test("a delayed 401 from an old generation cannot clear a newer login", async ()
   await session.login({ email: "a@example.edu", password: "password" });
 
   let rejectOld!: (reason: unknown) => void;
-  const oldCall = new Promise<{ sessions: [] }>((_resolve, reject) => {
+  const oldCall = new Promise<AuthSessionListResponse>((_resolve, reject) => {
     rejectOld = reject;
   });
   const api = new AuthenticatedMobileApi(

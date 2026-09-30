@@ -330,13 +330,11 @@ export class AuthController {
   @UseGuards(AuthSessionGuard)
   @Get('sessions')
   async listSessions(@Req() request: AuthenticatedRequest) {
-    return {
-      sessions: await this.sessions.listForUser(
-        request.user.id,
-        request.authSession.id,
-        request.authCredentialVersion,
-      ),
-    };
+    return this.sessions.listForUser(
+      request.user.id,
+      request.authSession.id,
+      request.authCredentialVersion,
+    );
   }
 
   @UseGuards(AuthSessionGuard)

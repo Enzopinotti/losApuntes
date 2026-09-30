@@ -43,4 +43,6 @@ export type LoginMethods = {
 
 export type ActiveSessionsResponse = {
   sessions: PublicAuthSession[];
+  truncated: boolean;
+  limit: number;
 };

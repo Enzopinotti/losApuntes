@@ -28,6 +28,8 @@ export interface MobileAuthenticatedSessionResponse
 
 export interface AuthSessionListResponse {
   sessions: AuthSession[];
+  truncated: boolean;
+  limit: number;
 }
 
 export interface AcceptedResponse {

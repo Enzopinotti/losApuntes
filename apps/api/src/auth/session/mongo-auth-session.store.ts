@@ -61,18 +61,74 @@ export class MongoAuthSessionStore implements AuthSessionStore {
   }
 
   async listActiveForUser(
-    userId: string,
-    now: Date,
-  ): Promise<AuthSessionRecord[]> {
+    input: Parameters<AuthSessionStore['listActiveForUser']>[0],
+  ): ReturnType<AuthSessionStore['listActiveForUser']> {
+    const credentialVersionFilter =
+      input.credentialVersion === 1
+        ? {
+            $or: [
+              { credentialVersion: 1 },
+              { credentialVersion: { $exists: false } },
+            ],
+          }
+        : { credentialVersion: input.credentialVersion };
+
     const documents = await this.model
       .find({
-        userId,
-        expiresAt: { $gt: now },
+        userId: input.userId,
+        expiresAt: { $gt: input.now },
+        $and: [
+          credentialVersionFilter,
+          {
+            $or: [
+              {
+                clientType: 'web',
+                lastSeenAt: { $gt: input.webIdleAfter },
+              },
+              {
+                clientType: 'mobile',
+                lastSeenAt: { $gt: input.mobileIdleAfter },
+              },
+            ],
+          },
+        ],
       })
-      .sort({ createdAt: -1, sessionId: -1 })
+      .sort({ lastSeenAt: -1, sessionId: -1 })
+      .limit(input.limit + 1)
       .exec();
 
-    return documents.map(toRecord);
+    return {
+      items: documents.slice(0, input.limit).map(toRecord),
+      hasMore: documents.length > input.limit,
+    };
+  }
+
+  async findActiveOwnedById(
+    userId: string,
+    sessionId: string,
+    credentialVersion: number,
+    now: Date,
+  ): Promise<AuthSessionRecord | null> {
+    const credentialVersionFilter =
+      credentialVersion === 1
+        ? {
+            $or: [
+              { credentialVersion: 1 },
+              { credentialVersion: { $exists: false } },
+            ],
+          }
+        : { credentialVersion };
+
+    const document = await this.model
+      .findOne({
+        userId,
+        sessionId,
+        expiresAt: { $gt: now },
+        ...credentialVersionFilter,
+      })
+      .exec();
+
+    return document ? toRecord(document) : null;
   }
 
   async touchLastSeen(sessionId: string, lastSeenAt: Date): Promise<void> {

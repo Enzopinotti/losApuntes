@@ -24,13 +24,35 @@ export type PublicAuthSession = {
   current: boolean;
 };
 
+export type ActiveAuthSessionInventoryQuery = {
+  userId: string;
+  credentialVersion: number;
+  now: Date;
+  webIdleAfter: Date;
+  mobileIdleAfter: Date;
+  limit: number;
+};
+
+export type ActiveAuthSessionInventoryPage = {
+  items: AuthSessionRecord[];
+  hasMore: boolean;
+};
+
 export interface AuthSessionStore {
   create(input: CreateAuthSessionRecord): Promise<AuthSessionRecord>;
   findActiveByTokenHash(
     tokenHash: string,
     now: Date,
   ): Promise<AuthSessionRecord | null>;
-  listActiveForUser(userId: string, now: Date): Promise<AuthSessionRecord[]>;
+  listActiveForUser(
+    input: ActiveAuthSessionInventoryQuery,
+  ): Promise<ActiveAuthSessionInventoryPage>;
+  findActiveOwnedById(
+    userId: string,
+    sessionId: string,
+    credentialVersion: number,
+    now: Date,
+  ): Promise<AuthSessionRecord | null>;
   touchLastSeen(sessionId: string, lastSeenAt: Date): Promise<void>;
   revokeByTokenHash(tokenHash: string): Promise<void>;
   revokeOwnedById(userId: string, sessionId: string): Promise<boolean>;
