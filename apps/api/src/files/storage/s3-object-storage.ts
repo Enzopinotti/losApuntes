@@ -208,6 +208,7 @@ async function signedRequest(input: {
   accessKeyId: string;
   secretAccessKey: string;
   headers?: Readonly<Record<string, string>>;
+  timeoutMs?: number;
   now?: Date;
 }): Promise<Response> {
   const now = input.now ?? new Date();
@@ -254,7 +255,7 @@ async function signedRequest(input: {
         authorization,
         ...(input.headers ?? {}),
       },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(input.timeoutMs ?? REQUEST_TIMEOUT_MS),
     },
   );
 }
@@ -308,7 +309,10 @@ export function createS3ObjectStorage(
       });
     },
 
-    async headObject(objectKey: string): Promise<ObjectStorageHead | null> {
+    async headObject(
+      objectKey: string,
+      timeoutMs = REQUEST_TIMEOUT_MS,
+    ): Promise<ObjectStorageHead | null> {
       const response = await signedRequest({
         method: 'HEAD',
         endpoint,
@@ -317,6 +321,7 @@ export function createS3ObjectStorage(
         region: options.region,
         accessKeyId: options.accessKeyId,
         secretAccessKey: options.secretAccessKey,
+        timeoutMs,
         now: options.now?.(),
       });
 

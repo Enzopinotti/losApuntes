@@ -29,7 +29,9 @@
     "test:feeds:coverage": "jest --config ./jest.feeds-coverage.cjs --runInBand --coverage",
     "test:pilot:coverage": "jest --config ./jest.pilot-coverage.cjs --runInBand --coverage",
     "test:organizations:coverage": "jest --config ./jest.organizations-coverage.cjs --runInBand --coverage",
-    "test:alumni:coverage": "jest --config ./jest.alumni-coverage.cjs --runInBand --coverage"
+    "test:alumni:coverage": "jest --config ./jest.alumni-coverage.cjs --runInBand --coverage",
+    "health:diagnostics": "node dist/health/health-diagnostics.cli.js",
+    "files-worker:health": "node dist/files/files-cleanup.health.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
