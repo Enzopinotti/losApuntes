@@ -110,12 +110,19 @@ export class MongoProfileStore implements ProfileStore {
 
   async listActivitiesForUser(
     userId: string,
-  ): Promise<ProfileActivityRecord[]> {
-    return this.activities
+    limit: number,
+  ): ReturnType<ProfileStore['listActivitiesForUser']> {
+    const rows = await this.activities
       .find({ userId })
       .sort({ updatedAt: -1, id: 1 })
+      .limit(limit + 1)
       .lean<ProfileActivityRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
   }
 
   async findActivityForUser(
