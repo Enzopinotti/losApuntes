@@ -136,6 +136,7 @@ async function createReadyPdf(bearer, filename, label) {
     json(
       'POST',
       {
+        operationKey: randomUUID(),
         filename,
         mimeType: 'application/pdf',
         byteSize: bytes.byteLength,
@@ -252,6 +253,53 @@ const subject = subjectSearch.body.items.find(
 );
 assert.ok(subject, 'Academic smoke must create Base de Datos subject');
 
+
+const uploadReplayKey = randomUUID();
+const uploadReplayBody = {
+  operationKey: uploadReplayKey,
+  filename: 'retry-safe.pdf',
+  mimeType: 'application/pdf',
+  byteSize: 32,
+};
+const uploadReplayFirst = await request(
+  '/files/upload-intents',
+  json('POST', uploadReplayBody, author.bearer),
+);
+const uploadReplaySecond = await request(
+  '/files/upload-intents',
+  json('POST', uploadReplayBody, author.bearer),
+);
+assert.equal(uploadReplayFirst.response.status, 201);
+assert.equal(uploadReplaySecond.response.status, 201);
+assert.equal(
+  uploadReplayFirst.response.headers.get('cache-control'),
+  'no-store',
+);
+assert.equal(uploadReplayFirst.body.file.id, uploadReplaySecond.body.file.id);
+const replayRows = Number(
+  mongoEval(
+    [
+      `const key = ${JSON.stringify(uploadReplayKey)};`,
+      "print(db.file_assets.countDocuments({ uploadOperationKey: key }));",
+    ].join('\n'),
+  ),
+);
+assert.equal(replayRows, 1, 'One operation key must create one FileAsset');
+
+const uploadReplayConflict = await request(
+  '/files/upload-intents',
+  json(
+    'POST',
+    { ...uploadReplayBody, filename: 'different.pdf' },
+    author.bearer,
+  ),
+);
+assert.equal(uploadReplayConflict.response.status, 409);
+assert.equal(
+  uploadReplayConflict.body.code,
+  'FILE_UPLOAD_IDEMPOTENCY_CONFLICT',
+);
+
 const wrongSizeBytes = Buffer.from(
   '%PDF-1.7\nsize-bound-runtime\n%%EOF\n',
   'utf8',
@@ -261,6 +309,7 @@ const wrongSizeIntent = await request(
   json(
     'POST',
     {
+      operationKey: randomUUID(),
       filename: 'size-bound.pdf',
       mimeType: 'application/pdf',
       byteSize: wrongSizeBytes.byteLength + 1,
@@ -583,6 +632,7 @@ const cleanupIntent = await request(
   json(
     'POST',
     {
+      operationKey: randomUUID(),
       filename: 'abandoned.pdf',
       mimeType: 'application/pdf',
       byteSize: cleanupBytes.byteLength,
