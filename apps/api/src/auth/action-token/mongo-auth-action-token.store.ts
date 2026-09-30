@@ -142,11 +142,14 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
       })
       .sort({ createdAt: -1, tokenId: -1 })
       .limit(keep)
-      .select({ tokenId: 1, _id: 0 })
-      .lean<Array<{ tokenId: string }>>()
+      .select({ tokenId: 1, createdAt: 1, _id: 0 })
+      .lean<Array<{ tokenId: string; createdAt: Date }>>()
       .exec();
 
-    const retainedIds = retained.map((document) => document.tokenId);
+    if (retained.length < keep) return;
+
+    const cutoff = retained.at(-1);
+    if (!cutoff) return;
 
     await this.model
       .updateMany(
@@ -155,9 +158,13 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
           purpose,
           consumedAt: null,
           expiresAt: { $gt: now },
-          ...(retainedIds.length > 0
-            ? { tokenId: { $nin: retainedIds } }
-            : {}),
+          $or: [
+            { createdAt: { $lt: cutoff.createdAt } },
+            {
+              createdAt: cutoff.createdAt,
+              tokenId: { $lt: cutoff.tokenId },
+            },
+          ],
         },
         {
           $set: { consumedAt },
