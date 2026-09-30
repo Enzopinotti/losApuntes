@@ -17,6 +17,7 @@ import type {
 import {
   PROFILE_STORE,
   ProfileAlreadyExistsError,
+  type ProfileActivityCursor,
   type ProfileStore,
   type UpdateProfileRecord,
 } from './profile.store';
@@ -29,6 +30,8 @@ import {
 } from './profile.types';
 
 const DEFAULT_SECTION_ORDER = [...PROFILE_SECTIONS];
+export const PROFILE_ACTIVITY_DEFAULT_LIMIT = 20;
+export const PROFILE_ACTIVITY_MAX_LIMIT = 50;
 
 const DEFAULT_VISIBILITY: ProfileVisibilityPolicy = {
   about: 'public',
@@ -39,6 +42,45 @@ const DEFAULT_VISIBILITY: ProfileVisibilityPolicy = {
   professional: 'private',
   contributions: 'private',
 };
+
+function encodeActivityCursor(cursor: ProfileActivityCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      createdAt: cursor.createdAt.toISOString(),
+      id: cursor.id,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeActivityCursor(value?: string): ProfileActivityCursor | undefined {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string') {
+      throw new Error('Invalid activity cursor shape');
+    }
+
+    const createdAt = new Date(parsed.createdAt);
+    if (Number.isNaN(createdAt.getTime())) {
+      throw new Error('Invalid activity cursor date');
+    }
+
+    return {
+      createdAt,
+      id: parsed.id,
+    };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'PROFILE_ACTIVITY_CURSOR_INVALID',
+      message: 'Profile activity cursor is invalid',
+    });
+  }
+}
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -86,13 +128,17 @@ export class ProfileService {
 
     const [academic, activities] = await Promise.all([
       this.academicProjection(userId),
-      this.store.listActivitiesForUser(userId),
+      this.activityPage(userId, {
+        limit: PROFILE_ACTIVITY_DEFAULT_LIMIT,
+      }),
     ]);
 
     return {
       profile: this.ownerProfile(profile),
       academic,
-      activities: activities.map((row) => this.publicActivity(row)),
+      activities: activities.items,
+      activitiesNextCursor: activities.nextCursor,
+      activitiesLimit: PROFILE_ACTIVITY_DEFAULT_LIMIT,
       contributions: this.emptyContributions(),
       onboardingRequired: false,
     };
@@ -314,7 +360,9 @@ export class ProfileService {
         ? this.academicProjection(profile.userId)
         : Promise.resolve(undefined),
       visible('activities')
-        ? this.store.listActivitiesForUser(profile.userId)
+        ? this.activityPage(profile.userId, {
+            limit: PROFILE_ACTIVITY_DEFAULT_LIMIT,
+          })
         : Promise.resolve(undefined),
     ]);
 
@@ -349,8 +397,9 @@ export class ProfileService {
           : {}),
         ...(visible('activities')
           ? {
-              activities:
-                activities?.map((row) => this.publicActivity(row)) ?? [],
+              activities: activities?.items ?? [],
+              activitiesNextCursor: activities?.nextCursor ?? null,
+              activitiesLimit: PROFILE_ACTIVITY_DEFAULT_LIMIT,
             }
           : {}),
         ...(visible('skills')
@@ -374,6 +423,26 @@ export class ProfileService {
           : {}),
       },
     };
+  }
+
+  async listOwnerActivities(
+    userId: string,
+    input: { limit: number; cursor?: string },
+  ) {
+    await this.requireOwnerProfile(userId);
+    return this.activityPage(userId, input);
+  }
+
+  async listPublicActivities(
+    profileId: string,
+    input: { limit: number; cursor?: string },
+  ) {
+    const profile = await this.store.findProfileById(profileId);
+    if (!profile || profile.visibility.activities !== 'public') {
+      this.profileNotFound();
+    }
+
+    return this.activityPage(profile.userId, input);
   }
 
   async createActivity(userId: string, dto: CreateProfileActivityDto) {
@@ -455,6 +524,29 @@ export class ProfileService {
         message: 'Profile activity changed concurrently',
       });
     }
+  }
+
+  private async activityPage(
+    userId: string,
+    input: { limit: number; cursor?: string },
+  ) {
+    const page = await this.store.listActivitiesForUser({
+      userId,
+      limit: Math.min(input.limit, PROFILE_ACTIVITY_MAX_LIMIT),
+      after: decodeActivityCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => this.publicActivity(row)),
+      nextCursor:
+        page.hasMore && last
+          ? encodeActivityCursor({
+              createdAt: last.createdAt,
+              id: last.id,
+            })
+          : null,
+    };
   }
 
   private assertActivityPeriod(
