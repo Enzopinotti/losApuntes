@@ -148,6 +148,8 @@ function configureDefaults(
   feedStore.listFeedback.mockResolvedValue([]);
   deps.academic.listSubjectParticipations.mockResolvedValue({
     participations: [],
+    truncated: false,
+    limit: 100,
   });
   deps.academic.resolveResourceContext.mockImplementation((id) =>
     Promise.resolve({
