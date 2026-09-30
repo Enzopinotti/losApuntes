@@ -217,33 +217,11 @@ export class MongoOrganizationStore implements OrganizationStore {
 
       try {
         await session.withTransaction(async () => {
-          const organization = await this.organizations
-            .findOne({
-              id: input.organizationId,
-              status: 'active',
-              managementRevision: input.authority.expectedManagementRevision,
-            })
-            .session(session)
-            .lean<OrganizationRecord>()
-            .exec();
-
-          if (!organization) {
-            throw new AuthorizedMutationAbort({ status: 'authority_stale' });
-          }
-
-          const manager = await this.managers
-            .findOne({
-              organizationId: input.organizationId,
-              userId: input.authority.actorUserId,
-              role: { $in: input.authority.allowedRoles },
-            })
-            .session(session)
-            .lean<OrganizationManagerRecord>()
-            .exec();
-
-          if (!manager) {
-            throw new AuthorizedMutationAbort({ status: 'authority_stale' });
-          }
+          await this.assertWriteAuthority(
+            input.organizationId,
+            input.authority,
+            session,
+          );
 
           const mutation = input.mutation;
 
