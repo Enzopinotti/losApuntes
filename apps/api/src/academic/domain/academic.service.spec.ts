@@ -1952,6 +1952,70 @@ describe('AcademicService', () => {
     });
   });
 
+  it('fails closed when reverse redirect ancestry exceeds the depth budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const root = catalogNode({
+      id: 'root-node',
+      kind: 'institution',
+    });
+    store.findCatalogNodeById.mockResolvedValue(root);
+
+    let level = 0;
+    store.findDirectRedirectSources.mockImplementation((targetIds) => {
+      const current = targetIds[0];
+      if (!current) return Promise.resolve(page([]));
+
+      level += 1;
+      return Promise.resolve(
+        page([
+          catalogNode({
+            id: `reverse-${level}`,
+            kind: 'institution',
+            status: 'merged',
+            redirectToId: current,
+          }),
+        ]),
+      );
+    });
+
+    const error = await rejectedConflict(
+      service.listChildren(root.id, 'program', 25),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_REDIRECT_TOO_DEEP',
+    });
+    expect(store.searchCatalog.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects an indirect self merge through an alias that resolves to source', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const source = catalogNode({
+      id: '22222222-2222-4222-8222-222222222222',
+      kind: 'institution',
+    });
+    const alias = catalogNode({
+      id: '33333333-3333-4333-8333-333333333333',
+      kind: 'institution',
+      status: 'merged',
+      redirectToId: source.id,
+    });
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(id === alias.id ? alias : id === source.id ? source : null),
+    );
+
+    await expect(
+      service.mergeCatalogNode('admin-1', source.id, alias.id, 1),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'ACADEMIC_MERGE_SELF',
+      }),
+    });
+    expect(store.updateCatalogNode.mock.calls).toHaveLength(0);
+  });
+
   it('traverses reverse redirects with one bounded query per level', async () => {
     const store = createStore();
     const service = new AcademicService(store);
