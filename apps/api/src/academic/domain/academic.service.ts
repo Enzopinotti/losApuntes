@@ -356,7 +356,8 @@ export class AcademicService {
     if (source.id === target.node.id) {
       throw new UnprocessableEntityException({
         code: 'ACADEMIC_MERGE_SELF',
-        message: 'Academic node cannot be merged into its own canonical identity',
+        message:
+          'Academic node cannot be merged into its own canonical identity',
       });
     }
     if (source.status === 'merged') {
@@ -1063,8 +1064,7 @@ export class AcademicService {
     let frontier = [node.id];
 
     for (let depth = 0; depth < MAX_REDIRECT_DEPTH; depth += 1) {
-      const remaining =
-        ACADEMIC_REDIRECT_IDENTITY_LIMIT - identities.size;
+      const remaining = ACADEMIC_REDIRECT_IDENTITY_LIMIT - identities.size;
       const page = await this.store.findDirectRedirectSources(
         frontier,
         Math.max(1, remaining),
