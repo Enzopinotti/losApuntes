@@ -39,6 +39,22 @@ assert.doesNotMatch(authService, /Bearer\s+/u);
 const authContext = await read('apps/web/src/contexts/AuthContext.tsx');
 assert.doesNotMatch(authContext, /localStorage|sessionStorage/u);
 assert.doesNotMatch(authContext, /Bearer\s+/u);
+assert.match(authContext, /visibilitychange/u);
+assert.match(authContext, /window\.addEventListener\("focus"/u);
+assert.match(authContext, /FOREGROUND_REVALIDATE_AFTER_MS/u);
+assert.match(authContext, /refreshInFlightRef/u);
+assert.match(authContext, /subscribeAuthAuthorityChanged/u);
+
+const authAuthorityChannel = await read(
+  'apps/web/src/features/auth/authAuthorityChannel.ts',
+);
+assert.match(authAuthorityChannel, /BroadcastChannel/u);
+assert.match(authAuthorityChannel, /authority-changed/u);
+assert.doesNotMatch(
+  authAuthorityChannel,
+  /token|cookie|email|sessionId|userId/iu,
+  'cross-tab authority hints must not carry secrets or user identifiers',
+);
 
 for (const actionPage of [
   'apps/web/src/pages/VerifyEmail.tsx',
