@@ -8,7 +8,7 @@ import type { AcademicService } from '../../academic/domain/academic.service';
 import type { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { QaStore } from './qa.store';
-import { QaService } from './qa.service';
+import { QA_ANSWER_DEFAULT_LIMIT, QaService } from './qa.service';
 import type { AnswerRecord, QaReportRecord, QuestionRecord } from './qa.types';
 
 const now = new Date('2026-09-23T15:00:00.000Z');
@@ -214,7 +214,10 @@ describe('QaService', () => {
     const profileApi = profiles();
     configureProjection(academicApi, profileApi);
     qaStore.findQuestion.mockResolvedValue(question());
-    qaStore.listAnswers.mockResolvedValue([answer()]);
+    qaStore.listAnswers.mockResolvedValue({
+      items: [answer()],
+      hasMore: false,
+    });
 
     const result = await service(qaStore, academicApi, profileApi).get(
       questionId,
@@ -231,8 +234,91 @@ describe('QaService', () => {
       canEdit: false,
       canReport: true,
     });
+    expect(result.answersNextCursor).toBeNull();
+    expect(result.answersLimit).toBe(QA_ANSWER_DEFAULT_LIMIT);
+    expect(qaStore.listAnswers.mock.calls).toContainEqual([
+      {
+        questionId,
+        limit: QA_ANSWER_DEFAULT_LIMIT,
+        after: undefined,
+      },
+    ]);
     expect(JSON.stringify(result)).not.toContain('authorUserId');
     expect(JSON.stringify(result)).not.toContain('user-a');
+  });
+
+  it('paginates Answers with a stable createdAt/id cursor', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    configureProjection(academicApi, profileApi);
+    qaStore.findQuestion.mockResolvedValue(question());
+
+    const firstAnswer = answer({
+      id: '33333333-3333-4333-8333-333333333333',
+      createdAt: new Date('2026-09-23T15:00:00.000Z'),
+    });
+    const secondAnswer = answer({
+      id: '44444444-4444-4444-8444-444444444444',
+      createdAt: new Date('2026-09-23T16:00:00.000Z'),
+    });
+
+    qaStore.listAnswers
+      .mockResolvedValueOnce({
+        items: [firstAnswer],
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        items: [secondAnswer],
+        hasMore: false,
+      });
+
+    const first = await service(qaStore, academicApi, profileApi).listAnswers(
+      questionId,
+      { limit: 1 },
+      'user-a',
+    );
+
+    expect(typeof first.nextCursor).toBe('string');
+    expect(first.items.map((item) => item.id)).toEqual([firstAnswer.id]);
+
+    const second = await service(qaStore, academicApi, profileApi).listAnswers(
+      questionId,
+      {
+        limit: 1,
+        cursor: first.nextCursor ?? undefined,
+      },
+      'user-a',
+    );
+
+    expect(second.items.map((item) => item.id)).toEqual([secondAnswer.id]);
+    expect(second.nextCursor).toBeNull();
+    expect(qaStore.listAnswers.mock.calls.at(-1)).toEqual([
+      {
+        questionId,
+        limit: 1,
+        after: {
+          createdAt: firstAnswer.createdAt,
+          id: firstAnswer.id,
+        },
+      },
+    ]);
+  });
+
+  it('rejects malformed Answer cursors before the bounded Answer read', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    qaStore.findQuestion.mockResolvedValue(question());
+
+    await expect(
+      service(qaStore, academicApi, profileApi).listAnswers(questionId, {
+        limit: 25,
+        cursor: 'invalid-answer-cursor',
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(qaStore.listAnswers.mock.calls).toHaveLength(0);
   });
 
   it('fails closed for hidden Questions and Answers', async () => {

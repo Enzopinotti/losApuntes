@@ -160,15 +160,38 @@ export class MongoQaStore implements QaStore {
   }
 
   async listAnswers(
-    questionId: string,
-    limit: number,
-  ): Promise<AnswerRecord[]> {
-    return this.answers
-      .find({ questionId, moderationState: 'available' })
+    input: Parameters<QaStore['listAnswers']>[0],
+  ): ReturnType<QaStore['listAnswers']> {
+    const filters: FilterQuery<Answer>[] = [
+      {
+        questionId: input.questionId,
+        moderationState: 'available',
+      },
+    ];
+
+    if (input.after) {
+      filters.push({
+        $or: [
+          { createdAt: { $gt: input.after.createdAt } },
+          {
+            createdAt: input.after.createdAt,
+            id: { $gt: input.after.id },
+          },
+        ],
+      });
+    }
+
+    const rows = await this.answers
+      .find({ $and: filters })
       .sort({ createdAt: 1, id: 1 })
-      .limit(limit)
+      .limit(input.limit + 1)
       .lean<AnswerRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async findAnswer(id: string): Promise<AnswerRecord | null> {

@@ -1,5 +1,6 @@
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import type {
+  AnswerCursor,
   AnswerRecord,
   QaReportReason,
   QaReportRecord,
@@ -43,7 +44,11 @@ export interface QaStore {
     >,
   ) => Promise<QuestionRecord | null>;
 
-  listAnswers: (questionId: string, limit: number) => Promise<AnswerRecord[]>;
+  listAnswers: (input: {
+    questionId: string;
+    limit: number;
+    after?: AnswerCursor;
+  }) => Promise<{ items: AnswerRecord[]; hasMore: boolean }>;
   findAnswer: (id: string) => Promise<AnswerRecord | null>;
   createAnswerAtomic: (input: {
     answer: CreateAnswerRecord;

@@ -65,3 +65,8 @@ export interface QuestionCursor {
   updatedAt: Date;
   id: string;
 }
+
+export interface AnswerCursor {
+  createdAt: Date;
+  id: string;
+}
