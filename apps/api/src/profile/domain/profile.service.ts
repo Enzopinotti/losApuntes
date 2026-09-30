@@ -28,6 +28,8 @@ import {
   type ProfileVisibilityPolicy,
 } from './profile.types';
 
+export const PROFILE_ACTIVITY_VISIBLE_LIMIT = 50;
+
 const DEFAULT_SECTION_ORDER = [...PROFILE_SECTIONS];
 
 const DEFAULT_VISIBILITY: ProfileVisibilityPolicy = {
@@ -84,15 +86,17 @@ export class ProfileService {
       };
     }
 
-    const [academic, activities] = await Promise.all([
+    const [academic, activityPage] = await Promise.all([
       this.academicProjection(userId),
-      this.store.listActivitiesForUser(userId),
+      this.store.listActivitiesForUser(userId, PROFILE_ACTIVITY_VISIBLE_LIMIT),
     ]);
 
     return {
       profile: this.ownerProfile(profile),
       academic,
-      activities: activities.map((row) => this.publicActivity(row)),
+      activities: activityPage.items.map((row) => this.publicActivity(row)),
+      activitiesTruncated: activityPage.hasMore,
+      activitiesLimit: PROFILE_ACTIVITY_VISIBLE_LIMIT,
       contributions: this.emptyContributions(),
       onboardingRequired: false,
     };
@@ -314,7 +318,10 @@ export class ProfileService {
         ? this.academicProjection(profile.userId)
         : Promise.resolve(undefined),
       visible('activities')
-        ? this.store.listActivitiesForUser(profile.userId)
+        ? this.store.listActivitiesForUser(
+            profile.userId,
+            PROFILE_ACTIVITY_VISIBLE_LIMIT,
+          )
         : Promise.resolve(undefined),
     ]);
 
@@ -350,7 +357,9 @@ export class ProfileService {
         ...(visible('activities')
           ? {
               activities:
-                activities?.map((row) => this.publicActivity(row)) ?? [],
+                activities?.items.map((row) => this.publicActivity(row)) ?? [],
+              activitiesTruncated: activities?.hasMore ?? false,
+              activitiesLimit: PROFILE_ACTIVITY_VISIBLE_LIMIT,
             }
           : {}),
         ...(visible('skills')
@@ -501,7 +510,11 @@ export class ProfileService {
 
     return {
       affiliations: affiliations.affiliations,
+      affiliationsTruncated: affiliations.truncated,
+      affiliationLimit: affiliations.limit,
       participations: participations.participations,
+      participationsTruncated: participations.truncated,
+      participationLimit: participations.limit,
       currentContext: context.context,
     };
   }
