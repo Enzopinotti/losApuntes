@@ -26,6 +26,11 @@ import type {
   UpdateOrganizationVerificationDto,
 } from '../dto/organization.dto';
 import {
+  ORGANIZATION_FEATURED_RESOURCE_LIMIT,
+  ORGANIZATION_LINK_LIMIT,
+  ORGANIZATION_MANAGER_LIMIT,
+} from './organization-limits';
+import {
   ORGANIZATION_STORE,
   type AuthorizedOrganizationMutationResult,
   type OrganizationStore,
@@ -39,10 +44,6 @@ import type {
   OrganizationPostRecord,
   OrganizationRecord,
 } from './organization.types';
-
-const MAX_MANAGERS = 20;
-const MAX_LINKS = 20;
-const MAX_FEATURED_RESOURCES = 20;
 
 type AuthorizedMutationSuccess = Extract<
   AuthorizedOrganizationMutationResult,
@@ -175,6 +176,7 @@ export class OrganizationService {
         status: 'active',
         revision: 1,
         managementRevision: 1,
+        capacityRevision: 1,
       },
       ownerUserId: userId,
       audit: this.audit({
@@ -376,7 +378,7 @@ export class OrganizationService {
 
     if (!current) {
       const managers = await this.store.listManagers(id);
-      if (managers.length >= MAX_MANAGERS) {
+      if (managers.length >= ORGANIZATION_MANAGER_LIMIT) {
         throw new UnprocessableEntityException({
           code: 'ORGANIZATION_MANAGER_LIMIT',
           message: 'Organization manager limit reached',
@@ -793,7 +795,7 @@ export class OrganizationService {
     ];
     await this.requireRole(organizationId, userId, allowedRoles);
     const links = await this.store.listLinks(organizationId);
-    if (links.length >= MAX_LINKS) {
+    if (links.length >= ORGANIZATION_LINK_LIMIT) {
       throw new UnprocessableEntityException({
         code: 'ORGANIZATION_LINK_LIMIT',
         message: 'Organization link limit reached',
@@ -888,7 +890,7 @@ export class OrganizationService {
     const current = await this.store.listFeaturedResources(organizationId);
     if (
       !current.some((row) => row.resourceId === resourceId) &&
-      current.length >= MAX_FEATURED_RESOURCES
+      current.length >= ORGANIZATION_FEATURED_RESOURCE_LIMIT
     ) {
       throw new UnprocessableEntityException({
         code: 'ORGANIZATION_RESOURCE_LIMIT',
@@ -1080,7 +1082,7 @@ export class OrganizationService {
       ]);
     const [managerProfiles, scope, following] = await Promise.all([
       this.profiles.getAttributionsForUsers(
-        managers.slice(0, MAX_MANAGERS).map((row) => row.userId),
+        managers.slice(0, ORGANIZATION_MANAGER_LIMIT).map((row) => row.userId),
       ),
       this.scopeProjection(organization),
       viewerUserId
@@ -1089,7 +1091,7 @@ export class OrganizationService {
     ]);
 
     const publicResources = [];
-    for (const row of featured.slice(0, MAX_FEATURED_RESOURCES)) {
+    for (const row of featured.slice(0, ORGANIZATION_FEATURED_RESOURCE_LIMIT)) {
       try {
         publicResources.push(
           (await this.resources.get(row.resourceId)).resource,
@@ -1111,7 +1113,7 @@ export class OrganizationService {
       verificationState: organization.verificationState,
       scope,
       followerCount: followers,
-      managers: managers.slice(0, MAX_MANAGERS).map((row) => ({
+      managers: managers.slice(0, ORGANIZATION_MANAGER_LIMIT).map((row) => ({
         role: row.role,
         profile: managerProfiles.get(row.userId) ?? {
           profileId: null,
@@ -1119,7 +1121,7 @@ export class OrganizationService {
           avatarUrl: null,
         },
       })),
-      links: links.slice(0, MAX_LINKS).map((row) => this.linkProjection(row)),
+      links: links.slice(0, ORGANIZATION_LINK_LIMIT).map((row) => this.linkProjection(row)),
       featuredResources: publicResources,
       posts: await Promise.all(
         posts.map((row) => this.postProjection(row, organization)),
@@ -1359,6 +1361,27 @@ export class OrganizationService {
       });
     }
 
+    if (result.status === 'capacity_conflict') {
+      throw new ConflictException({
+        code: 'ORGANIZATION_CAPACITY_CONFLICT',
+        message:
+          'Organization bounded content changed concurrently; refresh and retry the action',
+      });
+    }
+
+    if (result.status === 'limit_exceeded') {
+      if (result.collection === 'links') {
+        throw new UnprocessableEntityException({
+          code: 'ORGANIZATION_LINK_LIMIT',
+          message: 'Organization link limit reached',
+        });
+      }
+      throw new UnprocessableEntityException({
+        code: 'ORGANIZATION_RESOURCE_LIMIT',
+        message: 'Featured Resource limit reached',
+      });
+    }
+
     if (result.status === 'state_conflict') {
       if (stateConflict) {
         throw new ConflictException(stateConflict);
@@ -1397,6 +1420,12 @@ export class OrganizationService {
     result: Awaited<ReturnType<OrganizationStore['changeManager']>>,
   ): void {
     if (result.status === 'ok') return;
+    if (result.status === 'manager_limit') {
+      throw new UnprocessableEntityException({
+        code: 'ORGANIZATION_MANAGER_LIMIT',
+        message: 'Organization manager limit reached',
+      });
+    }
     if (result.status === 'final_owner') {
       throw new ConflictException({
         code: 'ORGANIZATION_FINAL_OWNER_REQUIRED',
