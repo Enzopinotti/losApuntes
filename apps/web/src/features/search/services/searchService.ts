@@ -42,7 +42,12 @@ function envelopeMessage(envelope: ErrorEnvelope): string {
   return envelope.message || "No pudimos completar la búsqueda.";
 }
 
-async function request<T>(path: string): Promise<T> {
+function requestSignal(signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(15_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   let response: Response;
 
   try {
@@ -50,7 +55,7 @@ async function request<T>(path: string): Promise<T> {
       credentials: "include",
       cache: "no-store",
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(15_000),
+      signal: requestSignal(signal),
     });
   } catch {
     throw new SearchApiError(
@@ -99,14 +104,17 @@ export const searchApi = {
     scope: SearchScope;
     limit?: number;
     subjectId?: string;
-  }) => {
+  }, signal?: AbortSignal) => {
     const query = new URLSearchParams({
       q: input.q,
       scope: input.scope,
       limit: String(input.limit ?? 8),
     });
     if (input.subjectId) query.set("subjectId", input.subjectId);
-    return request<SearchResponse>(`/search?${query.toString()}`);
+    return request<SearchResponse>(
+      `/search?${query.toString()}`,
+      signal,
+    );
   },
 
   contextual: (
@@ -114,6 +122,7 @@ export const searchApi = {
       subjectLimit?: number;
       resourcesPerSubject?: number;
     } = {},
+    signal?: AbortSignal,
   ) => {
     const query = new URLSearchParams({
       subjectLimit: String(input.subjectLimit ?? 6),
@@ -121,6 +130,7 @@ export const searchApi = {
     });
     return request<ContextualDiscoveryResponse>(
       `/discovery/contextual?${query.toString()}`,
+      signal,
     );
   },
 };
