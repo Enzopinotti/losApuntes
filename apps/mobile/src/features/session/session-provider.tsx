@@ -4,9 +4,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { AppState } from "react-native";
 
 import { mobileRuntime } from "@/config/runtime";
 import { createSerializedCredentialStore } from "@/features/session/serialized-credential-store";
@@ -36,10 +38,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot>(
     controller.getSnapshot(),
   );
+  const appStateRef = useRef(AppState.currentState);
 
   useEffect(() => controller.subscribe(setSnapshot), []);
   useEffect(() => {
     void controller.restore();
+  }, []);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (nextState === "active" && previousState !== "active") {
+        void controller.revalidateCurrent();
+        return;
+      }
+
+      if (nextState !== "active") {
+        controller.suspend();
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   const login = useCallback(
