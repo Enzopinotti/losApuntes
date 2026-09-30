@@ -133,7 +133,9 @@ async function main(): Promise<void> {
         object.byteSize !== asset.actualByteSize ||
         object.contentType !== asset.verifiedMimeType
       ) {
-        throw new Error('FileAsset/object storage recovery relationship is invalid');
+        throw new Error(
+          'FileAsset/object storage recovery relationship is invalid',
+        );
       }
 
       filesChecked += 1;
