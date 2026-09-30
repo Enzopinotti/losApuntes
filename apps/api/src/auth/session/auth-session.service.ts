@@ -21,6 +21,7 @@ const SESSION_IDLE_TTL_MS: Record<AuthClientType, number> = {
   mobile: 14 * 24 * 60 * 60 * 1000,
 };
 const LAST_SEEN_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+export const AUTH_SESSION_INVENTORY_LIMIT = 20;
 
 export type IssuedAuthSession = {
   sessionToken: string;
@@ -31,6 +32,12 @@ export type ResolvedAuthSession = {
   userId: string;
   credentialVersion: number;
   session: PublicAuthSession;
+};
+
+export type ActiveAuthSessionInventory = {
+  sessions: PublicAuthSession[];
+  truncated: boolean;
+  limit: number;
 };
 
 function toPublicSession(
@@ -134,18 +141,47 @@ export class AuthSessionService {
     currentSessionId: string,
     credentialVersion: number,
     now = new Date(),
-  ): Promise<PublicAuthSession[]> {
-    const sessions = await this.store.listActiveForUser(userId, now);
+  ): Promise<ActiveAuthSessionInventory> {
+    const page = await this.store.listActiveForUser({
+      userId,
+      credentialVersion,
+      now,
+      webIdleAfter: new Date(now.getTime() - SESSION_IDLE_TTL_MS.web),
+      mobileIdleAfter: new Date(now.getTime() - SESSION_IDLE_TTL_MS.mobile),
+      limit: AUTH_SESSION_INVENTORY_LIMIT,
+    });
 
-    return sessions
-      .filter(
-        (session) =>
-          session.credentialVersion === credentialVersion &&
-          !isIdleExpired(session, now),
-      )
-      .map((session) =>
-        toPublicSession(session, session.id === currentSessionId),
+    let sessions = page.items;
+    let truncated = page.hasMore;
+
+    if (!sessions.some((session) => session.id === currentSessionId)) {
+      const current = await this.store.findActiveOwnedById(
+        userId,
+        currentSessionId,
+        credentialVersion,
+        now,
       );
+
+      if (current && !isIdleExpired(current, now)) {
+        if (sessions.length >= AUTH_SESSION_INVENTORY_LIMIT) {
+          sessions = [
+            ...sessions.slice(0, AUTH_SESSION_INVENTORY_LIMIT - 1),
+            current,
+          ];
+          truncated = true;
+        } else {
+          sessions = [...sessions, current];
+        }
+      }
+    }
+
+    return {
+      sessions: sessions.map((session) =>
+        toPublicSession(session, session.id === currentSessionId),
+      ),
+      truncated,
+      limit: AUTH_SESSION_INVENTORY_LIMIT,
+    };
   }
 
   async revokeOwned(userId: string, sessionId: string): Promise<boolean> {
