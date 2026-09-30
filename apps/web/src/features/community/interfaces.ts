@@ -67,9 +67,16 @@ export type QuestionSearchResponse = {
   nextCursor: string | null;
 };
 
+export type AnswerPageResponse = {
+  items: AnswerView[];
+  nextCursor: string | null;
+};
+
 export type QuestionDetailResponse = {
   question: QuestionView;
   answers: AnswerView[];
+  answersNextCursor: string | null;
+  answersLimit: number;
 };
 
 export type NotificationType =
