@@ -270,7 +270,9 @@ describe('HTTP runtime boundary', () => {
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
-    const firstRequest = request(app.getHttpServer()).get('/runtime-probe/hold');
+    const firstRequest = request(app.getHttpServer()).get(
+      '/runtime-probe/hold',
+    );
     const firstPromise = firstRequest.then((response) => response);
 
     await holdStarted;
