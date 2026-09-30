@@ -95,6 +95,10 @@ export interface AcademicStore {
     expectedRevision: number,
     patch: UpdateCatalogNodeRecord,
   ): Promise<AcademicCatalogNodeRecord | null>;
+  bumpCatalogNodeRevision(
+    id: string,
+    expectedRevision: number,
+  ): Promise<AcademicCatalogNodeRecord | null>;
 
   createAffiliation(
     input: CreateAffiliationRecord,
