@@ -131,7 +131,7 @@ async function main() {
 
   const evidence = {
     formatVersion: 1,
-    kind: 'restore-drill',
+    kind: 'restore-materialization',
     status: 'PASS',
     backupSetId: manifest.backupSetId,
     sourceReleaseSha: manifest.releaseSha,
