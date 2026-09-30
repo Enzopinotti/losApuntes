@@ -53,7 +53,9 @@ function encodeActivityCursor(cursor: ProfileActivityCursor): string {
   ).toString('base64url');
 }
 
-function decodeActivityCursor(value?: string): ProfileActivityCursor | undefined {
+function decodeActivityCursor(
+  value?: string,
+): ProfileActivityCursor | undefined {
   if (!value) return undefined;
 
   try {
