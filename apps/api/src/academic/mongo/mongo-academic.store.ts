@@ -244,9 +244,7 @@ export class MongoAcademicStore implements AcademicStore {
     const rows = await this.affiliations
       .find({
         userId: input.userId,
-        ...(input.statuses?.length
-          ? { status: { $in: input.statuses } }
-          : {}),
+        ...(input.statuses?.length ? { status: { $in: input.statuses } } : {}),
       })
       .sort({ updatedAt: -1, id: 1 })
       .limit(input.limit + 1)
