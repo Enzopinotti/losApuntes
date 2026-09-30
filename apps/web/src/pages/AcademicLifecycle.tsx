@@ -71,6 +71,9 @@ function errorMessage(error: unknown): string {
   if (error.code === "ACADEMIC_AFFILIATION_ROLE_INVALID") {
     return "Los roles elegidos no son compatibles con el estado de esta afiliación.";
   }
+  if (error.code === "ACADEMIC_INVENTORY_OVERFLOW") {
+    return "Tu historia académica supera el límite seguro para tomar esta decisión. No aplicamos cambios con una vista incompleta.";
+  }
   return error.message;
 }
 
@@ -79,6 +82,8 @@ const AcademicLifecycle = () => {
     null,
   );
   const [affiliations, setAffiliations] = useState<AcademicAffiliation[]>([]);
+  const [affiliationsTruncated, setAffiliationsTruncated] = useState(false);
+  const [affiliationLimit, setAffiliationLimit] = useState(50);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [graduatedOn, setGraduatedOn] = useState<Record<string, string>>({});
   const [roleDrafts, setRoleDrafts] = useState<
@@ -110,6 +115,8 @@ const AcademicLifecycle = () => {
       ]);
       setLifecycle(nextLifecycle);
       setAffiliations(affiliationResponse.affiliations);
+      setAffiliationsTruncated(affiliationResponse.truncated);
+      setAffiliationLimit(affiliationResponse.limit);
       setRoleDrafts(
         Object.fromEntries(
           affiliationResponse.affiliations.map((row) => [row.id, row.roles]),
@@ -312,6 +319,13 @@ const AcademicLifecycle = () => {
 
       <section className="academic-lifecycle-card">
         <h2>Afiliaciones e historia</h2>
+        {affiliationsTruncated && (
+          <p role="status">
+            Mostramos hasta {affiliationLimit} afiliaciones recientes. Tu
+            historia completa sigue preservada; no la usamos de forma truncada
+            para decisiones de lifecycle.
+          </p>
+        )}
         {affiliations.length === 0 ? (
           <p>
             Todavía no tenés una afiliación académica. Cuando la agregues,
@@ -417,6 +431,13 @@ const AcademicLifecycle = () => {
           Seguí instituciones o carreras porque querés mantener ese vínculo. No
           modifica tu historial ni implica matrícula o pertenencia actual.
         </p>
+
+        {lifecycle?.followsTruncated && (
+          <p role="status">
+            Mostramos hasta {lifecycle.followsLimit} seguimientos en este
+            resumen. Puede haber vínculos adicionales que siguen activos.
+          </p>
+        )}
 
         {lifecycle && lifecycle.follows.length > 0 && (
           <ul className="academic-follow-list">
