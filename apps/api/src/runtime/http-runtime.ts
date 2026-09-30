@@ -180,10 +180,16 @@ export function configureHttpRuntime(
       return;
     }
 
-    request.raw.once('close', () => {
-      admission.release(request.id);
-    });
+    done();
+  });
 
+  server.addHook('onRequestAbort', (request, done) => {
+    admission.release(request.id);
+    done();
+  });
+
+  server.addHook('onTimeout', (request, _reply, done) => {
+    admission.release(request.id);
     done();
   });
 
