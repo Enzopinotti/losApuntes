@@ -100,6 +100,12 @@ services:
       rustfs-init:
         condition: service_completed_successfully
     healthcheck:
+      test: ["CMD", "node", "dist/files/files-cleanup.health.js"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    healthcheck:
       test:
         [
           "CMD",
