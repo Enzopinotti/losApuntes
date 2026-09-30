@@ -3,14 +3,16 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [store, controller, client, deepLinks, app, pkg] = await Promise.all([
-  read("apps/mobile/src/platform/session-credential-store.ts"),
-  read("apps/mobile/src/features/session/session-controller.ts"),
-  read("apps/mobile/src/services/api/client.ts"),
-  read("apps/mobile/src/features/auth/auth-deep-link.ts"),
-  read("apps/mobile/app.json"),
-  read("apps/mobile/package.json"),
-]);
+const [store, controller, provider, client, deepLinks, app, pkg] =
+  await Promise.all([
+    read("apps/mobile/src/platform/session-credential-store.ts"),
+    read("apps/mobile/src/features/session/session-controller.ts"),
+    read("apps/mobile/src/features/session/session-provider.tsx"),
+    read("apps/mobile/src/services/api/client.ts"),
+    read("apps/mobile/src/features/auth/auth-deep-link.ts"),
+    read("apps/mobile/app.json"),
+    read("apps/mobile/package.json"),
+  ]);
 
 assert.match(store, /expo-secure-store/u);
 assert.match(store, /WHEN_UNLOCKED_THIS_DEVICE_ONLY/u);
@@ -23,6 +25,11 @@ assert.match(client, /CROSS_ORIGIN_REQUEST_BLOCKED/u);
 assert.doesNotMatch(client, /console\.(?:log|warn|error)|searchParams\.set\([^)]*(?:token|credential|authorization)/iu);
 assert.match(controller, /generation/u);
 assert.match(controller, /bestEffortRevokeCandidate/u);
+assert.match(controller, /revalidateCurrent/u);
+assert.match(controller, /suspend\(\): void/u);
+assert.match(provider, /AppState\.addEventListener/u);
+assert.match(provider, /controller\.revalidateCurrent/u);
+assert.match(provider, /controller\.suspend/u);
 assert.match(deepLinks, /url\.protocol\s*!==\s*"losapuntes:"/u);
 assert.match(deepLinks, /ACTION_TOKEN_PATTERN/u);
 
