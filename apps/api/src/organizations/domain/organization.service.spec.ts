@@ -459,12 +459,6 @@ describe('OrganizationService', () => {
     const organizationStore = store();
     const dependencies = deps();
     defaults(organizationStore, dependencies);
-    organizationStore.updateOwnedProfile.mockResolvedValue({
-      ...organization(),
-      name: 'Centro Actualizado',
-      revision: 2,
-    });
-
     const result = await service(organizationStore, dependencies).update(
       'owner-user',
       orgId,
@@ -476,10 +470,26 @@ describe('OrganizationService', () => {
 
     expect(result.organization.name).toBe('Centro Actualizado');
     expect(
-      organizationStore.updateOwnedProfile.mock.calls[0]?.[0]?.patch,
+      organizationStore.commitAuthorizedMutation.mock.calls[0]?.[0],
     ).toMatchObject({
-      name: 'Centro Actualizado',
-      normalizedName: 'centro actualizado',
+      organizationId: orgId,
+      authority: {
+        actorUserId: 'owner-user',
+        expectedManagementRevision: 1,
+        allowedRoles: ['owner', 'admin'],
+      },
+      mutation: {
+        kind: 'organization.update',
+        expectedRevision: 1,
+        patch: {
+          name: 'Centro Actualizado',
+          normalizedName: 'centro actualizado',
+        },
+      },
+      audit: {
+        event: 'organization.updated',
+        actorUserId: 'owner-user',
+      },
     });
 
     organizationStore.findById.mockResolvedValue(organization({ revision: 2 }));
@@ -684,8 +694,6 @@ describe('OrganizationService', () => {
     const dependencies = deps();
     defaults(organizationStore, dependencies);
     const row = post({ subjectId: '66666666-6666-4666-8666-666666666666' });
-    organizationStore.createPost.mockResolvedValue(row);
-
     const result = await service(organizationStore, dependencies).createPost(
       'owner-user',
       orgId,
@@ -705,6 +713,24 @@ describe('OrganizationService', () => {
       },
     });
     expect(result.post.academic?.subject.name).toBe('Materia');
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls.at(-1)?.[0],
+    ).toMatchObject({
+      authority: {
+        actorUserId: 'owner-user',
+        expectedManagementRevision: 1,
+        allowedRoles: ['owner', 'admin', 'editor'],
+      },
+      mutation: {
+        kind: 'post.create',
+        record: {
+          title: 'Novedad',
+          body: 'Información útil',
+          subjectId: row.subjectId,
+        },
+      },
+      audit: { event: 'organization.post_created' },
+    });
   });
 
   it('rejects inverted event periods and creates valid moderatable events', async () => {
@@ -725,7 +751,6 @@ describe('OrganizationService', () => {
       'ORGANIZATION_EVENT_PERIOD_INVALID',
     );
 
-    organizationStore.createEvent.mockResolvedValue(event());
     await service(organizationStore, dependencies).createEvent(
       'owner-user',
       orgId,
@@ -734,8 +759,14 @@ describe('OrganizationService', () => {
         startsAt: now.toISOString(),
       },
     );
-    expect(organizationStore.createEvent.mock.calls[0]?.[0]).toMatchObject({
-      moderationState: 'available',
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls.at(-1)?.[0],
+    ).toMatchObject({
+      mutation: {
+        kind: 'event.create',
+        record: { moderationState: 'available', title: 'Encuentro' },
+      },
+      audit: { event: 'organization.event_created' },
     });
   });
 
@@ -870,11 +901,7 @@ describe('OrganizationService', () => {
     });
 
     organizationStore.findPostById.mockResolvedValue(current);
-    organizationStore.updatePost.mockResolvedValue(updated);
     organizationStore.listPosts.mockResolvedValue([updated]);
-    organizationStore.deletePost
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
 
     const result = await service(organizationStore, dependencies).updatePost(
       'owner-user',
@@ -889,16 +916,21 @@ describe('OrganizationService', () => {
     );
 
     expect(result.post.body).toBe('Contenido actualizado');
-    expect(organizationStore.updatePost.mock.calls[0]).toEqual([
-      orgId,
-      current.id,
-      1,
-      {
-        title: null,
-        body: 'Contenido actualizado',
-        subjectId,
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls.at(-1)?.[0],
+    ).toMatchObject({
+      mutation: {
+        kind: 'post.update',
+        postId: current.id,
+        expectedRevision: 1,
+        patch: {
+          title: null,
+          body: 'Contenido actualizado',
+          subjectId,
+        },
       },
-    ]);
+      audit: { event: 'organization.post_updated' },
+    });
 
     const listed = await service(organizationStore, dependencies).listPosts(
       orgId,
@@ -920,6 +952,9 @@ describe('OrganizationService', () => {
       ),
     ).resolves.toBeUndefined();
 
+    organizationStore.commitAuthorizedMutation.mockResolvedValueOnce({
+      status: 'not_found',
+    });
     await expectCode(
       service(organizationStore, dependencies).deletePost(
         'owner-user',
@@ -939,7 +974,9 @@ describe('OrganizationService', () => {
       'ORGANIZATION_POST_UPDATE_EMPTY',
     );
 
-    organizationStore.updatePost.mockResolvedValue(null);
+    organizationStore.commitAuthorizedMutation.mockResolvedValueOnce({
+      status: 'state_conflict',
+    });
     await expectCode(
       service(organizationStore, dependencies).updatePost(
         'owner-user',
@@ -993,7 +1030,6 @@ describe('OrganizationService', () => {
     });
 
     organizationStore.findEventById.mockResolvedValue(current);
-    organizationStore.updateEvent.mockResolvedValue(updated);
     organizationStore.listEvents.mockResolvedValue([updated]);
 
     const result = await service(organizationStore, dependencies).updateEvent(
@@ -1013,16 +1049,24 @@ describe('OrganizationService', () => {
     );
 
     expect(result.event.state).toBe('cancelled');
-    const updateEventCall = organizationStore.updateEvent.mock.calls[0];
-    expect(updateEventCall?.slice(0, 3)).toEqual([orgId, current.id, 1]);
-    expect(updateEventCall?.[3]).toMatchObject({
-      title: 'Encuentro actualizado',
-      description: null,
-      startsAt: changedStart,
-      endsAt: null,
-      locationLabel: 'Aula 2',
-      externalUrl: 'https://example.test/nuevo',
-      state: 'cancelled',
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls.at(-1)?.[0],
+    ).toMatchObject({
+      mutation: {
+        kind: 'event.update',
+        eventId: current.id,
+        expectedRevision: 1,
+        patch: {
+          title: 'Encuentro actualizado',
+          description: null,
+          startsAt: changedStart,
+          endsAt: null,
+          locationLabel: 'Aula 2',
+          externalUrl: 'https://example.test/nuevo',
+          state: 'cancelled',
+        },
+      },
+      audit: { event: 'organization.event_updated' },
     });
 
     const listed = await service(organizationStore, dependencies).listEvents(
@@ -1047,7 +1091,9 @@ describe('OrganizationService', () => {
       'ORGANIZATION_EVENT_UPDATE_EMPTY',
     );
 
-    organizationStore.updateEvent.mockResolvedValue(null);
+    organizationStore.commitAuthorizedMutation.mockResolvedValueOnce({
+      status: 'state_conflict',
+    });
     await expectCode(
       service(organizationStore, dependencies).updateEvent(
         'owner-user',
@@ -1091,11 +1137,6 @@ describe('OrganizationService', () => {
     };
 
     organizationStore.listLinks.mockResolvedValue([]);
-    organizationStore.createLink.mockResolvedValue(link);
-    organizationStore.deleteLink
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
-
     const result = await service(organizationStore, dependencies).createLink(
       'owner-user',
       orgId,
@@ -1104,10 +1145,22 @@ describe('OrganizationService', () => {
         url: 'https://example.test',
       },
     );
-    expect(result.link).toEqual({
-      id: link.id,
+    expect(result.link).toMatchObject({
+      id: expect.any(String),
       label: 'Sitio oficial',
       url: 'https://example.test/',
+    });
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls.at(-1)?.[0],
+    ).toMatchObject({
+      mutation: {
+        kind: 'link.create',
+        record: {
+          label: 'Sitio oficial',
+          url: 'https://example.test/',
+        },
+      },
+      audit: { event: 'organization.link_created' },
     });
 
     await expect(
@@ -1118,6 +1171,9 @@ describe('OrganizationService', () => {
       ),
     ).resolves.toBeUndefined();
 
+    organizationStore.commitAuthorizedMutation.mockResolvedValueOnce({
+      status: 'not_found',
+    });
     await expectCode(
       service(organizationStore, dependencies).deleteLink(
         'owner-user',
@@ -1150,14 +1206,6 @@ describe('OrganizationService', () => {
 
     dependencies.resources.get.mockResolvedValue({ resource: {} } as never);
     organizationStore.listFeaturedResources.mockResolvedValue([]);
-    organizationStore.featureResource.mockResolvedValue({
-      organizationId: orgId,
-      resourceId,
-      createdByUserId: 'owner-user',
-      createdAt: now,
-      updatedAt: now,
-    });
-
     await expect(
       service(organizationStore, dependencies).featureResource(
         'owner-user',
@@ -1165,10 +1213,15 @@ describe('OrganizationService', () => {
         resourceId,
       ),
     ).resolves.toEqual({ featured: true });
-    expect(organizationStore.featureResource.mock.calls[0]?.[0]).toEqual({
-      organizationId: orgId,
-      resourceId,
-      createdByUserId: 'owner-user',
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls.at(-1)?.[0],
+    ).toMatchObject({
+      mutation: {
+        kind: 'resource.feature',
+        resourceId,
+        createdByUserId: 'owner-user',
+      },
+      audit: { event: 'organization.resource_featured' },
     });
 
     await expect(
