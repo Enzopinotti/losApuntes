@@ -154,8 +154,6 @@ describe('AuthActionTokenService', () => {
 
   it('keeps at most three active tokens per account and purpose', async () => {
     const { store, mocks } = createStore();
-    const ids = ['newest', 'second', 'third', 'oldest'];
-
     const service = new AuthActionTokenService(store);
 
     await service.issueIfAllowed(
