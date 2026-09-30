@@ -54,5 +54,6 @@ AuthActionTokenSchema.index({
   consumedAt: 1,
   expiresAt: 1,
   createdAt: -1,
+  tokenId: -1,
 });
 AuthActionTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
