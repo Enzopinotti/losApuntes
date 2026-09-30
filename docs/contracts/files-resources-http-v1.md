@@ -26,6 +26,7 @@ Body:
 
 ```json
 {
+  "operationKey": "8ce114a2-ea25-4aaa-9e9e-84818f49d15c",
   "filename": "parcial-2.pdf",
   "mimeType": "application/pdf",
   "byteSize": 123456
@@ -37,8 +38,14 @@ Policy:
 - maximum 50 MiB;
 - allowed types: PDF, JPEG, PNG, WebP;
 - filename is sanitized server-side;
+- `operationKey` identifies one user upload action and is scoped to the authenticated principal;
 - one immutable private object key is generated server-side;
-- object key is never returned.
+- object key is never returned;
+- retrying the same operation key with the same semantic file metadata replays the same pending FileAsset;
+- reusing the same operation key for different filename/MIME/byte size fails with `FILE_UPLOAD_IDEMPOTENCY_CONFLICT`;
+- a still-valid replay may receive a freshly signed PUT for the same private object key.
+
+Response is explicitly `Cache-Control: no-store` because it contains a short-lived storage capability.
 
 Response includes:
 
@@ -168,7 +175,7 @@ Body:
 
 `disposition` is `inline | attachment`.
 
-The API reauthorizes the Resource **before every issuance** and then returns a short-lived signed GET URL plus public file metadata. Possessing a file id or old signed URL never grants issuance of a new one.
+The API reauthorizes the Resource **before every issuance** and then returns a short-lived signed GET URL plus public file metadata. The API capability response is `Cache-Control: no-store`, while the signed S3-compatible GET additionally requests `Cache-Control: private, no-store` for the downloaded private bytes. Possessing a file id or old signed URL never grants issuance of a new one.
 
 Default TTL is 300 seconds. Runtime configuration is bounded to 1–300 seconds. CI uses a shorter TTL only to prove real expiry.
 
@@ -255,6 +262,8 @@ Relevant stable codes include:
 - `FILE_UPLOAD_EXPIRED`;
 - `FILE_UPLOAD_INVALID`;
 - `FILE_UPLOAD_STATE_CONFLICT`;
+- `FILE_UPLOAD_IDEMPOTENCY_CONFLICT`;
+- `FILE_UPLOAD_OPERATION_STATE_CONFLICT`;
 - `FILE_STORAGE_UNAVAILABLE`;
 - `RESOURCE_NOT_FOUND`;
 - `RESOURCE_ASSET_UNAVAILABLE`;
