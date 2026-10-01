@@ -929,7 +929,10 @@ describe('OrganizationService', () => {
     });
 
     organizationStore.findPostById.mockResolvedValue(current);
-    organizationStore.listPosts.mockResolvedValue({ items: [updated], hasMore: false });
+    organizationStore.listPosts.mockResolvedValue({
+      items: [updated],
+      hasMore: false,
+    });
 
     const result = await service(organizationStore, dependencies).updatePost(
       'owner-user',
@@ -1060,7 +1063,10 @@ describe('OrganizationService', () => {
     });
 
     organizationStore.findEventById.mockResolvedValue(current);
-    organizationStore.listEvents.mockResolvedValue({ items: [updated], hasMore: false });
+    organizationStore.listEvents.mockResolvedValue({
+      items: [updated],
+      hasMore: false,
+    });
 
     const result = await service(organizationStore, dependencies).updateEvent(
       'owner-user',
@@ -1618,8 +1624,14 @@ describe('OrganizationService', () => {
     dependencies.profiles.getAttributionsForUsers.mockResolvedValue(new Map());
     organizationStore.listLinks.mockResolvedValue([link]);
     organizationStore.listFeaturedResources.mockResolvedValue([featured]);
-    organizationStore.listPosts.mockResolvedValue({ items: [post()], hasMore: false });
-    organizationStore.listEvents.mockResolvedValue({ items: [event()], hasMore: false });
+    organizationStore.listPosts.mockResolvedValue({
+      items: [post()],
+      hasMore: false,
+    });
+    organizationStore.listEvents.mockResolvedValue({
+      items: [event()],
+      hasMore: false,
+    });
     dependencies.resources.get.mockResolvedValue({
       resource: {
         id: featured.resourceId,
