@@ -1,12 +1,14 @@
 import type {
   OrganizationAuditRecord,
   OrganizationCursor,
+  OrganizationEventCursor,
   OrganizationEventRecord,
   OrganizationFeaturedResourceRecord,
   OrganizationFollowRecord,
   OrganizationLinkRecord,
   OrganizationManagerRecord,
   OrganizationManagerRole,
+  OrganizationPostCursor,
   OrganizationPostRecord,
   OrganizationRecord,
   OrganizationReportReason,
@@ -194,7 +196,8 @@ export interface OrganizationStore {
     organizationId: string;
     limit: number;
     before?: Date;
-  }): Promise<OrganizationPostRecord[]>;
+    after?: OrganizationPostCursor;
+  }): Promise<{ items: OrganizationPostRecord[]; hasMore: boolean }>;
   listFeedPosts(input: {
     organizationIds: string[];
     anchorAt: Date;
@@ -214,7 +217,8 @@ export interface OrganizationStore {
     organizationId: string;
     limit: number;
     from?: Date;
-  }): Promise<OrganizationEventRecord[]>;
+    after?: OrganizationEventCursor;
+  }): Promise<{ items: OrganizationEventRecord[]; hasMore: boolean }>;
 
   listLinks(organizationId: string): Promise<OrganizationLinkRecord[]>;
 
