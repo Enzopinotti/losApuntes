@@ -50,8 +50,11 @@ function models(input: {
     findOne: jest.fn(() => query(input.organization ?? null)),
     findOneAndUpdate: jest.fn(() => query(input.organization ?? null)),
   };
+  const managerListQuery = listQuery(input.managerRows ?? []);
+  const linkListQuery = listQuery(input.linkRows ?? []);
+  const featuredListQuery = listQuery(input.featuredRows ?? []);
   const managers = {
-    find: jest.fn(() => listQuery(input.managerRows ?? [])),
+    find: jest.fn(() => managerListQuery),
     findOne: jest.fn(() => query(input.manager ?? null)),
     countDocuments: jest.fn(() => query(input.managerCount ?? 0)),
     findOneAndUpdate: jest.fn(),
@@ -64,13 +67,13 @@ function models(input: {
     create: jest.fn(),
   };
   const links = {
-    find: jest.fn(() => listQuery(input.linkRows ?? [])),
+    find: jest.fn(() => linkListQuery),
     countDocuments: jest.fn(() => query(input.linkCount ?? 0)),
     create: jest.fn(),
     deleteOne: jest.fn(),
   };
   const featuredResources = {
-    find: jest.fn(() => listQuery(input.featuredRows ?? [])),
+    find: jest.fn(() => featuredListQuery),
     findOne: jest.fn(() => query(input.existingFeatured ?? null)),
     countDocuments: jest.fn(() => query(input.featuredCount ?? 0)),
     create: jest.fn(),
@@ -100,6 +103,9 @@ function models(input: {
     posts,
     links,
     featuredResources,
+    managerListQuery,
+    linkListQuery,
+    featuredListQuery,
   };
 }
 
