@@ -1300,9 +1300,9 @@ describe('OrganizationService', () => {
       'ORGANIZATION_MANAGER_CAPACITY_INVARIANT',
     );
 
-    expect(dependencies.profiles.getAttributionsForUsers.mock.calls).toHaveLength(
-      0,
-    );
+    expect(
+      dependencies.profiles.getAttributionsForUsers.mock.calls,
+    ).toHaveLength(0);
   });
 
   it('covers manager no-op, capacity, missing-manager and revision conflicts', async () => {
