@@ -33,8 +33,24 @@ function messageFor(error: unknown): string {
 
 const Organization = () => {
   const { organizationId } = useParams();
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+    organizationId ?? "no-organization",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`organization-load:${authorityScope}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`organization-action:${authorityScope}`);
   const [organization, setOrganization] = useState<OrganizationDetail | null>(
     null,
   );
@@ -44,18 +60,25 @@ const Organization = () => {
 
   const load = useCallback(async () => {
     if (!organizationId) return;
+    const ticket = beginLoad();
     setError(null);
+
     try {
-      const result = await organizationsApi.get(organizationId);
-      setOrganization(result.organization);
+      const result = await organizationsApi.get(organizationId, ticket.signal);
+      if (isLoadCurrent(ticket)) {
+        setOrganization(result.organization);
+      }
     } catch (nextError) {
+      if (!isLoadCurrent(ticket)) return;
       if (isOrganizationsApiError(nextError) && nextError.status === 404) {
         setError("Esta organización no existe o ya no está disponible.");
         return;
       }
       setError(messageFor(nextError));
+    } finally {
+      finishLoad(ticket);
     }
-  }, [organizationId]);
+  }, [beginLoad, finishLoad, isLoadCurrent, organizationId]);
 
   useEffect(() => {
     void load();
@@ -63,26 +86,35 @@ const Organization = () => {
 
   const follow = async () => {
     if (!organization) return;
+    const ticket = beginAction();
     setBusy("follow");
     setError(null);
+
     try {
       if (organization.viewer?.following) {
         await organizationsApi.unfollow(organization.id);
+        if (!isActionCurrent(ticket)) return;
         setFeedback("Dejaste de seguir esta organización.");
       } else {
         await organizationsApi.follow(organization.id);
+        if (!isActionCurrent(ticket)) return;
         setFeedback("Ahora seguís esta organización.");
       }
       await load();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const loadMorePosts = async () => {
     if (!organization?.postsNextCursor) return;
+    const ticket = beginAction();
     setBusy("posts-more");
     setError(null);
 
@@ -90,7 +122,9 @@ const Organization = () => {
       const page = await organizationsApi.posts(
         organization.id,
         organization.postsNextCursor,
+        ticket.signal,
       );
+      if (!isActionCurrent(ticket)) return;
       setOrganization((current) =>
         current
           ? {
@@ -101,14 +135,19 @@ const Organization = () => {
           : current,
       );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const loadMoreEvents = async () => {
     if (!organization?.eventsNextCursor) return;
+    const ticket = beginAction();
     setBusy("events-more");
     setError(null);
 
@@ -116,7 +155,9 @@ const Organization = () => {
       const page = await organizationsApi.events(
         organization.id,
         organization.eventsNextCursor,
+        ticket.signal,
       );
+      if (!isActionCurrent(ticket)) return;
       setOrganization((current) =>
         current
           ? {
@@ -127,37 +168,55 @@ const Organization = () => {
           : current,
       );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const reportPost = async (postId: string) => {
     if (!organization) return;
+    const ticket = beginAction();
     setBusy(`report-post:${postId}`);
     setError(null);
     try {
       await organizationsApi.reportPost(organization.id, postId);
-      setFeedback("Reporte de publicación recibido.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Reporte de publicación recibido.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const reportEvent = async (eventId: string) => {
     if (!organization) return;
+    const ticket = beginAction();
     setBusy(`report-event:${eventId}`);
     setError(null);
     try {
       await organizationsApi.reportEvent(organization.id, eventId);
-      setFeedback("Reporte de evento recibido.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Reporte de evento recibido.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
