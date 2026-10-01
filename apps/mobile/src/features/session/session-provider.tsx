@@ -10,20 +10,8 @@ import {
 } from "react";
 import { AppState } from "react-native";
 
-import { mobileRuntime } from "@/config/runtime";
-import { createSerializedCredentialStore } from "@/features/session/serialized-credential-store";
-import {
-  SessionController,
-  type SessionSnapshot,
-} from "@/features/session/session-controller";
-import { secureSessionCredentialStore } from "@/platform/session-credential-store";
-import { MobileApiClient } from "@/services/api/client";
-
-const api = new MobileApiClient(mobileRuntime.apiOrigin);
-const credentialStore = createSerializedCredentialStore(
-  secureSessionCredentialStore,
-);
-const controller = new SessionController(api, credentialStore);
+import type { SessionSnapshot } from "@/features/session/session-controller";
+import { mobileSessionController } from "@/features/session/session-runtime";
 
 interface SessionContextValue {
   snapshot: SessionSnapshot;
@@ -33,6 +21,7 @@ interface SessionContextValue {
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
+const controller = mobileSessionController;
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot>(
@@ -64,7 +53,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     (email: string, password: string) =>
-      controller.login({ email: email.trim().toLowerCase(), password }),
+      controller.login({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
     [],
   );
   const logout = useCallback(() => controller.logout(), []);

@@ -244,6 +244,10 @@ export class SessionController {
       : null;
   }
 
+  isCredentialAuthoritative(credential: string, generation: number): boolean {
+    return this.credential === credential && this.generation === generation;
+  }
+
   invalidateIfAuthoritative(
     credential: string,
     generation: number,
