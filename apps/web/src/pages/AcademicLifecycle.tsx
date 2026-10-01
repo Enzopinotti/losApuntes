@@ -5,6 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useAuth } from "../contexts/useAuth";
 import type {
   AcademicAffiliation,
   AcademicCatalogNode,
@@ -15,6 +16,7 @@ import {
   academicApi,
   isAcademicApiError,
 } from "../features/academic/services/academicService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./AcademicLifecycle.scss";
 
 const roleLabels: Record<AcademicRelationshipRole, string> = {
@@ -78,6 +80,22 @@ function errorMessage(error: unknown): string {
 }
 
 const AcademicLifecycle = () => {
+  const { status, user, session } = useAuth();
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`academic-lifecycle-load:${authorityScope}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`academic-lifecycle-action:${authorityScope}`);
   const [lifecycle, setLifecycle] = useState<AcademicLifecycleResponse | null>(
     null,
   );
@@ -105,14 +123,17 @@ const AcademicLifecycle = () => {
   );
 
   const load = useCallback(async () => {
+    const ticket = beginLoad();
     setLoading(true);
     setError(null);
 
     try {
       const [nextLifecycle, affiliationResponse] = await Promise.all([
-        academicApi.lifecycle(),
-        academicApi.affiliations(),
+        academicApi.lifecycle(ticket.signal),
+        academicApi.affiliations(ticket.signal),
       ]);
+      if (!isLoadCurrent(ticket)) return;
+
       setLifecycle(nextLifecycle);
       setAffiliations(affiliationResponse.affiliations);
       setAffiliationsTruncated(affiliationResponse.truncated);
@@ -135,20 +156,26 @@ const AcademicLifecycle = () => {
       const entries = await Promise.all(
         nodeIds.map(async (id) => {
           try {
-            const result = await academicApi.node(id);
+            const result = await academicApi.node(id, ticket.signal);
             return [id, result.node.name] as const;
           } catch {
             return [id, id] as const;
           }
         }),
       );
-      setLabels(Object.fromEntries(entries));
+      if (isLoadCurrent(ticket)) {
+        setLabels(Object.fromEntries(entries));
+      }
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (isLoadCurrent(ticket)) {
+        setError(errorMessage(nextError));
+      }
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [beginLoad, finishLoad, isLoadCurrent]);
 
   useEffect(() => {
     void load();
@@ -161,12 +188,14 @@ const AcademicLifecycle = () => {
       return;
     }
 
+    const ticket = beginAction();
     setBusy(`graduate:${affiliation.id}`);
     setError(null);
     setFeedback(null);
 
     try {
       const result = await academicApi.graduate(affiliation.id, value);
+      if (!isActionCurrent(ticket)) return;
       setFeedback(
         result.transitionedSubjectCount > 0
           ? `Graduación registrada. ${result.transitionedSubjectCount} materia(s) actuales pasaron a completadas.`
@@ -174,13 +203,18 @@ const AcademicLifecycle = () => {
       );
       await load();
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(errorMessage(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const saveRoles = async (affiliation: AcademicAffiliation) => {
+    const ticket = beginAction();
     setBusy(`roles:${affiliation.id}`);
     setError(null);
     setFeedback(null);
@@ -190,12 +224,17 @@ const AcademicLifecycle = () => {
         affiliation.id,
         roleDrafts[affiliation.id] ?? [],
       );
+      if (!isActionCurrent(ticket)) return;
       setFeedback("Roles de trayectoria actualizados.");
       await load();
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(errorMessage(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
@@ -218,6 +257,7 @@ const AcademicLifecycle = () => {
     event.preventDefault();
     if (searchText.trim().length < 2) return;
 
+    const ticket = beginAction();
     setBusy("search");
     setError(null);
 
@@ -225,42 +265,61 @@ const AcademicLifecycle = () => {
       const response = await academicApi.searchCatalog(
         searchKind,
         searchText.trim(),
+        ticket.signal,
       );
-      setResults(response.items);
+      if (isActionCurrent(ticket)) {
+        setResults(response.items);
+      }
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(errorMessage(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const follow = async (node: AcademicCatalogNode) => {
+    const ticket = beginAction();
     setBusy(`follow:${node.id}`);
     setError(null);
 
     try {
       await academicApi.follow(node.id);
+      if (!isActionCurrent(ticket)) return;
       setFeedback(`Ahora seguís ${node.name}.`);
       await load();
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(errorMessage(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const unfollow = async (nodeId: string) => {
+    const ticket = beginAction();
     setBusy(`unfollow:${nodeId}`);
     setError(null);
 
     try {
       await academicApi.unfollow(nodeId);
+      if (!isActionCurrent(ticket)) return;
       setFeedback("Seguimiento académico eliminado.");
       await load();
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(errorMessage(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
