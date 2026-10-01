@@ -139,6 +139,7 @@ const Questions = () => {
       }
     },
     [
+      authScope,
       beginList,
       finishList,
       isListCurrent,
@@ -171,8 +172,19 @@ const Questions = () => {
         }
       }
     },
-    [beginDetail, finishDetail, isDetailCurrent, setSearchParams],
+    [
+      authScope,
+      beginDetail,
+      finishDetail,
+      isDetailCurrent,
+      setSearchParams,
+    ],
   );
+
+  useEffect(() => {
+    setBusy(null);
+    setFeedback(null);
+  }, [authScope]);
 
   useEffect(() => {
     void loadList();
