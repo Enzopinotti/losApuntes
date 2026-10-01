@@ -39,5 +39,10 @@
     "test:recovery-contract": "node --test scripts/recovery/recovery-lib.test.mjs && node scripts/test-recovery-contract.mjs",
     "test:web-academic-contract": "node scripts/test-web-academic-contract.mjs",
     "test:notification-fanout-contract": "node scripts/test-notification-fanout-contract.mjs"
+  },
+  "pnpm": {
+    "overrides": {
+      "@nestjs/platform-fastify>fastify": "5.12.5"
+    }
   }
 }
