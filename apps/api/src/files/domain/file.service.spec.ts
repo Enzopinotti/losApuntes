@@ -111,7 +111,7 @@ function storage(): jest.Mocked<ObjectStorage> {
     createUploadIntent: jest.fn(),
     headObject: jest.fn(),
     readPrefix: jest.fn(),
-    readObjectChunks: jest.fn(() =>
+    readObjectChunks: jest.fn((_objectKey: string, _maximumChunkBytes?: number) =>
       (async function* () {
         yield new Uint8Array(Buffer.from('%PDF-1.7'));
       })(),
