@@ -175,7 +175,16 @@ const AcademicLifecycle = () => {
         setLoading(false);
       }
     }
-  }, [beginLoad, finishLoad, isLoadCurrent]);
+  }, [authorityScope, beginLoad, finishLoad, isLoadCurrent]);
+
+  useEffect(() => {
+    setLifecycle(null);
+    setAffiliations([]);
+    setLabels({});
+    setBusy(null);
+    setFeedback(null);
+    setLoading(true);
+  }, [authorityScope]);
 
   useEffect(() => {
     void load();
