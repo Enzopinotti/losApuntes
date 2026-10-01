@@ -93,7 +93,17 @@ const Security = () => {
         setLoading(false);
       }
     }
-  }, [beginLoad, finishLoad, isLoadCurrent]);
+  }, [authorityScope, beginLoad, finishLoad, isLoadCurrent]);
+
+  useEffect(() => {
+    setSessions([]);
+    setSessionsTruncated(false);
+    setMethods(null);
+    setGoogleEnabled(false);
+    setBusyAction(null);
+    setFeedback(null);
+    setLoading(true);
+  }, [authorityScope]);
 
   useEffect(() => {
     void loadSecurity();
