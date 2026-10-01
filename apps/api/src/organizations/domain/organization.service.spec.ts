@@ -1166,7 +1166,6 @@ describe('OrganizationService', () => {
       updatedAt: now,
     };
 
-    organizationStore.listLinks.mockResolvedValue([]);
     const result = await service(organizationStore, dependencies).createLink(
       'owner-user',
       orgId,
@@ -1213,12 +1212,10 @@ describe('OrganizationService', () => {
       'ORGANIZATION_NOT_FOUND',
     );
 
-    organizationStore.listLinks.mockResolvedValue(
-      Array.from({ length: 20 }, (_, index) => ({
-        ...link,
-        id: `88888888-8888-4888-8${String(index).padStart(3, '0')}-888888888888`,
-      })),
-    );
+    organizationStore.commitAuthorizedMutation.mockResolvedValueOnce({
+      status: 'collection_limit',
+      collection: 'links',
+    });
     await expectCode(
       service(organizationStore, dependencies).createLink('owner-user', orgId, {
         label: 'Otro',
@@ -1226,6 +1223,7 @@ describe('OrganizationService', () => {
       }),
       'ORGANIZATION_LINK_LIMIT',
     );
+    expect(organizationStore.listLinks.mock.calls).toHaveLength(0);
   });
 
   it('features and unfeatures public Resources while preserving limits and upstream errors', async () => {
@@ -1235,7 +1233,6 @@ describe('OrganizationService', () => {
     const resourceId = '77777777-7777-4777-8777-777777777777';
 
     dependencies.resources.get.mockResolvedValue({ resource: {} } as never);
-    organizationStore.listFeaturedResources.mockResolvedValue([]);
     await expect(
       service(organizationStore, dependencies).featureResource(
         'owner-user',
@@ -1262,15 +1259,10 @@ describe('OrganizationService', () => {
       ),
     ).resolves.toBeUndefined();
 
-    organizationStore.listFeaturedResources.mockResolvedValue(
-      Array.from({ length: 20 }, (_, index) => ({
-        organizationId: orgId,
-        resourceId: `77777777-7777-4777-8${String(index).padStart(3, '0')}-777777777777`,
-        createdByUserId: 'owner-user',
-        createdAt: now,
-        updatedAt: now,
-      })),
-    );
+    organizationStore.commitAuthorizedMutation.mockResolvedValueOnce({
+      status: 'collection_limit',
+      collection: 'featured_resources',
+    });
     await expectCode(
       service(organizationStore, dependencies).featureResource(
         'owner-user',
@@ -1279,6 +1271,7 @@ describe('OrganizationService', () => {
       ),
       'ORGANIZATION_RESOURCE_LIMIT',
     );
+    expect(organizationStore.listFeaturedResources.mock.calls).toHaveLength(0);
 
     const upstream = new Error('resource backend unavailable');
     dependencies.resources.get.mockRejectedValue(upstream);
@@ -1333,16 +1326,16 @@ describe('OrganizationService', () => {
       'ORGANIZATION_MANAGEMENT_REVISION_CONFLICT',
     );
 
+    const listManagersCallsBeforeCapacity =
+      organizationStore.listManagers.mock.calls.length;
     organizationStore.findById.mockResolvedValue(organization());
     organizationStore.findManager
       .mockReset()
       .mockResolvedValueOnce(manager('owner'))
       .mockResolvedValueOnce(null);
-    organizationStore.listManagers.mockResolvedValue(
-      Array.from({ length: 20 }, (_, index) =>
-        manager(index === 0 ? 'owner' : 'editor', `manager-${index}`),
-      ),
-    );
+    organizationStore.changeManager.mockResolvedValueOnce({
+      status: 'manager_limit',
+    });
     await expectCode(
       service(organizationStore, dependencies).changeManager(
         'owner-user',
@@ -1355,6 +1348,9 @@ describe('OrganizationService', () => {
         },
       ),
       'ORGANIZATION_MANAGER_LIMIT',
+    );
+    expect(organizationStore.listManagers.mock.calls).toHaveLength(
+      listManagersCallsBeforeCapacity,
     );
 
     organizationStore.findManager.mockReset().mockResolvedValue(null);
