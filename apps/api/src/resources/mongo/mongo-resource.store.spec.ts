@@ -190,4 +190,64 @@ describe('MongoResourceStore authorization pipeline', () => {
 
     expect(startSession).not.toHaveBeenCalled();
   });
+
+  it('claims only ready assets with completed safety-scan evidence', async () => {
+    const asset = {
+      id: 'asset-1',
+      state: 'ready',
+      scanCompletedAt: new Date('2026-10-01T12:00:00.000Z'),
+      scanEngine: 'scanner-v1',
+    };
+    const assetExec = jest.fn().mockResolvedValue(asset);
+    const assetLean = jest.fn().mockReturnValue({ exec: assetExec });
+    const findOneAndUpdate = jest.fn().mockReturnValue({ lean: assetLean });
+    const resources = {
+      create: jest.fn().mockResolvedValue([
+        {
+          id: 'resource-1',
+          assetId: 'asset-1',
+          toObject: () => ({ id: 'resource-1', assetId: 'asset-1' }),
+        },
+      ]),
+    };
+    const session = {
+      withTransaction: jest.fn(async (operation: () => Promise<void>) =>
+        operation(),
+      ),
+      endSession: jest.fn().mockResolvedValue(undefined),
+    };
+    const store = new MongoResourceStore(
+      { startSession: jest.fn().mockResolvedValue(session) } as never,
+      resources as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { findOneAndUpdate } as never,
+    );
+    const now = new Date('2026-10-01T12:00:00.000Z');
+
+    await store.createClaimingAsset({
+      actorUserId: 'user-1',
+      now,
+      resource: {
+        id: 'resource-1',
+        assetId: 'asset-1',
+      } as never,
+    });
+
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'asset-1',
+        creatorUserId: 'user-1',
+        state: 'ready',
+        scanCompletedAt: { $type: 'date' },
+        scanEngine: { $type: 'string' },
+        claimRef: null,
+        expiresAt: { $gt: now },
+      }),
+      expect.any(Object),
+      expect.objectContaining({ new: true, session }),
+    );
+  });
+
 });
