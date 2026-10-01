@@ -100,7 +100,20 @@ const OrganizationManage = () => {
     } finally {
       finishLoad(ticket);
     }
-  }, [beginLoad, finishLoad, isLoadCurrent, organizationId]);
+  }, [
+    authorityScope,
+    beginLoad,
+    finishLoad,
+    isLoadCurrent,
+    organizationId,
+  ]);
+
+  useEffect(() => {
+    setDetail(null);
+    setManagement(null);
+    setBusy(null);
+    setFeedback(null);
+  }, [authorityScope]);
 
   useEffect(() => {
     void load();
