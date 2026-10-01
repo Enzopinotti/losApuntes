@@ -12,7 +12,9 @@ export default function SearchRoute() {
       description="Encontrá recursos, materias y personas desde una superficie nativa única."
     >
       <View style={productSurfaceStyles.card}>
-        <Text style={productSurfaceStyles.cardTitle}>Búsqueda en preparación</Text>
+        <Text style={productSurfaceStyles.cardTitle}>
+          Búsqueda en preparación
+        </Text>
         <Text style={productSurfaceStyles.cardCopy}>
           Esta pantalla ya forma parte de la navegación principal. Los
           resultados reales se conectarán al contrato de Search existente, con
