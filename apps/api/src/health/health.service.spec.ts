@@ -23,6 +23,7 @@ function storageStub(
     createUploadIntent: jest.fn(),
     headObject,
     readPrefix: jest.fn(),
+    readObjectChunks: jest.fn(),
     createDownloadIntent: jest.fn(),
     deleteObject: jest.fn(),
   };
