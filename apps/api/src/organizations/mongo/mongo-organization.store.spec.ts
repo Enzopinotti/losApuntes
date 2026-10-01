@@ -252,6 +252,121 @@ describe('MongoOrganizationStore bounded Organization collections', () => {
   });
 });
 
+describe('MongoOrganizationStore public content pagination', () => {
+  function pageQuery<T>(rows: T[]) {
+    const chain = {
+      sort: jest.fn(),
+      limit: jest.fn(),
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(rows),
+    };
+    chain.sort.mockReturnValue(chain);
+    chain.limit.mockReturnValue(chain);
+    chain.lean.mockReturnValue(chain);
+    return chain;
+  }
+
+  it('uses limit+1 and a stable publishedAt/id predicate for Posts', async () => {
+    const publishedAt = new Date('2026-09-30T12:00:00.000Z');
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `post-${index}`,
+      publishedAt: new Date(publishedAt.getTime() - index * 1_000),
+    }));
+    const chain = pageQuery(rows);
+    const posts = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoOrganizationStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      posts as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await store.listPosts({
+      organizationId,
+      limit: 2,
+      after: { publishedAt, id: 'post-anchor' },
+    });
+
+    expect(posts.find).toHaveBeenCalledWith({
+      $and: [
+        {
+          organizationId,
+          moderationState: 'available',
+        },
+        {
+          $or: [
+            { publishedAt: { $lt: publishedAt } },
+            {
+              publishedAt,
+              id: { $gt: 'post-anchor' },
+            },
+          ],
+        },
+      ],
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ publishedAt: -1, id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(result.items).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('uses limit+1 and a stable startsAt/id predicate for Events', async () => {
+    const startsAt = new Date('2026-10-01T12:00:00.000Z');
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `event-${index}`,
+      startsAt: new Date(startsAt.getTime() + index * 1_000),
+    }));
+    const chain = pageQuery(rows);
+    const events = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoOrganizationStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      events as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await store.listEvents({
+      organizationId,
+      limit: 2,
+      after: { startsAt, id: 'event-anchor' },
+    });
+
+    expect(events.find).toHaveBeenCalledWith({
+      $and: [
+        {
+          organizationId,
+          moderationState: 'available',
+        },
+        {
+          $or: [
+            { startsAt: { $gt: startsAt } },
+            {
+              startsAt,
+              id: { $gt: 'event-anchor' },
+            },
+          ],
+        },
+      ],
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ startsAt: 1, id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(result.items).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+  });
+});
+
 describe('MongoOrganizationStore commit authority', () => {
   it('does not write after management revision changed before commit', async () => {
     const fixture = models({ organization: null });
