@@ -42,7 +42,8 @@ export type ManagerChangeResult =
     }
   | { status: 'revision_conflict' }
   | { status: 'target_state_conflict' }
-  | { status: 'final_owner' };
+  | { status: 'final_owner' }
+  | { status: 'manager_limit' };
 
 export type OrganizationWriteAuthority = {
   actorUserId: string;
@@ -106,6 +107,7 @@ export type AuthorizedOrganizationMutationResult =
   | { status: 'authority_stale' }
   | { status: 'state_conflict' }
   | { status: 'not_found' }
+  | { status: 'collection_limit'; collection: 'links' | 'featured_resources' }
   | { status: 'ok'; kind: 'organization.update'; value: OrganizationRecord }
   | { status: 'ok'; kind: 'post.create'; value: OrganizationPostRecord }
   | { status: 'ok'; kind: 'post.update'; value: OrganizationPostRecord }
