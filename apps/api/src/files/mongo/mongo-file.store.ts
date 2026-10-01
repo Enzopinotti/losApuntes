@@ -23,22 +23,31 @@ function mongoErrorCode(error: unknown): number | null {
 
 function scanEligibility(now: Date): FilterQuery<FileAsset> {
   return {
-    expiresAt: { $gt: now },
-    $or: [
+    $and: [
       {
-        state: 'scan_pending',
         $or: [
-          { scanNextAttemptAt: { $exists: false } },
-          { scanNextAttemptAt: { $lte: now } },
+          { claimRef: { $type: 'string' } },
+          { expiresAt: { $gt: now } },
         ],
       },
       {
-        state: 'scanning',
-        scanLeaseExpiresAt: { $lte: now },
-      },
-      {
-        state: 'ready',
-        scanCompletedAt: { $exists: false },
+        $or: [
+          {
+            state: 'scan_pending',
+            $or: [
+              { scanNextAttemptAt: { $exists: false } },
+              { scanNextAttemptAt: { $lte: now } },
+            ],
+          },
+          {
+            state: 'scanning',
+            scanLeaseExpiresAt: { $lte: now },
+          },
+          {
+            state: 'ready',
+            scanCompletedAt: { $exists: false },
+          },
+        ],
       },
     ],
   };
@@ -182,13 +191,14 @@ export class MongoFileAssetStore implements FileAssetStore {
             scanEngine: input.scanEngine,
             scanCompletedAt: input.scanCompletedAt,
             readyAt: input.readyAt,
-            expiresAt: input.expiresAt,
+            ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
           },
           $unset: {
             failureCode: 1,
             scanNextAttemptAt: 1,
             scanClaimId: 1,
             scanLeaseExpiresAt: 1,
+            ...(input.expiresAt ? {} : { expiresAt: 1 }),
           },
         },
         { new: true },

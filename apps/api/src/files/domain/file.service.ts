@@ -525,7 +525,13 @@ export class FileService {
           scanEngine: scan.engine,
           scanCompletedAt: now,
           readyAt: now,
-          expiresAt: new Date(now.getTime() + READY_UNCLAIMED_RECLAIM_MS),
+          ...(claimed.claimRef
+            ? {}
+            : {
+                expiresAt: new Date(
+                  now.getTime() + READY_UNCLAIMED_RECLAIM_MS,
+                ),
+              }),
         },
       );
 

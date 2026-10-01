@@ -43,7 +43,7 @@ export interface FileAssetStore {
       scanEngine: string;
       scanCompletedAt: Date;
       readyAt: Date;
-      expiresAt: Date;
+      expiresAt?: Date;
     },
   ): Promise<FileAssetRecord | null>;
   markRejectedFromScan(
