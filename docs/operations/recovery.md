@@ -164,6 +164,7 @@ This verifier walks restored Resources and fails closed unless every Resource ha
 
 - its referenced FileAsset;
 - FileAsset state `ready`;
+- durable safety-scan evidence: valid `scanCompletedAt` + non-empty `scanEngine`;
 - `claimRef = resource:<resource-id>`;
 - matching storage provider;
 - object bytes present;
@@ -171,6 +172,8 @@ This verifier walks restored Resources and fails closed unless every Resource ha
 - matching stored MIME type.
 
 Output contains counts only. Object keys, DSNs and credentials are not printed.
+
+Historical backup sets created before Files quarantine may contain claimed `ready` assets without scan evidence. Those restores intentionally remain HOLD until the Files worker rescans the legacy assets cleanly in the isolated restore target. Recovery verification never treats pre-quarantine `ready` alone as sufficient safety authority.
 
 ## 7. HTTP signed-download smoke
 
