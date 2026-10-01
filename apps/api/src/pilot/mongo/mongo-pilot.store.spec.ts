@@ -14,9 +14,11 @@ function aggregation<T>(rows: T[]) {
 
 describe('MongoPilotStore metrics aggregation bounds', () => {
   it('keeps audience/contributors server-side and limits subject density to one sentinel row', async () => {
-    const usersAggregate = jest.fn().mockReturnValue(
-      aggregation([{ accountsCreated: 8, profilesCompleted: 6 }]),
-    );
+    const usersAggregate = jest
+      .fn()
+      .mockReturnValue(
+        aggregation([{ accountsCreated: 8, profilesCompleted: 6 }]),
+      );
 
     const pilotEventAggregate = jest
       .fn()
@@ -132,12 +134,8 @@ describe('MongoPilotStore metrics aggregation bounds', () => {
     const audiencePipeline = pilotEventAggregate.mock.calls[0]?.[0] as Array<
       Record<string, unknown>
     >;
-    expect(
-      audiencePipeline.some((stage) => '$lookup' in stage),
-    ).toBe(true);
-    expect(
-      audiencePipeline.some((stage) => '$group' in stage),
-    ).toBe(true);
+    expect(audiencePipeline.some((stage) => '$lookup' in stage)).toBe(true);
+    expect(audiencePipeline.some((stage) => '$group' in stage)).toBe(true);
 
     const contributorPipeline = pilotEventAggregate.mock.calls[1]?.[0] as Array<
       Record<string, unknown>
