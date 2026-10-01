@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
 
+import {
+  ORGANIZATION_FEATURED_RESOURCE_LIMIT,
+  ORGANIZATION_LINK_LIMIT,
+  ORGANIZATION_MANAGER_LIMIT,
+} from '../domain/organization-limits';
 import type {
   AuthorizedOrganizationMutationResult,
   ManagerChangeResult,
@@ -53,7 +58,10 @@ function toPlain<T>(value: { toObject(): unknown } | T): T {
 
 type AuthorizedMutationFailure = Extract<
   AuthorizedOrganizationMutationResult,
-  { status: 'authority_stale' | 'state_conflict' | 'not_found' }
+  {
+    status:
+      'authority_stale' | 'state_conflict' | 'not_found' | 'collection_limit';
+  }
 >;
 
 class AuthorizedMutationAbort extends Error {
@@ -383,6 +391,23 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.create': {
+              await this.acquireCapacityLock(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
+              const linkCount = await this.links
+                .countDocuments({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+
+              if (linkCount >= ORGANIZATION_LINK_LIMIT) {
+                throw new AuthorizedMutationAbort({
+                  status: 'collection_limit',
+                  collection: 'links',
+                });
+              }
+
               const created = await this.links.create([mutation.record], {
                 session,
               });
@@ -439,6 +464,23 @@ export class MongoOrganizationStore implements OrganizationStore {
                   value: existing,
                 };
                 return;
+              }
+
+              await this.acquireCapacityLock(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
+              const featuredCount = await this.featuredResources
+                .countDocuments({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+
+              if (featuredCount >= ORGANIZATION_FEATURED_RESOURCE_LIMIT) {
+                throw new AuthorizedMutationAbort({
+                  status: 'collection_limit',
+                  collection: 'featured_resources',
+                });
               }
 
               const created = await this.featuredResources.create(
@@ -502,6 +544,29 @@ export class MongoOrganizationStore implements OrganizationStore {
       return output;
     } finally {
       await session.endSession();
+    }
+  }
+
+  private async acquireCapacityLock(
+    organizationId: string,
+    expectedManagementRevision: number,
+    session: ClientSession,
+  ): Promise<void> {
+    const locked = await this.organizations
+      .findOneAndUpdate(
+        {
+          id: organizationId,
+          status: 'active',
+          managementRevision: expectedManagementRevision,
+        },
+        { $inc: { capacityRevision: 1 } },
+        { new: true, session },
+      )
+      .lean<OrganizationRecord>()
+      .exec();
+
+    if (!locked) {
+      throw new AuthorizedMutationAbort({ status: 'authority_stale' });
     }
   }
 
@@ -605,6 +670,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.managers
       .find({ organizationId })
       .sort({ role: 1, createdAt: 1, userId: 1 })
+      .limit(ORGANIZATION_MANAGER_LIMIT + 1)
       .lean<OrganizationManagerRecord[]>()
       .exec();
   }
@@ -666,6 +732,17 @@ export class MongoOrganizationStore implements OrganizationStore {
           }
 
           let manager: OrganizationManagerRecord | null = null;
+
+          if (!current && input.nextRole !== null) {
+            const managerCount = await this.managers
+              .countDocuments({ organizationId: input.organizationId })
+              .session(session)
+              .exec();
+
+            if (managerCount >= ORGANIZATION_MANAGER_LIMIT) {
+              throw new ManagerMutationAbort({ status: 'manager_limit' });
+            }
+          }
 
           if (input.nextRole === null) {
             await this.managers
@@ -913,6 +990,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.links
       .find({ organizationId })
       .sort({ createdAt: 1, id: 1 })
+      .limit(ORGANIZATION_LINK_LIMIT + 1)
       .lean<OrganizationLinkRecord[]>()
       .exec();
   }
@@ -923,6 +1001,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.featuredResources
       .find({ organizationId })
       .sort({ createdAt: -1, resourceId: 1 })
+      .limit(ORGANIZATION_FEATURED_RESOURCE_LIMIT + 1)
       .lean<OrganizationFeaturedResourceRecord[]>()
       .exec();
   }

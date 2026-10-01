@@ -1,3 +1,8 @@
+import {
+  ORGANIZATION_FEATURED_RESOURCE_LIMIT,
+  ORGANIZATION_LINK_LIMIT,
+  ORGANIZATION_MANAGER_LIMIT,
+} from '../domain/organization-limits';
 import { MongoOrganizationStore } from './mongo-organization.store';
 
 const now = new Date('2026-09-30T12:00:00.000Z');
@@ -12,6 +17,15 @@ function query<T>(value: T) {
   };
 }
 
+function listQuery<T>(value: T) {
+  return {
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(value),
+  };
+}
+
 function session() {
   return {
     withTransaction: jest.fn(async (callback: () => Promise<void>) =>
@@ -21,7 +35,17 @@ function session() {
   };
 }
 
-function models(input: { organization?: unknown; manager?: unknown }) {
+function models(input: {
+  organization?: unknown;
+  manager?: unknown;
+  managerCount?: number;
+  linkCount?: number;
+  featuredCount?: number;
+  existingFeatured?: unknown;
+  managerRows?: unknown[];
+  linkRows?: unknown[];
+  featuredRows?: unknown[];
+}) {
   const activeSession = session();
   const connection = {
     startSession: jest.fn().mockResolvedValue(activeSession),
@@ -29,16 +53,52 @@ function models(input: { organization?: unknown; manager?: unknown }) {
 
   const organizations = {
     findOne: jest.fn(() => query(input.organization ?? null)),
-    findOneAndUpdate: jest.fn(),
+    findOneAndUpdate: jest.fn(
+      (filter: unknown, update: unknown, options?: unknown) => {
+        void filter;
+        void update;
+        void options;
+        return query(input.organization ?? null);
+      },
+    ),
   };
+  const managerListQuery = listQuery(input.managerRows ?? []);
+  const linkListQuery = listQuery(input.linkRows ?? []);
+  const featuredListQuery = listQuery(input.featuredRows ?? []);
   const managers = {
+    find: jest.fn(() => managerListQuery),
     findOne: jest.fn(() => query(input.manager ?? null)),
+    countDocuments: jest.fn((filter: unknown) => {
+      void filter;
+      return query(input.managerCount ?? 0);
+    }),
+    findOneAndUpdate: jest.fn(),
+    deleteOne: jest.fn(),
   };
   const audits = {
     create: jest.fn(),
   };
   const posts = {
     create: jest.fn(),
+  };
+  const links = {
+    find: jest.fn(() => linkListQuery),
+    countDocuments: jest.fn((filter: unknown) => {
+      void filter;
+      return query(input.linkCount ?? 0);
+    }),
+    create: jest.fn(),
+    deleteOne: jest.fn(),
+  };
+  const featuredResources = {
+    find: jest.fn(() => featuredListQuery),
+    findOne: jest.fn(() => query(input.existingFeatured ?? null)),
+    countDocuments: jest.fn((filter: unknown) => {
+      void filter;
+      return query(input.featuredCount ?? 0);
+    }),
+    create: jest.fn(),
+    deleteOne: jest.fn(),
   };
 
   const store = new MongoOrganizationStore(
@@ -49,8 +109,8 @@ function models(input: { organization?: unknown; manager?: unknown }) {
     {} as never,
     posts as never,
     {} as never,
-    {} as never,
-    {} as never,
+    links as never,
+    featuredResources as never,
     {} as never,
   );
 
@@ -62,6 +122,11 @@ function models(input: { organization?: unknown; manager?: unknown }) {
     managers,
     audits,
     posts,
+    links,
+    featuredResources,
+    managerListQuery,
+    linkListQuery,
+    featuredListQuery,
   };
 }
 
@@ -104,6 +169,89 @@ function createPostInput() {
   };
 }
 
+function createLinkInput() {
+  return {
+    organizationId,
+    authority: {
+      actorUserId,
+      expectedManagementRevision: 7,
+      allowedRoles: ['owner', 'admin', 'editor'] as const,
+    },
+    mutation: {
+      kind: 'link.create' as const,
+      record: {
+        id: '55555555-5555-4555-8555-555555555555',
+        organizationId,
+        createdByUserId: actorUserId,
+        label: 'Sitio',
+        url: 'https://example.test/',
+      },
+    },
+    audit: {
+      id: '66666666-6666-4666-8666-666666666666',
+      organizationId,
+      event: 'organization.link_created' as const,
+      actorUserId,
+      targetUserId: null,
+      previousRole: null,
+      nextRole: null,
+      reason: 'Organization link created',
+      metadata: { linkId: '55555555-5555-4555-8555-555555555555' },
+      createdAt: now,
+    },
+  };
+}
+
+function featureResourceInput() {
+  return {
+    organizationId,
+    authority: {
+      actorUserId,
+      expectedManagementRevision: 7,
+      allowedRoles: ['owner', 'admin', 'editor'] as const,
+    },
+    mutation: {
+      kind: 'resource.feature' as const,
+      resourceId: '77777777-7777-4777-8777-777777777777',
+      createdByUserId: actorUserId,
+    },
+    audit: {
+      id: '88888888-8888-4888-8888-888888888888',
+      organizationId,
+      event: 'organization.resource_featured' as const,
+      actorUserId,
+      targetUserId: null,
+      previousRole: null,
+      nextRole: null,
+      reason: 'Organization Resource featured',
+      metadata: { resourceId: '77777777-7777-4777-8777-777777777777' },
+      createdAt: now,
+    },
+  };
+}
+
+describe('MongoOrganizationStore bounded Organization collections', () => {
+  it('limits complete managers, links and featured Resources to max+1 sentinels', async () => {
+    const fixture = models({});
+
+    await Promise.all([
+      fixture.store.listManagers(organizationId),
+      fixture.store.listLinks(organizationId),
+      fixture.store.listFeaturedResources(organizationId),
+    ]);
+
+    expect(fixture.managerListQuery.limit.mock.calls).toEqual([
+      [ORGANIZATION_MANAGER_LIMIT + 1],
+    ]);
+    expect(fixture.linkListQuery.limit.mock.calls).toEqual([
+      [ORGANIZATION_LINK_LIMIT + 1],
+    ]);
+    expect(fixture.featuredListQuery.limit.mock.calls).toEqual([
+      [ORGANIZATION_FEATURED_RESOURCE_LIMIT + 1],
+    ]);
+  });
+});
+
 describe('MongoOrganizationStore commit authority', () => {
   it('does not write after management revision changed before commit', async () => {
     const fixture = models({ organization: null });
@@ -144,6 +292,191 @@ describe('MongoOrganizationStore commit authority', () => {
     });
     expect(fixture.posts.create).not.toHaveBeenCalled();
     expect(fixture.audits.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects link creation at the transactional capacity limit before write/audit', async () => {
+    const fixture = models({
+      organization: {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      manager: {
+        organizationId,
+        userId: actorUserId,
+        role: 'editor',
+      },
+      linkCount: 20,
+    });
+
+    await expect(
+      fixture.store.commitAuthorizedMutation(createLinkInput()),
+    ).resolves.toEqual({
+      status: 'collection_limit',
+      collection: 'links',
+    });
+
+    expect(fixture.organizations.findOneAndUpdate.mock.calls[0]?.[0]).toEqual({
+      id: organizationId,
+      status: 'active',
+      managementRevision: 7,
+    });
+    expect(fixture.organizations.findOneAndUpdate.mock.calls[0]?.[1]).toEqual({
+      $inc: { capacityRevision: 1 },
+    });
+    expect(fixture.links.countDocuments.mock.calls[0]?.[0]).toEqual({
+      organizationId,
+    });
+    expect(
+      fixture.organizations.findOneAndUpdate.mock.invocationCallOrder[0],
+    ).toBeLessThan(fixture.links.countDocuments.mock.invocationCallOrder[0]);
+    expect(fixture.links.create.mock.calls).toHaveLength(0);
+    expect(fixture.audits.create.mock.calls).toHaveLength(0);
+  });
+
+  it('allows the twentieth link only after taking the capacity serialization lock', async () => {
+    const fixture = models({
+      organization: {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      manager: {
+        organizationId,
+        userId: actorUserId,
+        role: 'editor',
+      },
+      linkCount: 19,
+    });
+    const input = createLinkInput();
+    fixture.links.create.mockResolvedValue([
+      {
+        ...input.mutation.record,
+        createdAt: now,
+        updatedAt: now,
+        toObject: () => ({
+          ...input.mutation.record,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      },
+    ]);
+    fixture.audits.create.mockResolvedValue([input.audit]);
+
+    await expect(
+      fixture.store.commitAuthorizedMutation(input),
+    ).resolves.toMatchObject({
+      status: 'ok',
+      kind: 'link.create',
+      value: { id: input.mutation.record.id },
+    });
+
+    expect(fixture.links.create.mock.calls).toHaveLength(1);
+    expect(fixture.audits.create.mock.calls).toHaveLength(1);
+  });
+
+  it('keeps an existing featured Resource idempotent without consuming capacity', async () => {
+    const existing = {
+      organizationId,
+      resourceId: '77777777-7777-4777-8777-777777777777',
+      createdByUserId: actorUserId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const fixture = models({
+      organization: {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      manager: {
+        organizationId,
+        userId: actorUserId,
+        role: 'editor',
+      },
+      featuredCount: 20,
+      existingFeatured: existing,
+    });
+
+    await expect(
+      fixture.store.commitAuthorizedMutation(featureResourceInput()),
+    ).resolves.toEqual({
+      status: 'ok',
+      kind: 'resource.feature',
+      value: existing,
+    });
+
+    expect(fixture.organizations.findOneAndUpdate.mock.calls).toHaveLength(0);
+    expect(fixture.featuredResources.countDocuments.mock.calls).toHaveLength(0);
+    expect(fixture.featuredResources.create.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects a new featured Resource at the transactional capacity limit', async () => {
+    const fixture = models({
+      organization: {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      manager: {
+        organizationId,
+        userId: actorUserId,
+        role: 'editor',
+      },
+      featuredCount: 20,
+    });
+
+    await expect(
+      fixture.store.commitAuthorizedMutation(featureResourceInput()),
+    ).resolves.toEqual({
+      status: 'collection_limit',
+      collection: 'featured_resources',
+    });
+
+    expect(fixture.featuredResources.create.mock.calls).toHaveLength(0);
+    expect(fixture.audits.create.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects a new manager at the cap inside the management transaction', async () => {
+    const fixture = models({
+      organization: {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      manager: null,
+      managerCount: 20,
+    });
+
+    await expect(
+      fixture.store.changeManager({
+        organizationId,
+        actorUserId,
+        targetUserId: '99999999-9999-4999-8999-999999999999',
+        expectedManagementRevision: 7,
+        expectedTargetRole: null,
+        nextRole: 'editor',
+        audit: {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          organizationId,
+          event: 'organization.manager_granted',
+          actorUserId,
+          targetUserId: '99999999-9999-4999-8999-999999999999',
+          previousRole: null,
+          nextRole: 'editor',
+          reason: 'Capacity test',
+          metadata: {},
+          createdAt: now,
+        },
+      }),
+    ).resolves.toEqual({ status: 'manager_limit' });
+
+    expect(fixture.managers.countDocuments.mock.calls[0]?.[0]).toEqual({
+      organizationId,
+    });
+    expect(fixture.managers.findOneAndUpdate.mock.calls).toHaveLength(0);
+    expect(fixture.organizations.findOneAndUpdate.mock.calls).toHaveLength(0);
+    expect(fixture.audits.create.mock.calls).toHaveLength(0);
   });
 
   it('writes content and audit inside the same authorized transaction', async () => {
