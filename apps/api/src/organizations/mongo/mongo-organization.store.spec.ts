@@ -21,7 +21,14 @@ function session() {
   };
 }
 
-function models(input: { organization?: unknown; manager?: unknown }) {
+function models(input: {
+  organization?: unknown;
+  manager?: unknown;
+  managerCount?: number;
+  linkCount?: number;
+  featuredCount?: number;
+  existingFeatured?: unknown;
+}) {
   const activeSession = session();
   const connection = {
     startSession: jest.fn().mockResolvedValue(activeSession),
@@ -29,16 +36,30 @@ function models(input: { organization?: unknown; manager?: unknown }) {
 
   const organizations = {
     findOne: jest.fn(() => query(input.organization ?? null)),
-    findOneAndUpdate: jest.fn(),
+    findOneAndUpdate: jest.fn(() => query(input.organization ?? null)),
   };
   const managers = {
     findOne: jest.fn(() => query(input.manager ?? null)),
+    countDocuments: jest.fn(() => query(input.managerCount ?? 0)),
+    findOneAndUpdate: jest.fn(),
+    deleteOne: jest.fn(),
   };
   const audits = {
     create: jest.fn(),
   };
   const posts = {
     create: jest.fn(),
+  };
+  const links = {
+    countDocuments: jest.fn(() => query(input.linkCount ?? 0)),
+    create: jest.fn(),
+    deleteOne: jest.fn(),
+  };
+  const featuredResources = {
+    findOne: jest.fn(() => query(input.existingFeatured ?? null)),
+    countDocuments: jest.fn(() => query(input.featuredCount ?? 0)),
+    create: jest.fn(),
+    deleteOne: jest.fn(),
   };
 
   const store = new MongoOrganizationStore(
@@ -49,8 +70,8 @@ function models(input: { organization?: unknown; manager?: unknown }) {
     {} as never,
     posts as never,
     {} as never,
-    {} as never,
-    {} as never,
+    links as never,
+    featuredResources as never,
     {} as never,
   );
 
@@ -62,6 +83,8 @@ function models(input: { organization?: unknown; manager?: unknown }) {
     managers,
     audits,
     posts,
+    links,
+    featuredResources,
   };
 }
 
