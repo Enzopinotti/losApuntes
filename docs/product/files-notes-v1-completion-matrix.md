@@ -13,6 +13,13 @@
 | Signed exact byte-length bound | Implemented | User-agent Content-Length | Unit + RustFS runtime (current) |
 | Byte-signature verification | Implemented | Server authority | Unit + runtime |
 | Exact size/Content-Type re-verification | Implemented | Server authority | Unit + runtime |
+| Provider-neutral safety scanner contract | Implemented | No client authority | Unit + build |
+| Quarantine before shareability | Implemented | Fail-closed | Unit + runtime |
+| Lease/claim fencing for scan workers | Implemented | N/A | Unit |
+| Scanner outage bounded retry | Implemented | Retry/pending state | Unit |
+| Rejected asset cannot publish | Implemented | Error surfaced | Unit + runtime |
+| Rejected object byte cleanup | Best effort + durable state | N/A | Unit + runtime |
+| Legacy ready asset re-scan | Fail-closed migration path | N/A | Unit |
 | Finalize idempotency | Implemented | Safe retry | Unit + runtime |
 | Single asset claim | Transactional | N/A | Runtime |
 | Cleanup claim-before-delete | CAS `reclaiming` | N/A | Unit + worker runtime |
@@ -42,7 +49,9 @@
 | Storage cookies/credentials | Forbidden | XHR does not send app credentials | Static contract |
 | Dedicated critical coverage | Enforced | N/A | CI |
 | Production dependency audit | Enforced | N/A | CI |
-| Full container lifecycle | Mongo + Mailpit + RustFS + worker | API contract | CI |
+| Full container lifecycle | Mongo + Mailpit + RustFS + scan/cleanup worker | API contract | CI |
+| Local/CI quarantine scanner | Inert deterministic marker only | N/A | Unit + runtime |
+| Production scanner adapter | ClamAV INSTREAM adapter | N/A | Source/build; deployment evidence external |
 
 ## Honest limitations
 
@@ -57,6 +66,7 @@ Files + Notes v1 does **not** claim:
 - moderation resolution UI;
 - native Mobile screen acceptance;
 - production HTTPS/presign-origin evidence;
+- production ClamAV (or reviewed equivalent) deployment/connectivity/capacity evidence;
 - hard Resource deletion/tombstoning semantics, which remain a `DELETE-01` / DER data-policy decision.
 
 Those are separate future concerns and must not be inferred from this module.

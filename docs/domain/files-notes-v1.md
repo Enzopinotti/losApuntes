@@ -29,10 +29,11 @@ Core fields:
 - expectedByteSize;
 - actualByteSize when ready;
 - ETag when available;
-- state = `pending | ready | failed | reclaiming | reclaimed`;
-- failureCode when failed;
+- state = `pending | scan_pending | scanning | ready | rejected | failed | reclaiming | reclaimed`;
+- failureCode for rejected/failed/retryable safety states;
 - expiresAt while reclaimable;
-- readyAt;
+- readyAt only after a clean safety scan;
+- bounded safety-scan evidence: attempts, lease/claim metadata, completedAt and scanner engine;
 - createdAt / updatedAt.
 
 ### Resource
@@ -86,13 +87,13 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 ### Files
 
 - `POST /files/upload-intents` — authenticated + verified email; validates policy and creates pending asset + signed PUT.
-- `POST /files/:fileId/finalize` — authenticated + verified email creator only; idempotent ready result.
+- `POST /files/:fileId/finalize` — authenticated + verified email creator only; verifies storage metadata/signature, quarantines the asset and returns `ready` only after clean safety-scan evidence.
 - Files object keys are never returned.
 - No generic public download-by-file-id endpoint exists.
 
 ### Resources
 
-- `POST /resources` — authenticated + verified email; consumes one ready owned asset and canonical academic context.
+- `POST /resources` — authenticated + verified email; consumes one ready, clean-scanned owned asset and canonical academic context.
 - `GET /resources/:id` — current viewer projection; anonymous only when public.
 - `PATCH /resources/:id` — verified author only + expectedRevision.
 - `POST /resources/:id/access` — authenticated + verified email; reauthorizes then returns short-lived signed GET for inline/attachment disposition.
@@ -122,8 +123,10 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 
 - Upload intent creates one immutable object key.
 - Signed PUT must not be a replacement path and binds the exact declared byte length, so a modified client cannot use a valid intent to stream an arbitrarily larger object.
-- Finalize `pending -> ready` is compare-and-set and idempotently returns the already-ready asset for the same creator.
-- Resource creation claims a ready asset once. One asset cannot back two unrelated Resources in v1.
+- Finalize verifies uploaded bytes, then stages `pending -> scan_pending`; a scan claim uses a unique lease-bound claim id so a stale worker cannot publish a later result.
+- Only a clean scan may transition `scanning -> ready`; scanner outage reschedules bounded retry, malicious verdict transitions to `rejected`, and retry exhaustion fails closed.
+- Legacy `ready` assets without scan evidence are treated as untrusted and re-enter scanning before they are shareable.
+- Resource creation claims a `ready` asset only when `scanCompletedAt + scanEngine` evidence exists. One asset cannot back two unrelated Resources in v1.
 - cleanup first claims an expired asset into `reclaiming`; only then may it delete object bytes. This makes cleanup mutually exclusive with Resource claiming.
 - Resource mutations use `expectedRevision`.
 - Share/save uniqueness is enforced in persistence, not only by controller prechecks.
@@ -148,11 +151,12 @@ Local/CI runtime includes:
 - private RustFS S3-compatible API;
 - bucket bootstrap;
 - API;
-- dedicated Files cleanup worker.
+- dedicated Files worker for safety-scan retry/recovery plus expired-byte cleanup;
+- deterministic inert quarantine scanner only for local/CI runtime.
 
 RustFS Console is disabled in the application runtime and must not become product ingress.
 
-Production readiness later requires a dedicated HTTPS presign origin/CORS review. Local HTTP is development evidence only.
+Production readiness later requires a dedicated HTTPS presign origin/CORS review and a real reviewed safety-scanner deployment (the repository includes a provider-neutral contract plus ClamAV INSTREAM adapter). The deterministic local scanner is test evidence only and is rejected by non-local production configuration.
 
 ## 8. Web product surface
 
@@ -190,7 +194,9 @@ Permanent CI must prove on the exact final HEAD:
 - cross-user privacy negatives;
 - privacy transition revokes future signed issuance;
 - duplicate finalize/retry does not duplicate Resource/File state;
-- abandoned upload cleanup deletes object bytes and metadata lifecycle advances safely.
+- abandoned upload cleanup deletes object bytes and metadata lifecycle advances safely;
+- quarantine rejection cannot be claimed by a Resource and rejected bytes are deleted best effort;
+- scanner outage/retry and stale scan ownership fail closed.
 
 No earlier-SHA green result counts as merge evidence.
 
