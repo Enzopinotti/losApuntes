@@ -107,10 +107,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const academicApi = {
-  lifecycle: () => request<AcademicLifecycleResponse>("/academic/me/lifecycle"),
+  lifecycle: (signal?: AbortSignal) =>
+    request<AcademicLifecycleResponse>("/academic/me/lifecycle", { signal }),
 
-  affiliations: () =>
-    request<AcademicAffiliationListResponse>("/academic/me/affiliations"),
+  affiliations: (signal?: AbortSignal) =>
+    request<AcademicAffiliationListResponse>("/academic/me/affiliations", {
+      signal,
+    }),
 
   graduate: (affiliationId: string, graduatedOn: string) =>
     request<{
@@ -134,9 +137,10 @@ export const academicApi = {
       body: JSON.stringify({ roles }),
     }),
 
-  follows: () =>
+  follows: (signal?: AbortSignal) =>
     request<{ follows: AcademicFollow[]; truncated: boolean; limit: number }>(
       "/academic/me/follows",
+      { signal },
     ),
 
   follow: (nodeId: string) =>
@@ -152,16 +156,22 @@ export const academicApi = {
       method: "DELETE",
     }),
 
-  searchCatalog: (kind: "institution" | "program", query: string) =>
+  searchCatalog: (
+    kind: "institution" | "program",
+    query: string,
+    signal?: AbortSignal,
+  ) =>
     request<AcademicCatalogSearchResponse>(
       `/academic/catalog/search?kind=${encodeURIComponent(
         kind,
       )}&q=${encodeURIComponent(query)}&limit=20`,
+      { signal },
     ),
 
-  node: (nodeId: string) =>
+  node: (nodeId: string, signal?: AbortSignal) =>
     request<{ node: { id: string; name: string; kind: string } }>(
       `/academic/catalog/${encodeURIComponent(nodeId)}`,
+      { signal },
     ),
 };
 
