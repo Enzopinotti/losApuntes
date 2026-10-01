@@ -82,6 +82,14 @@ type PilotCountAggregationRow = {
   count: number;
 };
 
+type PilotSubjectAggregationRow = {
+  _id: string;
+  currentParticipants: number;
+  resources: number;
+  openQuestions: number;
+  contributionEvents: number;
+};
+
 function preview(value: string | null | undefined): string {
   if (!value) return '';
   const clean = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -708,7 +716,7 @@ export class MongoPilotStore implements PilotStore {
   }> {
     const rows = await this.connection
       .collection('academic_subject_participations')
-      .aggregate<PilotSubjectDensity & { _id: string }>([
+      .aggregate<PilotSubjectAggregationRow>([
         {
           $match: {
             state: 'current',
