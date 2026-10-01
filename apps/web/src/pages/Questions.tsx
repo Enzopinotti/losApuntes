@@ -13,6 +13,7 @@ import {
 } from "../features/community/services/communityService";
 import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
 
 function appendAnswers(
@@ -46,8 +47,13 @@ function messageFor(error: unknown): string {
 }
 
 const Questions = () => {
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const authScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id");
   const [items, setItems] = useState<QuestionView[]>([]);
@@ -55,6 +61,25 @@ const Questions = () => {
   const [selected, setSelected] = useState<QuestionDetailResponse | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<QuestionState | "">("");
+  const {
+    begin: beginList,
+    isCurrent: isListCurrent,
+    finish: finishList,
+  } = useAsyncAuthorityFence(
+    `questions-list:${authScope}:${query}:${statusFilter}`,
+  );
+  const {
+    begin: beginDetail,
+    isCurrent: isDetailCurrent,
+    finish: finishDetail,
+  } = useAsyncAuthorityFence(
+    `questions-detail:${authScope}:${initialId ?? "none"}`,
+  );
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`questions-action:${authScope}`);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +100,7 @@ const Questions = () => {
 
   const loadList = useCallback(
     async (cursor?: string, append = false) => {
+      const ticket = beginList();
       if (append) {
         setBusy("questions-more");
       } else {
@@ -83,46 +109,69 @@ const Questions = () => {
       setError(null);
 
       try {
-        const result = await communityApi.questions({
-          q: query.trim() || undefined,
-          status: statusFilter || undefined,
-          cursor,
-          limit: 25,
-        });
+        const result = await communityApi.questions(
+          {
+            q: query.trim() || undefined,
+            status: statusFilter || undefined,
+            cursor,
+            limit: 25,
+          },
+          ticket.signal,
+        );
+        if (!isListCurrent(ticket)) return;
+
         setItems((current) =>
           append ? [...current, ...result.items] : result.items,
         );
         setNextCursor(result.nextCursor);
       } catch (nextError) {
-        setError(messageFor(nextError));
+        if (isListCurrent(ticket)) {
+          setError(messageFor(nextError));
+        }
       } finally {
-        if (append) {
-          setBusy(null);
-        } else {
-          setLoading(false);
+        if (finishList(ticket)) {
+          if (append) {
+            setBusy(null);
+          } else {
+            setLoading(false);
+          }
         }
       }
     },
-    [query, statusFilter],
+    [
+      beginList,
+      finishList,
+      isListCurrent,
+      query,
+      statusFilter,
+    ],
   );
 
   const openQuestion = useCallback(
     async (id: string) => {
+      const ticket = beginDetail();
       setBusy(`open:${id}`);
       setError(null);
+
       try {
-        const detail = await communityApi.question(id);
+        const detail = await communityApi.question(id, ticket.signal);
+        if (!isDetailCurrent(ticket)) return;
+
         setSelected(detail);
         setEditTitle(detail.question.title);
         setEditBody(detail.question.body);
         setSearchParams({ id });
       } catch (nextError) {
-        setError(messageFor(nextError));
+        if (isDetailCurrent(ticket)) {
+          setError(messageFor(nextError));
+        }
       } finally {
-        setBusy(null);
+        if (finishDetail(ticket)) {
+          setBusy(null);
+        }
       }
     },
-    [setSearchParams],
+    [beginDetail, finishDetail, isDetailCurrent, setSearchParams],
   );
 
   useEffect(() => {
@@ -135,11 +184,23 @@ const Questions = () => {
 
   const searchSubjects = async () => {
     if (subjectQuery.trim().length < 2) return;
+    const ticket = beginAction();
     setError(null);
+
     try {
-      setSubjectOptions(await resourcesApi.searchSubjects(subjectQuery.trim()));
+      const options = await resourcesApi.searchSubjects(
+        subjectQuery.trim(),
+        ticket.signal,
+      );
+      if (isActionCurrent(ticket)) {
+        setSubjectOptions(options);
+      }
     } catch {
-      setError("No pudimos buscar materias.");
+      if (isActionCurrent(ticket)) {
+        setError("No pudimos buscar materias.");
+      }
+    } finally {
+      finishAction(ticket);
     }
   };
 
@@ -147,15 +208,19 @@ const Questions = () => {
     event.preventDefault();
     if (!subject) return;
 
+    const ticket = beginAction();
     setBusy("create-question");
     setError(null);
     setFeedback(null);
+
     try {
       const result = await communityApi.createQuestion({
         subjectId: subject.id,
         title,
         body,
       });
+      if (!isActionCurrent(ticket)) return;
+
       setTitle("");
       setBody("");
       setSubject(null);
@@ -165,15 +230,20 @@ const Questions = () => {
       await loadList();
       await openQuestion(result.question.id);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const loadMoreAnswers = async () => {
     if (!selected?.answersNextCursor) return;
 
+    const ticket = beginAction();
     const questionId = selected.question.id;
     setBusy("answers-more");
     setError(null);
@@ -183,7 +253,10 @@ const Questions = () => {
         questionId,
         selected.answersNextCursor,
         selected.answersLimit,
+        ticket.signal,
       );
+      if (!isActionCurrent(ticket)) return;
+
       setSelected((current) =>
         current && current.question.id === questionId
           ? {
@@ -194,9 +267,13 @@ const Questions = () => {
           : current,
       );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
@@ -204,18 +281,25 @@ const Questions = () => {
     event.preventDefault();
     if (!selected) return;
 
+    const ticket = beginAction();
     setBusy("answer");
     setError(null);
+
     try {
       await communityApi.createAnswer(selected.question.id, answerBody);
+      if (!isActionCurrent(ticket)) return;
       setAnswerBody("");
       setFeedback("Respuesta publicada.");
       await openQuestion(selected.question.id);
       await loadList();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
@@ -225,74 +309,111 @@ const Questions = () => {
     status?: QuestionState;
   }) => {
     if (!selected) return;
+    const ticket = beginAction();
     setBusy("edit-question");
     setError(null);
+
     try {
       await communityApi.updateQuestion(selected.question, patch);
+      if (!isActionCurrent(ticket)) return;
       setFeedback("Pregunta actualizada.");
       await openQuestion(selected.question.id);
       await loadList();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const updateAnswer = async (answer: AnswerView) => {
+    const ticket = beginAction();
     setBusy(`edit-answer:${answer.id}`);
     setError(null);
+
     try {
       await communityApi.updateAnswer(answer, editAnswerBody);
+      if (!isActionCurrent(ticket)) return;
       setEditAnswerId(null);
       setEditAnswerBody("");
       if (selected) await openQuestion(selected.question.id);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const acceptAnswer = async (answerId: string) => {
     if (!selected) return;
+    const ticket = beginAction();
     setBusy(`accept:${answerId}`);
     setError(null);
+
     try {
       await communityApi.acceptAnswer(selected.question, answerId);
+      if (!isActionCurrent(ticket)) return;
       setFeedback("Respuesta aceptada.");
       await openQuestion(selected.question.id);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const reportQuestion = async () => {
     if (!selected) return;
+    const ticket = beginAction();
     setBusy("report-question");
     setError(null);
+
     try {
       await communityApi.reportQuestion(selected.question.id);
-      setFeedback("Reporte recibido para revisión.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Reporte recibido para revisión.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const reportAnswer = async (answerId: string) => {
+    const ticket = beginAction();
     setBusy(`report:${answerId}`);
     setError(null);
+
     try {
       await communityApi.reportAnswer(answerId);
-      setFeedback("Reporte recibido para revisión.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Reporte recibido para revisión.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
