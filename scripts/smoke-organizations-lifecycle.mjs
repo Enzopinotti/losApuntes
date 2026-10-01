@@ -336,6 +336,46 @@ assert.equal(post.source.kind, 'campus_organization');
 assert.equal(post.source.organization.id, organization.id);
 assert.equal(post.source.organization.verificationState, 'verified');
 
+const secondPostResult = await request(
+  '/organizations/' + organization.id + '/posts',
+  json(
+    'POST',
+    {
+      title: 'Segunda publicación Runtime',
+      body: 'Segunda fila para validar cursor estable.',
+    },
+    owner.bearer,
+  ),
+);
+assert.equal(
+  secondPostResult.response.status,
+  201,
+  JSON.stringify(secondPostResult.body),
+);
+const secondPost = secondPostResult.body.post;
+
+const postPageOne = await request(
+  '/organizations/' + organization.id + '/posts?limit=1',
+);
+assert.equal(postPageOne.response.status, 200);
+assert.equal(postPageOne.body.items.length, 1);
+assert.equal(typeof postPageOne.body.nextCursor, 'string');
+const postPageTwo = await request(
+  '/organizations/' +
+    organization.id +
+    '/posts?limit=1&cursor=' +
+    encodeURIComponent(postPageOne.body.nextCursor),
+);
+assert.equal(postPageTwo.response.status, 200);
+assert.equal(postPageTwo.body.items.length, 1);
+assert.notEqual(postPageTwo.body.items[0].id, postPageOne.body.items[0].id);
+assert.equal(
+  [postPageOne.body.items[0].id, postPageTwo.body.items[0].id].includes(
+    secondPost.id,
+  ),
+  true,
+);
+
 const invalidEvent = await request(
   '/organizations/' + organization.id + '/events',
   json(
@@ -370,6 +410,40 @@ const eventResult = await request(
 );
 assert.equal(eventResult.response.status, 201, JSON.stringify(eventResult.body));
 const event = eventResult.body.event;
+
+const secondEventResult = await request(
+  '/organizations/' + organization.id + '/events',
+  json(
+    'POST',
+    {
+      title: 'Segundo encuentro Runtime',
+      startsAt: '2026-10-03T20:00:00.000Z',
+      endsAt: '2026-10-03T21:00:00.000Z',
+    },
+    admin.bearer,
+  ),
+);
+assert.equal(
+  secondEventResult.response.status,
+  201,
+  JSON.stringify(secondEventResult.body),
+);
+
+const eventPageOne = await request(
+  '/organizations/' + organization.id + '/events?limit=1&from=2026-10-01T00:00:00.000Z',
+);
+assert.equal(eventPageOne.response.status, 200);
+assert.equal(eventPageOne.body.items.length, 1);
+assert.equal(typeof eventPageOne.body.nextCursor, 'string');
+const eventPageTwo = await request(
+  '/organizations/' +
+    organization.id +
+    '/events?limit=1&cursor=' +
+    encodeURIComponent(eventPageOne.body.nextCursor),
+);
+assert.equal(eventPageTwo.response.status, 200);
+assert.equal(eventPageTwo.body.items.length, 1);
+assert.notEqual(eventPageTwo.body.items[0].id, eventPageOne.body.items[0].id);
 
 const beforeFollow = await request(
   '/feeds/for-you?limit=20&mode=community&order=ranked',
@@ -599,6 +673,8 @@ console.log(
       'final-owner-protection',
       'manager-audit',
       'organization-source-attribution',
+      'organization-post-cursor-second-page',
+      'organization-event-cursor-second-page',
       'event-period-integrity',
       'explicit-follow-feed-entry',
       'unfollow-removes-feed-entry',
