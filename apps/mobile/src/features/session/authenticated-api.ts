@@ -142,10 +142,23 @@ export class AuthenticatedMobileApi {
     }
 
     try {
-      return {
-        value: await operation(snapshot.credential),
-        snapshot,
-      };
+      const value = await operation(snapshot.credential);
+
+      if (
+        !this.session.isCredentialAuthoritative(
+          snapshot.credential,
+          snapshot.generation,
+        )
+      ) {
+        throw new ApiRequestError(
+          "unauthorized",
+          null,
+          "STALE_SESSION_AUTHORITY",
+          "Session authority changed while the request was in flight",
+        );
+      }
+
+      return { value, snapshot };
     } catch (error) {
       if (error instanceof ApiRequestError) {
         if (error.kind === "unauthorized") {
