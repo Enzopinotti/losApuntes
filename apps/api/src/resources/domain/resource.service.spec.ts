@@ -67,7 +67,7 @@ function store(): jest.Mocked<ResourceStore> {
     removeShare: jest.fn(),
     upsertSave: jest.fn(),
     removeSave: jest.fn(),
-    listSavedResourceIds: jest.fn(),
+    listSavedResources: jest.fn(),
     searchAuthorized: jest.fn(),
     listFeedCandidates: jest.fn(),
     upsertPendingReport: jest.fn(),
@@ -358,7 +358,13 @@ describe('ResourceService', () => {
     const resourceStore = store();
     const deps = dependencies();
     projectionDeps(deps);
-    resourceStore.listSavedResourceIds.mockResolvedValue(['a', 'b']);
+    resourceStore.listSavedResources.mockResolvedValue({
+      items: [
+        { resourceId: 'a', createdAt: now },
+        { resourceId: 'b', createdAt: new Date(now.getTime() - 1_000) },
+      ],
+      hasMore: false,
+    });
     resourceStore.findManyByIds.mockResolvedValue([
       resource({ id: 'a', visibility: 'public' }),
       resource({ id: 'b', visibility: 'private' }),
@@ -367,6 +373,73 @@ describe('ResourceService', () => {
     const result = await service(resourceStore, deps).listSaved('viewer-2', 25);
 
     expect(result.items.map((item) => item.id)).toEqual(['a']);
+  });
+
+  it('continues saved resources with an opaque stable cursor', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    projectionDeps(deps);
+    const firstId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const secondId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const firstCreatedAt = new Date('2026-09-23T12:00:00.000Z');
+
+    resourceStore.listSavedResources
+      .mockResolvedValueOnce({
+        items: [{ resourceId: firstId, createdAt: firstCreatedAt }],
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            resourceId: secondId,
+            createdAt: new Date(firstCreatedAt.getTime() - 1_000),
+          },
+        ],
+        hasMore: false,
+      });
+    resourceStore.findManyByIds
+      .mockResolvedValueOnce([resource({ id: firstId, visibility: 'public' })])
+      .mockResolvedValueOnce([
+        resource({ id: secondId, visibility: 'public' }),
+      ]);
+
+    const instance = service(resourceStore, deps);
+    const first = await instance.listSaved('viewer-2', 1);
+    expect(first.items.map((item) => item.id)).toEqual([firstId]);
+    expect(first.nextCursor).toEqual(expect.any(String));
+
+    const second = await instance.listSaved(
+      'viewer-2',
+      1,
+      first.nextCursor ?? undefined,
+    );
+    expect(second.items.map((item) => item.id)).toEqual([secondId]);
+    expect(second.nextCursor).toBeNull();
+    expect(resourceStore.listSavedResources.mock.calls.at(-1)).toEqual([
+      {
+        userId: 'viewer-2',
+        limit: 1,
+        after: {
+          createdAt: firstCreatedAt,
+          resourceId: firstId,
+        },
+      },
+    ]);
+  });
+
+  it('rejects malformed saved-resource cursors before persistence', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+
+    await expect(
+      service(resourceStore, deps).listSaved(
+        'viewer-2',
+        25,
+        'invalid-saved-cursor',
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(resourceStore.listSavedResources.mock.calls).toHaveLength(0);
   });
 
   it('search normalizes query and returns an opaque cursor', async () => {
@@ -708,10 +781,16 @@ describe('ResourceService', () => {
     const deps = dependencies();
     projectionDeps(deps);
 
-    resourceStore.listSavedResourceIds.mockResolvedValue([
-      'missing',
-      resource().id,
-    ]);
+    resourceStore.listSavedResources.mockResolvedValue({
+      items: [
+        { resourceId: 'missing', createdAt: now },
+        {
+          resourceId: resource().id,
+          createdAt: new Date(now.getTime() - 1_000),
+        },
+      ],
+      hasMore: false,
+    });
     resourceStore.findManyByIds.mockResolvedValue([
       resource({ visibility: 'public' }),
     ]);
