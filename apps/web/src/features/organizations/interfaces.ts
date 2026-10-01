@@ -89,7 +89,9 @@ export type OrganizationDetail = {
     academic: { subject: { id: string; name: string } };
   }>;
   posts: OrganizationPost[];
+  postsNextCursor: string | null;
   events: OrganizationEvent[];
+  eventsNextCursor: string | null;
   viewer?: {
     following: boolean;
     managementRole: OrganizationManagerRole | null;
