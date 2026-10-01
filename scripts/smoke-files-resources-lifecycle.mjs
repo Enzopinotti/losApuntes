@@ -527,6 +527,35 @@ const publicAnonymous = await request(`/resources/${primary.id}`);
 assert.equal(publicAnonymous.response.status, 200);
 assert.equal(publicAnonymous.body.resource.id, primary.id);
 
+const secondPublicUpdate = await request(
+  `/resources/${unshared.id}`,
+  json(
+    'PATCH',
+    {
+      expectedRevision: unshared.revision,
+      visibility: 'public',
+    },
+    author.bearer,
+  ),
+);
+assert.equal(secondPublicUpdate.response.status, 200);
+assert.equal(secondPublicUpdate.body.resource.visibility, 'public');
+
+const searchPageOne = await request(
+  `/resources?subjectId=${subject.id}&visibility=public&limit=1`,
+);
+assert.equal(searchPageOne.response.status, 200);
+assert.equal(searchPageOne.body.items.length, 1);
+assert.equal(typeof searchPageOne.body.nextCursor, 'string');
+const searchPageTwo = await request(
+  `/resources?subjectId=${subject.id}&visibility=public&limit=1&cursor=${encodeURIComponent(
+    searchPageOne.body.nextCursor,
+  )}`,
+);
+assert.equal(searchPageTwo.response.status, 200);
+assert.equal(searchPageTwo.body.items.length, 1);
+assert.notEqual(searchPageTwo.body.items[0].id, searchPageOne.body.items[0].id);
+
 const publicSearch = await request(
   '/resources?q=runtime%20primario&limit=20',
 );
@@ -542,6 +571,29 @@ const save = await request(`/resources/${primary.id}/save`, {
 });
 assert.equal(save.response.status, 200);
 assert.deepEqual(save.body, { saved: true });
+
+const saveSecond = await request(`/resources/${unshared.id}/save`, {
+  method: 'PUT',
+  headers: { authorization: viewer.bearer },
+});
+assert.equal(saveSecond.response.status, 200);
+
+const savedPageOne = await request('/resources/saved?limit=1', {
+  headers: { authorization: viewer.bearer },
+});
+assert.equal(savedPageOne.response.status, 200);
+assert.equal(savedPageOne.body.items.length, 1);
+assert.equal(typeof savedPageOne.body.nextCursor, 'string');
+
+const savedPageTwo = await request(
+  `/resources/saved?limit=1&cursor=${encodeURIComponent(
+    savedPageOne.body.nextCursor,
+  )}`,
+  { headers: { authorization: viewer.bearer } },
+);
+assert.equal(savedPageTwo.response.status, 200);
+assert.equal(savedPageTwo.body.items.length, 1);
+assert.notEqual(savedPageTwo.body.items[0].id, savedPageOne.body.items[0].id);
 
 const report = await request(
   `/resources/${primary.id}/reports`,
@@ -698,6 +750,8 @@ console.log(
       'share-revocation',
       'public-metadata',
       'bounded-search',
+      'search-cursor-second-page',
+      'saved-resource-cursor-second-page',
       'save-does-not-grant-access',
       'report-idempotency',
       'privacy-transition',
