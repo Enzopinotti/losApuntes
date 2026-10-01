@@ -594,7 +594,11 @@ describe('FileService', () => {
         pending.id,
         now,
       ),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'FILE_SCAN_UNAVAILABLE',
+      }),
+    });
   });
 
   it('returns ready assets only and fails closed on incomplete download assets', async () => {
@@ -728,9 +732,11 @@ describe('FileService', () => {
         now,
       ),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    const activeClaimId = fileStore.claimForScan.mock.calls[0]?.[1];
+    expect(activeClaimId).toEqual(expect.any(String));
     expect(fileStore.markScanFailed).toHaveBeenCalledWith(
       legacy.id,
-      'claim-1',
+      activeClaimId,
       'SCAN_METADATA_INVALID',
       expect.any(Date),
     );
