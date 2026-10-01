@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type {
   OrganizationDetail,
   OrganizationManagement,
@@ -9,6 +10,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
 
 function messageFor(error: unknown): string {
@@ -32,6 +34,23 @@ function messageFor(error: unknown): string {
 
 const OrganizationManage = () => {
   const { organizationId } = useParams();
+  const { status, user, session } = useAuth();
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+    organizationId ?? "no-organization",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`organization-manage-load:${authorityScope}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`organization-manage-action:${authorityScope}`);
   const [detail, setDetail] = useState<OrganizationDetail | null>(null);
   const [management, setManagement] = useState<OrganizationManagement | null>(
     null,
@@ -59,21 +78,29 @@ const OrganizationManage = () => {
 
   const load = useCallback(async () => {
     if (!organizationId) return;
+    const ticket = beginLoad();
     setError(null);
+
     try {
       const [publicResult, managementResult] = await Promise.all([
-        organizationsApi.get(organizationId),
-        organizationsApi.management(organizationId),
+        organizationsApi.get(organizationId, ticket.signal),
+        organizationsApi.management(organizationId, ticket.signal),
       ]);
+      if (!isLoadCurrent(ticket)) return;
+
       setDetail(publicResult.organization);
       setManagement(managementResult);
       setName(publicResult.organization.name);
       setAbout(publicResult.organization.about ?? "");
       setWebsiteUrl(publicResult.organization.websiteUrl ?? "");
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isLoadCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
+    } finally {
+      finishLoad(ticket);
     }
-  }, [organizationId]);
+  }, [beginLoad, finishLoad, isLoadCurrent, organizationId]);
 
   useEffect(() => {
     void load();
@@ -83,18 +110,27 @@ const OrganizationManage = () => {
     key: string,
     operation: () => Promise<unknown>,
     success: string,
-  ) => {
+  ): Promise<boolean> => {
+    const ticket = beginAction();
     setBusy(key);
     setError(null);
     setFeedback(null);
+
     try {
       await operation();
+      if (!isActionCurrent(ticket)) return false;
       setFeedback(success);
       await load();
+      return isActionCurrent(ticket);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
+      return false;
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
@@ -116,7 +152,7 @@ const OrganizationManage = () => {
   const publishPost = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!detail) return;
-    await run(
+    const completed = await run(
       "post",
       () =>
         organizationsApi.createPost(detail.id, {
@@ -125,14 +161,16 @@ const OrganizationManage = () => {
         }),
       "Publicación creada.",
     );
-    setPostTitle("");
-    setPostBody("");
+    if (completed) {
+      setPostTitle("");
+      setPostBody("");
+    }
   };
 
   const publishEvent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!detail) return;
-    await run(
+    const completed = await run(
       "event",
       () =>
         organizationsApi.createEvent(detail.id, {
@@ -143,10 +181,12 @@ const OrganizationManage = () => {
         }),
       "Evento publicado.",
     );
-    setEventTitle("");
-    setEventDescription("");
-    setEventStartsAt("");
-    setEventEndsAt("");
+    if (completed) {
+      setEventTitle("");
+      setEventDescription("");
+      setEventStartsAt("");
+      setEventEndsAt("");
+    }
   };
 
   if (!detail || !management) {
