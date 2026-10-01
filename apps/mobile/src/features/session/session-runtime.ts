@@ -1,4 +1,5 @@
 import { mobileRuntime } from "@/config/runtime";
+import { AuthenticatedMobileApi } from "@/features/session/authenticated-api";
 import { createSerializedCredentialStore } from "@/features/session/serialized-credential-store";
 import { secureSessionCredentialStore } from "@/platform/session-credential-store";
 import { MobileApiClient } from "@/services/api/client";
@@ -14,4 +15,9 @@ const credentialStore = createSerializedCredentialStore(
 export const mobileSessionController = new SessionController(
   mobileApiClient,
   credentialStore,
+);
+
+export const mobileAuthenticatedApi = new AuthenticatedMobileApi(
+  mobileSessionController,
+  mobileApiClient,
 );
