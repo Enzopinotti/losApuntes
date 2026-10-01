@@ -20,16 +20,20 @@ describe('MongoPilotStore metrics aggregation bounds', () => {
         aggregation([{ accountsCreated: 8, profilesCompleted: 6 }]),
       );
 
-    const pilotEventAggregate = jest
-      .fn()
-      .mockReturnValueOnce(
-        aggregation([
-          { _id: 'activeStudent', activeUsers: 5, returningUsers: 3 },
-          { _id: 'alumni', activeUsers: 2, returningUsers: 1 },
-          { _id: 'community', activeUsers: 1, returningUsers: 0 },
-        ]),
-      )
-      .mockReturnValueOnce(aggregation([{ count: 6 }]));
+    type Pipeline = Array<Record<string, unknown>>;
+    const pilotEventPipelines: Pipeline[] = [];
+    let pilotAggregateCall = 0;
+    const pilotEventAggregate = jest.fn((pipeline: Pipeline) => {
+      pilotEventPipelines.push(pipeline);
+      pilotAggregateCall += 1;
+      return pilotAggregateCall === 1
+        ? aggregation([
+            { _id: 'activeStudent', activeUsers: 5, returningUsers: 3 },
+            { _id: 'alumni', activeUsers: 2, returningUsers: 1 },
+            { _id: 'community', activeUsers: 1, returningUsers: 0 },
+          ])
+        : aggregation([{ count: 6 }]);
+    });
     const pilotEventCounts = jest
       .fn()
       .mockResolvedValueOnce(20)
@@ -46,9 +50,11 @@ describe('MongoPilotStore metrics aggregation bounds', () => {
         contributionEvents: 7 - (index % 2),
       }),
     );
-    const subjectAggregate = jest
-      .fn()
-      .mockReturnValue(aggregation(subjectRows));
+    let subjectPipeline: Pipeline = [];
+    const subjectAggregate = jest.fn((pipeline: Pipeline) => {
+      subjectPipeline = pipeline;
+      return aggregation(subjectRows);
+    });
 
     function reportCollection(
       pending: number,
@@ -131,20 +137,12 @@ describe('MongoPilotStore metrics aggregation bounds', () => {
     expect('distinct' in pilotEvents).toBe(false);
     expect(pilotEventAggregate).toHaveBeenCalledTimes(2);
 
-    const audiencePipeline = pilotEventAggregate.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >;
+    const audiencePipeline = pilotEventPipelines[0] ?? [];
     expect(audiencePipeline.some((stage) => '$lookup' in stage)).toBe(true);
     expect(audiencePipeline.some((stage) => '$group' in stage)).toBe(true);
 
-    const contributorPipeline = pilotEventAggregate.mock.calls[1]?.[0] as Array<
-      Record<string, unknown>
-    >;
+    const contributorPipeline = pilotEventPipelines[1] ?? [];
     expect(contributorPipeline.at(-1)).toEqual({ $count: 'count' });
-
-    const subjectPipeline = subjectAggregate.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >;
     expect(
       subjectPipeline.filter((stage) => '$unionWith' in stage),
     ).toHaveLength(3);
