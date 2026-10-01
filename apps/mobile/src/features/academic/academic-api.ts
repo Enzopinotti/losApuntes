@@ -6,7 +6,27 @@ import type {
 } from "@losapuntes/contracts";
 
 import type { SessionController } from "@/features/session/session-controller";
-import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
+import { ApiRequestError } from "@/services/api/client";
+
+export interface AcademicContextTransport {
+  academicAffiliations(
+    credential: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicAffiliationListResponse>;
+  academicSubjects(
+    credential: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicSubjectParticipationListResponse>;
+  academicContext(
+    credential: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicCurrentContextResponse>;
+  setAcademicContext(
+    credential: string,
+    input: SetAcademicContextInput,
+    signal?: AbortSignal,
+  ): Promise<AcademicCurrentContextResponse>;
+}
 
 export interface AcademicContextApi {
   affiliations(signal?: AbortSignal): Promise<AcademicAffiliationListResponse>;
@@ -23,7 +43,7 @@ export interface AcademicContextApi {
 export class AcademicMobileApi implements AcademicContextApi {
   constructor(
     private readonly session: SessionController,
-    private readonly transport: MobileApiClient,
+    private readonly transport: AcademicContextTransport,
   ) {}
 
   affiliations(signal?: AbortSignal) {
@@ -64,7 +84,23 @@ export class AcademicMobileApi implements AcademicContextApi {
     }
 
     try {
-      return await operation(snapshot.credential);
+      const value = await operation(snapshot.credential);
+
+      if (
+        !this.session.isCredentialAuthoritative(
+          snapshot.credential,
+          snapshot.generation,
+        )
+      ) {
+        throw new ApiRequestError(
+          "unauthorized",
+          null,
+          "STALE_SESSION_AUTHORITY",
+          "Session authority changed while the request was in flight",
+        );
+      }
+
+      return value;
     } catch (error) {
       if (error instanceof ApiRequestError) {
         if (error.kind === "unauthorized") {

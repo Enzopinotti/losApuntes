@@ -101,9 +101,7 @@ export function AcademicContextCard() {
         (item) => item.id === data.context?.subjectParticipationId,
       ) ?? null
     : null;
-  const eligible = data.affiliations.filter(
-    (item) => item.status !== "withdrawn",
-  );
+  const affiliations = data.affiliations;
 
   return (
     <View style={styles.card}>
@@ -154,16 +152,15 @@ export function AcademicContextCard() {
         </Text>
       ) : null}
 
-      {eligible.length === 0 ? (
+      {affiliations.length === 0 ? (
         <Text style={styles.copy}>
-          No hay una afiliación elegible en el inventario visible. El alta y la
-          búsqueda del Grafo Académico llegan en el siguiente tramo de
-          onboarding.
+          No hay afiliaciones en el inventario visible. El alta y la búsqueda
+          del Grafo Académico llegan en el siguiente tramo de onboarding.
         </Text>
       ) : (
         <View style={styles.options}>
           <Text style={styles.sectionLabel}>Cambiar afiliación</Text>
-          {eligible.map((affiliation) => {
+          {affiliations.map((affiliation) => {
             const selected = data.context?.affiliationId === affiliation.id;
             return (
               <Pressable

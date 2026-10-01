@@ -59,6 +59,11 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (AppState.currentState !== "active") {
+      controller.suspend();
+      return;
+    }
+
     void controller.restore(authorityKey);
   }, [authorityKey]);
 

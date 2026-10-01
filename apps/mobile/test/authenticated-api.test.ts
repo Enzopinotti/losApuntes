@@ -220,3 +220,40 @@ test("revoking the current session clears local authority", async () => {
   assert.equal(session.getSnapshot().kind, "unauthenticated");
   assert.equal(store.value, null);
 });
+
+test("a delayed success from an old generation is rejected", async () => {
+  const token = { value: "a".repeat(43) };
+  const store = new Store();
+  const session = new SessionController(sessionApi(token), store);
+  await session.login({ email: "a@example.edu", password: "password" });
+
+  let resolveOld!: (value: AuthSessionListResponse) => void;
+  const oldCall = new Promise<AuthSessionListResponse>((resolve) => {
+    resolveOld = resolve;
+  });
+  const api = new AuthenticatedMobileApi(
+    session,
+    transport({ listSessions: async () => oldCall }),
+  );
+
+  const pending = api.listSessions();
+  await Promise.resolve();
+
+  token.value = "b".repeat(43);
+  await session.login({ email: "b@example.edu", password: "password" });
+
+  resolveOld({
+    sessions: [sessionRecord("session-old")],
+    truncated: false,
+    limit: 20,
+  });
+
+  await assert.rejects(
+    () => pending,
+    (error: unknown) =>
+      error instanceof ApiRequestError &&
+      error.code === "STALE_SESSION_AUTHORITY",
+  );
+  assert.equal(session.getCredentialSnapshot()?.credential, token.value);
+  assert.equal(store.value, token.value);
+});
