@@ -3,8 +3,8 @@ import type {
   FileSafetyScanner,
 } from './file-safety-scanner';
 
-const EICAR_MARKER = Buffer.from(
-  'X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*',
+const QUARANTINE_TEST_MARKER = Buffer.from(
+  'LOSAPUNTES-QUARANTINE-TEST-MARKER-V1',
   'ascii',
 );
 
@@ -21,14 +21,17 @@ export function createDeterministicFileSafetyScanner(): FileSafetyScanner {
         }
 
         const bytes = Buffer.concat([carry, Buffer.from(chunk)]);
-        if (bytes.includes(EICAR_MARKER)) {
+        if (bytes.includes(QUARANTINE_TEST_MARKER)) {
           return {
             verdict: 'malicious' as const,
-            engine: 'deterministic-eicar-v1',
+            engine: 'deterministic-quarantine-v1',
           };
         }
 
-        const carryBytes = Math.max(0, EICAR_MARKER.byteLength - 1);
+        const carryBytes = Math.max(
+          0,
+          QUARANTINE_TEST_MARKER.byteLength - 1,
+        );
         carry = bytes.subarray(Math.max(0, bytes.byteLength - carryBytes));
       }
 
@@ -38,7 +41,7 @@ export function createDeterministicFileSafetyScanner(): FileSafetyScanner {
 
       return {
         verdict: 'clean' as const,
-        engine: 'deterministic-eicar-v1',
+        engine: 'deterministic-quarantine-v1',
       };
     },
   });

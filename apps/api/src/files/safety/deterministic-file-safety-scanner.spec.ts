@@ -7,10 +7,9 @@ async function* chunks(values: string[]) {
 }
 
 describe('DeterministicFileSafetyScanner', () => {
-  it('detects the EICAR marker across stream chunk boundaries', async () => {
-    const marker =
-      'X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
-    const values = ['%PDF-1.7\n', marker.slice(0, 20), marker.slice(20)];
+  it('detects the inert quarantine marker across chunk boundaries', async () => {
+    const marker = 'LOSAPUNTES-QUARANTINE-TEST-MARKER-V1';
+    const values = ['%PDF-1.7\n', marker.slice(0, 12), marker.slice(12)];
     const byteSize = values.reduce(
       (total, value) => total + Buffer.byteLength(value),
       0,
@@ -24,7 +23,7 @@ describe('DeterministicFileSafetyScanner', () => {
       }),
     ).resolves.toEqual({
       verdict: 'malicious',
-      engine: 'deterministic-eicar-v1',
+      engine: 'deterministic-quarantine-v1',
     });
   });
 
@@ -38,7 +37,7 @@ describe('DeterministicFileSafetyScanner', () => {
       }),
     ).resolves.toEqual({
       verdict: 'clean',
-      engine: 'deterministic-eicar-v1',
+      engine: 'deterministic-quarantine-v1',
     });
 
     await expect(
