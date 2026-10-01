@@ -12,6 +12,15 @@ function query<T>(value: T) {
   };
 }
 
+function listQuery<T>(value: T) {
+  return {
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(value),
+  };
+}
+
 function session() {
   return {
     withTransaction: jest.fn(async (callback: () => Promise<void>) =>
@@ -28,6 +37,9 @@ function models(input: {
   linkCount?: number;
   featuredCount?: number;
   existingFeatured?: unknown;
+  managerRows?: unknown[];
+  linkRows?: unknown[];
+  featuredRows?: unknown[];
 }) {
   const activeSession = session();
   const connection = {
@@ -39,6 +51,7 @@ function models(input: {
     findOneAndUpdate: jest.fn(() => query(input.organization ?? null)),
   };
   const managers = {
+    find: jest.fn(() => listQuery(input.managerRows ?? [])),
     findOne: jest.fn(() => query(input.manager ?? null)),
     countDocuments: jest.fn(() => query(input.managerCount ?? 0)),
     findOneAndUpdate: jest.fn(),
@@ -51,11 +64,13 @@ function models(input: {
     create: jest.fn(),
   };
   const links = {
+    find: jest.fn(() => listQuery(input.linkRows ?? [])),
     countDocuments: jest.fn(() => query(input.linkCount ?? 0)),
     create: jest.fn(),
     deleteOne: jest.fn(),
   };
   const featuredResources = {
+    find: jest.fn(() => listQuery(input.featuredRows ?? [])),
     findOne: jest.fn(() => query(input.existingFeatured ?? null)),
     countDocuments: jest.fn(() => query(input.featuredCount ?? 0)),
     create: jest.fn(),
