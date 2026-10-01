@@ -16,6 +16,7 @@ import {
   isResourcesApiError,
   resourcesApi,
 } from "../features/resources/services/resourcesService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Resources.scss";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -59,7 +60,12 @@ function listFrom(value: string): string[] {
 }
 
 const Resources = () => {
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
+  const authScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
   const [searchParams] = useSearchParams();
   const routeQuery = searchParams.get("q") ?? "";
   const subjectIdFilter = searchParams.get("subjectId") ?? undefined;
@@ -92,9 +98,37 @@ const Resources = () => {
   const uploadAbort = useRef<AbortController | null>(null);
   const uploadOperationKey = useRef<string | null>(null);
   const [shareInputs, setShareInputs] = useState<Record<string, string>>({});
+  const loadScope = [
+    authScope,
+    savedMode ? "saved" : "search",
+    query,
+    visibilityFilter,
+    subjectIdFilter ?? "all-subjects",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`resources-load:${loadScope}`);
+  const {
+    begin: beginLookup,
+    isCurrent: isLookupCurrent,
+    finish: finishLookup,
+  } = useAsyncAuthorityFence(`resources-subject-lookup:${authScope}`);
+  const {
+    begin: beginItemAction,
+    isCurrent: isItemActionCurrent,
+    finish: finishItemAction,
+  } = useAsyncAuthorityFence(`resources-item-action:${authScope}`);
+  const {
+    begin: beginUpload,
+    isCurrent: isUploadCurrent,
+    finish: finishUpload,
+  } = useAsyncAuthorityFence(`resources-upload:${authScope}`);
 
   const load = useCallback(
     async (cursor?: string, append = false) => {
+      const ticket = beginLoad();
       if (append) setLoadingMore(true);
       else setLoading(true);
       setError(null);
@@ -102,26 +136,44 @@ const Resources = () => {
       try {
         const result =
           savedMode && authenticated
-            ? await resourcesApi.saved(cursor)
-            : await resourcesApi.search({
-                q: query.trim() || undefined,
-                visibility: visibilityFilter || undefined,
-                subjectId: subjectIdFilter,
-                cursor,
-              });
+            ? await resourcesApi.saved(cursor, ticket.signal)
+            : await resourcesApi.search(
+                {
+                  q: query.trim() || undefined,
+                  visibility: visibilityFilter || undefined,
+                  subjectId: subjectIdFilter,
+                  cursor,
+                },
+                ticket.signal,
+              );
 
+        if (!isLoadCurrent(ticket)) return;
         setItems((current) =>
           append ? appendResources(current, result.items) : result.items,
         );
         setNextCursor(result.nextCursor);
       } catch (nextError) {
-        setError(messageFor(nextError));
+        if (isLoadCurrent(ticket)) {
+          setError(messageFor(nextError));
+        }
       } finally {
-        if (append) setLoadingMore(false);
-        else setLoading(false);
+        if (finishLoad(ticket)) {
+          if (append) setLoadingMore(false);
+          else setLoading(false);
+        }
       }
     },
-    [authenticated, query, savedMode, subjectIdFilter, visibilityFilter],
+    [
+      authenticated,
+      beginLoad,
+      finishLoad,
+      isLoadCurrent,
+      loadScope,
+      query,
+      savedMode,
+      subjectIdFilter,
+      visibilityFilter,
+    ],
   );
 
   useEffect(() => {
@@ -131,6 +183,16 @@ const Resources = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setBusyId(null);
+    if (!authenticated) setSavedMode(false);
+    uploadAbort.current?.abort();
+    uploadAbort.current = null;
+    uploadOperationKey.current = null;
+    setUploading(false);
+    setUploadProgress(0);
+  }, [authScope, authenticated]);
 
   useEffect(
     () => () => {
@@ -142,11 +204,23 @@ const Resources = () => {
   const searchSubjects = async () => {
     if (subjectQuery.trim().length < 2) return;
 
+    const ticket = beginLookup();
     setError(null);
+
     try {
-      setSubjectOptions(await resourcesApi.searchSubjects(subjectQuery.trim()));
+      const options = await resourcesApi.searchSubjects(
+        subjectQuery.trim(),
+        ticket.signal,
+      );
+      if (isLookupCurrent(ticket)) {
+        setSubjectOptions(options);
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isLookupCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
+    } finally {
+      finishLookup(ticket);
     }
   };
 
@@ -163,7 +237,9 @@ const Resources = () => {
       return;
     }
 
+    const ticket = beginUpload();
     const controller = new AbortController();
+    const uploadSignal = AbortSignal.any([controller.signal, ticket.signal]);
     uploadAbort.current = controller;
     setUploading(true);
     setUploadProgress(0);
@@ -174,14 +250,24 @@ const Resources = () => {
     uploadOperationKey.current = operationKey;
 
     try {
-      const intent = await resourcesApi.createUploadIntent(file, operationKey);
+      const intent = await resourcesApi.createUploadIntent(
+        file,
+        operationKey,
+        ticket.signal,
+      );
+      if (!isUploadCurrent(ticket)) return;
+
       await resourcesApi.uploadDirect(
         intent.upload,
         file,
         setUploadProgress,
-        controller.signal,
+        uploadSignal,
       );
-      await resourcesApi.finalize(intent.file.id);
+      if (!isUploadCurrent(ticket)) return;
+
+      await resourcesApi.finalize(intent.file.id, ticket.signal);
+      if (!isUploadCurrent(ticket)) return;
+
       const created = await resourcesApi.create({
         assetId: intent.file.id,
         title,
@@ -189,7 +275,8 @@ const Resources = () => {
         tags: listFrom(tags),
         subjectId: subject.id,
         visibility,
-      });
+      }, ticket.signal);
+      if (!isUploadCurrent(ticket)) return;
 
       setFile(null);
       uploadOperationKey.current = null;
@@ -203,10 +290,14 @@ const Resources = () => {
       setFeedback(`Publicado: ${created.resource.title}`);
       await load();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isUploadCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
       uploadAbort.current = null;
-      setUploading(false);
+      if (finishUpload(ticket)) {
+        setUploading(false);
+      }
     }
   };
 
@@ -217,11 +308,21 @@ const Resources = () => {
     const target = window.open("about:blank", "_blank");
     if (target) target.opener = null;
 
+    const ticket = beginItemAction();
     setBusyId(resource.id);
     setError(null);
 
     try {
-      const result = await resourcesApi.access(resource.id, disposition);
+      const result = await resourcesApi.access(
+        resource.id,
+        disposition,
+        ticket.signal,
+      );
+      if (!isItemActionCurrent(ticket)) {
+        target?.close();
+        return;
+      }
+
       if (target) {
         target.location.href = result.access.url;
       } else {
@@ -229,9 +330,13 @@ const Resources = () => {
       }
     } catch (nextError) {
       target?.close();
-      setError(messageFor(nextError));
+      if (isItemActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusyId(null);
+      if (finishItemAction(ticket)) {
+        setBusyId(null);
+      }
     }
   };
 
@@ -239,60 +344,88 @@ const Resources = () => {
     resource: ResourceView,
     next: ResourceVisibility,
   ) => {
+    const ticket = beginItemAction();
     setBusyId(resource.id);
     setError(null);
 
     try {
       await resourcesApi.update(resource, { visibility: next });
+      if (!isItemActionCurrent(ticket)) return;
       await load();
-      setFeedback("Privacidad actualizada.");
+      if (isItemActionCurrent(ticket)) {
+        setFeedback("Privacidad actualizada.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isItemActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusyId(null);
+      if (finishItemAction(ticket)) {
+        setBusyId(null);
+      }
     }
   };
 
   const save = async (resource: ResourceView) => {
+    const ticket = beginItemAction();
     setBusyId(resource.id);
     setError(null);
 
     try {
       await resourcesApi.save(resource.id);
-      setFeedback("Apunte guardado.");
+      if (isItemActionCurrent(ticket)) {
+        setFeedback("Apunte guardado.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isItemActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusyId(null);
+      if (finishItemAction(ticket)) {
+        setBusyId(null);
+      }
     }
   };
 
   const unsave = async (resource: ResourceView) => {
+    const ticket = beginItemAction();
     setBusyId(resource.id);
     setError(null);
 
     try {
       await resourcesApi.unsave(resource.id);
+      if (!isItemActionCurrent(ticket)) return;
       setFeedback("Apunte quitado de guardados.");
       await load();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isItemActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusyId(null);
+      if (finishItemAction(ticket)) {
+        setBusyId(null);
+      }
     }
   };
 
   const report = async (resource: ResourceView) => {
+    const ticket = beginItemAction();
     setBusyId(resource.id);
     setError(null);
 
     try {
       await resourcesApi.report(resource.id);
-      setFeedback("Reporte recibido para revisión.");
+      if (isItemActionCurrent(ticket)) {
+        setFeedback("Reporte recibido para revisión.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isItemActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusyId(null);
+      if (finishItemAction(ticket)) {
+        setBusyId(null);
+      }
     }
   };
 
@@ -303,21 +436,30 @@ const Resources = () => {
       return;
     }
 
+    const ticket = beginItemAction();
     setBusyId(resource.id);
     setError(null);
 
     try {
       if (revoke) {
         await resourcesApi.unshare(resource.id, profileId);
-        setFeedback("Acceso compartido revocado.");
+        if (isItemActionCurrent(ticket)) {
+          setFeedback("Acceso compartido revocado.");
+        }
       } else {
         await resourcesApi.share(resource.id, profileId);
-        setFeedback("Acceso compartido otorgado.");
+        if (isItemActionCurrent(ticket)) {
+          setFeedback("Acceso compartido otorgado.");
+        }
       }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isItemActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusyId(null);
+      if (finishItemAction(ticket)) {
+        setBusyId(null);
+      }
     }
   };
 
