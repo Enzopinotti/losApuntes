@@ -34,6 +34,11 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - Direct API bypass blocked: yes/no/evidence
 - API readiness evidence:
 - Runtime smoke evidence:
+- Production resilience evidence file:
+- Measured runtime budget reference:
+- Applied resilience Compose/env reference:
+- Log rotation evidence:
+- Graceful-drain evidence:
 
 ## Providers
 
@@ -96,6 +101,10 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - Observed restore-drill RTO:
 - Schema/data rollback compatibility:
 - Rollback command/runbook:
+- Runtime compatibility: n-1 / forward-only
+- Current image digest:
+- Accepted rollback image digest:
+- Retained-image bound/evidence:
 - Rollback rehearsal/evidence:
 - Post-rollback smoke:
 
