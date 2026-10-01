@@ -204,6 +204,10 @@ AcademicSubjectParticipationSchema.index({
   updatedAt: -1,
   id: 1,
 });
+AcademicSubjectParticipationSchema.index({
+  state: 1,
+  subjectId: 1,
+});
 
 @Schema({ collection: 'academic_follows', timestamps: true })
 export class AcademicFollow {
