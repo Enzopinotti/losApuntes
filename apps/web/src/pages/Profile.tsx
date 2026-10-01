@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
 import type {
   OwnerProfileResponse,
@@ -71,6 +72,22 @@ function messageFor(error: unknown): string {
 }
 
 const Profile = () => {
+  const { status, user, session } = useAuth();
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`profile-load:${authorityScope}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`profile-action:${authorityScope}`);
   const [snapshot, setSnapshot] = useState<ReadyProfile | null>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -126,11 +143,14 @@ const Profile = () => {
   }, []);
 
   const load = useCallback(async () => {
+    const ticket = beginLoad();
     setLoading(true);
     setError(null);
 
     try {
-      const result = await profileApi.me();
+      const result = await profileApi.me(ticket.signal);
+      if (!isLoadCurrent(ticket)) return;
+
       if (result.onboardingRequired) {
         setSnapshot(null);
         setOnboarding(true);
@@ -138,11 +158,15 @@ const Profile = () => {
         hydrate(result);
       }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isLoadCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setLoading(false);
+      }
     }
-  }, [hydrate]);
+  }, [beginLoad, finishLoad, hydrate, isLoadCurrent]);
 
   useEffect(() => {
     void load();
@@ -150,17 +174,25 @@ const Profile = () => {
 
   const createProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const ticket = beginAction();
     setBusy(true);
     setError(null);
 
     try {
       await profileApi.create(displayName);
+      if (!isActionCurrent(ticket)) return;
       await load();
-      setFeedback("Tu perfil ya está listo. Podés completarlo de a poco.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Tu perfil ya está listo. Podés completarlo de a poco.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(false);
+      if (finishAction(ticket)) {
+        setBusy(false);
+      }
     }
   };
 
@@ -168,6 +200,7 @@ const Profile = () => {
     event.preventDefault();
     if (!snapshot) return;
 
+    const ticket = beginAction();
     setBusy(true);
     setError(null);
     setFeedback(null);
@@ -193,18 +226,26 @@ const Profile = () => {
           skillsInterests: recommendSkills,
         },
       });
+      if (!isActionCurrent(ticket)) return;
       await load();
-      setFeedback("Perfil actualizado.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Perfil actualizado.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(false);
+      if (finishAction(ticket)) {
+        setBusy(false);
+      }
     }
   };
 
   const loadMoreActivities = async () => {
     if (!snapshot?.activitiesNextCursor) return;
 
+    const ticket = beginAction();
     setBusy(true);
     setError(null);
 
@@ -212,7 +253,9 @@ const Profile = () => {
       const page = await profileApi.activities(
         snapshot.activitiesNextCursor,
         snapshot.activitiesLimit,
+        ticket.signal,
       );
+      if (!isActionCurrent(ticket)) return;
       setSnapshot((current) =>
         current
           ? {
@@ -223,14 +266,19 @@ const Profile = () => {
           : current,
       );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(false);
+      if (finishAction(ticket)) {
+        setBusy(false);
+      }
     }
   };
 
   const addActivity = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const ticket = beginAction();
     setBusy(true);
     setError(null);
 
@@ -242,16 +290,23 @@ const Profile = () => {
         startedOn: activityStartedOn || null,
         endedOn: activityEndedOn || null,
       });
+      if (!isActionCurrent(ticket)) return;
       setActivityTitle("");
       setActivityDescription("");
       setActivityStartedOn("");
       setActivityEndedOn("");
       await load();
-      setFeedback("Actividad agregada.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Actividad agregada.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(false);
+      if (finishAction(ticket)) {
+        setBusy(false);
+      }
     }
   };
 
@@ -260,17 +315,25 @@ const Profile = () => {
     const target = snapshot.activities.find((item) => item.id === id);
     if (!target) return;
 
+    const ticket = beginAction();
     setBusy(true);
     setError(null);
 
     try {
       await profileApi.deleteActivity(target);
+      if (!isActionCurrent(ticket)) return;
       await load();
-      setFeedback("Actividad eliminada.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Actividad eliminada.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(false);
+      if (finishAction(ticket)) {
+        setBusy(false);
+      }
     }
   };
 
