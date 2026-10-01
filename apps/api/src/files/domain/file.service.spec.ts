@@ -111,7 +111,10 @@ function storage(): jest.Mocked<ObjectStorage> {
     createUploadIntent: jest.fn(),
     headObject: jest.fn(),
     readPrefix: jest.fn(),
-    readObjectChunks: jest.fn(() =>
+    readObjectChunks: jest.fn<
+      ReturnType<ObjectStorage['readObjectChunks']>,
+      Parameters<ObjectStorage['readObjectChunks']>
+    >(() =>
       (async function* () {
         await Promise.resolve();
         yield new Uint8Array(Buffer.from('%PDF-1.7'));
