@@ -295,8 +295,8 @@ function defaults(
   organizationStore.isFollowing.mockResolvedValue(false);
   organizationStore.listLinks.mockResolvedValue([]);
   organizationStore.listFeaturedResources.mockResolvedValue([]);
-  organizationStore.listPosts.mockResolvedValue([]);
-  organizationStore.listEvents.mockResolvedValue([]);
+  organizationStore.listPosts.mockResolvedValue({ items: [], hasMore: false });
+  organizationStore.listEvents.mockResolvedValue({ items: [], hasMore: false });
   organizationStore.findManyByIds.mockResolvedValue([organization()]);
 }
 
@@ -929,7 +929,7 @@ describe('OrganizationService', () => {
     });
 
     organizationStore.findPostById.mockResolvedValue(current);
-    organizationStore.listPosts.mockResolvedValue([updated]);
+    organizationStore.listPosts.mockResolvedValue({ items: [updated], hasMore: false });
 
     const result = await service(organizationStore, dependencies).updatePost(
       'owner-user',
@@ -966,10 +966,12 @@ describe('OrganizationService', () => {
       '2026-09-25T00:00:00.000Z',
     );
     expect(listed.items).toHaveLength(1);
+    expect(listed.nextCursor).toBeNull();
     expect(organizationStore.listPosts.mock.calls.at(-1)?.[0]).toEqual({
       organizationId: orgId,
       limit: 10,
       before: new Date('2026-09-25T00:00:00.000Z'),
+      after: undefined,
     });
 
     await expect(
@@ -1058,7 +1060,7 @@ describe('OrganizationService', () => {
     });
 
     organizationStore.findEventById.mockResolvedValue(current);
-    organizationStore.listEvents.mockResolvedValue([updated]);
+    organizationStore.listEvents.mockResolvedValue({ items: [updated], hasMore: false });
 
     const result = await service(organizationStore, dependencies).updateEvent(
       'owner-user',
@@ -1148,6 +1150,86 @@ describe('OrganizationService', () => {
       ),
       'ORGANIZATION_NOT_FOUND',
     );
+  });
+
+  it('continues Organization Posts and Events with stable opaque cursors', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+
+    const firstPost = post({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      publishedAt: new Date('2026-09-24T04:00:00.000Z'),
+    });
+    const secondPost = post({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      publishedAt: new Date('2026-09-23T04:00:00.000Z'),
+    });
+    organizationStore.listPosts
+      .mockResolvedValueOnce({ items: [firstPost], hasMore: true })
+      .mockResolvedValueOnce({ items: [secondPost], hasMore: false });
+
+    const instance = service(organizationStore, dependencies);
+    const firstPosts = await instance.listPosts(orgId, 1);
+    expect(firstPosts.nextCursor).toEqual(expect.any(String));
+    const secondPosts = await instance.listPosts(
+      orgId,
+      1,
+      undefined,
+      firstPosts.nextCursor ?? undefined,
+    );
+    expect(secondPosts.items.map((item) => item.id)).toEqual([secondPost.id]);
+    expect(organizationStore.listPosts.mock.calls.at(-1)?.[0]).toEqual({
+      organizationId: orgId,
+      limit: 1,
+      after: { publishedAt: firstPost.publishedAt, id: firstPost.id },
+    });
+
+    const firstEvent = event({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      startsAt: new Date('2026-09-25T04:00:00.000Z'),
+    });
+    const secondEvent = event({
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      startsAt: new Date('2026-09-26T04:00:00.000Z'),
+    });
+    organizationStore.listEvents
+      .mockResolvedValueOnce({ items: [firstEvent], hasMore: true })
+      .mockResolvedValueOnce({ items: [secondEvent], hasMore: false });
+
+    const firstEvents = await instance.listEvents(orgId, 1);
+    expect(firstEvents.nextCursor).toEqual(expect.any(String));
+    const secondEvents = await instance.listEvents(
+      orgId,
+      1,
+      undefined,
+      firstEvents.nextCursor ?? undefined,
+    );
+    expect(secondEvents.items.map((item) => item.id)).toEqual([secondEvent.id]);
+    expect(organizationStore.listEvents.mock.calls.at(-1)?.[0]).toEqual({
+      organizationId: orgId,
+      limit: 1,
+      after: { startsAt: firstEvent.startsAt, id: firstEvent.id },
+    });
+  });
+
+  it('rejects malformed Organization content cursors before persistence', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    const instance = service(organizationStore, dependencies);
+
+    await expectCode(
+      instance.listPosts(orgId, 20, undefined, 'bad-post-cursor'),
+      'ORGANIZATION_POST_CURSOR_INVALID',
+    );
+    await expectCode(
+      instance.listEvents(orgId, 20, undefined, 'bad-event-cursor'),
+      'ORGANIZATION_EVENT_CURSOR_INVALID',
+    );
+
+    expect(organizationStore.listPosts.mock.calls).toHaveLength(0);
+    expect(organizationStore.listEvents.mock.calls).toHaveLength(0);
   });
 
   it('creates and deletes useful links and enforces the bounded link set', async () => {
@@ -1536,8 +1618,8 @@ describe('OrganizationService', () => {
     dependencies.profiles.getAttributionsForUsers.mockResolvedValue(new Map());
     organizationStore.listLinks.mockResolvedValue([link]);
     organizationStore.listFeaturedResources.mockResolvedValue([featured]);
-    organizationStore.listPosts.mockResolvedValue([post()]);
-    organizationStore.listEvents.mockResolvedValue([event()]);
+    organizationStore.listPosts.mockResolvedValue({ items: [post()], hasMore: false });
+    organizationStore.listEvents.mockResolvedValue({ items: [event()], hasMore: false });
     dependencies.resources.get.mockResolvedValue({
       resource: {
         id: featured.resourceId,
