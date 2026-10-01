@@ -21,16 +21,17 @@ interface SessionContextValue {
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
+const controller = mobileSessionController;
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot>(
-    mobileSessionController.getSnapshot(),
+    controller.getSnapshot(),
   );
   const appStateRef = useRef(AppState.currentState);
 
-  useEffect(() => mobileSessionController.subscribe(setSnapshot), []);
+  useEffect(() => controller.subscribe(setSnapshot), []);
   useEffect(() => {
-    void mobileSessionController.restore();
+    void controller.restore();
   }, []);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -38,12 +39,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       appStateRef.current = nextState;
 
       if (nextState === "active" && previousState !== "active") {
-        void mobileSessionController.revalidateCurrent();
+        void controller.revalidateCurrent();
         return;
       }
 
       if (nextState !== "active") {
-        mobileSessionController.suspend();
+        controller.suspend();
       }
     });
 
@@ -52,14 +53,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     (email: string, password: string) =>
-      mobileSessionController.login({
+      controller.login({
         email: email.trim().toLowerCase(),
         password,
       }),
     [],
   );
-  const logout = useCallback(() => mobileSessionController.logout(), []);
-  const retryRestore = useCallback(() => mobileSessionController.restore(), []);
+  const logout = useCallback(() => controller.logout(), []);
+  const retryRestore = useCallback(() => controller.restore(), []);
 
   const value = useMemo(
     () => ({ snapshot, login, logout, retryRestore }),
