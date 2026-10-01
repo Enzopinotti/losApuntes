@@ -882,21 +882,43 @@ export class MongoOrganizationStore implements OrganizationStore {
       .exec();
   }
 
-  async listPosts(input: {
-    organizationId: string;
-    limit: number;
-    before?: Date;
-  }): Promise<OrganizationPostRecord[]> {
-    return this.posts
-      .find({
+  async listPosts(
+    input: Parameters<OrganizationStore['listPosts']>[0],
+  ): ReturnType<OrganizationStore['listPosts']> {
+    const filters: FilterQuery<OrganizationPost>[] = [
+      {
         organizationId: input.organizationId,
         moderationState: 'available',
-        ...(input.before ? { publishedAt: { $lt: input.before } } : {}),
-      })
+      },
+    ];
+
+    if (input.before) {
+      filters.push({ publishedAt: { $lt: input.before } });
+    }
+
+    if (input.after) {
+      filters.push({
+        $or: [
+          { publishedAt: { $lt: input.after.publishedAt } },
+          {
+            publishedAt: input.after.publishedAt,
+            id: { $gt: input.after.id },
+          },
+        ],
+      });
+    }
+
+    const rows = await this.posts
+      .find({ $and: filters })
       .sort({ publishedAt: -1, id: 1 })
-      .limit(input.limit)
+      .limit(input.limit + 1)
       .lean<OrganizationPostRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async listFeedPosts(input: {
@@ -969,21 +991,43 @@ export class MongoOrganizationStore implements OrganizationStore {
       .exec();
   }
 
-  async listEvents(input: {
-    organizationId: string;
-    limit: number;
-    from?: Date;
-  }): Promise<OrganizationEventRecord[]> {
-    return this.events
-      .find({
+  async listEvents(
+    input: Parameters<OrganizationStore['listEvents']>[0],
+  ): ReturnType<OrganizationStore['listEvents']> {
+    const filters: FilterQuery<OrganizationEvent>[] = [
+      {
         organizationId: input.organizationId,
         moderationState: 'available',
-        ...(input.from ? { startsAt: { $gte: input.from } } : {}),
-      })
+      },
+    ];
+
+    if (input.from) {
+      filters.push({ startsAt: { $gte: input.from } });
+    }
+
+    if (input.after) {
+      filters.push({
+        $or: [
+          { startsAt: { $gt: input.after.startsAt } },
+          {
+            startsAt: input.after.startsAt,
+            id: { $gt: input.after.id },
+          },
+        ],
+      });
+    }
+
+    const rows = await this.events
+      .find({ $and: filters })
       .sort({ startsAt: 1, id: 1 })
-      .limit(input.limit)
+      .limit(input.limit + 1)
       .lean<OrganizationEventRecord[]>()
       .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async listLinks(organizationId: string): Promise<OrganizationLinkRecord[]> {
