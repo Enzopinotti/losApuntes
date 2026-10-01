@@ -1,5 +1,83 @@
 import { MongoResourceStore } from './mongo-resource.store';
 
+describe('MongoResourceStore saved-resource pagination', () => {
+  function savedQuery(rows: Array<{ resourceId: string; createdAt: Date }>) {
+    const chain = {
+      sort: jest.fn(),
+      limit: jest.fn(),
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(rows),
+    };
+    chain.sort.mockReturnValue(chain);
+    chain.limit.mockReturnValue(chain);
+    chain.lean.mockReturnValue(chain);
+    return chain;
+  }
+
+  it('uses limit+1 and exposes saved-resource overflow honestly', async () => {
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      resourceId: `resource-${index}`,
+      createdAt: new Date(`2026-09-2${3 - index}T12:00:00.000Z`),
+    }));
+    const chain = savedQuery(rows);
+    const saves = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoResourceStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      saves as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await store.listSavedResources({
+      userId: 'user-1',
+      limit: 2,
+    });
+
+    expect(saves.find).toHaveBeenCalledWith({ userId: 'user-1' });
+    expect(chain.sort).toHaveBeenCalledWith({
+      createdAt: -1,
+      resourceId: 1,
+    });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(result.items).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('applies the stable createdAt/resourceId continuation predicate', async () => {
+    const chain = savedQuery([]);
+    const saves = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoResourceStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      saves as never,
+      {} as never,
+      {} as never,
+    );
+    const createdAt = new Date('2026-09-23T12:00:00.000Z');
+
+    await store.listSavedResources({
+      userId: 'user-1',
+      limit: 25,
+      after: { createdAt, resourceId: 'resource-a' },
+    });
+
+    expect(saves.find).toHaveBeenCalledWith({
+      userId: 'user-1',
+      $or: [
+        { createdAt: { $lt: createdAt } },
+        {
+          createdAt,
+          resourceId: { $gt: 'resource-a' },
+        },
+      ],
+    });
+    expect(chain.limit).toHaveBeenCalledWith(26);
+  });
+});
+
 describe('MongoResourceStore authorization pipeline', () => {
   it('scopes explicit shares to the current outer resource', async () => {
     const exec = jest.fn().mockResolvedValue([]);
