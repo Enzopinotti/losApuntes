@@ -217,6 +217,11 @@ export class OrganizationPostListDto {
   @IsOptional()
   @IsISO8601()
   before?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
 }
 
 export class CreateOrganizationEventDto {
@@ -297,6 +302,11 @@ export class OrganizationEventListDto {
   @IsOptional()
   @IsISO8601()
   from?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
 }
 
 export class CreateOrganizationLinkDto {
