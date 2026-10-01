@@ -1,6 +1,9 @@
 import type {
   AcceptedResponse,
   ActionTokenInput,
+  AcademicAffiliationListResponse,
+  AcademicCurrentContextResponse,
+  AcademicSubjectParticipationListResponse,
   AuthApiErrorBody,
   AuthSessionListResponse,
   AuthenticatedSessionResponse,
@@ -15,6 +18,7 @@ import type {
   PasswordLoginInput,
   PasswordRecoveryCompleteInput,
   RegisterInput,
+  SetAcademicContextInput,
 } from "@losapuntes/contracts";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -356,5 +360,51 @@ export class MobileApiClient {
       body: input,
       ...(signal ? { signal } : {}),
     });
+  }
+
+  academicAffiliations(credential: string, signal?: AbortSignal) {
+    return this.request<AcademicAffiliationListResponse>(
+      "/academic/me/affiliations",
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  academicSubjects(credential: string, signal?: AbortSignal) {
+    return this.request<AcademicSubjectParticipationListResponse>(
+      "/academic/me/subjects",
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  academicContext(credential: string, signal?: AbortSignal) {
+    return this.request<AcademicCurrentContextResponse>(
+      "/academic/me/context",
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  setAcademicContext(
+    credential: string,
+    input: SetAcademicContextInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<AcademicCurrentContextResponse>(
+      "/academic/me/context",
+      {
+        method: "PUT",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
   }
 }

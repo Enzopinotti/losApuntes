@@ -10,20 +10,8 @@ import {
 } from "react";
 import { AppState } from "react-native";
 
-import { mobileRuntime } from "@/config/runtime";
-import { createSerializedCredentialStore } from "@/features/session/serialized-credential-store";
-import {
-  SessionController,
-  type SessionSnapshot,
-} from "@/features/session/session-controller";
-import { secureSessionCredentialStore } from "@/platform/session-credential-store";
-import { MobileApiClient } from "@/services/api/client";
-
-const api = new MobileApiClient(mobileRuntime.apiOrigin);
-const credentialStore = createSerializedCredentialStore(
-  secureSessionCredentialStore,
-);
-const controller = new SessionController(api, credentialStore);
+import type { SessionSnapshot } from "@/features/session/session-controller";
+import { mobileSessionController } from "@/features/session/session-runtime";
 
 interface SessionContextValue {
   snapshot: SessionSnapshot;
@@ -36,13 +24,13 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot>(
-    controller.getSnapshot(),
+    mobileSessionController.getSnapshot(),
   );
   const appStateRef = useRef(AppState.currentState);
 
-  useEffect(() => controller.subscribe(setSnapshot), []);
+  useEffect(() => mobileSessionController.subscribe(setSnapshot), []);
   useEffect(() => {
-    void controller.restore();
+    void mobileSessionController.restore();
   }, []);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -50,12 +38,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       appStateRef.current = nextState;
 
       if (nextState === "active" && previousState !== "active") {
-        void controller.revalidateCurrent();
+        void mobileSessionController.revalidateCurrent();
         return;
       }
 
       if (nextState !== "active") {
-        controller.suspend();
+        mobileSessionController.suspend();
       }
     });
 
@@ -64,11 +52,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     (email: string, password: string) =>
-      controller.login({ email: email.trim().toLowerCase(), password }),
+      mobileSessionController.login({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
     [],
   );
-  const logout = useCallback(() => controller.logout(), []);
-  const retryRestore = useCallback(() => controller.restore(), []);
+  const logout = useCallback(() => mobileSessionController.logout(), []);
+  const retryRestore = useCallback(
+    () => mobileSessionController.restore(),
+    [],
+  );
 
   const value = useMemo(
     () => ({ snapshot, login, logout, retryRestore }),
