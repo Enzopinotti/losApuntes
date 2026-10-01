@@ -229,6 +229,13 @@ export class OrganizationService {
     const organization = await this.requireActive(id);
     const actor = await this.requireManager(id, userId);
     const managers = await this.store.listManagers(id);
+    if (managers.length > ORGANIZATION_MANAGER_LIMIT) {
+      throw new ConflictException({
+        code: 'ORGANIZATION_MANAGER_CAPACITY_INVARIANT',
+        message:
+          'Organization manager inventory exceeds its configured capacity',
+      });
+    }
     const profiles = await this.profiles.getAttributionsForUsers(
       managers.map((row) => row.userId),
     );
