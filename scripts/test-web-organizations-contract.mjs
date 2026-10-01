@@ -14,6 +14,9 @@ assert.match(service, /cache:\s*"no-store"/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
+assert.match(service, /posts:\s*\(id:\s*string, cursor\?/u);
+assert.match(service, /events:\s*\(id:\s*string, cursor\?/u);
+assert.match(service, /nextCursor:\s*string\s*\|\s*null/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
@@ -32,6 +35,14 @@ assert.match(
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 assert.match(publicPage, /organizationsApi\.get\(/u);
 assert.match(publicPage, /verificationState/u);
+assert.match(publicPage, /organizationsApi\.posts\(/u);
+assert.match(publicPage, /organizationsApi\.events\(/u);
+assert.match(publicPage, /postsNextCursor/u);
+assert.match(publicPage, /eventsNextCursor/u);
+assert.match(publicPage, /appendPosts/u);
+assert.match(publicPage, /appendEvents/u);
+assert.match(publicPage, /Cargar más publicaciones/u);
+assert.match(publicPage, /Cargar más eventos/u);
 assert.doesNotMatch(publicPage, /actorUserId|createdByUserId/u);
 
 const manage = await read('apps/web/src/pages/OrganizationManage.tsx');
