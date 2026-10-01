@@ -53,7 +53,14 @@ function models(input: {
 
   const organizations = {
     findOne: jest.fn(() => query(input.organization ?? null)),
-    findOneAndUpdate: jest.fn(() => query(input.organization ?? null)),
+    findOneAndUpdate: jest.fn(
+      (filter: unknown, update: unknown, options?: unknown) => {
+        void filter;
+        void update;
+        void options;
+        return query(input.organization ?? null);
+      },
+    ),
   };
   const managerListQuery = listQuery(input.managerRows ?? []);
   const linkListQuery = listQuery(input.linkRows ?? []);
@@ -61,7 +68,10 @@ function models(input: {
   const managers = {
     find: jest.fn(() => managerListQuery),
     findOne: jest.fn(() => query(input.manager ?? null)),
-    countDocuments: jest.fn(() => query(input.managerCount ?? 0)),
+    countDocuments: jest.fn((filter: unknown) => {
+      void filter;
+      return query(input.managerCount ?? 0);
+    }),
     findOneAndUpdate: jest.fn(),
     deleteOne: jest.fn(),
   };
@@ -73,14 +83,20 @@ function models(input: {
   };
   const links = {
     find: jest.fn(() => linkListQuery),
-    countDocuments: jest.fn(() => query(input.linkCount ?? 0)),
+    countDocuments: jest.fn((filter: unknown) => {
+      void filter;
+      return query(input.linkCount ?? 0);
+    }),
     create: jest.fn(),
     deleteOne: jest.fn(),
   };
   const featuredResources = {
     find: jest.fn(() => featuredListQuery),
     findOne: jest.fn(() => query(input.existingFeatured ?? null)),
-    countDocuments: jest.fn(() => query(input.featuredCount ?? 0)),
+    countDocuments: jest.fn((filter: unknown) => {
+      void filter;
+      return query(input.featuredCount ?? 0);
+    }),
     create: jest.fn(),
     deleteOne: jest.fn(),
   };
