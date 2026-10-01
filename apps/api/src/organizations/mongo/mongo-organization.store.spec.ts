@@ -329,7 +329,7 @@ describe('MongoOrganizationStore commit authority', () => {
     });
     expect(
       fixture.organizations.findOneAndUpdate.mock.invocationCallOrder[0],
-    ).toBeLessThan(fixture.links.countDocuments.mock.invocationCallOrder[0]!);
+    ).toBeLessThan(fixture.links.countDocuments.mock.invocationCallOrder[0]);
     expect(fixture.links.create.mock.calls).toHaveLength(0);
     expect(fixture.audits.create.mock.calls).toHaveLength(0);
   });
