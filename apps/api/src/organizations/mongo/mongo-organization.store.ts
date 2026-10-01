@@ -60,10 +60,7 @@ type AuthorizedMutationFailure = Extract<
   AuthorizedOrganizationMutationResult,
   {
     status:
-      | 'authority_stale'
-      | 'state_conflict'
-      | 'not_found'
-      | 'collection_limit';
+      'authority_stale' | 'state_conflict' | 'not_found' | 'collection_limit';
   }
 >;
 
