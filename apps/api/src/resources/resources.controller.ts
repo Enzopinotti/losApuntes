@@ -50,7 +50,7 @@ export class ResourcesController {
     @Req() request: AuthenticatedRequest,
     @Query() query: ResourceSavedListDto,
   ) {
-    return this.resources.listSaved(request.user.id, query.limit);
+    return this.resources.listSaved(request.user.id, query.limit, query.cursor);
   }
 
   @UseGuards(OptionalAuthSessionGuard)

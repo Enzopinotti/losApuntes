@@ -28,6 +28,16 @@ export type UpdateResourceRecord = Partial<
   >
 >;
 
+export type SavedResourceCursor = {
+  createdAt: Date;
+  resourceId: string;
+};
+
+export type SavedResourcePage = {
+  items: Array<{ resourceId: string; createdAt: Date }>;
+  hasMore: boolean;
+};
+
 export interface ResourceStore {
   createClaimingAsset(input: {
     resource: CreateResourceRecord;
@@ -47,7 +57,11 @@ export interface ResourceStore {
   removeShare(resourceId: string, userId: string): Promise<void>;
   upsertSave(resourceId: string, userId: string): Promise<void>;
   removeSave(resourceId: string, userId: string): Promise<void>;
-  listSavedResourceIds(userId: string, limit: number): Promise<string[]>;
+  listSavedResources(input: {
+    userId: string;
+    limit: number;
+    after?: SavedResourceCursor;
+  }): Promise<SavedResourcePage>;
   searchAuthorized(input: {
     viewerUserId?: string;
     q?: string;

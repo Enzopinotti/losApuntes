@@ -175,3 +175,13 @@ export interface OrganizationCursor {
   normalizedName: string;
   id: string;
 }
+
+export interface OrganizationPostCursor {
+  publishedAt: Date;
+  id: string;
+}
+
+export interface OrganizationEventCursor {
+  startsAt: Date;
+  id: string;
+}

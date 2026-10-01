@@ -104,7 +104,7 @@ export class ResourceSave {
 
 export const ResourceSaveSchema = SchemaFactory.createForClass(ResourceSave);
 ResourceSaveSchema.index({ userId: 1, resourceId: 1 }, { unique: true });
-ResourceSaveSchema.index({ userId: 1, createdAt: -1 });
+ResourceSaveSchema.index({ userId: 1, createdAt: -1, resourceId: 1 });
 
 @Schema({ collection: 'resource_reports', timestamps: true })
 export class ResourceReport {

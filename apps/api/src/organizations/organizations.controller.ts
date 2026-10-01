@@ -66,7 +66,12 @@ export class OrganizationsController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Query() query: OrganizationPostListDto,
   ) {
-    return this.organizations.listPosts(id, query.limit, query.before);
+    return this.organizations.listPosts(
+      id,
+      query.limit,
+      query.before,
+      query.cursor,
+    );
   }
 
   @Get(':id/events')
@@ -74,7 +79,12 @@ export class OrganizationsController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Query() query: OrganizationEventListDto,
   ) {
-    return this.organizations.listEvents(id, query.limit, query.from);
+    return this.organizations.listEvents(
+      id,
+      query.limit,
+      query.from,
+      query.cursor,
+    );
   }
 
   @UseGuards(OptionalAuthSessionGuard)

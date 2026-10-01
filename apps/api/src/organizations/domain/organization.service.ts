@@ -38,9 +38,11 @@ import {
 import type {
   OrganizationAuditRecord,
   OrganizationCursor,
+  OrganizationEventCursor,
   OrganizationEventRecord,
   OrganizationManagerRecord,
   OrganizationManagerRole,
+  OrganizationPostCursor,
   OrganizationPostRecord,
   OrganizationRecord,
 } from './organization.types';
@@ -125,6 +127,83 @@ function decodeCursor(value?: string): OrganizationCursor | undefined {
     throw new UnprocessableEntityException({
       code: 'ORGANIZATION_CURSOR_INVALID',
       message: 'Organization cursor is invalid',
+    });
+  }
+}
+
+function encodePostCursor(cursor: OrganizationPostCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      publishedAt: cursor.publishedAt.toISOString(),
+      id: cursor.id,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodePostCursor(value?: string): OrganizationPostCursor | undefined {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (
+      typeof parsed.publishedAt !== 'string' ||
+      typeof parsed.id !== 'string'
+    ) {
+      throw new Error('invalid post cursor');
+    }
+
+    const publishedAt = new Date(parsed.publishedAt);
+    if (Number.isNaN(publishedAt.getTime())) {
+      throw new Error('invalid post cursor date');
+    }
+
+    return { publishedAt, id: parsed.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_POST_CURSOR_INVALID',
+      message: 'Organization Post cursor is invalid',
+    });
+  }
+}
+
+function encodeEventCursor(cursor: OrganizationEventCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      startsAt: cursor.startsAt.toISOString(),
+      id: cursor.id,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeEventCursor(
+  value?: string,
+): OrganizationEventCursor | undefined {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (typeof parsed.startsAt !== 'string' || typeof parsed.id !== 'string') {
+      throw new Error('invalid event cursor');
+    }
+
+    const startsAt = new Date(parsed.startsAt);
+    if (Number.isNaN(startsAt.getTime())) {
+      throw new Error('invalid event cursor date');
+    }
+
+    return { startsAt, id: parsed.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_EVENT_CURSOR_INVALID',
+      message: 'Organization Event cursor is invalid',
     });
   }
 }
@@ -612,18 +691,32 @@ export class OrganizationService {
     this.authorizedValue(result, 'post.delete');
   }
 
-  async listPosts(organizationId: string, limit: number, before?: string) {
+  async listPosts(
+    organizationId: string,
+    limit: number,
+    before?: string,
+    cursor?: string,
+  ) {
     const organization = await this.requireActive(organizationId);
-    const rows = await this.store.listPosts({
+    const page = await this.store.listPosts({
       organizationId,
       limit,
-      ...(before ? { before: new Date(before) } : {}),
+      ...(before && !cursor ? { before: new Date(before) } : {}),
+      after: decodePostCursor(cursor),
     });
+    const last = page.items.at(-1);
 
     return {
       items: await Promise.all(
-        rows.map((row) => this.postProjection(row, organization)),
+        page.items.map((row) => this.postProjection(row, organization)),
       ),
+      nextCursor:
+        page.hasMore && last
+          ? encodePostCursor({
+              publishedAt: last.publishedAt,
+              id: last.id,
+            })
+          : null,
     };
   }
 
@@ -767,15 +860,31 @@ export class OrganizationService {
     return { event: this.eventProjection(updated) };
   }
 
-  async listEvents(organizationId: string, limit: number, from?: string) {
+  async listEvents(
+    organizationId: string,
+    limit: number,
+    from?: string,
+    cursor?: string,
+  ) {
     await this.requireActive(organizationId);
-    const rows = await this.store.listEvents({
+    const page = await this.store.listEvents({
       organizationId,
       limit,
-      ...(from ? { from: new Date(from) } : {}),
+      ...(from && !cursor ? { from: new Date(from) } : {}),
+      after: decodeEventCursor(cursor),
     });
+    const last = page.items.at(-1);
 
-    return { items: rows.map((row) => this.eventProjection(row)) };
+    return {
+      items: page.items.map((row) => this.eventProjection(row)),
+      nextCursor:
+        page.hasMore && last
+          ? encodeEventCursor({
+              startsAt: last.startsAt,
+              id: last.id,
+            })
+          : null,
+    };
   }
 
   async createLink(
@@ -1103,9 +1212,23 @@ export class OrganizationService {
         .map((row) => this.linkProjection(row)),
       featuredResources: publicResources,
       posts: await Promise.all(
-        posts.map((row) => this.postProjection(row, organization)),
+        posts.items.map((row) => this.postProjection(row, organization)),
       ),
-      events: events.map((row) => this.eventProjection(row)),
+      postsNextCursor:
+        posts.hasMore && posts.items.at(-1)
+          ? encodePostCursor({
+              publishedAt: posts.items.at(-1)!.publishedAt,
+              id: posts.items.at(-1)!.id,
+            })
+          : null,
+      events: events.items.map((row) => this.eventProjection(row)),
+      eventsNextCursor:
+        events.hasMore && events.items.at(-1)
+          ? encodeEventCursor({
+              startsAt: events.items.at(-1)!.startsAt,
+              id: events.items.at(-1)!.id,
+            })
+          : null,
       viewer: viewerUserId
         ? {
             following,

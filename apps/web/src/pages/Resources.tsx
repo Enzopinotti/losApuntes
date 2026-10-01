@@ -42,6 +42,15 @@ function messageFor(error: unknown): string {
   return error.message;
 }
 
+function appendResources(
+  current: ResourceView[],
+  next: ResourceView[],
+): ResourceView[] {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  for (const item of next) byId.set(item.id, item);
+  return [...byId.values()];
+}
+
 function listFrom(value: string): string[] {
   return value
     .split(",")
@@ -62,6 +71,8 @@ const Resources = () => {
   >("");
   const [savedMode, setSavedMode] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,28 +93,36 @@ const Resources = () => {
   const uploadOperationKey = useRef<string | null>(null);
   const [shareInputs, setShareInputs] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(
+    async (cursor?: string, append = false) => {
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      setError(null);
 
-    try {
-      if (savedMode && authenticated) {
-        const result = await resourcesApi.saved();
-        setItems(result.items);
-      } else {
-        const result = await resourcesApi.search({
-          q: query.trim() || undefined,
-          visibility: visibilityFilter || undefined,
-          subjectId: subjectIdFilter,
-        });
-        setItems(result.items);
+      try {
+        const result =
+          savedMode && authenticated
+            ? await resourcesApi.saved(cursor)
+            : await resourcesApi.search({
+                q: query.trim() || undefined,
+                visibility: visibilityFilter || undefined,
+                subjectId: subjectIdFilter,
+                cursor,
+              });
+
+        setItems((current) =>
+          append ? appendResources(current, result.items) : result.items,
+        );
+        setNextCursor(result.nextCursor);
+      } catch (nextError) {
+        setError(messageFor(nextError));
+      } finally {
+        if (append) setLoadingMore(false);
+        else setLoading(false);
       }
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setLoading(false);
-    }
-  }, [authenticated, query, savedMode, subjectIdFilter, visibilityFilter]);
+    },
+    [authenticated, query, savedMode, subjectIdFilter, visibilityFilter],
+  );
 
   useEffect(() => {
     setQuery(routeQuery);
@@ -636,6 +655,17 @@ const Resources = () => {
               )}
             </article>
           ))
+        )}
+
+        {nextCursor && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={loadingMore}
+            onClick={() => void load(nextCursor, true)}
+          >
+            {loadingMore ? "Cargando…" : "Cargar más"}
+          </button>
         )}
       </section>
     </section>

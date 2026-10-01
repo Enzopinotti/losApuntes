@@ -220,15 +220,33 @@ export class MongoResourceStore implements ResourceStore {
     await this.saves.deleteOne({ resourceId, userId }).exec();
   }
 
-  async listSavedResourceIds(userId: string, limit: number): Promise<string[]> {
+  async listSavedResources(
+    input: Parameters<ResourceStore['listSavedResources']>[0],
+  ): ReturnType<ResourceStore['listSavedResources']> {
     const rows = await this.saves
-      .find({ userId })
+      .find({
+        userId: input.userId,
+        ...(input.after
+          ? {
+              $or: [
+                { createdAt: { $lt: input.after.createdAt } },
+                {
+                  createdAt: input.after.createdAt,
+                  resourceId: { $gt: input.after.resourceId },
+                },
+              ],
+            }
+          : {}),
+      })
       .sort({ createdAt: -1, resourceId: 1 })
-      .limit(limit)
-      .lean<Array<{ resourceId: string }>>()
+      .limit(input.limit + 1)
+      .lean<Array<{ resourceId: string; createdAt: Date }>>()
       .exec();
 
-    return rows.map((row) => row.resourceId);
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async searchAuthorized(input: {
