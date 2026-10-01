@@ -467,7 +467,10 @@ export class FileService {
     if (outcome.kind === 'rejected') this.scanRejected();
 
     throw new ServiceUnavailableException({
-      code: outcome.kind === 'failed' ? 'FILE_SCAN_UNAVAILABLE' : 'FILE_SCAN_PENDING',
+      code:
+        outcome.kind === 'failed'
+          ? 'FILE_SCAN_UNAVAILABLE'
+          : 'FILE_SCAN_PENDING',
       message: 'File safety verification is temporarily unavailable',
     });
   }
@@ -518,22 +521,16 @@ export class FileService {
         return { kind: 'rejected' };
       }
 
-      const ready = await this.store.markReadyFromScan(
-        claimed.id,
-        claimId,
-        {
-          scanEngine: scan.engine,
-          scanCompletedAt: now,
-          readyAt: now,
-          ...(claimed.claimRef
-            ? {}
-            : {
-                expiresAt: new Date(
-                  now.getTime() + READY_UNCLAIMED_RECLAIM_MS,
-                ),
-              }),
-        },
-      );
+      const ready = await this.store.markReadyFromScan(claimed.id, claimId, {
+        scanEngine: scan.engine,
+        scanCompletedAt: now,
+        readyAt: now,
+        ...(claimed.claimRef
+          ? {}
+          : {
+              expiresAt: new Date(now.getTime() + READY_UNCLAIMED_RECLAIM_MS),
+            }),
+      });
 
       if (ready) return { kind: 'ready', asset: ready };
       return this.scanRaceOutcome(claimed.id);
@@ -550,14 +547,10 @@ export class FileService {
         return failed ? { kind: 'failed' } : this.scanRaceOutcome(claimed.id);
       }
 
-      const rescheduled = await this.store.rescheduleScan(
-        claimed.id,
-        claimId,
-        {
-          failureCode: 'SCANNER_UNAVAILABLE',
-          scanNextAttemptAt: new Date(now.getTime() + retryDelayMs(attempts)),
-        },
-      );
+      const rescheduled = await this.store.rescheduleScan(claimed.id, claimId, {
+        failureCode: 'SCANNER_UNAVAILABLE',
+        scanNextAttemptAt: new Date(now.getTime() + retryDelayMs(attempts)),
+      });
       return rescheduled ? { kind: 'retry' } : this.scanRaceOutcome(claimed.id);
     }
   }

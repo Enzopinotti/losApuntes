@@ -70,8 +70,7 @@ async function bootstrap(): Promise<void> {
           );
         } else {
           const scans = await files.processPendingScans(SCAN_BATCH_SIZE);
-          const cleanup =
-            await files.cleanupExpiredAssets(CLEANUP_BATCH_SIZE);
+          const cleanup = await files.cleanupExpiredAssets(CLEANUP_BATCH_SIZE);
           const iterationReady =
             scans.retryScheduled === 0 && scans.failed === 0;
 

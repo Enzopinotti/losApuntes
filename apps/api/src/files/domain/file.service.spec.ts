@@ -111,10 +111,11 @@ function storage(): jest.Mocked<ObjectStorage> {
     createUploadIntent: jest.fn(),
     headObject: jest.fn(),
     readPrefix: jest.fn(),
-    readObjectChunks: jest.fn((_objectKey: string, _maximumChunkBytes?: number) =>
-      (async function* () {
-        yield new Uint8Array(Buffer.from('%PDF-1.7'));
-      })(),
+    readObjectChunks: jest.fn(
+      (_objectKey: string, _maximumChunkBytes?: number) =>
+        (async function* () {
+          yield new Uint8Array(Buffer.from('%PDF-1.7'));
+        })(),
     ),
     createDownloadIntent: jest.fn(),
     deleteObject: jest.fn(),
@@ -890,10 +891,11 @@ describe('FileService', () => {
     });
     fileStore.findOwned.mockResolvedValue(legacy);
 
-    const result = await new FileService(
-      fileStore,
-      objectStorage,
-    ).finalize('user-1', legacy.id, now);
+    const result = await new FileService(fileStore, objectStorage).finalize(
+      'user-1',
+      legacy.id,
+      now,
+    );
 
     expect(result.file.state).toBe('ready');
     expect(fileStore.claimForScan).toHaveBeenCalledTimes(1);
@@ -921,12 +923,11 @@ describe('FileService', () => {
     };
 
     await expect(
-      new FileService(
-        fileStore,
-        objectStorage,
-        undefined,
-        scanner,
-      ).finalize('user-1', pending.id, now),
+      new FileService(fileStore, objectStorage, undefined, scanner).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'FILE_SCAN_REJECTED',
@@ -934,9 +935,7 @@ describe('FileService', () => {
     });
 
     expect(fileStore.markRejectedFromScan).toHaveBeenCalledTimes(1);
-    expect(objectStorage.deleteObject).toHaveBeenCalledWith(
-      pending.objectKey,
-    );
+    expect(objectStorage.deleteObject).toHaveBeenCalledWith(pending.objectKey);
   });
 
   it('keeps scanner outages quarantined and schedules bounded retry', async () => {
@@ -957,12 +956,11 @@ describe('FileService', () => {
     };
 
     await expect(
-      new FileService(
-        fileStore,
-        objectStorage,
-        undefined,
-        scanner,
-      ).finalize('user-1', pending.id, now),
+      new FileService(fileStore, objectStorage, undefined, scanner).finalize(
+        'user-1',
+        pending.id,
+        now,
+      ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'FILE_SCAN_PENDING',
@@ -1068,5 +1066,4 @@ describe('FileService', () => {
     );
     expect(fileStore.rescheduleScan).not.toHaveBeenCalled();
   });
-
 });

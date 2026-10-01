@@ -210,9 +210,11 @@ describe('S3ObjectStorage', () => {
   });
 
   it('streams full objects in bounded chunks for safety scanners', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValueOnce(
-      new Response(Buffer.from('abcdefghij'), { status: 200 }),
-    );
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(Buffer.from('abcdefghij'), { status: 200 }),
+      );
     const chunks: Buffer[] = [];
 
     for await (const chunk of storage().readObjectChunks('scan-me', 1024)) {

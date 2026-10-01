@@ -416,10 +416,7 @@ export function createS3ObjectStorage(
           ) {
             yield result.value.subarray(
               offset,
-              Math.min(
-                offset + maximumChunkBytes,
-                result.value.byteLength,
-              ),
+              Math.min(offset + maximumChunkBytes, result.value.byteLength),
             );
           }
         }

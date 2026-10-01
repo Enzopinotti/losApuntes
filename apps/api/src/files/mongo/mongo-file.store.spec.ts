@@ -25,10 +25,7 @@ describe('MongoFileAssetStore quarantine migration', () => {
     expect(find).toHaveBeenCalledWith({
       $and: [
         {
-          $or: [
-            { claimRef: { $type: 'string' } },
-            { expiresAt: { $gt: now } },
-          ],
+          $or: [{ claimRef: { $type: 'string' } }, { expiresAt: { $gt: now } }],
         },
         {
           $or: expect.arrayContaining([

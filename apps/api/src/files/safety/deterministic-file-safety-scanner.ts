@@ -28,10 +28,7 @@ export function createDeterministicFileSafetyScanner(): FileSafetyScanner {
           };
         }
 
-        const carryBytes = Math.max(
-          0,
-          QUARANTINE_TEST_MARKER.byteLength - 1,
-        );
+        const carryBytes = Math.max(0, QUARANTINE_TEST_MARKER.byteLength - 1);
         carry = bytes.subarray(Math.max(0, bytes.byteLength - carryBytes));
       }
 

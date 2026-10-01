@@ -249,5 +249,4 @@ describe('MongoResourceStore authorization pipeline', () => {
       expect.objectContaining({ new: true, session }),
     );
   });
-
 });

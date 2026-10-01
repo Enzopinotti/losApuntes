@@ -57,7 +57,8 @@ function boundedInteger(
       useFactory: (config: ConfigService) => {
         const configured = config.get<string>('FILES_SAFETY_SCANNER')?.trim();
         const driver =
-          configured || (process.env.NODE_ENV === 'test' ? 'deterministic' : '');
+          configured ||
+          (process.env.NODE_ENV === 'test' ? 'deterministic' : '');
 
         if (driver === 'deterministic') {
           const profile = config.get<string>('DEPLOYMENT_PROFILE')?.trim();

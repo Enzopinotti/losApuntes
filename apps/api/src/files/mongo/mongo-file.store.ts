@@ -25,10 +25,7 @@ function scanEligibility(now: Date): FilterQuery<FileAsset> {
   return {
     $and: [
       {
-        $or: [
-          { claimRef: { $type: 'string' } },
-          { expiresAt: { $gt: now } },
-        ],
+        $or: [{ claimRef: { $type: 'string' } }, { expiresAt: { $gt: now } }],
       },
       {
         $or: [

@@ -27,6 +27,8 @@ export const TEST_CLEAN_FILE_SAFETY_SCANNER: FileSafetyScanner = Object.freeze({
     }),
 });
 
-export const FAIL_CLOSED_FILE_SAFETY_SCANNER: FileSafetyScanner = Object.freeze({
-  scan: () => Promise.reject(new Error('File safety scanner is unavailable')),
-});
+export const FAIL_CLOSED_FILE_SAFETY_SCANNER: FileSafetyScanner = Object.freeze(
+  {
+    scan: () => Promise.reject(new Error('File safety scanner is unavailable')),
+  },
+);

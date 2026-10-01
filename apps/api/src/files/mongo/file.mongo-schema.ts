@@ -97,7 +97,11 @@ export class FileAsset {
 export const FileAssetSchema = SchemaFactory.createForClass(FileAsset);
 
 FileAssetSchema.index({ state: 1, expiresAt: 1 });
-FileAssetSchema.index({ state: 1, scanNextAttemptAt: 1, scanLeaseExpiresAt: 1 });
+FileAssetSchema.index({
+  state: 1,
+  scanNextAttemptAt: 1,
+  scanLeaseExpiresAt: 1,
+});
 FileAssetSchema.index(
   { claimRef: 1 },
   {
