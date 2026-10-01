@@ -673,6 +673,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.managers
       .find({ organizationId })
       .sort({ role: 1, createdAt: 1, userId: 1 })
+      .limit(ORGANIZATION_MANAGER_LIMIT + 1)
       .lean<OrganizationManagerRecord[]>()
       .exec();
   }
@@ -992,6 +993,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.links
       .find({ organizationId })
       .sort({ createdAt: 1, id: 1 })
+      .limit(ORGANIZATION_LINK_LIMIT + 1)
       .lean<OrganizationLinkRecord[]>()
       .exec();
   }
@@ -1002,6 +1004,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     return this.featuredResources
       .find({ organizationId })
       .sort({ createdAt: -1, resourceId: 1 })
+      .limit(ORGANIZATION_FEATURED_RESOURCE_LIMIT + 1)
       .lean<OrganizationFeaturedResourceRecord[]>()
       .exec();
   }
