@@ -61,6 +61,11 @@ QuestionSchema.index({
   updatedAt: -1,
   id: 1,
 });
+QuestionSchema.index({
+  moderationState: 1,
+  state: 1,
+  subjectId: 1,
+});
 
 @Schema({ collection: 'answers', timestamps: true })
 export class Answer {

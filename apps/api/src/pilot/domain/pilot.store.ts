@@ -7,6 +7,7 @@ import type {
 } from './pilot.types';
 
 export const PILOT_STORE = Symbol('PILOT_STORE');
+export const PILOT_SUBJECT_METRICS_LIMIT = 100;
 
 export class PilotReportNotFoundError extends Error {
   constructor() {

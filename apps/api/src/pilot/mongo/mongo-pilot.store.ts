@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Connection, Model } from 'mongoose';
 
 import {
+  PILOT_SUBJECT_METRICS_LIMIT,
   PilotModerationTargetNotFoundError,
   PilotReportAlreadyReviewedError,
   PilotReportNotFoundError,
@@ -61,6 +62,32 @@ type PilotEventDocument = {
   subjectId?: string;
   resultCount?: number;
   createdAt: Date;
+};
+
+type PilotMetricsQuery = {
+  from: Date;
+  to: Date;
+  previousFrom: Date;
+  previousTo: Date;
+  days: number;
+};
+
+type PilotAudienceAggregationRow = {
+  _id: 'activeStudent' | 'alumni' | 'community';
+  activeUsers: number;
+  returningUsers: number;
+};
+
+type PilotCountAggregationRow = {
+  count: number;
+};
+
+type PilotSubjectAggregationRow = {
+  _id: string;
+  currentParticipants: number;
+  resources: number;
+  openQuestions: number;
+  contributionEvents: number;
 };
 
 function preview(value: string | null | undefined): string {
@@ -268,13 +295,7 @@ export class MongoPilotStore implements PilotStore {
     return this.queueItem(reviewed.kind, reviewed.report);
   }
 
-  async metrics(input: {
-    from: Date;
-    to: Date;
-    previousFrom: Date;
-    previousTo: Date;
-    days: number;
-  }): Promise<PilotMetricsSnapshot> {
+  async metrics(input: PilotMetricsQuery): Promise<PilotMetricsSnapshot> {
     const users = this.connection.collection('users');
     const events =
       this.connection.collection<PilotEventDocument>('pilot_events');
@@ -317,10 +338,9 @@ export class MongoPilotStore implements PilotStore {
     const [
       searches,
       noResultSearches,
-      currentUsers,
-      previousUsers,
+      activityAudience,
       contributionEvents,
-      contributorIds,
+      contributorCount,
       resourcePending,
       qaPending,
       organizationPending,
@@ -330,10 +350,7 @@ export class MongoPilotStore implements PilotStore {
       oldestResource,
       oldestQa,
       oldestOrganization,
-      participantRows,
-      resourceRows,
-      questionRows,
-      contributionRows,
+      subjectMetrics,
     ] = await Promise.all([
       events.countDocuments({
         event: 'pilot.search_performed',
@@ -344,14 +361,7 @@ export class MongoPilotStore implements PilotStore {
         resultCount: 0,
         createdAt: { $gte: input.from, $lt: input.to },
       }),
-      events.distinct('userId', {
-        userId: { $type: 'string' },
-        createdAt: { $gte: input.from, $lt: input.to },
-      }),
-      events.distinct('userId', {
-        userId: { $type: 'string' },
-        createdAt: { $gte: input.previousFrom, $lt: input.previousTo },
-      }),
+      this.audienceMetrics(input),
       events.countDocuments({
         event: {
           $in: [
@@ -362,17 +372,7 @@ export class MongoPilotStore implements PilotStore {
         },
         createdAt: { $gte: input.from, $lt: input.to },
       }),
-      events.distinct('userId', {
-        userId: { $type: 'string' },
-        event: {
-          $in: [
-            'pilot.resource_created',
-            'pilot.question_created',
-            'pilot.answer_created',
-          ],
-        },
-        createdAt: { $gte: input.from, $lt: input.to },
-      }),
+      this.countContributors(input),
       resourceReports.countDocuments({ status: 'pending' }),
       qaReports.countDocuments({ status: 'pending' }),
       organizationReports.countDocuments({ status: 'pending' }),
@@ -397,150 +397,9 @@ export class MongoPilotStore implements PilotStore {
         { status: 'pending' },
         { sort: { createdAt: 1 }, projection: { createdAt: 1 } },
       ),
-      this.countBySubject(
-        'academic_subject_participations',
-        { state: 'current' },
-        'subjectId',
-      ),
-      this.countBySubject(
-        'resources',
-        { moderationState: 'available' },
-        'subjectId',
-      ),
-      this.countBySubject(
-        'questions',
-        { moderationState: 'available', state: 'open' },
-        'subjectId',
-      ),
-      events
-        .aggregate<{ _id: string; count: number }>([
-          {
-            $match: {
-              subjectId: { $type: 'string' },
-              event: {
-                $in: [
-                  'pilot.resource_created',
-                  'pilot.question_created',
-                  'pilot.answer_created',
-                ],
-              },
-              createdAt: { $gte: input.from, $lt: input.to },
-            },
-          },
-          { $group: { _id: '$subjectId', count: { $sum: 1 } } },
-        ])
-        .toArray(),
+      this.subjectMetrics(input),
     ]);
 
-    const definedCurrentUsers = currentUsers.filter(
-      (userId): userId is string => typeof userId === 'string',
-    );
-    const definedPreviousUsers = previousUsers.filter(
-      (userId): userId is string => typeof userId === 'string',
-    );
-    const cohortUserIds = [
-      ...new Set([...definedCurrentUsers, ...definedPreviousUsers]),
-    ];
-    const affiliationRows =
-      cohortUserIds.length === 0
-        ? []
-        : await this.connection
-            .collection<{ userId: string; status: string }>(
-              'academic_affiliations',
-            )
-            .find({
-              userId: { $in: cohortUserIds },
-              status: { $in: ['active', 'paused', 'completed', 'alumni'] },
-            })
-            .project<{ userId: string; status: string }>({
-              _id: 0,
-              userId: 1,
-              status: 1,
-            })
-            .toArray();
-    const statusesByUser = new Map<string, Set<string>>();
-
-    for (const row of affiliationRows) {
-      const statuses = statusesByUser.get(row.userId) ?? new Set<string>();
-      statuses.add(row.status);
-      statusesByUser.set(row.userId, statuses);
-    }
-
-    const cohort = (
-      userId: string,
-    ): 'activeStudent' | 'alumni' | 'community' => {
-      const statuses = statusesByUser.get(userId);
-      if (statuses?.has('active') || statuses?.has('paused')) {
-        return 'activeStudent';
-      }
-      if (statuses?.has('alumni') || statuses?.has('completed')) {
-        return 'alumni';
-      }
-      return 'community';
-    };
-
-    const previousSet = new Set(definedPreviousUsers);
-    const returningUsers = definedCurrentUsers.filter((id) =>
-      previousSet.has(id),
-    );
-    const audience = {
-      activeStudents: { activeUsers: 0, returningUsers: 0 },
-      alumni: { activeUsers: 0, returningUsers: 0 },
-      community: { activeUsers: 0, returningUsers: 0 },
-    };
-
-    for (const userId of definedCurrentUsers) {
-      const key = cohort(userId);
-      if (key === 'activeStudent') {
-        audience.activeStudents.activeUsers += 1;
-        if (previousSet.has(userId))
-          audience.activeStudents.returningUsers += 1;
-      } else if (key === 'alumni') {
-        audience.alumni.activeUsers += 1;
-        if (previousSet.has(userId)) audience.alumni.returningUsers += 1;
-      } else {
-        audience.community.activeUsers += 1;
-        if (previousSet.has(userId)) audience.community.returningUsers += 1;
-      }
-    }
-
-    const subjectMap = new Map<string, PilotSubjectDensity>();
-
-    const ensure = (subjectId: string): PilotSubjectDensity => {
-      const existing = subjectMap.get(subjectId);
-      if (existing) return existing;
-      const created = {
-        subjectId,
-        currentParticipants: 0,
-        resources: 0,
-        openQuestions: 0,
-        contributionEvents: 0,
-      };
-      subjectMap.set(subjectId, created);
-      return created;
-    };
-
-    participantRows.forEach((row) => {
-      ensure(row._id).currentParticipants = row.count;
-    });
-    resourceRows.forEach((row) => {
-      ensure(row._id).resources = row.count;
-    });
-    questionRows.forEach((row) => {
-      ensure(row._id).openQuestions = row.count;
-    });
-    contributionRows.forEach((row) => {
-      ensure(row._id).contributionEvents = row.count;
-    });
-
-    const allSubjects = [...subjectMap.values()].sort(
-      (left, right) =>
-        right.contributionEvents - left.contributionEvents ||
-        right.currentParticipants - left.currentParticipants ||
-        right.resources - left.resources ||
-        right.openQuestions - left.openQuestions ||
-        left.subjectId.localeCompare(right.subjectId),
-    );
     const oldestPendingAt =
       [
         oldestResource?.createdAt as Date | undefined,
@@ -565,22 +424,19 @@ export class MongoPilotStore implements PilotStore {
         searches,
         noResultSearches,
       },
-      activity: {
-        activeUsers: definedCurrentUsers.length,
-        returningUsers: returningUsers.length,
-      },
-      audience,
+      activity: activityAudience.activity,
+      audience: activityAudience.audience,
       contributions: {
         events: contributionEvents,
-        contributors: contributorIds.length,
+        contributors: contributorCount,
       },
       moderation: {
         pending: resourcePending + qaPending + organizationPending,
         reviewedInWindow: resourceReviewed + qaReviewed + organizationReviewed,
         oldestPendingAt,
       },
-      subjects: allSubjects.slice(0, 100),
-      subjectsTruncated: allSubjects.length > 100,
+      subjects: subjectMetrics.subjects,
+      subjectsTruncated: subjectMetrics.subjectsTruncated,
     };
   }
 
@@ -663,18 +519,340 @@ export class MongoPilotStore implements PilotStore {
     return { kind: organization.targetType, id: organization.targetId };
   }
 
-  private async countBySubject(
-    collectionName: string,
-    match: Record<string, unknown>,
-    field: string,
-  ): Promise<Array<{ _id: string; count: number }>> {
-    return this.connection
-      .collection(collectionName)
-      .aggregate<{ _id: string; count: number }>([
-        { $match: match },
-        { $group: { _id: '$' + field, count: { $sum: 1 } } },
-        { $match: { _id: { $type: 'string' } } },
+  private async audienceMetrics(
+    input: PilotMetricsQuery,
+  ): Promise<Pick<PilotMetricsSnapshot, 'activity' | 'audience'>> {
+    const rows = await this.connection
+      .collection<PilotEventDocument>('pilot_events')
+      .aggregate<PilotAudienceAggregationRow>([
+        {
+          $match: {
+            userId: { $type: 'string' },
+            createdAt: { $gte: input.previousFrom, $lt: input.to },
+          },
+        },
+        {
+          $group: {
+            _id: '$userId',
+            current: {
+              $max: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gte: ['$createdAt', input.from] },
+                      { $lt: ['$createdAt', input.to] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            previous: {
+              $max: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gte: ['$createdAt', input.previousFrom] },
+                      { $lt: ['$createdAt', input.previousTo] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $match: { current: 1 } },
+        {
+          $lookup: {
+            from: 'academic_affiliations',
+            let: { userId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ['$userId', '$$userId'] },
+                  status: {
+                    $in: ['active', 'paused', 'completed', 'alumni'],
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  statuses: { $addToSet: '$status' },
+                },
+              },
+            ],
+            as: '__affiliations',
+          },
+        },
+        {
+          $set: {
+            __statuses: {
+              $ifNull: [{ $arrayElemAt: ['$__affiliations.statuses', 0] }, []],
+            },
+          },
+        },
+        {
+          $set: {
+            __cohort: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $gt: [
+                        {
+                          $size: {
+                            $setIntersection: [
+                              '$__statuses',
+                              ['active', 'paused'],
+                            ],
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    then: 'activeStudent',
+                  },
+                  {
+                    case: {
+                      $gt: [
+                        {
+                          $size: {
+                            $setIntersection: [
+                              '$__statuses',
+                              ['alumni', 'completed'],
+                            ],
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    then: 'alumni',
+                  },
+                ],
+                default: 'community',
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: '$__cohort',
+            activeUsers: { $sum: 1 },
+            returningUsers: { $sum: '$previous' },
+          },
+        },
       ])
       .toArray();
+
+    const result: Pick<PilotMetricsSnapshot, 'activity' | 'audience'> = {
+      activity: { activeUsers: 0, returningUsers: 0 },
+      audience: {
+        activeStudents: { activeUsers: 0, returningUsers: 0 },
+        alumni: { activeUsers: 0, returningUsers: 0 },
+        community: { activeUsers: 0, returningUsers: 0 },
+      },
+    };
+
+    for (const row of rows) {
+      result.activity.activeUsers += row.activeUsers;
+      result.activity.returningUsers += row.returningUsers;
+
+      if (row._id === 'activeStudent') {
+        result.audience.activeStudents = {
+          activeUsers: row.activeUsers,
+          returningUsers: row.returningUsers,
+        };
+      } else if (row._id === 'alumni') {
+        result.audience.alumni = {
+          activeUsers: row.activeUsers,
+          returningUsers: row.returningUsers,
+        };
+      } else {
+        result.audience.community = {
+          activeUsers: row.activeUsers,
+          returningUsers: row.returningUsers,
+        };
+      }
+    }
+
+    return result;
+  }
+
+  private async countContributors(input: PilotMetricsQuery): Promise<number> {
+    const rows = await this.connection
+      .collection<PilotEventDocument>('pilot_events')
+      .aggregate<PilotCountAggregationRow>([
+        {
+          $match: {
+            userId: { $type: 'string' },
+            event: {
+              $in: [
+                'pilot.resource_created',
+                'pilot.question_created',
+                'pilot.answer_created',
+              ],
+            },
+            createdAt: { $gte: input.from, $lt: input.to },
+          },
+        },
+        { $group: { _id: '$userId' } },
+        { $count: 'count' },
+      ])
+      .toArray();
+
+    return rows[0]?.count ?? 0;
+  }
+
+  private async subjectMetrics(input: PilotMetricsQuery): Promise<{
+    subjects: PilotSubjectDensity[];
+    subjectsTruncated: boolean;
+  }> {
+    const rows = await this.connection
+      .collection('academic_subject_participations')
+      .aggregate<PilotSubjectAggregationRow>([
+        {
+          $match: {
+            state: 'current',
+            subjectId: { $type: 'string' },
+          },
+        },
+        {
+          $group: {
+            _id: '$subjectId',
+            currentParticipants: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            currentParticipants: 1,
+            resources: { $literal: 0 },
+            openQuestions: { $literal: 0 },
+            contributionEvents: { $literal: 0 },
+          },
+        },
+        {
+          $unionWith: {
+            coll: 'resources',
+            pipeline: [
+              {
+                $match: {
+                  moderationState: 'available',
+                  subjectId: { $type: 'string' },
+                },
+              },
+              { $group: { _id: '$subjectId', resources: { $sum: 1 } } },
+              {
+                $project: {
+                  _id: 1,
+                  currentParticipants: { $literal: 0 },
+                  resources: 1,
+                  openQuestions: { $literal: 0 },
+                  contributionEvents: { $literal: 0 },
+                },
+              },
+            ],
+          },
+        },
+        {
+          $unionWith: {
+            coll: 'questions',
+            pipeline: [
+              {
+                $match: {
+                  moderationState: 'available',
+                  state: 'open',
+                  subjectId: { $type: 'string' },
+                },
+              },
+              {
+                $group: {
+                  _id: '$subjectId',
+                  openQuestions: { $sum: 1 },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  currentParticipants: { $literal: 0 },
+                  resources: { $literal: 0 },
+                  openQuestions: 1,
+                  contributionEvents: { $literal: 0 },
+                },
+              },
+            ],
+          },
+        },
+        {
+          $unionWith: {
+            coll: 'pilot_events',
+            pipeline: [
+              {
+                $match: {
+                  subjectId: { $type: 'string' },
+                  event: {
+                    $in: [
+                      'pilot.resource_created',
+                      'pilot.question_created',
+                      'pilot.answer_created',
+                    ],
+                  },
+                  createdAt: { $gte: input.from, $lt: input.to },
+                },
+              },
+              {
+                $group: {
+                  _id: '$subjectId',
+                  contributionEvents: { $sum: 1 },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  currentParticipants: { $literal: 0 },
+                  resources: { $literal: 0 },
+                  openQuestions: { $literal: 0 },
+                  contributionEvents: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: '$_id',
+            currentParticipants: { $sum: '$currentParticipants' },
+            resources: { $sum: '$resources' },
+            openQuestions: { $sum: '$openQuestions' },
+            contributionEvents: { $sum: '$contributionEvents' },
+          },
+        },
+        {
+          $sort: {
+            contributionEvents: -1,
+            currentParticipants: -1,
+            resources: -1,
+            openQuestions: -1,
+            _id: 1,
+          },
+        },
+        { $limit: PILOT_SUBJECT_METRICS_LIMIT + 1 },
+      ])
+      .toArray();
+
+    return {
+      subjects: rows.slice(0, PILOT_SUBJECT_METRICS_LIMIT).map((row) => ({
+        subjectId: row._id,
+        currentParticipants: row.currentParticipants,
+        resources: row.resources,
+        openQuestions: row.openQuestions,
+        contributionEvents: row.contributionEvents,
+      })),
+      subjectsTruncated: rows.length > PILOT_SUBJECT_METRICS_LIMIT,
+    };
   }
 }
