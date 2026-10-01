@@ -927,11 +927,12 @@ describe('FileService', () => {
     };
 
     try {
-      await new FileService(fileStore, objectStorage, undefined, scanner).finalize(
-        'user-1',
-        pending.id,
-        now,
-      );
+      await new FileService(
+        fileStore,
+        objectStorage,
+        undefined,
+        scanner,
+      ).finalize('user-1', pending.id, now);
       throw new Error('Expected rejected scan');
     } catch (error) {
       expect(error).toBeInstanceOf(UnprocessableEntityException);
@@ -967,11 +968,12 @@ describe('FileService', () => {
     };
 
     try {
-      await new FileService(fileStore, objectStorage, undefined, scanner).finalize(
-        'user-1',
-        pending.id,
-        now,
-      );
+      await new FileService(
+        fileStore,
+        objectStorage,
+        undefined,
+        scanner,
+      ).finalize('user-1', pending.id, now);
       throw new Error('Expected pending scan');
     } catch (error) {
       expect(error).toBeInstanceOf(ServiceUnavailableException);
