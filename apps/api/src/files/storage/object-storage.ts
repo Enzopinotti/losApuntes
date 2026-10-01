@@ -29,6 +29,10 @@ export interface ObjectStorage {
     timeoutMs?: number,
   ): Promise<ObjectStorageHead | null>;
   readPrefix(objectKey: string, maximumBytes: number): Promise<Uint8Array>;
+  readObjectChunks(
+    objectKey: string,
+    maximumChunkBytes?: number,
+  ): AsyncIterable<Uint8Array>;
   createDownloadIntent(input: {
     objectKey: string;
     filename: string;

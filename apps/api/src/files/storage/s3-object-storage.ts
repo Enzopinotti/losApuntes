@@ -374,6 +374,60 @@ export function createS3ObjectStorage(
       return bytes;
     },
 
+    async *readObjectChunks(
+      objectKey: string,
+      maximumChunkBytes = 64 * 1024,
+    ): AsyncIterable<Uint8Array> {
+      if (
+        !Number.isSafeInteger(maximumChunkBytes) ||
+        maximumChunkBytes < 1024 ||
+        maximumChunkBytes > 1024 * 1024
+      ) {
+        throw new Error(
+          'maximumChunkBytes must be an integer between 1024 and 1048576',
+        );
+      }
+
+      const response = await signedRequest({
+        method: 'GET',
+        endpoint,
+        bucket: options.bucket,
+        objectKey,
+        region: options.region,
+        accessKeyId: options.accessKeyId,
+        secretAccessKey: options.secretAccessKey,
+        now: options.now?.(),
+      });
+
+      if (!response.ok) throw storageError('GET object', response.status);
+      if (!response.body) throw new Error('S3 GET object returned no body');
+
+      const reader = response.body.getReader();
+
+      try {
+        while (true) {
+          const result = await reader.read();
+          if (result.done) return;
+
+          for (
+            let offset = 0;
+            offset < result.value.byteLength;
+            offset += maximumChunkBytes
+          ) {
+            yield result.value.subarray(
+              offset,
+              Math.min(
+                offset + maximumChunkBytes,
+                result.value.byteLength,
+              ),
+            );
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    },
+
     createDownloadIntent(
       input: Parameters<ObjectStorage['createDownloadIntent']>[0],
     ): Promise<ObjectStorageDownloadIntent> {

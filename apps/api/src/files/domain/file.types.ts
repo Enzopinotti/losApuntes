@@ -1,6 +1,9 @@
 export const FILE_ASSET_STATES = [
   'pending',
+  'scan_pending',
+  'scanning',
   'ready',
+  'rejected',
   'failed',
   'reclaiming',
   'reclaimed',
@@ -35,6 +38,13 @@ export interface FileAssetRecord {
   failureCode?: string;
   expiresAt?: Date;
   readyAt?: Date;
+  scanAttempts?: number;
+  scanNextAttemptAt?: Date;
+  scanClaimId?: string;
+  scanLeaseExpiresAt?: Date;
+  scanStartedAt?: Date;
+  scanCompletedAt?: Date;
+  scanEngine?: string;
   claimRef?: string;
   claimedAt?: Date;
   reclaimedAt?: Date;
