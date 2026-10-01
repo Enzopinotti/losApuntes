@@ -161,9 +161,14 @@ export const resourcesApi = {
     return result.items.map(({ id, name }) => ({ id, name }));
   },
 
-  createUploadIntent: (file: File, operationKey: string) =>
+  createUploadIntent: (
+    file: File,
+    operationKey: string,
+    signal?: AbortSignal,
+  ) =>
     request<FileUploadIntent>("/files/upload-intents", {
       method: "POST",
+      signal,
       body: json({
         operationKey,
         filename: file.name,
@@ -235,22 +240,26 @@ export const resourcesApi = {
       xhr.send(file);
     }),
 
-  finalize: (fileId: string) =>
+  finalize: (fileId: string, signal?: AbortSignal) =>
     request<{ file: { id: string; state: "ready" } }>(
       `/files/${encodeURIComponent(fileId)}/finalize`,
-      { method: "POST" },
+      { method: "POST", signal },
     ),
 
-  create: (input: {
-    assetId: string;
-    title: string;
-    description?: string;
-    tags: string[];
-    subjectId: string;
-    visibility: ResourceVisibility;
-  }) =>
+  create: (
+    input: {
+      assetId: string;
+      title: string;
+      description?: string;
+      tags: string[];
+      subjectId: string;
+      visibility: ResourceVisibility;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<{ resource: ResourceView }>("/resources", {
       method: "POST",
+      signal,
       body: json(input),
     }),
 
@@ -274,12 +283,17 @@ export const resourcesApi = {
       },
     ),
 
-  access: (resourceId: string, disposition: "inline" | "attachment") =>
+  access: (
+    resourceId: string,
+    disposition: "inline" | "attachment",
+    signal?: AbortSignal,
+  ) =>
     request<{
       file: ResourceView["file"];
       access: { url: string; expiresAt: string };
     }>(`/resources/${encodeURIComponent(resourceId)}/access`, {
       method: "POST",
+      signal,
       body: json({ disposition }),
     }),
 
