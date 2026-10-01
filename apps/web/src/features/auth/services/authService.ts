@@ -196,7 +196,8 @@ export const authApi = {
       body: body({ currentPassword, newPassword }),
     }),
 
-  sessions: () => request<ActiveSessionsResponse>("/auth/sessions"),
+  sessions: (signal?: AbortSignal) =>
+    request<ActiveSessionsResponse>("/auth/sessions", { signal }),
 
   revokeSession: (sessionId: string) =>
     request<void>(`/auth/sessions/${encodeURIComponent(sessionId)}`, {
@@ -208,7 +209,8 @@ export const authApi = {
       method: "DELETE",
     }),
 
-  googleStatus: () => request<GoogleAuthStatus>("/auth/google/status"),
+  googleStatus: (signal?: AbortSignal) =>
+    request<GoogleAuthStatus>("/auth/google/status", { signal }),
 
   googleWebStartUrl: (returnTo = "/login") => {
     const url = new URL(apiUrl("/auth/google/web/start"));
@@ -216,7 +218,8 @@ export const authApi = {
     return url.toString();
   },
 
-  loginMethods: () => request<LoginMethods>("/auth/login-methods"),
+  loginMethods: (signal?: AbortSignal) =>
+    request<LoginMethods>("/auth/login-methods", { signal }),
 
   startGoogleLink: (currentPassword: string, returnTo = "/settings/security") =>
     request<GoogleLinkStartResponse>("/auth/google/web/link/start", {
