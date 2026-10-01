@@ -55,9 +55,7 @@ export function AcademicContextCard() {
     return (
       <View style={styles.card}>
         <View style={styles.inline}>
-          <ActivityIndicator
-            accessibilityLabel="Validando contexto académico"
-          />
+          <ActivityIndicator accessibilityLabel="Validando contexto académico" />
           <Text style={styles.copy}>Validando tu contexto académico…</Text>
         </View>
       </View>
@@ -92,14 +90,14 @@ export function AcademicContextCard() {
 
   const { data } = snapshot;
   const currentAffiliation = data.context
-    ? data.affiliations.find(
+    ? (data.affiliations.find(
         (item) => item.id === data.context?.affiliationId,
-      ) ?? null
+      ) ?? null)
     : null;
   const currentParticipation = data.context?.subjectParticipationId
-    ? data.participations.find(
+    ? (data.participations.find(
         (item) => item.id === data.context?.subjectParticipationId,
-      ) ?? null
+      ) ?? null)
     : null;
   const affiliations = data.affiliations;
 
@@ -172,10 +170,7 @@ export function AcademicContextCard() {
                 }}
                 disabled={snapshot.kind === "switching" || selected}
                 onPress={() => void selectAffiliation(affiliation.id)}
-                style={[
-                  styles.option,
-                  selected ? styles.optionSelected : null,
-                ]}
+                style={[styles.option, selected ? styles.optionSelected : null]}
               >
                 <Text style={styles.optionTitle}>
                   {affiliationLabel(affiliation)}
@@ -193,9 +188,7 @@ export function AcademicContextCard() {
 
       {snapshot.kind === "switching" ? (
         <View style={styles.inline}>
-          <ActivityIndicator
-            accessibilityLabel="Cambiando contexto académico"
-          />
+          <ActivityIndicator accessibilityLabel="Cambiando contexto académico" />
           <Text style={styles.copy}>Revalidando el cambio…</Text>
         </View>
       ) : null}

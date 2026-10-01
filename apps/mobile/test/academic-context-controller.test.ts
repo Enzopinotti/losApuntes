@@ -9,9 +9,7 @@ import type {
 } from "@losapuntes/contracts";
 
 import type { AcademicContextApi } from "../src/features/academic/academic-api";
-import {
-  AcademicContextController,
-} from "../src/features/academic/academic-context-controller";
+import { AcademicContextController } from "../src/features/academic/academic-context-controller";
 import { ApiRequestError } from "../src/services/api/client";
 
 const affiliations: AcademicAffiliationListResponse = {
@@ -76,40 +74,34 @@ const api = (
   ...overrides,
 });
 
-test(
-  "bootstraps context and bounded inventories from server authority",
-  async () => {
-    const controller = new AcademicContextController(api());
+test("bootstraps context and bounded inventories from server authority", async () => {
+  const controller = new AcademicContextController(api());
 
-    await controller.restore("user-1:session-1");
+  await controller.restore("user-1:session-1");
 
-    const snapshot = controller.getSnapshot();
-    assert.equal(snapshot.kind, "ready");
-    if (snapshot.kind !== "ready") throw new Error("expected ready");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
 
-    assert.equal(snapshot.data.context?.affiliationId, "aff-a");
-    assert.equal(snapshot.data.affiliations.length, 2);
-    assert.equal(snapshot.data.participations.length, 1);
-    assert.equal(snapshot.data.contextRevision, 1);
-    assert.equal(snapshot.data.contextAuthorityKey, "user-1:session-1:1");
-  },
-);
+  assert.equal(snapshot.data.context?.affiliationId, "aff-a");
+  assert.equal(snapshot.data.affiliations.length, 2);
+  assert.equal(snapshot.data.participations.length, 1);
+  assert.equal(snapshot.data.contextRevision, 1);
+  assert.equal(snapshot.data.contextAuthorityKey, "user-1:session-1:1");
+});
 
-test(
-  "represents missing context explicitly without inventing one",
-  async () => {
-    const controller = new AcademicContextController(
-      api({ context: async () => ({ context: null }) }),
-    );
+test("represents missing context explicitly without inventing one", async () => {
+  const controller = new AcademicContextController(
+    api({ context: async () => ({ context: null }) }),
+  );
 
-    await controller.restore("user-1:session-1");
+  await controller.restore("user-1:session-1");
 
-    const snapshot = controller.getSnapshot();
-    assert.equal(snapshot.kind, "no_context");
-    if (snapshot.kind !== "no_context") throw new Error("expected no_context");
-    assert.equal(snapshot.data.context, null);
-  },
-);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "no_context");
+  if (snapshot.kind !== "no_context") throw new Error("expected no_context");
+  assert.equal(snapshot.data.context, null);
+});
 
 test("an old authority restore cannot overwrite a newer session", async () => {
   let resolveOld!: (value: AcademicCurrentContextResponse) => void;
@@ -141,64 +133,56 @@ test("an old authority restore cannot overwrite a newer session", async () => {
   assert.match(snapshot.data.contextAuthorityKey, /^user-1:session-new:/u);
 });
 
-test(
-  "a stale context switch cannot overwrite the latest selection",
-  async () => {
-    let resolveFirst!: (value: AcademicCurrentContextResponse) => void;
-    const firstSwitch = new Promise<AcademicCurrentContextResponse>(
-      (resolve) => {
-        resolveFirst = resolve;
+test("a stale context switch cannot overwrite the latest selection", async () => {
+  let resolveFirst!: (value: AcademicCurrentContextResponse) => void;
+  const firstSwitch = new Promise<AcademicCurrentContextResponse>((resolve) => {
+    resolveFirst = resolve;
+  });
+  let calls = 0;
+
+  const controller = new AcademicContextController(
+    api({
+      setContext: async (input) => {
+        calls += 1;
+        if (calls === 1) return firstSwitch;
+        return context(input.affiliationId, undefined);
       },
-    );
-    let calls = 0;
+    }),
+  );
 
-    const controller = new AcademicContextController(
-      api({
-        setContext: async (input) => {
-          calls += 1;
-          if (calls === 1) return firstSwitch;
-          return context(input.affiliationId, undefined);
-        },
-      }),
-    );
+  await controller.restore("user-1:session-1");
+  const first = controller.selectAffiliation("user-1:session-1", "aff-a");
+  await Promise.resolve();
+  await controller.selectAffiliation("user-1:session-1", "aff-b");
+  resolveFirst(context("aff-a", undefined));
+  await first;
 
-    await controller.restore("user-1:session-1");
-    const first = controller.selectAffiliation("user-1:session-1", "aff-a");
-    await Promise.resolve();
-    await controller.selectAffiliation("user-1:session-1", "aff-b");
-    resolveFirst(context("aff-a", undefined));
-    await first;
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.affiliationId, "aff-b");
+  assert.equal(snapshot.data.contextRevision, 2);
+});
 
-    const snapshot = controller.getSnapshot();
-    assert.equal(snapshot.kind, "ready");
-    if (snapshot.kind !== "ready") throw new Error("expected ready");
-    assert.equal(snapshot.data.context?.affiliationId, "aff-b");
-    assert.equal(snapshot.data.contextRevision, 2);
-  },
-);
+test("ambiguous switch failure stops exposing the previous context as authority", async () => {
+  const controller = new AcademicContextController(
+    api({
+      setContext: async () => {
+        throw new ApiRequestError(
+          "timeout",
+          null,
+          "REQUEST_TIMEOUT",
+          "timeout",
+        );
+      },
+    }),
+  );
 
-test(
-  "ambiguous switch failure stops exposing the previous context as authority",
-  async () => {
-    const controller = new AcademicContextController(
-      api({
-        setContext: async () => {
-          throw new ApiRequestError(
-            "timeout",
-            null,
-            "REQUEST_TIMEOUT",
-            "timeout",
-          );
-        },
-      }),
-    );
+  await controller.restore("user-1:session-1");
+  await controller.selectAffiliation("user-1:session-1", "aff-b");
 
-    await controller.restore("user-1:session-1");
-    await controller.selectAffiliation("user-1:session-1", "aff-b");
-
-    assert.equal(controller.getSnapshot().kind, "timeout");
-  },
-);
+  assert.equal(controller.getSnapshot().kind, "timeout");
+});
 
 test("suspending invalidates in-flight context ownership", async () => {
   let resolveContext!: (value: AcademicCurrentContextResponse) => void;
