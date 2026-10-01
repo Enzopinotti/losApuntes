@@ -591,10 +591,7 @@ export class MongoPilotStore implements PilotStore {
         {
           $set: {
             __statuses: {
-              $ifNull: [
-                { $arrayElemAt: ['$__affiliations.statuses', 0] },
-                [],
-              ],
+              $ifNull: [{ $arrayElemAt: ['$__affiliations.statuses', 0] }, []],
             },
           },
         },
@@ -858,5 +855,4 @@ export class MongoPilotStore implements PilotStore {
       subjectsTruncated: rows.length > PILOT_SUBJECT_METRICS_LIMIT,
     };
   }
-
 }
