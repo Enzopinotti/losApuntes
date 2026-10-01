@@ -1,70 +1,45 @@
 import { useCallback, useEffect, useRef } from "react";
+import {
+  AsyncAuthorityFenceController,
+  type AsyncAuthorityTicket,
+} from "./asyncAuthorityFenceController";
 
-export type AsyncAuthorityTicket = {
-  epoch: number;
-  scopeKey: string;
-  signal: AbortSignal;
-};
+export type { AsyncAuthorityTicket };
 
 export function useAsyncAuthorityFence(scopeKey: string) {
-  const epochRef = useRef(0);
-  const previousScopeRef = useRef(scopeKey);
-  const controllerRef = useRef<AbortController | null>(null);
+  const controllerRef = useRef<AsyncAuthorityFenceController | null>(null);
 
-  if (previousScopeRef.current !== scopeKey) {
-    previousScopeRef.current = scopeKey;
-    epochRef.current += 1;
+  if (!controllerRef.current) {
+    controllerRef.current = new AsyncAuthorityFenceController(scopeKey);
   }
 
+  controllerRef.current.syncScope(scopeKey);
+
   useEffect(() => {
-    controllerRef.current?.abort();
-    controllerRef.current = null;
+    controllerRef.current?.abortActive();
   }, [scopeKey]);
 
   useEffect(
     () => () => {
-      epochRef.current += 1;
-      controllerRef.current?.abort();
-      controllerRef.current = null;
+      controllerRef.current?.invalidate();
     },
     [],
   );
 
   const begin = useCallback((): AsyncAuthorityTicket => {
-    epochRef.current += 1;
-    controllerRef.current?.abort();
-
-    const controller = new AbortController();
-    controllerRef.current = controller;
-
-    return {
-      epoch: epochRef.current,
-      scopeKey,
-      signal: controller.signal,
-    };
-  }, [scopeKey]);
-
-  const isCurrent = useCallback((ticket: AsyncAuthorityTicket): boolean => {
-    return (
-      ticket.epoch === epochRef.current &&
-      ticket.scopeKey === previousScopeRef.current &&
-      !ticket.signal.aborted
-    );
+    return controllerRef.current!.begin();
   }, []);
 
-  const finish = useCallback(
-    (ticket: AsyncAuthorityTicket): boolean => {
-      if (!isCurrent(ticket)) return false;
-      controllerRef.current = null;
-      return true;
-    },
-    [isCurrent],
-  );
+  const isCurrent = useCallback((ticket: AsyncAuthorityTicket): boolean => {
+    return controllerRef.current!.isCurrent(ticket);
+  }, []);
+
+  const finish = useCallback((ticket: AsyncAuthorityTicket): boolean => {
+    return controllerRef.current!.finish(ticket);
+  }, []);
 
   const invalidate = useCallback(() => {
-    epochRef.current += 1;
-    controllerRef.current?.abort();
-    controllerRef.current = null;
+    controllerRef.current!.invalidate();
   }, []);
 
   return { begin, isCurrent, finish, invalidate };
