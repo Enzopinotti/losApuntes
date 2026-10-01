@@ -115,12 +115,13 @@ function json(value: unknown): string {
 }
 
 export const communityApi = {
-  following: (limit = 50, cursor?: string) => {
+  following: (limit = 50, cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set("cursor", cursor);
 
     return request<{ items: FollowingItem[]; nextCursor: string | null }>(
       `/social/me/following?${query.toString()}`,
+      { signal },
     );
   },
 
@@ -135,13 +136,19 @@ export const communityApi = {
       method: "DELETE",
     }),
 
-  connections: (status?: ConnectionStatus, limit = 50, cursor?: string) => {
+  connections: (
+    status?: ConnectionStatus,
+    limit = 50,
+    cursor?: string,
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (status) query.set("status", status);
     if (cursor) query.set("cursor", cursor);
 
     return request<{ items: ConnectionView[]; nextCursor: string | null }>(
       `/social/me/connections?${query.toString()}`,
+      { signal },
     );
   },
 
@@ -162,13 +169,16 @@ export const communityApi = {
       method: "DELETE",
     }),
 
-  questions: (input: {
-    q?: string;
-    subjectId?: string;
-    status?: QuestionState;
-    cursor?: string;
-    limit?: number;
-  }) => {
+  questions: (
+    input: {
+      q?: string;
+      subjectId?: string;
+      status?: QuestionState;
+      cursor?: string;
+      limit?: number;
+    },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({
       limit: String(input.limit ?? 25),
     });
@@ -176,18 +186,28 @@ export const communityApi = {
     if (input.subjectId) query.set("subjectId", input.subjectId);
     if (input.status) query.set("status", input.status);
     if (input.cursor) query.set("cursor", input.cursor);
-    return request<QuestionSearchResponse>(`/questions?${query.toString()}`);
+    return request<QuestionSearchResponse>(`/questions?${query.toString()}`, {
+      signal,
+    });
   },
 
-  question: (id: string) =>
-    request<QuestionDetailResponse>(`/questions/${encodeURIComponent(id)}`),
+  question: (id: string, signal?: AbortSignal) =>
+    request<QuestionDetailResponse>(`/questions/${encodeURIComponent(id)}`, {
+      signal,
+    }),
 
-  answers: (questionId: string, cursor?: string, limit = 25) => {
+  answers: (
+    questionId: string,
+    cursor?: string,
+    limit = 25,
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set("cursor", cursor);
 
     return request<AnswerPageResponse>(
       `/questions/${encodeURIComponent(questionId)}/answers?${query.toString()}`,
+      { signal },
     );
   },
 
