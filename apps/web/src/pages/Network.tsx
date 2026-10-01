@@ -87,7 +87,18 @@ const Network = () => {
         setLoading(false);
       }
     }
-  }, [beginLoad, finishLoad, isLoadCurrent]);
+  }, [authorityScope, beginLoad, finishLoad, isLoadCurrent]);
+
+  useEffect(() => {
+    setPeople([]);
+    setFollowing([]);
+    setFollowingNextCursor(null);
+    setConnections([]);
+    setConnectionsNextCursor(null);
+    setBusy(null);
+    setFeedback(null);
+    setLoading(true);
+  }, [authorityScope]);
 
   useEffect(() => {
     void load();
