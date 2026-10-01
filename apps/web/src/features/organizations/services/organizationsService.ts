@@ -223,6 +223,22 @@ export const organizationsApi = {
       },
     ),
 
+  posts: (id: string, cursor?: string) => {
+    const query = new URLSearchParams({ limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return request<{ items: OrganizationPost[]; nextCursor: string | null }>(
+      `/organizations/${encodeURIComponent(id)}/posts?${query.toString()}`,
+    );
+  },
+
+  events: (id: string, cursor?: string) => {
+    const query = new URLSearchParams({ limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return request<{ items: OrganizationEvent[]; nextCursor: string | null }>(
+      `/organizations/${encodeURIComponent(id)}/events?${query.toString()}`,
+    );
+  },
+
   createPost: (id: string, input: { title?: string; body: string }) =>
     request<{ post: OrganizationPost }>(
       `/organizations/${encodeURIComponent(id)}/posts`,
