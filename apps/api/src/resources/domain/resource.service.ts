@@ -21,6 +21,7 @@ import {
   RESOURCE_STORE,
   ResourceAssetUnavailableError,
   type ResourceStore,
+  type SavedResourceCursor,
 } from './resource.store';
 import type { ResourceRecord, ResourceSearchCursor } from './resource.types';
 
@@ -97,6 +98,45 @@ function decodeCursor(value?: string): ResourceSearchCursor | undefined {
     throw new UnprocessableEntityException({
       code: 'RESOURCE_CURSOR_INVALID',
       message: 'Resource cursor is invalid',
+    });
+  }
+}
+
+function encodeSavedCursor(cursor: SavedResourceCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      createdAt: cursor.createdAt.toISOString(),
+      resourceId: cursor.resourceId,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeSavedCursor(value?: string): SavedResourceCursor | undefined {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (
+      typeof parsed.createdAt !== 'string' ||
+      typeof parsed.resourceId !== 'string'
+    ) {
+      throw new Error('Invalid saved cursor');
+    }
+
+    const createdAt = new Date(parsed.createdAt);
+    if (Number.isNaN(createdAt.getTime())) {
+      throw new Error('Invalid saved cursor date');
+    }
+
+    return { createdAt, resourceId: parsed.resourceId };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_SAVED_CURSOR_INVALID',
+      message: 'Saved Resource cursor is invalid',
     });
   }
 }
@@ -312,8 +352,13 @@ export class ResourceService {
     await this.store.removeSave(id, userId);
   }
 
-  async listSaved(userId: string, limit: number) {
-    const ids = await this.store.listSavedResourceIds(userId, limit);
+  async listSaved(userId: string, limit: number, cursor?: string) {
+    const page = await this.store.listSavedResources({
+      userId,
+      limit,
+      after: decodeSavedCursor(cursor),
+    });
+    const ids = page.items.map((row) => row.resourceId);
     const rows = await this.store.findManyByIds(ids);
     const byId = new Map(rows.map((row) => [row.id, row]));
     const visible: ResourceRecord[] = [];
@@ -323,10 +368,19 @@ export class ResourceService {
       if (row && (await this.canRead(row, userId))) visible.push(row);
     }
 
+    const last = page.items.at(-1);
+
     return {
       items: await Promise.all(
         visible.map((row) => this.projection(row, userId)),
       ),
+      nextCursor:
+        page.hasMore && last
+          ? encodeSavedCursor({
+              createdAt: last.createdAt,
+              resourceId: last.resourceId,
+            })
+          : null,
     };
   }
 
