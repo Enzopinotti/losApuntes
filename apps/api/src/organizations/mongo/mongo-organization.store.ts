@@ -735,6 +735,17 @@ export class MongoOrganizationStore implements OrganizationStore {
 
           let manager: OrganizationManagerRecord | null = null;
 
+          if (!current && input.nextRole !== null) {
+            const managerCount = await this.managers
+              .countDocuments({ organizationId: input.organizationId })
+              .session(session)
+              .exec();
+
+            if (managerCount >= ORGANIZATION_MANAGER_LIMIT) {
+              throw new ManagerMutationAbort({ status: 'manager_limit' });
+            }
+          }
+
           if (input.nextRole === null) {
             await this.managers
               .deleteOne(
