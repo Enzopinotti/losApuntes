@@ -8,6 +8,24 @@ import {
 } from "../features/organizations/services/organizationsService";
 import "./Organizations.scss";
 
+function appendPosts(
+  current: OrganizationDetail["posts"],
+  next: OrganizationDetail["posts"],
+) {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  for (const item of next) byId.set(item.id, item);
+  return [...byId.values()];
+}
+
+function appendEvents(
+  current: OrganizationDetail["events"],
+  next: OrganizationDetail["events"],
+) {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  for (const item of next) byId.set(item.id, item);
+  return [...byId.values()];
+}
+
 function messageFor(error: unknown): string {
   if (isOrganizationsApiError(error)) return error.message;
   return "No pudimos completar la operación.";
@@ -56,6 +74,58 @@ const Organization = () => {
         setFeedback("Ahora seguís esta organización.");
       }
       await load();
+    } catch (nextError) {
+      setError(messageFor(nextError));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const loadMorePosts = async () => {
+    if (!organization?.postsNextCursor) return;
+    setBusy("posts-more");
+    setError(null);
+
+    try {
+      const page = await organizationsApi.posts(
+        organization.id,
+        organization.postsNextCursor,
+      );
+      setOrganization((current) =>
+        current
+          ? {
+              ...current,
+              posts: appendPosts(current.posts, page.items),
+              postsNextCursor: page.nextCursor,
+            }
+          : current,
+      );
+    } catch (nextError) {
+      setError(messageFor(nextError));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const loadMoreEvents = async () => {
+    if (!organization?.eventsNextCursor) return;
+    setBusy("events-more");
+    setError(null);
+
+    try {
+      const page = await organizationsApi.events(
+        organization.id,
+        organization.eventsNextCursor,
+      );
+      setOrganization((current) =>
+        current
+          ? {
+              ...current,
+              events: appendEvents(current.events, page.items),
+              eventsNextCursor: page.nextCursor,
+            }
+          : current,
+      );
     } catch (nextError) {
       setError(messageFor(nextError));
     } finally {
@@ -240,6 +310,16 @@ const Organization = () => {
               ))}
             </div>
           )}
+          {organization.postsNextCursor && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy === "posts-more"}
+              onClick={() => void loadMorePosts()}
+            >
+              {busy === "posts-more" ? "Cargando…" : "Cargar más publicaciones"}
+            </button>
+          )}
         </section>
 
         <section className="organizations-card organizations-wide">
@@ -283,6 +363,16 @@ const Organization = () => {
                 </article>
               ))}
             </div>
+          )}
+          {organization.eventsNextCursor && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy === "events-more"}
+              onClick={() => void loadMoreEvents()}
+            >
+              {busy === "events-more" ? "Cargando…" : "Cargar más eventos"}
+            </button>
           )}
         </section>
 
