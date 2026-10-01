@@ -325,6 +325,8 @@ assert.equal(
   true,
 );
 assert.equal(metrics.body.moderation.reviewedInWindow >= 3, true);
+assert.equal(typeof metrics.body.subjectsTruncated, 'boolean');
+assert.equal(metrics.body.subjects.length <= 100, true);
 
 const auditCount = Number(
   mongoEval(
@@ -388,6 +390,8 @@ console.log(
       'moderation-dismiss',
       'durable-moderation-audit',
       'pilot-metrics',
+      'bounded-audience-aggregation',
+      'bounded-subject-density',
       'subject-density',
     ],
   }),
