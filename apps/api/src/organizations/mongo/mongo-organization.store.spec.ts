@@ -1,3 +1,8 @@
+import {
+  ORGANIZATION_FEATURED_RESOURCE_LIMIT,
+  ORGANIZATION_LINK_LIMIT,
+  ORGANIZATION_MANAGER_LIMIT,
+} from '../domain/organization-limits';
 import { MongoOrganizationStore } from './mongo-organization.store';
 
 const now = new Date('2026-09-30T12:00:00.000Z');
@@ -208,6 +213,28 @@ function featureResourceInput() {
     },
   };
 }
+
+describe('MongoOrganizationStore bounded Organization collections', () => {
+  it('limits complete managers, links and featured Resources to max+1 sentinels', async () => {
+    const fixture = models({});
+
+    await Promise.all([
+      fixture.store.listManagers(organizationId),
+      fixture.store.listLinks(organizationId),
+      fixture.store.listFeaturedResources(organizationId),
+    ]);
+
+    expect(fixture.managerListQuery.limit.mock.calls).toEqual([
+      [ORGANIZATION_MANAGER_LIMIT + 1],
+    ]);
+    expect(fixture.linkListQuery.limit.mock.calls).toEqual([
+      [ORGANIZATION_LINK_LIMIT + 1],
+    ]);
+    expect(fixture.featuredListQuery.limit.mock.calls).toEqual([
+      [ORGANIZATION_FEATURED_RESOURCE_LIMIT + 1],
+    ]);
+  });
+});
 
 describe('MongoOrganizationStore commit authority', () => {
   it('does not write after management revision changed before commit', async () => {
