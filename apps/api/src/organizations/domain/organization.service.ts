@@ -1098,7 +1098,9 @@ export class OrganizationService {
           avatarUrl: null,
         },
       })),
-      links: links.slice(0, ORGANIZATION_LINK_LIMIT).map((row) => this.linkProjection(row)),
+      links: links
+        .slice(0, ORGANIZATION_LINK_LIMIT)
+        .map((row) => this.linkProjection(row)),
       featuredResources: publicResources,
       posts: await Promise.all(
         posts.map((row) => this.postProjection(row, organization)),
