@@ -185,7 +185,11 @@ const Resources = () => {
   }, [load]);
 
   useEffect(() => {
+    setItems([]);
+    setNextCursor(null);
     setBusyId(null);
+    setFeedback(null);
+    setLoading(true);
     if (!authenticated) setSavedMode(false);
     uploadAbort.current?.abort();
     uploadAbort.current = null;
