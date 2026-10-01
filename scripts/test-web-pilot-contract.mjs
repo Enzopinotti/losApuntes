@@ -29,6 +29,8 @@ assert.doesNotMatch(home, /localStorage|sessionStorage/u);
 const admin = await read('apps/web/src/pages/AdminPilot.tsx');
 assert.match(admin, /pilotApi\.metrics\(/u);
 assert.match(admin, /pilotApi\.moderation\(/u);
+assert.match(admin, /subjectsTruncated/u);
+assert.match(admin, /100 materias/u);
 assert.match(admin, /nextError\.status\s*===\s*403/u);
 assert.doesNotMatch(admin, /pilot:ops:read|moderation:write/u);
 assert.doesNotMatch(admin, /localStorage|sessionStorage/u);
