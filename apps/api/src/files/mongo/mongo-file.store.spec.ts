@@ -28,12 +28,23 @@ describe('MongoFileAssetStore quarantine migration', () => {
           $or: [{ claimRef: { $type: 'string' } }, { expiresAt: { $gt: now } }],
         },
         {
-          $or: expect.arrayContaining([
+          $or: [
+            {
+              state: 'scan_pending',
+              $or: [
+                { scanNextAttemptAt: { $exists: false } },
+                { scanNextAttemptAt: { $lte: now } },
+              ],
+            },
+            {
+              state: 'scanning',
+              scanLeaseExpiresAt: { $lte: now },
+            },
             {
               state: 'ready',
               scanCompletedAt: { $exists: false },
             },
-          ]),
+          ],
         },
       ],
     });

@@ -224,12 +224,11 @@ describe('S3ObjectStorage', () => {
     expect(Buffer.concat(chunks).toString('utf8')).toBe('abcdefghij');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
-    const consumeInvalid = async () => {
-      for await (const _chunk of storage().readObjectChunks('x', 1)) {
-        // The invalid bound fails before network access.
-      }
-    };
-    await expect(consumeInvalid()).rejects.toThrow(
+    const invalidRead = storage()
+      .readObjectChunks('x', 1)
+      [Symbol.asyncIterator]()
+      .next();
+    await expect(invalidRead).rejects.toThrow(
       'maximumChunkBytes must be an integer between 1024 and 1048576',
     );
   });

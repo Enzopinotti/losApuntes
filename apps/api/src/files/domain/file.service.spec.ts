@@ -111,11 +111,11 @@ function storage(): jest.Mocked<ObjectStorage> {
     createUploadIntent: jest.fn(),
     headObject: jest.fn(),
     readPrefix: jest.fn(),
-    readObjectChunks: jest.fn(
-      (_objectKey: string, _maximumChunkBytes?: number) =>
-        (async function* () {
-          yield new Uint8Array(Buffer.from('%PDF-1.7'));
-        })(),
+    readObjectChunks: jest.fn(() =>
+      (async function* () {
+        await Promise.resolve();
+        yield new Uint8Array(Buffer.from('%PDF-1.7'));
+      })(),
     ),
     createDownloadIntent: jest.fn(),
     deleteObject: jest.fn(),
@@ -589,17 +589,22 @@ describe('FileService', () => {
       .mockReset()
       .mockResolvedValueOnce(asset({ state: 'failed' }));
 
-    await expect(
-      new FileService(fileStore, objectStorage).finalize(
+    try {
+      await new FileService(fileStore, objectStorage).finalize(
         'user-1',
         pending.id,
         now,
-      ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'FILE_SCAN_UNAVAILABLE',
-      }),
-    });
+      );
+      throw new Error('Expected scan failure');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      if (!(error instanceof ServiceUnavailableException)) throw error;
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({
+          code: 'FILE_SCAN_UNAVAILABLE',
+        }),
+      );
+    }
   });
 
   it('returns ready assets only and fails closed on incomplete download assets', async () => {
@@ -734,14 +739,13 @@ describe('FileService', () => {
       ),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
     const activeClaimId = fileStore.claimForScan.mock.calls[0]?.[1];
-    expect(activeClaimId).toEqual(expect.any(String));
-    expect(fileStore.markScanFailed).toHaveBeenCalledWith(
-      legacy.id,
-      activeClaimId,
-      'SCAN_METADATA_INVALID',
-      expect.any(Date),
-    );
-    expect(objectStorage.createDownloadIntent).not.toHaveBeenCalled();
+    expect(typeof activeClaimId).toBe('string');
+    const failedScan = fileStore.markScanFailed.mock.calls[0];
+    expect(failedScan?.[0]).toBe(legacy.id);
+    expect(failedScan?.[1]).toBe(activeClaimId);
+    expect(failedScan?.[2]).toBe('SCAN_METADATA_INVALID');
+    expect(failedScan?.[3]).toBeInstanceOf(Date);
+    expect(objectStorage.createDownloadIntent.mock.calls).toHaveLength(0);
   });
 
   it('treats a missing stored Content-Type as an invalid finalized upload', async () => {
@@ -898,8 +902,8 @@ describe('FileService', () => {
     );
 
     expect(result.file.state).toBe('ready');
-    expect(fileStore.claimForScan).toHaveBeenCalledTimes(1);
-    expect(fileStore.markReadyFromScan).toHaveBeenCalledTimes(1);
+    expect(fileStore.claimForScan.mock.calls).toHaveLength(1);
+    expect(fileStore.markReadyFromScan.mock.calls).toHaveLength(1);
   });
 
   it('rejects malicious bytes and deletes quarantined storage best effort', async () => {
@@ -922,20 +926,27 @@ describe('FileService', () => {
       }),
     };
 
-    await expect(
-      new FileService(fileStore, objectStorage, undefined, scanner).finalize(
+    try {
+      await new FileService(fileStore, objectStorage, undefined, scanner).finalize(
         'user-1',
         pending.id,
         now,
-      ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'FILE_SCAN_REJECTED',
-      }),
-    });
+      );
+      throw new Error('Expected rejected scan');
+    } catch (error) {
+      expect(error).toBeInstanceOf(UnprocessableEntityException);
+      if (!(error instanceof UnprocessableEntityException)) throw error;
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({
+          code: 'FILE_SCAN_REJECTED',
+        }),
+      );
+    }
 
-    expect(fileStore.markRejectedFromScan).toHaveBeenCalledTimes(1);
-    expect(objectStorage.deleteObject).toHaveBeenCalledWith(pending.objectKey);
+    expect(fileStore.markRejectedFromScan.mock.calls).toHaveLength(1);
+    expect(objectStorage.deleteObject.mock.calls).toContainEqual([
+      pending.objectKey,
+    ]);
   });
 
   it('keeps scanner outages quarantined and schedules bounded retry', async () => {
@@ -955,26 +966,28 @@ describe('FileService', () => {
       scan: jest.fn().mockRejectedValue(new Error('scanner offline')),
     };
 
-    await expect(
-      new FileService(fileStore, objectStorage, undefined, scanner).finalize(
+    try {
+      await new FileService(fileStore, objectStorage, undefined, scanner).finalize(
         'user-1',
         pending.id,
         now,
-      ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'FILE_SCAN_PENDING',
-      }),
-    });
+      );
+      throw new Error('Expected pending scan');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      if (!(error instanceof ServiceUnavailableException)) throw error;
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({
+          code: 'FILE_SCAN_PENDING',
+        }),
+      );
+    }
 
-    expect(fileStore.rescheduleScan).toHaveBeenCalledWith(
-      pending.id,
-      expect.any(String),
-      expect.objectContaining({
-        failureCode: 'SCANNER_UNAVAILABLE',
-        scanNextAttemptAt: expect.any(Date),
-      }),
-    );
+    const retryCall = fileStore.rescheduleScan.mock.calls[0];
+    expect(retryCall?.[0]).toBe(pending.id);
+    expect(typeof retryCall?.[1]).toBe('string');
+    expect(retryCall?.[2].failureCode).toBe('SCANNER_UNAVAILABLE');
+    expect(retryCall?.[2].scanNextAttemptAt).toBeInstanceOf(Date);
   });
 
   it('processes durable quarantine backlog with claimed ownership', async () => {
@@ -1011,13 +1024,12 @@ describe('FileService', () => {
       failed: 0,
       busy: 0,
     });
-    expect(fileStore.claimForScan).toHaveBeenCalledWith(
-      quarantined.id,
-      expect.any(String),
-      now,
-      expect.any(Date),
-    );
-    expect(fileStore.markReadyFromScan).toHaveBeenCalledTimes(1);
+    const claimCall = fileStore.claimForScan.mock.calls[0];
+    expect(claimCall?.[0]).toBe(quarantined.id);
+    expect(typeof claimCall?.[1]).toBe('string');
+    expect(claimCall?.[2]).toBe(now);
+    expect(claimCall?.[3]).toBeInstanceOf(Date);
+    expect(fileStore.markReadyFromScan.mock.calls).toHaveLength(1);
   });
 
   it('fails a scan closed after the bounded retry budget is exhausted', async () => {
@@ -1058,12 +1070,11 @@ describe('FileService', () => {
     ).processPendingScans(20, now);
 
     expect(result.failed).toBe(1);
-    expect(fileStore.markScanFailed).toHaveBeenCalledWith(
-      quarantined.id,
-      expect.any(String),
-      'SCAN_RETRY_EXHAUSTED',
-      expect.any(Date),
-    );
-    expect(fileStore.rescheduleScan).not.toHaveBeenCalled();
+    const failedCall = fileStore.markScanFailed.mock.calls[0];
+    expect(failedCall?.[0]).toBe(quarantined.id);
+    expect(typeof failedCall?.[1]).toBe('string');
+    expect(failedCall?.[2]).toBe('SCAN_RETRY_EXHAUSTED');
+    expect(failedCall?.[3]).toBeInstanceOf(Date);
+    expect(fileStore.rescheduleScan.mock.calls).toHaveLength(0);
   });
 });

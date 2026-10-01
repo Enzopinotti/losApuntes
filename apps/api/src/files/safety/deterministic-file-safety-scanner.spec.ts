@@ -1,6 +1,7 @@
 import { createDeterministicFileSafetyScanner } from './deterministic-file-safety-scanner';
 
 async function* chunks(values: string[]) {
+  await Promise.resolve();
   for (const value of values) {
     yield new Uint8Array(Buffer.from(value, 'ascii'));
   }
