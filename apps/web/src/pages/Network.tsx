@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type { SearchPersonResult } from "../features/search/interfaces";
 import {
   isSearchApiError,
@@ -13,6 +14,7 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
 
 function messageFor(error: unknown): string {
@@ -29,6 +31,22 @@ function messageFor(error: unknown): string {
 }
 
 const Network = () => {
+  const { status, user, session } = useAuth();
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`network-load:${authorityScope}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`network-action:${authorityScope}`);
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<SearchPersonResult[]>([]);
   const [following, setFollowing] = useState<FollowingItem[]>([]);
@@ -45,23 +63,31 @@ const Network = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const ticket = beginLoad();
     setLoading(true);
     setError(null);
+
     try {
       const [followingResult, connectionResult] = await Promise.all([
-        communityApi.following(),
-        communityApi.connections(),
+        communityApi.following(50, undefined, ticket.signal),
+        communityApi.connections(undefined, 50, undefined, ticket.signal),
       ]);
+      if (!isLoadCurrent(ticket)) return;
+
       setFollowing(followingResult.items);
       setFollowingNextCursor(followingResult.nextCursor);
       setConnections(connectionResult.items);
       setConnectionsNextCursor(connectionResult.nextCursor);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isLoadCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [beginLoad, finishLoad, isLoadCurrent]);
 
   useEffect(() => {
     void load();
@@ -70,36 +96,55 @@ const Network = () => {
   const loadMoreFollowing = async () => {
     if (!followingNextCursor) return;
 
+    const ticket = beginAction();
     setBusy("following-more");
     setError(null);
+
     try {
-      const result = await communityApi.following(50, followingNextCursor);
+      const result = await communityApi.following(
+        50,
+        followingNextCursor,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
       setFollowing((current) => [...current, ...result.items]);
       setFollowingNextCursor(result.nextCursor);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
   const loadMoreConnections = async () => {
     if (!connectionsNextCursor) return;
 
+    const ticket = beginAction();
     setBusy("connections-more");
     setError(null);
+
     try {
       const result = await communityApi.connections(
         undefined,
         50,
         connectionsNextCursor,
+        ticket.signal,
       );
+      if (!isActionCurrent(ticket)) return;
       setConnections((current) => [...current, ...result.items]);
       setConnectionsNextCursor(result.nextCursor);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
@@ -108,19 +153,30 @@ const Network = () => {
     const q = query.trim();
     if (q.length < 2) return;
 
+    const ticket = beginAction();
     setBusy("search");
     setError(null);
+
     try {
-      const result = await searchApi.search({
-        q,
-        scope: "people",
-        limit: 12,
-      });
-      setPeople(result.results.people);
+      const result = await searchApi.search(
+        {
+          q,
+          scope: "people",
+          limit: 12,
+        },
+        ticket.signal,
+      );
+      if (isActionCurrent(ticket)) {
+        setPeople(result.results.people);
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
@@ -129,17 +185,24 @@ const Network = () => {
     action: () => Promise<unknown>,
     success: string,
   ) => {
+    const ticket = beginAction();
     setBusy(key);
     setError(null);
     setFeedback(null);
+
     try {
       await action();
+      if (!isActionCurrent(ticket)) return;
       setFeedback(success);
       await load();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(messageFor(nextError));
+      }
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusy(null);
+      }
     }
   };
 
