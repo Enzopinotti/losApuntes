@@ -12,6 +12,7 @@ import type {
 } from "../features/auth/interfaces";
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import { authApi } from "../features/auth/services/authService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 
 const googleCallbackMessages: Record<string, string> = {
   linked: "Google quedó conectado como método para iniciar sesión.",
@@ -21,7 +22,22 @@ const googleCallbackMessages: Record<string, string> = {
 };
 
 const Security = () => {
-  const { session, refresh } = useAuth();
+  const { status, user, session, refresh } = useAuth();
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`security-load:${authorityScope}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`security-action:${authorityScope}`);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [sessions, setSessions] = useState<PublicAuthSession[]>([]);
@@ -41,19 +57,22 @@ const Security = () => {
   const [googlePassword, setGooglePassword] = useState("");
 
   const loadSecurity = useCallback(async () => {
+    const ticket = beginLoad();
     setLoading(true);
     setError(null);
     setRequestId(undefined);
 
     try {
       const [sessionResult, loginMethods, googleStatus] = await Promise.all([
-        authApi.sessions(),
-        authApi.loginMethods(),
-        authApi.googleStatus().catch(() => ({
+        authApi.sessions(ticket.signal),
+        authApi.loginMethods(ticket.signal),
+        authApi.googleStatus(ticket.signal).catch(() => ({
           webEnabled: false,
           mobileEnabled: false,
         })),
       ]);
+
+      if (!isLoadCurrent(ticket)) return;
 
       setSessions(sessionResult.sessions);
       setSessionsTruncated(sessionResult.truncated);
@@ -61,6 +80,7 @@ const Security = () => {
       setMethods(loginMethods);
       setGoogleEnabled(googleStatus.webEnabled);
     } catch (nextError) {
+      if (!isLoadCurrent(ticket)) return;
       setError(
         authErrorMessage(
           nextError,
@@ -69,9 +89,11 @@ const Security = () => {
       );
       setRequestId(authErrorRequestId(nextError));
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [beginLoad, finishLoad, isLoadCurrent]);
 
   useEffect(() => {
     void loadSecurity();
@@ -105,30 +127,38 @@ const Security = () => {
       return;
     }
 
+    const ticket = beginAction();
     setBusyAction("password");
 
     try {
       await authApi.changePassword(currentPassword, newPassword);
+      if (!isActionCurrent(ticket)) return;
       publishAuthAuthorityChanged();
       await refresh();
       navigate("/login?password=changed", { replace: true });
     } catch (nextError) {
-      setError(
-        authErrorMessage(nextError, "No pudimos cambiar la contraseña."),
-      );
-      setRequestId(authErrorRequestId(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(
+          authErrorMessage(nextError, "No pudimos cambiar la contraseña."),
+        );
+        setRequestId(authErrorRequestId(nextError));
+      }
     } finally {
-      setBusyAction(null);
+      if (finishAction(ticket)) {
+        setBusyAction(null);
+      }
     }
   };
 
   const revokeSession = async (target: PublicAuthSession) => {
+    const ticket = beginAction();
     setBusyAction(`session:${target.id}`);
     setError(null);
     setFeedback(null);
 
     try {
       await authApi.revokeSession(target.id);
+      if (!isActionCurrent(ticket)) return;
 
       if (target.current || target.id === session?.id) {
         publishAuthAuthorityChanged();
@@ -138,12 +168,18 @@ const Security = () => {
       }
 
       await loadSecurity();
-      setFeedback("Sesión cerrada.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Sesión cerrada.");
+      }
     } catch (nextError) {
-      setError(authErrorMessage(nextError, "No pudimos cerrar esa sesión."));
-      setRequestId(authErrorRequestId(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(authErrorMessage(nextError, "No pudimos cerrar esa sesión."));
+        setRequestId(authErrorRequestId(nextError));
+      }
     } finally {
-      setBusyAction(null);
+      if (finishAction(ticket)) {
+        setBusyAction(null);
+      }
     }
   };
 
@@ -152,26 +188,33 @@ const Security = () => {
       return;
     }
 
+    const ticket = beginAction();
     setBusyAction("all-sessions");
     setError(null);
     setFeedback(null);
 
     try {
       await authApi.revokeAllSessions();
+      if (!isActionCurrent(ticket)) return;
       publishAuthAuthorityChanged();
       await refresh();
       navigate("/login", { replace: true });
     } catch (nextError) {
-      setError(
-        authErrorMessage(nextError, "No pudimos cerrar todas las sesiones."),
-      );
-      setRequestId(authErrorRequestId(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(
+          authErrorMessage(nextError, "No pudimos cerrar todas las sesiones."),
+        );
+        setRequestId(authErrorRequestId(nextError));
+      }
     } finally {
-      setBusyAction(null);
+      if (finishAction(ticket)) {
+        setBusyAction(null);
+      }
     }
   };
 
   const connectGoogle = async () => {
+    const ticket = beginAction();
     setBusyAction("google-link");
     setError(null);
     setFeedback(null);
@@ -181,10 +224,13 @@ const Security = () => {
         googlePassword,
         "/settings/security",
       );
+      if (!isActionCurrent(ticket)) return;
 
       if (outcome.alreadyLinked) {
         await loadSecurity();
-        setFeedback("Google ya está conectado.");
+        if (isActionCurrent(ticket)) {
+          setFeedback("Google ya está conectado.");
+        }
         return;
       }
 
@@ -194,28 +240,42 @@ const Security = () => {
 
       window.location.assign(outcome.authorizationUrl);
     } catch (nextError) {
-      setError(authErrorMessage(nextError, "No pudimos conectar Google."));
-      setRequestId(authErrorRequestId(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(authErrorMessage(nextError, "No pudimos conectar Google."));
+        setRequestId(authErrorRequestId(nextError));
+      }
     } finally {
-      setBusyAction(null);
+      if (finishAction(ticket)) {
+        setBusyAction(null);
+      }
     }
   };
 
   const disconnectGoogle = async () => {
+    const ticket = beginAction();
     setBusyAction("google-unlink");
     setError(null);
     setFeedback(null);
 
     try {
       await authApi.unlinkGoogle(googlePassword);
+      if (!isActionCurrent(ticket)) return;
       setGooglePassword("");
       await loadSecurity();
-      setFeedback("Google ya no está conectado a tu cuenta.");
+      if (isActionCurrent(ticket)) {
+        setFeedback("Google ya no está conectado a tu cuenta.");
+      }
     } catch (nextError) {
-      setError(authErrorMessage(nextError, "No pudimos desconectar Google."));
-      setRequestId(authErrorRequestId(nextError));
+      if (isActionCurrent(ticket)) {
+        setError(
+          authErrorMessage(nextError, "No pudimos desconectar Google."),
+        );
+        setRequestId(authErrorRequestId(nextError));
+      }
     } finally {
-      setBusyAction(null);
+      if (finishAction(ticket)) {
+        setBusyAction(null);
+      }
     }
   };
 
