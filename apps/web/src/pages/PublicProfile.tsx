@@ -8,6 +8,7 @@ import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Profile.scss";
 
 function appendActivities(
@@ -21,40 +22,56 @@ function appendActivities(
 
 const PublicProfile = () => {
   const { profileId } = useParams();
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`public-profile-load:${profileId ?? "invalid"}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`public-profile-action:${profileId ?? "invalid"}`);
   const [snapshot, setSnapshot] = useState<PublicProfileResponse | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profileId) {
+      setSnapshot(null);
       setError("Perfil inválido.");
       return;
     }
 
-    let active = true;
+    const ticket = beginLoad();
+    setSnapshot(null);
+    setLoadingMore(false);
+    setError(null);
 
     void profileApi
-      .publicProfile(profileId)
+      .publicProfile(profileId, ticket.signal)
       .then((result) => {
-        if (active) setSnapshot(result);
+        if (isLoadCurrent(ticket)) {
+          setSnapshot(result);
+        }
       })
       .catch((nextError: unknown) => {
-        if (!active) return;
+        if (!isLoadCurrent(ticket)) return;
         if (isProfileApiError(nextError) && nextError.status === 404) {
           setError("Este perfil no existe o ya no está disponible.");
           return;
         }
         setError("No pudimos cargar este perfil.");
+      })
+      .finally(() => {
+        finishLoad(ticket);
       });
-
-    return () => {
-      active = false;
-    };
-  }, [profileId]);
+  }, [beginLoad, finishLoad, isLoadCurrent, profileId]);
 
   const loadMoreActivities = async () => {
     if (!profileId || !snapshot?.profile.activitiesNextCursor) return;
 
+    const ticket = beginAction();
     setLoadingMore(true);
     setError(null);
 
@@ -63,7 +80,10 @@ const PublicProfile = () => {
         profileId,
         snapshot.profile.activitiesNextCursor,
         snapshot.profile.activitiesLimit ?? 20,
+        ticket.signal,
       );
+      if (!isActionCurrent(ticket)) return;
+
       setSnapshot((current) => {
         if (!current?.profile.activities) return current;
 
@@ -80,9 +100,13 @@ const PublicProfile = () => {
         };
       });
     } catch {
-      setError("No pudimos cargar más actividades de este perfil.");
+      if (isActionCurrent(ticket)) {
+        setError("No pudimos cargar más actividades de este perfil.");
+      }
     } finally {
-      setLoadingMore(false);
+      if (finishAction(ticket)) {
+        setLoadingMore(false);
+      }
     }
   };
 
