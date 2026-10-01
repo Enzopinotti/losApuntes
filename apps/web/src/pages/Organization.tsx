@@ -78,7 +78,19 @@ const Organization = () => {
     } finally {
       finishLoad(ticket);
     }
-  }, [beginLoad, finishLoad, isLoadCurrent, organizationId]);
+  }, [
+    authorityScope,
+    beginLoad,
+    finishLoad,
+    isLoadCurrent,
+    organizationId,
+  ]);
+
+  useEffect(() => {
+    setOrganization(null);
+    setBusy(null);
+    setFeedback(null);
+  }, [authorityScope]);
 
   useEffect(() => {
     void load();
