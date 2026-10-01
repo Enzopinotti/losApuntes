@@ -116,30 +116,39 @@ export function isResourcesApiError(
 }
 
 export const resourcesApi = {
-  search: (input: {
-    q?: string;
-    visibility?: ResourceVisibility;
-    subjectId?: string;
-    cursor?: string;
-  }) => {
+  search: (
+    input: {
+      q?: string;
+      visibility?: ResourceVisibility;
+      subjectId?: string;
+      cursor?: string;
+    },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams();
     if (input.q) query.set("q", input.q);
     if (input.visibility) query.set("visibility", input.visibility);
     if (input.subjectId) query.set("subjectId", input.subjectId);
     if (input.cursor) query.set("cursor", input.cursor);
     query.set("limit", "25");
-    return request<ResourceSearchResponse>(`/resources?${query.toString()}`);
+    return request<ResourceSearchResponse>(`/resources?${query.toString()}`, {
+      signal,
+    });
   },
 
-  saved: (cursor?: string) => {
+  saved: (cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: "25" });
     if (cursor) query.set("cursor", cursor);
     return request<ResourceSearchResponse>(
       `/resources/saved?${query.toString()}`,
+      { signal },
     );
   },
 
-  searchSubjects: async (q: string): Promise<AcademicSubjectOption[]> => {
+  searchSubjects: async (
+    q: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicSubjectOption[]> => {
     const query = new URLSearchParams({
       kind: "subject",
       q,
@@ -147,7 +156,7 @@ export const resourcesApi = {
     });
     const result = await request<{
       items: Array<{ id: string; name: string }>;
-    }>(`/academic/catalog/search?${query.toString()}`);
+    }>(`/academic/catalog/search?${query.toString()}`, { signal });
 
     return result.items.map(({ id, name }) => ({ id, name }));
   },
