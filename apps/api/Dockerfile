@@ -14,7 +14,6 @@ COPY apps/web/package.json apps/web/package.json
 RUN pnpm install --frozen-lockfile --filter @losapuntes/api...
 
 COPY apps/api apps/api
-COPY packages/contracts packages/contracts
 
 RUN pnpm --filter @losapuntes/api build
 
