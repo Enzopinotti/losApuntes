@@ -42,6 +42,11 @@ function apiUrl(path: string): string {
   return new URL(path.replace(/^\//, ""), `${apiBaseUrl}/`).toString();
 }
 
+function requestSignal(signal?: AbortSignal | null): AbortSignal {
+  const timeout = AbortSignal.timeout(15_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 function message(envelope: ErrorEnvelope): string {
   if (Array.isArray(envelope.message)) return envelope.message.join(" ");
   return envelope.message || "No pudimos completar la operación.";
@@ -60,7 +65,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: init.signal ?? AbortSignal.timeout(15_000),
+      signal: requestSignal(init.signal),
     });
   } catch {
     throw new OrganizationsApiError(
