@@ -394,6 +394,23 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.create': {
+              await this.acquireCapacityLock(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
+              const linkCount = await this.links
+                .countDocuments({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+
+              if (linkCount >= ORGANIZATION_LINK_LIMIT) {
+                throw new AuthorizedMutationAbort({
+                  status: 'collection_limit',
+                  collection: 'links',
+                });
+              }
+
               const created = await this.links.create([mutation.record], {
                 session,
               });
@@ -450,6 +467,23 @@ export class MongoOrganizationStore implements OrganizationStore {
                   value: existing,
                 };
                 return;
+              }
+
+              await this.acquireCapacityLock(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
+              const featuredCount = await this.featuredResources
+                .countDocuments({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+
+              if (featuredCount >= ORGANIZATION_FEATURED_RESOURCE_LIMIT) {
+                throw new AuthorizedMutationAbort({
+                  status: 'collection_limit',
+                  collection: 'featured_resources',
+                });
               }
 
               const created = await this.featuredResources.create(
@@ -513,6 +547,29 @@ export class MongoOrganizationStore implements OrganizationStore {
       return output;
     } finally {
       await session.endSession();
+    }
+  }
+
+  private async acquireCapacityLock(
+    organizationId: string,
+    expectedManagementRevision: number,
+    session: ClientSession,
+  ): Promise<void> {
+    const locked = await this.organizations
+      .findOneAndUpdate(
+        {
+          id: organizationId,
+          status: 'active',
+          managementRevision: expectedManagementRevision,
+        },
+        { $inc: { capacityRevision: 1 } },
+        { new: true, session },
+      )
+      .lean<OrganizationRecord>()
+      .exec();
+
+    if (!locked) {
+      throw new AuthorizedMutationAbort({ status: 'authority_stale' });
     }
   }
 
