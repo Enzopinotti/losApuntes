@@ -45,6 +45,12 @@ jobs:
       - name: Install workspace from frozen lockfile
         run: pnpm install --frozen-lockfile
 
+      - name: Emit exact final quarantine Prettier patch
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --write src/files/domain/file.service.spec.ts
+          git diff -- apps/api/src/files/domain/file.service.spec.ts
+          exit 1
+
       - name: Run repository quality contract
         run: pnpm check
 
