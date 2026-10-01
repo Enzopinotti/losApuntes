@@ -588,6 +588,11 @@ describe('FeedService', () => {
     expect(second.nextCursor).not.toBeNull();
     expect(third.nextCursor).toBeNull();
     expect(third.stopReason).toBe('natural_break');
+
+    const deliveredIds = [...first.items, ...second.items, ...third.items].map(
+      (item) => item.id,
+    );
+    expect(new Set(deliveredIds).size).toBe(deliveredIds.length);
   });
 
   it('records idempotent readable-target feedback and returns new revision', async () => {
