@@ -11,7 +11,8 @@ import {
 } from './files-worker-health';
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
-const BATCH_SIZE = 100;
+const CLEANUP_BATCH_SIZE = 100;
+const SCAN_BATCH_SIZE = 20;
 
 function cleanupIntervalMs(): number {
   const raw = process.env.FILES_CLEANUP_INTERVAL_MS?.trim();
@@ -63,20 +64,37 @@ async function bootstrap(): Promise<void> {
           await writeFilesWorkerHealth('not_ready', healthValidityMs);
           console.warn(
             JSON.stringify({
-              event: 'files.cleanup.dependencies_unavailable',
+              event: 'files.worker.dependencies_unavailable',
               status: diagnostics.status,
             }),
           );
         } else {
-          const result = await files.cleanupExpiredAssets(BATCH_SIZE);
-          await writeFilesWorkerHealth('ready', healthValidityMs);
+          const scans = await files.processPendingScans(SCAN_BATCH_SIZE);
+          const cleanup = await files.cleanupExpiredAssets(CLEANUP_BATCH_SIZE);
+          const iterationReady =
+            scans.retryScheduled === 0 && scans.failed === 0;
 
-          if (result.reclaimed > 0) {
+          await writeFilesWorkerHealth(
+            iterationReady ? 'ready' : 'not_ready',
+            healthValidityMs,
+          );
+
+          if (scans.examined > 0 || cleanup.reclaimed > 0) {
             console.log(
               JSON.stringify({
-                event: 'files.cleanup.completed',
-                examined: result.examined,
-                reclaimed: result.reclaimed,
+                event: 'files.worker.completed',
+                scans: {
+                  examined: scans.examined,
+                  clean: scans.clean,
+                  rejected: scans.rejected,
+                  retryScheduled: scans.retryScheduled,
+                  failed: scans.failed,
+                  busy: scans.busy,
+                },
+                cleanup: {
+                  examined: cleanup.examined,
+                  reclaimed: cleanup.reclaimed,
+                },
               }),
             );
           }
@@ -87,7 +105,7 @@ async function bootstrap(): Promise<void> {
         );
         console.warn(
           JSON.stringify({
-            event: 'files.cleanup.iteration_failed',
+            event: 'files.worker.iteration_failed',
             errorType: error instanceof Error ? error.name : 'UnknownError',
           }),
         );
@@ -111,7 +129,7 @@ async function bootstrap(): Promise<void> {
 void bootstrap().catch((error: unknown) => {
   console.error(
     JSON.stringify({
-      event: 'files.cleanup.worker_failed',
+      event: 'files.worker.failed',
       errorType: error instanceof Error ? error.name : 'UnknownError',
     }),
   );

@@ -42,6 +42,8 @@ assert.match(gate, /verifyBackupSet/u);
 assert.match(library, /backup\/recovery artifacts must live outside the repository/u);
 assert.match(library, /mode: 0o600/u);
 assert.match(verifier, /resource:\$\{resource\.id\}/u);
+assert.match(verifier, /scanCompletedAt/u);
+assert.match(verifier, /scanEngine/u);
 assert.match(verifier, /storage\.headObject/u);
 assert.doesNotMatch(verifier, /console\.(?:log|error)\([^)]*(?:objectKey|mongoUri|secretAccessKey)/u);
 

@@ -300,6 +300,83 @@ assert.equal(
   'FILE_UPLOAD_IDEMPOTENCY_CONFLICT',
 );
 
+const quarantineMarker = 'LOSAPUNTES-QUARANTINE-TEST-MARKER-V1';
+const quarantinedBytes = Buffer.from(
+  `%PDF-1.7\n${quarantineMarker}\n%%EOF\n`,
+  'utf8',
+);
+const quarantinedIntent = await request(
+  '/files/upload-intents',
+  json(
+    'POST',
+    {
+      operationKey: randomUUID(),
+      filename: 'quarantine-test.pdf',
+      mimeType: 'application/pdf',
+      byteSize: quarantinedBytes.byteLength,
+    },
+    author.bearer,
+  ),
+);
+assert.equal(quarantinedIntent.response.status, 201);
+const quarantinedObjectKey = mongoEval(
+  [
+    `const id = ${JSON.stringify(quarantinedIntent.body.file.id)};`,
+    "const row = db.file_assets.findOne({ id });",
+    "if (!row) quit(2);",
+    "print(row.objectKey);",
+  ].join('\n'),
+);
+const quarantinedPut = await fetch(quarantinedIntent.body.upload.url, {
+  method: quarantinedIntent.body.upload.method,
+  headers: quarantinedIntent.body.upload.headers,
+  body: quarantinedBytes,
+  signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+});
+assert.equal(quarantinedPut.ok, true);
+const quarantinedFinalize = await request(
+  `/files/${quarantinedIntent.body.file.id}/finalize`,
+  {
+    method: 'POST',
+    headers: { authorization: author.bearer },
+  },
+);
+assert.equal(quarantinedFinalize.response.status, 422);
+assert.equal(quarantinedFinalize.body.code, 'FILE_SCAN_REJECTED');
+const quarantinedState = mongoEval(
+  [
+    `const id = ${JSON.stringify(quarantinedIntent.body.file.id)};`,
+    "const row = db.file_assets.findOne({ id });",
+    "print(row ? row.state : 'missing');",
+  ].join('\n'),
+);
+assert.equal(
+  quarantinedState,
+  'rejected',
+  'Quarantine test bytes must remain non-shareable after scanning',
+);
+const rejectedResource = await request(
+  '/resources',
+  json(
+    'POST',
+    {
+      assetId: quarantinedIntent.body.file.id,
+      title: 'Rejected quarantine asset',
+      subjectId: subject.id,
+      visibility: 'public',
+    },
+    author.bearer,
+  ),
+);
+assert.equal(rejectedResource.response.status, 409);
+assert.equal(rejectedResource.body.code, 'RESOURCE_ASSET_UNAVAILABLE');
+const rejectedObjectStat = storageObjectExists(quarantinedObjectKey);
+assert.equal(
+  rejectedObjectStat.exists,
+  false,
+  'Rejected quarantine bytes must be deleted best effort immediately',
+);
+
 const wrongSizeBytes = Buffer.from(
   '%PDF-1.7\nsize-bound-runtime\n%%EOF\n',
   'utf8',
@@ -738,6 +815,9 @@ console.log(
       'direct-private-object-upload',
       'signed-content-length-bound',
       'immutable-signed-put',
+      'quarantine-rejection',
+      'rejected-asset-cannot-publish',
+      'rejected-byte-cleanup',
       'cross-user-file-finalize-deny',
       'finalize-idempotency',
       'asset-single-claim',

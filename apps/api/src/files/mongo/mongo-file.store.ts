@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import type { FilterQuery, Model } from 'mongoose';
 
 import {
   type CreateUploadFileAssetRecord,
@@ -18,8 +18,36 @@ function mongoErrorCode(error: unknown): number | null {
   ) {
     return (error as { code: number }).code;
   }
-
   return null;
+}
+
+function scanEligibility(now: Date): FilterQuery<FileAsset> {
+  return {
+    $and: [
+      {
+        $or: [{ claimRef: { $type: 'string' } }, { expiresAt: { $gt: now } }],
+      },
+      {
+        $or: [
+          {
+            state: 'scan_pending',
+            $or: [
+              { scanNextAttemptAt: { $exists: false } },
+              { scanNextAttemptAt: { $lte: now } },
+            ],
+          },
+          {
+            state: 'scanning',
+            scanLeaseExpiresAt: { $lte: now },
+          },
+          {
+            state: 'ready',
+            scanCompletedAt: { $exists: false },
+          },
+        ],
+      },
+    ],
+  };
 }
 
 @Injectable()
@@ -55,7 +83,6 @@ export class MongoFileAssetStore implements FileAssetStore {
       return record;
     } catch (error) {
       if (mongoErrorCode(error) !== 11000) throw error;
-
       const replay = await this.assets
         .findOne(identity)
         .lean<FileAssetRecord>()
@@ -79,35 +106,185 @@ export class MongoFileAssetStore implements FileAssetStore {
       .exec();
   }
 
-  async markReady(
+  async markScanPending(
     id: string,
     creatorUserId: string,
-    input: {
-      verifiedMimeType: FileAssetRecord['declaredMimeType'];
-      actualByteSize: number;
-      etag?: string;
-      readyAt: Date;
-      expiresAt: Date;
-    },
+    input: Parameters<FileAssetStore['markScanPending']>[2],
   ): Promise<FileAssetRecord | null> {
     return this.assets
       .findOneAndUpdate(
-        { id, creatorUserId, state: 'pending' },
+        { id, creatorUserId, state: 'pending', claimRef: null },
         {
           $set: {
-            state: 'ready',
+            state: 'scan_pending',
             verifiedMimeType: input.verifiedMimeType,
             actualByteSize: input.actualByteSize,
             ...(input.etag ? { etag: input.etag } : {}),
-            readyAt: input.readyAt,
+            scanAttempts: 0,
+            scanNextAttemptAt: input.scanNextAttemptAt,
             expiresAt: input.expiresAt,
           },
-          $unset: { failureCode: 1 },
+          $unset: {
+            failureCode: 1,
+            scanClaimId: 1,
+            scanLeaseExpiresAt: 1,
+            scanStartedAt: 1,
+            scanCompletedAt: 1,
+            scanEngine: 1,
+            readyAt: 1,
+          },
         },
         { new: true },
       )
       .lean<FileAssetRecord>()
       .exec();
+  }
+
+  async listScannable(now: Date, limit: number): Promise<FileAssetRecord[]> {
+    return this.assets
+      .find(scanEligibility(now))
+      .sort({ scanNextAttemptAt: 1, updatedAt: 1, id: 1 })
+      .limit(limit)
+      .lean<FileAssetRecord[]>()
+      .exec();
+  }
+
+  async claimForScan(
+    id: string,
+    claimId: string,
+    now: Date,
+    leaseExpiresAt: Date,
+  ): Promise<FileAssetRecord | null> {
+    return this.assets
+      .findOneAndUpdate(
+        { id, ...scanEligibility(now) },
+        {
+          $set: {
+            state: 'scanning',
+            scanClaimId: claimId,
+            scanStartedAt: now,
+            scanLeaseExpiresAt: leaseExpiresAt,
+          },
+          $inc: { scanAttempts: 1 },
+          $unset: { scanNextAttemptAt: 1, failureCode: 1 },
+        },
+        { new: true },
+      )
+      .lean<FileAssetRecord>()
+      .exec();
+  }
+
+  async markReadyFromScan(
+    id: string,
+    claimId: string,
+    input: Parameters<FileAssetStore['markReadyFromScan']>[2],
+  ): Promise<FileAssetRecord | null> {
+    return this.assets
+      .findOneAndUpdate(
+        { id, state: 'scanning', scanClaimId: claimId },
+        {
+          $set: {
+            state: 'ready',
+            scanEngine: input.scanEngine,
+            scanCompletedAt: input.scanCompletedAt,
+            readyAt: input.readyAt,
+            ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+          },
+          $unset: {
+            failureCode: 1,
+            scanNextAttemptAt: 1,
+            scanClaimId: 1,
+            scanLeaseExpiresAt: 1,
+            ...(input.expiresAt ? {} : { expiresAt: 1 }),
+          },
+        },
+        { new: true },
+      )
+      .lean<FileAssetRecord>()
+      .exec();
+  }
+
+  async markRejectedFromScan(
+    id: string,
+    claimId: string,
+    input: Parameters<FileAssetStore['markRejectedFromScan']>[2],
+  ): Promise<FileAssetRecord | null> {
+    return this.assets
+      .findOneAndUpdate(
+        { id, state: 'scanning', scanClaimId: claimId },
+        {
+          $set: {
+            state: 'rejected',
+            failureCode: 'MALWARE_DETECTED',
+            scanEngine: input.scanEngine,
+            scanCompletedAt: input.scanCompletedAt,
+            expiresAt: input.expiresAt,
+          },
+          $unset: {
+            scanNextAttemptAt: 1,
+            scanClaimId: 1,
+            scanLeaseExpiresAt: 1,
+            readyAt: 1,
+          },
+        },
+        { new: true },
+      )
+      .lean<FileAssetRecord>()
+      .exec();
+  }
+
+  async rescheduleScan(
+    id: string,
+    claimId: string,
+    input: Parameters<FileAssetStore['rescheduleScan']>[2],
+  ): Promise<boolean> {
+    const result = await this.assets
+      .updateOne(
+        { id, state: 'scanning', scanClaimId: claimId },
+        {
+          $set: {
+            state: 'scan_pending',
+            failureCode: input.failureCode,
+            scanNextAttemptAt: input.scanNextAttemptAt,
+          },
+          $unset: {
+            scanClaimId: 1,
+            scanLeaseExpiresAt: 1,
+            readyAt: 1,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
+  }
+
+  async markScanFailed(
+    id: string,
+    claimId: string,
+    failureCode: string,
+    expiresAt: Date,
+  ): Promise<boolean> {
+    const result = await this.assets
+      .updateOne(
+        { id, state: 'scanning', scanClaimId: claimId },
+        {
+          $set: {
+            state: 'failed',
+            failureCode,
+            expiresAt,
+          },
+          $unset: {
+            scanNextAttemptAt: 1,
+            scanClaimId: 1,
+            scanLeaseExpiresAt: 1,
+            readyAt: 1,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
   }
 
   async markFailed(
@@ -137,7 +314,24 @@ export class MongoFileAssetStore implements FileAssetStore {
       .find({
         expiresAt: { $lte: now },
         claimRef: null,
-        state: { $in: ['pending', 'failed', 'ready', 'reclaiming'] },
+        $or: [
+          {
+            state: {
+              $in: [
+                'pending',
+                'scan_pending',
+                'ready',
+                'rejected',
+                'failed',
+                'reclaiming',
+              ],
+            },
+          },
+          {
+            state: 'scanning',
+            scanLeaseExpiresAt: { $lte: now },
+          },
+        ],
       })
       .sort({ expiresAt: 1, id: 1 })
       .limit(limit)
@@ -157,10 +351,16 @@ export class MongoFileAssetStore implements FileAssetStore {
           state: expectedState,
           claimRef: null,
           expiresAt: { $lte: now },
+          ...(expectedState === 'scanning'
+            ? { scanLeaseExpiresAt: { $lte: now } }
+            : {}),
         },
         {
-          $set: {
-            state: 'reclaiming',
+          $set: { state: 'reclaiming' },
+          $unset: {
+            scanClaimId: 1,
+            scanLeaseExpiresAt: 1,
+            scanNextAttemptAt: 1,
           },
         },
         { new: true },

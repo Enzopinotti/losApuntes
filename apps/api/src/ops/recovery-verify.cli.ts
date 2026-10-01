@@ -14,6 +14,8 @@ type FileAssetRow = {
   verifiedMimeType?: string;
   actualByteSize?: number;
   state: string;
+  scanCompletedAt?: Date;
+  scanEngine?: string;
   claimRef?: string | null;
 };
 
@@ -106,6 +108,8 @@ async function main(): Promise<void> {
             verifiedMimeType: 1,
             actualByteSize: 1,
             state: 1,
+            scanCompletedAt: 1,
+            scanEngine: 1,
             claimRef: 1,
           },
         },
@@ -114,6 +118,10 @@ async function main(): Promise<void> {
       if (
         !asset ||
         asset.state !== 'ready' ||
+        !(asset.scanCompletedAt instanceof Date) ||
+        !Number.isFinite(asset.scanCompletedAt.getTime()) ||
+        typeof asset.scanEngine !== 'string' ||
+        asset.scanEngine.trim().length === 0 ||
         asset.provider !== storage.providerId ||
         asset.claimRef !== `resource:${resource.id}` ||
         typeof asset.objectKey !== 'string' ||

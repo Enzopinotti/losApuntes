@@ -60,6 +60,27 @@ export class FileAsset {
   @Prop({ type: Date })
   readyAt?: Date;
 
+  @Prop({ min: 0, default: 0 })
+  scanAttempts?: number;
+
+  @Prop({ type: Date, index: true })
+  scanNextAttemptAt?: Date;
+
+  @Prop()
+  scanClaimId?: string;
+
+  @Prop({ type: Date, index: true })
+  scanLeaseExpiresAt?: Date;
+
+  @Prop({ type: Date })
+  scanStartedAt?: Date;
+
+  @Prop({ type: Date })
+  scanCompletedAt?: Date;
+
+  @Prop()
+  scanEngine?: string;
+
   @Prop({ type: String, default: null })
   claimRef?: string | null;
 
@@ -76,6 +97,11 @@ export class FileAsset {
 export const FileAssetSchema = SchemaFactory.createForClass(FileAsset);
 
 FileAssetSchema.index({ state: 1, expiresAt: 1 });
+FileAssetSchema.index({
+  state: 1,
+  scanNextAttemptAt: 1,
+  scanLeaseExpiresAt: 1,
+});
 FileAssetSchema.index(
   { claimRef: 1 },
   {
@@ -83,7 +109,6 @@ FileAssetSchema.index(
     partialFilterExpression: { claimRef: { $type: 'string' } },
   },
 );
-
 FileAssetSchema.index(
   { creatorUserId: 1, purpose: 1, uploadOperationKey: 1 },
   {

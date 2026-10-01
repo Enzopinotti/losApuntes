@@ -69,9 +69,11 @@ Finalize verifies:
 - storage Content-Type matches the intent;
 - bounded byte prefix matches the supported file signature.
 
-A successful finalize transitions the asset to `ready`. Repeating finalize for the same already-ready asset is idempotent.
+After storage verification, finalize stages the asset in quarantine. A lease-owned safety scan streams the verified private object without loading the full file into application memory.
 
-Failure or expiry never creates a Resource.
+Only a clean verdict may transition the asset to `ready`. A malicious verdict transitions to `rejected` and the object bytes are deleted best effort. Scanner/network failure keeps the asset non-shareable and schedules bounded retry; the client receives `FILE_SCAN_PENDING` or `FILE_SCAN_UNAVAILABLE` rather than a fabricated ready state. Repeating finalize for an already clean `ready` asset is idempotent.
+
+Legacy `ready` rows without `scanCompletedAt + scanEngine` evidence are fail-closed and re-enter the scan path. Failure, quarantine or expiry never creates a Resource.
 
 ## Resources
 
@@ -143,6 +145,7 @@ Rules:
 - Subject/CourseOffering resolve through Academic Graph;
 - CourseOffering must belong to the selected Subject;
 - the ready asset must belong to the actor;
+- `ready` is insufficient without durable `scanCompletedAt + scanEngine` evidence;
 - one asset can be claimed by one Resource only;
 - asset claim and Resource creation are one Mongo transaction.
 
@@ -240,10 +243,12 @@ One pending report relationship per reporter/resource is durable and idempotent.
 Unclaimed expired assets are reclaimed by the dedicated worker:
 
 ```text
-pending | failed | ready(unclaimed)
+pending | scan_pending | rejected | failed | ready(unclaimed)
 -> reclaiming  // atomic claim
 -> delete private object bytes
 -> reclaimed
+
+scanning with an expired scan lease may also be reclaimed after its asset expiry. Active scan leases are never stolen by cleanup.
 ```
 
 Resource creation can claim only `ready` assets. Therefore cleanup cannot delete bytes after a Resource has won the claim race.
@@ -265,6 +270,9 @@ Relevant stable codes include:
 - `FILE_UPLOAD_IDEMPOTENCY_CONFLICT`;
 - `FILE_UPLOAD_OPERATION_STATE_CONFLICT`;
 - `FILE_STORAGE_UNAVAILABLE`;
+- `FILE_SCAN_PENDING`;
+- `FILE_SCAN_UNAVAILABLE`;
+- `FILE_SCAN_REJECTED`;
 - `RESOURCE_NOT_FOUND`;
 - `RESOURCE_ASSET_UNAVAILABLE`;
 - `RESOURCE_REVISION_CONFLICT`;
@@ -284,6 +292,7 @@ Clients must not:
 - send app cookies to the object-storage PUT;
 - invent free-text canonical academic identity;
 - assume a save/share remains authorized without server confirmation;
-- silently publish a failed or unfinished upload.
+- silently publish a failed, quarantined or unfinished upload;
+- interpret `FILE_SCAN_PENDING` as permission to create a second FileAsset; retry finalize/status flow for the same asset instead.
 
 Web v1 implements these rules. Native Mobile must consume this same contract when its own module is closed.

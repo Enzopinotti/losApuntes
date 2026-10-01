@@ -96,6 +96,8 @@ export class MongoResourceStore implements ResourceStore {
               id: input.resource.assetId,
               creatorUserId: input.actorUserId,
               state: 'ready',
+              scanCompletedAt: { $type: 'date' },
+              scanEngine: { $type: 'string' },
               claimRef: null,
               expiresAt: { $gt: input.now },
             },

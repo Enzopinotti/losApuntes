@@ -6,6 +6,7 @@ module.exports = {
     'files/domain/file.service.ts',
     'files/storage/file-mime.ts',
     'files/storage/s3-object-storage.ts',
+    'files/safety/deterministic-file-safety-scanner.ts',
     'resources/domain/resource.service.ts',
   ],
   coverageThreshold: {
