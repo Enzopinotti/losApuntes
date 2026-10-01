@@ -14,6 +14,7 @@ import type {
   GoogleUnlinkInput,
   LoginMethodsResponse,
   MobileAuthenticatedSessionResponse,
+  PilotHomeResponse,
   PasswordChangeInput,
   PasswordLoginInput,
   PasswordRecoveryCompleteInput,
@@ -390,6 +391,13 @@ export class MobileApiClient {
         ...(signal ? { signal } : {}),
       },
     );
+  }
+
+  pilotHome(credential: string, signal?: AbortSignal) {
+    return this.request<PilotHomeResponse>("/pilot/home", {
+      credential,
+      ...(signal ? { signal } : {}),
+    });
   }
 
   setAcademicContext(

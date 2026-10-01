@@ -1,26 +1,4 @@
-import type { AcademicLifecycleResponse } from "../academic/interfaces";
-import type {
-  AcademicFeedResponse,
-  FeedPageResponse,
-  ForYouFeedResponse,
-} from "../feeds/interfaces";
-
-export type PilotHomeResponse = {
-  profileReady: boolean;
-  lifecycle: AcademicLifecycleResponse;
-  academic: {
-    currentContext: unknown | null;
-    currentSubjectIds: string[];
-  };
-  homeFeed: FeedPageResponse & {
-    kind: "subjects" | "community";
-  };
-  academicFeed: AcademicFeedResponse;
-  forYou: ForYouFeedResponse;
-  notifications: {
-    unreadCount: number;
-  };
-};
+export type { PilotHomeResponse } from "@losapuntes/contracts";
 
 export type PilotModerationStatus = "pending" | "resolved" | "dismissed";
 export type PilotModerationAction = "hide" | "restore" | "dismiss";

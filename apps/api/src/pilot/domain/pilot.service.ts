@@ -5,6 +5,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import type { PilotHomeResponse } from '@losapuntes/contracts';
 
 import { AcademicLifecycleService } from '../../academic/domain/academic-lifecycle.service';
 import { AcademicService } from '../../academic/domain/academic.service';
@@ -49,7 +50,7 @@ export class PilotService {
     private readonly events: PilotEventService,
   ) {}
 
-  async home(userId: string) {
+  async home(userId: string): Promise<PilotHomeResponse> {
     const [
       profile,
       lifecycle,

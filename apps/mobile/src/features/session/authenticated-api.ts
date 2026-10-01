@@ -4,6 +4,7 @@ import type {
   GoogleUnlinkInput,
   LoginMethodsResponse,
   PasswordChangeInput,
+  PilotHomeResponse,
 } from "@losapuntes/contracts";
 
 import { ApiRequestError } from "@/services/api/client";
@@ -11,6 +12,10 @@ import { ApiRequestError } from "@/services/api/client";
 import type { SessionController } from "./session-controller";
 
 export interface AuthenticatedApiTransport {
+  pilotHome(
+    credential: string,
+    signal?: AbortSignal,
+  ): Promise<PilotHomeResponse>;
   listSessions(
     credential: string,
     signal?: AbortSignal,
@@ -52,6 +57,12 @@ export class AuthenticatedMobileApi {
     private readonly session: SessionController,
     private readonly api: AuthenticatedApiTransport,
   ) {}
+
+  async pilotHome(signal?: AbortSignal): Promise<PilotHomeResponse> {
+    return (
+      await this.execute((credential) => this.api.pilotHome(credential, signal))
+    ).value;
+  }
 
   async listSessions(signal?: AbortSignal) {
     return (
