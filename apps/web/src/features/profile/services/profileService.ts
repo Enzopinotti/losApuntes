@@ -111,7 +111,8 @@ function json(value: unknown): string {
 }
 
 export const profileApi = {
-  me: () => request<OwnerProfileResponse>("/profile/me"),
+  me: (signal?: AbortSignal) =>
+    request<OwnerProfileResponse>("/profile/me", { signal }),
 
   create: (displayName: string) =>
     request<{ profile: NonNullable<OwnerProfileResponse["profile"]> }>(
@@ -131,19 +132,27 @@ export const profileApi = {
       },
     ),
 
-  publicProfile: (profileId: string) =>
+  publicProfile: (profileId: string, signal?: AbortSignal) =>
     request<PublicProfileResponse>(
       `/profiles/${encodeURIComponent(profileId)}`,
+      { signal },
     ),
 
-  activities: (cursor?: string, limit = 20) =>
+  activities: (cursor?: string, limit = 20, signal?: AbortSignal) =>
     request<ProfileActivityPageResponse>(
       `/profile/me/activities?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      { signal },
     ),
 
-  publicActivities: (profileId: string, cursor?: string, limit = 20) =>
+  publicActivities: (
+    profileId: string,
+    cursor?: string,
+    limit = 20,
+    signal?: AbortSignal,
+  ) =>
     request<ProfileActivityPageResponse>(
       `/profiles/${encodeURIComponent(profileId)}/activities?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      { signal },
     ),
 
   createActivity: (input: {
