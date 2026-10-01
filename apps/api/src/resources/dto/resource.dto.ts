@@ -120,6 +120,11 @@ export class ResourceSavedListDto {
   @Min(1)
   @Max(50)
   limit = 25;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
 }
 
 export class CreateResourceReportDto {
