@@ -1284,6 +1284,29 @@ describe('OrganizationService', () => {
     ).rejects.toBe(upstream);
   });
 
+  it('fails management snapshot closed when legacy manager drift exceeds the cap', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+    organizationStore.listManagers.mockResolvedValue(
+      Array.from({ length: 21 }, (_, index) =>
+        manager(index === 0 ? 'owner' : 'editor', `manager-${index}`),
+      ),
+    );
+
+    await expectCode(
+      service(organizationStore, dependencies).managementSnapshot(
+        'owner-user',
+        orgId,
+      ),
+      'ORGANIZATION_MANAGER_CAPACITY_INVARIANT',
+    );
+
+    expect(dependencies.profiles.getAttributionsForUsers.mock.calls).toHaveLength(
+      0,
+    );
+  });
+
   it('covers manager no-op, capacity, missing-manager and revision conflicts', async () => {
     const organizationStore = store();
     const dependencies = deps();
