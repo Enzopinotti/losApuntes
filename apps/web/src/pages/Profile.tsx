@@ -166,7 +166,15 @@ const Profile = () => {
         setLoading(false);
       }
     }
-  }, [beginLoad, finishLoad, hydrate, isLoadCurrent]);
+  }, [authorityScope, beginLoad, finishLoad, hydrate, isLoadCurrent]);
+
+  useEffect(() => {
+    setSnapshot(null);
+    setOnboarding(false);
+    setBusy(false);
+    setFeedback(null);
+    setLoading(true);
+  }, [authorityScope]);
 
   useEffect(() => {
     void load();
