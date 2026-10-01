@@ -1,4 +1,10 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import type {
   AcademicAffiliation,
@@ -84,14 +90,14 @@ export function AcademicContextCard() {
 
   const { data } = snapshot;
   const currentAffiliation = data.context
-    ? data.affiliations.find(
+    ? (data.affiliations.find(
         (item) => item.id === data.context?.affiliationId,
-      ) ?? null
+      ) ?? null)
     : null;
   const currentParticipation = data.context?.subjectParticipationId
-    ? data.participations.find(
+    ? (data.participations.find(
         (item) => item.id === data.context?.subjectParticipationId,
-      ) ?? null
+      ) ?? null)
     : null;
   const eligible = data.affiliations.filter(
     (item) => item.status !== "withdrawn",

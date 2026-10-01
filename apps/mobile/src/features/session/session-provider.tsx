@@ -59,10 +59,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [],
   );
   const logout = useCallback(() => mobileSessionController.logout(), []);
-  const retryRestore = useCallback(
-    () => mobileSessionController.restore(),
-    [],
-  );
+  const retryRestore = useCallback(() => mobileSessionController.restore(), []);
 
   const value = useMemo(
     () => ({ snapshot, login, logout, retryRestore }),

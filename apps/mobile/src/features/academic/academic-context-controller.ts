@@ -173,10 +173,7 @@ export class AcademicContextController {
 
   private publishData(
     authorityKey: string,
-    input: Omit<
-      AcademicContextData,
-      "contextRevision" | "contextAuthorityKey"
-    >,
+    input: Omit<AcademicContextData, "contextRevision" | "contextAuthorityKey">,
   ): void {
     const signature = contextSignature(input.context);
     if (this.lastContextSignature !== signature) {

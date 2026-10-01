@@ -87,10 +87,7 @@ test("bootstraps context and bounded inventories from server authority", async (
   assert.equal(snapshot.data.affiliations.length, 2);
   assert.equal(snapshot.data.participations.length, 1);
   assert.equal(snapshot.data.contextRevision, 1);
-  assert.equal(
-    snapshot.data.contextAuthorityKey,
-    "user-1:session-1:1",
-  );
+  assert.equal(snapshot.data.contextAuthorityKey, "user-1:session-1:1");
 });
 
 test("represents missing context explicitly without inventing one", async () => {
@@ -167,25 +164,28 @@ test("a stale context switch cannot overwrite the latest selection", async () =>
   assert.equal(snapshot.data.contextRevision, 2);
 });
 
-test("ambiguous switch failure stops exposing the previous context as authority", async () => {
-  const controller = new AcademicContextController(
-    api({
-      setContext: async () => {
-        throw new ApiRequestError(
-          "timeout",
-          null,
-          "REQUEST_TIMEOUT",
-          "timeout",
-        );
-      },
-    }),
-  );
+test(
+  "ambiguous switch failure stops exposing the previous context as authority",
+  async () => {
+    const controller = new AcademicContextController(
+      api({
+        setContext: async () => {
+          throw new ApiRequestError(
+            "timeout",
+            null,
+            "REQUEST_TIMEOUT",
+            "timeout",
+          );
+        },
+      }),
+    );
 
-  await controller.restore("user-1:session-1");
-  await controller.selectAffiliation("user-1:session-1", "aff-b");
+    await controller.restore("user-1:session-1");
+    await controller.selectAffiliation("user-1:session-1", "aff-b");
 
-  assert.equal(controller.getSnapshot().kind, "timeout");
-});
+    assert.equal(controller.getSnapshot().kind, "timeout");
+  },
+);
 
 test("suspending invalidates in-flight context ownership", async () => {
   let resolveContext!: (value: AcademicCurrentContextResponse) => void;
