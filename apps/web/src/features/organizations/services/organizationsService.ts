@@ -128,14 +128,16 @@ export const organizationsApi = {
     );
   },
 
-  get: (id: string) =>
+  get: (id: string, signal?: AbortSignal) =>
     request<{ organization: OrganizationDetail }>(
       `/organizations/${encodeURIComponent(id)}`,
+      { signal },
     ),
 
-  management: (id: string) =>
+  management: (id: string, signal?: AbortSignal) =>
     request<OrganizationManagement>(
       `/organizations/${encodeURIComponent(id)}/manage`,
+      { signal },
     ),
 
   searchInstitutions: async (
@@ -228,19 +230,21 @@ export const organizationsApi = {
       },
     ),
 
-  posts: (id: string, cursor?: string) => {
+  posts: (id: string, cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
     return request<{ items: OrganizationPost[]; nextCursor: string | null }>(
       `/organizations/${encodeURIComponent(id)}/posts?${query.toString()}`,
+      { signal },
     );
   },
 
-  events: (id: string, cursor?: string) => {
+  events: (id: string, cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
     return request<{ items: OrganizationEvent[]; nextCursor: string | null }>(
       `/organizations/${encodeURIComponent(id)}/events?${query.toString()}`,
+      { signal },
     );
   },
 
