@@ -180,7 +180,9 @@ function encodeEventCursor(cursor: OrganizationEventCursor): string {
   ).toString('base64url');
 }
 
-function decodeEventCursor(value?: string): OrganizationEventCursor | undefined {
+function decodeEventCursor(
+  value?: string,
+): OrganizationEventCursor | undefined {
   if (!value) return undefined;
 
   try {
