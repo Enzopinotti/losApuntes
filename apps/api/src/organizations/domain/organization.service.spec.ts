@@ -615,12 +615,10 @@ describe('OrganizationService', () => {
       .mockResolvedValueOnce(manager('owner'))
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(manager('owner'));
-    organizationStore.listManagers
-      .mockResolvedValueOnce([manager('owner')])
-      .mockResolvedValueOnce([
-        manager('owner'),
-        manager('editor', 'target-user'),
-      ]);
+    organizationStore.listManagers.mockResolvedValueOnce([
+      manager('owner'),
+      manager('editor', 'target-user'),
+    ]);
     organizationStore.changeManager.mockResolvedValue({
       status: 'ok',
       manager: manager('editor', 'target-user'),
