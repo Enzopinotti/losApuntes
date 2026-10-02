@@ -724,3 +724,39 @@ test("question creation reconciliation only accepts a new owned exact match", as
   assert.deepEqual([...baseline], ["old-question"]);
   assert.equal(reconciled?.id, "new-question");
 });
+
+
+test("does not let detail refresh cancel an in-flight answer mutation", async () => {
+  const mutation = deferred<{ answer: AnswerView }>();
+  let mutationSignal: AbortSignal | undefined;
+  let questionCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      questionCalls += 1;
+      return detail(id);
+    },
+    answers: async () => ({ items: [], nextCursor: null }),
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async (_questionId, _input, signal) => {
+      mutationSignal = signal;
+      return mutation.promise;
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  const submitting = controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una respuesta útil.",
+  );
+  await Promise.resolve();
+
+  await controller.load("authority-a", "question-a");
+  assert.equal(questionCalls, 1);
+  assert.equal(mutationSignal?.aborted, false);
+
+  mutation.resolve({ answer: answer("answer-a") });
+  assert.equal(await submitting, true);
+  assert.equal(questionCalls, 2);
+});

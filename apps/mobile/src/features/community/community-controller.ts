@@ -405,6 +405,16 @@ export class MobileCommunityQuestionController {
   }
 
   async load(authorityKey: string, questionId: string): Promise<void> {
+    const current = this.snapshot;
+    if (
+      current.kind === "ready" &&
+      current.authorityKey === authorityKey &&
+      current.questionId === questionId &&
+      current.submittingAnswer
+    ) {
+      return;
+    }
+
     const generation = this.begin(authorityKey);
     this.publish({ kind: "loading", authorityKey, questionId });
     try {
