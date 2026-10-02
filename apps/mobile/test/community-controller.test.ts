@@ -768,7 +768,6 @@ test("does not let detail refresh cancel an in-flight answer mutation", async ()
   assert.equal(questionCalls, 2);
 });
 
-
 test("matches ambiguous answers using the server cleanText normalization", async () => {
   let detailCalls = 0;
   const controller = new MobileCommunityQuestionController({
