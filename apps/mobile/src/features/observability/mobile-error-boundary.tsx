@@ -15,7 +15,7 @@ export class MobileErrorBoundary extends Component<
   MobileErrorBoundaryProps,
   MobileErrorBoundaryState
 > {
-  state: MobileErrorBoundaryState = { failed: false };
+  override state: MobileErrorBoundaryState = { failed: false };
 
   static getDerivedStateFromError(): MobileErrorBoundaryState {
     return { failed: true };
