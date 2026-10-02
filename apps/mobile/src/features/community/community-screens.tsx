@@ -400,13 +400,16 @@ export function CommunityQuestionScreen({
     questionId,
     authorityKey: authority.authorityKey,
   });
+  const answerConfirmationVisibleRef = useRef(false);
 
   useEffect(() => controller.subscribe(setDetail), [controller]);
 
   useEffect(() => {
-    if (shouldClearCommunityAnswerDraft(detail)) {
+    const confirmed = shouldClearCommunityAnswerDraft(detail);
+    if (confirmed && !answerConfirmationVisibleRef.current) {
       setAnswerBody("");
     }
+    answerConfirmationVisibleRef.current = confirmed;
   }, [detail]);
 
   useEffect(() => {

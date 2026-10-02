@@ -169,7 +169,9 @@ export function shouldResetCommunityAnswerDraft(
 export function shouldClearCommunityAnswerDraft(
   snapshot: CommunityQuestionDetailSnapshot,
 ): boolean {
-  return snapshot.kind === "ready" && snapshot.notice === "Respuesta publicada.";
+  return (
+    snapshot.kind === "ready" && snapshot.notice === "Respuesta publicada."
+  );
 }
 
 export function isAmbiguousCommunityMutationFailure(
@@ -509,11 +511,12 @@ export class MobileCommunityQuestionController {
         if (this.pendingAnswer !== pending) return;
 
         const committed = pendingAnswerWasCommitted(detail, pending);
+        const pendingFailureCode = pending.failure?.code ?? null;
         this.pendingAnswer = null;
         this.publish({
           ...this.ready(authorityKey, questionId, detail),
           actionFailure: committed ? null : pending.failure,
-          actionFailureCode: committed ? null : (pending.failure?.code ?? null),
+          actionFailureCode: committed ? null : pendingFailureCode,
           notice: committed
             ? "Respuesta publicada."
             : "No encontramos una respuesta publicada. Podés volver a intentar.",
