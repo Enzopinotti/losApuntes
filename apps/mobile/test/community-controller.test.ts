@@ -1018,9 +1018,7 @@ test("transient invalidation retains an indeterminate answer until return reconc
 
   controller.invalidate("authority-a");
   assert.equal(mutationSignal?.aborted, true);
-  mutation.reject(
-    new ApiRequestError("error", null, "REQUEST_ABORTED", "request aborted"),
-  );
+  mutation.reject(new Error("request aborted"));
   assert.equal(await submitting, false);
   assert.equal(controller.getSnapshot().kind, "idle");
 
