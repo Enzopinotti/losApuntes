@@ -149,7 +149,7 @@ Body:
 }
 ```
 
-If `courseOfferingId` exists, it must belong to `:subjectId`.
+If `courseOfferingId` exists, it must belong to `:subjectId`. If the participation currently selected in `CurrentAcademicContext` transitions from `current` to `planned`, `completed` or `dropped`, the same atomic mutation clears that subject selection with revision CAS; the affiliation context remains selected.
 
 ## Current context
 

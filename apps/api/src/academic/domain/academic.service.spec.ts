@@ -988,6 +988,142 @@ describe('AcademicService', () => {
     expect(listResult.participations.map((item) => item.id)).toEqual([row.id]);
   });
 
+  it.each(['planned', 'completed', 'dropped'] as const)(
+    'clears selected current context when participation becomes %s',
+    async (state) => {
+      const store = createStore();
+      const service = new AcademicService(store);
+      const subject = catalogNode({
+        id: '55555555-5555-4555-8555-555555555555',
+        kind: 'subject',
+      });
+      const selected = participation({ subjectId: subject.id });
+      const historical = participation({
+        ...selected,
+        state,
+      });
+
+      store.findCatalogNodeById.mockResolvedValue(subject);
+      store.upsertSubjectParticipation.mockResolvedValue(historical);
+      store.getCurrentContext.mockResolvedValue({
+        userId: 'user-1',
+        affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        subjectParticipationId: selected.id,
+        revision: 4,
+        createdAt: now,
+        updatedAt: now,
+      });
+      store.setCurrentContext.mockResolvedValue({
+        userId: 'user-1',
+        affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        revision: 5,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await expect(
+        service.upsertSubjectParticipation('user-1', subject.id, {
+          state,
+          periodLabel: '2026 S2',
+        }),
+      ).resolves.toEqual({
+        participation: expect.objectContaining({
+          id: selected.id,
+          state,
+        }),
+      });
+
+      expect(store.setCurrentContext).toHaveBeenCalledWith(
+        {
+          userId: 'user-1',
+          affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        },
+        4,
+      );
+      expect(store.appendAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'academic.context.updated',
+          metadata: expect.objectContaining({
+            revision: 5,
+            reason: 'subject_participation_no_longer_current',
+          }),
+        }),
+      );
+    },
+  );
+
+  it('does not clear an unrelated current subject when another participation becomes historical', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const subject = catalogNode({
+      id: '55555555-5555-4555-8555-555555555555',
+      kind: 'subject',
+    });
+    const historical = participation({
+      subjectId: subject.id,
+      state: 'completed',
+    });
+
+    store.findCatalogNodeById.mockResolvedValue(subject);
+    store.upsertSubjectParticipation.mockResolvedValue(historical);
+    store.getCurrentContext.mockResolvedValue({
+      userId: 'user-1',
+      affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      subjectParticipationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      revision: 4,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await service.upsertSubjectParticipation('user-1', subject.id, {
+      state: 'completed',
+    });
+
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
+  });
+
+  it('fails closed if current context changes while clearing a historical participation', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const subject = catalogNode({
+      id: '55555555-5555-4555-8555-555555555555',
+      kind: 'subject',
+    });
+    const historical = participation({
+      subjectId: subject.id,
+      state: 'dropped',
+    });
+
+    store.findCatalogNodeById.mockResolvedValue(subject);
+    store.upsertSubjectParticipation.mockResolvedValue(historical);
+    store.getCurrentContext.mockResolvedValue({
+      userId: 'user-1',
+      affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      subjectParticipationId: historical.id,
+      revision: 7,
+      createdAt: now,
+      updatedAt: now,
+    });
+    store.setCurrentContext.mockResolvedValue(null);
+
+    const error = await rejectedConflict(
+      service.upsertSubjectParticipation('user-1', subject.id, {
+        state: 'dropped',
+      }),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_CONTEXT_REVISION_CONFLICT',
+    });
+    expect(store.setCurrentContext).toHaveBeenCalledWith(
+      {
+        userId: 'user-1',
+        affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      },
+      7,
+    );
+  });
+
   it('scopes current subject choices with the canonical lifecycle and affiliation rule', async () => {
     const store = createStore();
     const service = new AcademicService(store);

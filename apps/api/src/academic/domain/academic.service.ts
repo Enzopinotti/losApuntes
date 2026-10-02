@@ -712,6 +712,27 @@ export class AcademicService {
         periodLabel: dto.periodLabel,
       });
 
+      if (!isCurrentSubjectParticipationState(participation.state)) {
+        const context = await this.store.getCurrentContext(userId);
+        if (context?.subjectParticipationId === participation.id) {
+          const cleared = await this.store.setCurrentContext(
+            {
+              userId,
+              affiliationId: context.affiliationId,
+            },
+            context.revision,
+          );
+
+          if (!cleared) this.contextRevisionConflict();
+
+          await this.audit('academic.context.updated', userId, userId, {
+            affiliationId: cleared.affiliationId,
+            revision: cleared.revision,
+            reason: 'subject_participation_no_longer_current',
+          });
+        }
+      }
+
       await this.audit(
         'academic.subject_participation.upserted',
         userId,
