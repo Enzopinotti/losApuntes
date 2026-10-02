@@ -2,17 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  MOBILE_DIAGNOSTIC_LIMITS,
   configureMobileDiagnosticSink,
   createMobileDiagnosticEnvelope,
   installMobileGlobalErrorHandler,
   normalizeMobileDiagnosticSurface,
   reportMobileDiagnostic,
-  sanitizeMobileDiagnosticStack,
   type MobileErrorUtils,
 } from "../src/features/observability/mobile-diagnostics";
 
-test("normalizes diagnostic surfaces without query, hash or entity identifiers", () => {
+test("normalizes surfaces without query, hash or arbitrary path segments", () => {
   assert.equal(
     normalizeMobileDiagnosticSurface(
       "/questions/507f1f77bcf86cd799439011?token=secret#proof",
@@ -25,70 +23,103 @@ test("normalizes diagnostic surfaces without query, hash or entity identifiers",
     ),
     "/profiles/:id",
   );
+  assert.equal(
+    normalizeMobileDiagnosticSurface("/unexpected/Leonardo/private"),
+    "/:segment/:segment/:segment",
+  );
   assert.equal(normalizeMobileDiagnosticSurface(""), "unknown");
 });
 
-test("sanitizes stack evidence before it reaches a diagnostic sink", () => {
-  const raw = [
-    "Error: request failed for user@example.test",
-    "Bearer super-secret-session",
-    "https://api.example.test/resource?id=7&token=one-time-proof",
-    "file:///Users/enzo/private/project.ts:10:4",
-    "/home/runner/work/losApuntes/private.ts:4:2",
-    "/app/private/project.ts:3:1",
-    "eyJabcdefghijk.abcdefghijklmnop.qwertyuiop",
-  ].join("\n");
-
-  const safe = sanitizeMobileDiagnosticStack(raw);
-  assert.ok(safe);
-  assert.equal(safe?.includes("user@example.test"), false);
-  assert.equal(safe?.includes("super-secret-session"), false);
-  assert.equal(safe?.includes("one-time-proof"), false);
-  assert.equal(safe?.includes("/Users/enzo"), false);
-  assert.equal(safe?.includes("/home/runner"), false);
-  assert.equal(safe?.includes("/app/private"), false);
-  assert.equal(safe?.includes("eyJabcdefghijk"), false);
-  assert.ok((safe?.length ?? 0) <= MOBILE_DIAGNOSTIC_LIMITS.stack);
-});
-
-test("creates a bounded deterministic envelope without raw private context", () => {
-  const error = new TypeError("private token should not become a field");
+test("never emits raw stack, messages, function labels or source paths", () => {
+  const error = new TypeError(
+    [
+      "token=opaque-secret-value",
+      "at Leonardo short-session-id",
+      "at Leonardo (/app/private/project.ts:7:3)",
+    ].join("\n"),
+  );
   error.stack = [
     "TypeError: token=opaque-secret-value",
-    "request body: Leonardo short-session-id",
-    "second free-form message line",
-    "    at render (file:///Users/person/app.tsx:9:1)",
+    "at Leonardo short-session-id",
+    "at Leonardo (/app/private/project.ts:7:3)",
+    "at render (file:///Users/person/app.tsx:9:1)",
   ].join("\n");
 
-  const context = {
+  const envelope = createMobileDiagnosticEnvelope(error, {
     platform: "ios",
     appVersion: "0.1.0",
     build: "42",
     revision: "abcdef1234567890",
     surface: "/resources/507f1f77bcf86cd799439011?signature=signed",
     now: () => new Date("2026-10-02T04:00:00.000Z"),
-  };
+  });
+  const serialized = JSON.stringify(envelope);
 
-  const first = createMobileDiagnosticEnvelope(error, context);
-  const second = createMobileDiagnosticEnvelope(error, context);
-  const serialized = JSON.stringify(first);
-
-  assert.deepEqual(first, second);
-  assert.equal(first.surface, "/resources/:id");
-  assert.equal(first.errorClass, "TypeError");
-  assert.equal(first.timestamp, "2026-10-02T04:00:00.000Z");
-  assert.equal(first.revision, "abcdef1234567890");
+  assert.equal(envelope.stack, null);
+  assert.equal(envelope.surface, "/resources/:id");
   assert.equal(serialized.includes("opaque-secret-value"), false);
   assert.equal(serialized.includes("Leonardo"), false);
   assert.equal(serialized.includes("short-session-id"), false);
-  assert.equal(serialized.includes("second free-form message line"), false);
-  assert.equal(
-    serialized.includes("private token should not become a field"),
-    false,
-  );
-  assert.equal(serialized.includes("signed"), false);
+  assert.equal(serialized.includes("/app/private"), false);
   assert.equal(serialized.includes("/Users/person"), false);
-  assert.ok(first.fingerprint.length > 0);
+  assert.equal(serialized.includes("signed"), false);
+});
+
+test("fingerprints use only normalized error class and surface", () => {
+  const first = createMobileDiagnosticEnvelope(new Error("private one"), {
+    platform: "android",
+    appVersion: "0.1.0",
+    build: "7",
+    revision: null,
+    surface: "/questions/one",
+  });
+  const second = createMobileDiagnosticEnvelope(new Error("private two"), {
+    platform: "android",
+    appVersion: "0.1.0",
+    build: "7",
+    revision: null,
+    surface: "/questions/two",
+  });
+
+  assert.equal(first.fingerprint, second.fingerprint);
+  assert.equal(first.surface, "/questions/:id");
+  assert.equal(second.surface, "/questions/:id");
+});
+
+test("malformed Error accessors cannot break envelope construction", () => {
+  const malformed = new Error("private");
+  Object.defineProperty(malformed, "name", {
+    configurable: true,
+    get() {
+      throw new Error("name getter failed");
+    },
+  });
+  Object.defineProperty(malformed, "stack", {
+    configurable: true,
+    get() {
+      throw new Error("stack getter failed");
+    },
+  });
+
+  assert.doesNotThrow(() =>
+    createMobileDiagnosticEnvelope(malformed, {
+      platform: "ios",
+      appVersion: "0.1.0",
+      build: null,
+      revision: null,
+      surface: "/",
+    }),
+  );
+
+  const envelope = createMobileDiagnosticEnvelope(malformed, {
+    platform: "ios",
+    appVersion: "0.1.0",
+    build: null,
+    revision: null,
+    surface: "/",
+  });
+  assert.equal(envelope.errorClass, "UnknownError");
+  assert.equal(envelope.stack, null);
 });
 
 test("a diagnostic sink failure never prevents caller recovery", () => {
@@ -111,7 +142,7 @@ test("a diagnostic sink failure never prevents caller recovery", () => {
   }
 });
 
-test("global JS handler reports bounded evidence and preserves the previous handler", () => {
+test("global JS handler preserves the previous handler if reporting throws", () => {
   const calls: string[] = [];
   const previous = (error: Error, isFatal?: boolean) => {
     calls.push(`previous:${error.name}:${String(isFatal)}`);
@@ -125,20 +156,19 @@ test("global JS handler reports bounded evidence and preserves the previous hand
     },
   };
 
-  const cleanup = installMobileGlobalErrorHandler(errorUtils, (error) => {
-    calls.push(
-      `report:${error instanceof Error ? error.name : "UnknownError"}`,
-    );
+  const cleanup = installMobileGlobalErrorHandler(errorUtils, () => {
+    calls.push("report");
+    throw new Error("diagnostic adapter failed");
   });
 
-  current(new TypeError("boom"), true);
-  assert.deepEqual(calls, ["report:TypeError", "previous:TypeError:true"]);
+  assert.doesNotThrow(() => current(new TypeError("boom"), true));
+  assert.deepEqual(calls, ["report", "previous:TypeError:true"]);
 
   cleanup();
   assert.equal(current, previous);
 });
 
-test("drops invalid release revisions instead of emitting arbitrary public env data", () => {
+test("drops invalid release revisions instead of emitting arbitrary env data", () => {
   const envelope = createMobileDiagnosticEnvelope(new Error("boom"), {
     platform: "ios",
     appVersion: "0.1.0",

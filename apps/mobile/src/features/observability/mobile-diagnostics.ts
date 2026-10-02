@@ -1,8 +1,6 @@
 export const MOBILE_DIAGNOSTIC_LIMITS = Object.freeze({
   surface: 120,
   metadata: 80,
-  stack: 2400,
-  stackLines: 12,
 });
 
 export type MobileDiagnosticPlatform = "ios" | "android" | "web" | "unknown";
@@ -24,7 +22,7 @@ export type MobileDiagnosticEnvelope = Readonly<{
   surface: string;
   errorClass: string;
   fingerprint: string;
-  stack: string | null;
+  stack: null;
   timestamp: string;
 }>;
 
@@ -40,13 +38,24 @@ export type MobileErrorUtils = {
   setGlobalHandler(handler: MobileGlobalErrorHandler): void;
 };
 
+const staticSurfaceSegments = new Set([
+  "create",
+  "home",
+  "network",
+  "profile",
+  "profiles",
+  "questions",
+  "register",
+  "resources",
+  "search",
+  "sign-in",
+  "verify-email",
+]);
+
 const dynamicParentSegments = new Set([
-  "organizations",
   "profiles",
   "questions",
   "resources",
-  "sessions",
-  "users",
 ]);
 
 function clamp(value: string, maximum: number): string {
@@ -71,16 +80,7 @@ function normalizeSurfaceSegment(
 ): string {
   if (!segment) return segment;
   if (dynamicParentSegments.has(previousSegment ?? "")) return ":id";
-  if (
-    segment.includes("@") ||
-    /^\d+$/u.test(segment) ||
-    /^[a-f\d]{24,}$/iu.test(segment) ||
-    /^[a-f\d]{8}-[a-f\d-]{27,}$/iu.test(segment) ||
-    segment.length > 32
-  ) {
-    return ":id";
-  }
-  return segment.replace(/[^A-Za-z0-9._~-]+/gu, "-");
+  return staticSurfaceSegments.has(segment) ? segment : ":segment";
 }
 
 export function normalizeMobileDiagnosticSurface(raw: string): string {
@@ -107,74 +107,29 @@ export function normalizeMobileDiagnosticSurface(raw: string): string {
   return clamp(surface, MOBILE_DIAGNOSTIC_LIMITS.surface);
 }
 
-function stripUrlSecrets(value: string): string {
-  return value.replace(/https?:\/\/[^\s"'<>]+/giu, (candidate) => {
-    try {
-      const url = new URL(candidate);
-      return `${url.origin}${normalizeMobileDiagnosticSurface(url.pathname)}`;
-    } catch {
-      return "<url>";
-    }
-  });
-}
-
-export function sanitizeMobileDiagnosticStack(
-  raw: string | null | undefined,
+function safeStringProperty(
+  value: unknown,
+  property: "name",
 ): string | null {
-  if (!raw) return null;
-
-  let safe = stripUrlSecrets(raw)
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/giu, "Bearer <redacted>")
-    .replace(
-      /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b/gu,
-      "<redacted-token>",
-    )
-    .replace(
-      /\b(token|code|proof|secret|session|authorization|signature|sig|key)=([^\s&#)]+)/giu,
-      "$1=<redacted>",
-    )
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu, "<email>")
-    .replace(/file:\/\/\/[^\s)]+/giu, "file://<path>")
-    .replace(
-      /(?:\/Users|\/home|\/var|\/tmp|\/private|\/storage\/emulated\/\d+|\/data\/user\/\d+)[^\s)]*/gu,
-      "<path>",
-    )
-    .replace(/(\(|\s)\/[^)\s]+/gu, "$1<path>")
-    .replace(/[A-Za-z]:\\[^\s)]+/gu, "<path>")
-    .replace(/\b[A-Za-z0-9_-]{40,}\b/gu, "<redacted-token>");
-
-  safe = safe
-    .split("\n")
-    .slice(0, MOBILE_DIAGNOSTIC_LIMITS.stackLines)
-    .join("\n")
-    .trim();
-
-  if (!safe) return null;
-  return clamp(safe, MOBILE_DIAGNOSTIC_LIMITS.stack);
-}
-
-function normalizePlatform(platform: string): MobileDiagnosticPlatform {
-  if (platform === "ios" || platform === "android" || platform === "web") {
-    return platform;
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function")
+  ) {
+    return null;
   }
-  return "unknown";
+
+  try {
+    const candidate = Reflect.get(value, property);
+    return typeof candidate === "string" ? candidate : null;
+  } catch {
+    return null;
+  }
 }
 
 function safeErrorClass(error: unknown): string {
-  const name = error instanceof Error ? error.name : "UnknownError";
+  const name = safeStringProperty(error, "name") ?? "UnknownError";
   const safe = name.replace(/[^A-Za-z0-9._-]+/gu, "");
   return clamp(safe || "Error", 64);
-}
-
-function extractMobileDiagnosticFrames(
-  stack: string | null | undefined,
-): string | null {
-  if (!stack) return null;
-  const frames = stack
-    .split("\n")
-    .filter((line) => /^\s*at\s+/u.test(line))
-    .join("\n");
-  return frames || null;
 }
 
 function fnv1a(value: string): string {
@@ -191,25 +146,26 @@ export function createMobileDiagnosticEnvelope(
   context: MobileDiagnosticContext,
 ): MobileDiagnosticEnvelope {
   const errorClass = safeErrorClass(error);
-  const rawFrames =
-    error instanceof Error ? extractMobileDiagnosticFrames(error.stack) : null;
-  const stack = sanitizeMobileDiagnosticStack(rawFrames);
-  const fingerprintSource = [
-    errorClass,
-    ...(stack?.split("\n").slice(0, 3) ?? []),
-  ].join("|");
+  const surface = normalizeMobileDiagnosticSurface(context.surface);
 
   return Object.freeze({
     platform: normalizePlatform(context.platform),
     appVersion: safeMetadata(context.appVersion),
     build: safeMetadata(context.build),
     revision: safeRevision(context.revision),
-    surface: normalizeMobileDiagnosticSurface(context.surface),
+    surface,
     errorClass,
-    fingerprint: fnv1a(fingerprintSource),
-    stack,
+    fingerprint: fnv1a(`${errorClass}|${surface}`),
+    stack: null,
     timestamp: (context.now?.() ?? new Date()).toISOString(),
   });
+}
+
+function normalizePlatform(platform: string): MobileDiagnosticPlatform {
+  if (platform === "ios" || platform === "android" || platform === "web") {
+    return platform;
+  }
+  return "unknown";
 }
 
 const defaultMobileDiagnosticSink: MobileDiagnosticSink = (envelope) => {
@@ -236,7 +192,7 @@ export function reportMobileDiagnostic(
   try {
     mobileDiagnosticSink(envelope);
   } catch {
-    // Diagnostics must never prevent the recovery UI or previous global handler.
+    // Diagnostics must never prevent recovery or the previous global handler.
   }
   return envelope;
 }
@@ -251,9 +207,10 @@ export function installMobileGlobalErrorHandler(
   const handler: MobileGlobalErrorHandler = (error, isFatal) => {
     try {
       report(error);
-    } finally {
-      previous?.(error, isFatal);
+    } catch {
+      // A diagnostic adapter must never create a second unhandled exception.
     }
+    previous?.(error, isFatal);
   };
 
   errorUtils.setGlobalHandler(handler);

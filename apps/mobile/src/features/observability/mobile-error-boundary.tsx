@@ -22,7 +22,11 @@ export class MobileErrorBoundary extends Component<
   }
 
   override componentDidCatch(error: Error, _errorInfo: ErrorInfo): void {
-    this.props.onError(error);
+    try {
+      this.props.onError(error);
+    } catch {
+      // Diagnostics must not prevent the fallback from remaining usable.
+    }
   }
 
   private readonly retry = (): void => {
