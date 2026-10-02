@@ -673,7 +673,9 @@ test("reconciles an ambiguous answer committed beyond the first answer page", as
     assert.equal(snapshot.answerRetryBlocked, false);
     assert.equal(snapshot.notice, "Respuesta publicada.");
     assert.ok(
-      snapshot.detail.answers.some((candidate) => candidate.id === "new-answer"),
+      snapshot.detail.answers.some(
+        (candidate) => candidate.id === "new-answer",
+      ),
     );
   }
 });

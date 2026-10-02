@@ -172,7 +172,9 @@ async function completeAnswerInventory(
 
   while (cursor) {
     if (seenCursors.has(cursor)) {
-      throw new Error("Answer pagination cursor repeated during reconciliation");
+      throw new Error(
+        "Answer pagination cursor repeated during reconciliation",
+      );
     }
     seenCursors.add(cursor);
     const page = await api.answers(
@@ -231,7 +233,9 @@ async function ownedQuestionMatches(
 
     if (!page.nextCursor) return matches;
     if (seenCursors.has(page.nextCursor)) {
-      throw new Error("Question pagination cursor repeated during reconciliation");
+      throw new Error(
+        "Question pagination cursor repeated during reconciliation",
+      );
     }
     seenCursors.add(page.nextCursor);
     cursor = page.nextCursor;
