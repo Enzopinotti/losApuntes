@@ -364,7 +364,6 @@ test("a context invalidation prevents an in-flight answer from committing UI sta
   assert.deepEqual(controller.getSnapshot(), { kind: "idle" });
 });
 
-
 test("keeps duplicate answer submission locked until the authoritative refresh finishes", async () => {
   const refresh = deferred<QuestionDetailResponse>();
   let questionCalls = 0;
@@ -522,7 +521,11 @@ test("reconciles an ambiguous timed-out answer before another submit can be enab
   );
   assert.equal(createCalls, 1);
 
-  reconciliation.resolve(detail("question-a", [answer("answer-a")]));
+  reconciliation.resolve(
+    detail("question-a", [
+      { ...answer("answer-a"), body: "Una respuesta útil." },
+    ]),
+  );
   assert.equal(await pending, true);
 
   const reconciled = controller.getSnapshot();
