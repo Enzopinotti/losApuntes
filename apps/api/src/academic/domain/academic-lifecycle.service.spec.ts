@@ -183,6 +183,7 @@ describe('AcademicLifecycleService', () => {
       lifecycleStore.getCurrentContext.mockResolvedValue({
         userId: 'user-1',
         affiliationId: affiliations[0]?.id ?? 'none',
+        revision: 1,
         subjectParticipationId:
           expected === 'student' || expected === 'mixed'
             ? '44444444-4444-4444-8444-444444444444'
@@ -265,18 +266,21 @@ describe('AcademicLifecycleService', () => {
         userId: 'user-1',
         affiliationId: active.id,
         subjectParticipationId: scoped.id,
+        revision: 1,
         createdAt: now,
         updatedAt: now,
       })
       .mockResolvedValueOnce({
         userId: 'user-1',
         affiliationId: active.id,
+        revision: 2,
         createdAt: now,
         updatedAt: now,
       });
     lifecycleStore.setCurrentContext.mockResolvedValue({
       userId: 'user-1',
       affiliationId: active.id,
+      revision: 1,
       createdAt: now,
       updatedAt: now,
     });
@@ -303,6 +307,7 @@ describe('AcademicLifecycleService', () => {
         userId: 'user-1',
         affiliationId: active.id,
       },
+      1,
     ]);
     expect(lifecycleStore.appendAuditEvent.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
@@ -368,6 +373,7 @@ describe('AcademicLifecycleService', () => {
     lifecycleStore.getCurrentContext.mockResolvedValue({
       userId: 'user-1',
       affiliationId: active.id,
+      revision: 1,
       createdAt: now,
       updatedAt: now,
     });

@@ -187,10 +187,20 @@ export class AcademicLifecycleService {
 
       const context = await this.store.getCurrentContext(userId);
       if (context?.affiliationId === id && context.subjectParticipationId) {
-        await this.store.setCurrentContext({
-          userId,
-          affiliationId: id,
-        });
+        const cleared = await this.store.setCurrentContext(
+          {
+            userId,
+            affiliationId: id,
+          },
+          context.revision,
+        );
+
+        if (!cleared) {
+          throw new ConflictException({
+            code: 'ACADEMIC_GRADUATION_CONFLICT',
+            message: 'Academic context changed concurrently',
+          });
+        }
       }
 
       await this.store.appendAuditEvent({

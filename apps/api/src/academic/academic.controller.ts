@@ -21,6 +21,7 @@ import {
   AcademicCatalogChildrenDto,
   AcademicCatalogSearchDto,
   AcademicProposalListDto,
+  AcademicSubjectParticipationListDto,
   CreateAcademicAffiliationDto,
   CreateAcademicCatalogNodeDto,
   CreateAcademicProposalDto,
@@ -137,8 +138,14 @@ export class AcademicController {
 
   @UseGuards(AuthSessionGuard)
   @Get('me/subjects')
-  subjects(@Req() request: AuthenticatedRequest) {
-    return this.academic.listSubjectParticipations(request.user.id);
+  subjects(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: AcademicSubjectParticipationListDto,
+  ) {
+    return this.academic.listSubjectParticipations(
+      request.user.id,
+      query.affiliationId,
+    );
   }
 
   @UseGuards(AuthSessionGuard)

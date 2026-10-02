@@ -85,6 +85,7 @@ const transport = (
     academic: {
       currentContext: {
         affiliationId: "aff-1",
+        revision: 1,
         updatedAt: "2026-10-01T00:00:00.000Z",
       },
       currentSubjectIds: ["subject-1"],
@@ -148,6 +149,7 @@ test("home is read through the credential-fenced authenticated API", async () =>
     academic: {
       currentContext: {
         affiliationId: "aff-1",
+        revision: 1,
         updatedAt: "2026-10-01T00:00:00.000Z",
       },
       currentSubjectIds: [],

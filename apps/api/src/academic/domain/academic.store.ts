@@ -151,8 +151,12 @@ export interface AcademicStore {
     userId: string,
   ): Promise<AcademicCurrentContextRecord | null>;
   setCurrentContext(
-    input: Omit<AcademicCurrentContextRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<AcademicCurrentContextRecord>;
+    input: Omit<
+      AcademicCurrentContextRecord,
+      'createdAt' | 'updatedAt' | 'revision'
+    >,
+    expectedRevision: number,
+  ): Promise<AcademicCurrentContextRecord | null>;
 
   upsertAcademicFollow(
     input: Omit<AcademicFollowRecord, 'createdAt' | 'updatedAt'>,

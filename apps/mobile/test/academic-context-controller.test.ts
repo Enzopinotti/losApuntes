@@ -42,6 +42,7 @@ const subjects: AcademicSubjectParticipationListResponse = {
     {
       id: "part-a",
       subjectId: "subject-a",
+      subjectName: "Álgebra",
       state: "current",
       periodLabel: "2026 S2",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -59,6 +60,17 @@ const context = (
   context: {
     affiliationId,
     ...(subjectParticipationId ? { subjectParticipationId } : {}),
+    revision: 1,
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  },
+});
+
+const contextWithoutSubject = (
+  affiliationId = "aff-a",
+): AcademicCurrentContextResponse => ({
+  context: {
+    affiliationId,
+    revision: 1,
     updatedAt: "2026-10-01T00:00:00.000Z",
   },
 });
@@ -133,38 +145,59 @@ test("an old authority restore cannot overwrite a newer session", async () => {
   assert.match(snapshot.data.contextAuthorityKey, /^user-1:session-new:/u);
 });
 
-test("a stale context switch cannot overwrite the latest selection", async () => {
+test("serializes affiliation writes and advances the server revision", async () => {
   let resolveFirst!: (value: AcademicCurrentContextResponse) => void;
   const firstSwitch = new Promise<AcademicCurrentContextResponse>((resolve) => {
     resolveFirst = resolve;
   });
-  let calls = 0;
+  const calls: SetAcademicContextInput[] = [];
 
   const controller = new AcademicContextController(
     api({
+      context: async () => contextWithoutSubject(),
       setContext: async (input) => {
-        calls += 1;
-        if (calls === 1) return firstSwitch;
-        return context(input.affiliationId, undefined);
+        calls.push(input);
+        if (calls.length === 1) return firstSwitch;
+        return {
+          context: {
+            ...contextWithoutSubject(input.affiliationId).context!,
+            revision: input.expectedRevision + 1,
+          },
+        };
       },
     }),
   );
 
   await controller.restore("user-1:session-1");
-  const first = controller.selectAffiliation("user-1:session-1", "aff-a");
+  const first = controller.selectAffiliation("user-1:session-1", "aff-b");
   await Promise.resolve();
-  await controller.selectAffiliation("user-1:session-1", "aff-b");
-  resolveFirst(context("aff-a", undefined));
+  const second = controller.selectAffiliation("user-1:session-1", "aff-a");
+  await Promise.resolve();
+
+  assert.equal(calls.length, 1);
+  resolveFirst({
+    context: {
+      ...contextWithoutSubject("aff-b").context!,
+      revision: 2,
+    },
+  });
+
   await first;
+  await second;
+
+  assert.deepEqual(calls[1], {
+    affiliationId: "aff-a",
+    expectedRevision: 2,
+  });
 
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind !== "ready") throw new Error("expected ready");
-  assert.equal(snapshot.data.context?.affiliationId, "aff-b");
-  assert.equal(snapshot.data.contextRevision, 2);
+  assert.equal(snapshot.data.context?.affiliationId, "aff-a");
+  assert.equal(snapshot.data.context?.revision, 3);
 });
 
-test("ambiguous switch failure stops exposing the previous context as authority", async () => {
+test("ambiguous switch failure re-reads server authority before settling", async () => {
   const controller = new AcademicContextController(
     api({
       setContext: async () => {
@@ -181,7 +214,11 @@ test("ambiguous switch failure stops exposing the previous context as authority"
   await controller.restore("user-1:session-1");
   await controller.selectAffiliation("user-1:session-1", "aff-b");
 
-  assert.equal(controller.getSnapshot().kind, "timeout");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.affiliationId, "aff-a");
+  assert.equal(snapshot.data.context?.subjectParticipationId, "part-a");
 });
 
 test("suspending invalidates in-flight context ownership", async () => {
@@ -202,4 +239,209 @@ test("suspending invalidates in-flight context ownership", async () => {
   await restore;
 
   assert.equal(controller.getSnapshot().kind, "loading");
+});
+
+test("selects and clears subject context through the current affiliation", async () => {
+  const calls: SetAcademicContextInput[] = [];
+  const controller = new AcademicContextController(
+    api({
+      context: async () => contextWithoutSubject(),
+      setContext: async (input) => {
+        calls.push(input);
+        return "subjectParticipationId" in input
+          ? {
+              context: {
+                ...context(input.affiliationId, input.subjectParticipationId)
+                  .context!,
+                revision: input.expectedRevision + 1,
+              },
+            }
+          : {
+              context: {
+                ...contextWithoutSubject(input.affiliationId).context!,
+                revision: input.expectedRevision + 1,
+              },
+            };
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  await controller.selectSubject("user-1:session-1", "part-a");
+
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.subjectParticipationId, "part-a");
+  assert.deepEqual(calls[0], {
+    affiliationId: "aff-a",
+    subjectParticipationId: "part-a",
+    expectedRevision: 1,
+  });
+
+  await controller.selectSubject("user-1:session-1", null);
+
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.subjectParticipationId, undefined);
+  assert.deepEqual(calls[1], {
+    affiliationId: "aff-a",
+    expectedRevision: 2,
+  });
+  assert.equal(snapshot.data.contextRevision, 3);
+});
+
+test("serializes subject writes so the latest selection reaches the server last", async () => {
+  let resolveFirst!: (value: AcademicCurrentContextResponse) => void;
+  const firstSwitch = new Promise<AcademicCurrentContextResponse>((resolve) => {
+    resolveFirst = resolve;
+  });
+  const calls: SetAcademicContextInput[] = [];
+
+  const controller = new AcademicContextController(
+    api({
+      context: async () => contextWithoutSubject(),
+      setContext: async (input) => {
+        calls.push(input);
+        if (calls.length === 1) return firstSwitch;
+        return {
+          context: {
+            ...context(input.affiliationId, input.subjectParticipationId)
+              .context!,
+            revision: input.expectedRevision + 1,
+          },
+        };
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const first = controller.selectSubject("user-1:session-1", "part-a");
+  await Promise.resolve();
+  const second = controller.selectSubject("user-1:session-1", "part-b");
+  await Promise.resolve();
+
+  assert.equal(calls.length, 1);
+  resolveFirst({
+    context: {
+      ...context("aff-a", "part-a").context!,
+      revision: 2,
+    },
+  });
+
+  await first;
+  await second;
+
+  assert.deepEqual(calls[1], {
+    affiliationId: "aff-a",
+    subjectParticipationId: "part-b",
+    expectedRevision: 2,
+  });
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.subjectParticipationId, "part-b");
+  assert.equal(snapshot.data.context?.revision, 3);
+  assert.equal(snapshot.data.contextRevision, 3);
+});
+
+test("restores and refreshes subject choices using server affiliation scope", async () => {
+  const subjectScopes: Array<string | undefined> = [];
+  const scopedB: AcademicSubjectParticipationListResponse = {
+    participations: [],
+    truncated: false,
+    limit: 100,
+  };
+  const controller = new AcademicContextController(
+    api({
+      context: async () => contextWithoutSubject("aff-a"),
+      subjects: async (affiliationId) => {
+        subjectScopes.push(affiliationId);
+        return affiliationId === "aff-b" ? scopedB : subjects;
+      },
+      setContext: async (input) => ({
+        context: {
+          ...contextWithoutSubject(input.affiliationId).context!,
+          revision: input.expectedRevision + 1,
+        },
+      }),
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  await controller.selectAffiliation("user-1:session-1", "aff-b");
+
+  assert.deepEqual(subjectScopes, ["aff-a", "aff-b"]);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.affiliationId, "aff-b");
+  assert.deepEqual(snapshot.data.participations, []);
+});
+
+test("reconciles an ambiguous write before draining the next queued selection", async () => {
+  const calls: SetAcademicContextInput[] = [];
+  let rejectFirst!: (reason: unknown) => void;
+  const firstWrite = new Promise<AcademicCurrentContextResponse>(
+    (_resolve, reject) => {
+      rejectFirst = reject;
+    },
+  );
+  let serverContext: AcademicCurrentContextResponse = contextWithoutSubject();
+
+  const controller = new AcademicContextController(
+    api({
+      context: async () => serverContext,
+      setContext: async (input) => {
+        calls.push(input);
+        if (calls.length === 1) return firstWrite;
+
+        serverContext = {
+          context: {
+            ...context(input.affiliationId, input.subjectParticipationId)
+              .context!,
+            revision: input.expectedRevision + 1,
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const first = controller.selectSubject("user-1:session-1", "part-a");
+  await Promise.resolve();
+  const second = controller.selectSubject("user-1:session-1", "part-b");
+  await Promise.resolve();
+
+  serverContext = {
+    context: {
+      ...context("aff-a", "part-a").context!,
+      revision: 2,
+    },
+  };
+  rejectFirst(
+    new ApiRequestError(
+      "timeout",
+      null,
+      "REQUEST_TIMEOUT",
+      "timeout after commit",
+    ),
+  );
+
+  await first;
+  await second;
+
+  assert.deepEqual(calls[1], {
+    affiliationId: "aff-a",
+    subjectParticipationId: "part-b",
+    expectedRevision: 2,
+  });
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.subjectParticipationId, "part-b");
+  assert.equal(snapshot.data.context?.revision, 3);
 });

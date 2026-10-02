@@ -7,6 +7,7 @@ import {
 import {
   ACADEMIC_AFFILIATION_DECISION_LIMIT,
   ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
+  ACADEMIC_PARTICIPATION_DECISION_LIMIT,
   ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
   type BoundedAcademicPage,
 } from './academic-bounds';
@@ -379,6 +380,7 @@ describe('AcademicService', () => {
 
     await expect(
       service.setCurrentContext('user-1', {
+        expectedRevision: 0,
         affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -537,21 +539,50 @@ describe('AcademicService', () => {
         id === subject.id ? subject : id === curriculum.id ? curriculum : null,
       ),
     );
-    store.setCurrentContext.mockImplementation((input) =>
+    store.setCurrentContext.mockImplementation((input, expectedRevision) =>
       Promise.resolve({
         ...input,
+        revision: expectedRevision + 1,
         createdAt: now,
         updatedAt: now,
       }),
     );
 
     const result = await service.setCurrentContext('user-1', {
+      expectedRevision: 0,
       affiliationId: row.id,
       subjectParticipationId: part.id,
     });
     expect(result.context.affiliationId).toBe(row.id);
     expect(result.context.subjectParticipationId).toBe(part.id);
   });
+  it('rejects a stale current-context revision before mutation', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const row = affiliation();
+
+    store.findAffiliationById.mockResolvedValue(row);
+    store.getCurrentContext.mockResolvedValue({
+      userId: 'user-1',
+      affiliationId: row.id,
+      revision: 2,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const error = await rejectedConflict(
+      service.setCurrentContext('user-1', {
+        expectedRevision: 1,
+        affiliationId: row.id,
+      }),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_CONTEXT_REVISION_CONFLICT',
+    });
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed pagination cursors', async () => {
     const store = createStore();
     const service = new AcademicService(store);
@@ -934,6 +965,76 @@ describe('AcademicService', () => {
     expect(listResult.participations.map((item) => item.id)).toEqual([row.id]);
   });
 
+  it('scopes subject choices to server-authoritative affiliation eligibility', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const selected = affiliation();
+    const eligible = participation({
+      subjectId: '55555555-5555-4555-8555-555555555555',
+    });
+    const outside = participation({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      subjectId: '66666666-6666-4666-8666-666666666666',
+    });
+    const eligibleSubject = catalogNode({
+      id: eligible.subjectId,
+      kind: 'subject',
+      name: 'Álgebra',
+    });
+
+    store.findAffiliationById.mockResolvedValue(selected);
+    store.listSubjectParticipationsForUser.mockResolvedValue(
+      page([eligible, outside]),
+    );
+    jest
+      .spyOn(service, 'participationBelongsToAffiliation')
+      .mockImplementation((subjectId) =>
+        Promise.resolve(subjectId === eligible.subjectId),
+      );
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(id === eligibleSubject.id ? eligibleSubject : null),
+    );
+
+    const result = await service.listSubjectParticipations(
+      'user-1',
+      selected.id,
+    );
+
+    expect(result).toMatchObject({
+      participations: [
+        expect.objectContaining({
+          id: eligible.id,
+          subjectId: eligible.subjectId,
+          subjectName: 'Álgebra',
+        }),
+      ],
+      truncated: false,
+      limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+    });
+    expect(store.listSubjectParticipationsForUser).toHaveBeenCalledWith({
+      userId: 'user-1',
+      limit: ACADEMIC_PARTICIPATION_DECISION_LIMIT,
+    });
+  });
+
+  it('fails closed when affiliation-scoped subject eligibility exceeds its decision budget', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const selected = affiliation();
+
+    store.findAffiliationById.mockResolvedValue(selected);
+    store.listSubjectParticipationsForUser.mockResolvedValue(page([], true));
+
+    const error = await rejectedConflict(
+      service.listSubjectParticipations('user-1', selected.id),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_INVENTORY_OVERFLOW',
+      collection: 'subject_participations',
+    });
+  });
+
   it('returns honest truncation metadata for visible affiliations', async () => {
     const store = createStore();
     const service = new AcademicService(store);
@@ -999,6 +1100,7 @@ describe('AcademicService', () => {
     store.getCurrentContext.mockResolvedValue({
       userId: 'user-1',
       affiliationId: active.id,
+      revision: 1,
       createdAt: now,
       updatedAt: now,
     });
@@ -1014,6 +1116,7 @@ describe('AcademicService', () => {
     store.findAffiliationById.mockResolvedValue(withdrawn);
     await expect(
       service.setCurrentContext('user-1', {
+        expectedRevision: 0,
         affiliationId: withdrawn.id,
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
@@ -1040,6 +1143,7 @@ describe('AcademicService', () => {
 
     await expect(
       service.setCurrentContext('user-1', {
+        expectedRevision: 0,
         affiliationId: row.id,
         subjectParticipationId: part.id,
       }),
@@ -1557,6 +1661,7 @@ describe('AcademicService', () => {
 
     await expect(
       service.setCurrentContext('user-1', {
+        expectedRevision: 0,
         affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
@@ -1573,6 +1678,7 @@ describe('AcademicService', () => {
 
     await expect(
       service.setCurrentContext('user-1', {
+        expectedRevision: 0,
         affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         subjectParticipationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       }),
@@ -1590,6 +1696,7 @@ describe('AcademicService', () => {
 
     await expect(
       service.setCurrentContext('user-1', {
+        expectedRevision: 0,
         affiliationId: row.id,
         subjectParticipationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       }),

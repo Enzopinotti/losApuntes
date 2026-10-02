@@ -243,6 +243,9 @@ export class AcademicCurrentContext {
   @Prop()
   subjectParticipationId?: string;
 
+  @Prop({ required: true, default: 1, min: 1 })
+  revision!: number;
+
   createdAt!: Date;
   updatedAt!: Date;
 }

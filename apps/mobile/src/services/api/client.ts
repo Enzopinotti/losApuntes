@@ -373,9 +373,17 @@ export class MobileApiClient {
     );
   }
 
-  academicSubjects(credential: string, signal?: AbortSignal) {
+  academicSubjects(
+    credential: string,
+    affiliationId?: string,
+    signal?: AbortSignal,
+  ) {
+    const query = affiliationId
+      ? `?affiliationId=${encodeURIComponent(affiliationId)}`
+      : "";
+
     return this.request<AcademicSubjectParticipationListResponse>(
-      "/academic/me/subjects",
+      `/academic/me/subjects${query}`,
       {
         credential,
         ...(signal ? { signal } : {}),

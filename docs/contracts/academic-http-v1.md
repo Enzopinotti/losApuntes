@@ -125,6 +125,13 @@ The target must belong to the authenticated user.
 
 Lists current/historical SubjectParticipation records for the current user.
 
+Optional query:
+- `affiliationId` — when present, the backend returns only participations that
+  are valid choices for that owned affiliation under the same graph rules used
+  by CurrentAcademicContext. The eligibility decision uses a bounded complete
+  inventory and fails closed with `ACADEMIC_INVENTORY_OVERFLOW` if that
+  decision budget is exceeded.
+
 ### PUT /academic/me/subjects/:subjectId
 
 Upserts the semantic participation key.
@@ -160,6 +167,7 @@ or:
   "context": {
     "affiliationId": "uuid",
     "subjectParticipationId": "uuid optional",
+    "revision": 3,
     "updatedAt": "ISO-8601"
   }
 }
@@ -172,9 +180,15 @@ Body:
 ```json
 {
   "affiliationId": "uuid",
-  "subjectParticipationId": "uuid optional"
+  "subjectParticipationId": "uuid optional",
+  "expectedRevision": 3
 }
 ```
+
+`expectedRevision` is `0` only when the client observed no current
+context. Existing contexts expose a positive `revision`. Updates use
+optimistic concurrency; stale writers receive
+`ACADEMIC_CONTEXT_REVISION_CONFLICT`.
 
 Ownership and graph consistency are revalidated server-side.
 
@@ -303,6 +317,7 @@ Relevant stable codes include:
 - `ACADEMIC_PARENT_CARDINALITY_INVALID`;
 - `ACADEMIC_CONTEXT_MISMATCH`;
 - `ACADEMIC_CONTEXT_INELIGIBLE`;
+- `ACADEMIC_CONTEXT_REVISION_CONFLICT`;
 - `ACADEMIC_PROPOSAL_ALREADY_REVIEWED`;
 - `ACADEMIC_PROPOSAL_TARGET_REQUIRED`;
 - `ACADEMIC_PROPOSAL_TARGET_NOT_ALLOWED`;

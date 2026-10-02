@@ -33,6 +33,7 @@ interface AcademicContextValue {
   snapshot: AcademicContextSnapshot;
   retry(): Promise<void>;
   selectAffiliation(affiliationId: string): Promise<void>;
+  selectSubject(subjectParticipationId: string | null): Promise<void>;
 }
 
 const Context = createContext<AcademicContextValue | null>(null);
@@ -97,9 +98,18 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
     await controller.selectAffiliation(currentAuthority, affiliationId);
   }, []);
 
+  const selectSubject = useCallback(
+    async (subjectParticipationId: string | null) => {
+      const currentAuthority = authorityRef.current;
+      if (!currentAuthority) return;
+      await controller.selectSubject(currentAuthority, subjectParticipationId);
+    },
+    [],
+  );
+
   const value = useMemo(
-    () => ({ snapshot, retry, selectAffiliation }),
-    [snapshot, retry, selectAffiliation],
+    () => ({ snapshot, retry, selectAffiliation, selectSubject }),
+    [snapshot, retry, selectAffiliation, selectSubject],
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

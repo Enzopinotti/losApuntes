@@ -243,3 +243,128 @@ describe('MongoAcademicStore bounded redirect fan-out', () => {
     expect(catalog.find).not.toHaveBeenCalled();
   });
 });
+
+describe('MongoAcademicStore current-context concurrency', () => {
+  it('updates current context only at the expected revision', async () => {
+    const updated = {
+      userId: 'user-1',
+      affiliationId: 'aff-2',
+      revision: 5,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const chain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(updated),
+    };
+    chain.lean.mockReturnValue(chain);
+    const contexts = {
+      findOneAndUpdate: jest.fn().mockReturnValue(chain),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      contexts as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.setCurrentContext(
+        {
+          userId: 'user-1',
+          affiliationId: 'aff-2',
+        },
+        4,
+      ),
+    ).resolves.toEqual(updated);
+
+    expect(contexts.findOneAndUpdate).toHaveBeenCalledWith(
+      { userId: 'user-1', revision: 4 },
+      {
+        $set: { affiliationId: 'aff-2' },
+        $setOnInsert: { userId: 'user-1' },
+        $inc: { revision: 1 },
+        $unset: { subjectParticipationId: 1 },
+      },
+      { upsert: false, new: true, session: undefined },
+    );
+  });
+
+  it('turns a concurrent first-create duplicate into a revision conflict', async () => {
+    const chain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockRejectedValue({ code: 11000 }),
+    };
+    chain.lean.mockReturnValue(chain);
+    const contexts = {
+      findOneAndUpdate: jest.fn().mockReturnValue(chain),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      contexts as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.setCurrentContext(
+        {
+          userId: 'user-1',
+          affiliationId: 'aff-1',
+        },
+        0,
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it('normalizes a legacy context revision before exposing it', async () => {
+    const legacy = {
+      userId: 'user-1',
+      affiliationId: 'aff-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const normalized = { ...legacy, revision: 1 };
+    const findChain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(legacy),
+    };
+    findChain.lean.mockReturnValue(findChain);
+    const normalizeChain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(normalized),
+    };
+    normalizeChain.lean.mockReturnValue(normalizeChain);
+    const contexts = {
+      findOne: jest.fn().mockReturnValue(findChain),
+      findOneAndUpdate: jest.fn().mockReturnValue(normalizeChain),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      contexts as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(store.getCurrentContext('user-1')).resolves.toEqual(
+      normalized,
+    );
+    expect(contexts.findOneAndUpdate).toHaveBeenCalledWith(
+      { userId: 'user-1', revision: { $exists: false } },
+      { $set: { revision: 1 } },
+      { new: true, session: undefined },
+    );
+  });
+});
