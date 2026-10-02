@@ -9,6 +9,8 @@ import {
 import type {
   AcademicAffiliation,
   AcademicAffiliationStatus,
+  AcademicSubjectParticipation,
+  SubjectParticipationState,
 } from "@losapuntes/contracts";
 
 import { useAcademicContext } from "./academic-context-provider";
@@ -20,6 +22,13 @@ const statusLabels: Record<AcademicAffiliationStatus, string> = {
   completed: "Completada",
   withdrawn: "Retirada",
   alumni: "Alumni",
+};
+
+const participationStateLabels: Record<SubjectParticipationState, string> = {
+  planned: "Planificada",
+  current: "Actual",
+  completed: "Completada",
+  dropped: "Abandonada",
 };
 
 const affiliationLabel = (affiliation: AcademicAffiliation): string => {
@@ -41,6 +50,18 @@ const affiliationLabel = (affiliation: AcademicAffiliation): string => {
     .join(" · ");
 };
 
+const participationLabel = (
+  participation: AcademicSubjectParticipation,
+): string =>
+  [
+    participation.subjectName,
+    participation.courseOfferingName,
+    participation.periodLabel ?? "Sin período",
+    participationStateLabels[participation.state],
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
 const failureCopy = {
   offline: "No pudimos revalidar tu contexto porque no hay conexión.",
   timeout: "La revalidación del contexto tardó demasiado.",
@@ -49,7 +70,8 @@ const failureCopy = {
 } as const;
 
 export function AcademicContextCard() {
-  const { snapshot, retry, selectAffiliation } = useAcademicContext();
+  const { snapshot, retry, selectAffiliation, selectSubject } =
+    useAcademicContext();
 
   if (snapshot.kind === "unavailable" || snapshot.kind === "loading") {
     return (
@@ -113,10 +135,7 @@ export function AcademicContextCard() {
           </Text>
           {currentParticipation ? (
             <Text style={styles.copy}>
-              Materia actual
-              {currentParticipation.periodLabel
-                ? ` · ${currentParticipation.periodLabel}`
-                : ""}
+              Materia actual · {participationLabel(currentParticipation)}
             </Text>
           ) : (
             <Text style={styles.copy}>
@@ -165,7 +184,7 @@ export function AcademicContextCard() {
                 key={affiliation.id}
                 accessibilityRole="button"
                 accessibilityState={{
-                  disabled: snapshot.kind === "switching",
+                  disabled: snapshot.kind === "switching" || selected,
                   selected,
                 }}
                 disabled={snapshot.kind === "switching" || selected}
@@ -185,6 +204,64 @@ export function AcademicContextCard() {
           })}
         </View>
       )}
+
+      {data.context ? (
+        <View style={styles.options}>
+          <Text style={styles.sectionLabel}>Materia actual</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{
+              disabled:
+                snapshot.kind === "switching" ||
+                !data.context.subjectParticipationId,
+              selected: !data.context.subjectParticipationId,
+            }}
+            disabled={
+              snapshot.kind === "switching" ||
+              !data.context.subjectParticipationId
+            }
+            onPress={() => void selectSubject(null)}
+            style={[
+              styles.option,
+              !data.context.subjectParticipationId
+                ? styles.optionSelected
+                : null,
+            ]}
+          >
+            <Text style={styles.optionTitle}>Sin materia actual</Text>
+            <Text style={styles.optionCopy}>
+              Mantener la afiliación actual sin una materia seleccionada
+            </Text>
+          </Pressable>
+
+          {data.participations.map((participation) => {
+            const selected =
+              data.context?.subjectParticipationId === participation.id;
+            return (
+              <Pressable
+                key={participation.id}
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: snapshot.kind === "switching" || selected,
+                  selected,
+                }}
+                disabled={snapshot.kind === "switching" || selected}
+                onPress={() => void selectSubject(participation.id)}
+                style={[styles.option, selected ? styles.optionSelected : null]}
+              >
+                <Text style={styles.optionTitle}>
+                  {participationLabel(participation)}
+                </Text>
+                <Text style={styles.optionCopy}>
+                  {selected
+                    ? "Materia actual"
+                    : "Usar esta participación y validar en el servidor"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
 
       {snapshot.kind === "switching" ? (
         <View style={styles.inline}>

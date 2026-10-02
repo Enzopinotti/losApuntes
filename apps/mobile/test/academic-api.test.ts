@@ -122,3 +122,25 @@ test("a successful Academic response is fenced by credential generation", async 
   assert.equal(session.getCredentialSnapshot()?.credential, token.value);
   assert.equal(store.value, token.value);
 });
+
+test("subjects forwards the affiliation scope under the same credential authority", async () => {
+  const token = { value: "a".repeat(43) };
+  const store = new Store();
+  const session = new SessionController(sessionApi(token), store);
+  await session.login({ email: "a@example.edu", password: "password" });
+
+  let receivedAffiliation: string | undefined;
+  const api = new AcademicMobileApi(
+    session,
+    transport({
+      academicSubjects: async (_credential, affiliationId) => {
+        receivedAffiliation = affiliationId;
+        return { participations: [], truncated: false, limit: 100 };
+      },
+    }),
+  );
+
+  await api.subjects("aff-a");
+
+  assert.equal(receivedAffiliation, "aff-a");
+});

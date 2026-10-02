@@ -113,6 +113,7 @@ export type AcademicCurrentContextRecord = {
   userId: string;
   affiliationId: string;
   subjectParticipationId?: string;
+  revision: number;
   createdAt: Date;
   updatedAt: Date;
 };
