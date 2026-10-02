@@ -155,11 +155,14 @@ If `courseOfferingId` exists, it must belong to `:subjectId`. If the participati
 
 ### GET /academic/me/context
 
-Before returning authority, the backend reconciles legacy stored subject context:
-if a persisted `subjectParticipationId` no longer points to an owned
-`state=current` participation, it clears only the subject selection with
-revision CAS while preserving the affiliation. Lifecycle projections consume
-this same reconciled context path.
+Before returning authority, the backend reconciles stored subject context. A
+persisted `subjectParticipationId` remains authoritative only while the
+participation is owned and `state=current`, the stored affiliation still
+allows current-subject context, and the subject still belongs to that
+affiliation graph. Otherwise the backend clears only the subject selection with
+revision CAS while preserving the affiliation. If another reader repairs the
+same context first, reconciliation re-reads authority before failing closed.
+Lifecycle projections consume this same reconciled context path.
 
 Returns:
 
@@ -199,7 +202,12 @@ context. Existing contexts expose a positive `revision`. Updates use
 optimistic concurrency; stale writers receive
 `ACADEMIC_CONTEXT_REVISION_CONFLICT`.
 
-Ownership, the canonical `state=current` SubjectParticipation lifecycle rule and graph consistency are revalidated server-side. The scoped read projection and this write consume the same lifecycle rule.
+Ownership, affiliation lifecycle eligibility, the canonical `state=current`
+SubjectParticipation rule and graph consistency are revalidated server-side.
+The scoped read projection, authoritative context read and this write consume
+the same eligibility rules. Context writes also acquire transactional guards on
+the selected affiliation and participation, so concurrent graduation/status or
+participation lifecycle transitions cannot commit a stale subject context.
 
 ## Missing-data proposal
 

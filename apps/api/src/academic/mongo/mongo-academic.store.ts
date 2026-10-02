@@ -266,6 +266,27 @@ export class MongoAcademicStore implements AcademicStore {
       .exec();
   }
 
+  async guardAcademicAffiliation(
+    userId: string,
+    id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
+  ): Promise<boolean> {
+    const guarded = await this.affiliations
+      .findOneAndUpdate(
+        { id, userId, status: expectedStatus },
+        { $inc: { contextGuardRevision: 1 } },
+        {
+          new: true,
+          session: this.session(),
+          timestamps: false,
+        },
+      )
+      .lean<{ id: string }>()
+      .exec();
+
+    return guarded !== null;
+  }
+
   async listAffiliationsForUser(
     input: Parameters<AcademicStore['listAffiliationsForUser']>[0],
   ): ReturnType<AcademicStore['listAffiliationsForUser']> {

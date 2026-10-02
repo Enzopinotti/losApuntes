@@ -104,6 +104,11 @@ export interface AcademicStore {
     input: CreateAffiliationRecord,
   ): Promise<AcademicAffiliationRecord>;
   findAffiliationById(id: string): Promise<AcademicAffiliationRecord | null>;
+  guardAcademicAffiliation(
+    userId: string,
+    id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
+  ): Promise<boolean>;
   listAffiliationsForUser(input: {
     userId: string;
     limit: number;

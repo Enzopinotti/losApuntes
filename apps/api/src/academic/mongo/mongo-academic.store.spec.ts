@@ -245,6 +245,42 @@ describe('MongoAcademicStore bounded redirect fan-out', () => {
 });
 
 describe('MongoAcademicStore subject-context serialization', () => {
+  it('writes an expected-status guard on the selected affiliation', async () => {
+    const guarded = { id: 'aff-1' };
+    const chain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(guarded),
+    };
+    chain.lean.mockReturnValue(chain);
+    const affiliations = {
+      findOneAndUpdate: jest.fn().mockReturnValue(chain),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      {} as never,
+      affiliations as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.guardAcademicAffiliation('user-1', 'aff-1', 'active'),
+    ).resolves.toBe(true);
+
+    expect(affiliations.findOneAndUpdate).toHaveBeenCalledWith(
+      { id: 'aff-1', userId: 'user-1', status: 'active' },
+      { $inc: { contextGuardRevision: 1 } },
+      {
+        new: true,
+        session: undefined,
+        timestamps: false,
+      },
+    );
+  });
+
   it('writes a current-state guard on the participation selected for context', async () => {
     const guarded = { id: 'part-1' };
     const chain = {

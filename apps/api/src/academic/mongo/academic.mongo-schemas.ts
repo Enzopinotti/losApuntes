@@ -145,6 +145,11 @@ export class AcademicAffiliation {
   @Prop()
   endedOn?: string;
 
+  // Internal write guard used to serialize context selection against
+  // affiliation lifecycle/status transitions without changing public fields.
+  @Prop({ required: true, default: 0, min: 0, select: false })
+  contextGuardRevision!: number;
+
   createdAt!: Date;
   updatedAt!: Date;
 }

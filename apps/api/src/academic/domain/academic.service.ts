@@ -26,6 +26,7 @@ import {
 } from './academic-bounds';
 import {
   CURRENT_SUBJECT_PARTICIPATION_STATES,
+  affiliationAllowsCurrentSubjectContext,
   effectiveAcademicRelationshipRoles,
   isCurrentSubjectParticipationState,
   relationshipRolesCompatible,
@@ -606,11 +607,7 @@ export class AcademicService {
     const affiliation = await this.store.findAffiliationById(affiliationId);
     if (!affiliation || affiliation.userId !== userId) this.notFound();
 
-    if (
-      affiliation.status === 'withdrawn' ||
-      affiliation.status === 'completed' ||
-      affiliation.status === 'alumni'
-    ) {
+    if (!affiliationAllowsCurrentSubjectContext(affiliation.status)) {
       return {
         participations: [],
         truncated: false,
@@ -747,39 +744,69 @@ export class AcademicService {
   }
 
   async getCurrentContext(userId: string) {
-    const context = await this.store.runAtomically(async () => {
-      const current = await this.store.getCurrentContext(userId);
-      if (!current?.subjectParticipationId) return current;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await this.store.runAtomically(async () => {
+        const current = await this.store.getCurrentContext(userId);
+        if (!current?.subjectParticipationId) {
+          return { kind: 'settled' as const, context: current };
+        }
 
-      const participation = await this.store.findSubjectParticipationById(
-        current.subjectParticipationId,
-      );
-      if (
-        participation?.userId === userId &&
-        isCurrentSubjectParticipationState(participation.state)
-      ) {
-        return current;
-      }
+        const [affiliation, participation] = await Promise.all([
+          this.store.findAffiliationById(current.affiliationId),
+          this.store.findSubjectParticipationById(
+            current.subjectParticipationId,
+          ),
+        ]);
 
-      const cleared = await this.store.setCurrentContext(
-        {
-          userId,
-          affiliationId: current.affiliationId,
-        },
-        current.revision,
-      );
-      if (!cleared) this.contextRevisionConflict();
+        const affiliationEligible =
+          affiliation !== null &&
+          affiliation.userId === userId &&
+          affiliationAllowsCurrentSubjectContext(affiliation.status);
+        const participationEligible =
+          participation !== null &&
+          participation.userId === userId &&
+          isCurrentSubjectParticipationState(participation.state);
+        const graphEligible =
+          affiliationEligible &&
+          participationEligible &&
+          affiliation &&
+          participation
+            ? await this.participationBelongsToAffiliation(
+                participation.subjectId,
+                affiliation,
+              )
+            : false;
 
-      await this.audit('academic.context.updated', userId, userId, {
-        affiliationId: cleared.affiliationId,
-        revision: cleared.revision,
-        reason: 'legacy_subject_context_no_longer_current',
+        if (affiliationEligible && participationEligible && graphEligible) {
+          return { kind: 'settled' as const, context: current };
+        }
+
+        const cleared = await this.store.setCurrentContext(
+          {
+            userId,
+            affiliationId: current.affiliationId,
+          },
+          current.revision,
+        );
+        if (!cleared) return { kind: 'retry' as const };
+
+        await this.audit('academic.context.updated', userId, userId, {
+          affiliationId: cleared.affiliationId,
+          revision: cleared.revision,
+          reason: 'stored_subject_context_no_longer_eligible',
+        });
+
+        return { kind: 'settled' as const, context: cleared };
       });
 
-      return cleared;
-    });
+      if (result.kind === 'settled') {
+        return {
+          context: result.context ? this.publicContext(result.context) : null,
+        };
+      }
+    }
 
-    return { context: context ? this.publicContext(context) : null };
+    this.contextRevisionConflict();
   }
 
   async setCurrentContext(userId: string, dto: SetAcademicContextDto) {
@@ -799,7 +826,7 @@ export class AcademicService {
 
     if (
       dto.subjectParticipationId &&
-      (affiliation.status === 'alumni' || affiliation.status === 'completed')
+      !affiliationAllowsCurrentSubjectContext(affiliation.status)
     ) {
       throw new UnprocessableEntityException({
         code: 'ACADEMIC_CONTEXT_INELIGIBLE',
@@ -838,6 +865,18 @@ export class AcademicService {
     }
 
     const context = await this.store.runAtomically(async () => {
+      const affiliationGuarded = await this.store.guardAcademicAffiliation(
+        userId,
+        affiliation.id,
+        affiliation.status,
+      );
+      if (!affiliationGuarded) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+          message: 'Academic affiliation changed while selecting context',
+        });
+      }
+
       if (participation) {
         const guarded = await this.store.guardCurrentSubjectParticipation(
           userId,

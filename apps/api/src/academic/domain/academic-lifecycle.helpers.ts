@@ -23,6 +23,14 @@ export function isCurrentSubjectParticipationState(
   return CURRENT_SUBJECT_PARTICIPATION_STATES.includes(state);
 }
 
+export function affiliationAllowsCurrentSubjectContext(
+  status: AcademicAffiliationStatus,
+): boolean {
+  return (
+    status !== 'withdrawn' && status !== 'completed' && status !== 'alumni'
+  );
+}
+
 export function effectiveAcademicRelationshipRoles(
   status: AcademicAffiliationStatus,
   roles: readonly AcademicRelationshipRole[] | undefined,

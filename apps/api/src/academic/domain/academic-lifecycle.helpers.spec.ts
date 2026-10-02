@@ -1,4 +1,5 @@
 import {
+  affiliationAllowsCurrentSubjectContext,
   effectiveAcademicRelationshipRoles,
   graduationRoles,
   relationshipRolesCompatible,
@@ -54,6 +55,15 @@ describe('academic lifecycle helpers', () => {
       false,
     );
     expect(relationshipRolesCompatible('withdrawn', ['community'])).toBe(true);
+  });
+
+  it('defines which affiliation states can carry current subject context', () => {
+    expect(affiliationAllowsCurrentSubjectContext('applicant')).toBe(true);
+    expect(affiliationAllowsCurrentSubjectContext('active')).toBe(true);
+    expect(affiliationAllowsCurrentSubjectContext('paused')).toBe(true);
+    expect(affiliationAllowsCurrentSubjectContext('completed')).toBe(false);
+    expect(affiliationAllowsCurrentSubjectContext('withdrawn')).toBe(false);
+    expect(affiliationAllowsCurrentSubjectContext('alumni')).toBe(false);
   });
 
   it('converts student roles to alumni roles while preserving unrelated roles', () => {
