@@ -22,6 +22,7 @@ import {
   MobileCommunityQuestionController,
   reconcileQuestionCreation,
   releaseCommunityComposerOperation,
+  shouldClearCommunityAnswerDraft,
   shouldResetCommunityAnswerDraft,
   type CommunityFailure,
   type CommunityQuestionDetailSnapshot,
@@ -401,6 +402,12 @@ export function CommunityQuestionScreen({
   });
 
   useEffect(() => controller.subscribe(setDetail), [controller]);
+
+  useEffect(() => {
+    if (shouldClearCommunityAnswerDraft(detail)) {
+      setAnswerBody("");
+    }
+  }, [detail]);
 
   useEffect(() => {
     const previous = answerDraftScopeRef.current;
