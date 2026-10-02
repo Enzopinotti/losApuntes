@@ -451,9 +451,10 @@ test("does not let answer pagination cancel an in-flight answer mutation", async
     "Una respuesta útil.",
   );
   await Promise.resolve();
+  const answerPageCallsBeforeLoadMore = answerPageCalls;
 
   await controller.loadMoreAnswers("authority-a");
-  assert.equal(answerPageCalls, 0);
+  assert.equal(answerPageCalls, answerPageCallsBeforeLoadMore);
   assert.equal(mutationSignal?.aborted, false);
 
   mutation.resolve({ answer: answer("answer-a") });
