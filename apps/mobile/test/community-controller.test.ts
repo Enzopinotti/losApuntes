@@ -855,7 +855,6 @@ test("answer drafts survive transient authority gates but reset for a new questi
   );
 });
 
-
 test("pre-POST baseline failure releases the composer lock so retry can start a new operation", () => {
   const failedBaselineOperation = new AbortController();
   let submitting = true;
