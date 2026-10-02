@@ -22,10 +22,7 @@ export const currentMobileReleaseIdentity = Object.freeze(
 );
 
 export function qualifyCurrentMobileRelease(
-  observedServerRelease:
-    | MobileServerReleaseObservationInput
-    | null
-    | undefined,
+  observedServerRelease: MobileServerReleaseObservationInput | null | undefined,
 ) {
   return qualifyMobileRelease(
     currentMobileReleaseIdentity,

@@ -151,9 +151,7 @@ test("server evidence observed from another origin cannot qualify", () => {
   });
 
   assert.equal(qualification.status, "blocked");
-  assert.deepEqual(qualification.blockers, [
-    "SERVER_RELEASE_ORIGIN_MISMATCH",
-  ]);
+  assert.deepEqual(qualification.blockers, ["SERVER_RELEASE_ORIGIN_MISMATCH"]);
 });
 
 test("qualification revalidates structural identity input at the boundary", () => {

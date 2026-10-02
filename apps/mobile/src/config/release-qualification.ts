@@ -164,10 +164,7 @@ function normalizeServerReleaseObservation(
 
 export function qualifyMobileRelease(
   identityInput: MobileReleaseIdentityInput,
-  observedServerRelease:
-    | MobileServerReleaseObservationInput
-    | null
-    | undefined,
+  observedServerRelease: MobileServerReleaseObservationInput | null | undefined,
 ): MobileReleaseQualification {
   const identity = createMobileReleaseIdentity(identityInput);
   const blockers: MobileReleaseBlocker[] = [];
