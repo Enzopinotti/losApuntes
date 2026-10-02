@@ -184,13 +184,11 @@ describe('AcademicLifecycleService', () => {
       academicService.getCurrentContext.mockResolvedValue({
         context: {
           affiliationId: affiliations[0]?.id ?? 'none',
+          subjectParticipationId:
+            expected === 'student' || expected === 'mixed'
+              ? '44444444-4444-4444-8444-444444444444'
+              : undefined,
           revision: 1,
-          ...(expected === 'student' || expected === 'mixed'
-            ? {
-                subjectParticipationId:
-                  '44444444-4444-4444-8444-444444444444',
-              }
-            : {}),
           updatedAt: now.toISOString(),
         },
       });

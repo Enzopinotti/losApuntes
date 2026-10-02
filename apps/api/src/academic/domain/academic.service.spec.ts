@@ -1352,7 +1352,7 @@ describe('AcademicService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
-  it('reconciles a legacy context that points to historical participation', async () => {
+  it('reconciles historical legacy subject context', async () => {
     const store = createStore();
     const service = new AcademicService(store);
     const legacy = {
@@ -1405,7 +1405,7 @@ describe('AcademicService', () => {
     });
   });
 
-  it('fails closed if legacy context reconciliation loses revision CAS', async () => {
+  it('fails closed when legacy reconciliation loses CAS', async () => {
     const store = createStore();
     const service = new AcademicService(store);
     const legacy = {
@@ -1426,9 +1426,7 @@ describe('AcademicService', () => {
     );
     store.setCurrentContext.mockResolvedValue(null);
 
-    const error = await rejectedConflict(
-      service.getCurrentContext('user-1'),
-    );
+    const error = await rejectedConflict(service.getCurrentContext('user-1'));
 
     expect(error.getResponse()).toMatchObject({
       code: 'ACADEMIC_CONTEXT_REVISION_CONFLICT',
