@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "exceptions": [
+    {
+      "cve": "CVE-2026-85393",
+      "ghsa": "GHSA-86w9-cpqp-85rv",
+      "package": "node-forge",
+      "version": "1.4.0",
+      "expiresAt": "2026-10-15T00:00:00.000Z",
+      "trackingIssue": "https://github.com/Enzopinotti/losApuntes/issues/133",
+      "allowedSnapshotParentPrefixes": [
+        "@expo/cli@",
+        "@expo/code-signing-certificates@"
+      ],
+      "rationale": "No patched upstream node-forge release exists at discovery time. The package is confined to reviewed Expo CLI/code-signing tooling and is not a direct API/Web dependency. The exception expires automatically."
+    }
+  ]
+}

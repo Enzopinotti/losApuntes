@@ -41,11 +41,17 @@
     "test:notification-fanout-contract": "node scripts/test-notification-fanout-contract.mjs",
     "resilience:check": "node scripts/resilience/check-evidence.mjs",
     "resilience:compose-env": "node scripts/resilience/render-compose-env.mjs",
-    "test:resilience-contract": "node --test scripts/resilience/resilience-lib.test.mjs && node scripts/test-production-resilience-contract.mjs"
+    "test:resilience-contract": "node --test scripts/resilience/resilience-lib.test.mjs && node scripts/test-production-resilience-contract.mjs && pnpm security:audit-exceptions",
+    "security:audit-exceptions": "node scripts/security/check-audit-exceptions.mjs"
   },
   "pnpm": {
     "overrides": {
       "@nestjs/platform-fastify>fastify": "5.12.5"
+    },
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-85393"
+      ]
     }
   }
 }
