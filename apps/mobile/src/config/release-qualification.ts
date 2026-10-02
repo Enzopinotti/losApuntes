@@ -1,7 +1,5 @@
 export type MobileDistributionProfile =
-  | "development"
-  | "preview"
-  | "production";
+  "development" | "preview" | "production";
 
 export type MobileApiTransport = "https" | "local-http" | "insecure-http";
 
