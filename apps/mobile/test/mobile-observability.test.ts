@@ -60,7 +60,9 @@ test(
     const error = new TypeError("private token should not become a field");
     error.stack = [
       "TypeError: token=opaque-secret-value",
-      "at render (file:///Users/person/app.tsx:9:1)",
+      "request body: Leonardo short-session-id",
+      "second free-form message line",
+      "    at render (file:///Users/person/app.tsx:9:1)",
     ].join("\n");
 
     const context = {
@@ -82,6 +84,9 @@ test(
     assert.equal(first.timestamp, "2026-10-02T04:00:00.000Z");
     assert.equal(first.revision, "abcdef1234567890");
     assert.equal(serialized.includes("opaque-secret-value"), false);
+    assert.equal(serialized.includes("Leonardo"), false);
+    assert.equal(serialized.includes("short-session-id"), false);
+    assert.equal(serialized.includes("second free-form message line"), false);
     assert.equal(
       serialized.includes("private token should not become a field"),
       false,

@@ -172,6 +172,17 @@ function safeErrorClass(error: unknown): string {
   return clamp(safe || "Error", 64);
 }
 
+function extractMobileDiagnosticFrames(
+  stack: string | null | undefined,
+): string | null {
+  if (!stack) return null;
+  const frames = stack
+    .split("\n")
+    .filter((line) => /^\s*at\s+/u.test(line))
+    .join("\n");
+  return frames || null;
+}
+
 function fnv1a(value: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {
@@ -187,9 +198,7 @@ export function createMobileDiagnosticEnvelope(
 ): MobileDiagnosticEnvelope {
   const errorClass = safeErrorClass(error);
   const rawFrames =
-    error instanceof Error
-      ? error.stack?.split("\n").slice(1).join("\n")
-      : null;
+    error instanceof Error ? extractMobileDiagnosticFrames(error.stack) : null;
   const stack = sanitizeMobileDiagnosticStack(rawFrames);
   const fingerprintSource = [
     errorClass,
