@@ -127,8 +127,11 @@ Lists current/historical SubjectParticipation records for the current user.
 
 Optional query:
 - `affiliationId` — when present, the backend returns only participations that
-  are valid choices for that owned affiliation under the same graph rules used
-  by CurrentAcademicContext. The eligibility decision uses a bounded complete
+  are valid **current-subject** choices for that owned affiliation. Eligibility
+  requires the canonical SubjectParticipation lifecycle state `current` and the
+  same server-side graph relationship enforced by CurrentAcademicContext;
+  `planned`, `completed` and `dropped` records remain history and are not
+  exposed as current choices. The eligibility decision uses a bounded complete
   inventory and fails closed with `ACADEMIC_INVENTORY_OVERFLOW` if that
   decision budget is exceeded.
 
@@ -190,7 +193,7 @@ context. Existing contexts expose a positive `revision`. Updates use
 optimistic concurrency; stale writers receive
 `ACADEMIC_CONTEXT_REVISION_CONFLICT`.
 
-Ownership and graph consistency are revalidated server-side.
+Ownership, the canonical `state=current` SubjectParticipation lifecycle rule and graph consistency are revalidated server-side. The scoped read projection and this write consume the same lifecycle rule.
 
 ## Missing-data proposal
 

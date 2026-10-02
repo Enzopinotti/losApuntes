@@ -1,6 +1,7 @@
 import type {
   AcademicAffiliationStatus,
   AcademicRelationshipRole,
+  SubjectParticipationState,
 } from './academic.types';
 
 const STUDENT_ROLES = new Set<AcademicRelationshipRole>([
@@ -12,6 +13,16 @@ const ALUMNI_ROLES = new Set<AcademicRelationshipRole>([
   'recent_graduate',
   'alumni',
 ]);
+
+export const CURRENT_SUBJECT_PARTICIPATION_STATES: readonly SubjectParticipationState[] = [
+  'current',
+];
+
+export function isCurrentSubjectParticipationState(
+  state: SubjectParticipationState,
+): boolean {
+  return CURRENT_SUBJECT_PARTICIPATION_STATES.includes(state);
+}
 
 export function effectiveAcademicRelationshipRoles(
   status: AcademicAffiliationStatus,

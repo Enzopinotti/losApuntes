@@ -517,7 +517,7 @@ describe('AcademicService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('persists a context only when affiliation and participation belong together', async () => {
+  it('accepts a current participation when affiliation and participation belong together', async () => {
     const store = createStore();
     const service = new AcademicService(store);
     const row = affiliation();
@@ -530,7 +530,7 @@ describe('AcademicService', () => {
       kind: 'subject',
       parentIds: [curriculum.id],
     });
-    const part = participation();
+    const part = participation({ state: 'current' });
 
     store.findAffiliationById.mockResolvedValue(row);
     store.findSubjectParticipationById.mockResolvedValue(part);
@@ -556,6 +556,29 @@ describe('AcademicService', () => {
     expect(result.context.affiliationId).toBe(row.id);
     expect(result.context.subjectParticipationId).toBe(part.id);
   });
+  it.each(['planned', 'completed', 'dropped'] as const)(
+    'rejects %s participation as current subject context',
+    async (state) => {
+      const store = createStore();
+      const service = new AcademicService(store);
+      const row = affiliation();
+      const part = participation({ state });
+
+      store.findAffiliationById.mockResolvedValue(row);
+      store.findSubjectParticipationById.mockResolvedValue(part);
+
+      await expect(
+        service.setCurrentContext('user-1', {
+          expectedRevision: 0,
+          affiliationId: row.id,
+          subjectParticipationId: part.id,
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+      expect(store.setCurrentContext).not.toHaveBeenCalled();
+    },
+  );
+
   it('rejects a stale current-context revision before mutation', async () => {
     const store = createStore();
     const service = new AcademicService(store);
@@ -965,31 +988,51 @@ describe('AcademicService', () => {
     expect(listResult.participations.map((item) => item.id)).toEqual([row.id]);
   });
 
-  it('scopes subject choices to server-authoritative affiliation eligibility', async () => {
+  it('scopes current subject choices with the canonical lifecycle and affiliation rule', async () => {
     const store = createStore();
     const service = new AcademicService(store);
     const selected = affiliation();
-    const eligible = participation({
+    const eligibleCurrent = participation({
+      id: '77777777-7777-4777-8777-777777777771',
       subjectId: '55555555-5555-4555-8555-555555555555',
+      state: 'current',
     });
-    const outside = participation({
-      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    const historical = [
+      participation({
+        id: '77777777-7777-4777-8777-777777777772',
+        subjectId: eligibleCurrent.subjectId,
+        state: 'planned',
+      }),
+      participation({
+        id: '77777777-7777-4777-8777-777777777773',
+        subjectId: eligibleCurrent.subjectId,
+        state: 'completed',
+      }),
+      participation({
+        id: '77777777-7777-4777-8777-777777777774',
+        subjectId: eligibleCurrent.subjectId,
+        state: 'dropped',
+      }),
+    ];
+    const outsideCurrent = participation({
+      id: '77777777-7777-4777-8777-777777777775',
       subjectId: '66666666-6666-4666-8666-666666666666',
+      state: 'current',
     });
     const eligibleSubject = catalogNode({
-      id: eligible.subjectId,
+      id: eligibleCurrent.subjectId,
       kind: 'subject',
       name: 'Álgebra',
     });
 
     store.findAffiliationById.mockResolvedValue(selected);
     store.listSubjectParticipationsForUser.mockResolvedValue(
-      page([eligible, outside]),
+      page([eligibleCurrent, ...historical, outsideCurrent]),
     );
     jest
       .spyOn(service, 'participationBelongsToAffiliation')
       .mockImplementation((subjectId) =>
-        Promise.resolve(subjectId === eligible.subjectId),
+        Promise.resolve(subjectId === eligibleCurrent.subjectId),
       );
     store.findCatalogNodeById.mockImplementation((id) =>
       Promise.resolve(id === eligibleSubject.id ? eligibleSubject : null),
@@ -1003,9 +1046,10 @@ describe('AcademicService', () => {
     expect(result).toMatchObject({
       participations: [
         expect.objectContaining({
-          id: eligible.id,
-          subjectId: eligible.subjectId,
+          id: eligibleCurrent.id,
+          subjectId: eligibleCurrent.subjectId,
           subjectName: 'Álgebra',
+          state: 'current',
         }),
       ],
       truncated: false,
@@ -1013,6 +1057,7 @@ describe('AcademicService', () => {
     });
     expect(store.listSubjectParticipationsForUser).toHaveBeenCalledWith({
       userId: 'user-1',
+      states: ['current'],
       limit: ACADEMIC_PARTICIPATION_DECISION_LIMIT,
     });
   });

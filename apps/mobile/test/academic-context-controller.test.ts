@@ -445,3 +445,93 @@ test("reconciles an ambiguous write before draining the next queued selection", 
   assert.equal(snapshot.data.context?.subjectParticipationId, "part-b");
   assert.equal(snapshot.data.context?.revision, 3);
 });
+
+test("keeps a queued selection pending until failed reconciliation recovers authority", async () => {
+  const calls: SetAcademicContextInput[] = [];
+  let rejectFirst!: (reason: unknown) => void;
+  const firstWrite = new Promise<AcademicCurrentContextResponse>(
+    (_resolve, reject) => {
+      rejectFirst = reject;
+    },
+  );
+  let serverContext: AcademicCurrentContextResponse = contextWithoutSubject();
+  let contextReads = 0;
+  let online = true;
+
+  const controller = new AcademicContextController(
+    api({
+      context: async () => {
+        contextReads += 1;
+        if (contextReads === 1 || online) return serverContext;
+        throw new ApiRequestError(
+          "timeout",
+          null,
+          "REQUEST_TIMEOUT",
+          "reconciliation unavailable",
+        );
+      },
+      setContext: async (input) => {
+        calls.push(input);
+        if (calls.length === 1) return firstWrite;
+
+        serverContext = {
+          context: {
+            ...context(input.affiliationId, input.subjectParticipationId)
+              .context!,
+            revision: input.expectedRevision + 1,
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const first = controller.selectSubject("user-1:session-1", "part-a");
+  await Promise.resolve();
+  const second = controller.selectSubject("user-1:session-1", "part-b");
+  let secondSettled = false;
+  void second.then(() => {
+    secondSettled = true;
+  });
+
+  serverContext = {
+    context: {
+      ...context("aff-a", "part-a").context!,
+      revision: 2,
+    },
+  };
+  online = false;
+  rejectFirst(
+    new ApiRequestError(
+      "timeout",
+      null,
+      "REQUEST_TIMEOUT",
+      "timeout after commit",
+    ),
+  );
+
+  await first;
+  for (let index = 0; index < 6; index += 1) {
+    await Promise.resolve();
+  }
+
+  assert.equal(calls.length, 1);
+  assert.equal(secondSettled, false);
+  assert.notEqual(controller.getSnapshot().kind, "ready");
+
+  online = true;
+  await controller.restore("user-1:session-1");
+  await second;
+
+  assert.deepEqual(calls[1], {
+    affiliationId: "aff-a",
+    subjectParticipationId: "part-b",
+    expectedRevision: 2,
+  });
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.subjectParticipationId, "part-b");
+  assert.equal(snapshot.data.context?.revision, 3);
+});

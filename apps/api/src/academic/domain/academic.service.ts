@@ -25,7 +25,9 @@ import {
   requireCompleteAcademicPage,
 } from './academic-bounds';
 import {
+  CURRENT_SUBJECT_PARTICIPATION_STATES,
   effectiveAcademicRelationshipRoles,
+  isCurrentSubjectParticipationState,
   relationshipRolesCompatible,
 } from './academic-lifecycle.helpers';
 import {
@@ -619,6 +621,7 @@ export class AcademicService {
     const inventory = requireCompleteAcademicPage(
       await this.store.listSubjectParticipationsForUser({
         userId,
+        states: [...CURRENT_SUBJECT_PARTICIPATION_STATES],
         limit: ACADEMIC_PARTICIPATION_DECISION_LIMIT,
       }),
       'subject_participations',
@@ -627,7 +630,11 @@ export class AcademicService {
 
     for (const row of inventory) {
       if (
-        await this.participationBelongsToAffiliation(row.subjectId, affiliation)
+        isCurrentSubjectParticipationState(row.state) &&
+        (await this.participationBelongsToAffiliation(
+          row.subjectId,
+          affiliation,
+        ))
       ) {
         eligible.push(row);
       }
@@ -755,6 +762,14 @@ export class AcademicService {
       );
 
       if (!participation || participation.userId !== userId) this.notFound();
+
+      if (!isCurrentSubjectParticipationState(participation.state)) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+          message:
+            'Only current subject participations can be selected as current context',
+        });
+      }
 
       const anchorId =
         affiliation.curriculumId ??
