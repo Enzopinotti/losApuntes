@@ -292,6 +292,7 @@ describe('MongoOrganizationStore public content pagination', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
       posts as never,
       {} as never,
       {} as never,
@@ -337,6 +338,7 @@ describe('MongoOrganizationStore public content pagination', () => {
     const chain = pageQuery(rows);
     const events = { find: jest.fn().mockReturnValue(chain) };
     const store = new MongoOrganizationStore(
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

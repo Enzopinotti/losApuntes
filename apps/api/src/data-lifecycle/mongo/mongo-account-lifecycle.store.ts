@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, Model } from 'mongoose';
+import type { Connection, FilterQuery, Model } from 'mongoose';
 
 import type { OrganizationManagerRecord } from '../../organizations/domain/organization.types';
 import { OrganizationManager } from '../../organizations/mongo/organization.mongo-schemas';
@@ -24,12 +24,12 @@ function credentialVersionClause(expected: number): Record<string, unknown> {
     : { credential_version: expected };
 }
 
-const ACTIVE_ACCOUNT_CLAUSE = {
+const ACTIVE_ACCOUNT_CLAUSE: FilterQuery<User> = {
   $or: [
     { account_status: 'active' },
     { account_status: { $exists: false } },
   ],
-} as const;
+};
 
 @Injectable()
 export class MongoAccountLifecycleStore implements AccountLifecycleStore {
