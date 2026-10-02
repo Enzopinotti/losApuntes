@@ -132,6 +132,10 @@ export interface AcademicStore {
   upsertSubjectParticipation(
     input: CreateSubjectParticipationRecord,
   ): Promise<SubjectParticipationRecord>;
+  guardCurrentSubjectParticipation(
+    userId: string,
+    id: string,
+  ): Promise<boolean>;
   findSubjectParticipationById(
     id: string,
   ): Promise<SubjectParticipationRecord | null>;

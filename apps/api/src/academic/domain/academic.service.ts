@@ -807,6 +807,20 @@ export class AcademicService {
     }
 
     const context = await this.store.runAtomically(async () => {
+      if (participation) {
+        const guarded = await this.store.guardCurrentSubjectParticipation(
+          userId,
+          participation.id,
+        );
+        if (!guarded) {
+          throw new UnprocessableEntityException({
+            code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+            message:
+              'Only current subject participations can be selected as current context',
+          });
+        }
+      }
+
       const current = await this.store.getCurrentContext(userId);
       const actualRevision = current?.revision ?? 0;
 

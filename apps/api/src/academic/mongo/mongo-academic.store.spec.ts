@@ -244,6 +244,44 @@ describe('MongoAcademicStore bounded redirect fan-out', () => {
   });
 });
 
+describe('MongoAcademicStore subject-context serialization', () => {
+  it('writes a current-state guard on the participation selected for context', async () => {
+    const guarded = { id: 'part-1' };
+    const chain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(guarded),
+    };
+    chain.lean.mockReturnValue(chain);
+    const participations = {
+      findOneAndUpdate: jest.fn().mockReturnValue(chain),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      participations as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.guardCurrentSubjectParticipation('user-1', 'part-1'),
+    ).resolves.toBe(true);
+
+    expect(participations.findOneAndUpdate).toHaveBeenCalledWith(
+      { id: 'part-1', userId: 'user-1', state: 'current' },
+      { $inc: { contextGuardRevision: 1 } },
+      {
+        new: true,
+        session: undefined,
+        timestamps: false,
+      },
+    );
+  });
+});
+
 describe('MongoAcademicStore current-context concurrency', () => {
   it('updates current context only at the expected revision', async () => {
     const updated = {

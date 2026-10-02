@@ -166,6 +166,10 @@ function createStore() {
       mockFn<AcademicStore['transitionAffiliationToAlumni']>(),
     upsertSubjectParticipation:
       mockFn<AcademicStore['upsertSubjectParticipation']>(),
+    guardCurrentSubjectParticipation:
+      mockFn<AcademicStore['guardCurrentSubjectParticipation']>().mockResolvedValue(
+        true,
+      ),
     findSubjectParticipationById:
       mockFn<AcademicStore['findSubjectParticipationById']>(),
     listSubjectParticipationsForUser:
@@ -556,9 +560,50 @@ describe('AcademicService', () => {
     expect(result.context.affiliationId).toBe(row.id);
     expect(result.context.subjectParticipationId).toBe(part.id);
   });
-  it.each(['planned', 'completed', 'dropped'] as const)(
-    'rejects %s participation as current subject context',
-    async (state) => {
+
+  it('revalidates current participation inside the atomic context-selection boundary', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const row = affiliation();
+    const curriculum = catalogNode({
+      id: row.curriculumId!,
+      kind: 'curriculum',
+    });
+    const subject = catalogNode({
+      id: '55555555-5555-4555-8555-555555555555',
+      kind: 'subject',
+      parentIds: [curriculum.id],
+    });
+    const part = participation({ state: 'current' });
+
+    store.findAffiliationById.mockResolvedValue(row);
+    store.findSubjectParticipationById.mockResolvedValue(part);
+    store.findCatalogNodeById.mockImplementation((id) =>
+      Promise.resolve(
+        id === subject.id ? subject : id === curriculum.id ? curriculum : null,
+      ),
+    );
+    // Simulate the lifecycle transition winning after the optimistic read above
+    // but before the context transaction acquires its participation write guard.
+    store.guardCurrentSubjectParticipation.mockResolvedValue(false);
+
+    await expect(
+      service.setCurrentContext('user-1', {
+        expectedRevision: 0,
+        affiliationId: row.id,
+        subjectParticipationId: part.id,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(store.guardCurrentSubjectParticipation).toHaveBeenCalledWith(
+      'user-1',
+      part.id,
+    );
+    expect(store.getCurrentContext).not.toHaveBeenCalled();
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
+  });
+  for (const state of ['planned', 'completed', 'dropped'] as const) {
+    it(`rejects ${state} participation as current subject context`, async () => {
       const store = createStore();
       const service = new AcademicService(store);
       const row = affiliation();
@@ -575,9 +620,10 @@ describe('AcademicService', () => {
         }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
+      expect(store.guardCurrentSubjectParticipation).not.toHaveBeenCalled();
       expect(store.setCurrentContext).not.toHaveBeenCalled();
-    },
-  );
+    });
+  }
 
   it('rejects a stale current-context revision before mutation', async () => {
     const store = createStore();
@@ -988,9 +1034,8 @@ describe('AcademicService', () => {
     expect(listResult.participations.map((item) => item.id)).toEqual([row.id]);
   });
 
-  it.each(['planned', 'completed', 'dropped'] as const)(
-    'clears selected current context when participation becomes %s',
-    async (state) => {
+  for (const state of ['planned', 'completed', 'dropped'] as const) {
+    it(`clears selected current context when participation becomes ${state}`, async () => {
       const store = createStore();
       const service = new AcademicService(store);
       const subject = catalogNode({
@@ -1049,8 +1094,8 @@ describe('AcademicService', () => {
           }),
         }),
       );
-    },
-  );
+    });
+  }
 
   it('does not clear an unrelated current subject when another participation becomes historical', async () => {
     const store = createStore();

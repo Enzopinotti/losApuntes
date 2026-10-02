@@ -380,6 +380,26 @@ export class MongoAcademicStore implements AcademicStore {
     return row;
   }
 
+  async guardCurrentSubjectParticipation(
+    userId: string,
+    id: string,
+  ): Promise<boolean> {
+    const guarded = await this.participations
+      .findOneAndUpdate(
+        { id, userId, state: 'current' },
+        { $inc: { contextGuardRevision: 1 } },
+        {
+          new: true,
+          session: this.session(),
+          timestamps: false,
+        },
+      )
+      .lean<{ id: string }>()
+      .exec();
+
+    return guarded !== null;
+  }
+
   async findSubjectParticipationById(
     id: string,
   ): Promise<SubjectParticipationRecord | null> {
