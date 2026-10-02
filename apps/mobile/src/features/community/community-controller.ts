@@ -134,7 +134,9 @@ export function normalizeCommunityMutationText(value: string): string {
 }
 
 function questionReconciliationQuery(title: string): string {
-  return Array.from(normalizeCommunityMutationText(title).normalize("NFKC"))
+  return Array.from(
+    normalizeCommunityMutationText(title).normalize("NFKC"),
+  )
     .slice(0, 120)
     .join("");
 }
