@@ -849,7 +849,7 @@ export class MobileCommunityQuestionController {
     authorityKey: string,
     questionId: string,
     detail: QuestionDetailResponse,
-  ): CommunityQuestionDetailSnapshot {
+  ): Extract<CommunityQuestionDetailSnapshot, { kind: "ready" }> {
     return {
       kind: "ready",
       authorityKey,
