@@ -91,18 +91,31 @@ export class AuthLifecycleService {
     token: string,
     now = new Date(),
   ): Promise<boolean> {
-    const action =
-      (await this.actionTokens.claim(token, 'email_verification', now)) ??
-      (await this.actionTokens.findClaimed(
+    let action = await this.actionTokens.claim(
+      token,
+      'email_verification',
+      now,
+    );
+    if (!action) {
+      action = await this.actionTokens.findClaimed(
         token,
         'email_verification',
         now,
-      ));
+      );
+    }
     if (!action) return false;
 
     const user = await this.users.findById(action.userId);
     if (!user) return false;
-    if (isEmailVerified(user)) return true;
+
+    if (isEmailVerified(user)) {
+      await this.actionTokens.invalidateAll(
+        action.userId,
+        'email_verification',
+        now,
+      );
+      return true;
+    }
 
     const changed = await this.users.markEmailVerifiedIfUnverified(
       action.userId,
@@ -110,7 +123,14 @@ export class AuthLifecycleService {
     );
     if (!changed) {
       const reconciledUser = await this.users.findById(action.userId);
-      return Boolean(reconciledUser && isEmailVerified(reconciledUser));
+      if (!reconciledUser || !isEmailVerified(reconciledUser)) return false;
+
+      await this.actionTokens.invalidateAll(
+        action.userId,
+        'email_verification',
+        now,
+      );
+      return true;
     }
 
     await this.actionTokens.invalidateAll(
