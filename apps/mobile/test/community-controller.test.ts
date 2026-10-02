@@ -1037,7 +1037,6 @@ test("transient invalidation retains an indeterminate answer until return reconc
   );
 });
 
-
 test("published answer confirmation clears the draft only once across notice-preserving snapshots", () => {
   const published = {
     kind: "ready",
