@@ -65,36 +65,53 @@ export class AuthLifecycleService {
     token: string,
     now = new Date(),
   ): Promise<boolean> {
-    const action = await this.actionTokens.inspect(
+    const availableAction = await this.actionTokens.inspect(
       token,
       'email_verification',
       now,
     );
-    if (!action) return false;
 
-    const user = await this.users.findById(action.userId);
-    return Boolean(user && !isEmailVerified(user));
+    if (availableAction) {
+      const user = await this.users.findById(availableAction.userId);
+      return Boolean(user && !isEmailVerified(user));
+    }
+
+    const claimedAction = await this.actionTokens.findClaimed(
+      token,
+      'email_verification',
+      now,
+    );
+    if (!claimedAction) return false;
+
+    const user = await this.users.findById(claimedAction.userId);
+    return Boolean(user);
   }
 
   async completeEmailVerification(
     token: string,
     now = new Date(),
   ): Promise<boolean> {
-    const action = await this.actionTokens.claim(
-      token,
-      'email_verification',
-      now,
-    );
+    const action =
+      (await this.actionTokens.claim(token, 'email_verification', now)) ??
+      (await this.actionTokens.findClaimed(
+        token,
+        'email_verification',
+        now,
+      ));
     if (!action) return false;
 
     const user = await this.users.findById(action.userId);
-    if (!user || isEmailVerified(user)) return false;
+    if (!user) return false;
+    if (isEmailVerified(user)) return true;
 
     const changed = await this.users.markEmailVerifiedIfUnverified(
       action.userId,
       now,
     );
-    if (!changed) return false;
+    if (!changed) {
+      const reconciledUser = await this.users.findById(action.userId);
+      return Boolean(reconciledUser && isEmailVerified(reconciledUser));
+    }
 
     await this.actionTokens.invalidateAll(
       action.userId,
