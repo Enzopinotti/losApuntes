@@ -14,9 +14,8 @@ const ALUMNI_ROLES = new Set<AcademicRelationshipRole>([
   'alumni',
 ]);
 
-export const CURRENT_SUBJECT_PARTICIPATION_STATES: readonly SubjectParticipationState[] = [
-  'current',
-];
+export const CURRENT_SUBJECT_PARTICIPATION_STATES: readonly SubjectParticipationState[] =
+  ['current'];
 
 export function isCurrentSubjectParticipationState(
   state: SubjectParticipationState,
