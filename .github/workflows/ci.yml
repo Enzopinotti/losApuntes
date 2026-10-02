@@ -383,6 +383,9 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
+      - name: Validate governed audit exceptions
+        run: pnpm security:audit-exceptions
+
       - name: Audit production dependency graph
         run: pnpm audit --prod --audit-level high
 

@@ -8,6 +8,15 @@ async function* chunks(values: string[]) {
 }
 
 describe('DeterministicFileSafetyScanner', () => {
+  it('reports healthy without external dependencies', async () => {
+    await expect(
+      createDeterministicFileSafetyScanner().probe(),
+    ).resolves.toEqual({
+      status: 'ok',
+      engine: 'deterministic-quarantine-v1',
+    });
+  });
+
   it('detects the inert quarantine marker across chunk boundaries', async () => {
     const marker = 'LOSAPUNTES-QUARANTINE-TEST-MARKER-V1';
     const values = ['%PDF-1.7\n', marker.slice(0, 12), marker.slice(12)];

@@ -15,7 +15,10 @@ export type ClamAvFileSafetyScannerOptions = {
   timeoutMs: number;
 };
 
-function connect(options: ClamAvFileSafetyScannerOptions): Promise<Socket> {
+function connect(
+  options: ClamAvFileSafetyScannerOptions,
+  timeoutMs = options.timeoutMs,
+): Promise<Socket> {
   return new Promise((resolve, reject) => {
     const socket = createConnection({
       host: options.host,
@@ -24,7 +27,7 @@ function connect(options: ClamAvFileSafetyScannerOptions): Promise<Socket> {
     const timer = setTimeout(() => {
       socket.destroy();
       reject(new Error('ClamAV connection timed out'));
-    }, options.timeoutMs);
+    }, timeoutMs);
 
     const onError = (error: Error) => {
       clearTimeout(timer);
@@ -35,7 +38,7 @@ function connect(options: ClamAvFileSafetyScannerOptions): Promise<Socket> {
     socket.once('connect', () => {
       clearTimeout(timer);
       socket.off('error', onError);
-      socket.setTimeout(options.timeoutMs);
+      socket.setTimeout(timeoutMs);
       resolve(socket);
     });
   });
@@ -103,6 +106,28 @@ export function createClamAvFileSafetyScanner(
   options: ClamAvFileSafetyScannerOptions,
 ): FileSafetyScanner {
   return Object.freeze({
+    async probe(timeoutMs = 1_500) {
+      const boundedTimeoutMs = Math.max(
+        250,
+        Math.min(timeoutMs, options.timeoutMs),
+      );
+      const socket = await connect(options, boundedTimeoutMs);
+
+      try {
+        await write(socket, Buffer.from('zPING\0', 'ascii'));
+        const raw = await response(socket);
+        if (raw !== 'PONG') {
+          throw new Error('ClamAV health probe returned an invalid response');
+        }
+        return {
+          status: 'ok' as const,
+          engine: 'clamav-instream-v1',
+        };
+      } finally {
+        socket.destroy();
+      }
+    },
+
     async scan(input: FileSafetyScanInput) {
       const socket = await connect(options);
 

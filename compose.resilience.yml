@@ -1,0 +1,30 @@
+services:
+  api:
+    cpus: "${API_CPU_LIMIT:?validated API CPU limit is required}"
+    mem_limit: "${API_MEMORY_LIMIT:?validated API memory limit is required}"
+    pids_limit: ${API_PIDS_LIMIT:?validated API PID limit is required}
+    stop_signal: SIGTERM
+    stop_grace_period: "${API_STOP_GRACE_PERIOD_SECONDS:?validated API drain evidence is required}s"
+    init: true
+    tmpfs:
+      - "/tmp:size=${API_TMPFS_LIMIT:?validated API tmpfs limit is required},mode=1777"
+    logging:
+      driver: "${API_LOG_DRIVER:?validated API log driver is required}"
+      options:
+        max-size: "${API_LOG_MAX_SIZE:?validated API log max-size is required}"
+        max-file: "${API_LOG_MAX_FILES:?validated API log max-file is required}"
+
+  files-worker:
+    cpus: "${FILES_WORKER_CPU_LIMIT:?validated Files worker CPU limit is required}"
+    mem_limit: "${FILES_WORKER_MEMORY_LIMIT:?validated Files worker memory limit is required}"
+    pids_limit: ${FILES_WORKER_PIDS_LIMIT:?validated Files worker PID limit is required}
+    stop_signal: SIGTERM
+    stop_grace_period: "${FILES_WORKER_STOP_GRACE_PERIOD_SECONDS:?validated Files worker drain evidence is required}s"
+    init: true
+    tmpfs:
+      - "/tmp:size=${FILES_WORKER_TMPFS_LIMIT:?validated Files worker tmpfs limit is required},mode=1777"
+    logging:
+      driver: "${FILES_WORKER_LOG_DRIVER:?validated Files worker log driver is required}"
+      options:
+        max-size: "${FILES_WORKER_LOG_MAX_SIZE:?validated Files worker log max-size is required}"
+        max-file: "${FILES_WORKER_LOG_MAX_FILES:?validated Files worker log max-file is required}"

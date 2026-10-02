@@ -10,6 +10,12 @@ const QUARANTINE_TEST_MARKER = Buffer.from(
 
 export function createDeterministicFileSafetyScanner(): FileSafetyScanner {
   return Object.freeze({
+    probe: () =>
+      Promise.resolve({
+        status: 'ok' as const,
+        engine: 'deterministic-quarantine-v1',
+      }),
+
     async scan(input: FileSafetyScanInput) {
       let seenBytes = 0;
       let carry = Buffer.alloc(0);
