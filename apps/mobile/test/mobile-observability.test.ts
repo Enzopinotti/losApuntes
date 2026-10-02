@@ -12,9 +12,7 @@ import {
   type MobileErrorUtils,
 } from "../src/features/observability/mobile-diagnostics";
 
-test(
-  "normalizes diagnostic surfaces without query, hash or entity identifiers",
-  () => {
+test("normalizes diagnostic surfaces without query, hash or entity identifiers", () => {
     assert.equal(
       normalizeMobileDiagnosticSurface(
         "/questions/507f1f77bcf86cd799439011?token=secret#proof",
@@ -28,8 +26,7 @@ test(
       "/profiles/:id",
     );
     assert.equal(normalizeMobileDiagnosticSurface(""), "unknown");
-  },
-);
+});
 
 test("sanitizes stack evidence before it reaches a diagnostic sink", () => {
   const raw = [
@@ -54,9 +51,7 @@ test("sanitizes stack evidence before it reaches a diagnostic sink", () => {
   assert.ok((safe?.length ?? 0) <= MOBILE_DIAGNOSTIC_LIMITS.stack);
 });
 
-test(
-  "creates a bounded deterministic envelope without raw private context",
-  () => {
+test("creates a bounded deterministic envelope without raw private context", () => {
     const error = new TypeError("private token should not become a field");
     error.stack = [
       "TypeError: token=opaque-secret-value",
@@ -94,8 +89,7 @@ test(
     assert.equal(serialized.includes("signed"), false);
     assert.equal(serialized.includes("/Users/person"), false);
     assert.ok(first.fingerprint.length > 0);
-  },
-);
+});
 
 test("a diagnostic sink failure never prevents caller recovery", () => {
   const restore = configureMobileDiagnosticSink(() => {
@@ -117,9 +111,7 @@ test("a diagnostic sink failure never prevents caller recovery", () => {
   }
 });
 
-test(
-  "global JS handler reports bounded evidence and preserves the previous handler",
-  () => {
+test("global JS handler reports bounded evidence and preserves the previous handler", () => {
     const calls: string[] = [];
     const previous = (error: Error, isFatal?: boolean) => {
       calls.push(`previous:${error.name}:${String(isFatal)}`);
@@ -144,12 +136,9 @@ test(
 
     cleanup();
     assert.equal(current, previous);
-  },
-);
+});
 
-test(
-  "drops invalid release revisions instead of emitting arbitrary public env data",
-  () => {
+test("drops invalid release revisions instead of emitting arbitrary public env data", () => {
     const envelope = createMobileDiagnosticEnvelope(new Error("boom"), {
       platform: "ios",
       appVersion: "0.1.0",
@@ -159,5 +148,4 @@ test(
     });
 
     assert.equal(envelope.revision, null);
-  },
-);
+});

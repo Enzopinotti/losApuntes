@@ -124,10 +124,7 @@ export function sanitizeMobileDiagnosticStack(
   if (!raw) return null;
 
   let safe = stripUrlSecrets(raw)
-    .replace(
-      /\bBearer\s+[A-Za-z0-9._~+/-]+=*/giu,
-      "Bearer <redacted>",
-    )
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/giu, "Bearer <redacted>")
     .replace(
       /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b/gu,
       "<redacted-token>",
@@ -136,10 +133,7 @@ export function sanitizeMobileDiagnosticStack(
       /\b(token|code|proof|secret|session|authorization|signature|sig|key)=([^\s&#)]+)/giu,
       "$1=<redacted>",
     )
-    .replace(
-      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu,
-      "<email>",
-    )
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu, "<email>")
     .replace(/file:\/\/\/[^\s)]+/giu, "file://<path>")
     .replace(
       /(?:\/Users|\/home|\/var|\/tmp|\/private|\/storage\/emulated\/\d+|\/data\/user\/\d+)[^\s)]*/gu,
