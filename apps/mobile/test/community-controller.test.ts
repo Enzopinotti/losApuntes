@@ -883,157 +883,157 @@ test("pre-POST baseline failure releases the composer lock so retry can start a 
 });
 
 test("explicit refresh reconciles a blocked ambiguous answer across all answer pages", async () => {
-    const oldAnswers = Array.from({ length: 25 }, (_, index) =>
-      answer(`old-${index + 1}`),
-    );
-    let questionCalls = 0;
-    let reconciliationAvailable = false;
-    const controller = new MobileCommunityQuestionController({
-      questions: async () => page([]),
-      question: async (id) => {
-        questionCalls += 1;
-        if (questionCalls === 1) {
-          return detail(id, oldAnswers, "baseline-next");
-        }
-        if (!reconciliationAvailable) {
-          throw new ApiRequestError(
-            "offline",
-            null,
-            "NETWORK_UNAVAILABLE",
-            "offline",
-          );
-        }
-        return detail(id, oldAnswers, "reconcile-next");
-      },
-      answers: async (_questionId, cursor) => {
-        if (cursor === "baseline-next") {
-          return { items: [answer("old-26")], nextCursor: null };
-        }
-        assert.equal(cursor, "reconcile-next");
-        return {
-          items: [
-            answer("old-26"),
-            {
-              ...answer("committed-answer"),
-              body: "Una respuesta útil.",
-              viewer: { canEdit: true, canReport: true },
-            },
-          ],
-          nextCursor: null,
-        };
-      },
-      createQuestion: async () => ({ question: question("created") }),
-      createAnswer: async () => {
+  const oldAnswers = Array.from({ length: 25 }, (_, index) =>
+    answer(`old-${index + 1}`),
+  );
+  let questionCalls = 0;
+  let reconciliationAvailable = false;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      questionCalls += 1;
+      if (questionCalls === 1) {
+        return detail(id, oldAnswers, "baseline-next");
+      }
+      if (!reconciliationAvailable) {
         throw new ApiRequestError(
-          "timeout",
+          "offline",
           null,
-          "REQUEST_TIMEOUT",
-          "request timed out",
+          "NETWORK_UNAVAILABLE",
+          "offline",
         );
-      },
-    });
+      }
+      return detail(id, oldAnswers, "reconcile-next");
+    },
+    answers: async (_questionId, cursor) => {
+      if (cursor === "baseline-next") {
+        return { items: [answer("old-26")], nextCursor: null };
+      }
+      assert.equal(cursor, "reconcile-next");
+      return {
+        items: [
+          answer("old-26"),
+          {
+            ...answer("committed-answer"),
+            body: "Una respuesta útil.",
+            viewer: { canEdit: true, canReport: true },
+          },
+        ],
+        nextCursor: null,
+      };
+    },
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => {
+      throw new ApiRequestError(
+        "timeout",
+        null,
+        "REQUEST_TIMEOUT",
+        "request timed out",
+      );
+    },
+  });
 
-    await controller.load("authority-a", "question-a");
-    assert.equal(
-      await controller.createAnswer(
-        "authority-a",
-        "question-a",
-        "Una respuesta útil.",
-      ),
-      false,
-    );
-
-    const blocked = controller.getSnapshot();
-    assert.equal(blocked.kind, "ready");
-    if (blocked.kind === "ready") {
-      assert.equal(blocked.answerRetryBlocked, true);
-    }
-
-    reconciliationAvailable = true;
-    await controller.load("authority-a", "question-a");
-
-    const reconciled = controller.getSnapshot();
-    assert.equal(reconciled.kind, "ready");
-    if (reconciled.kind !== "ready") throw new Error("expected ready");
-    assert.equal(reconciled.answerRetryBlocked, false);
-    assert.equal(reconciled.notice, "Respuesta publicada.");
-    assert.equal(shouldClearCommunityAnswerDraft(reconciled), true);
-    assert.ok(
-      reconciled.detail.answers.some(
-        (candidate) => candidate.id === "committed-answer",
-      ),
-    );
-});
-
-test("transient invalidation retains an indeterminate answer until return reconciliation", async () => {
-    const oldAnswers = Array.from({ length: 25 }, (_, index) =>
-      answer(`old-${index + 1}`),
-    );
-    const mutation = deferred<{ answer: AnswerView }>();
-    let mutationSignal: AbortSignal | undefined;
-    let questionCalls = 0;
-    const controller = new MobileCommunityQuestionController({
-      questions: async () => page([]),
-      question: async (id) => {
-        questionCalls += 1;
-        if (questionCalls === 1) {
-          return detail(id, oldAnswers, "baseline-next");
-        }
-        return detail(id, oldAnswers, "reconcile-next");
-      },
-      answers: async (_questionId, cursor) => {
-        if (cursor === "baseline-next") {
-          return { items: [answer("old-26")], nextCursor: null };
-        }
-        assert.equal(cursor, "reconcile-next");
-        return {
-          items: [
-            answer("old-26"),
-            {
-              ...answer("committed-after-background"),
-              body: "Una respuesta útil.",
-              viewer: { canEdit: true, canReport: true },
-            },
-          ],
-          nextCursor: null,
-        };
-      },
-      createQuestion: async () => ({ question: question("created") }),
-      createAnswer: async (_questionId, _input, signal) => {
-        mutationSignal = signal;
-        return mutation.promise;
-      },
-    });
-
-    await controller.load("authority-a", "question-a");
-    const submitting = controller.createAnswer(
+  await controller.load("authority-a", "question-a");
+  assert.equal(
+    await controller.createAnswer(
       "authority-a",
       "question-a",
       "Una respuesta útil.",
-    );
-    for (let index = 0; index < 4 && !mutationSignal; index += 1) {
-      await Promise.resolve();
-    }
-    assert.ok(mutationSignal);
+    ),
+    false,
+  );
 
-    controller.invalidate("authority-a");
-    assert.equal(mutationSignal?.aborted, true);
-    mutation.reject(
-      new ApiRequestError("error", null, "REQUEST_ABORTED", "request aborted"),
-    );
-    assert.equal(await submitting, false);
-    assert.equal(controller.getSnapshot().kind, "idle");
+  const blocked = controller.getSnapshot();
+  assert.equal(blocked.kind, "ready");
+  if (blocked.kind === "ready") {
+    assert.equal(blocked.answerRetryBlocked, true);
+  }
 
-    await controller.load("authority-a", "question-a");
+  reconciliationAvailable = true;
+  await controller.load("authority-a", "question-a");
 
-    const reconciled = controller.getSnapshot();
-    assert.equal(reconciled.kind, "ready");
-    if (reconciled.kind !== "ready") throw new Error("expected ready");
-    assert.equal(reconciled.notice, "Respuesta publicada.");
-    assert.equal(shouldClearCommunityAnswerDraft(reconciled), true);
-    assert.ok(
-      reconciled.detail.answers.some(
-        (candidate) => candidate.id === "committed-after-background",
-      ),
-    );
+  const reconciled = controller.getSnapshot();
+  assert.equal(reconciled.kind, "ready");
+  if (reconciled.kind !== "ready") throw new Error("expected ready");
+  assert.equal(reconciled.answerRetryBlocked, false);
+  assert.equal(reconciled.notice, "Respuesta publicada.");
+  assert.equal(shouldClearCommunityAnswerDraft(reconciled), true);
+  assert.ok(
+    reconciled.detail.answers.some(
+      (candidate) => candidate.id === "committed-answer",
+    ),
+  );
+});
+
+test("transient invalidation retains an indeterminate answer until return reconciliation", async () => {
+  const oldAnswers = Array.from({ length: 25 }, (_, index) =>
+    answer(`old-${index + 1}`),
+  );
+  const mutation = deferred<{ answer: AnswerView }>();
+  let mutationSignal: AbortSignal | undefined;
+  let questionCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      questionCalls += 1;
+      if (questionCalls === 1) {
+        return detail(id, oldAnswers, "baseline-next");
+      }
+      return detail(id, oldAnswers, "reconcile-next");
+    },
+    answers: async (_questionId, cursor) => {
+      if (cursor === "baseline-next") {
+        return { items: [answer("old-26")], nextCursor: null };
+      }
+      assert.equal(cursor, "reconcile-next");
+      return {
+        items: [
+          answer("old-26"),
+          {
+            ...answer("committed-after-background"),
+            body: "Una respuesta útil.",
+            viewer: { canEdit: true, canReport: true },
+          },
+        ],
+        nextCursor: null,
+      };
+    },
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async (_questionId, _input, signal) => {
+      mutationSignal = signal;
+      return mutation.promise;
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  const submitting = controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una respuesta útil.",
+  );
+  for (let index = 0; index < 4 && !mutationSignal; index += 1) {
+    await Promise.resolve();
+  }
+  assert.ok(mutationSignal);
+
+  controller.invalidate("authority-a");
+  assert.equal(mutationSignal?.aborted, true);
+  mutation.reject(
+    new ApiRequestError("error", null, "REQUEST_ABORTED", "request aborted"),
+  );
+  assert.equal(await submitting, false);
+  assert.equal(controller.getSnapshot().kind, "idle");
+
+  await controller.load("authority-a", "question-a");
+
+  const reconciled = controller.getSnapshot();
+  assert.equal(reconciled.kind, "ready");
+  if (reconciled.kind !== "ready") throw new Error("expected ready");
+  assert.equal(reconciled.notice, "Respuesta publicada.");
+  assert.equal(shouldClearCommunityAnswerDraft(reconciled), true);
+  assert.ok(
+    reconciled.detail.answers.some(
+      (candidate) => candidate.id === "committed-after-background",
+    ),
+  );
 });
