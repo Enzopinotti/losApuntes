@@ -21,6 +21,7 @@ import {
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
   reconcileQuestionCreation,
+  shouldResetCommunityAnswerDraft,
   type CommunityFailure,
   type CommunityQuestionDetailSnapshot,
   type CommunityQuestionFeedSnapshot,
@@ -393,11 +394,29 @@ export function CommunityQuestionScreen({
     controller.getSnapshot(),
   );
   const [answerBody, setAnswerBody] = useState("");
+  const answerDraftScopeRef = useRef({
+    questionId,
+    authorityKey: authority.authorityKey,
+  });
 
   useEffect(() => controller.subscribe(setDetail), [controller]);
 
   useEffect(() => {
-    setAnswerBody("");
+    const previous = answerDraftScopeRef.current;
+    const next = {
+      questionId,
+      authorityKey: authority.authorityKey,
+    };
+    if (shouldResetCommunityAnswerDraft(previous, next)) {
+      setAnswerBody("");
+    }
+    answerDraftScopeRef.current = {
+      questionId,
+      authorityKey: authority.authorityKey ?? previous.authorityKey,
+    };
+  }, [authority.authorityKey, questionId]);
+
+  useEffect(() => {
     if (authority.gate !== "ready" || !authority.authorityKey) {
       controller.invalidate();
       return;

@@ -134,9 +134,23 @@ export function normalizeCommunityMutationText(value: string): string {
 }
 
 function questionReconciliationQuery(title: string): string {
-  return Array.from(normalizeCommunityMutationText(title))
+  return Array.from(
+    normalizeCommunityMutationText(title).normalize("NFKC"),
+  )
     .slice(0, 120)
     .join("");
+}
+
+export function shouldResetCommunityAnswerDraft(
+  previous: { questionId: string; authorityKey: string | null },
+  next: { questionId: string; authorityKey: string | null },
+): boolean {
+  if (previous.questionId !== next.questionId) return true;
+  return Boolean(
+    previous.authorityKey &&
+      next.authorityKey &&
+      previous.authorityKey !== next.authorityKey,
+  );
 }
 
 export function isAmbiguousCommunityMutationFailure(

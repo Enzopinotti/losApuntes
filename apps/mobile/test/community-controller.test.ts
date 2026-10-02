@@ -22,6 +22,7 @@ import {
   MobileCommunityQuestionController,
   reconcileQuestionCreation,
   resolveQuestionScope,
+  shouldResetCommunityAnswerDraft,
 } from "../src/features/community/community-controller";
 import { ApiRequestError } from "../src/services/api/client";
 
@@ -687,12 +688,14 @@ test("question creation reconciliation uses server normalization and a bounded s
   const input = {
     subjectId: "subject-a",
     courseOfferingId: "offering-a",
-    title: `¿Co\u0301mo   se integra esto? ${"detalle ".repeat(22)}`,
+    title: `¿Co\u0301mo   se integra ﬁnal Ａ? ${"detalle ".repeat(22)}`,
     body: "Necesito   entender\nel paso intermedio con ma\u0301s detalle.",
   };
   const normalizedTitle = normalizeCommunityMutationText(input.title);
   const normalizedBody = normalizeCommunityMutationText(input.body);
-  const expectedQuery = Array.from(normalizedTitle).slice(0, 120).join("");
+  const expectedQuery = Array.from(normalizedTitle.normalize("NFKC"))
+    .slice(0, 120)
+    .join("");
   assert.ok(Array.from(normalizedTitle).length > 120);
 
   const oldOwned = {
@@ -810,4 +813,41 @@ test("matches ambiguous answers using the server cleanText normalization", async
     assert.equal(snapshot.answerRetryBlocked, false);
     assert.equal(snapshot.notice, "Respuesta publicada.");
   }
+});
+
+
+test("answer drafts survive transient authority gates but reset for a new question or identity", () => {
+  const original = {
+    questionId: "question-a",
+    authorityKey: "user-a:session-a:context-a",
+  };
+
+  assert.equal(
+    shouldResetCommunityAnswerDraft(original, {
+      questionId: "question-a",
+      authorityKey: null,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldResetCommunityAnswerDraft(original, {
+      questionId: "question-a",
+      authorityKey: original.authorityKey,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldResetCommunityAnswerDraft(original, {
+      questionId: "question-b",
+      authorityKey: null,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldResetCommunityAnswerDraft(original, {
+      questionId: "question-a",
+      authorityKey: "user-b:session-b:context-b",
+    }),
+    true,
+  );
 });
