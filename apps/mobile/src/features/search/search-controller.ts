@@ -103,7 +103,7 @@ export class MobileSearchController {
       this.searchSnapshot = {
         kind: "ready",
         authorityKey,
-        query: input.q,
+        query: input.q ?? "",
         scope: input.scope,
         data,
       };
@@ -215,7 +215,7 @@ export class MobileSearchController {
     this.searchSnapshot = {
       kind: "loading",
       authorityKey,
-      query: input.q,
+      query: input.q ?? "",
       scope: input.scope,
     };
     this.publish();

@@ -13,6 +13,14 @@ const response = (query: string): SearchResponse => ({
   results: { resources: [], subjects: [], people: [] },
 });
 
+const resourceResponse = (
+  items: SearchResponse["results"]["resources"],
+): SearchResponse => ({
+  query: "",
+  scope: "resources",
+  results: { resources: items, subjects: [], people: [] },
+});
+
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
   let reject!: (reason: unknown) => void;
@@ -35,8 +43,8 @@ test("debounces rapid query and scope changes into the last request", async () =
   const controller = new MobileSearchController(
     apiStub({
       search: async (input) => {
-        calls.push({ q: input.q, scope: input.scope });
-        return response(input.q);
+        calls.push({ q: input.q ?? "", scope: input.scope });
+        return response(input.q ?? "");
       },
     }),
   );
@@ -67,7 +75,7 @@ test("aborts and fences a late response after query, scope, and context change",
   const first = deferred<SearchResponse>();
   const second = deferred<SearchResponse>();
   const signals: AbortSignal[] = [];
-  const inputs: Array<{ q: string; scope: string; subjectId?: string }> = [];
+  const inputs: Array<{ q?: string; scope: string; subjectId?: string }> = [];
   let callCount = 0;
   const controller = new MobileSearchController(
     apiStub({
@@ -106,6 +114,32 @@ test("aborts and fences a late response after query, scope, and context change",
     query: "base de datos",
     scope: "resources",
     data: response("base de datos"),
+  });
+});
+
+test("browses a selected subject without adding a text query", async () => {
+  const inputs: Array<{ q?: string; scope: string; subjectId?: string }> = [];
+  const controller = new MobileSearchController(
+    apiStub({
+      search: async (input) => {
+        inputs.push(input);
+        return resourceResponse([]);
+      },
+    }),
+  );
+
+  await controller.search("session-a:context-1", {
+    scope: "resources",
+    subjectId: "subject-a",
+  });
+
+  assert.deepEqual(inputs, [{ scope: "resources", subjectId: "subject-a" }]);
+  assert.deepEqual(controller.getSearchSnapshot(), {
+    kind: "ready",
+    authorityKey: "session-a:context-1",
+    query: "",
+    scope: "resources",
+    data: resourceResponse([]),
   });
 });
 

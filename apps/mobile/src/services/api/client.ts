@@ -408,13 +408,36 @@ export class MobileApiClient {
   search(
     credential: string,
     input: {
-      q: string;
+      q?: string;
       scope: SearchScope;
       limit: number;
       subjectId?: string;
     },
     signal?: AbortSignal,
   ) {
+    if (!input.q && input.scope === "resources" && input.subjectId) {
+      const query = new URLSearchParams({
+        subjectId: input.subjectId,
+        limit: String(input.limit),
+      });
+
+      return this.request<{ items: ResourceView[]; nextCursor: string | null }>(
+        `/resources?${query.toString()}`,
+        {
+          credential,
+          ...(signal ? { signal } : {}),
+        },
+      ).then(({ items }) => ({
+        query: "",
+        scope: "resources" as const,
+        results: { resources: items, subjects: [], people: [] },
+      }));
+    }
+
+    if (!input.q) {
+      throw new Error("Text search requires a query");
+    }
+
     const query = new URLSearchParams({
       q: input.q,
       scope: input.scope,

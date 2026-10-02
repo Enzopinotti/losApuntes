@@ -78,7 +78,7 @@ const emptySearch = (
 const makeTransport = (
   overrides: Partial<MobileSearchTransport> = {},
 ): MobileSearchTransport => ({
-  search: async (_credential, input) => emptySearch(input.q, input.scope),
+  search: async (_credential, input) => emptySearch(input.q ?? "", input.scope),
   contextualDiscovery: async (): Promise<ContextualDiscoveryResponse> => ({
     subjects: [],
   }),
@@ -89,6 +89,34 @@ const makeTransport = (
     throw new Error("unused profile read");
   },
   ...overrides,
+});
+
+test("allows a subject resource browse without a text predicate", async () => {
+  const tokenRef = { value: "a".repeat(43) };
+  const session = new SessionController(
+    makeSessionApi(tokenRef),
+    new MemoryStore(),
+  );
+  await session.login({ email: "student@example.edu", password: "password" });
+  let receivedSearch: unknown;
+  const api = new MobileSearchApi(
+    session,
+    makeTransport({
+      search: async (credential, input) => {
+        assert.equal(credential, tokenRef.value);
+        receivedSearch = input;
+        return emptySearch(input.q ?? "", input.scope);
+      },
+    }),
+  );
+
+  await api.search({ scope: "resources", subjectId: "subject-a" });
+
+  assert.deepEqual(receivedSearch, {
+    scope: "resources",
+    subjectId: "subject-a",
+    limit: 8,
+  });
 });
 
 const deferred = <T>() => {
@@ -115,7 +143,7 @@ test("uses the bounded server limits and preserves the subject filter", async ()
       search: async (credential, input) => {
         receivedCredential = credential;
         receivedSearch = input;
-        return emptySearch(input.q, input.scope);
+        return emptySearch(input.q ?? "", input.scope);
       },
       contextualDiscovery: async (_credential, input) => {
         receivedContextual = input;

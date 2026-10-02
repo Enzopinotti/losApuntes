@@ -27,6 +27,7 @@ import {
   type ContextualDiscoverySnapshot,
   type MobileSearchSnapshot,
 } from "./search-controller";
+import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
 
 const SEARCH_SCOPES: Array<{ value: SearchScope; label: string }> = [
@@ -306,6 +307,19 @@ export function SearchScreen() {
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
   const normalizedQuery = query.trim();
+  const searchInput = useMemo<MobileSearchInput | null>(() => {
+    if (normalizedQuery.length >= 2) {
+      return {
+        q: normalizedQuery,
+        scope,
+        ...(subjectId ? { subjectId } : {}),
+      };
+    }
+    if (scope === "resources" && subjectId) {
+      return { scope: "resources", subjectId };
+    }
+    return null;
+  }, [normalizedQuery, scope, subjectId]);
 
   useEffect(
     () =>
@@ -368,30 +382,22 @@ export function SearchScreen() {
   }, [authorityKey, controller]);
 
   const runSearch = useCallback(() => {
-    if (!authorityKey || normalizedQuery.length < 2) return;
+    if (!authorityKey || !searchInput) return;
 
-    void controller.search(authorityKey, {
-      q: normalizedQuery,
-      scope,
-      ...(subjectId ? { subjectId } : {}),
-    });
-  }, [authorityKey, controller, normalizedQuery, scope, subjectId]);
+    void controller.search(authorityKey, searchInput);
+  }, [authorityKey, controller, searchInput]);
 
   useEffect(() => {
-    if (!authorityKey || normalizedQuery.length < 2) {
+    if (!authorityKey || !searchInput) {
       controller.cancelSearch();
       return;
     }
 
-    controller.scheduleSearch(authorityKey, {
-      q: normalizedQuery,
-      scope,
-      ...(subjectId ? { subjectId } : {}),
-    });
+    controller.scheduleSearch(authorityKey, searchInput);
     return () => {
       controller.cancelSearch(authorityKey);
     };
-  }, [authorityKey, controller, normalizedQuery, query, scope, subjectId]);
+  }, [authorityKey, controller, query, searchInput]);
 
   useEffect(
     () => () => {
@@ -426,18 +432,18 @@ export function SearchScreen() {
   const openSubject = useCallback(
     (subject: SearchSubjectResult) => {
       if (
-        query === subject.name &&
+        query.length === 0 &&
         scope === "resources" &&
         subjectId === subject.id
       ) {
         return;
       }
       clearSearch();
-      setQuery(subject.name);
+      setQuery("");
       setScope("resources");
       setSubjectId(subject.id);
     },
-    [clearSearch, query, scope, subjectId],
+    [clearSearch, query.length, scope, subjectId],
   );
 
   const openPerson = useCallback(
@@ -466,9 +472,13 @@ export function SearchScreen() {
 
   const renderSearchResults = (data: SearchResponse) => (
     <View style={styles.resultGroups}>
-      <Text style={styles.copy}>
-        Resultados para <Text style={styles.resultTitle}>{data.query}</Text>
-      </Text>
+      {data.query ? (
+        <Text style={styles.copy}>
+          Resultados para <Text style={styles.resultTitle}>{data.query}</Text>
+        </Text>
+      ) : (
+        <Text style={styles.copy}>Recursos de la materia seleccionada</Text>
+      )}
       {(scope === "all" || scope === "resources") && (
         <ResourceGroup
           title="Apuntes y recursos"
@@ -508,7 +518,9 @@ export function SearchScreen() {
           style={styles.input}
           value={query}
         />
-        <Text style={styles.meta}>Escribí entre 2 y 120 caracteres.</Text>
+        <Text style={styles.meta}>
+          La búsqueda por texto requiere entre 2 y 120 caracteres.
+        </Text>
         <View accessibilityRole="tablist" style={styles.scopeList}>
           {SEARCH_SCOPES.map((option) => (
             <Pressable
@@ -569,7 +581,7 @@ export function SearchScreen() {
         </View>
       ) : null}
 
-      {authorityKey && normalizedQuery.length < 2 ? (
+      {authorityKey && !searchInput ? (
         <View style={styles.card}>
           <Text style={styles.copy}>
             Escribí al menos dos caracteres para buscar.
@@ -577,7 +589,7 @@ export function SearchScreen() {
         </View>
       ) : null}
 
-      {authorityKey && normalizedQuery.length >= 2 ? (
+      {authorityKey && searchInput ? (
         currentSearch?.kind === "loading" ? (
           <View style={styles.card}>
             <View style={styles.loadingRow}>

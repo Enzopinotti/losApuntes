@@ -10,11 +10,17 @@ import { ApiRequestError } from "@/services/api/client";
 
 import type { SessionController } from "../session/session-controller";
 
-export type MobileSearchInput = {
-  q: string;
-  scope: SearchScope;
-  subjectId?: string;
-};
+export type MobileSearchInput =
+  | {
+      q: string;
+      scope: SearchScope;
+      subjectId?: string;
+    }
+  | {
+      q?: never;
+      scope: "resources";
+      subjectId: string;
+    };
 
 export interface MobileSearchTransport {
   search(
