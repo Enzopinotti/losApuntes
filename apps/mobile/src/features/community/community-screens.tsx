@@ -21,6 +21,7 @@ import {
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
   reconcileQuestionCreation,
+  releaseCommunityComposerOperation,
   shouldResetCommunityAnswerDraft,
   type CommunityFailure,
   type CommunityQuestionDetailSnapshot,
@@ -758,6 +759,11 @@ export function CommunityQuestionComposerScreen() {
       const nextFailure = communityFailure(error);
       setFailure(nextFailure);
       setFailureCode(nextFailure.code);
+      activeOperation.current = releaseCommunityComposerOperation(
+        activeOperation.current,
+        operation,
+        () => setSubmitting(false),
+      );
       return;
     }
 

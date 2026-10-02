@@ -21,6 +21,7 @@ import {
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
   reconcileQuestionCreation,
+  releaseCommunityComposerOperation,
   resolveQuestionScope,
   shouldResetCommunityAnswerDraft,
 } from "../src/features/community/community-controller";
@@ -852,4 +853,31 @@ test("answer drafts survive transient authority gates but reset for a new questi
     }),
     true,
   );
+});
+
+
+test("pre-POST baseline failure releases the composer lock so retry can start a new operation", () => {
+  const failedBaselineOperation = new AbortController();
+  let submitting = true;
+
+  const released = releaseCommunityComposerOperation(
+    failedBaselineOperation,
+    failedBaselineOperation,
+    () => {
+      submitting = false;
+    },
+  );
+
+  assert.equal(released, null);
+  assert.equal(submitting, false);
+
+  const retryOperation = new AbortController();
+  let activeOperation: AbortController | null = released;
+  if (!submitting) {
+    activeOperation = retryOperation;
+    submitting = true;
+  }
+
+  assert.equal(activeOperation, retryOperation);
+  assert.equal(submitting, true);
 });

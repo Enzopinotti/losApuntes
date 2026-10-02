@@ -111,6 +111,16 @@ export function cancelCommunityComposerSubmission(
   return null;
 }
 
+export function releaseCommunityComposerOperation(
+  activeOperation: AbortController | null,
+  completedOperation: AbortController,
+  resetSubmitting: () => void,
+): AbortController | null {
+  if (activeOperation !== completedOperation) return activeOperation;
+  resetSubmitting();
+  return null;
+}
+
 export type CommunityQuestionRouteGate = "restoring" | "ready" | "redirect";
 
 export function communityQuestionRouteGate(
