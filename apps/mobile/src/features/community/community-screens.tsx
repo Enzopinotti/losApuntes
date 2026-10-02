@@ -539,9 +539,7 @@ function QuestionDetailContent({
             label={
               snapshot.loadingMoreAnswers ? "Cargando…" : "Ver más respuestas"
             }
-            disabled={
-              snapshot.loadingMoreAnswers || snapshot.submittingAnswer
-            }
+            disabled={snapshot.loadingMoreAnswers || snapshot.submittingAnswer}
             onPress={onLoadMore}
           />
         ) : null}
@@ -559,9 +557,7 @@ function QuestionDetailContent({
         <FailureCard
           failure={snapshot.actionFailure}
           code={snapshot.actionFailureCode}
-          onRetry={
-            snapshot.answerRetryBlocked ? onRefresh : onSubmitAnswer
-          }
+          onRetry={snapshot.answerRetryBlocked ? onRefresh : onSubmitAnswer}
         />
       ) : null}
       {question.viewer.canAnswer ? (
