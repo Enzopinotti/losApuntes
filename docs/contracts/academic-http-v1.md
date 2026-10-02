@@ -155,6 +155,12 @@ If `courseOfferingId` exists, it must belong to `:subjectId`. If the participati
 
 ### GET /academic/me/context
 
+Before returning authority, the backend reconciles legacy stored subject context:
+if a persisted `subjectParticipationId` no longer points to an owned
+`state=current` participation, it clears only the subject selection with
+revision CAS while preserving the affiliation. Lifecycle projections consume
+this same reconciled context path.
+
 Returns:
 
 ```json

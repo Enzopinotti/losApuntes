@@ -121,6 +121,7 @@ function academic(): jest.Mocked<AcademicService> {
       }),
     ),
     participationBelongsToAffiliation: jest.fn().mockResolvedValue(false),
+    getCurrentContext: jest.fn().mockResolvedValue({ context: null }),
     resolveContinuityFollowTarget: jest.fn(),
   };
 
@@ -180,16 +181,18 @@ describe('AcademicLifecycleService', () => {
           }),
         ]),
       );
-      lifecycleStore.getCurrentContext.mockResolvedValue({
-        userId: 'user-1',
-        affiliationId: affiliations[0]?.id ?? 'none',
-        revision: 1,
-        subjectParticipationId:
-          expected === 'student' || expected === 'mixed'
-            ? '44444444-4444-4444-8444-444444444444'
-            : undefined,
-        createdAt: now,
-        updatedAt: now,
+      academicService.getCurrentContext.mockResolvedValue({
+        context: {
+          affiliationId: affiliations[0]?.id ?? 'none',
+          revision: 1,
+          ...(expected === 'student' || expected === 'mixed'
+            ? {
+                subjectParticipationId:
+                  '44444444-4444-4444-8444-444444444444',
+              }
+            : {}),
+          updatedAt: now.toISOString(),
+        },
       });
 
       const result = await new AcademicLifecycleService(
@@ -321,6 +324,56 @@ describe('AcademicLifecycleService', () => {
       }),
     );
     expect(result.lifecycle.phase).toBe('alumni');
+  });
+
+  it('clears a transitioned subject selected under another affiliation', async () => {
+    const lifecycleStore = store();
+    const academicService = academic();
+    const graduating = affiliation();
+    const graduated = affiliation({
+      status: 'alumni',
+      roles: ['recent_graduate', 'alumni'],
+      endedOn: '2026-09',
+    });
+    const scoped = participation();
+    const otherAffiliationId = '77777777-7777-4777-8777-777777777777';
+
+    lifecycleStore.findAffiliationById.mockResolvedValue(graduating);
+    lifecycleStore.listSubjectParticipationsForUser.mockResolvedValue(
+      page([scoped]),
+    );
+    academicService.participationBelongsToAffiliation.mockResolvedValue(true);
+    lifecycleStore.transitionAffiliationToAlumni.mockResolvedValue(graduated);
+    lifecycleStore.transitionSubjectParticipationStates.mockResolvedValue(1);
+    lifecycleStore.getCurrentContext.mockResolvedValue({
+      userId: 'user-1',
+      affiliationId: otherAffiliationId,
+      subjectParticipationId: scoped.id,
+      revision: 9,
+      createdAt: now,
+      updatedAt: now,
+    });
+    lifecycleStore.setCurrentContext.mockResolvedValue({
+      userId: 'user-1',
+      affiliationId: otherAffiliationId,
+      revision: 10,
+      createdAt: now,
+      updatedAt: now,
+    });
+    lifecycleStore.listAffiliationsForUser.mockResolvedValue(page([graduated]));
+
+    await new AcademicLifecycleService(
+      lifecycleStore,
+      academicService,
+    ).graduate('user-1', graduating.id, { graduatedOn: '2026-09' });
+
+    expect(lifecycleStore.setCurrentContext).toHaveBeenCalledWith(
+      {
+        userId: 'user-1',
+        affiliationId: otherAffiliationId,
+      },
+      9,
+    );
   });
 
   it('does not graduate from an incomplete current-subject snapshot', async () => {

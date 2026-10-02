@@ -1352,6 +1352,89 @@ describe('AcademicService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
+  it('reconciles a legacy context that points to historical participation', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const legacy = {
+      userId: 'user-1',
+      affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      subjectParticipationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      revision: 3,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const historical = participation({
+      id: legacy.subjectParticipationId,
+      state: 'completed',
+    });
+
+    store.getCurrentContext.mockResolvedValue(legacy);
+    store.findSubjectParticipationById.mockResolvedValue(historical);
+    store.setCurrentContext.mockResolvedValue({
+      userId: legacy.userId,
+      affiliationId: legacy.affiliationId,
+      revision: 4,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const result = await service.getCurrentContext('user-1');
+
+    expect(result.context).toMatchObject({
+      affiliationId: legacy.affiliationId,
+      revision: 4,
+    });
+    expect(result.context?.subjectParticipationId).toBeUndefined();
+    expect(store.setCurrentContext).toHaveBeenCalledWith(
+      {
+        userId: 'user-1',
+        affiliationId: legacy.affiliationId,
+      },
+      3,
+    );
+
+    const audit = store.appendAuditEvent.mock.calls
+      .map(([entry]) => entry)
+      .find((entry) => entry.event === 'academic.context.updated');
+    expect(audit).toMatchObject({
+      metadata: {
+        affiliationId: legacy.affiliationId,
+        revision: 4,
+        reason: 'legacy_subject_context_no_longer_current',
+      },
+    });
+  });
+
+  it('fails closed if legacy context reconciliation loses revision CAS', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const legacy = {
+      userId: 'user-1',
+      affiliationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      subjectParticipationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      revision: 3,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    store.getCurrentContext.mockResolvedValue(legacy);
+    store.findSubjectParticipationById.mockResolvedValue(
+      participation({
+        id: legacy.subjectParticipationId,
+        state: 'dropped',
+      }),
+    );
+    store.setCurrentContext.mockResolvedValue(null);
+
+    const error = await rejectedConflict(
+      service.getCurrentContext('user-1'),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_CONTEXT_REVISION_CONFLICT',
+    });
+  });
+
   it('rejects a participation outside the selected affiliation context', async () => {
     const store = createStore();
     const service = new AcademicService(store);

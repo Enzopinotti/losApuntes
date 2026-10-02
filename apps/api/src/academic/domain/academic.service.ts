@@ -747,7 +747,38 @@ export class AcademicService {
   }
 
   async getCurrentContext(userId: string) {
-    const context = await this.store.getCurrentContext(userId);
+    const context = await this.store.runAtomically(async () => {
+      const current = await this.store.getCurrentContext(userId);
+      if (!current?.subjectParticipationId) return current;
+
+      const participation = await this.store.findSubjectParticipationById(
+        current.subjectParticipationId,
+      );
+      if (
+        participation?.userId === userId &&
+        isCurrentSubjectParticipationState(participation.state)
+      ) {
+        return current;
+      }
+
+      const cleared = await this.store.setCurrentContext(
+        {
+          userId,
+          affiliationId: current.affiliationId,
+        },
+        current.revision,
+      );
+      if (!cleared) this.contextRevisionConflict();
+
+      await this.audit('academic.context.updated', userId, userId, {
+        affiliationId: cleared.affiliationId,
+        revision: cleared.revision,
+        reason: 'legacy_subject_context_no_longer_current',
+      });
+
+      return cleared;
+    });
+
     return { context: context ? this.publicContext(context) : null };
   }
 
