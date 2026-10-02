@@ -98,12 +98,15 @@ test("maps the active subject participation to its canonical subject filter", ()
   const context: AcademicCurrentContext = {
     affiliationId: "aff-a",
     subjectParticipationId: "part-a",
+    revision: 1,
     updatedAt: "2026-10-01T00:00:00.000Z",
   };
   const participation: AcademicSubjectParticipation = {
     id: "part-a",
     subjectId: "subject-a",
+    subjectName: "Álgebra",
     courseOfferingId: "offering-a",
+    courseOfferingName: "Comisión A",
     state: "current",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
