@@ -28,9 +28,7 @@ export type MobileDiagnosticEnvelope = Readonly<{
   timestamp: string;
 }>;
 
-export type MobileDiagnosticSink = (
-  envelope: MobileDiagnosticEnvelope,
-) => void;
+export type MobileDiagnosticSink = (envelope: MobileDiagnosticEnvelope) => void;
 
 export type MobileGlobalErrorHandler = (
   error: Error,
@@ -126,7 +124,10 @@ export function sanitizeMobileDiagnosticStack(
   if (!raw) return null;
 
   let safe = stripUrlSecrets(raw)
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/giu, "Bearer <redacted>")
+    .replace(
+      /\bBearer\s+[A-Za-z0-9._~+/-]+=*/giu,
+      "Bearer <redacted>",
+    )
     .replace(
       /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b/gu,
       "<redacted-token>",
@@ -144,6 +145,7 @@ export function sanitizeMobileDiagnosticStack(
       /(?:\/Users|\/home|\/var|\/tmp|\/private|\/storage\/emulated\/\d+|\/data\/user\/\d+)[^\s)]*/gu,
       "<path>",
     )
+    .replace(/(\(|\s)\/[^)\s]+/gu, "$1<path>")
     .replace(/[A-Za-z]:\\[^\s)]+/gu, "<path>")
     .replace(/\b[A-Za-z0-9_-]{40,}\b/gu, "<redacted-token>");
 
