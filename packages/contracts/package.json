@@ -4,7 +4,8 @@
   "type": "module",
   "version": "0.1.0",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./social-qa": "./src/social-qa.ts"
   },
   "scripts": {
     "check:types": "tsc -p tsconfig.json --pretty false"
