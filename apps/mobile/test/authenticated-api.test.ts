@@ -6,6 +6,7 @@ import type {
   AuthenticatedSessionResponse,
   MobileAuthenticatedSessionResponse,
   PasswordLoginInput,
+  PilotHomeResponse,
 } from "@losapuntes/contracts";
 
 import {
@@ -68,6 +69,51 @@ const sessionApi = (tokenRef: { value: string }): SessionApi => ({
 const transport = (
   overrides: Partial<AuthenticatedApiTransport> = {},
 ): AuthenticatedApiTransport => ({
+  pilotHome: async (): Promise<PilotHomeResponse> => ({
+    profileReady: true,
+    lifecycle: {
+      phase: "student",
+      activeStudentAffiliationIds: ["aff-1"],
+      alumniAffiliationIds: [],
+      currentSubjectIds: ["subject-1"],
+      hasCurrentSubjectContext: true,
+      currentAffiliationId: "aff-1",
+      follows: [],
+      followsTruncated: false,
+      followsLimit: 20,
+    },
+    academic: {
+      currentContext: {
+        affiliationId: "aff-1",
+        updatedAt: "2026-10-01T00:00:00.000Z",
+      },
+      currentSubjectIds: ["subject-1"],
+    },
+    homeFeed: {
+      kind: "subjects",
+      items: [],
+      nextCursor: null,
+      stopReason: "end",
+    },
+    academicFeed: {
+      items: [],
+      nextCursor: null,
+      stopReason: "end",
+      context: { subjectIds: ["subject-1"] },
+    },
+    forYou: {
+      items: [],
+      nextCursor: null,
+      stopReason: "end",
+      effectiveSignals: {
+        academic: true,
+        social: true,
+        interests: false,
+        relationWindowTruncated: false,
+      },
+    },
+    notifications: { unreadCount: 0 },
+  }),
   listSessions: async () => ({ sessions: [], truncated: false, limit: 20 }),
   revokeSession: async () => undefined,
   revokeAllSessions: async () => undefined,
@@ -79,6 +125,70 @@ const transport = (
   }),
   unlinkGoogle: async () => undefined,
   ...overrides,
+});
+
+test("home is read through the credential-fenced authenticated API", async () => {
+  const token = { value: "a".repeat(43) };
+  const session = new SessionController(sessionApi(token), new Store());
+  await session.login({ email: "a@example.edu", password: "password" });
+  let receivedCredential: string | null = null;
+  const expected: PilotHomeResponse = {
+    profileReady: true,
+    lifecycle: {
+      phase: "student",
+      activeStudentAffiliationIds: ["aff-1"],
+      alumniAffiliationIds: [],
+      currentSubjectIds: [],
+      hasCurrentSubjectContext: false,
+      currentAffiliationId: "aff-1",
+      follows: [],
+      followsTruncated: false,
+      followsLimit: 20,
+    },
+    academic: {
+      currentContext: {
+        affiliationId: "aff-1",
+        updatedAt: "2026-10-01T00:00:00.000Z",
+      },
+      currentSubjectIds: [],
+    },
+    homeFeed: {
+      kind: "subjects",
+      items: [],
+      nextCursor: "next",
+      stopReason: null,
+    },
+    academicFeed: {
+      items: [],
+      nextCursor: null,
+      stopReason: "end",
+      context: { subjectIds: [] },
+    },
+    forYou: {
+      items: [],
+      nextCursor: null,
+      stopReason: "end",
+      effectiveSignals: {
+        academic: true,
+        social: false,
+        interests: true,
+        relationWindowTruncated: false,
+      },
+    },
+    notifications: { unreadCount: 2 },
+  };
+  const api = new AuthenticatedMobileApi(
+    session,
+    transport({
+      pilotHome: async (credential) => {
+        receivedCredential = credential;
+        return expected;
+      },
+    }),
+  );
+
+  assert.deepEqual(await api.pilotHome(), expected);
+  assert.equal(receivedCredential, token.value);
 });
 
 test("session inventory keeps truncation metadata from the shared contract", async () => {

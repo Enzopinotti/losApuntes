@@ -1,17 +1,27 @@
 import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface ProductSurfaceProps {
   title: string;
   description: string;
   children?: ReactNode;
+  onRefresh?: (() => void) | undefined;
+  refreshing?: boolean;
 }
 
 export function ProductSurface({
   title,
   description,
   children,
+  onRefresh,
+  refreshing = false,
 }: ProductSurfaceProps) {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
@@ -19,6 +29,11 @@ export function ProductSurface({
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }
       >
         <View style={styles.heading}>
           <Text accessibilityRole="header" style={styles.title}>
