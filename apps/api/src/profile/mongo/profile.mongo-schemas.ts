@@ -24,6 +24,14 @@ export class Profile {
   @Prop({ required: true, unique: true, index: true })
   userId!: string;
 
+  @Prop({
+    required: true,
+    enum: ['active', 'closed'],
+    default: 'active',
+    index: true,
+  })
+  lifecycleState!: 'active' | 'closed';
+
   @Prop({ required: true })
   displayName!: string;
 
@@ -121,6 +129,7 @@ export class Profile {
 export const ProfileSchema = SchemaFactory.createForClass(Profile);
 
 ProfileSchema.index({
+  lifecycleState: 1,
   'visibility.about': 1,
   displayName: 1,
   id: 1,

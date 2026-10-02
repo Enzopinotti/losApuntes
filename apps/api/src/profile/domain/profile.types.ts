@@ -71,6 +71,7 @@ export type ProfilePresentation = {
 export type ProfileRecord = {
   id: string;
   userId: string;
+  lifecycleState?: 'active' | 'closed';
   displayName: string;
   bio: string | null;
   avatarUrl: string | null;

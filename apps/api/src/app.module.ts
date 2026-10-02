@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { requireConfigString } from './config/required-config';
 import { validateRuntimeEnvironment } from './config/runtime-environment';
+import { DataLifecycleModule } from './data-lifecycle/data-lifecycle.module';
 import { FeedsModule } from './feeds/feeds.module';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
@@ -36,6 +37,7 @@ import { UsersModule } from './users/users.module';
     }),
     AuthModule,
     UsersModule,
+    DataLifecycleModule,
     AcademicModule,
     ProfileModule,
     FilesModule,

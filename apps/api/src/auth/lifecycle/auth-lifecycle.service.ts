@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   credentialVersion,
+  isAccountClosed,
   isEmailVerified,
 } from '../../users/user-security-state';
 import { UsersService } from '../../users/users.service';
@@ -33,7 +34,7 @@ export class AuthLifecycleService {
     now = new Date(),
   ): Promise<void> {
     const user = await this.users.findByEmail(email);
-    if (!user || isEmailVerified(user)) return;
+    if (!user || isAccountClosed(user) || isEmailVerified(user)) return;
 
     const issued = await this.actionTokens.issueIfAllowed(
       user._id.toString(),
@@ -73,7 +74,7 @@ export class AuthLifecycleService {
     if (!action) return false;
 
     const user = await this.users.findById(action.userId);
-    return Boolean(user && !isEmailVerified(user));
+    return Boolean(user && !isAccountClosed(user) && !isEmailVerified(user));
   }
 
   async completeEmailVerification(
@@ -88,7 +89,7 @@ export class AuthLifecycleService {
     if (!action) return false;
 
     const user = await this.users.findById(action.userId);
-    if (!user || isEmailVerified(user)) return false;
+    if (!user || isAccountClosed(user) || isEmailVerified(user)) return false;
 
     const changed = await this.users.markEmailVerifiedIfUnverified(
       action.userId,
@@ -116,7 +117,7 @@ export class AuthLifecycleService {
     now = new Date(),
   ): Promise<void> {
     const user = await this.users.findByEmail(email);
-    if (!user) return;
+    if (!user || isAccountClosed(user)) return;
 
     const version = credentialVersion(user);
     const issued = await this.actionTokens.issueIfAllowed(
@@ -158,7 +159,9 @@ export class AuthLifecycleService {
 
     const user = await this.users.findById(action.userId);
     return Boolean(
-      user && credentialVersion(user) === action.credentialVersion,
+      user &&
+        !isAccountClosed(user) &&
+        credentialVersion(user) === action.credentialVersion,
     );
   }
 
@@ -175,7 +178,11 @@ export class AuthLifecycleService {
     if (!action || action.credentialVersion === undefined) return false;
 
     const user = await this.users.findById(action.userId);
-    if (!user || credentialVersion(user) !== action.credentialVersion) {
+    if (
+      !user ||
+      isAccountClosed(user) ||
+      credentialVersion(user) !== action.credentialVersion
+    ) {
       return false;
     }
 

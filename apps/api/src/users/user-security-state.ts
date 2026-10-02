@@ -1,6 +1,6 @@
 import type { User } from './schemas/user.schema';
 
-export type AccountStatus = 'active' | 'restricted';
+export type AccountStatus = 'active' | 'restricted' | 'closed';
 
 type UserSecurityFields = Pick<
   User,
@@ -26,7 +26,13 @@ export function isEmailVerified(user: UserSecurityFields): boolean {
 }
 
 export function accountStatus(user: UserSecurityFields): AccountStatus {
-  return user.account_status === 'restricted' ? 'restricted' : 'active';
+  if (user.account_status === 'restricted') return 'restricted';
+  if (user.account_status === 'closed') return 'closed';
+  return 'active';
+}
+
+export function isAccountClosed(user: UserSecurityFields): boolean {
+  return accountStatus(user) === 'closed';
 }
 
 export function isAccountActive(user: UserSecurityFields): boolean {

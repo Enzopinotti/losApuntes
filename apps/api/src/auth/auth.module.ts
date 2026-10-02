@@ -139,6 +139,8 @@ import {
   controllers: [AuthController, GoogleAuthController],
   exports: [
     AuthService,
+    AuthActionTokenService,
+    PasswordService,
     AuthSessionService,
     AuthSessionGuard,
     OptionalAuthSessionGuard,
