@@ -923,6 +923,10 @@ describe('FileService', () => {
       new Uint8Array(Buffer.from('%PDF-1.7')),
     );
     const scanner = {
+      probe: jest.fn().mockResolvedValue({
+        status: 'ok' as const,
+        engine: 'test-probe-v1',
+      }),
       scan: jest.fn().mockResolvedValue({
         verdict: 'malicious' as const,
         engine: 'test-malware-v1',
@@ -967,6 +971,10 @@ describe('FileService', () => {
       new Uint8Array(Buffer.from('%PDF-1.7')),
     );
     const scanner = {
+      probe: jest.fn().mockResolvedValue({
+        status: 'ok' as const,
+        engine: 'test-probe-v1',
+      }),
       scan: jest.fn().mockRejectedValue(new Error('scanner offline')),
     };
 
@@ -1008,6 +1016,10 @@ describe('FileService', () => {
     });
     fileStore.listScannable.mockResolvedValue([quarantined]);
     const scanner = {
+      probe: jest.fn().mockResolvedValue({
+        status: 'ok' as const,
+        engine: 'test-probe-v1',
+      }),
       scan: jest.fn().mockResolvedValue({
         verdict: 'clean' as const,
         engine: 'test-worker-v1',
@@ -1064,6 +1076,10 @@ describe('FileService', () => {
         ),
     );
     const scanner = {
+      probe: jest.fn().mockResolvedValue({
+        status: 'ok' as const,
+        engine: 'test-probe-v1',
+      }),
       scan: jest.fn().mockRejectedValue(new Error('scanner offline')),
     };
 
