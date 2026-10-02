@@ -52,11 +52,7 @@ const staticSurfaceSegments = new Set([
   "verify-email",
 ]);
 
-const dynamicParentSegments = new Set([
-  "profiles",
-  "questions",
-  "resources",
-]);
+const dynamicParentSegments = new Set(["profiles", "questions", "resources"]);
 
 function clamp(value: string, maximum: number): string {
   return value.length <= maximum ? value : value.slice(0, maximum);
