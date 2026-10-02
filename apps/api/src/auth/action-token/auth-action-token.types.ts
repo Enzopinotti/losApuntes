@@ -2,6 +2,8 @@ export const AUTH_ACTION_TOKEN_STORE = Symbol('AUTH_ACTION_TOKEN_STORE');
 
 export type AuthActionPurpose = 'email_verification' | 'password_recovery';
 
+export type AuthActionTokenConsumptionReason = 'claimed' | 'invalidated';
+
 export type AuthActionTokenRecord = {
   id: string;
   userId: string;
@@ -12,11 +14,12 @@ export type AuthActionTokenRecord = {
   createdAt: Date;
   expiresAt: Date;
   consumedAt: Date | null;
+  consumedReason: AuthActionTokenConsumptionReason | null;
 };
 
 export type CreateAuthActionTokenRecord = Omit<
   AuthActionTokenRecord,
-  'consumedAt'
+  'consumedAt' | 'consumedReason'
 >;
 
 export interface AuthActionTokenStore {
@@ -32,6 +35,11 @@ export interface AuthActionTokenStore {
     tokenHash: string,
     purpose: AuthActionPurpose,
     consumedAt: Date,
+  ): Promise<AuthActionTokenRecord | null>;
+  findClaimedByTokenHash(
+    tokenHash: string,
+    purpose: AuthActionPurpose,
+    now: Date,
   ): Promise<AuthActionTokenRecord | null>;
   findLatestActiveForUserPurpose(
     userId: string,

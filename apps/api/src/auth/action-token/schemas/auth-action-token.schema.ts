@@ -1,7 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import type { HydratedDocument } from 'mongoose';
 
-import type { AuthActionPurpose } from '../auth-action-token.types';
+import type {
+  AuthActionPurpose,
+  AuthActionTokenConsumptionReason,
+} from '../auth-action-token.types';
 
 export type AuthActionTokenDocument = HydratedDocument<AuthActionToken>;
 
@@ -39,6 +42,13 @@ export class AuthActionToken {
 
   @Prop({ type: Date, default: null })
   consumedAt!: Date | null;
+
+  @Prop({
+    type: String,
+    enum: ['claimed', 'invalidated'],
+    default: null,
+  })
+  consumedReason!: AuthActionTokenConsumptionReason | null;
 }
 
 export const AuthActionTokenSchema =

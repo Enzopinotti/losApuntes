@@ -17,6 +17,57 @@ function boundedFind(rows: Array<{ tokenId: string; createdAt: Date }>) {
   return chain;
 }
 
+describe('MongoAuthActionTokenStore claim provenance', () => {
+  it('marks an atomic claim separately from invalidation', async () => {
+    const exec = jest.fn().mockResolvedValue(null);
+    const findOneAndUpdate = jest.fn().mockReturnValue({ exec });
+    const store = new MongoAuthActionTokenStore({
+      findOneAndUpdate,
+    } as never);
+
+    await store.claimAvailableByTokenHash(
+      'a'.repeat(64),
+      'email_verification',
+      NOW,
+    );
+
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        tokenHash: 'a'.repeat(64),
+        purpose: 'email_verification',
+        consumedAt: null,
+        expiresAt: { $gt: NOW },
+      },
+      {
+        $set: {
+          consumedAt: NOW,
+          consumedReason: 'claimed',
+        },
+      },
+      { new: true },
+    );
+  });
+
+  it('reconciles only still-retained tokens consumed by a real claim', async () => {
+    const exec = jest.fn().mockResolvedValue(null);
+    const findOne = jest.fn().mockReturnValue({ exec });
+    const store = new MongoAuthActionTokenStore({ findOne } as never);
+
+    await store.findClaimedByTokenHash(
+      'b'.repeat(64),
+      'email_verification',
+      NOW,
+    );
+
+    expect(findOne).toHaveBeenCalledWith({
+      tokenHash: 'b'.repeat(64),
+      purpose: 'email_verification',
+      consumedReason: 'claimed',
+      expiresAt: { $gt: NOW },
+    });
+  });
+});
+
 describe('MongoAuthActionTokenStore bounded overflow trimming', () => {
   it('reads only the retained set and invalidates every other active token', async () => {
     const findChain = boundedFind([
@@ -71,7 +122,10 @@ describe('MongoAuthActionTokenStore bounded overflow trimming', () => {
         ],
       },
       {
-        $set: { consumedAt: NOW },
+        $set: {
+          consumedAt: NOW,
+          consumedReason: 'invalidated',
+        },
       },
     );
     expect(updateExec).toHaveBeenCalledTimes(1);
