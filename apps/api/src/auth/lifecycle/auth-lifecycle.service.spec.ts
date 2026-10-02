@@ -222,10 +222,8 @@ describe('AuthLifecycleService', () => {
     );
   });
 
-  it(
-    'resumes verification after an earlier claim lost its completion response',
-    async () => {
-      const { service, mocks } = createHarness();
+  it('resumes verification after an earlier claim lost its completion response', async () => {
+    const { service, mocks } = createHarness();
       const action = actionRecord('email_verification');
 
       mocks.claim.mockResolvedValue(null);
@@ -243,17 +241,14 @@ describe('AuthLifecycleService', () => {
         'email_verification',
         NOW,
       );
-      expect(mocks.markEmailVerifiedIfUnverified).toHaveBeenCalledWith(
-        USER_ID,
-        NOW,
-      );
-    },
-  );
+    expect(mocks.markEmailVerifiedIfUnverified).toHaveBeenCalledWith(
+      USER_ID,
+      NOW,
+    );
+  });
 
-  it(
-    'reconciles a claimed verification token after the account already became verified',
-    async () => {
-      const { service, mocks } = createHarness();
+  it('reconciles a claimed verification token after the account already became verified', async () => {
+    const { service, mocks } = createHarness();
       const action = actionRecord('email_verification');
 
       mocks.claim.mockResolvedValue(null);
@@ -268,18 +263,15 @@ describe('AuthLifecycleService', () => {
       ).resolves.toBe(true);
 
       expect(mocks.markEmailVerifiedIfUnverified).not.toHaveBeenCalled();
-      expect(mocks.invalidateAll).toHaveBeenCalledWith(
-        USER_ID,
-        'email_verification',
-        NOW,
-      );
-    },
-  );
+    expect(mocks.invalidateAll).toHaveBeenCalledWith(
+      USER_ID,
+      'email_verification',
+      NOW,
+    );
+  });
 
-  it(
-    'retries verification cleanup after a committed transition outlives its response',
-    async () => {
-      const { service, mocks } = createHarness();
+  it('retries verification cleanup after a committed transition outlives its response', async () => {
+    const { service, mocks } = createHarness();
       const action = actionRecord('email_verification');
 
       mocks.claim.mockResolvedValueOnce(action).mockResolvedValueOnce(null);
@@ -303,13 +295,12 @@ describe('AuthLifecycleService', () => {
       ).resolves.toBe(true);
 
       expect(mocks.invalidateAll).toHaveBeenCalledTimes(2);
-      expect(mocks.invalidateAll).toHaveBeenLastCalledWith(
-        USER_ID,
-        'email_verification',
-        NOW,
-      );
-    },
-  );
+    expect(mocks.invalidateAll).toHaveBeenLastCalledWith(
+      USER_ID,
+      'email_verification',
+      NOW,
+    );
+  });
 
   it('allows only one verification winner when two claimed links race', async () => {
     const { service, mocks } = createHarness();
