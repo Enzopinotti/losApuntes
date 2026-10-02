@@ -67,6 +67,31 @@ function cookiePair(setCookie) {
   return setCookie.split(';', 1)[0];
 }
 
+function mongoJson(script) {
+  const output = execFileSync(
+    'docker',
+    [
+      'compose',
+      '-f',
+      'compose.local.yml',
+      'exec',
+      '-T',
+      'mongo',
+      'mongosh',
+      '--quiet',
+      'losapuntes_local',
+      '--eval',
+      script,
+    ],
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+
+  return JSON.parse(output.trim());
+}
+
 function setSyntheticAccountStatus(email, status) {
   const script = [
     `const result = db.users.updateOne(`,
@@ -537,15 +562,79 @@ const restoredLogin = await requestJson(
 assert.equal(restoredLogin.response.status, 200);
 assert.match(restoredLogin.body.sessionToken, SESSION_TOKEN);
 
-const finalRevoke = await request('/auth/sessions', {
-  method: 'DELETE',
-  headers: {
-    authorization: `Bearer ${restoredLogin.body.sessionToken}`,
-  },
-});
+const closureBearer = `Bearer ${restoredLogin.body.sessionToken}`;
 
-assert.equal(finalRevoke.response.status, 204);
-assert.equal(finalRevoke.text, '');
+const closurePreflight = await requestJson('/account/closure/preflight', {
+  headers: { authorization: closureBearer },
+});
+assert.equal(closurePreflight.response.status, 200);
+assert.equal(closurePreflight.body.reauthentication, 'password');
+assert.deepEqual(closurePreflight.body.managementBlockers, []);
+assert.equal(closurePreflight.body.managementBlockersTruncated, false);
+assert.equal(closurePreflight.body.managementBlockerLimit, 20);
+
+const wrongClosureProof = await requestJson(
+  '/account/closure',
+  jsonRequest(
+    'POST',
+    { currentPassword: 'wrong-closure-password' },
+    { authorization: closureBearer },
+  ),
+);
+assert.equal(wrongClosureProof.response.status, 409);
+assert.equal(
+  wrongClosureProof.body.code,
+  'ACCOUNT_CLOSURE_REAUTHENTICATION_FAILED',
+);
+
+const accountClosure = await requestJson(
+  '/account/closure',
+  jsonRequest(
+    'POST',
+    { currentPassword: changedPassword },
+    { authorization: closureBearer },
+  ),
+);
+assert.equal(accountClosure.response.status, 202);
+assert.equal(accountClosure.body.accepted, true);
+assert.match(accountClosure.body.cleanupJobId, UUID_V4);
+
+const closureState = mongoJson(
+  [
+    `const user = db.users.findOne({ email: ${JSON.stringify(credentials.email)} });`,
+    `if (!user) quit(2);`,
+    `const userId = user._id.toString();`,
+    `const job = db.account_offboarding_jobs.findOne({ userId });`,
+    `const audits = db.security_audit.countDocuments({ subjectUserId: userId, event: 'account.closed' });`,
+    `print(JSON.stringify({ status: user.account_status, jobId: job && job.id, jobState: job && job.state, audits }));`,
+  ].join('\n'),
+);
+assert.equal(closureState.status, 'closed');
+assert.equal(closureState.jobId, accountClosure.body.cleanupJobId);
+assert.ok(
+  ['pending', 'processing', 'completed'].includes(closureState.jobState),
+);
+assert.equal(closureState.audits, 1);
+
+const staleAfterClosure = await requestJson('/auth/me', {
+  headers: { authorization: closureBearer },
+});
+assert.ok([401, 403].includes(staleAfterClosure.response.status));
+assert.ok(
+  ['AUTHENTICATION_REQUIRED', 'ACCOUNT_RESTRICTED'].includes(
+    staleAfterClosure.body.code,
+  ),
+);
+
+const closedLogin = await requestJson(
+  '/auth/mobile/login',
+  jsonRequest('POST', {
+    email: credentials.email,
+    password: changedPassword,
+  }),
+);
+assert.equal(closedLogin.response.status, 403);
+assert.equal(closedLogin.body.code, 'ACCOUNT_RESTRICTED');
 
 const abuseEmail = 'runtime-abuse-target@example.test';
 
@@ -631,6 +720,10 @@ console.log(
       'restricted-wrong-password-nondisclosure',
       'restricted-session-revocation',
       'account-status-restoration',
+      'account-closure-preflight',
+      'account-closure-reauthentication',
+      'account-closure-durable-audit-job',
+      'account-closure-authority-fencing',
       'auth-abuse-untrusted-forwarded-ip',
       'auth-abuse-stable-rate-limited',
       'auth-abuse-no-global-identifier-lockout',

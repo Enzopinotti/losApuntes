@@ -42,6 +42,7 @@ export type AccountOffboardingCleanupResult = {
   completed: number;
   retryScheduled: number;
   failed: number;
+  terminalFailuresPresent: boolean;
 };
 
 @Injectable()
@@ -125,6 +126,7 @@ export class AccountLifecycleService {
       completed: 0,
       retryScheduled: 0,
       failed: 0,
+      terminalFailuresPresent: false,
     };
 
     for (let index = 0; index < boundedLimit; index += 1) {
@@ -185,6 +187,7 @@ export class AccountLifecycleService {
       }
     }
 
+    result.terminalFailuresPresent = await this.store.hasFailedCleanup();
     return result;
   }
 }

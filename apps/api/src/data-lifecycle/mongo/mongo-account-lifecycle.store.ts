@@ -253,4 +253,8 @@ export class MongoAccountLifecycleStore implements AccountLifecycleStore {
 
     return result.modifiedCount === 1;
   }
+
+  async hasFailedCleanup(): Promise<boolean> {
+    return Boolean(await this.jobs.exists({ state: 'failed' }));
+  }
 }

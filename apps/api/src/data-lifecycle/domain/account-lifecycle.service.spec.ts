@@ -18,6 +18,7 @@ function deps() {
     claimNextCleanup: jest.fn(),
     completeCleanup: jest.fn(),
     rescheduleCleanup: jest.fn(),
+    hasFailedCleanup: jest.fn().mockResolvedValue(false),
   } as unknown as jest.Mocked<AccountLifecycleStore>;
 
   return { users, passwords, sessions, actionTokens, store };
@@ -144,6 +145,21 @@ describe('AccountLifecycleService', () => {
       completed: 0,
       retryScheduled: 1,
       failed: 0,
+      terminalFailuresPresent: false,
+    });
+  });
+
+  it('keeps terminal cleanup failures visible to worker health', async () => {
+    const d = deps();
+    d.store.claimNextCleanup.mockResolvedValue(null);
+    d.store.hasFailedCleanup.mockResolvedValue(true);
+
+    await expect(service(d).processPendingCleanup(5, now)).resolves.toEqual({
+      examined: 0,
+      completed: 0,
+      retryScheduled: 0,
+      failed: 0,
+      terminalFailuresPresent: true,
     });
   });
 
@@ -173,6 +189,7 @@ describe('AccountLifecycleService', () => {
       completed: 1,
       retryScheduled: 0,
       failed: 0,
+      terminalFailuresPresent: false,
     });
     expect(d.actionTokens.invalidateAll.mock.calls).toEqual([
       ['user-1', 'email_verification', now],

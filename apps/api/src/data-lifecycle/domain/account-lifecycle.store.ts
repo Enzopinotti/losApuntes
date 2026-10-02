@@ -39,4 +39,6 @@ export interface AccountLifecycleStore {
     nextAttemptAt: Date;
     failureCode: string;
   }): Promise<boolean>;
+
+  hasFailedCleanup(): Promise<boolean>;
 }

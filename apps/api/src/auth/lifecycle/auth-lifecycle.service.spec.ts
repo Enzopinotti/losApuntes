@@ -19,6 +19,7 @@ const SECOND_RECOVERY_TOKEN = 's'.repeat(43);
 function userDocument(
   emailVerifiedAt: Date | null = null,
   version = 1,
+  accountStatus: 'active' | 'restricted' | 'closed' = 'active',
 ): UserDocument {
   return {
     _id: {
@@ -28,6 +29,7 @@ function userDocument(
     password_hash: 'legacy-hash',
     email_verified_at: emailVerifiedAt,
     credential_version: version,
+    account_status: accountStatus,
   } as unknown as UserDocument;
 }
 
@@ -236,6 +238,49 @@ describe('AuthLifecycleService', () => {
 
     expect(results.filter(Boolean)).toHaveLength(1);
     expect(mocks.invalidateAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not issue or complete auth action tokens for a closed account', async () => {
+    const verification = createHarness();
+    verification.mocks.findByEmail.mockResolvedValue(
+      userDocument(null, 4, 'closed'),
+    );
+    await expect(
+      verification.service.requestEmailVerification('enzo@example.com', NOW),
+    ).resolves.toBeUndefined();
+    expect(verification.mocks.issueIfAllowed).not.toHaveBeenCalled();
+
+    verification.mocks.inspect.mockResolvedValue(
+      actionRecord('email_verification'),
+    );
+    verification.mocks.findById.mockResolvedValue(
+      userDocument(null, 4, 'closed'),
+    );
+    await expect(
+      verification.service.inspectEmailVerification(
+        VERIFICATION_TOKEN,
+        NOW,
+      ),
+    ).resolves.toBe(false);
+
+    const recovery = createHarness();
+    recovery.mocks.findByEmail.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z'), 4, 'closed'),
+    );
+    await expect(
+      recovery.service.requestPasswordRecovery('enzo@example.com', NOW),
+    ).resolves.toBeUndefined();
+    expect(recovery.mocks.issueIfAllowed).not.toHaveBeenCalled();
+
+    recovery.mocks.inspect.mockResolvedValue(
+      actionRecord('password_recovery', 'f'.repeat(64), 4),
+    );
+    recovery.mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z'), 4, 'closed'),
+    );
+    await expect(
+      recovery.service.inspectPasswordRecovery(RECOVERY_TOKEN, NOW),
+    ).resolves.toBe(false);
   });
 
   it('does nothing observable for recovery of an unknown account', async () => {
