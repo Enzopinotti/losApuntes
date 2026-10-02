@@ -134,11 +134,9 @@ export function normalizeCommunityMutationText(value: string): string {
 }
 
 function questionReconciliationQuery(title: string): string {
-  return Array.from(
-    normalizeCommunityMutationText(title).normalize("NFKC"),
-  )
-    .slice(0, 120)
-    .join("");
+  const normalizedTitle =
+    normalizeCommunityMutationText(title).normalize("NFKC");
+  return Array.from(normalizedTitle).slice(0, 120).join("");
 }
 
 export function shouldResetCommunityAnswerDraft(
@@ -146,11 +144,8 @@ export function shouldResetCommunityAnswerDraft(
   next: { questionId: string; authorityKey: string | null },
 ): boolean {
   if (previous.questionId !== next.questionId) return true;
-  return Boolean(
-    previous.authorityKey &&
-      next.authorityKey &&
-      previous.authorityKey !== next.authorityKey,
-  );
+  if (!previous.authorityKey || !next.authorityKey) return false;
+  return previous.authorityKey !== next.authorityKey;
 }
 
 export function isAmbiguousCommunityMutationFailure(
