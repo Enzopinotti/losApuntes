@@ -653,6 +653,30 @@ describe('AcademicService', () => {
     expect(store.guardCurrentSubjectParticipation).not.toHaveBeenCalled();
     expect(store.setCurrentContext).not.toHaveBeenCalled();
   });
+  it('rejects current subject context on an applicant affiliation', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const row = affiliation({ status: 'applicant' });
+    const part = participation({ state: 'current' });
+
+    store.findAffiliationById.mockResolvedValue(row);
+    store.findSubjectParticipationById.mockResolvedValue(part);
+
+    const error = await rejectedUnprocessable(
+      service.setCurrentContext('user-1', {
+        expectedRevision: 0,
+        affiliationId: row.id,
+        subjectParticipationId: part.id,
+      }),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+    });
+    expect(store.guardAcademicAffiliation).not.toHaveBeenCalled();
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
+  });
+
   for (const state of ['planned', 'completed', 'dropped'] as const) {
     it(`rejects ${state} participation as current subject context`, async () => {
       const store = createStore();
@@ -1295,6 +1319,23 @@ describe('AcademicService', () => {
       states: ['current'],
       limit: ACADEMIC_PARTICIPATION_DECISION_LIMIT,
     });
+  });
+
+  it('exposes no current-subject choices for applicant affiliation', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const selected = affiliation({ status: 'applicant' });
+
+    store.findAffiliationById.mockResolvedValue(selected);
+
+    await expect(
+      service.listSubjectParticipations('user-1', selected.id),
+    ).resolves.toEqual({
+      participations: [],
+      truncated: false,
+      limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+    });
+    expect(store.listSubjectParticipationsForUser).not.toHaveBeenCalled();
   });
 
   it('fails closed when affiliation-scoped subject eligibility exceeds its decision budget', async () => {

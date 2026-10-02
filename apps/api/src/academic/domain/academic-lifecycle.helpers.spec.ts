@@ -58,7 +58,7 @@ describe('academic lifecycle helpers', () => {
   });
 
   it('defines which affiliation states can carry current subject context', () => {
-    expect(affiliationAllowsCurrentSubjectContext('applicant')).toBe(true);
+    expect(affiliationAllowsCurrentSubjectContext('applicant')).toBe(false);
     expect(affiliationAllowsCurrentSubjectContext('active')).toBe(true);
     expect(affiliationAllowsCurrentSubjectContext('paused')).toBe(true);
     expect(affiliationAllowsCurrentSubjectContext('completed')).toBe(false);

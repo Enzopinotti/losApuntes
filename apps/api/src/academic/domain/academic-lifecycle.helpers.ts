@@ -26,9 +26,7 @@ export function isCurrentSubjectParticipationState(
 export function affiliationAllowsCurrentSubjectContext(
   status: AcademicAffiliationStatus,
 ): boolean {
-  return (
-    status !== 'withdrawn' && status !== 'completed' && status !== 'alumni'
-  );
+  return status === 'active' || status === 'paused';
 }
 
 export function effectiveAcademicRelationshipRoles(

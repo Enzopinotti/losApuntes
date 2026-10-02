@@ -128,8 +128,9 @@ Lists current/historical SubjectParticipation records for the current user.
 Optional query:
 - `affiliationId` — when present, the backend returns only participations that
   are valid **current-subject** choices for that owned affiliation. Eligibility
-  requires the canonical SubjectParticipation lifecycle state `current` and the
-  same server-side graph relationship enforced by CurrentAcademicContext;
+  requires an `active|paused` affiliation, the canonical SubjectParticipation
+  lifecycle state `current`, and the same server-side graph relationship
+  enforced by CurrentAcademicContext;
   `planned`, `completed` and `dropped` records remain history and are not
   exposed as current choices. The eligibility decision uses a bounded complete
   inventory and fails closed with `ACADEMIC_INVENTORY_OVERFLOW` if that
