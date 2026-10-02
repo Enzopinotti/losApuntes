@@ -882,9 +882,7 @@ test("pre-POST baseline failure releases the composer lock so retry can start a 
   assert.equal(submitting, true);
 });
 
-test(
-  "explicit refresh reconciles a blocked ambiguous answer across all answer pages",
-  async () => {
+test("explicit refresh reconciles a blocked ambiguous answer across all answer pages", async () => {
     const oldAnswers = Array.from({ length: 25 }, (_, index) =>
       answer(`old-${index + 1}`),
     );
@@ -965,12 +963,9 @@ test(
         (candidate) => candidate.id === "committed-answer",
       ),
     );
-  },
-);
+});
 
-test(
-  "transient invalidation retains an indeterminate answer until return reconciliation",
-  async () => {
+test("transient invalidation retains an indeterminate answer until return reconciliation", async () => {
     const oldAnswers = Array.from({ length: 25 }, (_, index) =>
       answer(`old-${index + 1}`),
     );
@@ -1041,5 +1036,4 @@ test(
         (candidate) => candidate.id === "committed-after-background",
       ),
     );
-  },
-);
+});
