@@ -212,6 +212,26 @@ describe('ProfileService', () => {
     });
   });
 
+  it('tombstones public identity for closed accounts while preserving profile id', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileByUserId.mockResolvedValue(
+      profile({
+        lifecycleState: 'closed',
+        displayName: 'No debe exponerse',
+        avatarUrl: 'https://example.test/private.png',
+      }),
+    );
+
+    await expect(
+      service(profileStore, academicService).getAttributionForUser('user-1'),
+    ).resolves.toEqual({
+      profileId: '11111111-1111-4111-8111-111111111111',
+      displayName: 'Usuario de Los Apuntes',
+      avatarUrl: null,
+    });
+  });
+
   it('keeps resource attribution optional before profile onboarding', async () => {
     const profileStore = store();
     const academicService = academic();
@@ -470,6 +490,21 @@ describe('ProfileService', () => {
         },
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('hides a closed profile from public profile reads', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileById.mockResolvedValue(
+      profile({ lifecycleState: 'closed' }),
+    );
+
+    await expect(
+      service(profileStore, academicService).getPublicProfile(
+        '11111111-1111-4111-8111-111111111111',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(academicService.listAffiliations).not.toHaveBeenCalled();
   });
 
   it('emits only explicitly public sections to anonymous viewers', async () => {
@@ -1008,6 +1043,7 @@ describe('ProfileService', () => {
     });
     profileStore.findProfileByUserId
       .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce(profile({ lifecycleState: 'closed' }))
       .mockResolvedValueOnce(null);
 
     const instance = service(profileStore, academicService);
@@ -1024,6 +1060,7 @@ describe('ProfileService', () => {
         skillsInterests: false,
       },
     });
+    await expect(instance.getFeedSignals('closed-user')).resolves.toBeNull();
     await expect(instance.getFeedSignals('missing-user')).resolves.toBeNull();
   });
 
@@ -1045,18 +1082,31 @@ describe('ProfileService', () => {
         about: 'private',
       },
     });
+    const closedRow = profile({
+      id: '33333333-3333-4333-8333-333333333333',
+      userId: 'user-closed',
+      lifecycleState: 'closed',
+      displayName: 'Closed Identity',
+      avatarUrl: 'https://example.test/closed.png',
+    });
     profileStore.findProfilesByUserIds.mockResolvedValue([
       publicRow,
       privateRow,
+      closedRow,
     ]);
 
     const result = await service(
       profileStore,
       academicService,
-    ).getAttributionsForUsers(['user-public', 'user-private', 'user-public']);
+    ).getAttributionsForUsers([
+      'user-public',
+      'user-private',
+      'user-closed',
+      'user-public',
+    ]);
 
     expect(profileStore.findProfilesByUserIds.mock.calls).toEqual([
-      [['user-public', 'user-private']],
+      [['user-public', 'user-private', 'user-closed']],
     ]);
     expect(result.get('user-public')).toEqual({
       profileId: publicRow.id,
@@ -1065,6 +1115,11 @@ describe('ProfileService', () => {
     });
     expect(result.get('user-private')).toEqual({
       profileId: privateRow.id,
+      displayName: 'Usuario de Los Apuntes',
+      avatarUrl: null,
+    });
+    expect(result.get('user-closed')).toEqual({
+      profileId: closedRow.id,
       displayName: 'Usuario de Los Apuntes',
       avatarUrl: null,
     });

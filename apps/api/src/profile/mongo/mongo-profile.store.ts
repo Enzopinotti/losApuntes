@@ -74,6 +74,10 @@ export class MongoProfileStore implements ProfileStore {
   ): Promise<ProfileRecord[]> {
     return this.profiles
       .find({
+        $or: [
+          { lifecycleState: 'active' },
+          { lifecycleState: { $exists: false } },
+        ],
         'visibility.about': 'public',
         displayName: { $regex: escapeRegex(query), $options: 'i' },
       })

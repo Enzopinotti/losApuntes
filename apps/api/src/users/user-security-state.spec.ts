@@ -2,6 +2,7 @@ import {
   accountStatus,
   credentialVersion,
   isAccountActive,
+  isAccountClosed,
   isEmailVerified,
 } from './user-security-state';
 
@@ -63,6 +64,18 @@ describe('user security state compatibility', () => {
 
     expect(accountStatus(user)).toBe('active');
     expect(isAccountActive(user)).toBe(true);
+  });
+
+  it('treats explicit closed state as inactive and terminal for auth', () => {
+    const user = {
+      credential_version: 4,
+      email_verified_at: new Date('2026-09-22T14:00:00.000Z'),
+      account_status: 'closed' as const,
+    };
+
+    expect(accountStatus(user)).toBe('closed');
+    expect(isAccountActive(user)).toBe(false);
+    expect(isAccountClosed(user)).toBe(true);
   });
 
   it('treats explicit restricted state as inactive', () => {
