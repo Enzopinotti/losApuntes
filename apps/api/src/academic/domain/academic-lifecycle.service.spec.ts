@@ -365,13 +365,13 @@ describe('AcademicLifecycleService', () => {
       academicService,
     ).graduate('user-1', graduating.id, { graduatedOn: '2026-09' });
 
-    expect(lifecycleStore.setCurrentContext).toHaveBeenCalledWith(
+    expect(lifecycleStore.setCurrentContext.mock.calls).toContainEqual([
       {
         userId: 'user-1',
         affiliationId: otherAffiliationId,
       },
       9,
-    );
+    ]);
   });
 
   it('does not graduate from an incomplete current-subject snapshot', async () => {
