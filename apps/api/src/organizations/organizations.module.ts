@@ -5,6 +5,7 @@ import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
 import { ProfileModule } from '../profile/profile.module';
 import { ResourcesModule } from '../resources/resources.module';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { OrganizationService } from './domain/organization.service';
 import { ORGANIZATION_STORE } from './domain/organization.store';
@@ -40,6 +41,7 @@ import { OrganizationsController } from './organizations.controller';
     ProfileModule,
     ResourcesModule,
     MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
       { name: Organization.name, schema: OrganizationSchema },
       { name: OrganizationManager.name, schema: OrganizationManagerSchema },
       { name: OrganizationAudit.name, schema: OrganizationAuditSchema },

@@ -2,16 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
 
+import { User } from '../../users/schemas/user.schema';
 import {
   ORGANIZATION_FEATURED_RESOURCE_LIMIT,
   ORGANIZATION_LINK_LIMIT,
   ORGANIZATION_MANAGER_LIMIT,
 } from '../domain/organization-limits';
-import type {
-  AuthorizedOrganizationMutationResult,
-  ManagerChangeResult,
-  OrganizationStore,
-  OrganizationWriteAuthority,
+import {
+  OrganizationManagerTargetInactiveError,
+  type AuthorizedOrganizationMutationResult,
+  type ManagerChangeResult,
+  type OrganizationStore,
+  type OrganizationWriteAuthority,
 } from '../domain/organization.store';
 import type {
   OrganizationAuditRecord,
@@ -81,6 +83,8 @@ export class MongoOrganizationStore implements OrganizationStore {
   constructor(
     @InjectConnection()
     private readonly connection: Connection,
+    @InjectModel(User.name)
+    private readonly users: Model<User>,
     @InjectModel(Organization.name)
     private readonly organizations: Model<Organization>,
     @InjectModel(OrganizationManager.name)
@@ -119,6 +123,8 @@ export class MongoOrganizationStore implements OrganizationStore {
         | undefined;
 
       await session.withTransaction(async () => {
+        await this.fenceActiveManagerTarget(input.ownerUserId, session);
+
         const createdOrganizations = await this.organizations.create(
           [input.organization],
           { session },
@@ -733,6 +739,17 @@ export class MongoOrganizationStore implements OrganizationStore {
 
           let manager: OrganizationManagerRecord | null = null;
 
+          if (input.nextRole !== null) {
+            try {
+              await this.fenceActiveManagerTarget(input.targetUserId, session);
+            } catch (error) {
+              if (error instanceof OrganizationManagerTargetInactiveError) {
+                throw new ManagerMutationAbort({ status: 'target_inactive' });
+              }
+              throw error;
+            }
+          }
+
           if (!current && input.nextRole !== null) {
             const managerCount = await this.managers
               .countDocuments({ organizationId: input.organizationId })
@@ -811,6 +828,30 @@ export class MongoOrganizationStore implements OrganizationStore {
       return output;
     } finally {
       await session.endSession();
+    }
+  }
+
+  private async fenceActiveManagerTarget(
+    userId: string,
+    session: ClientSession,
+  ): Promise<void> {
+    const active = await this.users
+      .findOneAndUpdate(
+        {
+          _id: userId,
+          $or: [
+            { account_status: 'active' },
+            { account_status: { $exists: false } },
+          ],
+        },
+        { $inc: { management_authority_revision: 1 } },
+        { new: false, session },
+      )
+      .lean()
+      .exec();
+
+    if (!active) {
+      throw new OrganizationManagerTargetInactiveError();
     }
   }
 

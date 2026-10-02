@@ -32,6 +32,7 @@ import {
 } from './organization-limits';
 import {
   ORGANIZATION_STORE,
+  OrganizationManagerTargetInactiveError,
   type AuthorizedOrganizationMutationResult,
   type OrganizationStore,
 } from './organization.store';
@@ -236,7 +237,9 @@ export class OrganizationService {
     const name = cleanText(dto.name);
     const organizationId = randomUUID();
 
-    const created = await this.store.createWithOwner({
+    let created: Awaited<ReturnType<OrganizationStore['createWithOwner']>>;
+    try {
+      created = await this.store.createWithOwner({
       organization: {
         id: organizationId,
         name,
@@ -267,7 +270,16 @@ export class OrganizationService {
         reason: 'Organization claimed by creator',
         metadata: { profileId: actor.profileId },
       }),
-    });
+      });
+    } catch (error) {
+      if (error instanceof OrganizationManagerTargetInactiveError) {
+        throw new ConflictException({
+          code: 'ORGANIZATION_MANAGER_TARGET_INACTIVE',
+          message: 'Organization manager account is no longer active',
+        });
+      }
+      throw error;
+    }
 
     return {
       organization: await this.detailProjection(created.organization, userId),
@@ -1519,6 +1531,12 @@ export class OrganizationService {
       throw new ConflictException({
         code: 'ORGANIZATION_FINAL_OWNER_REQUIRED',
         message: 'Organization must retain at least one owner',
+      });
+    }
+    if (result.status === 'target_inactive') {
+      throw new ConflictException({
+        code: 'ORGANIZATION_MANAGER_TARGET_INACTIVE',
+        message: 'Organization manager account is no longer active',
       });
     }
     if (result.status === 'manager_limit') {

@@ -36,6 +36,7 @@ function session() {
 }
 
 function models(input: {
+  activeUser?: unknown;
   organization?: unknown;
   manager?: unknown;
   managerCount?: number;
@@ -51,6 +52,15 @@ function models(input: {
     startSession: jest.fn().mockResolvedValue(activeSession),
   };
 
+  const users = {
+    findOneAndUpdate: jest.fn(() =>
+      query(
+        input.activeUser === undefined
+          ? { _id: actorUserId, account_status: 'active' }
+          : input.activeUser,
+      ),
+    ),
+  };
   const organizations = {
     findOne: jest.fn(() => query(input.organization ?? null)),
     findOneAndUpdate: jest.fn(
@@ -103,6 +113,7 @@ function models(input: {
 
   const store = new MongoOrganizationStore(
     connection as never,
+    users as never,
     organizations as never,
     managers as never,
     audits as never,
@@ -118,6 +129,7 @@ function models(input: {
     store,
     connection,
     activeSession,
+    users,
     organizations,
     managers,
     audits,
@@ -550,6 +562,56 @@ describe('MongoOrganizationStore commit authority', () => {
 
     expect(fixture.featuredResources.create.mock.calls).toHaveLength(0);
     expect(fixture.audits.create.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects a manager grant when the target account is no longer active', async () => {
+    const fixture = models({
+      activeUser: null,
+      organization: {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      manager: null,
+      managerCount: 0,
+    });
+
+    await expect(
+      fixture.store.changeManager({
+        organizationId,
+        actorUserId,
+        targetUserId: '99999999-9999-4999-8999-999999999999',
+        expectedManagementRevision: 7,
+        expectedTargetRole: null,
+        nextRole: 'editor',
+        audit: {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          organizationId,
+          event: 'organization.manager_granted',
+          actorUserId,
+          targetUserId: '99999999-9999-4999-8999-999999999999',
+          previousRole: null,
+          nextRole: 'editor',
+          reason: 'Inactive target test',
+          metadata: {},
+          createdAt: now,
+        },
+      }),
+    ).resolves.toEqual({ status: 'target_inactive' });
+
+    expect(fixture.users.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: '99999999-9999-4999-8999-999999999999',
+        $or: [
+          { account_status: 'active' },
+          { account_status: { $exists: false } },
+        ],
+      },
+      { $inc: { management_authority_revision: 1 } },
+      { new: false, session: fixture.activeSession },
+    );
+    expect(fixture.managers.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(fixture.audits.create).not.toHaveBeenCalled();
   });
 
   it('rejects a new manager at the cap inside the management transaction', async () => {
