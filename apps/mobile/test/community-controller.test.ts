@@ -525,7 +525,11 @@ test("reconciles an ambiguous timed-out answer before another submit can be enab
 
   reconciliation.resolve(
     detail("question-a", [
-      { ...answer("answer-a"), body: "Una respuesta útil." },
+      {
+        ...answer("answer-a"),
+        body: "Una respuesta útil.",
+        viewer: { canEdit: true, canReport: true },
+      },
     ]),
   );
   assert.equal(await pending, true);
@@ -609,7 +613,6 @@ test("question routes preserve cold deep links while session restore is pending"
   }
 });
 
-
 test("reconciles an ambiguous answer committed beyond the first answer page", async () => {
   const oldAnswers = Array.from({ length: 25 }, (_, index) =>
     answer(`old-${index + 1}`),
@@ -635,7 +638,11 @@ test("reconciles an ambiguous answer committed beyond the first answer page", as
       return {
         items: [
           answer("old-26"),
-          { ...answer("new-answer"), body: "Una respuesta útil." },
+          {
+            ...answer("new-answer"),
+            body: "Una respuesta útil.",
+            viewer: { canEdit: true, canReport: true },
+          },
         ],
         nextCursor: null,
       };
