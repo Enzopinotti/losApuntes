@@ -11,6 +11,7 @@ import type { SessionController } from "@/features/session/session-controller";
 import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 
 export interface QuestionPageInput {
+  q?: string;
   subjectId?: string;
   cursor?: string;
   limit?: number;
@@ -79,6 +80,7 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
     signal?: AbortSignal,
   ) {
     const query = new URLSearchParams({ limit: String(input.limit ?? 25) });
+    if (input.q) query.set("q", input.q);
     if (input.subjectId) query.set("subjectId", input.subjectId);
     if (input.cursor) query.set("cursor", input.cursor);
 

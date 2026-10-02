@@ -1,14 +1,14 @@
 import { Redirect, Stack } from "expo-router";
 
-import { canAccessCommunityQuestionRoute } from "@/features/community/community-controller";
+import { communityQuestionRouteGate } from "@/features/community/community-controller";
 import { useSession } from "@/features/session/session-provider";
 
 export default function QuestionsLayout() {
   const { snapshot } = useSession();
+  const gate = communityQuestionRouteGate(snapshot.kind);
 
-  if (!canAccessCommunityQuestionRoute(snapshot.kind)) {
-    return <Redirect href="/sign-in" />;
-  }
+  if (gate === "restoring") return null;
+  if (gate === "redirect") return <Redirect href="/sign-in" />;
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }

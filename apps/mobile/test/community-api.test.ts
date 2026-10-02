@@ -188,6 +188,7 @@ test("encodes public question API paths and includes only server-supported pagin
   const transport = new MobileCommunityHttpTransport(client);
 
   await transport.questions("token", {
+    q: "integrales impropias",
     subjectId: "subject / one",
     limit: 25,
     cursor: "opaque+/=",
@@ -196,6 +197,7 @@ test("encodes public question API paths and includes only server-supported pagin
 
   const questionUrl = new URL(calls[0]!.path, "https://api.example");
   assert.equal(questionUrl.pathname, "/questions");
+  assert.equal(questionUrl.searchParams.get("q"), "integrales impropias");
   assert.equal(questionUrl.searchParams.get("subjectId"), "subject / one");
   assert.equal(questionUrl.searchParams.get("limit"), "25");
   assert.equal(questionUrl.searchParams.get("cursor"), "opaque+/=");

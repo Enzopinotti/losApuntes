@@ -14,10 +14,12 @@ import type {
 
 import type { CommunityApi } from "../src/features/community/community-api";
 import {
-  canAccessCommunityQuestionRoute,
+  captureOwnedQuestionBaseline,
   cancelCommunityComposerSubmission,
+  communityQuestionRouteGate,
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
+  reconcileQuestionCreation,
   resolveQuestionScope,
 } from "../src/features/community/community-controller";
 import { ApiRequestError } from "../src/services/api/client";
@@ -592,10 +594,10 @@ test("blocks answer retry when an ambiguous mutation cannot be reconciled until 
   );
 });
 
-test("question routes require authentication before rendering deep-linked content", () => {
-  assert.equal(canAccessCommunityQuestionRoute("authenticated"), true);
+test("question routes preserve cold deep links while session restore is pending", () => {
+  assert.equal(communityQuestionRouteGate("restoring"), "restoring");
+  assert.equal(communityQuestionRouteGate("authenticated"), "ready");
   for (const kind of [
-    "restoring",
     "unauthenticated",
     "restricted",
     "offline",
@@ -603,6 +605,112 @@ test("question routes require authentication before rendering deep-linked conten
     "server_unavailable",
     "error",
   ]) {
-    assert.equal(canAccessCommunityQuestionRoute(kind), false);
+    assert.equal(communityQuestionRouteGate(kind), "redirect");
   }
+});
+
+
+test("reconciles an ambiguous answer committed beyond the first answer page", async () => {
+  const oldAnswers = Array.from({ length: 25 }, (_, index) =>
+    answer(`old-${index + 1}`),
+  );
+  let detailCalls = 0;
+  let answerPageCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      detailCalls += 1;
+      return detail(
+        id,
+        oldAnswers,
+        detailCalls === 1 ? "baseline-next" : "reconcile-next",
+      );
+    },
+    answers: async (_questionId, cursor) => {
+      answerPageCalls += 1;
+      if (cursor === "baseline-next") {
+        return { items: [answer("old-26")], nextCursor: null };
+      }
+      assert.equal(cursor, "reconcile-next");
+      return {
+        items: [
+          answer("old-26"),
+          { ...answer("new-answer"), body: "Una respuesta útil." },
+        ],
+        nextCursor: null,
+      };
+    },
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => {
+      throw new ApiRequestError(
+        "timeout",
+        null,
+        "REQUEST_TIMEOUT",
+        "request timed out",
+      );
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  const sent = await controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una respuesta útil.",
+  );
+
+  assert.equal(sent, true);
+  assert.equal(answerPageCalls, 2);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.answerRetryBlocked, false);
+    assert.equal(snapshot.notice, "Respuesta publicada.");
+    assert.ok(
+      snapshot.detail.answers.some((candidate) => candidate.id === "new-answer"),
+    );
+  }
+});
+
+test("question creation reconciliation only accepts a new owned exact match", async () => {
+  const input = {
+    subjectId: "subject-a",
+    courseOfferingId: "offering-a",
+    title: "¿Cómo se integra esto?",
+    body: "Necesito entender el paso intermedio con más detalle.",
+  };
+  const oldOwned = {
+    ...question("old-question"),
+    title: input.title,
+    body: input.body,
+    academic: {
+      subject: { id: "subject-a", name: "Álgebra" },
+      courseOffering: { id: "offering-a", name: "Comisión A" },
+    },
+    viewer: {
+      canEdit: true,
+      canAnswer: true,
+      canAcceptAnswers: true,
+      canReport: true,
+    },
+  };
+  const newOwned = { ...oldOwned, id: "new-question" };
+  let phase: "baseline" | "reconcile" = "baseline";
+  const api: CommunityApi = {
+    questions: async (request) => {
+      assert.equal(request.q, input.title);
+      assert.equal(request.subjectId, input.subjectId);
+      return page(phase === "baseline" ? [oldOwned] : [oldOwned, newOwned]);
+    },
+    question: async (id) => detail(id),
+    answers: async () => ({ items: [], nextCursor: null }),
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => ({ answer: answer("created") }),
+  };
+
+  const baseline = await captureOwnedQuestionBaseline(api, input);
+  phase = "reconcile";
+  const reconciled = await reconcileQuestionCreation(api, input, baseline);
+
+  assert.deepEqual([...baseline], ["old-question"]);
+  assert.equal(reconciled?.id, "new-question");
 });

@@ -5,8 +5,10 @@ import type {
 import type {
   AnswerPageResponse,
   AnswerView,
+  CreateQuestionInput,
   QuestionDetailResponse,
   QuestionSearchResponse,
+  QuestionView,
 } from "@losapuntes/contracts/social-qa";
 
 import { ApiRequestError } from "@/services/api/client";
@@ -109,11 +111,18 @@ export function cancelCommunityComposerSubmission(
   return null;
 }
 
-export function canAccessCommunityQuestionRoute(sessionKind: string): boolean {
-  return sessionKind === "authenticated";
+export type CommunityQuestionRouteGate = "restoring" | "ready" | "redirect";
+
+export function communityQuestionRouteGate(
+  sessionKind: string,
+): CommunityQuestionRouteGate {
+  if (sessionKind === "restoring") return "restoring";
+  return sessionKind === "authenticated" ? "ready" : "redirect";
 }
 
-function isAmbiguousAnswerFailure(failure: CommunityFailure): boolean {
+export function isAmbiguousCommunityMutationFailure(
+  failure: CommunityFailure,
+): boolean {
   return (
     failure.kind === "offline" ||
     failure.kind === "timeout" ||
@@ -149,6 +158,106 @@ function appendUniqueAnswers(
   const byId = new Map(current.map((answer) => [answer.id, answer]));
   for (const answer of next) byId.set(answer.id, answer);
   return [...byId.values()];
+}
+
+async function completeAnswerInventory(
+  api: CommunityApi,
+  questionId: string,
+  detail: QuestionDetailResponse,
+  signal?: AbortSignal,
+): Promise<QuestionDetailResponse> {
+  let answers = [...detail.answers];
+  let cursor = detail.answersNextCursor;
+  const seenCursors = new Set<string>();
+
+  while (cursor) {
+    if (seenCursors.has(cursor)) {
+      throw new Error("Answer pagination cursor repeated during reconciliation");
+    }
+    seenCursors.add(cursor);
+    const page = await api.answers(
+      questionId,
+      cursor,
+      detail.answersLimit,
+      signal,
+    );
+    answers = appendUniqueAnswers(answers, page.items);
+    cursor = page.nextCursor;
+  }
+
+  return {
+    ...detail,
+    answers,
+    answersNextCursor: null,
+  };
+}
+
+function matchesOwnedQuestion(
+  question: QuestionView,
+  input: CreateQuestionInput,
+): boolean {
+  return (
+    question.viewer.canEdit &&
+    question.title.trim() === input.title.trim() &&
+    question.body.trim() === input.body.trim() &&
+    question.academic.subject.id === input.subjectId &&
+    (question.academic.courseOffering?.id ?? null) ===
+      (input.courseOfferingId ?? null)
+  );
+}
+
+async function ownedQuestionMatches(
+  api: CommunityApi,
+  input: CreateQuestionInput,
+  signal?: AbortSignal,
+): Promise<QuestionView[]> {
+  const matches: QuestionView[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+
+  while (true) {
+    const page = await api.questions(
+      {
+        q: input.title,
+        subjectId: input.subjectId,
+        limit: 25,
+        ...(cursor ? { cursor } : {}),
+      },
+      signal,
+    );
+    matches.push(
+      ...page.items.filter((question) => matchesOwnedQuestion(question, input)),
+    );
+
+    if (!page.nextCursor) return matches;
+    if (seenCursors.has(page.nextCursor)) {
+      throw new Error("Question pagination cursor repeated during reconciliation");
+    }
+    seenCursors.add(page.nextCursor);
+    cursor = page.nextCursor;
+  }
+}
+
+export async function captureOwnedQuestionBaseline(
+  api: CommunityApi,
+  input: CreateQuestionInput,
+  signal?: AbortSignal,
+): Promise<Set<string>> {
+  return new Set(
+    (await ownedQuestionMatches(api, input, signal)).map(
+      (question) => question.id,
+    ),
+  );
+}
+
+export async function reconcileQuestionCreation(
+  api: CommunityApi,
+  input: CreateQuestionInput,
+  baselineIds: ReadonlySet<string>,
+  signal?: AbortSignal,
+): Promise<QuestionView | null> {
+  const matches = await ownedQuestionMatches(api, input, signal);
+  return matches.find((question) => !baselineIds.has(question.id)) ?? null;
 }
 
 export class MobileCommunityFeedController {
@@ -387,9 +496,6 @@ export class MobileCommunityQuestionController {
       return false;
     }
 
-    const knownAnswerIds = new Set(
-      current.detail.answers.map((candidate) => candidate.id),
-    );
     const normalizedBody = body.trim();
     const generation = this.begin(authorityKey);
     this.publish({
@@ -402,6 +508,39 @@ export class MobileCommunityQuestionController {
       refreshFailure: null,
     });
     const signal = this.activeOperation?.signal;
+
+    let baselineDetail: QuestionDetailResponse;
+    try {
+      baselineDetail = await completeAnswerInventory(
+        this.api,
+        questionId,
+        current.detail,
+        signal,
+      );
+    } catch (error) {
+      if (!this.isCurrent(generation, authorityKey)) return false;
+      const latest = this.snapshot;
+      if (
+        latest.kind === "ready" &&
+        latest.authorityKey === authorityKey &&
+        latest.questionId === questionId
+      ) {
+        const failure = communityFailure(error);
+        this.publish({
+          ...latest,
+          submittingAnswer: false,
+          answerRetryBlocked: false,
+          actionFailure: failure,
+          actionFailureCode: failure.code,
+          notice: null,
+        });
+      }
+      return false;
+    }
+
+    const knownAnswerIds = new Set(
+      baselineDetail.answers.map((candidate) => candidate.id),
+    );
 
     try {
       await this.api.createAnswer(questionId, { body }, signal);
@@ -465,9 +604,15 @@ export class MobileCommunityQuestionController {
       }
 
       const failure = communityFailure(error);
-      if (isAmbiguousAnswerFailure(failure)) {
+      if (isAmbiguousCommunityMutationFailure(failure)) {
         try {
-          const detail = await this.api.question(questionId, signal);
+          const firstPage = await this.api.question(questionId, signal);
+          const detail = await completeAnswerInventory(
+            this.api,
+            questionId,
+            firstPage,
+            signal,
+          );
           if (!this.isCurrent(generation, authorityKey)) return false;
           const reconciled = this.snapshot;
           if (
@@ -481,6 +626,7 @@ export class MobileCommunityQuestionController {
           const observedCommittedAnswer = detail.answers.some(
             (candidate) =>
               !knownAnswerIds.has(candidate.id) &&
+              candidate.viewer.canEdit &&
               candidate.body.trim() === normalizedBody,
           );
           this.publish({

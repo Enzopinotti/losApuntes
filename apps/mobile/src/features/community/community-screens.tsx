@@ -15,9 +15,12 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 
 import {
   cancelCommunityComposerSubmission,
+  captureOwnedQuestionBaseline,
   communityFailure,
+  isAmbiguousCommunityMutationFailure,
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
+  reconcileQuestionCreation,
   type CommunityFailure,
   type CommunityQuestionDetailSnapshot,
   type CommunityQuestionFeedSnapshot,
@@ -599,6 +602,7 @@ export function CommunityQuestionComposerScreen() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [questionRetryBlocked, setQuestionRetryBlocked] = useState(false);
   const [failure, setFailure] = useState<CommunityFailure | null>(null);
   const [failureCode, setFailureCode] = useState<string | null>(null);
 
@@ -607,14 +611,95 @@ export function CommunityQuestionComposerScreen() {
   const authorityKey = authority.authorityKey;
   const authorityKeyRef = useRef(authorityKey);
   const activeOperation = useRef<AbortController | null>(null);
+  const pendingQuestion = useRef<{
+    authorityKey: string;
+    input: CreateQuestionInput;
+    baselineIds: ReadonlySet<string>;
+    failure: CommunityFailure;
+  } | null>(null);
   authorityKeyRef.current = authorityKey;
 
   useEffect(() => {
+    const hadActiveOperation = activeOperation.current !== null;
     activeOperation.current = cancelCommunityComposerSubmission(
       activeOperation.current,
       () => setSubmitting(false),
     );
+    if (hadActiveOperation && pendingQuestion.current) {
+      setQuestionRetryBlocked(true);
+    }
+    if (
+      authorityKey &&
+      pendingQuestion.current &&
+      pendingQuestion.current.authorityKey !== authorityKey
+    ) {
+      pendingQuestion.current = null;
+      setQuestionRetryBlocked(false);
+      setFailure(null);
+      setFailureCode(null);
+      setTitle("");
+      setBody("");
+    }
   }, [authority.gate, authorityKey]);
+
+  const reconcilePendingQuestion = useCallback(async () => {
+    const pending = pendingQuestion.current;
+    if (
+      !pending ||
+      authority.gate !== "ready" ||
+      !authorityKey ||
+      authorityKey !== pending.authorityKey ||
+      submitting
+    ) {
+      return;
+    }
+
+    const operation = new AbortController();
+    activeOperation.current = operation;
+    setSubmitting(true);
+    try {
+      const reconciled = await reconcileQuestionCreation(
+        mobileCommunityApi,
+        pending.input,
+        pending.baselineIds,
+        operation.signal,
+      );
+      if (
+        authorityKey !== authorityKeyRef.current ||
+        pendingQuestion.current !== pending
+      ) {
+        return;
+      }
+      if (reconciled) {
+        pendingQuestion.current = null;
+        setQuestionRetryBlocked(false);
+        router.replace({
+          pathname: "/questions/[questionId]",
+          params: { questionId: reconciled.id },
+        });
+        return;
+      }
+
+      pendingQuestion.current = null;
+      setQuestionRetryBlocked(false);
+      setFailure(pending.failure);
+      setFailureCode(pending.failure.code);
+    } catch (error) {
+      if (
+        authorityKey !== authorityKeyRef.current ||
+        pendingQuestion.current !== pending
+      ) {
+        return;
+      }
+      const nextFailure = communityFailure(error);
+      setQuestionRetryBlocked(true);
+      setFailure(nextFailure);
+      setFailureCode(nextFailure.code);
+    } finally {
+      if (activeOperation.current === operation) activeOperation.current = null;
+      if (authorityKey === authorityKeyRef.current) setSubmitting(false);
+    }
+  }, [authority.gate, authorityKey, router, submitting]);
 
   const submit = useCallback(async () => {
     if (
@@ -623,7 +708,8 @@ export function CommunityQuestionComposerScreen() {
       !participation ||
       title.trim().length < 5 ||
       body.trim().length < 10 ||
-      submitting
+      submitting ||
+      questionRetryBlocked
     ) {
       return;
     }
@@ -641,12 +727,36 @@ export function CommunityQuestionComposerScreen() {
     setFailure(null);
     setFailureCode(null);
     setSubmitting(true);
+    let baselineIds: ReadonlySet<string>;
+    try {
+      baselineIds = await captureOwnedQuestionBaseline(
+        mobileCommunityApi,
+        input,
+        operation.signal,
+      );
+    } catch (error) {
+      if (authorityKey !== authorityKeyRef.current) return;
+      const nextFailure = communityFailure(error);
+      setFailure(nextFailure);
+      setFailureCode(nextFailure.code);
+      return;
+    }
+
+    pendingQuestion.current = {
+      authorityKey,
+      input,
+      baselineIds,
+      failure: { kind: "error", code: null },
+    };
+
     try {
       const result = await mobileCommunityApi.createQuestion(
         input,
         operation.signal,
       );
       if (authorityKey !== authorityKeyRef.current) return;
+      pendingQuestion.current = null;
+      setQuestionRetryBlocked(false);
       router.replace({
         pathname: "/questions/[questionId]",
         params: { questionId: result.question.id },
@@ -654,8 +764,50 @@ export function CommunityQuestionComposerScreen() {
     } catch (error) {
       if (authorityKey !== authorityKeyRef.current) return;
       const nextFailure = communityFailure(error);
-      setFailure(nextFailure);
-      setFailureCode(nextFailure.code);
+      if (!isAmbiguousCommunityMutationFailure(nextFailure)) {
+        pendingQuestion.current = null;
+        setQuestionRetryBlocked(false);
+        setFailure(nextFailure);
+        setFailureCode(nextFailure.code);
+        return;
+      }
+
+      pendingQuestion.current = {
+        authorityKey,
+        input,
+        baselineIds,
+        failure: nextFailure,
+      };
+      setQuestionRetryBlocked(true);
+      try {
+        const reconciled = await reconcileQuestionCreation(
+          mobileCommunityApi,
+          input,
+          baselineIds,
+          operation.signal,
+        );
+        if (authorityKey !== authorityKeyRef.current) return;
+        if (reconciled) {
+          pendingQuestion.current = null;
+          setQuestionRetryBlocked(false);
+          router.replace({
+            pathname: "/questions/[questionId]",
+            params: { questionId: reconciled.id },
+          });
+          return;
+        }
+
+        pendingQuestion.current = null;
+        setQuestionRetryBlocked(false);
+        setFailure(nextFailure);
+        setFailureCode(nextFailure.code);
+      } catch (reconcileError) {
+        if (authorityKey !== authorityKeyRef.current) return;
+        const reconciliationFailure = communityFailure(reconcileError);
+        setQuestionRetryBlocked(true);
+        setFailure(reconciliationFailure);
+        setFailureCode(reconciliationFailure.code);
+      }
     } finally {
       if (activeOperation.current === operation) activeOperation.current = null;
       if (authorityKey === authorityKeyRef.current) setSubmitting(false);
@@ -666,6 +818,7 @@ export function CommunityQuestionComposerScreen() {
     authorityKey,
     body,
     participation,
+    questionRetryBlocked,
     router,
     submitting,
     title,
@@ -715,7 +868,19 @@ export function CommunityQuestionComposerScreen() {
             textAlignVertical="top"
             value={body}
           />
-          {failure ? (
+          {questionRetryBlocked ? (
+            <View style={styles.card}>
+              <Text accessibilityRole="alert" style={styles.copy}>
+                No pudimos confirmar si la pregunta se publicó. Antes de
+                intentar otro POST, comprobá el estado del servidor.
+              </Text>
+              <ActionButton
+                label={submitting ? "Comprobando…" : "Comprobar publicación"}
+                disabled={submitting}
+                onPress={() => void reconcilePendingQuestion()}
+              />
+            </View>
+          ) : failure ? (
             <FailureCard
               failure={failure}
               code={failureCode}
@@ -725,7 +890,10 @@ export function CommunityQuestionComposerScreen() {
           <ActionButton
             label={submitting ? "Publicando…" : "Publicar pregunta"}
             disabled={
-              submitting || title.trim().length < 5 || body.trim().length < 10
+              submitting ||
+              questionRetryBlocked ||
+              title.trim().length < 5 ||
+              body.trim().length < 10
             }
             onPress={() => void submit()}
           />
