@@ -18,6 +18,12 @@ function actionUrl(baseUrl: string, path: string, token: string): string {
   return url.toString();
 }
 
+function mobileVerificationUrl(token: string): string {
+  const url = new URL('losapuntes://verify-email');
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
 function expirationText(expiresAt: Date): string {
   return expiresAt.toISOString();
 }
@@ -36,6 +42,7 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
       '/auth/verify-email',
       message.token,
     );
+    const mobileLink = mobileVerificationUrl(message.token);
     const expires = expirationText(message.expiresAt);
 
     await this.smtp().sendMail({
@@ -45,6 +52,10 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
       text: [
         'Verificá tu email para activar tu cuenta de Los Apuntes.',
         '',
+        'Abrí este enlace en la app móvil:',
+        mobileLink,
+        '',
+        'Si no tenés la app instalada, verificá desde el navegador:',
         link,
         '',
         `Este enlace vence el ${expires}.`,
@@ -52,7 +63,8 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
       ].join('\n'),
       html: [
         '<p>Verificá tu email para activar tu cuenta de Los Apuntes.</p>',
-        `<p><a href="${link}">Verificar email</a></p>`,
+        `<p><a href="${mobileLink}">Verificar email en la app móvil</a></p>`,
+        `<p>Si no tenés la app instalada, <a href="${link}">verificá desde el navegador</a>.</p>`,
         `<p>Este enlace vence el ${expires}.</p>`,
         '<p>Si no creaste esta cuenta, podés ignorar este mensaje.</p>',
       ].join(''),
