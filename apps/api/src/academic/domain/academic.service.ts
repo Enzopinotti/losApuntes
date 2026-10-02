@@ -759,11 +759,11 @@ export class AcademicService {
         ]);
 
         const affiliationEligible =
-          affiliation !== null &&
+          affiliation != null &&
           affiliation.userId === userId &&
           affiliationAllowsCurrentSubjectContext(affiliation.status);
         const participationEligible =
-          participation !== null &&
+          participation != null &&
           participation.userId === userId &&
           isCurrentSubjectParticipationState(participation.state);
         const graphEligible =
