@@ -1,4 +1,7 @@
-export type MobileReleaseEnvironment = "development" | "production";
+export type MobileDistributionProfile =
+  | "development"
+  | "preview"
+  | "production";
 
 export type MobileApiTransport = "https" | "local-http" | "insecure-http";
 
@@ -9,27 +12,32 @@ export type MobileReleaseBlocker =
   | "MISSING_BUILD_ID"
   | "MISSING_DISTRIBUTION_PROFILE"
   | "MISSING_SERVER_RELEASE_ID"
-  | "MISSING_SOURCE_SHA";
+  | "MISSING_SOURCE_SHA"
+  | "SERVER_RELEASE_ORIGIN_MISMATCH";
 
 export type MobileReleaseIdentity = Readonly<{
-  environment: MobileReleaseEnvironment;
   sourceSha: string | null;
   appVersion: string | null;
   build: string | null;
-  distributionProfile: string | null;
+  distributionProfile: MobileDistributionProfile | null;
   apiOrigin: string;
   apiTransport: MobileApiTransport;
+}>;
+
+export type MobileServerReleaseObservation = Readonly<{
+  source: "api-observation";
+  apiOrigin: string;
+  releaseId: string;
 }>;
 
 export type MobileReleaseQualification = Readonly<{
   status: "qualified" | "blocked";
   identity: MobileReleaseIdentity;
-  serverReleaseId: string | null;
+  serverRelease: MobileServerReleaseObservation | null;
   blockers: readonly MobileReleaseBlocker[];
 }>;
 
 export type MobileReleaseIdentityInput = {
-  environment: MobileReleaseEnvironment;
   apiOrigin: string;
   sourceSha?: string | null | undefined;
   appVersion?: string | null | undefined;
@@ -37,13 +45,34 @@ export type MobileReleaseIdentityInput = {
   distributionProfile?: string | null | undefined;
 };
 
+export type MobileServerReleaseObservationInput = {
+  source: "api-observation";
+  apiOrigin: string;
+  releaseId?: string | null | undefined;
+};
+
 const RELEASE_TOKEN_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 const SOURCE_SHA_PATTERN = /^[a-f\d]{40}$/iu;
+const DISTRIBUTION_PROFILES = new Set<MobileDistributionProfile>([
+  "development",
+  "preview",
+  "production",
+]);
 
 function normalizeBoundedToken(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const value = raw.trim();
   return RELEASE_TOKEN_PATTERN.test(value) ? value : null;
+}
+
+function normalizeDistributionProfile(
+  raw: string | null | undefined,
+): MobileDistributionProfile | null {
+  if (!raw) return null;
+  const value = raw.trim();
+  return DISTRIBUTION_PROFILES.has(value as MobileDistributionProfile)
+    ? (value as MobileDistributionProfile)
+    : null;
 }
 
 export function normalizeMobileSourceSha(
@@ -100,24 +129,53 @@ export function createMobileReleaseIdentity(
       : normalizeBoundedToken(String(input.build));
 
   return Object.freeze({
-    environment: input.environment,
     sourceSha: normalizeMobileSourceSha(input.sourceSha),
     appVersion: normalizeBoundedToken(input.appVersion),
     build,
-    distributionProfile: normalizeBoundedToken(input.distributionProfile),
+    distributionProfile: normalizeDistributionProfile(
+      input.distributionProfile,
+    ),
     apiOrigin,
     apiTransport: classifyApiTransport(apiOrigin),
   });
 }
 
-export function qualifyMobileRelease(
-  identity: MobileReleaseIdentity,
-  observedServerReleaseId: string | null | undefined,
-): MobileReleaseQualification {
-  const blockers: MobileReleaseBlocker[] = [];
-  const serverReleaseId = normalizeBoundedToken(observedServerReleaseId);
+function normalizeServerReleaseObservation(
+  raw: MobileServerReleaseObservationInput | null | undefined,
+): MobileServerReleaseObservation | null {
+  if (!raw || raw.source !== "api-observation") return null;
 
-  if (identity.environment !== "production") {
+  let apiOrigin: string;
+  try {
+    apiOrigin = normalizeMobileApiOrigin(raw.apiOrigin);
+  } catch {
+    return null;
+  }
+
+  const releaseId = normalizeBoundedToken(raw.releaseId);
+  if (!releaseId) return null;
+
+  return Object.freeze({
+    source: "api-observation" as const,
+    apiOrigin,
+    releaseId,
+  });
+}
+
+export function qualifyMobileRelease(
+  identityInput: MobileReleaseIdentityInput,
+  observedServerRelease:
+    | MobileServerReleaseObservationInput
+    | null
+    | undefined,
+): MobileReleaseQualification {
+  const identity = createMobileReleaseIdentity(identityInput);
+  const blockers: MobileReleaseBlocker[] = [];
+  const serverRelease = normalizeServerReleaseObservation(
+    observedServerRelease,
+  );
+
+  if (identity.distributionProfile === "development") {
     blockers.push("DEVELOPMENT_BUILD");
   }
   if (identity.apiTransport !== "https") {
@@ -135,14 +193,16 @@ export function qualifyMobileRelease(
   if (!identity.distributionProfile) {
     blockers.push("MISSING_DISTRIBUTION_PROFILE");
   }
-  if (!serverReleaseId) {
+  if (!serverRelease) {
     blockers.push("MISSING_SERVER_RELEASE_ID");
+  } else if (serverRelease.apiOrigin !== identity.apiOrigin) {
+    blockers.push("SERVER_RELEASE_ORIGIN_MISMATCH");
   }
 
   return Object.freeze({
     status: blockers.length === 0 ? "qualified" : "blocked",
     identity,
-    serverReleaseId,
+    serverRelease,
     blockers: Object.freeze(blockers),
   });
 }
