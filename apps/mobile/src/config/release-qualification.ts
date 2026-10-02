@@ -51,12 +51,6 @@ export type MobileServerReleaseObservationInput = {
 
 const RELEASE_TOKEN_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 const SOURCE_SHA_PATTERN = /^[a-f\d]{40}$/iu;
-const DISTRIBUTION_PROFILES = new Set<MobileDistributionProfile>([
-  "development",
-  "preview",
-  "production",
-]);
-
 function normalizeBoundedToken(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const value = raw.trim();
@@ -68,9 +62,15 @@ function normalizeDistributionProfile(
 ): MobileDistributionProfile | null {
   if (!raw) return null;
   const value = raw.trim();
-  return DISTRIBUTION_PROFILES.has(value as MobileDistributionProfile)
-    ? (value as MobileDistributionProfile)
-    : null;
+
+  switch (value) {
+    case "development":
+    case "preview":
+    case "production":
+      return value;
+    default:
+      return null;
+  }
 }
 
 export function normalizeMobileSourceSha(
