@@ -17,3 +17,19 @@ See:
 
 - `docs/adr/0006-mobile-expo-native-foundation.md`;
 - `docs/mobile/auth-v1.md`.
+
+## Release qualification
+
+Mobile release identity is intentionally separate from device/store evidence.
+
+For a distributed release candidate, embed:
+
+- `EXPO_PUBLIC_RELEASE_SHA`: the exact 40-character source Git SHA;
+- `EXPO_PUBLIC_DISTRIBUTION_PROFILE`: a bounded profile such as `internal`, `preview` or `production`;
+- `EXPO_PUBLIC_API_ORIGIN`: the exact backend origin baked into the build.
+
+The qualification contract also requires the native app build identifier and an **observed server release id**. The current API readiness endpoints do not expose a server release id, so do not substitute `main`, a guessed SHA or a CI run number. Until a real server release identity can be observed, qualification must remain `blocked`.
+
+HTTP loopback targets are valid for local development only. A production qualification requires HTTPS and rejects API origins containing credentials, paths, query strings or fragments.
+
+CI/source evidence does not claim simulator, physical-device, signing, store or provider validation.
