@@ -58,7 +58,9 @@ export type SubjectParticipationState =
 export interface AcademicSubjectParticipation {
   id: string;
   subjectId: string;
+  subjectName: string;
   courseOfferingId?: string;
+  courseOfferingName?: string;
   state: SubjectParticipationState;
   periodLabel?: string;
   createdAt: string;
@@ -68,6 +70,7 @@ export interface AcademicSubjectParticipation {
 export interface AcademicCurrentContext {
   affiliationId: string;
   subjectParticipationId?: string;
+  revision: number;
   updatedAt: string;
 }
 
@@ -90,6 +93,7 @@ export interface AcademicCurrentContextResponse {
 export interface SetAcademicContextInput {
   affiliationId: string;
   subjectParticipationId?: string;
+  expectedRevision: number;
 }
 
 export interface AcademicCatalogNode {

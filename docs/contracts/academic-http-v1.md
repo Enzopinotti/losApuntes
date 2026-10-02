@@ -125,6 +125,17 @@ The target must belong to the authenticated user.
 
 Lists current/historical SubjectParticipation records for the current user.
 
+Optional query:
+- `affiliationId` — when present, the backend returns only participations that
+  are valid **current-subject** choices for that owned affiliation. Eligibility
+  requires an `active|paused` affiliation, the canonical SubjectParticipation
+  lifecycle state `current`, and the same server-side graph relationship
+  enforced by CurrentAcademicContext;
+  `planned`, `completed` and `dropped` records remain history and are not
+  exposed as current choices. The eligibility decision uses a bounded complete
+  inventory and fails closed with `ACADEMIC_INVENTORY_OVERFLOW` if that
+  decision budget is exceeded.
+
 ### PUT /academic/me/subjects/:subjectId
 
 Upserts the semantic participation key.
@@ -139,11 +150,20 @@ Body:
 }
 ```
 
-If `courseOfferingId` exists, it must belong to `:subjectId`.
+If `courseOfferingId` exists, it must belong to `:subjectId`. If the participation currently selected in `CurrentAcademicContext` transitions from `current` to `planned`, `completed` or `dropped`, the same atomic mutation clears that subject selection with revision CAS; the affiliation context remains selected.
 
 ## Current context
 
 ### GET /academic/me/context
+
+Before returning authority, the backend reconciles stored subject context. A
+persisted `subjectParticipationId` remains authoritative only while the
+participation is owned and `state=current`, the stored affiliation still
+allows current-subject context, and the subject still belongs to that
+affiliation graph. Otherwise the backend clears only the subject selection with
+revision CAS while preserving the affiliation. If another reader repairs the
+same context first, reconciliation re-reads authority before failing closed.
+Lifecycle projections consume this same reconciled context path.
 
 Returns:
 
@@ -160,6 +180,7 @@ or:
   "context": {
     "affiliationId": "uuid",
     "subjectParticipationId": "uuid optional",
+    "revision": 3,
     "updatedAt": "ISO-8601"
   }
 }
@@ -172,11 +193,22 @@ Body:
 ```json
 {
   "affiliationId": "uuid",
-  "subjectParticipationId": "uuid optional"
+  "subjectParticipationId": "uuid optional",
+  "expectedRevision": 3
 }
 ```
 
-Ownership and graph consistency are revalidated server-side.
+`expectedRevision` is `0` only when the client observed no current
+context. Existing contexts expose a positive `revision`. Updates use
+optimistic concurrency; stale writers receive
+`ACADEMIC_CONTEXT_REVISION_CONFLICT`.
+
+Ownership, affiliation lifecycle eligibility, the canonical `state=current`
+SubjectParticipation rule and graph consistency are revalidated server-side.
+The scoped read projection, authoritative context read and this write consume
+the same eligibility rules. Context writes also acquire transactional guards on
+the selected affiliation and participation, so concurrent graduation/status or
+participation lifecycle transitions cannot commit a stale subject context.
 
 ## Missing-data proposal
 
@@ -303,6 +335,7 @@ Relevant stable codes include:
 - `ACADEMIC_PARENT_CARDINALITY_INVALID`;
 - `ACADEMIC_CONTEXT_MISMATCH`;
 - `ACADEMIC_CONTEXT_INELIGIBLE`;
+- `ACADEMIC_CONTEXT_REVISION_CONFLICT`;
 - `ACADEMIC_PROPOSAL_ALREADY_REVIEWED`;
 - `ACADEMIC_PROPOSAL_TARGET_REQUIRED`;
 - `ACADEMIC_PROPOSAL_TARGET_NOT_ALLOWED`;

@@ -60,6 +60,12 @@ export class AcademicContextController {
   private authorityKey: string | null = null;
   private lastContextSignature: string | null = null;
   private contextRevision = 0;
+  private mutationTail: Promise<void> = Promise.resolve();
+  private authorityRecoveryNeededFor: string | null = null;
+  private authorityRecoveryWaiters = new Set<{
+    authorityKey: string;
+    resolve: (data: AcademicContextData | null) => void;
+  }>();
 
   constructor(private readonly api: AcademicContextApi) {}
 
@@ -73,17 +79,41 @@ export class AcademicContextController {
   }
 
   async restore(authorityKey: string): Promise<void> {
+    if (this.authorityKey !== null && this.authorityKey !== authorityKey) {
+      this.resolveAuthorityRecoveryWaiters(this.authorityKey, null);
+    }
+
+    if (
+      this.authorityRecoveryNeededFor === authorityKey ||
+      this.hasAuthorityRecoveryWaiter(authorityKey)
+    ) {
+      const restored = await this.restoreNow(authorityKey);
+      if (restored) await this.mutationTail;
+      return;
+    }
+
+    await this.mutationTail;
+    await this.restoreNow(authorityKey);
+  }
+
+  private async restoreNow(authorityKey: string): Promise<boolean> {
     const generation = this.start(authorityKey, { kind: "loading" });
     const signal = this.activeOperation?.signal;
 
     try {
-      const [context, affiliations, participations] = await Promise.all([
+      const [context, affiliations] = await Promise.all([
         this.api.context(signal),
         this.api.affiliations(signal),
-        this.api.subjects(signal),
       ]);
 
-      if (!this.isCurrent(generation, authorityKey)) return;
+      if (!this.isCurrent(generation, authorityKey)) return false;
+
+      const participations = await this.api.subjects(
+        context.context?.affiliationId,
+        signal,
+      );
+
+      if (!this.isCurrent(generation, authorityKey)) return false;
 
       this.publishData(authorityKey, {
         context: context.context,
@@ -94,9 +124,11 @@ export class AcademicContextController {
         participationsTruncated: participations.truncated,
         participationLimit: participations.limit,
       });
+      return true;
     } catch (error) {
-      if (!this.isCurrent(generation, authorityKey)) return;
+      if (!this.isCurrent(generation, authorityKey)) return false;
       this.publish(failureSnapshot(error));
+      return false;
     }
   }
 
@@ -104,33 +136,174 @@ export class AcademicContextController {
     authorityKey: string,
     affiliationId: string,
   ): Promise<void> {
-    const current = this.currentData();
-    if (!current || this.authorityKey !== authorityKey) {
-      await this.restore(authorityKey);
+    return this.enqueueMutation(async () => {
+      const current = await this.currentDataForMutation(authorityKey);
+      if (!current) return;
+
+      const generation = this.startMutation(authorityKey, current);
+
+      try {
+        const result = await this.api.setContext({
+          affiliationId,
+          expectedRevision: current.context?.revision ?? 0,
+        });
+        if (!this.isCurrent(generation, authorityKey)) return;
+
+        const participations = await this.api.subjects(
+          result.context?.affiliationId,
+        );
+        if (!this.isCurrent(generation, authorityKey)) return;
+
+        this.publishData(authorityKey, {
+          ...current,
+          context: result.context,
+          participations: participations.participations,
+          participationsTruncated: participations.truncated,
+          participationLimit: participations.limit,
+        });
+      } catch (error) {
+        await this.handleMutationFailure(authorityKey, generation, error);
+      }
+    });
+  }
+
+  async selectSubject(
+    authorityKey: string,
+    subjectParticipationId: string | null,
+  ): Promise<void> {
+    return this.enqueueMutation(async () => {
+      const current = await this.currentDataForMutation(authorityKey);
+      if (!current || current.context === null) return;
+
+      const generation = this.startMutation(authorityKey, current);
+      const input = subjectParticipationId
+        ? {
+            affiliationId: current.context.affiliationId,
+            subjectParticipationId,
+            expectedRevision: current.context.revision,
+          }
+        : {
+            affiliationId: current.context.affiliationId,
+            expectedRevision: current.context.revision,
+          };
+
+      try {
+        const result = await this.api.setContext(input);
+        if (!this.isCurrent(generation, authorityKey)) return;
+
+        this.publishData(authorityKey, {
+          ...current,
+          context: result.context,
+        });
+      } catch (error) {
+        await this.handleMutationFailure(authorityKey, generation, error);
+      }
+    });
+  }
+
+  private async currentDataForMutation(
+    authorityKey: string,
+  ): Promise<AcademicContextData | null> {
+    if (this.authorityKey !== authorityKey) return null;
+
+    let current = this.currentData();
+    if (current) return current;
+
+    const restored = await this.restoreNow(authorityKey);
+    if (this.authorityKey !== authorityKey) return null;
+
+    current = this.currentData();
+    if (current) return current;
+
+    if (!restored) {
+      this.authorityRecoveryNeededFor = authorityKey;
+      return this.waitForAuthorityRecovery(authorityKey);
+    }
+
+    return null;
+  }
+
+  private waitForAuthorityRecovery(
+    authorityKey: string,
+  ): Promise<AcademicContextData | null> {
+    return new Promise((resolve) => {
+      this.authorityRecoveryWaiters.add({ authorityKey, resolve });
+    });
+  }
+
+  private hasAuthorityRecoveryWaiter(authorityKey: string): boolean {
+    return [...this.authorityRecoveryWaiters].some(
+      (waiter) => waiter.authorityKey === authorityKey,
+    );
+  }
+
+  private resolveAuthorityRecoveryWaiters(
+    authorityKey: string,
+    data: AcademicContextData | null,
+  ): void {
+    for (const waiter of [...this.authorityRecoveryWaiters]) {
+      if (waiter.authorityKey !== authorityKey) continue;
+      this.authorityRecoveryWaiters.delete(waiter);
+      waiter.resolve(data);
+    }
+
+    if (this.authorityRecoveryNeededFor === authorityKey) {
+      this.authorityRecoveryNeededFor = null;
+    }
+  }
+
+  private async handleMutationFailure(
+    authorityKey: string,
+    generation: number,
+    error: unknown,
+  ): Promise<void> {
+    if (!this.isCurrent(generation, authorityKey)) return;
+
+    const reconcile =
+      error instanceof ApiRequestError &&
+      (error.code === "ACADEMIC_CONTEXT_REVISION_CONFLICT" ||
+        error.kind === "offline" ||
+        error.kind === "timeout" ||
+        error.kind === "server_unavailable");
+
+    if (reconcile) {
+      const restored = await this.restoreNow(authorityKey);
+      if (!restored && this.authorityKey === authorityKey) {
+        this.authorityRecoveryNeededFor = authorityKey;
+      }
       return;
     }
 
-    const generation = this.start(authorityKey, {
-      kind: "switching",
-      data: current,
-    });
-    const signal = this.activeOperation?.signal;
+    this.publish(failureSnapshot(error));
+  }
 
-    try {
-      const result = await this.api.setContext({ affiliationId }, signal);
-      if (!this.isCurrent(generation, authorityKey)) return;
+  private enqueueMutation(operation: () => Promise<void>): Promise<void> {
+    const queued = this.mutationTail.then(operation, operation);
+    this.mutationTail = queued.then(
+      () => undefined,
+      () => undefined,
+    );
+    return queued;
+  }
 
-      this.publishData(authorityKey, {
-        ...current,
-        context: result.context,
-      });
-    } catch (error) {
-      if (!this.isCurrent(generation, authorityKey)) return;
-
-      // A failed/ambiguous PUT is not proof that the previous context is still
-      // authoritative. Force a server re-read before exposing context again.
-      this.publish(failureSnapshot(error));
+  private startMutation(
+    authorityKey: string,
+    data: AcademicContextData,
+  ): number {
+    if (this.authorityKey !== authorityKey) {
+      if (this.authorityKey !== null) {
+        this.resolveAuthorityRecoveryWaiters(this.authorityKey, null);
+      }
+      this.authorityKey = authorityKey;
+      this.lastContextSignature = null;
+      this.contextRevision = 0;
     }
+
+    this.operationGeneration += 1;
+    this.activeOperation?.abort();
+    this.activeOperation = null;
+    this.publish({ kind: "switching", data });
+    return this.operationGeneration;
   }
 
   suspend(): void {
@@ -141,6 +314,10 @@ export class AcademicContextController {
 
   reset(): void {
     this.suspend();
+    if (this.authorityKey !== null) {
+      this.resolveAuthorityRecoveryWaiters(this.authorityKey, null);
+    }
+    this.authorityRecoveryNeededFor = null;
     this.authorityKey = null;
     this.lastContextSignature = null;
     this.contextRevision = 0;
@@ -152,6 +329,9 @@ export class AcademicContextController {
     snapshot: AcademicContextSnapshot,
   ): number {
     if (this.authorityKey !== authorityKey) {
+      if (this.authorityKey !== null) {
+        this.resolveAuthorityRecoveryWaiters(this.authorityKey, null);
+      }
       this.authorityKey = authorityKey;
       this.lastContextSignature = null;
       this.contextRevision = 0;
@@ -192,6 +372,7 @@ export class AcademicContextController {
     this.publish(
       input.context ? { kind: "ready", data } : { kind: "no_context", data },
     );
+    this.resolveAuthorityRecoveryWaiters(authorityKey, data);
   }
 
   private currentData(): AcademicContextData | null {

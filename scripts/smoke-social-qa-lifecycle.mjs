@@ -229,6 +229,7 @@ async function attachAcademicContext(actor, nodes) {
       {
         affiliationId: affiliation.body.affiliation.id,
         subjectParticipationId: participation.body.participation.id,
+        expectedRevision: 0,
       },
       actor.bearer,
     ),

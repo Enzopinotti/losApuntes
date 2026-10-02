@@ -20,11 +20,15 @@ import type {
 import {
   ACADEMIC_AFFILIATION_DECISION_LIMIT,
   ACADEMIC_AFFILIATION_VISIBLE_LIMIT,
+  ACADEMIC_PARTICIPATION_DECISION_LIMIT,
   ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
   requireCompleteAcademicPage,
 } from './academic-bounds';
 import {
+  CURRENT_SUBJECT_PARTICIPATION_STATES,
+  affiliationAllowsCurrentSubjectContext,
   effectiveAcademicRelationshipRoles,
+  isCurrentSubjectParticipationState,
   relationshipRolesCompatible,
 } from './academic-lifecycle.helpers';
 import {
@@ -584,17 +588,62 @@ export class AcademicService {
     return { affiliation: await this.publicAffiliation(updated) };
   }
 
-  async listSubjectParticipations(userId: string) {
-    const page = await this.store.listSubjectParticipationsForUser({
-      userId,
-      limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
-    });
+  async listSubjectParticipations(userId: string, affiliationId?: string) {
+    if (!affiliationId) {
+      const page = await this.store.listSubjectParticipationsForUser({
+        userId,
+        limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+      });
+
+      return {
+        participations: await Promise.all(
+          page.items.map((row) => this.publicParticipation(row)),
+        ),
+        truncated: page.hasMore,
+        limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+      };
+    }
+
+    const affiliation = await this.store.findAffiliationById(affiliationId);
+    if (!affiliation || affiliation.userId !== userId) this.notFound();
+
+    if (!affiliationAllowsCurrentSubjectContext(affiliation.status)) {
+      return {
+        participations: [],
+        truncated: false,
+        limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
+      };
+    }
+
+    const inventory = requireCompleteAcademicPage(
+      await this.store.listSubjectParticipationsForUser({
+        userId,
+        states: [...CURRENT_SUBJECT_PARTICIPATION_STATES],
+        limit: ACADEMIC_PARTICIPATION_DECISION_LIMIT,
+      }),
+      'subject_participations',
+    );
+    const eligible = [];
+
+    for (const row of inventory) {
+      if (
+        isCurrentSubjectParticipationState(row.state) &&
+        (await this.participationBelongsToAffiliation(
+          row.subjectId,
+          affiliation,
+        ))
+      ) {
+        eligible.push(row);
+      }
+    }
+
+    const visible = eligible.slice(0, ACADEMIC_PARTICIPATION_VISIBLE_LIMIT);
 
     return {
       participations: await Promise.all(
-        page.items.map((row) => this.publicParticipation(row)),
+        visible.map((row) => this.publicParticipation(row)),
       ),
-      truncated: page.hasMore,
+      truncated: eligible.length > ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
       limit: ACADEMIC_PARTICIPATION_VISIBLE_LIMIT,
     };
   }
@@ -660,6 +709,27 @@ export class AcademicService {
         periodLabel: dto.periodLabel,
       });
 
+      if (!isCurrentSubjectParticipationState(participation.state)) {
+        const context = await this.store.getCurrentContext(userId);
+        if (context?.subjectParticipationId === participation.id) {
+          const cleared = await this.store.setCurrentContext(
+            {
+              userId,
+              affiliationId: context.affiliationId,
+            },
+            context.revision,
+          );
+
+          if (!cleared) this.contextRevisionConflict();
+
+          await this.audit('academic.context.updated', userId, userId, {
+            affiliationId: cleared.affiliationId,
+            revision: cleared.revision,
+            reason: 'subject_participation_no_longer_current',
+          });
+        }
+      }
+
       await this.audit(
         'academic.subject_participation.upserted',
         userId,
@@ -674,8 +744,69 @@ export class AcademicService {
   }
 
   async getCurrentContext(userId: string) {
-    const context = await this.store.getCurrentContext(userId);
-    return { context: context ? this.publicContext(context) : null };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await this.store.runAtomically(async () => {
+        const current = await this.store.getCurrentContext(userId);
+        if (!current?.subjectParticipationId) {
+          return { kind: 'settled' as const, context: current };
+        }
+
+        const [affiliation, participation] = await Promise.all([
+          this.store.findAffiliationById(current.affiliationId),
+          this.store.findSubjectParticipationById(
+            current.subjectParticipationId,
+          ),
+        ]);
+
+        const affiliationEligible =
+          affiliation != null &&
+          affiliation.userId === userId &&
+          affiliationAllowsCurrentSubjectContext(affiliation.status);
+        const participationEligible =
+          participation != null &&
+          participation.userId === userId &&
+          isCurrentSubjectParticipationState(participation.state);
+        const graphEligible =
+          affiliationEligible &&
+          participationEligible &&
+          affiliation &&
+          participation
+            ? await this.participationBelongsToAffiliation(
+                participation.subjectId,
+                affiliation,
+              )
+            : false;
+
+        if (affiliationEligible && participationEligible && graphEligible) {
+          return { kind: 'settled' as const, context: current };
+        }
+
+        const cleared = await this.store.setCurrentContext(
+          {
+            userId,
+            affiliationId: current.affiliationId,
+          },
+          current.revision,
+        );
+        if (!cleared) return { kind: 'retry' as const };
+
+        await this.audit('academic.context.updated', userId, userId, {
+          affiliationId: cleared.affiliationId,
+          revision: cleared.revision,
+          reason: 'stored_subject_context_no_longer_eligible',
+        });
+
+        return { kind: 'settled' as const, context: cleared };
+      });
+
+      if (result.kind === 'settled') {
+        return {
+          context: result.context ? this.publicContext(result.context) : null,
+        };
+      }
+    }
+
+    this.contextRevisionConflict();
   }
 
   async setCurrentContext(userId: string, dto: SetAcademicContextDto) {
@@ -695,7 +826,7 @@ export class AcademicService {
 
     if (
       dto.subjectParticipationId &&
-      (affiliation.status === 'alumni' || affiliation.status === 'completed')
+      !affiliationAllowsCurrentSubjectContext(affiliation.status)
     ) {
       throw new UnprocessableEntityException({
         code: 'ACADEMIC_CONTEXT_INELIGIBLE',
@@ -710,6 +841,14 @@ export class AcademicService {
       );
 
       if (!participation || participation.userId !== userId) this.notFound();
+
+      if (!isCurrentSubjectParticipationState(participation.state)) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+          message:
+            'Only current subject participations can be selected as current context',
+        });
+      }
 
       const anchorId =
         affiliation.curriculumId ??
@@ -726,17 +865,56 @@ export class AcademicService {
     }
 
     const context = await this.store.runAtomically(async () => {
-      const current = await this.store.setCurrentContext({
+      const affiliationGuarded = await this.store.guardAcademicAffiliation(
         userId,
-        affiliationId: affiliation.id,
-        subjectParticipationId: participation?.id,
-      });
+        affiliation.id,
+        affiliation.status,
+      );
+      if (!affiliationGuarded) {
+        throw new UnprocessableEntityException({
+          code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+          message: 'Academic affiliation changed while selecting context',
+        });
+      }
+
+      if (participation) {
+        const guarded = await this.store.guardCurrentSubjectParticipation(
+          userId,
+          participation.id,
+        );
+        if (!guarded) {
+          throw new UnprocessableEntityException({
+            code: 'ACADEMIC_CONTEXT_INELIGIBLE',
+            message:
+              'Only current subject participations can be selected as current context',
+          });
+        }
+      }
+
+      const current = await this.store.getCurrentContext(userId);
+      const actualRevision = current?.revision ?? 0;
+
+      if (actualRevision !== dto.expectedRevision) {
+        this.contextRevisionConflict();
+      }
+
+      const updated = await this.store.setCurrentContext(
+        {
+          userId,
+          affiliationId: affiliation.id,
+          subjectParticipationId: participation?.id,
+        },
+        dto.expectedRevision,
+      );
+
+      if (!updated) this.contextRevisionConflict();
 
       await this.audit('academic.context.updated', userId, userId, {
         affiliationId: affiliation.id,
+        revision: updated.revision,
       });
 
-      return current;
+      return updated;
     });
 
     return { context: this.publicContext(context) };
@@ -1219,12 +1397,17 @@ export class AcademicService {
     createdAt: Date;
     updatedAt: Date;
   }) {
+    const subject = (await this.resolveNode(row.subjectId)).node;
+    const courseOffering = row.courseOfferingId
+      ? (await this.resolveNode(row.courseOfferingId)).node
+      : undefined;
+
     return {
       id: row.id,
-      subjectId: (await this.resolveNode(row.subjectId)).node.id,
-      courseOfferingId: row.courseOfferingId
-        ? (await this.resolveNode(row.courseOfferingId)).node.id
-        : undefined,
+      subjectId: subject.id,
+      subjectName: subject.name,
+      courseOfferingId: courseOffering?.id,
+      courseOfferingName: courseOffering?.name,
       state: row.state,
       periodLabel: row.periodLabel,
       createdAt: row.createdAt.toISOString(),
@@ -1235,11 +1418,13 @@ export class AcademicService {
   private publicContext(row: {
     affiliationId: string;
     subjectParticipationId?: string;
+    revision: number;
     updatedAt: Date;
   }) {
     return {
       affiliationId: row.affiliationId,
       subjectParticipationId: row.subjectParticipationId,
+      revision: row.revision,
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -1293,6 +1478,13 @@ export class AcademicService {
       targetId,
       metadata,
       createdAt: new Date(),
+    });
+  }
+
+  private contextRevisionConflict(): never {
+    throw new ConflictException({
+      code: 'ACADEMIC_CONTEXT_REVISION_CONFLICT',
+      message: 'Academic current context changed concurrently',
     });
   }
 
