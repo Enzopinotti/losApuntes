@@ -255,11 +255,11 @@ export function CommunityNetworkScreen() {
 
   const retry = useCallback(() => {
     if (authority.gate !== "ready" || !authority.authorityKey) {
-      void authority.retryAcademic();
+      void authority.retry();
       return;
     }
     if (authority.scope.kind === "unresolved") {
-      void authority.retryAcademic();
+      void authority.retry();
       return;
     }
     void controller.load(authority.authorityKey, {
@@ -409,7 +409,7 @@ export function CommunityQuestionScreen({
 
   const retry = useCallback(() => {
     if (authority.gate !== "ready" || !authority.authorityKey) {
-      void authority.retryAcademic();
+      void authority.retry();
       return;
     }
     void controller.load(authority.authorityKey, questionId);
@@ -833,7 +833,7 @@ export function CommunityQuestionComposerScreen() {
       {authority.gate !== "ready" ? (
         <GateCard
           gate={authority.gate}
-          onRetry={() => void authority.retryAcademic()}
+          onRetry={() => void authority.retry()}
         />
       ) : !participation ? (
         <View style={styles.card}>

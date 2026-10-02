@@ -31,11 +31,11 @@ export interface CommunityAuthority {
   authorityKey: string | null;
   gate: CommunityAuthorityGate;
   scope: QuestionScope;
-  retryAcademic(): Promise<void>;
+  retry(): Promise<void>;
 }
 
 export function useCommunityAuthority(): CommunityAuthority {
-  const { snapshot: session } = useSession();
+  const { snapshot: session, retryRestore } = useSession();
   const { snapshot: academic, retry: retryAcademic } = useAcademicContext();
   const focused = useIsFocused();
   const [appState, setAppState] = useState(AppState.currentState ?? "active");
@@ -94,6 +94,14 @@ export function useCommunityAuthority(): CommunityAuthority {
   let gate: CommunityAuthorityGate;
   if (session.kind === "restricted") {
     gate = "restricted";
+  } else if (session.kind === "offline") {
+    gate = "offline";
+  } else if (session.kind === "timeout") {
+    gate = "timeout";
+  } else if (session.kind === "server_unavailable") {
+    gate = "server_unavailable";
+  } else if (session.kind === "error") {
+    gate = "error";
   } else if (session.kind !== "authenticated") {
     gate = "auth_required";
   } else if (!focused) {
@@ -123,10 +131,22 @@ export function useCommunityAuthority(): CommunityAuthority {
       ? resolveQuestionScope(academicData.context, academicData.participations)
       : { kind: "unresolved" as const };
 
+  const retry = () => {
+    if (
+      session.kind === "offline" ||
+      session.kind === "timeout" ||
+      session.kind === "server_unavailable" ||
+      session.kind === "error"
+    ) {
+      return retryRestore();
+    }
+    return retryAcademic();
+  };
+
   return {
     authorityKey: gate === "ready" ? authorityKey : null,
     gate,
     scope,
-    retryAcademic,
+    retry,
   };
 }

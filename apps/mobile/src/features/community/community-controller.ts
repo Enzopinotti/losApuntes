@@ -117,7 +117,26 @@ export function communityQuestionRouteGate(
   sessionKind: string,
 ): CommunityQuestionRouteGate {
   if (sessionKind === "restoring") return "restoring";
-  return sessionKind === "authenticated" ? "ready" : "redirect";
+  if (
+    sessionKind === "authenticated" ||
+    sessionKind === "offline" ||
+    sessionKind === "timeout" ||
+    sessionKind === "server_unavailable" ||
+    sessionKind === "error"
+  ) {
+    return "ready";
+  }
+  return "redirect";
+}
+
+export function normalizeCommunityMutationText(value: string): string {
+  return value.normalize("NFC").trim().replace(/\s+/gu, " ");
+}
+
+function questionReconciliationQuery(title: string): string {
+  return Array.from(normalizeCommunityMutationText(title))
+    .slice(0, 120)
+    .join("");
 }
 
 export function isAmbiguousCommunityMutationFailure(
@@ -200,8 +219,10 @@ function matchesOwnedQuestion(
 ): boolean {
   return (
     question.viewer.canEdit &&
-    question.title.trim() === input.title.trim() &&
-    question.body.trim() === input.body.trim() &&
+    normalizeCommunityMutationText(question.title) ===
+      normalizeCommunityMutationText(input.title) &&
+    normalizeCommunityMutationText(question.body) ===
+      normalizeCommunityMutationText(input.body) &&
     question.academic.subject.id === input.subjectId &&
     (question.academic.courseOffering?.id ?? null) ===
       (input.courseOfferingId ?? null)
@@ -220,7 +241,7 @@ async function ownedQuestionMatches(
   while (true) {
     const page = await api.questions(
       {
-        q: input.title,
+        q: questionReconciliationQuery(input.title),
         subjectId: input.subjectId,
         limit: 25,
         ...(cursor ? { cursor } : {}),
@@ -510,7 +531,7 @@ export class MobileCommunityQuestionController {
       return false;
     }
 
-    const normalizedBody = body.trim();
+    const normalizedBody = normalizeCommunityMutationText(body);
     const generation = this.begin(authorityKey);
     this.publish({
       ...current,
@@ -641,7 +662,7 @@ export class MobileCommunityQuestionController {
             (candidate) =>
               !knownAnswerIds.has(candidate.id) &&
               candidate.viewer.canEdit &&
-              candidate.body.trim() === normalizedBody,
+              normalizeCommunityMutationText(candidate.body) === normalizedBody,
           );
           this.publish({
             ...reconciled,

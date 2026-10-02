@@ -17,6 +17,7 @@ import {
   captureOwnedQuestionBaseline,
   cancelCommunityComposerSubmission,
   communityQuestionRouteGate,
+  normalizeCommunityMutationText,
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
   reconcileQuestionCreation,
@@ -599,17 +600,18 @@ test("blocks answer retry when an ambiguous mutation cannot be reconciled until 
   );
 });
 
-test("question routes preserve cold deep links while session restore is pending", () => {
+test("question routes preserve cold deep links through recoverable session restore states", () => {
   assert.equal(communityQuestionRouteGate("restoring"), "restoring");
-  assert.equal(communityQuestionRouteGate("authenticated"), "ready");
   for (const kind of [
-    "unauthenticated",
-    "restricted",
+    "authenticated",
     "offline",
     "timeout",
     "server_unavailable",
     "error",
   ]) {
+    assert.equal(communityQuestionRouteGate(kind), "ready");
+  }
+  for (const kind of ["unauthenticated", "restricted"]) {
     assert.equal(communityQuestionRouteGate(kind), "redirect");
   }
 });
@@ -681,17 +683,22 @@ test("reconciles an ambiguous answer committed beyond the first answer page", as
   }
 });
 
-test("question creation reconciliation only accepts a new owned exact match", async () => {
+test("question creation reconciliation uses server normalization and a bounded search query", async () => {
   const input = {
     subjectId: "subject-a",
     courseOfferingId: "offering-a",
-    title: "¿Cómo se integra esto?",
-    body: "Necesito entender el paso intermedio con más detalle.",
+    title: `¿Co\u0301mo   se integra esto? ${"detalle ".repeat(22)}`,
+    body: "Necesito   entender\nel paso intermedio con ma\u0301s detalle.",
   };
+  const normalizedTitle = normalizeCommunityMutationText(input.title);
+  const normalizedBody = normalizeCommunityMutationText(input.body);
+  const expectedQuery = Array.from(normalizedTitle).slice(0, 120).join("");
+  assert.ok(Array.from(normalizedTitle).length > 120);
+
   const oldOwned = {
     ...question("old-question"),
-    title: input.title,
-    body: input.body,
+    title: normalizedTitle,
+    body: normalizedBody,
     academic: {
       subject: { id: "subject-a", name: "Álgebra" },
       courseOffering: { id: "offering-a", name: "Comisión A" },
@@ -707,7 +714,8 @@ test("question creation reconciliation only accepts a new owned exact match", as
   let phase: "baseline" | "reconcile" = "baseline";
   const api: CommunityApi = {
     questions: async (request) => {
-      assert.equal(request.q, input.title);
+      assert.equal(request.q, expectedQuery);
+      assert.ok(Array.from(request.q ?? "").length <= 120);
       assert.equal(request.subjectId, input.subjectId);
       return page(phase === "baseline" ? [oldOwned] : [oldOwned, newOwned]);
     },
@@ -724,7 +732,6 @@ test("question creation reconciliation only accepts a new owned exact match", as
   assert.deepEqual([...baseline], ["old-question"]);
   assert.equal(reconciled?.id, "new-question");
 });
-
 
 test("does not let detail refresh cancel an in-flight answer mutation", async () => {
   const mutation = deferred<{ answer: AnswerView }>();
@@ -759,4 +766,49 @@ test("does not let detail refresh cancel an in-flight answer mutation", async ()
   mutation.resolve({ answer: answer("answer-a") });
   assert.equal(await submitting, true);
   assert.equal(questionCalls, 2);
+});
+
+
+test("matches ambiguous answers using the server cleanText normalization", async () => {
+  let detailCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      detailCalls += 1;
+      return detailCalls === 1
+        ? detail(id)
+        : detail(id, [
+            {
+              ...answer("normalized-answer"),
+              body: "Una respuesta útil.",
+              viewer: { canEdit: true, canReport: true },
+            },
+          ]);
+    },
+    answers: async () => ({ items: [], nextCursor: null }),
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => {
+      throw new ApiRequestError(
+        "timeout",
+        null,
+        "REQUEST_TIMEOUT",
+        "request timed out",
+      );
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  const sent = await controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una   respuesta\nu\u0301til.",
+  );
+
+  assert.equal(sent, true);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.answerRetryBlocked, false);
+    assert.equal(snapshot.notice, "Respuesta publicada.");
+  }
 });
