@@ -106,7 +106,12 @@ const parents = [];
 for (const line of snapshotLines) {
   const snapshot = line.match(/^  (\S.*):$/u);
   if (snapshot) {
-    currentSnapshot = snapshot[1];
+    const rawKey = snapshot[1];
+    currentSnapshot =
+      (rawKey.startsWith("'") && rawKey.endsWith("'")) ||
+      (rawKey.startsWith('"') && rawKey.endsWith('"'))
+        ? rawKey.slice(1, -1)
+        : rawKey;
     continue;
   }
 
