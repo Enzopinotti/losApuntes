@@ -16,12 +16,14 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 import {
   cancelCommunityComposerSubmission,
   captureOwnedQuestionBaseline,
+  communityAnswerDraftConfirmationTransition,
   communityFailure,
   isAmbiguousCommunityMutationFailure,
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
   reconcileQuestionCreation,
   releaseCommunityComposerOperation,
+  shouldClearCommunityAnswerDraft,
   shouldResetCommunityAnswerDraft,
   type CommunityFailure,
   type CommunityQuestionDetailSnapshot,
@@ -399,8 +401,21 @@ export function CommunityQuestionScreen({
     questionId,
     authorityKey: authority.authorityKey,
   });
+  const answerConfirmationVisibleRef = useRef(false);
 
   useEffect(() => controller.subscribe(setDetail), [controller]);
+
+  useEffect(() => {
+    const transition = communityAnswerDraftConfirmationTransition(
+      answerConfirmationVisibleRef.current,
+      detail,
+      answerBody,
+    );
+    if (transition.clearDraft) {
+      setAnswerBody("");
+    }
+    answerConfirmationVisibleRef.current = transition.visible;
+  }, [answerBody, detail]);
 
   useEffect(() => {
     const previous = answerDraftScopeRef.current;
@@ -443,12 +458,11 @@ export function CommunityQuestionScreen({
     ) {
       return;
     }
-    const sent = await controller.createAnswer(
+    await controller.createAnswer(
       authority.authorityKey,
       questionId,
       answerBody.trim(),
     );
-    if (sent) setAnswerBody("");
   }, [answerBody, authority.authorityKey, controller, detail.kind, questionId]);
 
   const visibleDetail =

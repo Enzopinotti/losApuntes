@@ -63,6 +63,7 @@ export type CommunityQuestionDetailSnapshot =
       actionFailure: CommunityFailure | null;
       actionFailureCode: string | null;
       notice: string | null;
+      publishedAnswerBodyNormalized: string | null;
       refreshFailure: CommunityFailure | null;
     }
   | {
@@ -74,6 +75,14 @@ export type CommunityQuestionDetailSnapshot =
 
 type FeedListener = (snapshot: CommunityQuestionFeedSnapshot) => void;
 type DetailListener = (snapshot: CommunityQuestionDetailSnapshot) => void;
+
+type PendingAnswerReconciliation = {
+  authorityKey: string;
+  questionId: string;
+  normalizedBody: string;
+  knownAnswerIds: ReadonlySet<string>;
+  failure: CommunityFailure | null;
+};
 
 export type QuestionScope =
   | { kind: "all" }
@@ -158,6 +167,35 @@ export function shouldResetCommunityAnswerDraft(
   return previous.authorityKey !== next.authorityKey;
 }
 
+export function shouldClearCommunityAnswerDraft(
+  snapshot: CommunityQuestionDetailSnapshot,
+  currentBody: string,
+): boolean {
+  return (
+    snapshot.kind === "ready" &&
+    snapshot.publishedAnswerBodyNormalized !== null &&
+    normalizeCommunityMutationText(currentBody) ===
+      snapshot.publishedAnswerBodyNormalized
+  );
+}
+
+export function communityAnswerDraftConfirmationTransition(
+  previousVisible: boolean,
+  snapshot: CommunityQuestionDetailSnapshot,
+  currentBody: string,
+): { visible: boolean; clearDraft: boolean } {
+  const visible =
+    snapshot.kind === "ready" &&
+    snapshot.publishedAnswerBodyNormalized !== null;
+  return {
+    visible,
+    clearDraft:
+      visible &&
+      !previousVisible &&
+      shouldClearCommunityAnswerDraft(snapshot, currentBody),
+  };
+}
+
 export function isAmbiguousCommunityMutationFailure(
   failure: CommunityFailure,
 ): boolean {
@@ -230,6 +268,18 @@ async function completeAnswerInventory(
     answers,
     answersNextCursor: null,
   };
+}
+
+function pendingAnswerWasCommitted(
+  detail: QuestionDetailResponse,
+  pending: PendingAnswerReconciliation,
+): boolean {
+  return detail.answers.some(
+    (candidate) =>
+      !pending.knownAnswerIds.has(candidate.id) &&
+      candidate.viewer.canEdit &&
+      normalizeCommunityMutationText(candidate.body) === pending.normalizedBody,
+  );
 }
 
 function matchesOwnedQuestion(
@@ -432,6 +482,7 @@ export class MobileCommunityQuestionController {
   private operationGeneration = 0;
   private activeOperation: AbortController | null = null;
   private authorityKey: string | null = null;
+  private pendingAnswer: PendingAnswerReconciliation | null = null;
 
   constructor(private readonly api: CommunityApi) {}
 
@@ -452,6 +503,58 @@ export class MobileCommunityQuestionController {
       current.questionId === questionId &&
       current.submittingAnswer
     ) {
+      return;
+    }
+
+    if (
+      this.pendingAnswer &&
+      (this.pendingAnswer.authorityKey !== authorityKey ||
+        this.pendingAnswer.questionId !== questionId)
+    ) {
+      this.pendingAnswer = null;
+    }
+
+    const pending = this.pendingAnswer;
+    if (pending) {
+      const generation = this.begin(authorityKey);
+      this.publish({ kind: "loading", authorityKey, questionId });
+      try {
+        const firstPage = await this.api.question(
+          questionId,
+          this.activeOperation?.signal,
+        );
+        const detail = await completeAnswerInventory(
+          this.api,
+          questionId,
+          firstPage,
+          this.activeOperation?.signal,
+        );
+        if (!this.isCurrent(generation, authorityKey)) return;
+        if (this.pendingAnswer !== pending) return;
+
+        const committed = pendingAnswerWasCommitted(detail, pending);
+        const pendingFailureCode = pending.failure?.code ?? null;
+        this.pendingAnswer = null;
+        this.publish({
+          ...this.ready(authorityKey, questionId, detail),
+          actionFailure: committed ? null : pending.failure,
+          actionFailureCode: committed ? null : pendingFailureCode,
+          notice: committed
+            ? "Respuesta publicada."
+            : "No encontramos una respuesta publicada. Podés volver a intentar.",
+          publishedAnswerBodyNormalized: committed
+            ? pending.normalizedBody
+            : null,
+        });
+      } catch (error) {
+        if (!this.isCurrent(generation, authorityKey)) return;
+        this.publish({
+          kind: "failure",
+          authorityKey,
+          questionId,
+          failure: communityFailure(error),
+        });
+      }
       return;
     }
 
@@ -559,6 +662,7 @@ export class MobileCommunityQuestionController {
       actionFailure: null,
       actionFailureCode: null,
       notice: null,
+      publishedAnswerBodyNormalized: null,
       refreshFailure: null,
     });
     const signal = this.activeOperation?.signal;
@@ -595,10 +699,19 @@ export class MobileCommunityQuestionController {
     const knownAnswerIds = new Set(
       baselineDetail.answers.map((candidate) => candidate.id),
     );
+    const pending: PendingAnswerReconciliation = {
+      authorityKey,
+      questionId,
+      normalizedBody,
+      knownAnswerIds,
+      failure: null,
+    };
+    this.pendingAnswer = pending;
 
     try {
       await this.api.createAnswer(questionId, { body }, signal);
       if (!this.isCurrent(generation, authorityKey)) return false;
+      this.pendingAnswer = null;
       const latest = this.snapshot;
       if (latest.kind !== "ready" || latest.questionId !== questionId) {
         return false;
@@ -621,6 +734,7 @@ export class MobileCommunityQuestionController {
             actionFailure: null,
             actionFailureCode: null,
             notice: "Respuesta publicada.",
+            publishedAnswerBodyNormalized: normalizedBody,
             refreshFailure: null,
           });
         }
@@ -640,6 +754,7 @@ export class MobileCommunityQuestionController {
             actionFailureCode: null,
             notice:
               "Respuesta publicada. No pudimos actualizar la conversación.",
+            publishedAnswerBodyNormalized: normalizedBody,
             refreshFailure: communityFailure(error),
           });
         }
@@ -659,6 +774,8 @@ export class MobileCommunityQuestionController {
 
       const failure = communityFailure(error);
       if (isAmbiguousCommunityMutationFailure(failure)) {
+        const ambiguousPending = { ...pending, failure };
+        this.pendingAnswer = ambiguousPending;
         try {
           const firstPage = await this.api.question(questionId, signal);
           const detail = await completeAnswerInventory(
@@ -677,12 +794,11 @@ export class MobileCommunityQuestionController {
             return false;
           }
 
-          const observedCommittedAnswer = detail.answers.some(
-            (candidate) =>
-              !knownAnswerIds.has(candidate.id) &&
-              candidate.viewer.canEdit &&
-              normalizeCommunityMutationText(candidate.body) === normalizedBody,
+          const observedCommittedAnswer = pendingAnswerWasCommitted(
+            detail,
+            ambiguousPending,
           );
+          this.pendingAnswer = null;
           this.publish({
             ...reconciled,
             detail,
@@ -693,6 +809,9 @@ export class MobileCommunityQuestionController {
             notice: observedCommittedAnswer
               ? "Respuesta publicada."
               : "No pudimos confirmar la publicación. Revisamos la conversación antes de habilitar otro intento.",
+            publishedAnswerBodyNormalized: observedCommittedAnswer
+              ? normalizedBody
+              : null,
             refreshFailure: null,
           });
           return observedCommittedAnswer;
@@ -720,6 +839,7 @@ export class MobileCommunityQuestionController {
         }
       }
 
+      this.pendingAnswer = null;
       this.publish({
         ...latest,
         submittingAnswer: false,
@@ -760,7 +880,7 @@ export class MobileCommunityQuestionController {
     authorityKey: string,
     questionId: string,
     detail: QuestionDetailResponse,
-  ): CommunityQuestionDetailSnapshot {
+  ): Extract<CommunityQuestionDetailSnapshot, { kind: "ready" }> {
     return {
       kind: "ready",
       authorityKey,
@@ -773,6 +893,7 @@ export class MobileCommunityQuestionController {
       actionFailure: null,
       actionFailureCode: null,
       notice: null,
+      publishedAnswerBodyNormalized: null,
       refreshFailure: null,
     };
   }
