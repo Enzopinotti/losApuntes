@@ -51,6 +51,7 @@ export type MobileServerReleaseObservationInput = {
 
 const RELEASE_TOKEN_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 const SOURCE_SHA_PATTERN = /^[a-f\d]{40}$/iu;
+
 function normalizeBoundedToken(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const value = raw.trim();
