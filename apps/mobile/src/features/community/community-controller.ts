@@ -63,6 +63,7 @@ export type CommunityQuestionDetailSnapshot =
       actionFailure: CommunityFailure | null;
       actionFailureCode: string | null;
       notice: string | null;
+      publishedAnswerBodyNormalized: string | null;
       refreshFailure: CommunityFailure | null;
     }
   | {
@@ -168,20 +169,30 @@ export function shouldResetCommunityAnswerDraft(
 
 export function shouldClearCommunityAnswerDraft(
   snapshot: CommunityQuestionDetailSnapshot,
+  currentBody: string,
 ): boolean {
   return (
-    snapshot.kind === "ready" && snapshot.notice === "Respuesta publicada."
+    snapshot.kind === "ready" &&
+    snapshot.publishedAnswerBodyNormalized !== null &&
+    normalizeCommunityMutationText(currentBody) ===
+      snapshot.publishedAnswerBodyNormalized
   );
 }
 
 export function communityAnswerDraftConfirmationTransition(
   previousVisible: boolean,
   snapshot: CommunityQuestionDetailSnapshot,
+  currentBody: string,
 ): { visible: boolean; clearDraft: boolean } {
-  const visible = shouldClearCommunityAnswerDraft(snapshot);
+  const visible =
+    snapshot.kind === "ready" &&
+    snapshot.publishedAnswerBodyNormalized !== null;
   return {
     visible,
-    clearDraft: visible && !previousVisible,
+    clearDraft:
+      visible &&
+      !previousVisible &&
+      shouldClearCommunityAnswerDraft(snapshot, currentBody),
   };
 }
 
@@ -531,6 +542,9 @@ export class MobileCommunityQuestionController {
           notice: committed
             ? "Respuesta publicada."
             : "No encontramos una respuesta publicada. Podés volver a intentar.",
+          publishedAnswerBodyNormalized: committed
+            ? pending.normalizedBody
+            : null,
         });
       } catch (error) {
         if (!this.isCurrent(generation, authorityKey)) return;
@@ -648,6 +662,7 @@ export class MobileCommunityQuestionController {
       actionFailure: null,
       actionFailureCode: null,
       notice: null,
+      publishedAnswerBodyNormalized: null,
       refreshFailure: null,
     });
     const signal = this.activeOperation?.signal;
@@ -719,6 +734,7 @@ export class MobileCommunityQuestionController {
             actionFailure: null,
             actionFailureCode: null,
             notice: "Respuesta publicada.",
+            publishedAnswerBodyNormalized: normalizedBody,
             refreshFailure: null,
           });
         }
@@ -738,6 +754,7 @@ export class MobileCommunityQuestionController {
             actionFailureCode: null,
             notice:
               "Respuesta publicada. No pudimos actualizar la conversación.",
+            publishedAnswerBodyNormalized: normalizedBody,
             refreshFailure: communityFailure(error),
           });
         }
@@ -792,6 +809,9 @@ export class MobileCommunityQuestionController {
             notice: observedCommittedAnswer
               ? "Respuesta publicada."
               : "No pudimos confirmar la publicación. Revisamos la conversación antes de habilitar otro intento.",
+            publishedAnswerBodyNormalized: observedCommittedAnswer
+              ? normalizedBody
+              : null,
             refreshFailure: null,
           });
           return observedCommittedAnswer;
@@ -873,6 +893,7 @@ export class MobileCommunityQuestionController {
       actionFailure: null,
       actionFailureCode: null,
       notice: null,
+      publishedAnswerBodyNormalized: null,
       refreshFailure: null,
     };
   }

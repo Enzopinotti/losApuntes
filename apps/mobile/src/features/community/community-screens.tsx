@@ -409,12 +409,13 @@ export function CommunityQuestionScreen({
     const transition = communityAnswerDraftConfirmationTransition(
       answerConfirmationVisibleRef.current,
       detail,
+      answerBody,
     );
     if (transition.clearDraft) {
       setAnswerBody("");
     }
     answerConfirmationVisibleRef.current = transition.visible;
-  }, [detail]);
+  }, [answerBody, detail]);
 
   useEffect(() => {
     const previous = answerDraftScopeRef.current;
@@ -457,12 +458,11 @@ export function CommunityQuestionScreen({
     ) {
       return;
     }
-    const sent = await controller.createAnswer(
+    await controller.createAnswer(
       authority.authorityKey,
       questionId,
       answerBody.trim(),
     );
-    if (sent) setAnswerBody("");
   }, [answerBody, authority.authorityKey, controller, detail.kind, questionId]);
 
   const visibleDetail =

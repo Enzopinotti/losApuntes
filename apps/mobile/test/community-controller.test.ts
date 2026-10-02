@@ -958,7 +958,10 @@ test("explicit refresh reconciles a blocked ambiguous answer across all answer p
   if (reconciled.kind !== "ready") throw new Error("expected ready");
   assert.equal(reconciled.answerRetryBlocked, false);
   assert.equal(reconciled.notice, "Respuesta publicada.");
-  assert.equal(shouldClearCommunityAnswerDraft(reconciled), true);
+  assert.equal(
+    shouldClearCommunityAnswerDraft(reconciled, "Una respuesta útil."),
+    true,
+  );
   assert.ok(
     reconciled.detail.answers.some(
       (candidate) => candidate.id === "committed-answer",
@@ -1029,7 +1032,10 @@ test("transient invalidation retains an indeterminate answer until return reconc
   assert.equal(reconciled.kind, "ready");
   if (reconciled.kind !== "ready") throw new Error("expected ready");
   assert.equal(reconciled.notice, "Respuesta publicada.");
-  assert.equal(shouldClearCommunityAnswerDraft(reconciled), true);
+  assert.equal(
+    shouldClearCommunityAnswerDraft(reconciled, "Una respuesta útil."),
+    true,
+  );
   assert.ok(
     reconciled.detail.answers.some(
       (candidate) => candidate.id === "committed-after-background",
@@ -1050,10 +1056,17 @@ test("published answer confirmation clears the draft only once across notice-pre
     actionFailure: null,
     actionFailureCode: null,
     notice: "Respuesta publicada.",
+    publishedAnswerBodyNormalized: normalizeCommunityMutationText(
+      "Una respuesta útil.",
+    ),
     refreshFailure: null,
   } as const;
 
-  const first = communityAnswerDraftConfirmationTransition(false, published);
+  const first = communityAnswerDraftConfirmationTransition(
+    false,
+    published,
+    "Una respuesta útil.",
+  );
   assert.deepEqual(first, { visible: true, clearDraft: true });
 
   const loadMoreSnapshot = {
@@ -1063,6 +1076,35 @@ test("published answer confirmation clears the draft only once across notice-pre
   const second = communityAnswerDraftConfirmationTransition(
     first.visible,
     loadMoreSnapshot,
+    "Un segundo borrador.",
   );
   assert.deepEqual(second, { visible: true, clearDraft: false });
+});
+
+test("published answer confirmation preserves a newer edited draft", () => {
+  const published = {
+    kind: "ready",
+    authorityKey: "authority-a",
+    questionId: "question-a",
+    detail: detail("question-a"),
+    loadingMoreAnswers: false,
+    answersFailure: null,
+    submittingAnswer: false,
+    answerRetryBlocked: false,
+    actionFailure: null,
+    actionFailureCode: null,
+    notice: "Respuesta publicada.",
+    publishedAnswerBodyNormalized: normalizeCommunityMutationText(
+      "Una respuesta útil.",
+    ),
+    refreshFailure: null,
+  } as const;
+
+  const transition = communityAnswerDraftConfirmationTransition(
+    false,
+    published,
+    "Un borrador nuevo que todavía no envié.",
+  );
+
+  assert.deepEqual(transition, { visible: true, clearDraft: false });
 });
