@@ -107,10 +107,7 @@ export function normalizeMobileDiagnosticSurface(raw: string): string {
   return clamp(surface, MOBILE_DIAGNOSTIC_LIMITS.surface);
 }
 
-function safeStringProperty(
-  value: unknown,
-  property: "name",
-): string | null {
+function safeStringProperty(value: unknown, property: "name"): string | null {
   if (
     value === null ||
     (typeof value !== "object" && typeof value !== "function")
@@ -126,10 +123,20 @@ function safeStringProperty(
   }
 }
 
+const knownErrorClasses = new Set([
+  "AggregateError",
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+]);
+
 function safeErrorClass(error: unknown): string {
-  const name = safeStringProperty(error, "name") ?? "UnknownError";
-  const safe = name.replace(/[^A-Za-z0-9._-]+/gu, "");
-  return clamp(safe || "Error", 64);
+  const name = safeStringProperty(error, "name");
+  return name && knownErrorClasses.has(name) ? name : "Error";
 }
 
 function fnv1a(value: string): string {

@@ -118,8 +118,25 @@ test("malformed Error accessors cannot break envelope construction", () => {
     revision: null,
     surface: "/",
   });
-  assert.equal(envelope.errorClass, "UnknownError");
+  assert.equal(envelope.errorClass, "Error");
   assert.equal(envelope.stack, null);
+});
+
+test("arbitrary Error.name never enters the diagnostic envelope", () => {
+  const error = new Error("private");
+  error.name = "Leonardo";
+
+  const envelope = createMobileDiagnosticEnvelope(error, {
+    platform: "ios",
+    appVersion: "0.1.0",
+    build: null,
+    revision: null,
+    surface: "/",
+  });
+  const serialized = JSON.stringify(envelope);
+
+  assert.equal(envelope.errorClass, "Error");
+  assert.equal(serialized.includes("Leonardo"), false);
 });
 
 test("a diagnostic sink failure never prevents caller recovery", () => {
