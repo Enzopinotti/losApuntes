@@ -61,6 +61,12 @@ function safeMetadata(value: string | null): string | null {
   return safe ? clamp(safe, MOBILE_DIAGNOSTIC_LIMITS.metadata) : null;
 }
 
+function safeRevision(value: string | null): string | null {
+  if (!value) return null;
+  const revision = value.trim();
+  return /^[a-f\d]{7,64}$/iu.test(revision) ? revision : null;
+}
+
 function normalizeSurfaceSegment(
   segment: string,
   previousSegment: string | undefined,
@@ -178,9 +184,11 @@ export function createMobileDiagnosticEnvelope(
   context: MobileDiagnosticContext,
 ): MobileDiagnosticEnvelope {
   const errorClass = safeErrorClass(error);
-  const stack = sanitizeMobileDiagnosticStack(
-    error instanceof Error ? error.stack : null,
-  );
+  const rawFrames =
+    error instanceof Error
+      ? error.stack?.split("\n").slice(1).join("\n")
+      : null;
+  const stack = sanitizeMobileDiagnosticStack(rawFrames);
   const fingerprintSource = [
     errorClass,
     ...(stack?.split("\n").slice(0, 3) ?? []),
@@ -190,7 +198,7 @@ export function createMobileDiagnosticEnvelope(
     platform: normalizePlatform(context.platform),
     appVersion: safeMetadata(context.appVersion),
     build: safeMetadata(context.build),
-    revision: safeMetadata(context.revision),
+    revision: safeRevision(context.revision),
     surface: normalizeMobileDiagnosticSurface(context.surface),
     errorClass,
     fingerprint: fnv1a(fingerprintSource),

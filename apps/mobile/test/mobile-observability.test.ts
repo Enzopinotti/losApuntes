@@ -73,7 +73,9 @@ test("creates a bounded deterministic envelope without raw private context", () 
   assert.equal(first.surface, "/resources/:id");
   assert.equal(first.errorClass, "TypeError");
   assert.equal(first.timestamp, "2026-10-02T04:00:00.000Z");
+  assert.equal(first.revision, "abcdef1234567890");
   assert.equal(serialized.includes("opaque-secret-value"), false);
+  assert.equal(serialized.includes("private token should not become a field"), false);
   assert.equal(serialized.includes("signed"), false);
   assert.equal(serialized.includes("/Users/person"), false);
   assert.ok(first.fingerprint.length > 0);
@@ -124,4 +126,16 @@ test("global JS handler reports bounded evidence and preserves the previous hand
 
   cleanup();
   assert.equal(current, previous);
+});
+
+test("drops invalid release revisions instead of emitting arbitrary public env data", () => {
+  const envelope = createMobileDiagnosticEnvelope(new Error("boom"), {
+    platform: "ios",
+    appVersion: "0.1.0",
+    build: null,
+    revision: "not-a-git-sha-or-safe-release-id",
+    surface: "/",
+  });
+
+  assert.equal(envelope.revision, null);
 });
