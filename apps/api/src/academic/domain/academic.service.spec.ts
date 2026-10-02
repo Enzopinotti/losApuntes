@@ -146,6 +146,10 @@ function createStore() {
     };
   });
 
+  const guardCurrentSubjectParticipation =
+    mockFn<AcademicStore['guardCurrentSubjectParticipation']>();
+  guardCurrentSubjectParticipation.mockResolvedValue(true);
+
   return {
     runAtomically: <T>(operation: () => Promise<T>) => operation(),
     findCatalogNodeById,
@@ -166,10 +170,7 @@ function createStore() {
       mockFn<AcademicStore['transitionAffiliationToAlumni']>(),
     upsertSubjectParticipation:
       mockFn<AcademicStore['upsertSubjectParticipation']>(),
-    guardCurrentSubjectParticipation:
-      mockFn<AcademicStore['guardCurrentSubjectParticipation']>().mockResolvedValue(
-        true,
-      ),
+    guardCurrentSubjectParticipation,
     findSubjectParticipationById:
       mockFn<AcademicStore['findSubjectParticipationById']>(),
     listSubjectParticipationsForUser:
@@ -561,7 +562,7 @@ describe('AcademicService', () => {
     expect(result.context.subjectParticipationId).toBe(part.id);
   });
 
-  it('revalidates current participation inside the atomic context-selection boundary', async () => {
+  it('revalidates current participation inside context transaction', async () => {
     const store = createStore();
     const service = new AcademicService(store);
     const row = affiliation();
@@ -1035,7 +1036,7 @@ describe('AcademicService', () => {
   });
 
   for (const state of ['planned', 'completed', 'dropped'] as const) {
-    it(`clears selected current context when participation becomes ${state}`, async () => {
+    it(`clears selected context when participation becomes ${state}`, async () => {
       const store = createStore();
       const service = new AcademicService(store);
       const subject = catalogNode({
