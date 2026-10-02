@@ -30,7 +30,7 @@ Evidence version 1 records host capacity plus measurements for `api` and `files-
 - peak PID count;
 - maximum observed graceful drain time.
 
-The selected limit for each dimension must be at least the observed peak and must remain below the measured shared-host capacity. The repository deliberately does not impose a universal safety multiplier.
+The selected limit for each dimension must be at least the observed peak and must remain below the measured shared-host capacity. The **aggregate** API + Files worker CPU, memory and PID limits must also remain strictly below host capacity so the deployment cannot reserve the whole shared host merely because each service passed independently. The repository deliberately does not impose a universal safety multiplier.
 
 The tmpfs limit must remain below the service memory limit because tmpfs consumes memory under the same cgroup.
 
@@ -83,7 +83,7 @@ A schema-sensitive release cannot claim `n-1` merely because an old image still 
 
 ## 7. Release retention
 
-Retention protects the exact current image digest and exact accepted rollback image digest. Evidence also declares a bounded maximum retained-image count and `globalPruneAllowed=false`.
+Retention protects the exact current image digest and exact accepted rollback image digest. Evidence also declares a bounded maximum retained-image count and `globalPruneAllowed=false`. The deduplicated protected-image set must fit inside that bound; contradictory evidence that protects more images than the configured maximum fails validation.
 
 Routine cleanup must select only Los Apuntes release material outside the protected rollback set. Never use indiscriminate global prune as the routine retention mechanism.
 

@@ -269,6 +269,27 @@ export function validateProductionResilienceEvidence(raw) {
     ),
   };
 
+  const aggregateLimits = Object.values(services).reduce(
+    (totals, service) => ({
+      cpuCores: totals.cpuCores + Number(service.limits.cpus),
+      memoryBytes: totals.memoryBytes + service.limits.memoryBytes,
+      pids: totals.pids + service.limits.pids,
+    }),
+    { cpuCores: 0, memoryBytes: 0, pids: 0 },
+  );
+
+  if (aggregateLimits.cpuCores >= hostCapacity.cpuCores) {
+    fail('aggregate service CPU limits must leave CPU capacity for the shared host');
+  }
+  if (aggregateLimits.memoryBytes >= hostCapacity.memoryBytes) {
+    fail(
+      'aggregate service memory limits must leave memory capacity for the shared host',
+    );
+  }
+  if (aggregateLimits.pids >= hostCapacity.pids) {
+    fail('aggregate service PID limits must leave PID capacity for the shared host');
+  }
+
   const logsRaw = object(root.logs, 'logs');
   const logs = {
     api: validateLogBudget('api', logsRaw.api),
@@ -356,6 +377,13 @@ export function validateProductionResilienceEvidence(raw) {
     (value, index) =>
       imageDigest(value, `releaseRetention.protectedImageDigests[${index}]`),
   );
+  const uniqueProtectedImageDigests = [...new Set(protectedImageDigests)];
+  if (uniqueProtectedImageDigests.length > maxRetainedImages) {
+    fail(
+      'releaseRetention.maxRetainedImages must cover every protected image digest',
+    );
+  }
+
   for (const required of [
     rollback.currentImageDigest,
     rollback.rollbackImageDigest,
@@ -377,7 +405,7 @@ export function validateProductionResilienceEvidence(raw) {
     releaseRetention: {
       maxRetainedImages,
       globalPruneAllowed: false,
-      protectedImageDigests: [...new Set(protectedImageDigests)],
+      protectedImageDigests: uniqueProtectedImageDigests,
     },
   };
 }

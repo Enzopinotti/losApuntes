@@ -143,6 +143,32 @@ test('rejects a service budget that can consume the whole shared host', () => {
   );
 });
 
+test('rejects aggregate service budgets that can overcommit the shared host', () => {
+  const cpu = evidence();
+  cpu.services.api.limits.cpus = '4';
+  cpu.services['files-worker'].limits.cpus = '4';
+  assert.throws(
+    () => validateProductionResilienceEvidence(cpu),
+    /aggregate service CPU limits must leave CPU capacity/u,
+  );
+
+  const memory = evidence();
+  memory.services.api.limits.memory = '8g';
+  memory.services['files-worker'].limits.memory = '8g';
+  assert.throws(
+    () => validateProductionResilienceEvidence(memory),
+    /aggregate service memory limits must leave memory capacity/u,
+  );
+
+  const pids = evidence();
+  pids.services.api.limits.pids = 2048;
+  pids.services['files-worker'].limits.pids = 2048;
+  assert.throws(
+    () => validateProductionResilienceEvidence(pids),
+    /aggregate service PID limits must leave PID capacity/u,
+  );
+});
+
 test('rejects log rotation below the measured diagnostic window', () => {
   const value = evidence();
   value.logs.api.maxSize = '1m';
@@ -177,6 +203,18 @@ test('retention protects current and rollback image digests', () => {
   assert.throws(
     () => validateProductionResilienceEvidence(value),
     /protect current and rollback/u,
+  );
+});
+
+test('retention bound must cover every protected image digest', () => {
+  const value = evidence();
+  value.releaseRetention.maxRetainedImages = 2;
+  value.releaseRetention.protectedImageDigests.push(
+    `sha256:${'e'.repeat(64)}`,
+  );
+  assert.throws(
+    () => validateProductionResilienceEvidence(value),
+    /must cover every protected image digest/u,
   );
 });
 
