@@ -815,7 +815,6 @@ test("matches ambiguous answers using the server cleanText normalization", async
   }
 });
 
-
 test("answer drafts survive transient authority gates but reset for a new question or identity", () => {
   const original = {
     questionId: "question-a",
