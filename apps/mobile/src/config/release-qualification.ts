@@ -108,9 +108,7 @@ export function normalizeMobileApiOrigin(raw: string): string {
 
 function isLoopbackHostname(hostname: string): boolean {
   return (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname === "[::1]"
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
   );
 }
 
@@ -165,10 +163,7 @@ function normalizeServerReleaseObservation(
 
 export function qualifyMobileRelease(
   identityInput: MobileReleaseIdentityInput,
-  observedServerRelease:
-    | MobileServerReleaseObservationInput
-    | null
-    | undefined,
+  observedServerRelease: MobileServerReleaseObservationInput | null | undefined,
 ): MobileReleaseQualification {
   const identity = createMobileReleaseIdentity(identityInput);
   const blockers: MobileReleaseBlocker[] = [];
