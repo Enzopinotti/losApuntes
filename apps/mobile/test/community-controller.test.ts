@@ -14,6 +14,8 @@ import type {
 
 import type { CommunityApi } from "../src/features/community/community-api";
 import {
+  canAccessCommunityQuestionRoute,
+  cancelCommunityComposerSubmission,
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
   resolveQuestionScope,
@@ -360,4 +362,244 @@ test("a context invalidation prevents an in-flight answer from committing UI sta
   assert.equal(await submitting, false);
   assert.equal(mutationSignal?.aborted, true);
   assert.deepEqual(controller.getSnapshot(), { kind: "idle" });
+});
+
+
+test("keeps duplicate answer submission locked until the authoritative refresh finishes", async () => {
+  const refresh = deferred<QuestionDetailResponse>();
+  let questionCalls = 0;
+  let createCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      questionCalls += 1;
+      return questionCalls === 1 ? detail(id) : refresh.promise;
+    },
+    answers: async () => ({ items: [], nextCursor: null }),
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => {
+      createCalls += 1;
+      return { answer: answer("answer-a") };
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  const first = controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una respuesta útil.",
+  );
+  await Promise.resolve();
+
+  const pending = controller.getSnapshot();
+  assert.equal(pending.kind, "ready");
+  if (pending.kind === "ready") assert.equal(pending.submittingAnswer, true);
+
+  const duplicate = await controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una respuesta útil.",
+  );
+  assert.equal(duplicate, false);
+  assert.equal(createCalls, 1);
+
+  refresh.resolve(detail("question-a", [answer("answer-a")]));
+  assert.equal(await first, true);
+
+  const settled = controller.getSnapshot();
+  assert.equal(settled.kind, "ready");
+  if (settled.kind === "ready") {
+    assert.equal(settled.submittingAnswer, false);
+    assert.deepEqual(
+      settled.detail.answers.map((item) => item.id),
+      ["answer-a"],
+    );
+  }
+});
+
+test("does not let answer pagination cancel an in-flight answer mutation", async () => {
+  const mutation = deferred<{ answer: AnswerView }>();
+  let mutationSignal: AbortSignal | undefined;
+  let answerPageCalls = 0;
+  let detailCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      detailCalls += 1;
+      return detail(
+        id,
+        detailCalls > 1 ? [answer("answer-a")] : [],
+        detailCalls > 1 ? null : "opaque-answer-cursor",
+      );
+    },
+    answers: async () => {
+      answerPageCalls += 1;
+      return { items: [answer("older")], nextCursor: null };
+    },
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async (_questionId, _input, signal) => {
+      mutationSignal = signal;
+      return mutation.promise;
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  const submitting = controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una respuesta útil.",
+  );
+  await Promise.resolve();
+
+  await controller.loadMoreAnswers("authority-a");
+  assert.equal(answerPageCalls, 0);
+  assert.equal(mutationSignal?.aborted, false);
+
+  mutation.resolve({ answer: answer("answer-a") });
+  assert.equal(await submitting, true);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") assert.equal(snapshot.submittingAnswer, false);
+});
+
+test("composer authority cancellation aborts its POST and resets the local submit lock", () => {
+  const operation = new AbortController();
+  let submitting = true;
+
+  const active = cancelCommunityComposerSubmission(operation, () => {
+    submitting = false;
+  });
+
+  assert.equal(active, null);
+  assert.equal(operation.signal.aborted, true);
+  assert.equal(submitting, false);
+});
+
+test("reconciles an ambiguous timed-out answer before another submit can be enabled", async () => {
+  const reconciliation = deferred<QuestionDetailResponse>();
+  let detailCalls = 0;
+  let createCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      detailCalls += 1;
+      return detailCalls === 1 ? detail(id) : reconciliation.promise;
+    },
+    answers: async () => ({ items: [], nextCursor: null }),
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => {
+      createCalls += 1;
+      throw new ApiRequestError(
+        "timeout",
+        null,
+        "REQUEST_TIMEOUT",
+        "request timed out",
+      );
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  const pending = controller.createAnswer(
+    "authority-a",
+    "question-a",
+    "Una respuesta útil.",
+  );
+  await Promise.resolve();
+
+  const duringReconciliation = controller.getSnapshot();
+  assert.equal(duringReconciliation.kind, "ready");
+  if (duringReconciliation.kind === "ready") {
+    assert.equal(duringReconciliation.submittingAnswer, true);
+  }
+
+  assert.equal(
+    await controller.createAnswer(
+      "authority-a",
+      "question-a",
+      "Una respuesta útil.",
+    ),
+    false,
+  );
+  assert.equal(createCalls, 1);
+
+  reconciliation.resolve(detail("question-a", [answer("answer-a")]));
+  assert.equal(await pending, true);
+
+  const reconciled = controller.getSnapshot();
+  assert.equal(reconciled.kind, "ready");
+  if (reconciled.kind === "ready") {
+    assert.equal(reconciled.submittingAnswer, false);
+    assert.equal(reconciled.actionFailure, null);
+    assert.equal(reconciled.notice, "Respuesta publicada.");
+  }
+});
+
+test("blocks answer retry when an ambiguous mutation cannot be reconciled until a fresh load", async () => {
+  let detailCalls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      detailCalls += 1;
+      if (detailCalls > 1) {
+        throw new ApiRequestError(
+          "offline",
+          null,
+          "NETWORK_UNAVAILABLE",
+          "offline",
+        );
+      }
+      return detail(id);
+    },
+    answers: async () => ({ items: [], nextCursor: null }),
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => {
+      throw new ApiRequestError(
+        "timeout",
+        null,
+        "REQUEST_TIMEOUT",
+        "request timed out",
+      );
+    },
+  });
+
+  await controller.load("authority-a", "question-a");
+  assert.equal(
+    await controller.createAnswer(
+      "authority-a",
+      "question-a",
+      "Una respuesta útil.",
+    ),
+    false,
+  );
+
+  const unresolved = controller.getSnapshot();
+  assert.equal(unresolved.kind, "ready");
+  if (unresolved.kind === "ready") {
+    assert.equal(unresolved.answerRetryBlocked, true);
+    assert.equal(unresolved.submittingAnswer, false);
+  }
+
+  assert.equal(
+    await controller.createAnswer(
+      "authority-a",
+      "question-a",
+      "Una respuesta útil.",
+    ),
+    false,
+  );
+});
+
+test("question routes require authentication before rendering deep-linked content", () => {
+  assert.equal(canAccessCommunityQuestionRoute("authenticated"), true);
+  for (const kind of [
+    "restoring",
+    "unauthenticated",
+    "restricted",
+    "offline",
+    "timeout",
+    "server_unavailable",
+    "error",
+  ]) {
+    assert.equal(canAccessCommunityQuestionRoute(kind), false);
+  }
 });

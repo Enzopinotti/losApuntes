@@ -14,6 +14,7 @@ import type { CreateQuestionInput } from "@losapuntes/contracts/social-qa";
 import { ProductSurface } from "@/features/navigation/product-surface";
 
 import {
+  cancelCommunityComposerSubmission,
   communityFailure,
   MobileCommunityFeedController,
   MobileCommunityQuestionController,
@@ -538,7 +539,9 @@ function QuestionDetailContent({
             label={
               snapshot.loadingMoreAnswers ? "Cargando…" : "Ver más respuestas"
             }
-            disabled={snapshot.loadingMoreAnswers}
+            disabled={
+              snapshot.loadingMoreAnswers || snapshot.submittingAnswer
+            }
             onPress={onLoadMore}
           />
         ) : null}
@@ -556,7 +559,9 @@ function QuestionDetailContent({
         <FailureCard
           failure={snapshot.actionFailure}
           code={snapshot.actionFailureCode}
-          onRetry={onSubmitAnswer}
+          onRetry={
+            snapshot.answerRetryBlocked ? onRefresh : onSubmitAnswer
+          }
         />
       ) : null}
       {question.viewer.canAnswer ? (
@@ -578,7 +583,12 @@ function QuestionDetailContent({
             label={
               snapshot.submittingAnswer ? "Publicando…" : "Publicar respuesta"
             }
-            disabled={snapshot.submittingAnswer || answerBody.trim().length < 2}
+            disabled={
+              snapshot.submittingAnswer ||
+              snapshot.loadingMoreAnswers ||
+              snapshot.answerRetryBlocked ||
+              answerBody.trim().length < 2
+            }
             onPress={onSubmitAnswer}
           />
         </View>
@@ -603,13 +613,12 @@ export function CommunityQuestionComposerScreen() {
   const activeOperation = useRef<AbortController | null>(null);
   authorityKeyRef.current = authorityKey;
 
-  useEffect(
-    () => () => {
-      activeOperation.current?.abort();
-      activeOperation.current = null;
-    },
-    [authority.gate, authorityKey],
-  );
+  useEffect(() => {
+    activeOperation.current = cancelCommunityComposerSubmission(
+      activeOperation.current,
+      () => setSubmitting(false),
+    );
+  }, [authority.gate, authorityKey]);
 
   const submit = useCallback(async () => {
     if (

@@ -57,6 +57,7 @@ export type CommunityQuestionDetailSnapshot =
       loadingMoreAnswers: boolean;
       answersFailure: CommunityFailure | null;
       submittingAnswer: boolean;
+      answerRetryBlocked: boolean;
       actionFailure: CommunityFailure | null;
       actionFailureCode: string | null;
       notice: string | null;
@@ -97,6 +98,27 @@ export function resolveQuestionScope(
     participation,
     subjectId: participation.subjectId,
   };
+}
+
+export function cancelCommunityComposerSubmission(
+  operation: AbortController | null,
+  resetSubmitting: () => void,
+): null {
+  operation?.abort();
+  resetSubmitting();
+  return null;
+}
+
+export function canAccessCommunityQuestionRoute(sessionKind: string): boolean {
+  return sessionKind === "authenticated";
+}
+
+function isAmbiguousAnswerFailure(failure: CommunityFailure): boolean {
+  return (
+    failure.kind === "offline" ||
+    failure.kind === "timeout" ||
+    failure.kind === "server_unavailable"
+  );
 }
 
 export function communityFailure(error: unknown): CommunityFailure {
@@ -296,6 +318,7 @@ export class MobileCommunityQuestionController {
       current.kind !== "ready" ||
       current.authorityKey !== authorityKey ||
       current.loadingMoreAnswers ||
+      current.submittingAnswer ||
       !current.detail.answersNextCursor
     ) {
       return;
@@ -357,15 +380,22 @@ export class MobileCommunityQuestionController {
       current.kind !== "ready" ||
       current.authorityKey !== authorityKey ||
       current.questionId !== questionId ||
-      current.submittingAnswer
+      current.submittingAnswer ||
+      current.loadingMoreAnswers ||
+      current.answerRetryBlocked
     ) {
       return false;
     }
 
+    const knownAnswerIds = new Set(
+      current.detail.answers.map((candidate) => candidate.id),
+    );
+    const normalizedBody = body.trim();
     const generation = this.begin(authorityKey);
     this.publish({
       ...current,
       submittingAnswer: true,
+      answerRetryBlocked: false,
       actionFailure: null,
       actionFailureCode: null,
       notice: null,
@@ -381,14 +411,6 @@ export class MobileCommunityQuestionController {
         return false;
       }
 
-      this.publish({
-        ...latest,
-        submittingAnswer: false,
-        actionFailure: null,
-        actionFailureCode: null,
-        notice: "Respuesta publicada.",
-      });
-
       try {
         const detail = await this.api.question(questionId, signal);
         if (!this.isCurrent(generation, authorityKey)) return true;
@@ -401,6 +423,10 @@ export class MobileCommunityQuestionController {
           this.publish({
             ...refreshed,
             detail,
+            submittingAnswer: false,
+            answerRetryBlocked: false,
+            actionFailure: null,
+            actionFailureCode: null,
             notice: "Respuesta publicada.",
             refreshFailure: null,
           });
@@ -415,6 +441,10 @@ export class MobileCommunityQuestionController {
         ) {
           this.publish({
             ...latestAfterRefresh,
+            submittingAnswer: false,
+            answerRetryBlocked: false,
+            actionFailure: null,
+            actionFailureCode: null,
             notice:
               "Respuesta publicada. No pudimos actualizar la conversación.",
             refreshFailure: communityFailure(error),
@@ -426,13 +456,74 @@ export class MobileCommunityQuestionController {
     } catch (error) {
       if (!this.isCurrent(generation, authorityKey)) return false;
       const latest = this.snapshot;
-      if (latest.kind !== "ready" || latest.questionId !== questionId) {
+      if (
+        latest.kind !== "ready" ||
+        latest.authorityKey !== authorityKey ||
+        latest.questionId !== questionId
+      ) {
         return false;
       }
+
       const failure = communityFailure(error);
+      if (isAmbiguousAnswerFailure(failure)) {
+        try {
+          const detail = await this.api.question(questionId, signal);
+          if (!this.isCurrent(generation, authorityKey)) return false;
+          const reconciled = this.snapshot;
+          if (
+            reconciled.kind !== "ready" ||
+            reconciled.authorityKey !== authorityKey ||
+            reconciled.questionId !== questionId
+          ) {
+            return false;
+          }
+
+          const observedCommittedAnswer = detail.answers.some(
+            (candidate) =>
+              !knownAnswerIds.has(candidate.id) &&
+              candidate.body.trim() === normalizedBody,
+          );
+          this.publish({
+            ...reconciled,
+            detail,
+            submittingAnswer: false,
+            answerRetryBlocked: false,
+            actionFailure: observedCommittedAnswer ? null : failure,
+            actionFailureCode: observedCommittedAnswer ? null : failure.code,
+            notice: observedCommittedAnswer
+              ? "Respuesta publicada."
+              : "No pudimos confirmar la publicación. Revisamos la conversación antes de habilitar otro intento.",
+            refreshFailure: null,
+          });
+          return observedCommittedAnswer;
+        } catch (reconcileError) {
+          if (!this.isCurrent(generation, authorityKey)) return false;
+          const unresolved = this.snapshot;
+          if (
+            unresolved.kind !== "ready" ||
+            unresolved.authorityKey !== authorityKey ||
+            unresolved.questionId !== questionId
+          ) {
+            return false;
+          }
+          this.publish({
+            ...unresolved,
+            submittingAnswer: false,
+            answerRetryBlocked: true,
+            actionFailure: failure,
+            actionFailureCode: failure.code,
+            notice:
+              "No pudimos confirmar si la respuesta se publicó. Actualizá la conversación antes de volver a intentar.",
+            refreshFailure: communityFailure(reconcileError),
+          });
+          return false;
+        }
+      }
+
       this.publish({
         ...latest,
         submittingAnswer: false,
+        answerRetryBlocked: false,
         actionFailure: failure,
         actionFailureCode: failure.code,
         notice: null,
@@ -478,6 +569,7 @@ export class MobileCommunityQuestionController {
       loadingMoreAnswers: false,
       answersFailure: null,
       submittingAnswer: false,
+      answerRetryBlocked: false,
       actionFailure: null,
       actionFailureCode: null,
       notice: null,
