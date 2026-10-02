@@ -1067,18 +1067,19 @@ describe('AcademicService', () => {
         updatedAt: now,
       });
 
-      await expect(
-        service.upsertSubjectParticipation('user-1', subject.id, {
+      const result = await service.upsertSubjectParticipation(
+        'user-1',
+        subject.id,
+        {
           state,
           periodLabel: '2026 S2',
-        }),
-      ).resolves.toEqual({
-        participation: expect.objectContaining({
-          id: selected.id,
-          state,
-        }),
-      });
+        },
+      );
 
+      expect(result.participation).toMatchObject({
+        id: selected.id,
+        state,
+      });
       expect(store.setCurrentContext).toHaveBeenCalledWith(
         {
           userId: 'user-1',
@@ -1086,15 +1087,17 @@ describe('AcademicService', () => {
         },
         4,
       );
-      expect(store.appendAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          event: 'academic.context.updated',
-          metadata: expect.objectContaining({
-            revision: 5,
-            reason: 'subject_participation_no_longer_current',
-          }),
-        }),
-      );
+
+      const contextAudit = store.appendAuditEvent.mock.calls
+        .map(([entry]) => entry)
+        .find((entry) => entry.event === 'academic.context.updated');
+      expect(contextAudit).toMatchObject({
+        event: 'academic.context.updated',
+        metadata: {
+          revision: 5,
+          reason: 'subject_participation_no_longer_current',
+        },
+      });
     });
   }
 
