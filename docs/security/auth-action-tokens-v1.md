@@ -1,4 +1,4 @@
-# Identity/Auth v1.3 — One-time action token security contract
+# Identity/Auth v1.4 — One-time action token security contract
 
 Parent: #4  
 Implementation lane: #40
@@ -82,11 +82,13 @@ Claiming uses one persistence operation that matches:
 - unconsumed state;
 - non-expired state.
 
-The same operation sets `consumedAt`.
+The same operation sets `consumedAt` and records `consumedReason=claimed`.
+
+Non-claim invalidation records `consumedReason=invalidated`.
 
 Two consumers of the **same token** cannot both claim it successfully.
 
-This is the anti-replay boundary.
+This is the anti-replay boundary. Claim provenance is retained only so a monotonic email-verification completion can reconcile an ambiguous response without making invalidated tokens reusable.
 
 ---
 
@@ -152,15 +154,17 @@ It does not need a credential version because the operation is monotonic:
 
 Completion:
 
-1. claim token atomically;
+1. claim token atomically, or resolve the same retained token only when its persisted consumption reason is `claimed`;
 2. resolve account;
-3. mark email verified only if still unverified;
-4. invalidate remaining verification tokens;
-5. issue no session.
+3. if the account is already verified, reconcile the completion as success;
+4. otherwise mark email verified only if still unverified;
+5. if that compare-and-set loses, re-read once and accept only an observed verified account;
+6. invalidate remaining verification tokens;
+7. issue no session.
 
-Concurrent valid verification links may both be claimed, but only one account-state transition succeeds.
+This makes the monotonic verification mutation idempotently reconcilable after a lost response or a failure after claim. A token consumed for delivery failure, overflow trimming, sibling invalidation or any other non-claim reason remains unavailable.
 
-The loser returns unavailable/fails closed.
+Concurrent valid verification links may both be claimed, but they converge on the same verified account state.
 
 ---
 
@@ -228,17 +232,16 @@ The losing token remains consumed. The user can request another recovery if need
 
 ## 11. Failure semantics after claim
 
-The current adapter claims an action token before the final account mutation.
+Password recovery remains fail-closed after claim because credential replacement is not replayed from a consumed bearer.
 
-This intentionally fails closed.
+Email verification is different because the authoritative transition is monotonic. For that purpose only:
 
-If a transient failure occurs after claim:
+- a consumed token is reconcilable only when persistence proves it was consumed by an actual completion claim;
+- invalidated/revoked/trimmed tokens never become reconcilable;
+- a retry may finish an unverified account or observe that the account already became verified;
+- token TTL still bounds the retained reconciliation window.
 
-- the specific bearer is no longer reusable;
-- account state is not partially trusted;
-- the user may request another token.
-
-A future persistence implementation may improve retry ergonomics with a single transaction/lease, but it must never weaken one-time/replay guarantees.
+This preserves one-time/replay guarantees while removing the ambiguous `claim succeeded, response lost` outcome for email verification.
 
 ---
 
@@ -290,7 +293,9 @@ Inspect:
 
 - validates token shape;
 - validates purpose;
-- requires unconsumed/non-expired token;
+- normally requires an unconsumed/non-expired token;
+- for email verification only, may also resolve a non-expired token whose persisted consumption reason is `claimed`, so an interrupted completion can be reconciled;
+- never accepts tokens consumed for invalidation/revocation/trimming;
 - additionally validates current account state;
 - does not consume;
 - does not return token/account identity.
@@ -434,7 +439,9 @@ Unit/integration/runtime evidence must prove:
 - TTL;
 - malformed token fails early;
 - expired token unavailable;
-- replay unavailable;
+- invalidated-token replay unavailable;
+- claimed email-verification retry can reconcile a partial completion;
+- claimed email-verification replay after committed success resolves success;
 - concurrent same-token claim has one winner;
 - active-token cap reads only the retained set;
 - overflow cleanup removes all rows older than the retention cutoff;
