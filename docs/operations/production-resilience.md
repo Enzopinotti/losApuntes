@@ -95,6 +95,8 @@ PR #127 completed repository-owned quarantine and includes a ClamAV adapter. Tha
 
 Before broad untrusted-file sharing, #87 still requires real scanner deployment, connectivity, 50 MiB-compatible stream limits, representative CPU/memory/PID measurement, privacy-safe failure monitoring, and an outage/restart drill proving quarantine remains fail-closed.
 
+The Files worker now probes the configured scanner on every bounded worker iteration even when the scan backlog is empty. A failed or timed-out probe marks the private worker health marker `not_ready` and emits only the sanitized `scannerStatus`; the scanner host, port, response body, filenames, object keys and raw bytes are never written to that health event. Public API `/health/ready` remains scoped to API authority/dependencies and does not expose scanner topology.
+
 ## 9. Relation to release qualification
 
 #83 may consume validated resilience evidence with exact SHA/image identity, but a PASS from `pnpm resilience:check` means only that the evidence is internally coherent.

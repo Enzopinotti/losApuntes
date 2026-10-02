@@ -5,6 +5,11 @@ import { AppModule } from '../app.module';
 import { HealthService } from '../health/health.service';
 import { FileService } from './domain/file.service';
 import {
+  FILE_SAFETY_SCANNER,
+  probeFileSafetyScanner,
+  type FileSafetyScanner,
+} from './safety/file-safety-scanner';
+import {
   clearFilesWorkerHealth,
   filesWorkerHealthValidityMs,
   writeFilesWorkerHealth,
@@ -13,6 +18,7 @@ import {
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 const CLEANUP_BATCH_SIZE = 100;
 const SCAN_BATCH_SIZE = 20;
+const SCANNER_HEALTH_TIMEOUT_MS = 1_500;
 
 function cleanupIntervalMs(): number {
   const raw = process.env.FILES_CLEANUP_INTERVAL_MS?.trim();
@@ -38,6 +44,7 @@ async function bootstrap(): Promise<void> {
   });
   const files = app.get(FileService);
   const health = app.get(HealthService);
+  const scanner = app.get<FileSafetyScanner>(FILE_SAFETY_SCANNER);
   const intervalMs = cleanupIntervalMs();
   const healthValidityMs = filesWorkerHealthValidityMs(intervalMs);
   let stopping = false;
@@ -59,13 +66,18 @@ async function bootstrap(): Promise<void> {
         const dependenciesReady = diagnostics.checks.every(
           (check) => check.status === 'ok',
         );
+        const scannerStatus = await probeFileSafetyScanner(
+          scanner,
+          SCANNER_HEALTH_TIMEOUT_MS,
+        );
 
-        if (!dependenciesReady) {
+        if (!dependenciesReady || scannerStatus === 'failed') {
           await writeFilesWorkerHealth('not_ready', healthValidityMs);
           console.warn(
             JSON.stringify({
               event: 'files.worker.dependencies_unavailable',
               status: diagnostics.status,
+              scannerStatus,
             }),
           );
         } else {
