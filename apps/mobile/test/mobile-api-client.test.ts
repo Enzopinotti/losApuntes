@@ -71,3 +71,64 @@ test("pilot Home uses the authenticated server-owned endpoint", async () => {
     globalThis.fetch = previousFetch;
   }
 });
+
+test("Search and result destinations use the existing authenticated routes", async () => {
+  const previousFetch = globalThis.fetch;
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    requests.push({ url: String(input), ...(init ? { init } : {}) });
+    return new Response("{}", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const client = new MobileApiClient("https://api.example.test");
+    await client.search("opaque-session", {
+      q: "base de datos",
+      scope: "resources",
+      limit: 8,
+      subjectId: "subject-a",
+    });
+    await client.contextualDiscovery("opaque-session", {
+      subjectLimit: 6,
+      resourcesPerSubject: 4,
+    });
+    await client.resource("opaque-session", "resource-a");
+    await client.publicProfile("opaque-session", "profile-a");
+
+    const searchUrl = new URL(requests[0]!.url);
+    assert.equal(searchUrl.pathname, "/search");
+    assert.equal(searchUrl.searchParams.get("q"), "base de datos");
+    assert.equal(searchUrl.searchParams.get("scope"), "resources");
+    assert.equal(searchUrl.searchParams.get("limit"), "8");
+    assert.equal(searchUrl.searchParams.get("subjectId"), "subject-a");
+    assert.equal(new URL(requests[1]!.url).pathname, "/discovery/contextual");
+    assert.equal(
+      new URL(requests[1]!.url).searchParams.get("subjectLimit"),
+      "6",
+    );
+    assert.equal(
+      new URL(requests[1]!.url).searchParams.get("resourcesPerSubject"),
+      "4",
+    );
+    assert.equal(
+      requests[2]!.url,
+      "https://api.example.test/resources/resource-a",
+    );
+    assert.equal(
+      requests[3]!.url,
+      "https://api.example.test/profiles/profile-a",
+    );
+    assert.ok(
+      requests.every(
+        ({ init }) =>
+          (init?.headers as Record<string, string>).Authorization ===
+          "Bearer opaque-session",
+      ),
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});

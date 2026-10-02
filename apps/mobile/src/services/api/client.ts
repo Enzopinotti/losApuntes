@@ -19,6 +19,11 @@ import type {
   PasswordLoginInput,
   PasswordRecoveryCompleteInput,
   RegisterInput,
+  ContextualDiscoveryResponse,
+  PublicProfileResponse,
+  ResourceView,
+  SearchResponse,
+  SearchScope,
   SetAcademicContextInput,
 } from "@losapuntes/contracts";
 
@@ -398,6 +403,68 @@ export class MobileApiClient {
       credential,
       ...(signal ? { signal } : {}),
     });
+  }
+
+  search(
+    credential: string,
+    input: {
+      q: string;
+      scope: SearchScope;
+      limit: number;
+      subjectId?: string;
+    },
+    signal?: AbortSignal,
+  ) {
+    const query = new URLSearchParams({
+      q: input.q,
+      scope: input.scope,
+      limit: String(input.limit),
+    });
+    if (input.subjectId) query.set("subjectId", input.subjectId);
+
+    return this.request<SearchResponse>(`/search?${query.toString()}`, {
+      credential,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  contextualDiscovery(
+    credential: string,
+    input: { subjectLimit: number; resourcesPerSubject: number },
+    signal?: AbortSignal,
+  ) {
+    const query = new URLSearchParams({
+      subjectLimit: String(input.subjectLimit),
+      resourcesPerSubject: String(input.resourcesPerSubject),
+    });
+
+    return this.request<ContextualDiscoveryResponse>(
+      `/discovery/contextual?${query.toString()}`,
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  resource(credential: string, resourceId: string, signal?: AbortSignal) {
+    return this.request<{ resource: ResourceView }>(
+      `/resources/${encodeURIComponent(resourceId)}`,
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  publicProfile(credential: string, profileId: string, signal?: AbortSignal) {
+    return this.request<PublicProfileResponse>(
+      `/profiles/${encodeURIComponent(profileId)}`,
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
   }
 
   setAcademicContext(
