@@ -174,6 +174,17 @@ export function shouldClearCommunityAnswerDraft(
   );
 }
 
+export function communityAnswerDraftConfirmationTransition(
+  previousVisible: boolean,
+  snapshot: CommunityQuestionDetailSnapshot,
+): { visible: boolean; clearDraft: boolean } {
+  const visible = shouldClearCommunityAnswerDraft(snapshot);
+  return {
+    visible,
+    clearDraft: visible && !previousVisible,
+  };
+}
+
 export function isAmbiguousCommunityMutationFailure(
   failure: CommunityFailure,
 ): boolean {

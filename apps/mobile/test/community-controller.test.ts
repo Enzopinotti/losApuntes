@@ -16,6 +16,7 @@ import type { CommunityApi } from "../src/features/community/community-api";
 import {
   captureOwnedQuestionBaseline,
   cancelCommunityComposerSubmission,
+  communityAnswerDraftConfirmationTransition,
   communityQuestionRouteGate,
   normalizeCommunityMutationText,
   MobileCommunityFeedController,
@@ -1034,4 +1035,35 @@ test("transient invalidation retains an indeterminate answer until return reconc
       (candidate) => candidate.id === "committed-after-background",
     ),
   );
+});
+
+
+test("published answer confirmation clears the draft only once across notice-preserving snapshots", () => {
+  const published = {
+    kind: "ready",
+    authorityKey: "authority-a",
+    questionId: "question-a",
+    detail: detail("question-a"),
+    loadingMoreAnswers: false,
+    answersFailure: null,
+    submittingAnswer: false,
+    answerRetryBlocked: false,
+    actionFailure: null,
+    actionFailureCode: null,
+    notice: "Respuesta publicada.",
+    refreshFailure: null,
+  } as const;
+
+  const first = communityAnswerDraftConfirmationTransition(false, published);
+  assert.deepEqual(first, { visible: true, clearDraft: true });
+
+  const loadMoreSnapshot = {
+    ...published,
+    loadingMoreAnswers: true,
+  };
+  const second = communityAnswerDraftConfirmationTransition(
+    first.visible,
+    loadMoreSnapshot,
+  );
+  assert.deepEqual(second, { visible: true, clearDraft: false });
 });

@@ -16,6 +16,7 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 import {
   cancelCommunityComposerSubmission,
   captureOwnedQuestionBaseline,
+  communityAnswerDraftConfirmationTransition,
   communityFailure,
   isAmbiguousCommunityMutationFailure,
   MobileCommunityFeedController,
@@ -405,11 +406,14 @@ export function CommunityQuestionScreen({
   useEffect(() => controller.subscribe(setDetail), [controller]);
 
   useEffect(() => {
-    const confirmed = shouldClearCommunityAnswerDraft(detail);
-    if (confirmed && !answerConfirmationVisibleRef.current) {
+    const transition = communityAnswerDraftConfirmationTransition(
+      answerConfirmationVisibleRef.current,
+      detail,
+    );
+    if (transition.clearDraft) {
       setAnswerBody("");
     }
-    answerConfirmationVisibleRef.current = confirmed;
+    answerConfirmationVisibleRef.current = transition.visible;
   }, [detail]);
 
   useEffect(() => {
