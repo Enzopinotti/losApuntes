@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { readAuthActionToken, scrubAuthActionTokenFromHistory } from "../features/auth/actionTokenLocation";
+import {
+  readAuthActionToken,
+  scrubAuthActionTokenFromHistory,
+} from "../features/auth/actionTokenLocation";
 import { authErrorMessage, isAuthCode } from "../features/auth/authMessages";
 import { authApi } from "../features/auth/services/authService";
 
