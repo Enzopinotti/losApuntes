@@ -60,6 +60,15 @@ assert.deepEqual(ready.body, {
 assert.equal('checks' in ready.body, false);
 assertRequestId(ready.response);
 
+const release = await requestJson('/health/release');
+
+assert.equal(release.response.status, 503);
+assert.deepEqual(release.body, {
+  status: 'unavailable',
+  service: 'api',
+});
+assertRequestId(release.response);
+
 const missing = await requestJson('/__runtime_smoke_missing__');
 
 assert.equal(missing.response.status, 404);
@@ -72,6 +81,6 @@ console.log(
   JSON.stringify({
     event: 'runtime.smoke.ok',
     baseUrl,
-    checks: ['liveness', 'readiness', 'request-id', 'error-envelope'],
+    checks: ['liveness', 'readiness', 'release-identity-fail-closed', 'request-id', 'error-envelope'],
   }),
 );
