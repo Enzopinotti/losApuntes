@@ -16,6 +16,9 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - Merged main SHA:
 - Post-merge workflow/run:
 - Build/image identifier or digest:
+- API observable release endpoint: `/health/release`
+- API observed release identifier:
+- API observed source SHA:
 - Deployment timestamp/window:
 
 ## Planning traceability
@@ -123,5 +126,6 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - every CI/run reference must belong to the exact SHA it claims to verify;
 - local smoke does not replace provider/production evidence;
 - a deployment is not launch-ready while any required field is unknown or any high/critical blocker remains open;
+- API release observation is valid only when `/health/release` returns `status=available` with the deployment-provided release identifier and exact 40-character source SHA; a 503/unavailable response is an explicit blocker, not evidence to replace manually;
 - a data-sensitive/destructive release with existing durable data requires a recent verified recovery point; only a genuinely empty first install may record recovery as N/A;
 - keep the project Excel reconciled with this record rather than creating a second planning backlog here.
