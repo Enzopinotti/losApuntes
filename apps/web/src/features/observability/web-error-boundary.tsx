@@ -1,4 +1,4 @@
-import type { CSSProperties, ErrorInfo, ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Component } from "react";
 
 type WebErrorBoundaryProps = {
@@ -20,7 +20,7 @@ export class WebErrorBoundary extends Component<
     return { failed: true };
   }
 
-  override componentDidCatch(error: Error, _errorInfo: ErrorInfo): void {
+  override componentDidCatch(error: Error): void {
     try {
       this.props.onError(error);
     } catch {
