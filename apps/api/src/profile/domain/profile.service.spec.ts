@@ -1,11 +1,16 @@
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 
 import type { AcademicService } from '../../academic/domain/academic.service';
-import { ProfileAlreadyExistsError, type ProfileStore } from './profile.store';
+import {
+  ProfileAccountInactiveError,
+  ProfileAlreadyExistsError,
+  type ProfileStore,
+} from './profile.store';
 import { ProfileService } from './profile.service';
 import type { ProfileActivityRecord, ProfileRecord } from './profile.types';
 
@@ -306,6 +311,20 @@ describe('ProfileService', () => {
         displayName: 'Enzo',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('fails closed when account closure wins first-profile creation', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.createProfile.mockRejectedValue(
+      new ProfileAccountInactiveError(),
+    );
+
+    await expect(
+      service(profileStore, academicService).createProfile('user-1', {
+        displayName: 'Enzo',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('composes owner academic state without duplicating it in profile storage', async () => {
