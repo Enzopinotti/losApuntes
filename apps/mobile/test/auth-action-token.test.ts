@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  captureEmailVerificationLink,
+  captureAuthActionLink,
   parseAuthActionLink,
 } from "../src/features/auth/auth-deep-link";
 import { createAuthActionTokenVault } from "../src/features/auth/action-token-vault";
@@ -49,9 +49,9 @@ test("vault refuses purpose confusion and expires tokens in memory", () => {
   );
 });
 
-test("native email-verification links become routes with only an opaque handle", () => {
+test("native verification links route with only an opaque handle", () => {
   const vault = createAuthActionTokenVault();
-  const rewritten = captureEmailVerificationLink(
+  const rewritten = captureAuthActionLink(
     `losapuntes://verify-email?token=${TOKEN}`,
     vault,
   );
@@ -59,10 +59,6 @@ test("native email-verification links become routes with only an opaque handle",
   assert.ok(rewritten);
   assert.match(rewritten, /^\/verify-email\?handle=auth-[0-9]+-[0-9]+$/u);
   assert.equal(rewritten.includes(TOKEN), false);
-  assert.equal(
-    captureEmailVerificationLink("/verify-email?token=bad", vault),
-    "/sign-in?notice=invalid-action-link",
-  );
 
   const handle = new URL(rewritten, "https://mobile.invalid").searchParams.get(
     "handle",
@@ -71,17 +67,34 @@ test("native email-verification links become routes with only an opaque handle",
   assert.equal(vault.take(handle, "email_verification"), TOKEN);
 });
 
-test("unsupported recovery links are consumed by routing without exposing their token", () => {
+test("native recovery links route with only an opaque purpose-bound handle", () => {
   const vault = createAuthActionTokenVault();
-  const rewritten = captureEmailVerificationLink(
+  const rewritten = captureAuthActionLink(
     `losapuntes://recover-password?token=${TOKEN}`,
     vault,
   );
 
-  assert.equal(rewritten, "/sign-in?notice=recovery-unavailable");
-  assert.equal(rewritten?.includes(TOKEN), false);
+  assert.ok(rewritten);
+  assert.match(rewritten, /^\/reset-password\?handle=auth-[0-9]+-[0-9]+$/u);
+  assert.equal(rewritten.includes(TOKEN), false);
+
+  const handle = new URL(rewritten, "https://mobile.invalid").searchParams.get(
+    "handle",
+  );
+  assert.ok(handle);
+  assert.equal(vault.take(handle, "email_verification"), null);
+  assert.equal(vault.take(handle, "password_recovery"), TOKEN);
+});
+
+test("invalid action tokens become a token-free error route", () => {
+  const vault = createAuthActionTokenVault();
+
   assert.equal(
-    captureEmailVerificationLink(`https://evil.example/?token=${TOKEN}`, vault),
+    captureAuthActionLink("/verify-email?token=bad", vault),
+    "/sign-in?notice=invalid-action-link",
+  );
+  assert.equal(
+    captureAuthActionLink(`https://evil.example/?token=${TOKEN}`, vault),
     null,
   );
 });
