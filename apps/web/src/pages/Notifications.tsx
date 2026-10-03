@@ -9,6 +9,7 @@ import {
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
 
+const NOTIFICATION_PAGE_SIZE = 50;
 const NOTIFICATION_RECONCILE_INTERVAL_MS = 30_000;
 
 const labels: Record<NotificationView["type"], string> = {
@@ -35,6 +36,8 @@ const Notifications = () => {
   const { status, user, session } = useAuth();
   const [items, setItems] = useState<NotificationView[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadedPages, setLoadedPages] = useState(1);
+  const [reconcileTick, setReconcileTick] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -46,13 +49,12 @@ const Notifications = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const listScope = `notifications:${authorityScope}:${String(unreadOnly)}`;
   const {
     begin: beginListRequest,
     isCurrent: isListRequestCurrent,
     finish: finishListRequest,
-  } = useAsyncAuthorityFence(
-    `notifications:${authorityScope}:${String(unreadOnly)}`,
-  );
+  } = useAsyncAuthorityFence(listScope);
   const {
     begin: beginActionRequest,
     isCurrent: isActionRequestCurrent,
@@ -61,54 +63,128 @@ const Notifications = () => {
 
   const busy = loadingMore || actionBusy;
 
-  const load = useCallback(
-    async (cursor?: string, append = false, silent = false) => {
-      const ticket = beginListRequest();
+  const loadFirstPage = useCallback(async () => {
+    const ticket = beginListRequest();
+    setLoading(true);
+    setLoadingMore(false);
+    setError(null);
 
-      if (append) {
-        setLoadingMore(true);
-      } else if (!silent) {
-        setLoading(true);
-      }
-      if (!silent) setError(null);
+    try {
+      const result = await communityApi.notifications(
+        {
+          unreadOnly,
+          limit: NOTIFICATION_PAGE_SIZE,
+        },
+        ticket.signal,
+      );
+      if (!isListRequestCurrent(ticket)) return;
+
+      setItems(result.items);
+      setNextCursor(result.nextCursor);
+      setLoadedPages(1);
+      setError(null);
+    } catch (nextError) {
+      if (!isListRequestCurrent(ticket)) return;
+      setError(messageFor(nextError, "No pudimos cargar tus notificaciones."));
+    } finally {
+      if (finishListRequest(ticket)) setLoading(false);
+    }
+  }, [
+    beginListRequest,
+    finishListRequest,
+    isListRequestCurrent,
+    unreadOnly,
+  ]);
+
+  const loadMore = useCallback(
+    async (cursor: string) => {
+      const ticket = beginListRequest();
+      setLoadingMore(true);
+      setError(null);
 
       try {
         const result = await communityApi.notifications(
           {
             unreadOnly,
             cursor,
-            limit: 50,
+            limit: NOTIFICATION_PAGE_SIZE,
           },
           ticket.signal,
         );
         if (!isListRequestCurrent(ticket)) return;
 
-        setItems((current) =>
-          append ? [...current, ...result.items] : result.items,
-        );
+        setItems((current) => [...current, ...result.items]);
         setNextCursor(result.nextCursor);
-        setError(null);
+        setLoadedPages((current) => current + 1);
       } catch (nextError) {
-        if (!isListRequestCurrent(ticket) || silent) return;
-        setError(
-          messageFor(nextError, "No pudimos cargar tus notificaciones."),
-        );
+        if (!isListRequestCurrent(ticket)) return;
+        setError(messageFor(nextError, "No pudimos cargar tus notificaciones."));
       } finally {
-        if (!finishListRequest(ticket)) return;
-        if (append) {
-          setLoadingMore(false);
-        } else if (!silent) {
-          setLoading(false);
-        }
+        if (finishListRequest(ticket)) setLoadingMore(false);
       }
     },
-    [beginListRequest, finishListRequest, isListRequestCurrent, unreadOnly],
+    [
+      beginListRequest,
+      finishListRequest,
+      isListRequestCurrent,
+      unreadOnly,
+    ],
   );
 
+  const reconcileLoadedWindow = useCallback(async () => {
+    const ticket = beginListRequest();
+    const reconciled: NotificationView[] = [];
+    let cursor: string | undefined;
+    let finalCursor: string | null = null;
+
+    try {
+      for (let page = 0; page < loadedPages; page += 1) {
+        const result = await communityApi.notifications(
+          {
+            unreadOnly,
+            cursor,
+            limit: NOTIFICATION_PAGE_SIZE,
+          },
+          ticket.signal,
+        );
+        if (!isListRequestCurrent(ticket)) return;
+
+        reconciled.push(...result.items);
+        finalCursor = result.nextCursor;
+        if (!result.nextCursor) break;
+        cursor = result.nextCursor;
+      }
+
+      if (!isListRequestCurrent(ticket)) return;
+      setItems(reconciled);
+      setNextCursor(finalCursor);
+      setError(null);
+    } catch {
+      // Background reconciliation is best-effort; visible state remains usable.
+    } finally {
+      finishListRequest(ticket);
+    }
+  }, [
+    beginListRequest,
+    finishListRequest,
+    isListRequestCurrent,
+    loadedPages,
+    unreadOnly,
+  ]);
+
   useEffect(() => {
+    void loadFirstPage();
+  }, [loadFirstPage]);
+
+  useEffect(() => {
+    setActionBusy(false);
     setLoadingMore(false);
-    void load();
-  }, [load]);
+  }, [authorityScope]);
+
+  useEffect(() => {
+    if (reconcileTick === 0 || status !== "authenticated") return;
+    void reconcileLoadedWindow();
+  }, [reconcileLoadedWindow, reconcileTick, status]);
 
   useEffect(() => {
     if (status !== "authenticated" || busy || loading) return;
@@ -123,7 +199,7 @@ const Notifications = () => {
 
     const reconcile = () => {
       if (document.visibilityState !== "visible") return;
-      void load(undefined, false, true);
+      void reconcileLoadedWindow();
     };
 
     const startPolling = () => {
@@ -158,7 +234,7 @@ const Notifications = () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [busy, load, loading, status]);
+  }, [busy, loading, reconcileLoadedWindow, status]);
 
   const markRead = async (id: string) => {
     const ticket = beginActionRequest();
@@ -168,7 +244,7 @@ const Notifications = () => {
     try {
       await communityApi.markNotificationRead(id);
       if (!isActionRequestCurrent(ticket)) return;
-      await load(undefined, false, true);
+      setReconcileTick((current) => current + 1);
     } catch (nextError) {
       if (!isActionRequestCurrent(ticket)) return;
       setError(messageFor(nextError, "No pudimos marcar la notificación."));
@@ -185,7 +261,7 @@ const Notifications = () => {
     try {
       await communityApi.markAllNotificationsRead();
       if (!isActionRequestCurrent(ticket)) return;
-      await load(undefined, false, true);
+      setReconcileTick((current) => current + 1);
     } catch (nextError) {
       if (!isActionRequestCurrent(ticket)) return;
       setError(
@@ -266,7 +342,7 @@ const Notifications = () => {
                 type="button"
                 className="secondary"
                 disabled={busy}
-                onClick={() => void load(nextCursor, true)}
+                onClick={() => void loadMore(nextCursor)}
               >
                 {loadingMore ? "Cargando…" : "Cargar más"}
               </button>
