@@ -7,7 +7,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "format:check": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" && git diff --no-ext-diff --unified=3 -- src/auth/lifecycle/auth-lifecycle.service.spec.ts src/auth/lifecycle/auth-lifecycle.service.ts src/data-lifecycle/domain/account-lifecycle.service.spec.ts src/data-lifecycle/domain/account-lifecycle.types.ts src/data-lifecycle/mongo/data-lifecycle.mongo-schemas.ts src/data-lifecycle/mongo/mongo-account-lifecycle.store.spec.ts src/data-lifecycle/mongo/mongo-account-lifecycle.store.ts src/organizations/domain/organization.service.ts && exit 1",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
