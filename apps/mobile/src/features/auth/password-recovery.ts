@@ -127,25 +127,17 @@ export class PasswordRecoveryController {
       return;
     }
 
-    const generation = this.generation;
-    const controller = new AbortController();
-    this.activeRequest = controller;
-    this.publish({ kind: "checking" });
+    this.token = token;
+    await this.inspectCurrentToken();
+  }
 
-    try {
-      await this.api.inspectPasswordRecovery({ token }, controller.signal);
-      if (generation !== this.generation) return;
-
-      this.activeRequest = null;
-      this.token = token;
-      this.publish({ kind: "ready" });
-    } catch (error) {
-      if (generation !== this.generation) return;
-
-      this.activeRequest = null;
-      this.clearToken();
-      this.publish({ kind: "failed", failure: failureFrom(error) });
+  async retryInspect(): Promise<void> {
+    if (!this.token) {
+      this.publish({ kind: "failed", failure: "invalid_link" });
+      return;
     }
+
+    await this.inspectCurrentToken();
   }
 
   async complete(newPassword: string): Promise<void> {
@@ -198,6 +190,42 @@ export class PasswordRecoveryController {
     this.cancelActiveRequest();
     this.clearToken();
     this.listeners.clear();
+  }
+
+  private async inspectCurrentToken(): Promise<void> {
+    const token = this.token;
+    if (!token) {
+      this.publish({ kind: "failed", failure: "invalid_link" });
+      return;
+    }
+
+    this.cancelActiveRequest();
+    const generation = this.generation;
+    const controller = new AbortController();
+    this.activeRequest = controller;
+    this.publish({ kind: "checking" });
+
+    try {
+      await this.api.inspectPasswordRecovery({ token }, controller.signal);
+      if (generation !== this.generation) return;
+
+      this.activeRequest = null;
+      this.token = token;
+      this.publish({ kind: "ready" });
+    } catch (error) {
+      if (generation !== this.generation) return;
+
+      this.activeRequest = null;
+      const failure = failureFrom(error);
+
+      if (failure === "invalid_link") {
+        this.clearToken();
+      } else {
+        this.token = token;
+      }
+
+      this.publish({ kind: "failed", failure });
+    }
   }
 
   private cancelActiveRequest(): void {
