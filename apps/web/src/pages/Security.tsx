@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import {
@@ -12,6 +12,7 @@ import type {
 } from "../features/auth/interfaces";
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import { authApi } from "../features/auth/services/authService";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 
 const googleCallbackMessages: Record<string, string> = {
   linked: "Google quedó conectado como método para iniciar sesión.",
@@ -34,6 +35,8 @@ const Security = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | undefined>();
+  const [revokeAllConfirmOpen, setRevokeAllConfirmOpen] = useState(false);
+  const revokeAllButtonRef = useRef<HTMLButtonElement>(null);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -148,10 +151,6 @@ const Security = () => {
   };
 
   const revokeAll = async () => {
-    if (!window.confirm("¿Cerrar todas las sesiones, incluida esta?")) {
-      return;
-    }
-
     setBusyAction("all-sessions");
     setError(null);
     setFeedback(null);
@@ -235,6 +234,19 @@ const Security = () => {
           {requestId && <small>Referencia para soporte: {requestId}</small>}
         </div>
       )}
+
+      <ConfirmDialog
+        open={revokeAllConfirmOpen}
+        title="Cerrar todas las sesiones"
+        description="Se cerrará esta sesión y cualquier otra sesión activa de tu cuenta. Vas a tener que iniciar sesión de nuevo."
+        confirmLabel="Cerrar todas las sesiones"
+        onCancel={() => setRevokeAllConfirmOpen(false)}
+        onConfirm={() => {
+          setRevokeAllConfirmOpen(false);
+          void revokeAll();
+        }}
+        returnFocusRef={revokeAllButtonRef}
+      />
 
       {loading ? (
         <p role="status">Cargando seguridad…</p>
@@ -347,9 +359,10 @@ const Security = () => {
             )}
 
             <button
+              ref={revokeAllButtonRef}
               type="button"
               disabled={busyAction === "all-sessions"}
-              onClick={() => void revokeAll()}
+              onClick={() => setRevokeAllConfirmOpen(true)}
             >
               Cerrar todas las sesiones
             </button>
