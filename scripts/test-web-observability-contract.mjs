@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import {
   configureWebDiagnosticSink,
@@ -25,26 +26,14 @@ assert.equal(
   "/:segment/:segment/:segment",
 );
 
-assert.equal(
-  normalizeWebDiagnosticSurface("/login"),
-  "/login",
-);
-assert.equal(
-  normalizeWebDiagnosticSurface("/dashboard"),
-  "/dashboard",
-);
-assert.equal(
-  normalizeWebDiagnosticSurface("/notifications"),
-  "/notifications",
-);
+assert.equal(normalizeWebDiagnosticSurface("/login"), "/login");
+assert.equal(normalizeWebDiagnosticSurface("/dashboard"), "/dashboard");
+assert.equal(normalizeWebDiagnosticSurface("/notifications"), "/notifications");
 assert.equal(
   normalizeWebDiagnosticSurface("/organizations/org-secret/manage"),
   "/organizations/:id/manage",
 );
-assert.equal(
-  normalizeWebDiagnosticSurface("/p/private-profile-id"),
-  "/p/:id",
-);
+assert.equal(normalizeWebDiagnosticSurface("/p/private-profile-id"), "/p/:id");
 
 const error = new TypeError("token=opaque-secret-value user@example.test");
 error.stack = [
@@ -71,6 +60,15 @@ assert.equal(serialized.includes("Leonardo"), false);
 assert.equal(serialized.includes("/Users/person"), false);
 assert.equal(serialized.includes("signature"), false);
 assert.equal(serialized.includes("secret-id"), false);
+
+const unsafeMetadata = createWebDiagnosticEnvelope(new Error("private"), {
+  appVersion: "1.2.3-enzo",
+  build: "release-person-name",
+  revision: null,
+  surface: "/",
+});
+assert.equal(unsafeMetadata.appVersion, null);
+assert.equal(unsafeMetadata.build, null);
 
 const first = createWebDiagnosticEnvelope(new Error("private one"), {
   appVersion: "0.1.0",
@@ -164,12 +162,43 @@ const cleanup = installWebGlobalDiagnosticHandlers(target, (value) => {
 
 listeners.get("error")?.({ error: new TypeError("boom") });
 listeners.get("unhandledrejection")?.({ reason: new RangeError("rejected") });
+const prevented = [];
+listeners.get("error")?.({
+  error: new TypeError("raw private error"),
+  preventDefault() {
+    prevented.push("error");
+  },
+});
+listeners.get("unhandledrejection")?.({
+  reason: new RangeError("raw private rejection"),
+  preventDefault() {
+    prevented.push("unhandledrejection");
+  },
+});
 assert.deepEqual(
   reported.map((value) => value.name),
-  ["TypeError", "RangeError"],
+  ["TypeError", "RangeError", "TypeError", "RangeError"],
 );
+assert.deepEqual(prevented, ["error", "unhandledrejection"]);
 
 cleanup();
 assert.equal(listeners.size, 0);
+
+const main = await readFile(
+  new URL("../apps/web/src/main.tsx", import.meta.url),
+  "utf8",
+);
+const boundary = await readFile(
+  new URL(
+    "../apps/web/src/features/observability/web-error-boundary.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+assert.match(main, /onCaughtError:\s*\(\)\s*=>/u);
+assert.match(main, /onRecoverableError:\s*reportWebRuntimeDiagnostic/u);
+assert.match(main, /onUncaughtError:\s*reportWebRuntimeDiagnostic/u);
+assert.match(boundary, /role="alert"/u);
+assert.match(boundary, /window\.location\.reload\(\)/u);
 
 console.log("PASS Web observability privacy/recovery contract");

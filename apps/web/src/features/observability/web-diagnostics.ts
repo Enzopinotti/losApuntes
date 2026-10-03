@@ -89,10 +89,18 @@ function clamp(value: string, maximum: number): string {
   return value.length <= maximum ? value : value.slice(0, maximum);
 }
 
-function safeMetadata(value: string | null): string | null {
+function safeAppVersion(value: string | null): string | null {
   if (!value) return null;
-  const safe = value.trim().replace(/[^A-Za-z0-9._-]+/gu, "-");
-  return safe ? clamp(safe, WEB_DIAGNOSTIC_LIMITS.metadata) : null;
+  const version = value.trim();
+  return /^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?(?:\+\d+)?$/u.test(version)
+    ? clamp(version, WEB_DIAGNOSTIC_LIMITS.metadata)
+    : null;
+}
+
+function safeBuild(value: string | null): string | null {
+  if (!value) return null;
+  const build = value.trim();
+  return /^(?:\d[\d.]{0,39}|web-\d{1,20})$/u.test(build) ? build : null;
 }
 
 function safeRevision(value: string | null): string | null {
@@ -173,15 +181,24 @@ export function createWebDiagnosticEnvelope(
 
   return Object.freeze({
     platform: "web",
-    appVersion: safeMetadata(context.appVersion),
-    build: safeMetadata(context.build),
+    appVersion: safeAppVersion(context.appVersion),
+    build: safeBuild(context.build),
     revision: safeRevision(context.revision),
     surface,
     errorClass,
     fingerprint: fnv1a(`${errorClass}|${surface}`),
     stack: null,
-    timestamp: (context.now?.() ?? new Date()).toISOString(),
+    timestamp: safeTimestamp(context.now),
   });
+}
+
+function safeTimestamp(now?: () => Date): string {
+  try {
+    const value = now?.() ?? new Date();
+    return Date.prototype.toISOString.call(value);
+  } catch {
+    return new Date().toISOString();
+  }
 }
 
 const defaultWebDiagnosticSink: WebDiagnosticSink = (envelope) => {
@@ -226,6 +243,12 @@ export function installWebGlobalDiagnosticHandlers(
       report(errorEvent.error ?? new Error());
     } catch {
       // Reporting failures must not interfere with the browser error lifecycle.
+    } finally {
+      try {
+        event.preventDefault();
+      } catch {
+        // Ignore malformed or non-cancelable events.
+      }
     }
   };
 
@@ -235,6 +258,12 @@ export function installWebGlobalDiagnosticHandlers(
       report(rejectionEvent.reason);
     } catch {
       // Reporting failures must not interfere with the browser rejection lifecycle.
+    } finally {
+      try {
+        event.preventDefault();
+      } catch {
+        // Ignore malformed or non-cancelable events.
+      }
     }
   };
 

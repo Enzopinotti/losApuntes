@@ -29,14 +29,14 @@ export class WebErrorBoundary extends Component<
   }
 
   private readonly retry = (): void => {
-    this.setState({ failed: false });
+    window.location.reload();
   };
 
   override render() {
     if (!this.state.failed) return this.props.children;
 
     return (
-      <main style={styles.container}>
+      <main role="alert" style={styles.container}>
         <section aria-labelledby="web-recovery-title" style={styles.card}>
           <h1 id="web-recovery-title" style={styles.title}>
             Los Apuntes encontró un problema

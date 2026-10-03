@@ -16,9 +16,13 @@ The v1 envelope deliberately emits `stack: null`. Raw error messages, component 
 
 ## Recovery behavior
 
-`WebErrorBoundary` catches render failures and keeps a usable retry surface even when the diagnostic sink itself fails. Global `error` and `unhandledrejection` handlers report through the same envelope and never call `preventDefault`, replace browser error handling, or convert expected feature/network failures into authority.
+`WebErrorBoundary` catches render failures and keeps a usable recovery surface even when the diagnostic sink itself fails. Its action reloads the page so a failed render tree is not reused. React root callbacks replace default raw error logging with the safe envelope; caught render errors are reported by the boundary exactly once. Global `error` and `unhandledrejection` handlers report through the same envelope and cancel only the browser's default raw console serialization; they do not stop propagation or change application execution. Feature/network failures handled by the application are not intercepted by these global hooks.
+
+Version and build metadata fail closed unless they match a public numeric semantic version (with only the `alpha`, `beta` or `rc` prerelease labels), numeric build identifier, or `web-<number>` build label. Arbitrary sanitized strings could still carry user or token material, so character replacement alone is not accepted as redaction.
 
 No external provider is selected in this carrier. The sink can be replaced later only behind the same envelope contract.
+
+V1 does not retry diagnostic delivery. Asynchronous sink failures are swallowed, so a failing endpoint cannot amplify an error into a retry storm; any future provider adapter must add its own bounded dedupe/rate policy.
 
 ## Release metadata
 
