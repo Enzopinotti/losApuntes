@@ -39,8 +39,9 @@ export class AccountOffboardingJob {
   updatedAt!: Date;
 }
 
-export const AccountOffboardingJobSchema =
-  SchemaFactory.createForClass(AccountOffboardingJob);
+export const AccountOffboardingJobSchema = SchemaFactory.createForClass(
+  AccountOffboardingJob,
+);
 AccountOffboardingJobSchema.index({
   state: 1,
   nextAttemptAt: 1,

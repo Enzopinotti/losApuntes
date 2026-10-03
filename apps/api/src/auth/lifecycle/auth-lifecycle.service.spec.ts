@@ -341,10 +341,7 @@ describe('AuthLifecycleService', () => {
       userDocument(null, 4, 'closed'),
     );
     await expect(
-      verification.service.inspectEmailVerification(
-        VERIFICATION_TOKEN,
-        NOW,
-      ),
+      verification.service.inspectEmailVerification(VERIFICATION_TOKEN, NOW),
     ).resolves.toBe(false);
 
     const recovery = createHarness();

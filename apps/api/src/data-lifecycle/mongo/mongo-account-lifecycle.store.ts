@@ -11,7 +11,10 @@ import type {
   AccountClosureManagerBlocker,
   AccountOffboardingJobRecord,
 } from '../domain/account-lifecycle.types';
-import { AccountOffboardingJob, SecurityAudit } from './data-lifecycle.mongo-schemas';
+import {
+  AccountOffboardingJob,
+  SecurityAudit,
+} from './data-lifecycle.mongo-schemas';
 
 function credentialVersionClause(expected: number): Record<string, unknown> {
   return expected === 1
@@ -25,10 +28,7 @@ function credentialVersionClause(expected: number): Record<string, unknown> {
 }
 
 const ACTIVE_ACCOUNT_CLAUSE: FilterQuery<User> = {
-  $or: [
-    { account_status: 'active' },
-    { account_status: { $exists: false } },
-  ],
+  $or: [{ account_status: 'active' }, { account_status: { $exists: false } }],
 };
 
 @Injectable()
@@ -74,8 +74,9 @@ export class MongoAccountLifecycleStore implements AccountLifecycleStore {
     const session = await this.connection.startSession();
 
     try {
-      let result: Awaited<ReturnType<AccountLifecycleStore['closeAccount']>> =
-        { status: 'revision_conflict' };
+      let result: Awaited<ReturnType<AccountLifecycleStore['closeAccount']>> = {
+        status: 'revision_conflict',
+      };
 
       await session.withTransaction(async () => {
         const manager = await this.managers

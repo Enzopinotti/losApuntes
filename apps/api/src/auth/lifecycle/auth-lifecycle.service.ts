@@ -74,9 +74,7 @@ export class AuthLifecycleService {
 
     if (availableAction) {
       const user = await this.users.findById(availableAction.userId);
-      return Boolean(
-        user && !isAccountClosed(user) && !isEmailVerified(user),
-      );
+      return Boolean(user && !isAccountClosed(user) && !isEmailVerified(user));
     }
 
     const claimedAction = await this.actionTokens.findClaimed(
@@ -199,8 +197,8 @@ export class AuthLifecycleService {
     const user = await this.users.findById(action.userId);
     return Boolean(
       user &&
-        !isAccountClosed(user) &&
-        credentialVersion(user) === action.credentialVersion,
+      !isAccountClosed(user) &&
+      credentialVersion(user) === action.credentialVersion,
     );
   }
 

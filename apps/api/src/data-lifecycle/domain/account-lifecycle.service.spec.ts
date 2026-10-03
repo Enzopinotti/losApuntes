@@ -9,9 +9,15 @@ const now = new Date('2026-10-01T23:00:00.000Z');
 
 function deps() {
   const users = { findById: jest.fn() } as unknown as jest.Mocked<UsersService>;
-  const passwords = { verify: jest.fn() } as unknown as jest.Mocked<PasswordService>;
-  const sessions = { revokeAll: jest.fn() } as unknown as jest.Mocked<AuthSessionService>;
-  const actionTokens = { invalidateAll: jest.fn() } as unknown as jest.Mocked<AuthActionTokenService>;
+  const passwords = {
+    verify: jest.fn(),
+  } as unknown as jest.Mocked<PasswordService>;
+  const sessions = {
+    revokeAll: jest.fn(),
+  } as unknown as jest.Mocked<AuthSessionService>;
+  const actionTokens = {
+    invalidateAll: jest.fn(),
+  } as unknown as jest.Mocked<AuthActionTokenService>;
   const store = {
     listManagementBlockers: jest.fn(),
     closeAccount: jest.fn(),
@@ -65,12 +71,16 @@ describe('AccountLifecycleService', () => {
 
   it('fails closed when destructive reauthentication is unsupported', async () => {
     const d = deps();
-    d.users.findById.mockResolvedValue(activeUser({ password_hash: undefined }));
+    d.users.findById.mockResolvedValue(
+      activeUser({ password_hash: undefined }),
+    );
 
-    await expect(service(d).close('user-1', 4, 'secret', now)).resolves.toEqual({
-      kind: 'reauthentication_unavailable',
-    });
-    expect(d.store.closeAccount).not.toHaveBeenCalled();
+    await expect(service(d).close('user-1', 4, 'secret', now)).resolves.toEqual(
+      {
+        kind: 'reauthentication_unavailable',
+      },
+    );
+    expect(d.store.closeAccount.mock.calls).toHaveLength(0);
   });
 
   it('requires the current password before committing closure', async () => {
@@ -81,7 +91,7 @@ describe('AccountLifecycleService', () => {
     await expect(service(d).close('user-1', 4, 'wrong', now)).resolves.toEqual({
       kind: 'invalid_current_password',
     });
-    expect(d.store.closeAccount).not.toHaveBeenCalled();
+    expect(d.store.closeAccount.mock.calls).toHaveLength(0);
   });
 
   it('maps management blockers without partially closing authority', async () => {
@@ -90,34 +100,39 @@ describe('AccountLifecycleService', () => {
     d.passwords.verify.mockResolvedValue(true);
     d.store.closeAccount.mockResolvedValue({ status: 'manager_blocked' });
 
-    await expect(service(d).close('user-1', 4, 'secret', now)).resolves.toEqual({
-      kind: 'management_blocked',
-    });
+    await expect(service(d).close('user-1', 4, 'secret', now)).resolves.toEqual(
+      {
+        kind: 'management_blocked',
+      },
+    );
   });
 
   it('accepts transactional closure and returns its durable cleanup job id', async () => {
     const d = deps();
     d.users.findById.mockResolvedValue(activeUser());
     d.passwords.verify.mockResolvedValue(true);
-    d.store.closeAccount.mockImplementation(async (input) => ({
-      status: 'closed',
-      cleanupJobId: input.cleanupJobId,
-    }));
+    d.store.closeAccount.mockImplementation((input) =>
+      Promise.resolve({
+        status: 'closed',
+        cleanupJobId: input.cleanupJobId,
+      }),
+    );
 
     const result = await service(d).close('user-1', 4, 'secret', now);
-    expect(result).toEqual({
-      kind: 'accepted',
-      cleanupJobId: expect.any(String),
-    });
-    expect(d.store.closeAccount).toHaveBeenCalledWith(
+    expect(result.kind).toBe('accepted');
+    if (result.kind !== 'accepted')
+      throw new Error('Expected closure to succeed');
+    expect(typeof result.cleanupJobId).toBe('string');
+    const closeCall = d.store.closeAccount.mock.calls[0]?.[0];
+    expect(closeCall).toEqual(
       expect.objectContaining({
         userId: 'user-1',
         expectedCredentialVersion: 4,
         now,
-        auditId: expect.any(String),
-        cleanupJobId: expect.any(String),
       }),
     );
+    expect(typeof closeCall?.auditId).toBe('string');
+    expect(typeof closeCall?.cleanupJobId).toBe('string');
   });
 
   it('retries cleanup idempotently without reopening account authority', async () => {

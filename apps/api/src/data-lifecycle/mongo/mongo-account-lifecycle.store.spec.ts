@@ -20,11 +20,13 @@ function listQuery<T>(value: T) {
   };
 }
 
-function fixture(input: {
-  manager?: unknown;
-  user?: unknown;
-  managers?: unknown[];
-} = {}) {
+function fixture(
+  input: {
+    manager?: unknown;
+    user?: unknown;
+    managers?: unknown[];
+  } = {},
+) {
   const activeSession = {
     withTransaction: jest.fn(async (callback: () => Promise<void>) =>
       callback(),

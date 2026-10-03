@@ -13,10 +13,7 @@ export type AccountClosureStoreResult =
   | { status: 'revision_conflict' };
 
 export type AccountOffboardingJobState =
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'failed';
+  'pending' | 'processing' | 'completed' | 'failed';
 
 export type AccountOffboardingJobRecord = {
   id: string;
