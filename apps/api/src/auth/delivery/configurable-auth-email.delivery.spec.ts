@@ -107,9 +107,9 @@ describe('ConfigurableAuthEmailDelivery', () => {
     expect(browserLink.origin).toBe('https://app.example.test');
     expect(browserLink.pathname).toBe('/auth/reset-password');
     expect(browserLink.search).toBe('');
-    expect(
-      new URLSearchParams(browserLink.hash.slice(1)).get('token'),
-    ).toBe(token);
+    expect(new URLSearchParams(browserLink.hash.slice(1)).get('token')).toBe(
+      token,
+    );
     expect(message.html).toContain('Cambiar contraseña en la app móvil');
     expect(message.html).toContain('recuperá el acceso desde el navegador');
   });
