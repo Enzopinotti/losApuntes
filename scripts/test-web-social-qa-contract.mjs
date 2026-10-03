@@ -62,6 +62,15 @@ assert.match(notifications, /window\.setInterval/u);
 assert.match(notifications, /visibilitychange/u);
 assert.match(notifications, /ticket\.signal/u);
 assert.match(notifications, /session\?\.id/u);
+assert.match(notifications, /loadedPages/u);
+assert.match(notifications, /reconcileLoadedWindow/u);
+assert.match(notifications, /setReconcileTick/u);
+assert.match(notifications, /setActionBusy\(false\)/u);
+assert.doesNotMatch(
+  notifications,
+  /await\s+load\(undefined,\s*false,\s*true\)/u,
+  'stale mutation continuations must not invoke a captured list loader',
+);
 assert.doesNotMatch(notifications, /localStorage|sessionStorage/u);
 
 const communityService = await read(
