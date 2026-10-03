@@ -28,7 +28,14 @@ export type SecuritySnapshot =
       feedback: string | null;
       failure: SecurityFailure | null;
     }
-  | { kind: "signed_out" }
+  | {
+      kind: "signed_out";
+      reason:
+        | "current_session_revoked"
+        | "all_sessions_revoked"
+        | "password_changed"
+        | "authority_lost";
+    }
   | { kind: "failed"; failure: SecurityFailure };
 
 export interface MobileSecurityApi {
@@ -114,7 +121,10 @@ export class MobileSecurityController {
 
       this.activeRequest = null;
       if (target.current) {
-        this.publish({ kind: "signed_out" });
+        this.publish({
+          kind: "signed_out",
+          reason: "current_session_revoked",
+        });
         return;
       }
 
@@ -128,7 +138,7 @@ export class MobileSecurityController {
       this.activeRequest = null;
       const failure = failureFrom(error);
       if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out" });
+        this.publish({ kind: "signed_out", reason: "authority_lost" });
         return;
       }
 
@@ -158,14 +168,17 @@ export class MobileSecurityController {
       if (!this.isCurrent(operation.generation)) return;
 
       this.activeRequest = null;
-      this.publish({ kind: "signed_out" });
+      this.publish({
+        kind: "signed_out",
+        reason: "all_sessions_revoked",
+      });
     } catch (error) {
       if (!this.isCurrent(operation.generation)) return;
 
       this.activeRequest = null;
       const failure = failureFrom(error);
       if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out" });
+        this.publish({ kind: "signed_out", reason: "authority_lost" });
         return;
       }
 
@@ -195,14 +208,17 @@ export class MobileSecurityController {
       if (!this.isCurrent(operation.generation)) return;
 
       this.activeRequest = null;
-      this.publish({ kind: "signed_out" });
+      this.publish({
+        kind: "signed_out",
+        reason: "password_changed",
+      });
     } catch (error) {
       if (!this.isCurrent(operation.generation)) return;
 
       this.activeRequest = null;
       const failure = failureFrom(error);
       if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out" });
+        this.publish({ kind: "signed_out", reason: "authority_lost" });
         return;
       }
 
@@ -254,7 +270,7 @@ export class MobileSecurityController {
       this.activeRequest = null;
       const failure = failureFrom(error);
       if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out" });
+        this.publish({ kind: "signed_out", reason: "authority_lost" });
         return;
       }
 
