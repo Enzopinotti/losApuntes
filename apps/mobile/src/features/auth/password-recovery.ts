@@ -16,10 +16,15 @@ export type PasswordRecoveryFailure =
   | "server_unavailable"
   | "rejected";
 
+export type PasswordRecoveryRetryableFailure = Exclude<
+  PasswordRecoveryFailure,
+  "invalid_link"
+>;
+
 export type PasswordRecoverySnapshot =
   | { kind: "idle" }
   | { kind: "checking" }
-  | { kind: "ready" }
+  | { kind: "ready"; failure?: PasswordRecoveryRetryableFailure }
   | { kind: "submitting" }
   | { kind: "success" }
   | { kind: "failed"; failure: PasswordRecoveryFailure };
@@ -131,7 +136,7 @@ export class PasswordRecoveryController {
       return;
     }
 
-    this.cancelActiveRequest(false);
+    this.cancelActiveRequest();
     const generation = this.generation;
     const controller = new AbortController();
     this.activeRequest = controller;
@@ -159,8 +164,8 @@ export class PasswordRecoveryController {
         return;
       }
 
-      this.publish({ kind: "failed", failure });
       this.token = token;
+      this.publish({ kind: "ready", failure });
     }
   }
 
@@ -176,12 +181,8 @@ export class PasswordRecoveryController {
     this.listeners.clear();
   }
 
-  private cancelActiveRequest(advanceGeneration = true): void {
-    if (advanceGeneration) {
-      this.generation += 1;
-    } else {
-      this.generation += 1;
-    }
+  private cancelActiveRequest(): void {
+    this.generation += 1;
     this.activeRequest?.abort();
     this.activeRequest = null;
   }
