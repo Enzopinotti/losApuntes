@@ -55,7 +55,8 @@ export default function ResetPasswordRoute() {
     };
   }, [controller, handle]);
 
-  const ready = snapshot.kind === "ready";
+  const showForm =
+    snapshot.kind === "ready" || snapshot.kind === "submitting";
   const pending =
     snapshot.kind === "checking" || snapshot.kind === "submitting";
   const terminalFailure =
@@ -66,7 +67,9 @@ export default function ResetPasswordRoute() {
     terminalFailure === "server_unavailable" ||
     terminalFailure === "rejected";
   const remoteError =
-    ready && snapshot.failure ? failureCopy[snapshot.failure] : null;
+    snapshot.kind === "ready" && snapshot.failure
+      ? failureCopy[snapshot.failure]
+      : null;
 
   const submit = () => {
     setLocalError(null);
@@ -112,14 +115,14 @@ export default function ResetPasswordRoute() {
             </View>
           ) : null}
 
-          {ready ? (
+          {showForm ? (
             <>
               <Text style={styles.label}>Nueva contraseña</Text>
               <TextInput
                 accessibilityLabel="Nueva contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                editable={snapshot.kind !== "submitting"}
+                editable={!pending}
                 secureTextEntry
                 textContentType="newPassword"
                 value={newPassword}
@@ -135,7 +138,7 @@ export default function ResetPasswordRoute() {
                 accessibilityLabel="Repetir contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                editable={snapshot.kind !== "submitting"}
+                editable={!pending}
                 secureTextEntry
                 textContentType="newPassword"
                 value={confirmation}
