@@ -95,7 +95,7 @@ export function extractActionToken(message, pathname) {
     typeof message.HTML === 'string' ? message.HTML : '',
   ].join('\n');
   const pattern = new RegExp(
-    `${escapeRegExp(pathname)}\\?token=([A-Za-z0-9_-]{43})`,
+    `${escapeRegExp(pathname)}(?:#|\\?)token=([A-Za-z0-9_-]{43})`,
   );
   const token = body.match(pattern)?.[1];
 

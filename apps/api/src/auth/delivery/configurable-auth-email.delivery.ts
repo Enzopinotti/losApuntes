@@ -12,9 +12,13 @@ import type {
 
 type AuthEmailDeliveryMode = 'disabled' | 'smtp';
 
-function actionUrl(baseUrl: string, path: string, token: string): string {
+function browserActionUrl(
+  baseUrl: string,
+  path: string,
+  token: string,
+): string {
   const url = new URL(path, baseUrl);
-  url.searchParams.set('token', token);
+  url.hash = new URLSearchParams({ token }).toString();
   return url.toString();
 }
 
@@ -37,7 +41,7 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
   async sendEmailVerification(message: AuthEmailActionMessage): Promise<void> {
     if (this.mode() === 'disabled') return;
 
-    const link = actionUrl(
+    const link = browserActionUrl(
       this.actionBaseUrl(),
       '/auth/verify-email',
       message.token,
@@ -74,7 +78,7 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
   async sendPasswordRecovery(message: AuthEmailActionMessage): Promise<void> {
     if (this.mode() === 'disabled') return;
 
-    const link = actionUrl(
+    const link = browserActionUrl(
       this.actionBaseUrl(),
       '/auth/reset-password',
       message.token,
