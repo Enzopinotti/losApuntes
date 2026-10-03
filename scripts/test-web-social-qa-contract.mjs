@@ -55,6 +55,21 @@ assert.match(notifications, /communityApi\.markNotificationRead/u);
 assert.match(notifications, /communityApi\.markAllNotificationsRead/u);
 assert.match(notifications, /nextCursor/u);
 assert.match(notifications, /Cargar más/u);
+assert.match(notifications, /useAsyncAuthorityFence/u);
+assert.match(notifications, /NOTIFICATION_RECONCILE_INTERVAL_MS\s*=\s*30_000/u);
+assert.match(notifications, /document\.visibilityState\s*!==\s*"visible"/u);
+assert.match(notifications, /window\.setInterval/u);
+assert.match(notifications, /visibilitychange/u);
+assert.match(notifications, /ticket\.signal/u);
+assert.match(notifications, /session\?\.id/u);
+assert.doesNotMatch(notifications, /localStorage|sessionStorage/u);
+
+const communityService = await read(
+  'apps/web/src/features/community/services/communityService.ts',
+);
+assert.match(communityService, /AbortSignal\.timeout\(15_000\)/u);
+assert.match(communityService, /AbortSignal\.any/u);
+assert.match(communityService, /notifications:[\s\S]*signal\?: AbortSignal/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
