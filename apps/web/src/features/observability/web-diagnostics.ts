@@ -23,7 +23,9 @@ export type WebDiagnosticEnvelope = Readonly<{
   timestamp: string;
 }>;
 
-export type WebDiagnosticSink = (envelope: WebDiagnosticEnvelope) => void;
+export type WebDiagnosticSink = (
+  envelope: WebDiagnosticEnvelope,
+) => void | PromiseLike<void>;
 
 export type WebDiagnosticEventTarget = {
   addEventListener(
@@ -38,26 +40,36 @@ export type WebDiagnosticEventTarget = {
 
 const staticSurfaceSegments = new Set([
   "academic",
-  "alumni",
-  "community",
-  "create",
+  "account",
+  "admin",
+  "auth",
+  "dashboard",
   "feeds",
-  "home",
+  "forgot-password",
+  "lifecycle",
+  "login",
+  "manage",
   "network",
+  "notifications",
   "organizations",
+  "p",
+  "pending",
+  "pilot",
   "profile",
-  "profiles",
   "questions",
+  "reset-password",
   "resources",
+  "restricted",
   "search",
   "security",
   "settings",
-  "sign-in",
+  "sign-up",
+  "verify-email",
 ]);
 
 const dynamicParentSegments = new Set([
   "organizations",
-  "profiles",
+  "p",
   "questions",
   "resources",
 ]);
@@ -194,7 +206,10 @@ export function reportWebDiagnostic(
 ): WebDiagnosticEnvelope {
   const envelope = createWebDiagnosticEnvelope(error, context);
   try {
-    webDiagnosticSink(envelope);
+    const delivery = webDiagnosticSink(envelope);
+    if (delivery) {
+      void Promise.resolve(delivery).catch(() => undefined);
+    }
   } catch {
     // Diagnostics must never interfere with app recovery.
   }
