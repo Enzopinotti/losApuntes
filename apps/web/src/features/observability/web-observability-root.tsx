@@ -22,10 +22,7 @@ export function WebObservabilityRoot({ children }: { children: ReactNode }) {
     reportWebDiagnostic(error, runtimeDiagnosticContext());
   }, []);
 
-  useEffect(
-    () => installWebGlobalDiagnosticHandlers(window, report),
-    [report],
-  );
+  useEffect(() => installWebGlobalDiagnosticHandlers(window, report), [report]);
 
   return <WebErrorBoundary onError={report}>{children}</WebErrorBoundary>;
 }
