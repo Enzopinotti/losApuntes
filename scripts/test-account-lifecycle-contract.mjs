@@ -54,8 +54,8 @@ assert.match(
 );
 assert.match(
   authSmoke,
-  /jsonRequest\('POST', closureCredentials\)/u,
-  'closed-login proof must target the dedicated account',
+  /const closedLogin = await requestJson\(\s*'\/auth\/mobile\/login',\s*jsonRequest\('POST', closureCredentials\),\s*\);/u,
+  'post-closure login proof must target the dedicated account',
 );
 
 console.log('PASS account lifecycle authority/cleanup contract');
