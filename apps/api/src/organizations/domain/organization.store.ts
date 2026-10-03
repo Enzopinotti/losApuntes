@@ -36,6 +36,13 @@ export type UpdateOrganizationRecord = Partial<
   >
 >;
 
+export class OrganizationManagerTargetInactiveError extends Error {
+  constructor() {
+    super('Organization manager target account is inactive');
+    this.name = 'OrganizationManagerTargetInactiveError';
+  }
+}
+
 export type ManagerChangeResult =
   | {
       status: 'ok';
@@ -45,7 +52,8 @@ export type ManagerChangeResult =
   | { status: 'revision_conflict' }
   | { status: 'target_state_conflict' }
   | { status: 'final_owner' }
-  | { status: 'manager_limit' };
+  | { status: 'manager_limit' }
+  | { status: 'target_inactive' };
 
 export type OrganizationWriteAuthority = {
   actorUserId: string;

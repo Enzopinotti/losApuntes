@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { AppModule } from '../app.module';
+import { AccountLifecycleService } from '../data-lifecycle/domain/account-lifecycle.service';
 import { HealthService } from '../health/health.service';
 import { FileService } from './domain/file.service';
 import {
@@ -18,6 +19,7 @@ import {
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 const CLEANUP_BATCH_SIZE = 100;
 const SCAN_BATCH_SIZE = 20;
+const ACCOUNT_CLEANUP_BATCH_SIZE = 20;
 const SCANNER_HEALTH_TIMEOUT_MS = 1_500;
 
 function cleanupIntervalMs(): number {
@@ -43,6 +45,7 @@ async function bootstrap(): Promise<void> {
     logger: ['error', 'warn', 'log'],
   });
   const files = app.get(FileService);
+  const accounts = app.get(AccountLifecycleService);
   const health = app.get(HealthService);
   const scanner = app.get<FileSafetyScanner>(FILE_SAFETY_SCANNER);
   const intervalMs = cleanupIntervalMs();
@@ -71,7 +74,7 @@ async function bootstrap(): Promise<void> {
           SCANNER_HEALTH_TIMEOUT_MS,
         );
 
-        if (!dependenciesReady || scannerStatus === 'failed') {
+        if (!dependenciesReady) {
           await writeFilesWorkerHealth('not_ready', healthValidityMs);
           console.warn(
             JSON.stringify({
@@ -81,34 +84,74 @@ async function bootstrap(): Promise<void> {
             }),
           );
         } else {
-          const scans = await files.processPendingScans(SCAN_BATCH_SIZE);
-          const cleanup = await files.cleanupExpiredAssets(CLEANUP_BATCH_SIZE);
-          const iterationReady =
-            scans.retryScheduled === 0 && scans.failed === 0;
-
-          await writeFilesWorkerHealth(
-            iterationReady ? 'ready' : 'not_ready',
-            healthValidityMs,
+          const accountCleanup = await accounts.processPendingCleanup(
+            ACCOUNT_CLEANUP_BATCH_SIZE,
           );
 
-          if (scans.examined > 0 || cleanup.reclaimed > 0) {
-            console.log(
+          if (scannerStatus === 'failed') {
+            await writeFilesWorkerHealth('not_ready', healthValidityMs);
+            console.warn(
               JSON.stringify({
-                event: 'files.worker.completed',
-                scans: {
-                  examined: scans.examined,
-                  clean: scans.clean,
-                  rejected: scans.rejected,
-                  retryScheduled: scans.retryScheduled,
-                  failed: scans.failed,
-                  busy: scans.busy,
-                },
-                cleanup: {
-                  examined: cleanup.examined,
-                  reclaimed: cleanup.reclaimed,
+                event: 'files.worker.dependencies_unavailable',
+                status: diagnostics.status,
+                scannerStatus,
+                accountCleanup: {
+                  examined: accountCleanup.examined,
+                  completed: accountCleanup.completed,
+                  retryScheduled: accountCleanup.retryScheduled,
+                  failed: accountCleanup.failed,
+                  terminalFailuresPresent:
+                    accountCleanup.terminalFailuresPresent,
                 },
               }),
             );
+          } else {
+            const scans = await files.processPendingScans(SCAN_BATCH_SIZE);
+            const cleanup =
+              await files.cleanupExpiredAssets(CLEANUP_BATCH_SIZE);
+            const iterationReady =
+              scans.retryScheduled === 0 &&
+              scans.failed === 0 &&
+              accountCleanup.retryScheduled === 0 &&
+              accountCleanup.failed === 0 &&
+              !accountCleanup.terminalFailuresPresent;
+
+            await writeFilesWorkerHealth(
+              iterationReady ? 'ready' : 'not_ready',
+              healthValidityMs,
+            );
+
+            if (
+              scans.examined > 0 ||
+              cleanup.reclaimed > 0 ||
+              accountCleanup.examined > 0
+            ) {
+              console.log(
+                JSON.stringify({
+                  event: 'files.worker.completed',
+                  scans: {
+                    examined: scans.examined,
+                    clean: scans.clean,
+                    rejected: scans.rejected,
+                    retryScheduled: scans.retryScheduled,
+                    failed: scans.failed,
+                    busy: scans.busy,
+                  },
+                  cleanup: {
+                    examined: cleanup.examined,
+                    reclaimed: cleanup.reclaimed,
+                  },
+                  accountCleanup: {
+                    examined: accountCleanup.examined,
+                    completed: accountCleanup.completed,
+                    retryScheduled: accountCleanup.retryScheduled,
+                    failed: accountCleanup.failed,
+                    terminalFailuresPresent:
+                      accountCleanup.terminalFailuresPresent,
+                  },
+                }),
+              );
+            }
           }
         }
       } catch (error) {

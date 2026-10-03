@@ -9,6 +9,13 @@ export class ProfileAlreadyExistsError extends Error {
   }
 }
 
+export class ProfileAccountInactiveError extends Error {
+  constructor() {
+    super('Profile cannot be created for an inactive account');
+    this.name = 'ProfileAccountInactiveError';
+  }
+}
+
 export type CreateProfileRecord = Omit<
   ProfileRecord,
   'createdAt' | 'updatedAt'

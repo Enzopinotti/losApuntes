@@ -20,8 +20,17 @@ export class User {
   @Prop({ default: 1, min: 1 })
   credential_version?: number;
 
-  @Prop({ default: 'active', enum: ['active', 'restricted'] })
-  account_status?: 'active' | 'restricted';
+  @Prop({ default: 'active', enum: ['active', 'restricted', 'closed'] })
+  account_status?: 'active' | 'restricted' | 'closed';
+
+  @Prop({ type: Date, default: null })
+  account_closed_at?: Date | null;
+
+  @Prop({ required: true, min: 0, default: 0, select: false })
+  management_authority_revision?: number;
+
+  @Prop({ required: true, min: 0, default: 0, select: false })
+  account_lifecycle_revision?: number;
 
   @Prop({ default: 'user', enum: ['user', 'admin'] })
   role!: string;

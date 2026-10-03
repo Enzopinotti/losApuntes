@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -16,6 +17,7 @@ import type {
 } from '../dto/profile.dto';
 import {
   PROFILE_STORE,
+  ProfileAccountInactiveError,
   ProfileAlreadyExistsError,
   type ProfileActivityCursor,
   type ProfileStore,
@@ -194,6 +196,12 @@ export class ProfileService {
           message: 'Profile already exists for this account',
         });
       }
+      if (error instanceof ProfileAccountInactiveError) {
+        throw new ForbiddenException({
+          code: 'ACCOUNT_RESTRICTED',
+          message: 'Account access is restricted',
+        });
+      }
 
       throw error;
     }
@@ -301,7 +309,9 @@ export class ProfileService {
     const profile = await this.store.findProfileByUserId(userId);
     if (!profile) return null;
 
-    const aboutPublic = profile.visibility.about === 'public';
+    const aboutPublic =
+      profile.lifecycleState !== 'closed' &&
+      profile.visibility.about === 'public';
     return {
       profileId: profile.id,
       displayName: aboutPublic ? profile.displayName : 'Usuario de Los Apuntes',
@@ -311,7 +321,7 @@ export class ProfileService {
 
   async getFeedSignals(userId: string) {
     const profile = await this.store.findProfileByUserId(userId);
-    if (!profile) return null;
+    if (!profile || profile.lifecycleState === 'closed') return null;
 
     return {
       profileId: profile.id,
@@ -328,7 +338,9 @@ export class ProfileService {
     const rows = await this.store.findProfilesByUserIds(unique);
     const byUserId = new Map(
       rows.map((profile) => {
-        const aboutPublic = profile.visibility.about === 'public';
+        const aboutPublic =
+          profile.lifecycleState !== 'closed' &&
+          profile.visibility.about === 'public';
         return [
           profile.userId,
           {
@@ -352,7 +364,7 @@ export class ProfileService {
 
   async getPublicProfile(profileId: string) {
     const profile = await this.store.findProfileById(profileId);
-    if (!profile) this.profileNotFound();
+    if (!profile || profile.lifecycleState === 'closed') this.profileNotFound();
 
     const visible = (section: ProfileSection) =>
       profile.visibility[section] === 'public';
@@ -440,7 +452,11 @@ export class ProfileService {
     input: { limit: number; cursor?: string },
   ) {
     const profile = await this.store.findProfileById(profileId);
-    if (!profile || profile.visibility.activities !== 'public') {
+    if (
+      !profile ||
+      profile.lifecycleState === 'closed' ||
+      profile.visibility.activities !== 'public'
+    ) {
       this.profileNotFound();
     }
 

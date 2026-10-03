@@ -32,6 +32,7 @@ import {
 } from './organization-limits';
 import {
   ORGANIZATION_STORE,
+  OrganizationManagerTargetInactiveError,
   type AuthorizedOrganizationMutationResult,
   type OrganizationStore,
 } from './organization.store';
@@ -236,38 +237,49 @@ export class OrganizationService {
     const name = cleanText(dto.name);
     const organizationId = randomUUID();
 
-    const created = await this.store.createWithOwner({
-      organization: {
-        id: organizationId,
-        name,
-        normalizedName: normalizeName(name),
-        type: dto.type,
-        about: cleanNullable(dto.about),
-        avatarUrl: httpsUrl(dto.avatarUrl),
-        coverUrl: httpsUrl(dto.coverUrl),
-        websiteUrl: httpsUrl(dto.websiteUrl),
-        institutionId: scope.institutionId,
-        campusId: scope.campusId,
-        academicUnitId: scope.academicUnitId,
-        programId: scope.programId,
-        claimState: 'claimed',
-        verificationState: 'unverified',
-        status: 'active',
-        revision: 1,
-        managementRevision: 1,
-      },
-      ownerUserId: userId,
-      audit: this.audit({
-        organizationId,
-        event: 'organization.created',
-        actorUserId: userId,
-        targetUserId: userId,
-        previousRole: null,
-        nextRole: 'owner',
-        reason: 'Organization claimed by creator',
-        metadata: { profileId: actor.profileId },
-      }),
-    });
+    let created: Awaited<ReturnType<OrganizationStore['createWithOwner']>>;
+    try {
+      created = await this.store.createWithOwner({
+        organization: {
+          id: organizationId,
+          name,
+          normalizedName: normalizeName(name),
+          type: dto.type,
+          about: cleanNullable(dto.about),
+          avatarUrl: httpsUrl(dto.avatarUrl),
+          coverUrl: httpsUrl(dto.coverUrl),
+          websiteUrl: httpsUrl(dto.websiteUrl),
+          institutionId: scope.institutionId,
+          campusId: scope.campusId,
+          academicUnitId: scope.academicUnitId,
+          programId: scope.programId,
+          claimState: 'claimed',
+          verificationState: 'unverified',
+          status: 'active',
+          revision: 1,
+          managementRevision: 1,
+        },
+        ownerUserId: userId,
+        audit: this.audit({
+          organizationId,
+          event: 'organization.created',
+          actorUserId: userId,
+          targetUserId: userId,
+          previousRole: null,
+          nextRole: 'owner',
+          reason: 'Organization claimed by creator',
+          metadata: { profileId: actor.profileId },
+        }),
+      });
+    } catch (error) {
+      if (error instanceof OrganizationManagerTargetInactiveError) {
+        throw new ConflictException({
+          code: 'ORGANIZATION_MANAGER_TARGET_INACTIVE',
+          message: 'Organization manager account is no longer active',
+        });
+      }
+      throw error;
+    }
 
     return {
       organization: await this.detailProjection(created.organization, userId),
@@ -1519,6 +1531,12 @@ export class OrganizationService {
       throw new ConflictException({
         code: 'ORGANIZATION_FINAL_OWNER_REQUIRED',
         message: 'Organization must retain at least one owner',
+      });
+    }
+    if (result.status === 'target_inactive') {
+      throw new ConflictException({
+        code: 'ORGANIZATION_MANAGER_TARGET_INACTIVE',
+        message: 'Organization manager account is no longer active',
       });
     }
     if (result.status === 'manager_limit') {

@@ -92,6 +92,8 @@ If a profile already exists:
 - HTTP 409;
 - `PROFILE_ALREADY_EXISTS`.
 
+Creation is serialized with account closure through the active User record. If closure wins while an authenticated request is in flight, no Profile is inserted and the request fails with HTTP 403 `ACCOUNT_RESTRICTED`.
+
 ## PATCH /profile/me
 
 Requires:
