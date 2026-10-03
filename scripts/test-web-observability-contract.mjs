@@ -16,9 +16,9 @@ assert.equal(
 );
 assert.equal(
   normalizeWebDiagnosticSurface(
-    "https://app.example.test/profiles/private-person?email=user@example.test",
+    "https://app.example.test/p/private-person?email=user@example.test",
   ),
-  "/profiles/:id",
+  "/p/:id",
 );
 assert.equal(
   normalizeWebDiagnosticSurface("/unexpected/Leonardo/private"),
