@@ -1,6 +1,7 @@
 import {
   readAuthActionToken,
 } from '../apps/web/src/features/auth/actionTokenLocation.ts';
+import { extractActionToken } from './mailpit-smoke.mjs';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -49,6 +50,22 @@ assert.equal(
     search: '',
   }),
   '',
+);
+
+const smokeToken = 'S'.repeat(43);
+assert.equal(
+  extractActionToken(
+    { Text: `https://app.example.test/auth/verify-email#token=${smokeToken}` },
+    '/auth/verify-email',
+  ),
+  smokeToken,
+);
+assert.equal(
+  extractActionToken(
+    { Text: `https://app.example.test/auth/verify-email?token=${smokeToken}` },
+    '/auth/verify-email',
+  ),
+  smokeToken,
 );
 
 const authService = await read(
