@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import type { Connection, Model } from 'mongoose';
 
+import { User } from '../../users/schemas/user.schema';
 import {
   ProfileAlreadyExistsError,
+  ProfileAccountInactiveError,
   type CreateProfileActivityRecord,
   type CreateProfileRecord,
   type ProfileStore,
@@ -49,6 +51,10 @@ export class MongoProfileStore implements ProfileStore {
     private readonly profiles: Model<Profile>,
     @InjectModel(ProfileActivity.name)
     private readonly activities: Model<ProfileActivity>,
+    @InjectConnection()
+    private readonly connection: Connection,
+    @InjectModel(User.name)
+    private readonly users: Model<User>,
   ) {}
 
   async findProfileByUserId(userId: string): Promise<ProfileRecord | null> {
@@ -88,12 +94,44 @@ export class MongoProfileStore implements ProfileStore {
   }
 
   async createProfile(input: CreateProfileRecord): Promise<ProfileRecord> {
+    const session = await this.connection.startSession();
+
     try {
-      const created = await this.profiles.create(input);
-      return toPlain<ProfileRecord>(created);
+      let createdProfile: ProfileRecord | undefined;
+
+      await session.withTransaction(async () => {
+        const activeUser = await this.users
+          .findOneAndUpdate(
+            {
+              _id: input.userId,
+              $or: [
+                { account_status: 'active' },
+                { account_status: { $exists: false } },
+              ],
+            },
+            { $inc: { account_lifecycle_revision: 1 } },
+            { new: false, session },
+          )
+          .lean()
+          .exec();
+
+        if (!activeUser) throw new ProfileAccountInactiveError();
+
+        const [created] = await this.profiles.create([input], { session });
+        createdProfile = toPlain<ProfileRecord>(created);
+      });
+
+      if (!createdProfile) {
+        throw new Error('Profile creation transaction produced no result');
+      }
+
+      return createdProfile;
     } catch (error) {
+      if (error instanceof ProfileAccountInactiveError) throw error;
       if (isDuplicateKeyError(error)) throw new ProfileAlreadyExistsError();
       throw error;
+    } finally {
+      await session.endSession();
     }
   }
 

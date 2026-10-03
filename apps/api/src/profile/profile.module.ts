@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './domain/profile.service';
@@ -21,6 +22,7 @@ import { MongoProfileStore } from './mongo/mongo-profile.store';
     UsersModule,
     AcademicModule,
     MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
       { name: ProfileActivity.name, schema: ProfileActivitySchema },
     ]),

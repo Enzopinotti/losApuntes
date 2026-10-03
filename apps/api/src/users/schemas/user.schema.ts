@@ -29,6 +29,9 @@ export class User {
   @Prop({ required: true, min: 0, default: 0, select: false })
   management_authority_revision?: number;
 
+  @Prop({ required: true, min: 0, default: 0, select: false })
+  account_lifecycle_revision?: number;
+
   @Prop({ default: 'user', enum: ['user', 'admin'] })
   role!: string;
 

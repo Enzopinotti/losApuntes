@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -16,6 +17,7 @@ import type {
 } from '../dto/profile.dto';
 import {
   PROFILE_STORE,
+  ProfileAccountInactiveError,
   ProfileAlreadyExistsError,
   type ProfileActivityCursor,
   type ProfileStore,
@@ -192,6 +194,12 @@ export class ProfileService {
         throw new ConflictException({
           code: 'PROFILE_ALREADY_EXISTS',
           message: 'Profile already exists for this account',
+        });
+      }
+      if (error instanceof ProfileAccountInactiveError) {
+        throw new ForbiddenException({
+          code: 'ACCOUNT_RESTRICTED',
+          message: 'Account access is restricted',
         });
       }
 
