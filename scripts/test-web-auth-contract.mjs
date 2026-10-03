@@ -1,3 +1,6 @@
+import {
+  readAuthActionToken,
+} from '../apps/web/src/features/auth/actionTokenLocation.ts';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -25,6 +28,28 @@ async function filesBelow(relativeDirectory) {
 
   return files;
 }
+
+assert.equal(
+  readAuthActionToken({
+    hash: '#token=fragment-authority',
+    search: '?token=legacy-authority',
+  }),
+  'fragment-authority',
+);
+assert.equal(
+  readAuthActionToken({
+    hash: '',
+    search: '?token=legacy-authority',
+  }),
+  'legacy-authority',
+);
+assert.equal(
+  readAuthActionToken({
+    hash: '#other=value',
+    search: '',
+  }),
+  '',
+);
 
 const authService = await read(
   'apps/web/src/features/auth/services/authService.ts',
@@ -63,8 +88,13 @@ for (const actionPage of [
   const source = await read(actionPage);
   assert.match(
     source,
-    /window\.history\.replaceState\(null,\s*"",\s*window\.location\.pathname\)/u,
+    /scrubAuthActionTokenFromHistory\(\)/u,
     `${actionPage} must scrub one-time action tokens from browser history`,
+  );
+  assert.match(
+    source,
+    /readAuthActionToken\(window\.location\)/u,
+    `${actionPage} must read fragment-first action authority`,
   );
 }
 
