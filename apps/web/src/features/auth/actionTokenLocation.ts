@@ -5,7 +5,9 @@ export type AuthActionLocation = {
 
 function tokenFromParams(value: string): string | null {
   if (!value) return null;
-  const params = new URLSearchParams(value.startsWith("#") ? value.slice(1) : value);
+  const params = new URLSearchParams(
+    value.startsWith("#") ? value.slice(1) : value,
+  );
   return params.get("token");
 }
 
