@@ -22,7 +22,10 @@ function browserActionUrl(
   return url.toString();
 }
 
-function mobileActionUrl(path: 'verify-email' | 'recover-password', token: string): string {
+function mobileActionUrl(
+  path: 'verify-email' | 'recover-password',
+  token: string,
+): string {
   const url = new URL(`losapuntes://${path}`);
   url.searchParams.set('token', token);
   return url.toString();
