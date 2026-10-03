@@ -35,6 +35,8 @@ One Mongo transaction:
 
 Organization manager creation/change writes an active-User authority fence inside its own transaction. This shares a User document write boundary with closure, so a concurrent grant cannot silently cross the closure transaction.
 
+First Profile creation also runs in a transaction and increments a separate hidden account-lifecycle revision on the same User document before inserting the Profile. If creation wins the User write first, closure retries/serializes against it and tombstones the new Profile before committing. If closure wins first, Profile creation's active-User fence no longer matches and the insert fails closed. The `POST /profile/me` request returns the existing `ACCOUNT_RESTRICTED` response for this in-flight case.
+
 Revocation of an Organization manager remains allowed for inactive targets so stale management can be removed.
 
 ## Public identity
