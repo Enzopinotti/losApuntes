@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "expo-router";
 import {
   ActivityIndicator,
@@ -37,25 +37,40 @@ const failureCopy: Record<
 export default function ForgotPasswordRoute() {
   const insets = useSafeAreaInsets();
   const requestGeneration = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
   const [email, setEmail] = useState("");
   const [state, setState] = useState<RequestState>("idle");
 
   const pending = state === "pending";
   const normalizedEmail = email.trim().toLowerCase();
 
+  useEffect(
+    () => () => {
+      requestGeneration.current += 1;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+    },
+    [],
+  );
+
   const submit = async () => {
     if (!normalizedEmail || pending) return;
 
     requestGeneration.current += 1;
     const generation = requestGeneration.current;
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setState("pending");
 
     const result = await requestPasswordRecovery(
       mobileApiClient,
       normalizedEmail,
+      controller.signal,
     );
 
     if (generation !== requestGeneration.current) return;
+    activeRequest.current = null;
     setState(result);
   };
 
