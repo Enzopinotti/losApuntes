@@ -22,8 +22,11 @@ function browserActionUrl(
   return url.toString();
 }
 
-function mobileVerificationUrl(token: string): string {
-  const url = new URL('losapuntes://verify-email');
+function mobileActionUrl(
+  path: 'verify-email' | 'recover-password',
+  token: string,
+): string {
+  const url = new URL(`losapuntes://${path}`);
   url.searchParams.set('token', token);
   return url.toString();
 }
@@ -46,7 +49,7 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
       '/auth/verify-email',
       message.token,
     );
-    const mobileLink = mobileVerificationUrl(message.token);
+    const mobileLink = mobileActionUrl('verify-email', message.token);
     const expires = expirationText(message.expiresAt);
 
     await this.smtp().sendMail({
@@ -83,6 +86,7 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
       '/auth/reset-password',
       message.token,
     );
+    const mobileLink = mobileActionUrl('recover-password', message.token);
     const expires = expirationText(message.expiresAt);
 
     await this.smtp().sendMail({
@@ -92,6 +96,10 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
       text: [
         'Recibimos una solicitud para cambiar tu contraseña de Los Apuntes.',
         '',
+        'Abrí este enlace en la app móvil:',
+        mobileLink,
+        '',
+        'Si no tenés la app instalada, recuperá el acceso desde el navegador:',
         link,
         '',
         `Este enlace vence el ${expires}.`,
@@ -99,7 +107,8 @@ export class ConfigurableAuthEmailDelivery implements AuthEmailDelivery {
       ].join('\n'),
       html: [
         '<p>Recibimos una solicitud para cambiar tu contraseña de Los Apuntes.</p>',
-        `<p><a href="${link}">Cambiar contraseña</a></p>`,
+        `<p><a href="${mobileLink}">Cambiar contraseña en la app móvil</a></p>`,
+        `<p>Si no tenés la app instalada, <a href="${link}">recuperá el acceso desde el navegador</a>.</p>`,
         `<p>Este enlace vence el ${expires}.</p>`,
         '<p>Si no pediste este cambio, ignorá este mensaje.</p>',
       ].join(''),

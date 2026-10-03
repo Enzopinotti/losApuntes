@@ -58,7 +58,7 @@ describe('ConfigurableAuthEmailDelivery', () => {
     expect(message.html).toContain('verificá desde el navegador');
   });
 
-  it('keeps password recovery bearer out of the browser request target', async () => {
+  it('sends native and browser recovery links without browser request-target leakage', async () => {
     const configValues = new Map<string, string>([
       ['AUTH_EMAIL_DELIVERY_MODE', 'smtp'],
       ['AUTH_ACTION_BASE_URL', 'https://app.example.test'],
@@ -88,15 +88,29 @@ describe('ConfigurableAuthEmailDelivery', () => {
 
     const message = messages[0];
     expect(message).toBeDefined();
-    const linkText = message.text.match(
+
+    const appLinkText = message.text.match(
+      /losapuntes:\/\/recover-password\?token=[^\s]+/u,
+    )?.[0];
+    expect(appLinkText).toBeDefined();
+    const appLink = new URL(appLinkText!);
+    expect(appLink.protocol).toBe('losapuntes:');
+    expect(appLink.hostname).toBe('recover-password');
+    expect(appLink.searchParams.get('token')).toBe(token);
+
+    const browserLinkText = message.text.match(
       /https:\/\/[^\s]+\/auth\/reset-password#token=[^\s]+/u,
     )?.[0];
-    expect(linkText).toBeDefined();
+    expect(browserLinkText).toBeDefined();
 
-    const link = new URL(linkText!);
-    expect(link.origin).toBe('https://app.example.test');
-    expect(link.pathname).toBe('/auth/reset-password');
-    expect(link.search).toBe('');
-    expect(new URLSearchParams(link.hash.slice(1)).get('token')).toBe(token);
+    const browserLink = new URL(browserLinkText!);
+    expect(browserLink.origin).toBe('https://app.example.test');
+    expect(browserLink.pathname).toBe('/auth/reset-password');
+    expect(browserLink.search).toBe('');
+    expect(new URLSearchParams(browserLink.hash.slice(1)).get('token')).toBe(
+      token,
+    );
+    expect(message.html).toContain('Cambiar contraseña en la app móvil');
+    expect(message.html).toContain('recuperá el acceso desde el navegador');
   });
 });
