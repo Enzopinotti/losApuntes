@@ -39,6 +39,11 @@ function apiUrl(path: string): string {
   return new URL(path.replace(/^\//, ""), `${apiBaseUrl}/`).toString();
 }
 
+function requestSignal(signal?: AbortSignal | null): AbortSignal {
+  const timeout = AbortSignal.timeout(15_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 function errorMessage(envelope: ErrorEnvelope): string {
   if (Array.isArray(envelope.message)) return envelope.message.join(" ");
   return envelope.message || "No pudimos completar la operación.";
@@ -57,7 +62,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: init.signal ?? AbortSignal.timeout(15_000),
+      signal: requestSignal(init.signal),
     });
   } catch {
     throw new ResourcesApiError(
@@ -67,7 +72,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     );
   }
 
-  const text = await response.text();
+  let text: string;
+  try {
+    text = await response.text();
+  } catch {
+    throw new ResourcesApiError(
+      "NETWORK_UNAVAILABLE",
+      0,
+      "No pudimos conectarnos con Los Apuntes.",
+    );
+  }
   let parsed: unknown = null;
 
   if (text) {
@@ -111,30 +125,39 @@ export function isResourcesApiError(
 }
 
 export const resourcesApi = {
-  search: (input: {
-    q?: string;
-    visibility?: ResourceVisibility;
-    subjectId?: string;
-    cursor?: string;
-  }) => {
+  search: (
+    input: {
+      q?: string;
+      visibility?: ResourceVisibility;
+      subjectId?: string;
+      cursor?: string;
+    },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams();
     if (input.q) query.set("q", input.q);
     if (input.visibility) query.set("visibility", input.visibility);
     if (input.subjectId) query.set("subjectId", input.subjectId);
     if (input.cursor) query.set("cursor", input.cursor);
     query.set("limit", "25");
-    return request<ResourceSearchResponse>(`/resources?${query.toString()}`);
+    return request<ResourceSearchResponse>(`/resources?${query.toString()}`, {
+      signal,
+    });
   },
 
-  saved: (cursor?: string) => {
+  saved: (cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: "25" });
     if (cursor) query.set("cursor", cursor);
     return request<ResourceSearchResponse>(
       `/resources/saved?${query.toString()}`,
+      { signal },
     );
   },
 
-  searchSubjects: async (q: string): Promise<AcademicSubjectOption[]> => {
+  searchSubjects: async (
+    q: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicSubjectOption[]> => {
     const query = new URLSearchParams({
       kind: "subject",
       q,
@@ -142,14 +165,19 @@ export const resourcesApi = {
     });
     const result = await request<{
       items: Array<{ id: string; name: string }>;
-    }>(`/academic/catalog/search?${query.toString()}`);
+    }>(`/academic/catalog/search?${query.toString()}`, { signal });
 
     return result.items.map(({ id, name }) => ({ id, name }));
   },
 
-  createUploadIntent: (file: File, operationKey: string) =>
+  createUploadIntent: (
+    file: File,
+    operationKey: string,
+    signal?: AbortSignal,
+  ) =>
     request<FileUploadIntent>("/files/upload-intents", {
       method: "POST",
+      signal,
       body: json({
         operationKey,
         filename: file.name,
@@ -221,23 +249,27 @@ export const resourcesApi = {
       xhr.send(file);
     }),
 
-  finalize: (fileId: string) =>
+  finalize: (fileId: string, signal?: AbortSignal) =>
     request<{ file: { id: string; state: "ready" } }>(
       `/files/${encodeURIComponent(fileId)}/finalize`,
-      { method: "POST" },
+      { method: "POST", signal },
     ),
 
-  create: (input: {
-    assetId: string;
-    title: string;
-    description?: string;
-    tags: string[];
-    subjectId: string;
-    visibility: ResourceVisibility;
-  }) =>
+  create: (
+    input: {
+      assetId: string;
+      title: string;
+      description?: string;
+      tags: string[];
+      subjectId: string;
+      visibility: ResourceVisibility;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<{ resource: ResourceView }>("/resources", {
       method: "POST",
       body: json(input),
+      signal,
     }),
 
   update: (
@@ -248,11 +280,13 @@ export const resourcesApi = {
       tags?: string[];
       visibility?: ResourceVisibility;
     },
+    signal?: AbortSignal,
   ) =>
     request<{ resource: ResourceView }>(
       `/resources/${encodeURIComponent(resource.id)}`,
       {
         method: "PATCH",
+        signal,
         body: json({
           expectedRevision: resource.revision,
           ...patch,
@@ -260,31 +294,38 @@ export const resourcesApi = {
       },
     ),
 
-  access: (resourceId: string, disposition: "inline" | "attachment") =>
+  access: (
+    resourceId: string,
+    disposition: "inline" | "attachment",
+    signal?: AbortSignal,
+  ) =>
     request<{
       file: ResourceView["file"];
       access: { url: string; expiresAt: string };
     }>(`/resources/${encodeURIComponent(resourceId)}/access`, {
       method: "POST",
       body: json({ disposition }),
+      signal,
     }),
 
-  save: (resourceId: string) =>
+  save: (resourceId: string, signal?: AbortSignal) =>
     request<{ saved: true }>(
       `/resources/${encodeURIComponent(resourceId)}/save`,
-      { method: "PUT" },
+      { method: "PUT", signal },
     ),
 
-  unsave: (resourceId: string) =>
+  unsave: (resourceId: string, signal?: AbortSignal) =>
     request<void>(`/resources/${encodeURIComponent(resourceId)}/save`, {
       method: "DELETE",
+      signal,
     }),
 
-  report: (resourceId: string) =>
+  report: (resourceId: string, signal?: AbortSignal) =>
     request<{ report: { id: string; status: "pending" } }>(
       `/resources/${encodeURIComponent(resourceId)}/reports`,
       {
         method: "POST",
+        signal,
         body: json({
           reason: "other",
           details: "Reporte enviado desde la interfaz web",
@@ -292,19 +333,19 @@ export const resourcesApi = {
       },
     ),
 
-  share: (resourceId: string, profileId: string) =>
+  share: (resourceId: string, profileId: string, signal?: AbortSignal) =>
     request<{ shared: true }>(
       `/resources/${encodeURIComponent(
         resourceId,
       )}/shares/${encodeURIComponent(profileId)}`,
-      { method: "PUT" },
+      { method: "PUT", signal },
     ),
 
-  unshare: (resourceId: string, profileId: string) =>
+  unshare: (resourceId: string, profileId: string, signal?: AbortSignal) =>
     request<void>(
       `/resources/${encodeURIComponent(
         resourceId,
       )}/shares/${encodeURIComponent(profileId)}`,
-      { method: "DELETE" },
+      { method: "DELETE", signal },
     ),
 };
