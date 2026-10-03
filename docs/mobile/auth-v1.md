@@ -37,7 +37,7 @@ The Mobile code-level recovery path now covers:
 - retryable offline/timeout handling without persisting the bearer;
 - password completion and terminal `RECOVERY_NOT_AVAILABLE` handling.
 
-This does **not** by itself close native recovery acceptance. Transactional email must also expose the Mobile recovery deep link; the current delivery carrier #145 owns that same backend file and must be reconciled without parallel edits. HTTPS universal/app-link association and real-device/provider evidence remain external/native acceptance work.
+This does **not** by itself close native recovery acceptance. Transactional email must also expose the Mobile recovery deep link. PR #145 has now merged and released that backend delivery path, so the app-link email addition is intentionally queued as a separate small follow-up rather than being mixed into this Mobile carrier. HTTPS universal/app-link association and real-device/provider evidence remain external/native acceptance work.
 
 ## Credential lifecycle
 
