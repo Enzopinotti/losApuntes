@@ -102,12 +102,7 @@ const Notifications = () => {
         }
       }
     },
-    [
-      beginListRequest,
-      finishListRequest,
-      isListRequestCurrent,
-      unreadOnly,
-    ],
+    [beginListRequest, finishListRequest, isListRequestCurrent, unreadOnly],
   );
 
   useEffect(() => {
@@ -132,10 +127,7 @@ const Notifications = () => {
     };
 
     const startPolling = () => {
-      if (
-        document.visibilityState !== "visible" ||
-        intervalId !== null
-      ) {
+      if (document.visibilityState !== "visible" || intervalId !== null) {
         return;
       }
       intervalId = window.setInterval(
