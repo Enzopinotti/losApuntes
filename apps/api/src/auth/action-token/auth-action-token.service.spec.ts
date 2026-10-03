@@ -21,6 +21,7 @@ function record(
     createdAt: NOW,
     expiresAt: new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
     consumedAt: null,
+    consumedReason: null,
     ...overrides,
   };
 }
@@ -35,6 +36,10 @@ function createStore() {
     [string, AuthActionPurpose, Date]
   >();
   const claimAvailableByTokenHash = jest.fn<
+    Promise<AuthActionTokenRecord | null>,
+    [string, AuthActionPurpose, Date]
+  >();
+  const findClaimedByTokenHash = jest.fn<
     Promise<AuthActionTokenRecord | null>,
     [string, AuthActionPurpose, Date]
   >();
@@ -64,6 +69,7 @@ function createStore() {
     createIfBucketAvailable,
     findAvailableByTokenHash,
     claimAvailableByTokenHash,
+    findClaimedByTokenHash,
     findLatestActiveForUserPurpose,
     trimActiveForUserPurpose,
     invalidateByIds,
@@ -76,6 +82,7 @@ function createStore() {
       createIfBucketAvailable,
       findAvailableByTokenHash,
       claimAvailableByTokenHash,
+      findClaimedByTokenHash,
       findLatestActiveForUserPurpose,
       trimActiveForUserPurpose,
       invalidateByIds,
@@ -205,6 +212,15 @@ describe('AuthActionTokenService', () => {
     await expect(service.claim(token, 'password_recovery')).resolves.toEqual(
       available,
     );
+    const claimed = {
+      ...available,
+      consumedAt: NOW,
+      consumedReason: 'claimed' as const,
+    };
+    mocks.findClaimedByTokenHash.mockResolvedValue(claimed);
+    await expect(
+      service.findClaimed(token, 'password_recovery'),
+    ).resolves.toEqual(claimed);
     await expect(
       service.invalidateAll('user-1', 'password_recovery'),
     ).resolves.toBeUndefined();
@@ -213,12 +229,14 @@ describe('AuthActionTokenService', () => {
       mocks.findLatestActiveForUserPurpose.mock.calls.at(-1)?.[2];
     const inspectNow = mocks.findAvailableByTokenHash.mock.calls.at(-1)?.[2];
     const claimNow = mocks.claimAvailableByTokenHash.mock.calls.at(-1)?.[2];
+    const claimedNow = mocks.findClaimedByTokenHash.mock.calls.at(-1)?.[2];
     const invalidateNow =
       mocks.invalidateAllForUserPurpose.mock.calls.at(-1)?.[2];
 
     expect(issueNow).toBeInstanceOf(Date);
     expect(inspectNow).toBeInstanceOf(Date);
     expect(claimNow).toBeInstanceOf(Date);
+    expect(claimedNow).toBeInstanceOf(Date);
     expect(invalidateNow).toBeInstanceOf(Date);
   });
 
@@ -232,9 +250,13 @@ describe('AuthActionTokenService', () => {
     await expect(
       service.claim('not-a-token', 'password_recovery', NOW),
     ).resolves.toBeNull();
+    await expect(
+      service.findClaimed('not-a-token', 'password_recovery', NOW),
+    ).resolves.toBeNull();
 
     expect(mocks.findAvailableByTokenHash).not.toHaveBeenCalled();
     expect(mocks.claimAvailableByTokenHash).not.toHaveBeenCalled();
+    expect(mocks.findClaimedByTokenHash).not.toHaveBeenCalled();
   });
 
   it('atomically claims by hash and purpose without exposing the bearer', async () => {
@@ -258,6 +280,7 @@ describe('AuthActionTokenService', () => {
       credentialVersion: 4,
       tokenHash: hashActionToken(issued.token),
       consumedAt,
+      consumedReason: 'claimed',
     });
     mocks.claimAvailableByTokenHash.mockResolvedValue(claimed);
 
@@ -269,6 +292,28 @@ describe('AuthActionTokenService', () => {
       [hashActionToken(issued.token), 'password_recovery', consumedAt],
     ]);
   });
+  it('looks up only previously claimed tokens for reconciliation', async () => {
+    const { store, mocks } = createStore();
+    const service = new AuthActionTokenService(store);
+    const token = 'q'.repeat(43);
+    const claimed = record({
+      tokenHash: hashActionToken(token),
+      consumedAt: NOW,
+      consumedReason: 'claimed',
+    });
+    mocks.findClaimedByTokenHash.mockResolvedValue(claimed);
+
+    await expect(
+      service.findClaimed(token, 'email_verification', NOW),
+    ).resolves.toEqual(claimed);
+
+    expect(mocks.findClaimedByTokenHash).toHaveBeenCalledWith(
+      hashActionToken(token),
+      'email_verification',
+      NOW,
+    );
+  });
+
   it('fails closed when the issuance bucket was already won concurrently', async () => {
     const { store, mocks } = createStore();
     mocks.createIfBucketAvailable.mockResolvedValue(null);

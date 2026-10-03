@@ -48,6 +48,7 @@ function actionRecord(
     createdAt: NOW,
     expiresAt: new Date(NOW.getTime() + 30 * 60 * 1000),
     consumedAt: NOW,
+    consumedReason: 'claimed',
   };
 }
 
@@ -80,6 +81,7 @@ function createHarness() {
   const issueIfAllowed = jest.fn();
   const inspect = jest.fn();
   const claim = jest.fn();
+  const findClaimed = jest.fn();
   const invalidateToken = jest.fn();
   const invalidateAll = jest.fn();
 
@@ -87,6 +89,7 @@ function createHarness() {
     issueIfAllowed,
     inspect,
     claim,
+    findClaimed,
     invalidateToken,
     invalidateAll,
   } as unknown as AuthActionTokenService;
@@ -133,6 +136,7 @@ function createHarness() {
       issueIfAllowed,
       inspect,
       claim,
+      findClaimed,
       invalidateToken,
       invalidateAll,
       revokeAll,
@@ -214,6 +218,86 @@ describe('AuthLifecycleService', () => {
       NOW,
     );
     expect(mocks.invalidateAll).toHaveBeenCalledWith(
+      USER_ID,
+      'email_verification',
+      NOW,
+    );
+  });
+
+  it('resumes verification after an earlier claim lost its completion response', async () => {
+    const { service, mocks } = createHarness();
+    const action = actionRecord('email_verification');
+
+    mocks.claim.mockResolvedValue(null);
+    mocks.findClaimed.mockResolvedValue(action);
+    mocks.findById.mockResolvedValue(userDocument());
+    mocks.markEmailVerifiedIfUnverified.mockResolvedValue(true);
+    mocks.invalidateAll.mockResolvedValue(undefined);
+
+    await expect(
+      service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(true);
+
+    expect(mocks.findClaimed).toHaveBeenCalledWith(
+      VERIFICATION_TOKEN,
+      'email_verification',
+      NOW,
+    );
+    expect(mocks.markEmailVerifiedIfUnverified).toHaveBeenCalledWith(
+      USER_ID,
+      NOW,
+    );
+  });
+
+  it('reconciles a claimed verification token after the account already became verified', async () => {
+    const { service, mocks } = createHarness();
+    const action = actionRecord('email_verification');
+
+    mocks.claim.mockResolvedValue(null);
+    mocks.findClaimed.mockResolvedValue(action);
+    mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-22T15:59:59.000Z')),
+    );
+    mocks.invalidateAll.mockResolvedValue(undefined);
+
+    await expect(
+      service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(true);
+
+    expect(mocks.markEmailVerifiedIfUnverified).not.toHaveBeenCalled();
+    expect(mocks.invalidateAll).toHaveBeenCalledWith(
+      USER_ID,
+      'email_verification',
+      NOW,
+    );
+  });
+
+  it('retries verification cleanup after a committed transition outlives its response', async () => {
+    const { service, mocks } = createHarness();
+    const action = actionRecord('email_verification');
+
+    mocks.claim.mockResolvedValueOnce(action).mockResolvedValueOnce(null);
+    mocks.findClaimed.mockResolvedValue(action);
+    mocks.findById
+      .mockResolvedValueOnce(userDocument())
+      .mockResolvedValueOnce(
+        userDocument(new Date('2026-09-22T16:00:00.000Z')),
+      );
+    mocks.markEmailVerifiedIfUnverified.mockResolvedValue(true);
+    mocks.invalidateAll
+      .mockRejectedValueOnce(new Error('token cleanup unavailable'))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(
+      service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).rejects.toThrow('token cleanup unavailable');
+
+    await expect(
+      service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(true);
+
+    expect(mocks.invalidateAll).toHaveBeenCalledTimes(2);
+    expect(mocks.invalidateAll).toHaveBeenLastCalledWith(
       USER_ID,
       'email_verification',
       NOW,
@@ -473,6 +557,18 @@ describe('AuthLifecycleService', () => {
     await expect(
       verified.service.inspectEmailVerification(VERIFICATION_TOKEN, NOW),
     ).resolves.toBe(false);
+
+    const claimed = createHarness();
+    claimed.mocks.inspect.mockResolvedValue(null);
+    claimed.mocks.findClaimed.mockResolvedValue(
+      actionRecord('email_verification'),
+    );
+    claimed.mocks.findById.mockResolvedValue(
+      userDocument(new Date('2026-09-20T10:00:00.000Z')),
+    );
+    await expect(
+      claimed.service.inspectEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(true);
   });
 
   it('fails verification completion closed for unavailable or stale account state', async () => {
@@ -503,7 +599,7 @@ describe('AuthLifecycleService', () => {
         VERIFICATION_TOKEN,
         NOW,
       ),
-    ).resolves.toBe(false);
+    ).resolves.toBe(true);
 
     const lostRace = createHarness();
     lostRace.mocks.claim.mockResolvedValue(actionRecord('email_verification'));
@@ -513,6 +609,25 @@ describe('AuthLifecycleService', () => {
       lostRace.service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
     ).resolves.toBe(false);
     expect(lostRace.mocks.invalidateAll).not.toHaveBeenCalled();
+
+    const reconciledRace = createHarness();
+    reconciledRace.mocks.claim.mockResolvedValue(
+      actionRecord('email_verification'),
+    );
+    reconciledRace.mocks.findById
+      .mockResolvedValueOnce(userDocument())
+      .mockResolvedValueOnce(
+        userDocument(new Date('2026-09-22T16:00:00.000Z')),
+      );
+    reconciledRace.mocks.markEmailVerifiedIfUnverified.mockResolvedValue(false);
+    await expect(
+      reconciledRace.service.completeEmailVerification(VERIFICATION_TOKEN, NOW),
+    ).resolves.toBe(true);
+    expect(reconciledRace.mocks.invalidateAll).toHaveBeenCalledWith(
+      USER_ID,
+      'email_verification',
+      NOW,
+    );
   });
 
   it('does not redeliver recovery while issuance is cooling down', async () => {

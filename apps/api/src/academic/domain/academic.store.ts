@@ -104,6 +104,11 @@ export interface AcademicStore {
     input: CreateAffiliationRecord,
   ): Promise<AcademicAffiliationRecord>;
   findAffiliationById(id: string): Promise<AcademicAffiliationRecord | null>;
+  guardAcademicAffiliation(
+    userId: string,
+    id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
+  ): Promise<boolean>;
   listAffiliationsForUser(input: {
     userId: string;
     limit: number;
@@ -132,6 +137,10 @@ export interface AcademicStore {
   upsertSubjectParticipation(
     input: CreateSubjectParticipationRecord,
   ): Promise<SubjectParticipationRecord>;
+  guardCurrentSubjectParticipation(
+    userId: string,
+    id: string,
+  ): Promise<boolean>;
   findSubjectParticipationById(
     id: string,
   ): Promise<SubjectParticipationRecord | null>;
@@ -151,8 +160,12 @@ export interface AcademicStore {
     userId: string,
   ): Promise<AcademicCurrentContextRecord | null>;
   setCurrentContext(
-    input: Omit<AcademicCurrentContextRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<AcademicCurrentContextRecord>;
+    input: Omit<
+      AcademicCurrentContextRecord,
+      'createdAt' | 'updatedAt' | 'revision'
+    >,
+    expectedRevision: number,
+  ): Promise<AcademicCurrentContextRecord | null>;
 
   upsertAcademicFollow(
     input: Omit<AcademicFollowRecord, 'createdAt' | 'updatedAt'>,

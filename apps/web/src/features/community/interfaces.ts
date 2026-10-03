@@ -1,8 +1,14 @@
-export type CommunityPerson = {
-  profileId: string;
-  displayName: string;
-  avatarUrl: string | null;
-};
+import type { CommunityPerson } from "@losapuntes/contracts/social-qa";
+
+export type {
+  AnswerPageResponse,
+  AnswerView,
+  CommunityPerson,
+  QuestionDetailResponse,
+  QuestionSearchResponse,
+  QuestionState,
+  QuestionView,
+} from "@losapuntes/contracts/social-qa";
 
 export type FollowingItem = {
   followedAt: string;
@@ -21,62 +27,6 @@ export type ConnectionView = {
   respondedAt: string | null;
   createdAt: string;
   updatedAt: string;
-};
-
-export type QuestionState = "open" | "closed";
-
-export type QuestionView = {
-  id: string;
-  author: CommunityPerson | null;
-  academic: {
-    subject: { id: string; name: string };
-    courseOffering: { id: string; name: string } | null;
-  };
-  title: string;
-  body: string;
-  state: QuestionState;
-  answerCount: number;
-  acceptedAnswerId: string | null;
-  revision: number;
-  viewer: {
-    canEdit: boolean;
-    canAnswer: boolean;
-    canAcceptAnswers: boolean;
-    canReport: boolean;
-  };
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type AnswerView = {
-  id: string;
-  questionId: string;
-  author: CommunityPerson | null;
-  body: string;
-  revision: number;
-  viewer: {
-    canEdit: boolean;
-    canReport: boolean;
-  };
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type QuestionSearchResponse = {
-  items: QuestionView[];
-  nextCursor: string | null;
-};
-
-export type AnswerPageResponse = {
-  items: AnswerView[];
-  nextCursor: string | null;
-};
-
-export type QuestionDetailResponse = {
-  question: QuestionView;
-  answers: AnswerView[];
-  answersNextCursor: string | null;
-  answersLimit: number;
 };
 
 export type NotificationType =

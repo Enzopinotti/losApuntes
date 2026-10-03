@@ -145,6 +145,11 @@ export class AcademicAffiliation {
   @Prop()
   endedOn?: string;
 
+  // Internal write guard used to serialize context selection against
+  // affiliation lifecycle/status transitions without changing public fields.
+  @Prop({ required: true, default: 0, min: 0, select: false })
+  contextGuardRevision!: number;
+
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -181,6 +186,11 @@ export class AcademicSubjectParticipation {
 
   @Prop()
   periodLabel?: string;
+
+  // Internal write guard used to serialize CurrentAcademicContext selection
+  // against lifecycle transitions without changing public participation fields.
+  @Prop({ required: true, default: 0, min: 0, select: false })
+  contextGuardRevision!: number;
 
   createdAt!: Date;
   updatedAt!: Date;
@@ -242,6 +252,9 @@ export class AcademicCurrentContext {
 
   @Prop()
   subjectParticipationId?: string;
+
+  @Prop({ required: true, default: 1, min: 1 })
+  revision!: number;
 
   createdAt!: Date;
   updatedAt!: Date;

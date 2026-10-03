@@ -258,6 +258,12 @@ export class GraduateAcademicAffiliationDto {
   graduatedOn!: string;
 }
 
+export class AcademicSubjectParticipationListDto {
+  @IsOptional()
+  @IsUUID('4')
+  affiliationId?: string;
+}
+
 export class UpsertSubjectParticipationDto {
   @IsOptional()
   @IsUUID('4')
@@ -273,6 +279,10 @@ export class UpsertSubjectParticipationDto {
 }
 
 export class SetAcademicContextDto {
+  @IsInt()
+  @Min(0)
+  expectedRevision!: number;
+
   @IsUUID('4')
   affiliationId!: string;
 

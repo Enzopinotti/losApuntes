@@ -311,6 +311,7 @@ const contextResult = await request(
     {
       affiliationId,
       subjectParticipationId: participationId,
+      expectedRevision: 0,
     },
     bearer,
   ),

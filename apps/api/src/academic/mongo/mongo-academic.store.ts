@@ -266,6 +266,27 @@ export class MongoAcademicStore implements AcademicStore {
       .exec();
   }
 
+  async guardAcademicAffiliation(
+    userId: string,
+    id: string,
+    expectedStatus: AcademicAffiliationRecord['status'],
+  ): Promise<boolean> {
+    const guarded = await this.affiliations
+      .findOneAndUpdate(
+        { id, userId, status: expectedStatus },
+        { $inc: { contextGuardRevision: 1 } },
+        {
+          new: true,
+          session: this.session(),
+          timestamps: false,
+        },
+      )
+      .lean<{ id: string }>()
+      .exec();
+
+    return guarded !== null;
+  }
+
   async listAffiliationsForUser(
     input: Parameters<AcademicStore['listAffiliationsForUser']>[0],
   ): ReturnType<AcademicStore['listAffiliationsForUser']> {
@@ -380,6 +401,26 @@ export class MongoAcademicStore implements AcademicStore {
     return row;
   }
 
+  async guardCurrentSubjectParticipation(
+    userId: string,
+    id: string,
+  ): Promise<boolean> {
+    const guarded = await this.participations
+      .findOneAndUpdate(
+        { id, userId, state: 'current' },
+        { $inc: { contextGuardRevision: 1 } },
+        {
+          new: true,
+          session: this.session(),
+          timestamps: false,
+        },
+      )
+      .lean<{ id: string }>()
+      .exec();
+
+    return guarded !== null;
+  }
+
   async findSubjectParticipationById(
     id: string,
   ): Promise<SubjectParticipationRecord | null> {
@@ -430,6 +471,24 @@ export class MongoAcademicStore implements AcademicStore {
   async getCurrentContext(
     userId: string,
   ): Promise<AcademicCurrentContextRecord | null> {
+    const current = await this.contexts
+      .findOne({ userId })
+      .lean<AcademicCurrentContextRecord>()
+      .exec();
+
+    if (!current || current.revision !== undefined) return current;
+
+    const normalized = await this.contexts
+      .findOneAndUpdate(
+        { userId, revision: { $exists: false } },
+        { $set: { revision: 1 } },
+        { new: true, session: this.session() },
+      )
+      .lean<AcademicCurrentContextRecord>()
+      .exec();
+
+    if (normalized) return normalized;
+
     return this.contexts
       .findOne({ userId })
       .lean<AcademicCurrentContextRecord>()
@@ -437,8 +496,12 @@ export class MongoAcademicStore implements AcademicStore {
   }
 
   async setCurrentContext(
-    input: Omit<AcademicCurrentContextRecord, 'createdAt' | 'updatedAt'>,
-  ): Promise<AcademicCurrentContextRecord> {
+    input: Omit<
+      AcademicCurrentContextRecord,
+      'createdAt' | 'updatedAt' | 'revision'
+    >,
+    expectedRevision: number,
+  ): Promise<AcademicCurrentContextRecord | null> {
     const update: {
       $set: {
         affiliationId: string;
@@ -446,11 +509,13 @@ export class MongoAcademicStore implements AcademicStore {
       };
       $setOnInsert: { userId: string };
       $unset?: { subjectParticipationId: 1 };
+      $inc: { revision: 1 };
     } = {
       $set: {
         affiliationId: input.affiliationId,
       },
       $setOnInsert: { userId: input.userId },
+      $inc: { revision: 1 },
     };
 
     if (input.subjectParticipationId) {
@@ -459,17 +524,23 @@ export class MongoAcademicStore implements AcademicStore {
       update.$unset = { subjectParticipationId: 1 };
     }
 
-    const row = await this.contexts
-      .findOneAndUpdate({ userId: input.userId }, update, {
-        upsert: true,
-        new: true,
-        session: this.session(),
-      })
-      .lean<AcademicCurrentContextRecord>()
-      .exec();
-
-    if (!row) throw new Error('Academic current context upsert failed');
-    return row;
+    try {
+      return await this.contexts
+        .findOneAndUpdate(
+          { userId: input.userId, revision: expectedRevision },
+          update,
+          {
+            upsert: expectedRevision === 0,
+            new: true,
+            session: this.session(),
+          },
+        )
+        .lean<AcademicCurrentContextRecord>()
+        .exec();
+    } catch (error) {
+      if (expectedRevision === 0 && isDuplicateKeyError(error)) return null;
+      throw error;
+    }
   }
 
   async upsertAcademicFollow(

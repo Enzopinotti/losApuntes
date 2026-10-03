@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Redirect } from "expo-router";
+import { Link, Redirect, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,8 @@ import { useSession } from "@/features/session/session-provider";
 
 export default function SignInRoute() {
   const { snapshot, login, retryRestore } = useSession();
+  const params = useLocalSearchParams<{ notice?: string | string[] }>();
+  const notice = typeof params.notice === "string" ? params.notice : null;
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,6 +50,12 @@ export default function SignInRoute() {
             : snapshot.kind === "error"
               ? "Ocurrió un error inesperado."
               : null;
+  const linkNotice =
+    notice === "recovery-unavailable"
+      ? "La recuperación de contraseña todavía no está disponible en la app."
+      : notice === "invalid-action-link"
+        ? "El enlace de verificación no es válido o venció."
+        : null;
 
   return (
     <KeyboardAvoidingView
@@ -84,9 +92,9 @@ export default function SignInRoute() {
           style={styles.input}
         />
 
-        {formError || transportState ? (
+        {formError || transportState || linkNotice ? (
           <Text accessibilityRole="alert" style={styles.error}>
-            {formError ?? transportState}
+            {formError ?? transportState ?? linkNotice}
           </Text>
         ) : null}
 
@@ -112,6 +120,12 @@ export default function SignInRoute() {
             <Text>Reintentar conexión</Text>
           </Pressable>
         ) : null}
+
+        <Link href="/register" asChild>
+          <Pressable accessibilityRole="link" style={styles.secondary}>
+            <Text>Crear una cuenta</Text>
+          </Pressable>
+        </Link>
       </View>
     </KeyboardAvoidingView>
   );

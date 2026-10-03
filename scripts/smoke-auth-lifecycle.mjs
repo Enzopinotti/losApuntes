@@ -194,16 +194,13 @@ const verificationComplete = await request(
 assert.equal(verificationComplete.response.status, 204);
 assert.equal(verificationComplete.text, '');
 
-const verificationReplay = await requestJson(
+const verificationReplay = await request(
   '/auth/email-verification/complete',
   jsonRequest('POST', { token: verificationToken }),
 );
 
-assert.equal(verificationReplay.response.status, 410);
-assert.equal(
-  verificationReplay.body.code,
-  'VERIFICATION_NOT_AVAILABLE',
-);
+assert.equal(verificationReplay.response.status, 204);
+assert.equal(verificationReplay.text, '');
 assertRequestId(verificationReplay.response);
 
 const webLogin = await requestJson(

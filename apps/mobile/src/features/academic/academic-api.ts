@@ -15,6 +15,7 @@ export interface AcademicContextTransport {
   ): Promise<AcademicAffiliationListResponse>;
   academicSubjects(
     credential: string,
+    affiliationId?: string,
     signal?: AbortSignal,
   ): Promise<AcademicSubjectParticipationListResponse>;
   academicContext(
@@ -31,6 +32,7 @@ export interface AcademicContextTransport {
 export interface AcademicContextApi {
   affiliations(signal?: AbortSignal): Promise<AcademicAffiliationListResponse>;
   subjects(
+    affiliationId?: string,
     signal?: AbortSignal,
   ): Promise<AcademicSubjectParticipationListResponse>;
   context(signal?: AbortSignal): Promise<AcademicCurrentContextResponse>;
@@ -52,9 +54,9 @@ export class AcademicMobileApi implements AcademicContextApi {
     );
   }
 
-  subjects(signal?: AbortSignal) {
+  subjects(affiliationId?: string, signal?: AbortSignal) {
     return this.authorized((credential) =>
-      this.transport.academicSubjects(credential, signal),
+      this.transport.academicSubjects(credential, affiliationId, signal),
     );
   }
 

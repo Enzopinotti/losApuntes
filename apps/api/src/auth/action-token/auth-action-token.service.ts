@@ -108,6 +108,20 @@ export class AuthActionTokenService {
     );
   }
 
+  async findClaimed(
+    token: string,
+    purpose: AuthActionPurpose,
+    now = new Date(),
+  ): Promise<AuthActionTokenRecord | null> {
+    if (!isActionToken(token)) return null;
+
+    return this.store.findClaimedByTokenHash(
+      hashActionToken(token),
+      purpose,
+      now,
+    );
+  }
+
   async invalidateToken(
     token: string,
     purpose: AuthActionPurpose,

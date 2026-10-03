@@ -116,6 +116,8 @@ Success:
 }
 ```
 
+A non-expired token already persisted as `claimed` for email-verification completion also remains inspectable so a client can reconcile an ambiguous/lost completion response. This does not make tokens consumed by invalidation, delivery failure, trimming or sibling cleanup available again.
+
 Unavailable:
 
 - `410 VERIFICATION_NOT_AVAILABLE`
@@ -138,9 +140,9 @@ Success:
 
 `204 No Content`
 
-The operation verifies the email claim but does not automatically create a long-lived session in v1.
+The operation verifies the email claim but does not automatically create a long-lived session in v1. A retry with the same non-expired token already persisted as `claimed` is idempotent: the API reconciles the verified account state and completes sibling-token invalidation before returning `204` again.
 
-Unavailable/replayed/expired:
+Unavailable/expired or consumed for a non-claim reason:
 
 - `410 VERIFICATION_NOT_AVAILABLE`
 

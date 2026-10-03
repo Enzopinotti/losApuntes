@@ -33,6 +33,7 @@ function toRecord(document: AuthActionTokenDocument): AuthActionTokenRecord {
     createdAt: document.createdAt,
     expiresAt: document.expiresAt,
     consumedAt: document.consumedAt,
+    consumedReason: document.consumedReason ?? null,
   };
 }
 
@@ -57,6 +58,7 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
         createdAt: input.createdAt,
         expiresAt: input.expiresAt,
         consumedAt: null,
+        consumedReason: null,
       });
 
       return toRecord(document);
@@ -97,12 +99,32 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
           expiresAt: { $gt: consumedAt },
         },
         {
-          $set: { consumedAt },
+          $set: {
+            consumedAt,
+            consumedReason: 'claimed',
+          },
         },
         {
           new: true,
         },
       )
+      .exec();
+
+    return document ? toRecord(document) : null;
+  }
+
+  async findClaimedByTokenHash(
+    tokenHash: string,
+    purpose: AuthActionPurpose,
+    now: Date,
+  ): Promise<AuthActionTokenRecord | null> {
+    const document = await this.model
+      .findOne({
+        tokenHash,
+        purpose,
+        consumedReason: 'claimed',
+        expiresAt: { $gt: now },
+      })
       .exec();
 
     return document ? toRecord(document) : null;
@@ -167,7 +189,10 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
           ],
         },
         {
-          $set: { consumedAt },
+          $set: {
+            consumedAt,
+            consumedReason: 'invalidated',
+          },
         },
       )
       .exec();
@@ -190,7 +215,10 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
           consumedAt: null,
         },
         {
-          $set: { consumedAt },
+          $set: {
+            consumedAt,
+            consumedReason: 'invalidated',
+          },
         },
       )
       .exec();
@@ -209,7 +237,10 @@ export class MongoAuthActionTokenStore implements AuthActionTokenStore {
           consumedAt: null,
         },
         {
-          $set: { consumedAt },
+          $set: {
+            consumedAt,
+            consumedReason: 'invalidated',
+          },
         },
       )
       .exec();

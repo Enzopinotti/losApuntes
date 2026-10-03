@@ -41,7 +41,7 @@ export class AcademicLifecycleService {
   ) {}
 
   async getLifecycle(userId: string) {
-    const [affiliationPage, participationPage, context, followPage] =
+    const [affiliationPage, participationPage, contextResponse, followPage] =
       await Promise.all([
         this.store.listAffiliationsForUser({
           userId,
@@ -52,10 +52,11 @@ export class AcademicLifecycleService {
           states: ['current'],
           limit: ACADEMIC_CURRENT_PARTICIPATION_DECISION_LIMIT,
         }),
-        this.store.getCurrentContext(userId),
+        this.academic.getCurrentContext(userId),
         this.store.listAcademicFollows(userId, ACADEMIC_FOLLOW_LIFECYCLE_LIMIT),
       ]);
 
+    const context = contextResponse.context;
     const affiliations = requireCompleteAcademicPage(
       affiliationPage,
       'affiliations',
@@ -186,11 +187,32 @@ export class AcademicLifecycleService {
         );
 
       const context = await this.store.getCurrentContext(userId);
-      if (context?.affiliationId === id && context.subjectParticipationId) {
-        await this.store.setCurrentContext({
-          userId,
-          affiliationId: id,
-        });
+      const selectedParticipationWasTransitioned =
+        context?.subjectParticipationId !== undefined &&
+        scopedCurrentIds.includes(context.subjectParticipationId);
+      const graduatingContextCarriesSubject =
+        context?.affiliationId === id &&
+        context.subjectParticipationId !== undefined;
+
+      if (
+        context &&
+        (selectedParticipationWasTransitioned ||
+          graduatingContextCarriesSubject)
+      ) {
+        const cleared = await this.store.setCurrentContext(
+          {
+            userId,
+            affiliationId: context.affiliationId,
+          },
+          context.revision,
+        );
+
+        if (!cleared) {
+          throw new ConflictException({
+            code: 'ACADEMIC_GRADUATION_CONFLICT',
+            message: 'Academic context changed concurrently',
+          });
+        }
       }
 
       await this.store.appendAuditEvent({

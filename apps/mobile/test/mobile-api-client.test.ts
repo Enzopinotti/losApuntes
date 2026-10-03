@@ -155,3 +155,38 @@ test("Search and result destinations use the existing authenticated routes", asy
     globalThis.fetch = previousFetch;
   }
 });
+
+test("academic subjects encodes the optional affiliation scope", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let requestInit: RequestInit | undefined;
+
+  globalThis.fetch = (async (input, init) => {
+    requestedUrl = String(input);
+    requestInit = init;
+    return new Response(
+      JSON.stringify({ participations: [], truncated: false, limit: 100 }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }) as typeof fetch;
+
+  try {
+    const client = new MobileApiClient("https://api.example.test");
+    await client.academicSubjects("opaque-session", "aff/a");
+
+    assert.equal(
+      requestedUrl,
+      "https://api.example.test/academic/me/subjects?affiliationId=aff%2Fa",
+    );
+    assert.equal(requestInit?.method, "GET");
+    assert.equal(
+      (requestInit?.headers as Record<string, string>).Authorization,
+      "Bearer opaque-session",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
