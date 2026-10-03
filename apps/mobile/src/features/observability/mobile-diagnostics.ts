@@ -58,10 +58,18 @@ function clamp(value: string, maximum: number): string {
   return value.length <= maximum ? value : value.slice(0, maximum);
 }
 
-function safeMetadata(value: string | null): string | null {
+function safeAppVersion(value: string | null): string | null {
   if (!value) return null;
-  const safe = value.trim().replace(/[^A-Za-z0-9._-]+/gu, "-");
-  return safe ? clamp(safe, MOBILE_DIAGNOSTIC_LIMITS.metadata) : null;
+  const version = value.trim();
+  return /^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?(?:\+\d+)?$/u.test(version)
+    ? clamp(version, MOBILE_DIAGNOSTIC_LIMITS.metadata)
+    : null;
+}
+
+function safeBuild(value: string | null): string | null {
+  if (!value) return null;
+  const build = value.trim();
+  return /^\d[\d.]{0,39}$/u.test(build) ? build : null;
 }
 
 function safeRevision(value: string | null): string | null {
@@ -153,15 +161,24 @@ export function createMobileDiagnosticEnvelope(
 
   return Object.freeze({
     platform: normalizePlatform(context.platform),
-    appVersion: safeMetadata(context.appVersion),
-    build: safeMetadata(context.build),
+    appVersion: safeAppVersion(context.appVersion),
+    build: safeBuild(context.build),
     revision: safeRevision(context.revision),
     surface,
     errorClass,
     fingerprint: fnv1a(`${errorClass}|${surface}`),
     stack: null,
-    timestamp: (context.now?.() ?? new Date()).toISOString(),
+    timestamp: safeTimestamp(context.now),
   });
+}
+
+function safeTimestamp(now?: () => Date): string {
+  try {
+    const value = now?.() ?? new Date();
+    return Date.prototype.toISOString.call(value);
+  } catch {
+    return new Date().toISOString();
+  }
 }
 
 function normalizePlatform(platform: string): MobileDiagnosticPlatform {
@@ -213,7 +230,13 @@ export function installMobileGlobalErrorHandler(
     } catch {
       // A diagnostic adapter must never create a second unhandled exception.
     }
-    previous?.(error, isFatal);
+    if (previous) {
+      // Preserve the native fatal path without forwarding private message/stack data.
+      const safeError = new Error("Client runtime failure");
+      safeError.name = safeErrorClass(error);
+      safeError.stack = "";
+      previous(safeError, isFatal);
+    }
   };
 
   errorUtils.setGlobalHandler(handler);
