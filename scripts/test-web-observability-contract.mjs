@@ -25,6 +25,27 @@ assert.equal(
   "/:segment/:segment/:segment",
 );
 
+assert.equal(
+  normalizeWebDiagnosticSurface("/login"),
+  "/login",
+);
+assert.equal(
+  normalizeWebDiagnosticSurface("/dashboard"),
+  "/dashboard",
+);
+assert.equal(
+  normalizeWebDiagnosticSurface("/notifications"),
+  "/notifications",
+);
+assert.equal(
+  normalizeWebDiagnosticSurface("/organizations/org-secret/manage"),
+  "/organizations/:id/manage",
+);
+assert.equal(
+  normalizeWebDiagnosticSurface("/p/private-profile-id"),
+  "/p/:id",
+);
+
 const error = new TypeError("token=opaque-secret-value user@example.test");
 error.stack = [
   "TypeError: token=opaque-secret-value",
@@ -95,6 +116,35 @@ try {
   );
 } finally {
   restoreSink();
+}
+
+const asyncSinkRejections = [];
+const restoreAsyncSink = configureWebDiagnosticSink(async () => {
+  throw new Error("async provider unavailable");
+});
+try {
+  const rejectionProbe = new Promise((resolve) => {
+    const onUnhandled = (reason) => {
+      asyncSinkRejections.push(reason);
+      resolve();
+    };
+    process.once("unhandledRejection", onUnhandled);
+    setTimeout(() => {
+      process.removeListener("unhandledRejection", onUnhandled);
+      resolve();
+    }, 20);
+  });
+
+  reportWebDiagnostic(new Error("render failed"), {
+    appVersion: null,
+    build: null,
+    revision: null,
+    surface: "/dashboard",
+  });
+  await rejectionProbe;
+  assert.equal(asyncSinkRejections.length, 0);
+} finally {
+  restoreAsyncSink();
 }
 
 const listeners = new Map();
