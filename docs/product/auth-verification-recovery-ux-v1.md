@@ -74,14 +74,17 @@ Current security lifetime:
 
 Canonical frontend route:
 
-`/auth/verify-email?token=<one-time-token>`
+`/auth/verify-email#token=<one-time-token>`
 
 The frontend must:
 
-1. read the token;
-2. remove it from the visible URL/history as early as practical;
-3. call the inspect/complete API;
-4. never persist it in localStorage/sessionStorage/analytics.
+1. read the token from the fragment first;
+2. temporarily accept the legacy query form only for already-issued links during migration;
+3. remove fragment/query authority from the visible URL/history as early as practical;
+4. call the inspect/complete API;
+5. never persist it in localStorage/sessionStorage/analytics.
+
+The fragment form is canonical because browsers do not send the fragment in the initial HTTP request target.
 
 Mobile may open the same HTTPS route through app/universal-link association later. The raw token still belongs only to this narrow verification flow.
 
@@ -266,9 +269,9 @@ Message requirements:
 
 Canonical frontend route:
 
-`/auth/reset-password?token=<one-time-token>`
+`/auth/reset-password#token=<one-time-token>`
 
-The frontend removes the token from visible URL/history as early as practical and never persists it in analytics/browser storage.
+The fragment form is canonical so the one-time bearer is not sent in the initial HTTP request target. The frontend reads fragment first, temporarily accepts already-issued legacy query links, removes either form from visible URL/history as early as practical, and never persists it in analytics/browser storage.
 
 ---
 
