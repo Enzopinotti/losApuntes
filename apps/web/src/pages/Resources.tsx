@@ -82,6 +82,33 @@ type ScopedBusyResource = {
   ticket: AsyncAuthorityTicket;
 };
 
+type UploadPhase = "intent" | "transfer" | "finalize" | "create";
+
+type ActiveUploadPhase = {
+  ticket: AsyncAuthorityTicket;
+  phase: UploadPhase;
+};
+
+type UncertainResourceCreate = {
+  userId: string;
+  fileIdentity: string;
+  filename: string;
+};
+
+function fileIdentity(file: File): string {
+  return JSON.stringify([file.name, file.size, file.type, file.lastModified]);
+}
+
+function isUncertainResourceCreateOutcome(error: unknown): boolean {
+  return (
+    isResourcesApiError(error) &&
+    (error.code === "NETWORK_UNAVAILABLE" ||
+      (error.code === "INVALID_RESPONSE" &&
+        error.status >= 200 &&
+        error.status < 300))
+  );
+}
+
 const Resources = () => {
   const { status, user, session } = useAuth();
   const location = useLocation();
@@ -188,6 +215,7 @@ const Resources = () => {
       : null;
   const subject = selectedSubject;
   const uploadOperationKey = useRef<string | null>(null);
+  const activeUploadPhase = useRef<ActiveUploadPhase | null>(null);
   const uploadOperationAuthScope = useRef(authScopeKey);
   if (uploadOperationAuthScope.current !== authScopeKey) {
     uploadOperationAuthScope.current = authScopeKey;
@@ -209,6 +237,8 @@ const Resources = () => {
     uploadProgressState?.scopeKey === uploadScopeKey
       ? uploadProgressState.value
       : 0;
+  const [uncertainResourceCreate, setUncertainResourceCreate] =
+    useState<UncertainResourceCreate | null>(null);
   const {
     begin: beginSubjectSearch,
     isCurrent: isSubjectSearchCurrent,
@@ -221,6 +251,23 @@ const Resources = () => {
     finish: finishUpload,
     invalidate: invalidateUpload,
   } = useAsyncAuthorityFence(uploadScopeKey);
+  const selectedFileIdentity = file ? fileIdentity(file) : null;
+  const hasUncertainResourceCreate = Boolean(
+    user?.id &&
+    selectedFileIdentity &&
+    uncertainResourceCreate?.userId === user.id &&
+    uncertainResourceCreate.fileIdentity === selectedFileIdentity,
+  );
+  const setUploadPhase = (ticket: AsyncAuthorityTicket, phase: UploadPhase) => {
+    if (!isUploadCurrent(ticket)) return;
+    const next = { ticket, phase };
+    activeUploadPhase.current = next;
+  };
+  const clearUploadPhase = (ticket: AsyncAuthorityTicket) => {
+    if (activeUploadPhase.current?.ticket === ticket) {
+      activeUploadPhase.current = null;
+    }
+  };
   const [shareInputs, setShareInputs] = useState<Record<string, string>>({});
 
   const load = useCallback(
@@ -423,6 +470,7 @@ const Resources = () => {
   const publish = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file || !subject) return;
+    if (hasUncertainResourceCreate) return;
 
     if (!SUPPORTED_TYPES.has(file.type)) {
       setErrorState({
@@ -450,6 +498,7 @@ const Resources = () => {
     uploadOperationKey.current = operationKey;
     let resourceCreateStarted = false;
     let reconciliationAttempted = false;
+    setUploadPhase(ticket, "intent");
 
     try {
       const intent = await resourcesApi.createUploadIntent(
@@ -458,6 +507,7 @@ const Resources = () => {
         ticket.signal,
       );
       if (!isUploadCurrent(ticket)) return;
+      setUploadPhase(ticket, "transfer");
       await resourcesApi.uploadDirect(
         intent.upload,
         file,
@@ -471,8 +521,10 @@ const Resources = () => {
         ticket.signal,
       );
       if (!isUploadCurrent(ticket)) return;
+      setUploadPhase(ticket, "finalize");
       await resourcesApi.finalize(intent.file.id, ticket.signal);
       if (!isUploadCurrent(ticket)) return;
+      setUploadPhase(ticket, "create");
       resourceCreateStarted = true;
       const created = await resourcesApi.create(
         {
@@ -506,19 +558,24 @@ const Resources = () => {
     } catch (nextError) {
       if (
         resourceCreateStarted &&
-        isResourcesApiError(nextError) &&
-        nextError.code === "NETWORK_UNAVAILABLE"
+        isUncertainResourceCreateOutcome(nextError)
       ) {
-        reconciliationAttempted = true;
-        await loadRef.current();
-        if (isUploadCurrent(ticket)) {
+        if (user?.id) {
+          setUncertainResourceCreate({
+            userId: user.id,
+            fileIdentity: fileIdentity(file),
+            filename: file.name,
+          });
+        } else if (isUploadCurrent(ticket)) {
           setErrorState({
             scopeKey: listScopeKey,
             message:
-              "No pudimos confirmar la publicación. Actualizá la lista antes de volver a intentarlo.",
+              "No pudimos confirmar si se publicó el recurso. Revisá tus recursos antes de volver a intentarlo.",
             isCurrent: () => isUploadCurrent(ticket),
           });
         }
+        reconciliationAttempted = true;
+        await loadRef.current();
         return;
       }
 
@@ -530,6 +587,7 @@ const Resources = () => {
         });
       }
     } finally {
+      clearUploadPhase(ticket);
       if (finishUpload(ticket)) {
         setUploadingState({ scopeKey: ticket.scopeKey, value: false });
         setUploadProgressState({ scopeKey: ticket.scopeKey, value: 0 });
@@ -951,8 +1009,29 @@ const Resources = () => {
                   type="button"
                   className="secondary"
                   onClick={() => {
+                    const phase = activeUploadPhase.current;
+                    const resourceCreationMayHaveCommitted =
+                      phase?.phase === "create" &&
+                      isUploadCurrent(phase.ticket);
+                    if (phase) clearUploadPhase(phase.ticket);
                     invalidateUpload();
-                    uploadOperationKey.current = null;
+                    if (resourceCreationMayHaveCommitted) {
+                      if (user?.id && file) {
+                        setUncertainResourceCreate({
+                          userId: user.id,
+                          fileIdentity: fileIdentity(file),
+                          filename: file.name,
+                        });
+                      } else {
+                        setErrorState({
+                          scopeKey: listScopeKey,
+                          message:
+                            "No pudimos confirmar si se publicó el recurso. Revisá tus recursos antes de volver a intentarlo.",
+                        });
+                      }
+                    } else {
+                      uploadOperationKey.current = null;
+                    }
                     setUploadGeneration((current) => current + 1);
                     setUploadingState({
                       scopeKey: uploadScopeKey,
@@ -962,10 +1041,12 @@ const Resources = () => {
                       scopeKey: uploadScopeKey,
                       value: 0,
                     });
-                    setErrorState({
-                      scopeKey: listScopeKey,
-                      message: "La subida fue cancelada.",
-                    });
+                    if (!resourceCreationMayHaveCommitted) {
+                      setErrorState({
+                        scopeKey: listScopeKey,
+                        message: "La subida fue cancelada.",
+                      });
+                    }
                   }}
                 >
                   Cancelar subida
@@ -973,10 +1054,43 @@ const Resources = () => {
               </div>
             )}
 
+            {hasUncertainResourceCreate && uncertainResourceCreate && (
+              <div className="resources-wide resources-error" role="alert">
+                <p>
+                  No pudimos confirmar si se publicó “
+                  {uncertainResourceCreate.filename}”. Revisá tus recursos antes
+                  de habilitar otro intento para evitar duplicados.
+                </p>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={uploading}
+                  onClick={() => {
+                    if (!user?.id || !selectedFileIdentity) return;
+                    setUncertainResourceCreate((current) =>
+                      current?.userId === user.id &&
+                      current.fileIdentity === selectedFileIdentity
+                        ? null
+                        : current,
+                    );
+                    uploadOperationKey.current = crypto.randomUUID();
+                    setUploadGeneration((current) => current + 1);
+                  }}
+                >
+                  Ya revisé Recursos; permitir otro intento
+                </button>
+              </div>
+            )}
+
             <div className="resources-wide">
               <button
                 type="submit"
-                disabled={uploading || !file || !selectedSubject}
+                disabled={
+                  uploading ||
+                  !file ||
+                  !selectedSubject ||
+                  hasUncertainResourceCreate
+                }
               >
                 {uploading ? "Subiendo…" : "Publicar recurso"}
               </button>

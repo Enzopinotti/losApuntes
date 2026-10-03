@@ -53,6 +53,14 @@ assert.match(page, /finishSubjectSearch\(ticket\)/u);
 assert.match(page, /isUploadCurrent\(ticket\)/u);
 assert.match(page, /finishUpload\(ticket\)/u);
 assert.match(page, /invalidateUpload\(\)/u);
+assert.match(
+  page,
+  /function isUncertainResourceCreateOutcome\(error: unknown\)/u,
+);
+assert.match(page, /isUncertainResourceCreateOutcome\(nextError\)/u);
+assert.match(page, /resourceCreationMayHaveCommitted/u);
+assert.match(page, /No pudimos confirmar si se publicó/u);
+assert.match(page, /Ya revisé Recursos; permitir otro intento/u);
 assert.match(page, /isResourceActionCurrent\(ticket\)/u);
 assert.match(page, /finishResourceAction\(ticket\)/u);
 assert.match(
