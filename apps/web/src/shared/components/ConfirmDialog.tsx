@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  type RefObject,
-} from "react";
+import { useEffect, useId, useRef, type RefObject } from "react";
 
 import "./ConfirmDialog.scss";
 
