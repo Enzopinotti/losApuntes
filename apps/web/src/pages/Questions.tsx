@@ -550,10 +550,7 @@ const Questions = () => {
           scopeKey: viewerScopeKey,
           message: "Pregunta actualizada.",
         });
-        await Promise.all([
-          loadDetailRef.current(),
-          loadListRef.current(),
-        ]);
+        await Promise.all([loadDetailRef.current(), loadListRef.current()]);
       },
     );
   };
