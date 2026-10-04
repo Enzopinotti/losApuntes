@@ -4,7 +4,8 @@ export const OPERATIONAL_ALERT_SIGNALS = [
   'worker.not_ready',
 ] as const;
 
-export type OperationalAlertSignal = (typeof OPERATIONAL_ALERT_SIGNALS)[number];
+export type OperationalAlertSignal =
+  (typeof OPERATIONAL_ALERT_SIGNALS)[number];
 
 export type OperationalAlertPhase = 'active' | 'recovery';
 
@@ -30,12 +31,12 @@ type AlertState = {
 const MAX_TIMESTAMP_MS = 8_640_000_000_000_000;
 const operationalAlertSignalSet = new Set<string>(OPERATIONAL_ALERT_SIGNALS);
 
-function assertSignal(
-  signal: string,
-): asserts signal is OperationalAlertSignal {
+function validatedSignal(signal: string): OperationalAlertSignal {
   if (!operationalAlertSignalSet.has(signal)) {
     throw new Error('signal must be an allow-listed operational alert signal');
   }
+
+  return signal as OperationalAlertSignal;
 }
 
 function assertDuration(name: string, value: number): void {
@@ -96,7 +97,7 @@ export class OperationalAlertBoundary {
     observedAtMs: number;
     policy: OperationalAlertPolicy;
   }): OperationalAlertEvent | null {
-    const signal = input.signal;
+    const signalInput = input.signal;
     const unhealthy = input.unhealthy;
     const observedAtMs = input.observedAtMs;
     const policyInput = input.policy;
@@ -105,7 +106,7 @@ export class OperationalAlertBoundary {
       repeatCooldownMs: policyInput.repeatCooldownMs,
     } satisfies OperationalAlertPolicy;
 
-    assertSignal(signal);
+    const signal = validatedSignal(signalInput);
     assertTimestamp(observedAtMs);
     assertPolicy(policy);
 
