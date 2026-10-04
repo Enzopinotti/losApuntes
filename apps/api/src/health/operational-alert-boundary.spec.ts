@@ -204,6 +204,19 @@ describe('OperationalAlertBoundary', () => {
     });
   });
 
+  it('rejects runtime signal values outside the bounded allowlist', () => {
+    const boundary = new OperationalAlertBoundary();
+
+    expect(() =>
+      boundary.observe({
+        signal: 'api.not_ready:mongodb://secret' as 'api.not_ready',
+        unhealthy: true,
+        observedAtMs: 1,
+        policy,
+      }),
+    ).toThrow('allow-listed operational alert signal');
+  });
+
   it('rejects invalid timing policy instead of silently inventing behavior', () => {
     const boundary = new OperationalAlertBoundary();
 
