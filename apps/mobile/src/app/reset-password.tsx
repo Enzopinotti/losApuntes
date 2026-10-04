@@ -162,7 +162,9 @@ export default function ResetPasswordRoute() {
                 style={[styles.primary, pending && styles.disabled]}
               >
                 {snapshot.kind === "submitting" ? (
-                  <ActivityIndicator accessibilityLabel="Guardando contraseña" />
+                  <ActivityIndicator
+                    accessibilityLabel="Guardando contraseña"
+                  />
                 ) : (
                   <Text style={styles.primaryText}>Cambiar contraseña</Text>
                 )}
@@ -178,7 +180,9 @@ export default function ResetPasswordRoute() {
               </Text>
               <Link href="/sign-in" asChild>
                 <Pressable accessibilityRole="link" style={styles.primary}>
-                  <Text style={styles.primaryText}>Iniciar sesión de nuevo</Text>
+                  <Text style={styles.primaryText}>
+                    Iniciar sesión de nuevo
+                  </Text>
                 </Pressable>
               </Link>
             </>
