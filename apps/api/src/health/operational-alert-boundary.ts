@@ -4,8 +4,7 @@ export const OPERATIONAL_ALERT_SIGNALS = [
   'worker.not_ready',
 ] as const;
 
-export type OperationalAlertSignal =
-  (typeof OPERATIONAL_ALERT_SIGNALS)[number];
+export type OperationalAlertSignal = (typeof OPERATIONAL_ALERT_SIGNALS)[number];
 
 export type OperationalAlertPhase = 'active' | 'recovery';
 
