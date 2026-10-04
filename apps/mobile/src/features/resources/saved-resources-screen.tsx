@@ -22,7 +22,8 @@ import {
 import { mobileResourceConsumptionApi } from "./resource-runtime";
 
 const failureCopy: Record<ResourceConsumptionFailure, string> = {
-  offline: "No hay conexión. Tus guardados se cargarán cuando vuelvas a estar en línea.",
+  offline:
+    "No hay conexión. Tus guardados se cargarán cuando vuelvas a estar en línea.",
   timeout: "El servidor tardó demasiado en responder.",
   server_unavailable: "No pudimos cargar tus guardados ahora.",
   forbidden: "La sesión ya no puede consultar estos guardados.",
