@@ -427,6 +427,8 @@ Verification/recovery surfaces require:
 
 - real labels;
 - visible keyboard focus;
+- Login and SignUp inputs expose a distinct `:focus-visible` outline using the
+  system text color so the indicator remains visible in forced-colors modes;
 - status announcements through live regions;
 - error text not encoded by color only;
 - accessible show/hide password control;
