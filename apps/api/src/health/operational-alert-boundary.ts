@@ -99,7 +99,11 @@ export class OperationalAlertBoundary {
     const signal = input.signal;
     const unhealthy = input.unhealthy;
     const observedAtMs = input.observedAtMs;
-    const policy = input.policy;
+    const policyInput = input.policy;
+    const policy = {
+      activationAfterMs: policyInput.activationAfterMs,
+      repeatCooldownMs: policyInput.repeatCooldownMs,
+    } satisfies OperationalAlertPolicy;
 
     assertSignal(signal);
     assertTimestamp(observedAtMs);
