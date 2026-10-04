@@ -264,6 +264,33 @@ describe('OperationalAlertBoundary', () => {
     expect(signalReads).toBe(1);
   });
 
+  it('reuses the exact policy scalars that passed validation', () => {
+    const boundary = new OperationalAlertBoundary();
+    let activationReads = 0;
+    let cooldownReads = 0;
+    const mutablePolicy = {
+      get activationAfterMs() {
+        activationReads += 1;
+        return activationReads === 1 ? 1_000 : 0;
+      },
+      get repeatCooldownMs() {
+        cooldownReads += 1;
+        return cooldownReads === 1 ? 5_000 : 1;
+      },
+    } as OperationalAlertPolicy;
+
+    expect(
+      boundary.observe({
+        signal: 'api.degraded',
+        unhealthy: true,
+        observedAtMs: 1_000,
+        policy: mutablePolicy,
+      }),
+    ).toBeNull();
+    expect(activationReads).toBe(1);
+    expect(cooldownReads).toBe(1);
+  });
+
   it('rejects invalid timing policy instead of silently inventing behavior', () => {
     const boundary = new OperationalAlertBoundary();
 
