@@ -110,8 +110,7 @@ const Home = () => {
   } | null>(null);
   const currentViewState =
     viewState?.scopeKey === authScopeKey ? viewState : null;
-  const loading =
-    currentViewState?.loading ?? status === "authenticated";
+  const loading = currentViewState?.loading ?? status === "authenticated";
   const error = currentViewState?.error ?? null;
 
   const load = useCallback(async () => {
@@ -150,13 +149,7 @@ const Home = () => {
         );
       }
     }
-  }, [
-    authScopeKey,
-    beginLoad,
-    finishLoad,
-    isLoadCurrent,
-    status,
-  ]);
+  }, [authScopeKey, beginLoad, finishLoad, isLoadCurrent, status]);
 
   useEffect(() => {
     if (status === "authenticated") {
