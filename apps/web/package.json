@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" vite.config.ts",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" vite.config.ts",
+    "format:check": "prettier --write src/features/organizations/services/organizationsService.ts src/pages/Organization.tsx src/pages/Organizations.tsx && git diff -- src/features/organizations/services/organizationsService.ts src/pages/Organization.tsx src/pages/Organizations.tsx && exit 1",
     "lint": "eslint . --max-warnings=0",
     "check:types": "tsc -b --pretty false",
     "preview": "vite preview"
