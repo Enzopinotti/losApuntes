@@ -131,7 +131,41 @@ This rule is especially important for:
 
 The upstream request still receives the complete query required for protocol correctness; only the persistent access-log representation is query-blind.
 
-## 7. Production evidence required
+## 7. Web cache qualification contract
+
+The repository provides a provider-neutral live probe for the public Web/API
+pair:
+
+```bash
+RELEASE_WEB_ORIGIN=https://app.example.com \
+RELEASE_API_ORIGIN=https://api.example.com \
+RELEASE_EXPECTED_SOURCE_SHA=<exact-40-character-git-sha> \
+pnpm release:qualify-live
+```
+
+The probe never sends credentials and rejects redirects. It requires:
+
+- both public origins to be exact HTTPS origins without credentials, path,
+  query or fragment;
+- Web `/release.json` to be `available`, point to the exact API origin and
+  carry the expected source SHA;
+- API `/health/release` to be `available` with that same source SHA;
+- API release evidence to remain `no-store`;
+- the SPA shell and `release.json` to be revalidatable and not
+  `immutable`;
+- the shell to reference a bounded set of hashed Vite assets;
+- every observed hashed asset to be `immutable` with at least one day of
+  freshness.
+
+The command emits only bounded release ids, origins, source SHA, asset count
+and policy outcomes. It does not persist response bodies, query strings,
+cookies or signed capabilities.
+
+This probe proves deployed HTTP identity/cache contracts. It does **not**
+replace the #83 browser rehearsal: rollback A -> B -> A must still be tested
+with a real browser while its cache is warm.
+
+## 8. Production evidence required
 
 Repository CI proves the API-side contract only.
 
@@ -145,7 +179,8 @@ Before external Beta, #48/#80 still require evidence from the actual public envi
 - trusted proxy allowlist matching deployed topology;
 - request-rate and connection budgets;
 - 429 behavior through the public edge;
-- hot-cache Web rollout behavior under #83;
+- a passing `pnpm release:qualify-live` result for the exact deployed SHA;
+- hot-cache Web rollout/rollback behavior under #83 with a real browser;
 - certificate expiry monitoring.
 
 Do not mark those controls PASS from local Nest tests.

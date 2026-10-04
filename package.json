@@ -14,7 +14,7 @@
     "format:check": "pnpm -r --if-present format:check",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present check:types",
-    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-async-authority-fence && pnpm test:notification-fanout-contract && pnpm test:web-academic-contract && pnpm test:web-profile-contract && pnpm test:web-resources-contract && pnpm test:web-search-contract && pnpm test:web-observability-contract && pnpm test:release-qualification-contract && pnpm test:web-social-qa-contract && pnpm test:web-feeds-contract && pnpm test:web-pilot-contract && pnpm test:web-organizations-contract && pnpm test:web-alumni-contract && pnpm --filter @losapuntes/mobile test && pnpm test:mobile-auth-contract && pnpm test:recovery-contract && pnpm test:resilience-contract && pnpm test:account-lifecycle-contract",
+    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-async-authority-fence && pnpm test:notification-fanout-contract && pnpm test:web-academic-contract && pnpm test:web-profile-contract && pnpm test:web-resources-contract && pnpm test:web-search-contract && pnpm test:web-observability-contract && pnpm test:release-qualification-contract && pnpm test:release-qualification-live && pnpm test:web-social-qa-contract && pnpm test:web-feeds-contract && pnpm test:web-pilot-contract && pnpm test:web-organizations-contract && pnpm test:web-alumni-contract && pnpm --filter @losapuntes/mobile test && pnpm test:mobile-auth-contract && pnpm test:recovery-contract && pnpm test:resilience-contract && pnpm test:account-lifecycle-contract",
     "build": "pnpm -r --if-present build",
     "audit:prod": "pnpm audit --prod --audit-level high",
     "runtime:up": "docker compose -f compose.local.yml -f compose.health.yml up --build -d --wait --wait-timeout 120",
@@ -46,7 +46,9 @@
     "security:audit-exceptions": "node scripts/security/check-audit-exceptions.mjs",
     "test:account-lifecycle-contract": "node scripts/test-account-lifecycle-contract.mjs",
     "test:web-observability-contract": "node scripts/test-web-observability-contract.mjs",
-    "test:release-qualification-contract": "node --experimental-strip-types scripts/test-release-qualification-contract.mjs"
+    "test:release-qualification-contract": "node --experimental-strip-types scripts/test-release-qualification-contract.mjs",
+    "release:qualify-live": "node scripts/release/qualify-live.mjs",
+    "test:release-qualification-live": "node --test scripts/release/release-qualification-lib.test.mjs"
   },
   "pnpm": {
     "overrides": {

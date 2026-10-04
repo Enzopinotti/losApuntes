@@ -24,6 +24,12 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - Web observed source SHA:
 - Web embedded API origin:
 - Web/API source SHA match: yes/no
+- Live release qualification command/run:
+- Web shell cache evidence: revalidatable / FAIL
+- Web release manifest cache evidence: revalidatable / FAIL
+- API release cache evidence: no-store / FAIL
+- Hashed Web assets observed:
+- Hashed Web asset cache evidence: immutable / FAIL
 - Deployment timestamp/window:
 
 ## Planning traceability
@@ -134,5 +140,7 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - API release observation is valid only when `/health/release` returns `status=available` with the deployment-provided release identifier and exact 40-character source SHA; a 503/unavailable response is an explicit blocker, not evidence to replace manually;
 - Web release identity is valid only when the deployed `/release.json` is `status=available`, names the exact built source SHA and the exact embedded API origin; an unavailable manifest is an explicit blocker;
 - Web/Mobile qualification must reject an observed API source SHA that differs from the client artifact source SHA; an origin match alone is insufficient;
+- live Web/API qualification must be run with `RELEASE_EXPECTED_SOURCE_SHA` equal to the exact candidate being qualified; `pnpm release:qualify-live` fails closed on identity or cache-policy mismatch;
+- a passing Node live probe does not prove browser hot-cache rollback A -> B -> A; record that rehearsal separately with a real browser and deployed edge;
 - a data-sensitive/destructive release with existing durable data requires a recent verified recovery point; only a genuinely empty first install may record recovery as N/A;
 - keep the project Excel reconciled with this record rather than creating a second planning backlog here.
