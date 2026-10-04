@@ -37,7 +37,21 @@ The Mobile code-level recovery path now covers:
 - retryable offline/timeout handling without persisting the bearer;
 - password completion and terminal `RECOVERY_NOT_AVAILABLE` handling.
 
-This does **not** by itself close native recovery acceptance. Transactional email must also expose the Mobile recovery deep link. PR #145 has now merged and released that backend delivery path, so the app-link email addition is intentionally queued as a separate small follow-up rather than being mixed into this Mobile carrier. HTTPS universal/app-link association and real-device/provider evidence remain external/native acceptance work.
+This does **not** by itself close native recovery acceptance. Transactional email now exposes the Mobile recovery deep link through merged #154. HTTPS universal/app-link association and real-device/provider evidence remain external/native acceptance work.
+
+### Account security implementation status
+
+The Mobile account-security surface now consumes the existing authenticated authority boundary for:
+
+- privacy-bounded active-session inventory;
+- revoke-one and revoke-all;
+- current-session revocation;
+- authenticated password change;
+- local SecureStore clearing after current-session revoke, revoke-all and password change;
+- stale-request fencing and abort on scope loss;
+- native destructive confirmations and explicit post-security sign-out copy.
+
+The UI intentionally does not display raw IP, exact location, full User-Agent, fingerprints or hardware identifiers. Google link/unlink remains a separate provider-dependent slice.
 
 ## Credential lifecycle
 
