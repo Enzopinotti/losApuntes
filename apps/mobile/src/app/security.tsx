@@ -80,6 +80,8 @@ export default function SecurityRoute() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPasswords, setShowNewPasswords] = useState(false);
   const [localPasswordError, setLocalPasswordError] = useState<string | null>(
     null,
   );
@@ -200,7 +202,11 @@ export default function SecurityRoute() {
     <ProductSurface
       title="Seguridad"
       description="Controlá tu contraseña y dónde está abierta tu cuenta sin exponer datos sensibles del dispositivo."
-      onRefresh={() => void controller.load()}
+      onRefresh={
+        snapshot.kind === "ready" && snapshot.busyAction === null
+          ? () => void controller.load()
+          : undefined
+      }
       refreshing={snapshot.kind === "loading"}
     >
       {snapshot.kind === "loading" || snapshot.kind === "idle" ? (
@@ -251,7 +257,7 @@ export default function SecurityRoute() {
               autoCapitalize="none"
               autoComplete="current-password"
               editable={snapshot.busyAction === null}
-              secureTextEntry
+              secureTextEntry={!showCurrentPassword}
               textContentType="password"
               value={currentPassword}
               onChangeText={(value) => {
@@ -261,6 +267,20 @@ export default function SecurityRoute() {
               }}
               style={styles.input}
             />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                showCurrentPassword
+                  ? "Ocultar contraseña actual"
+                  : "Mostrar contraseña actual"
+              }
+              onPress={() => setShowCurrentPassword((visible) => !visible)}
+              style={styles.passwordVisibility}
+            >
+              <Text style={styles.passwordVisibilityText}>
+                {showCurrentPassword ? "Ocultar" : "Mostrar"}
+              </Text>
+            </Pressable>
 
             <Text style={styles.label}>Nueva contraseña</Text>
             <TextInput
@@ -268,7 +288,7 @@ export default function SecurityRoute() {
               autoCapitalize="none"
               autoComplete="new-password"
               editable={snapshot.busyAction === null}
-              secureTextEntry
+              secureTextEntry={!showNewPasswords}
               textContentType="newPassword"
               value={newPassword}
               onChangeText={(value) => {
@@ -285,7 +305,7 @@ export default function SecurityRoute() {
               autoCapitalize="none"
               autoComplete="new-password"
               editable={snapshot.busyAction === null}
-              secureTextEntry
+              secureTextEntry={!showNewPasswords}
               textContentType="newPassword"
               value={confirmation}
               onChangeText={(value) => {
@@ -295,6 +315,20 @@ export default function SecurityRoute() {
               }}
               style={styles.input}
             />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                showNewPasswords
+                  ? "Ocultar contraseñas nuevas"
+                  : "Mostrar contraseñas nuevas"
+              }
+              onPress={() => setShowNewPasswords((visible) => !visible)}
+              style={styles.passwordVisibility}
+            >
+              <Text style={styles.passwordVisibilityText}>
+                {showNewPasswords ? "Ocultar" : "Mostrar"}
+              </Text>
+            </Pressable>
 
             {localPasswordError ? (
               <Text accessibilityRole="alert" style={styles.error}>
@@ -424,6 +458,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     backgroundColor: "#ffffff",
+  },
+  passwordVisibility: {
+    minHeight: 40,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  passwordVisibilityText: {
+    color: "#34345a",
+    fontWeight: "700",
   },
   primary: {
     minHeight: 50,
