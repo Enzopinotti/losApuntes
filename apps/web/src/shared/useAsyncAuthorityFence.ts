@@ -32,7 +32,7 @@ export function useAsyncAuthorityFence(scopeKey: string) {
 
   useEffect(
     () => () => {
-      fence.dispose();
+      fence.invalidate();
     },
     [fence],
   );

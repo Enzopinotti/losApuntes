@@ -1,5 +1,26 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { AsyncAuthorityFence } from "../apps/web/src/shared/asyncAuthorityFence.ts";
+
+const hook = await readFile(
+  new URL("../apps/web/src/shared/useAsyncAuthorityFence.ts", import.meta.url),
+  "utf8",
+);
+assert.match(hook, /fence\.invalidate\(\)/u);
+assert.doesNotMatch(hook, /fence\.dispose\(\)/u);
+
+const strictModeReplayFence = new AsyncAuthorityFence("strict-mode-replay");
+const firstMount = strictModeReplayFence.begin("strict-mode-replay");
+strictModeReplayFence.invalidate();
+assert.equal(firstMount.signal.aborted, true);
+
+const replayedMount = strictModeReplayFence.begin("strict-mode-replay");
+assert.equal(
+  strictModeReplayFence.isCurrent(replayedMount),
+  true,
+  "effect replay cleanup must invalidate old work without disabling the next setup",
+);
+assert.equal(strictModeReplayFence.finish(replayedMount), true);
 
 const fence = new AsyncAuthorityFence("A");
 const firstA = fence.begin("A");
