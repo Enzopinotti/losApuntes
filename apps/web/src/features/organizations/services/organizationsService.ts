@@ -300,11 +300,7 @@ export const organizationsApi = {
       { method: "POST", body: json(input), signal },
     ),
 
-  featureResource: (
-    id: string,
-    resourceId: string,
-    signal?: AbortSignal,
-  ) =>
+  featureResource: (id: string, resourceId: string, signal?: AbortSignal) =>
     request<{ featured: true }>(
       `/organizations/${encodeURIComponent(
         id,
