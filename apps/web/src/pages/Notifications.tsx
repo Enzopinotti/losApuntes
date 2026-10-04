@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { NotificationView } from "../features/community/interfaces";
@@ -6,6 +6,7 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import { shouldReconcileNotificationTick } from "../features/community/notificationReconciliation";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
 
@@ -43,6 +44,8 @@ const Notifications = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const firstPagePendingRef = useRef(false);
+  const consumedReconcileTickRef = useRef(0);
 
   const authorityScope = [
     status,
@@ -65,6 +68,7 @@ const Notifications = () => {
 
   const loadFirstPage = useCallback(async () => {
     const ticket = beginListRequest();
+    firstPagePendingRef.current = true;
     setLoading(true);
     setLoadingMore(false);
     setError(null);
@@ -87,14 +91,12 @@ const Notifications = () => {
       if (!isListRequestCurrent(ticket)) return;
       setError(messageFor(nextError, "No pudimos cargar tus notificaciones."));
     } finally {
-      if (finishListRequest(ticket)) setLoading(false);
+      if (finishListRequest(ticket)) {
+        firstPagePendingRef.current = false;
+        setLoading(false);
+      }
     }
-  }, [
-    beginListRequest,
-    finishListRequest,
-    isListRequestCurrent,
-    unreadOnly,
-  ]);
+  }, [beginListRequest, finishListRequest, isListRequestCurrent, unreadOnly]);
 
   const loadMore = useCallback(
     async (cursor: string) => {
@@ -118,20 +120,19 @@ const Notifications = () => {
         setLoadedPages((current) => current + 1);
       } catch (nextError) {
         if (!isListRequestCurrent(ticket)) return;
-        setError(messageFor(nextError, "No pudimos cargar tus notificaciones."));
+        setError(
+          messageFor(nextError, "No pudimos cargar tus notificaciones."),
+        );
       } finally {
         if (finishListRequest(ticket)) setLoadingMore(false);
       }
     },
-    [
-      beginListRequest,
-      finishListRequest,
-      isListRequestCurrent,
-      unreadOnly,
-    ],
+    [beginListRequest, finishListRequest, isListRequestCurrent, unreadOnly],
   );
 
   const reconcileLoadedWindow = useCallback(async () => {
+    if (firstPagePendingRef.current) return;
+
     const ticket = beginListRequest();
     const reconciled: NotificationView[] = [];
     let cursor: string | undefined;
@@ -182,9 +183,31 @@ const Notifications = () => {
   }, [authorityScope]);
 
   useEffect(() => {
-    if (reconcileTick === 0 || status !== "authenticated") return;
+    if (
+      !shouldReconcileNotificationTick(
+        reconcileTick,
+        consumedReconcileTickRef.current,
+        {
+          authenticated: status === "authenticated",
+          firstPagePending: firstPagePendingRef.current,
+          loading,
+          loadingMore,
+          actionBusy,
+        },
+      )
+    ) {
+      return;
+    }
+    consumedReconcileTickRef.current = reconcileTick;
     void reconcileLoadedWindow();
-  }, [reconcileLoadedWindow, reconcileTick, status]);
+  }, [
+    actionBusy,
+    loading,
+    loadingMore,
+    reconcileLoadedWindow,
+    reconcileTick,
+    status,
+  ]);
 
   useEffect(() => {
     if (status !== "authenticated" || busy || loading) return;
