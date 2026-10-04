@@ -100,12 +100,13 @@ function fileIdentity(file: File): string {
 }
 
 function isUncertainResourceCreateOutcome(error: unknown): boolean {
+  if (!isResourcesApiError(error)) return true;
   return (
-    isResourcesApiError(error) &&
-    (error.code === "NETWORK_UNAVAILABLE" ||
-      (error.code === "INVALID_RESPONSE" &&
-        error.status >= 200 &&
-        error.status < 300))
+    error.code === "NETWORK_UNAVAILABLE" ||
+    error.status === 0 ||
+    error.status === 408 ||
+    error.status >= 500 ||
+    (error.status >= 200 && error.status < 300)
   );
 }
 
@@ -237,8 +238,9 @@ const Resources = () => {
     uploadProgressState?.scopeKey === uploadScopeKey
       ? uploadProgressState.value
       : 0;
-  const [uncertainResourceCreate, setUncertainResourceCreate] =
-    useState<UncertainResourceCreate | null>(null);
+  const [uncertainResourceCreates, setUncertainResourceCreates] = useState<
+    UncertainResourceCreate[]
+  >([]);
   const {
     begin: beginSubjectSearch,
     isCurrent: isSubjectSearchCurrent,
@@ -252,12 +254,35 @@ const Resources = () => {
     invalidate: invalidateUpload,
   } = useAsyncAuthorityFence(uploadScopeKey);
   const selectedFileIdentity = file ? fileIdentity(file) : null;
-  const hasUncertainResourceCreate = Boolean(
-    user?.id &&
-    selectedFileIdentity &&
-    uncertainResourceCreate?.userId === user.id &&
-    uncertainResourceCreate.fileIdentity === selectedFileIdentity,
+  const currentUncertainResourceCreate = uncertainResourceCreates.find(
+    (uncertain) =>
+      uncertain.userId === user?.id &&
+      uncertain.fileIdentity === selectedFileIdentity,
   );
+  const hasUncertainResourceCreate = Boolean(currentUncertainResourceCreate);
+  const rememberUncertainResourceCreate = (next: UncertainResourceCreate) => {
+    setUncertainResourceCreates((current) =>
+      current.some(
+        (uncertain) =>
+          uncertain.userId === next.userId &&
+          uncertain.fileIdentity === next.fileIdentity,
+      )
+        ? current
+        : [...current, next],
+    );
+  };
+  const forgetUncertainResourceCreate = (
+    userId: string,
+    fileIdentity: string,
+  ) => {
+    setUncertainResourceCreates((current) =>
+      current.filter(
+        (uncertain) =>
+          uncertain.userId !== userId ||
+          uncertain.fileIdentity !== fileIdentity,
+      ),
+    );
+  };
   const setUploadPhase = (ticket: AsyncAuthorityTicket, phase: UploadPhase) => {
     if (!isUploadCurrent(ticket)) return;
     const next = { ticket, phase };
@@ -561,7 +586,7 @@ const Resources = () => {
         isUncertainResourceCreateOutcome(nextError)
       ) {
         if (user?.id) {
-          setUncertainResourceCreate({
+          rememberUncertainResourceCreate({
             userId: user.id,
             fileIdentity: fileIdentity(file),
             filename: file.name,
@@ -1017,7 +1042,7 @@ const Resources = () => {
                     invalidateUpload();
                     if (resourceCreationMayHaveCommitted) {
                       if (user?.id && file) {
-                        setUncertainResourceCreate({
+                        rememberUncertainResourceCreate({
                           userId: user.id,
                           fileIdentity: fileIdentity(file),
                           filename: file.name,
@@ -1054,12 +1079,13 @@ const Resources = () => {
               </div>
             )}
 
-            {hasUncertainResourceCreate && uncertainResourceCreate && (
+            {currentUncertainResourceCreate && (
               <div className="resources-wide resources-error" role="alert">
                 <p>
                   No pudimos confirmar si se publicó “
-                  {uncertainResourceCreate.filename}”. Revisá tus recursos antes
-                  de habilitar otro intento para evitar duplicados.
+                  {currentUncertainResourceCreate.filename}”. Revisá tus
+                  recursos antes de habilitar otro intento para evitar
+                  duplicados.
                 </p>
                 <button
                   type="button"
@@ -1067,11 +1093,9 @@ const Resources = () => {
                   disabled={uploading}
                   onClick={() => {
                     if (!user?.id || !selectedFileIdentity) return;
-                    setUncertainResourceCreate((current) =>
-                      current?.userId === user.id &&
-                      current.fileIdentity === selectedFileIdentity
-                        ? null
-                        : current,
+                    forgetUncertainResourceCreate(
+                      user.id,
+                      selectedFileIdentity,
                     );
                     uploadOperationKey.current = crypto.randomUUID();
                     setUploadGeneration((current) => current + 1);

@@ -28,6 +28,9 @@ assert.match(
 assert.match(service, /AbortSignal\.any\(\[signal, timeout\]\)/u);
 assert.match(service, /signal: requestSignal\(init\.signal\)/u);
 assert.match(service, /text = await response\.text\(\)/u);
+assert.match(service, /function parseResourceCreateResponse\(value: unknown\)/u);
+assert.match(service, /\.then\(parseResourceCreateResponse\)/u);
+assert.match(service, /"INVALID_RESPONSE"/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
@@ -59,6 +62,9 @@ assert.match(
 );
 assert.match(page, /isUncertainResourceCreateOutcome\(nextError\)/u);
 assert.match(page, /resourceCreationMayHaveCommitted/u);
+assert.match(page, /uncertainResourceCreates/u);
+assert.match(page, /rememberUncertainResourceCreate/u);
+assert.match(page, /forgetUncertainResourceCreate/u);
 assert.match(page, /No pudimos confirmar si se publicó/u);
 assert.match(page, /Ya revisé Recursos; permitir otro intento/u);
 assert.match(page, /isResourceActionCurrent\(ticket\)/u);

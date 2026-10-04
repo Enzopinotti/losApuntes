@@ -114,6 +114,29 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return parsed as T;
 }
 
+function parseResourceCreateResponse(value: unknown): {
+  resource: ResourceView;
+} {
+  const response =
+    typeof value === "object" && value !== null
+      ? (value as { resource?: unknown })
+      : null;
+  const resource =
+    typeof response?.resource === "object" && response.resource !== null
+      ? (response.resource as Partial<ResourceView>)
+      : null;
+
+  if (typeof resource?.id !== "string" || typeof resource.title !== "string") {
+    throw new ResourcesApiError(
+      "INVALID_RESPONSE",
+      200,
+      "El servidor devolvió una respuesta inválida al publicar el recurso.",
+    );
+  }
+
+  return value as { resource: ResourceView };
+}
+
 function json(value: unknown): string {
   return JSON.stringify(value);
 }
@@ -266,11 +289,11 @@ export const resourcesApi = {
     },
     signal?: AbortSignal,
   ) =>
-    request<{ resource: ResourceView }>("/resources", {
+    request<unknown>("/resources", {
       method: "POST",
       body: json(input),
       signal,
-    }),
+    }).then(parseResourceCreateResponse),
 
   update: (
     resource: ResourceView,
