@@ -128,7 +128,7 @@ const PublicProfile = () => {
     try {
       const page = await profileApi.publicActivities(
         profileId,
-        cursor,
+        cursor ?? undefined,
         target.profile.activitiesLimit ?? 20,
         ticket.signal,
       );
