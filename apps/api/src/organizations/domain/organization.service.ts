@@ -360,9 +360,7 @@ export class OrganizationService {
     if (organization.revision !== dto.expectedRevision) {
       this.revisionConflict();
     }
-    if (
-      organization.managementRevision !== dto.expectedManagementRevision
-    ) {
+    if (organization.managementRevision !== dto.expectedManagementRevision) {
       this.managementConflict();
     }
 
