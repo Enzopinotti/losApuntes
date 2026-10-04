@@ -196,6 +196,27 @@ export const organizationsApi = {
       },
     ),
 
+  archive: (
+    id: string,
+    expectedRevision: number,
+    expectedManagementRevision: number,
+    reason: string,
+    signal?: AbortSignal,
+  ) =>
+    request<{
+      organization: {
+        id: string;
+        status: "archived";
+        revision: number;
+        managementRevision: number;
+      };
+      archived: true;
+    }>(`/organizations/${encodeURIComponent(id)}/archive`, {
+      method: "POST",
+      body: json({ expectedRevision, expectedManagementRevision, reason }),
+      signal,
+    }),
+
   follow: (id: string, signal?: AbortSignal) =>
     request<{ following: true; changed: boolean }>(
       `/organizations/${encodeURIComponent(id)}/follow`,

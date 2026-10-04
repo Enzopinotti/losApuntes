@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   OrganizationDetail,
@@ -10,6 +16,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
 
@@ -34,6 +41,7 @@ function messageFor(error: unknown): string {
 
 const OrganizationManage = () => {
   const { organizationId } = useParams();
+  const navigate = useNavigate();
   const { status, user, session } = useAuth();
   const authScopeKey = [
     status,
@@ -84,6 +92,9 @@ const OrganizationManage = () => {
     useState<OrganizationManagerRole>("editor");
   const [managerReason, setManagerReason] = useState("");
   const [verificationReason, setVerificationReason] = useState("");
+  const [archiveReason, setArchiveReason] = useState("");
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const archiveButtonRef = useRef<HTMLButtonElement>(null);
   const [busyState, setBusyState] = useState<{
     scopeKey: string;
     value: string | null;
@@ -159,6 +170,8 @@ const OrganizationManage = () => {
     setManagerRole("editor");
     setManagerReason("");
     setVerificationReason("");
+    setArchiveReason("");
+    setArchiveConfirmOpen(false);
   }, [organizationScopeKey]);
 
   const run = async (
@@ -166,6 +179,8 @@ const OrganizationManage = () => {
     operation: (signal: AbortSignal) => Promise<unknown>,
     success: string,
   ): Promise<boolean> => {
+    if (busy === "archive") return false;
+
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) return false;
     setBusyState({ scopeKey: organizationScopeKey, value: key });
@@ -184,6 +199,50 @@ const OrganizationManage = () => {
         message: messageFor(nextError),
       });
       return false;
+    } finally {
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
+    }
+  };
+
+  const archiveOrganization = async () => {
+    if (!detail || !management || management.actorRole !== "owner" || busy) {
+      return;
+    }
+
+    const reason = archiveReason.trim();
+    if (reason.length < 3) {
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: "Ingresá un motivo de archivo de al menos 3 caracteres.",
+      });
+      return;
+    }
+
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setArchiveConfirmOpen(false);
+    setBusyState({ scopeKey: organizationScopeKey, value: "archive" });
+    setErrorState(null);
+    setFeedbackState(null);
+
+    try {
+      await organizationsApi.archive(
+        detail.id,
+        detail.revision,
+        management.organization.managementRevision,
+        reason,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      navigate("/organizations", { replace: true });
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
     } finally {
       if (finishAction(ticket)) {
         setBusyState({ scopeKey: organizationScopeKey, value: null });
@@ -331,7 +390,7 @@ const OrganizationManage = () => {
                   onChange={(event) => setWebsiteUrl(event.target.value)}
                 />
               </label>
-              <button disabled={busy === "profile"} type="submit">
+              <button disabled={Boolean(busy)} type="submit">
                 Guardar
               </button>
             </form>
@@ -441,7 +500,7 @@ const OrganizationManage = () => {
                 onChange={(event) => setPostBody(event.target.value)}
               />
             </label>
-            <button disabled={busy === "post"} type="submit">
+            <button disabled={Boolean(busy)} type="submit">
               Publicar
             </button>
           </form>
@@ -483,7 +542,7 @@ const OrganizationManage = () => {
                 onChange={(event) => setEventDescription(event.target.value)}
               />
             </label>
-            <button disabled={busy === "event"} type="submit">
+            <button disabled={Boolean(busy)} type="submit">
               Publicar evento
             </button>
           </form>
@@ -560,6 +619,33 @@ const OrganizationManage = () => {
           </small>
         </section>
 
+        {canManageOwners && (
+          <section className="organizations-card">
+            <h2>Archivar organización</h2>
+            <p>
+              Archivar la organización la retira de búsquedas y páginas
+              públicas, y revoca todos los permisos de managers. No elimina
+              publicaciones, eventos, Resources compartidos ni historial.
+            </p>
+            <div className="organization-manager-form">
+              <input
+                placeholder="Motivo del archivo"
+                value={archiveReason}
+                onChange={(event) => setArchiveReason(event.target.value)}
+              />
+              <button
+                ref={archiveButtonRef}
+                type="button"
+                className="secondary"
+                disabled={Boolean(busy) || archiveReason.trim().length < 3}
+                onClick={() => setArchiveConfirmOpen(true)}
+              >
+                Archivar organización
+              </button>
+            </div>
+          </section>
+        )}
+
         <section className="organizations-card">
           <h2>Verificación de identidad</h2>
           <p>
@@ -600,6 +686,16 @@ const OrganizationManage = () => {
           </div>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={archiveConfirmOpen}
+        title="Archivar organización"
+        description="La organización dejará de estar disponible y todos los permisos de managers serán revocados. El contenido compartido y el historial se conservan. Esta acción no es un borrado."
+        confirmLabel="Archivar organización"
+        onConfirm={() => void archiveOrganization()}
+        onCancel={() => setArchiveConfirmOpen(false)}
+        returnFocusRef={archiveButtonRef}
+      />
     </section>
   );
 };

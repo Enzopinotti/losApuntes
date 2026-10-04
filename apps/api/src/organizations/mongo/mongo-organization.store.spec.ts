@@ -84,6 +84,7 @@ function models(input: {
     }),
     findOneAndUpdate: jest.fn(),
     deleteOne: jest.fn(),
+    deleteMany: jest.fn(() => query({ deletedCount: 1 })),
   };
   const audits = {
     create: jest.fn(),
@@ -139,6 +140,37 @@ function models(input: {
     managerListQuery,
     linkListQuery,
     featuredListQuery,
+  };
+}
+
+function createArchiveInput() {
+  return {
+    organizationId,
+    authority: {
+      actorUserId,
+      expectedManagementRevision: 7,
+      allowedRoles: ['owner'] as const,
+    },
+    mutation: {
+      kind: 'organization.archive' as const,
+      expectedRevision: 3,
+    },
+    audit: {
+      id: '99999999-9999-4999-8999-999999999999',
+      organizationId,
+      event: 'organization.archived' as const,
+      actorUserId,
+      targetUserId: null,
+      previousRole: null,
+      nextRole: null,
+      reason: 'Archive test',
+      metadata: {
+        previousStatus: 'active',
+        nextStatus: 'archived',
+        sharedContentPreserved: true,
+      },
+      createdAt: now,
+    },
   };
 }
 
@@ -381,7 +413,147 @@ describe('MongoOrganizationStore public content pagination', () => {
   });
 });
 
+describe('MongoOrganizationStore followed feed isolation', () => {
+  it('joins the exact followed organization and requires it to stay active', async () => {
+    const aggregate = jest.fn((pipeline: unknown[]) => {
+      void pipeline;
+      return {
+        exec: jest.fn().mockResolvedValue([]),
+      };
+    });
+    const posts = { aggregate };
+    const store = new MongoOrganizationStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      posts as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await store.listFeedPostsForFollower({
+      userId: actorUserId,
+      anchorAt: now,
+      limit: 25,
+    });
+
+    const pipeline = aggregate.mock.calls[0]?.[0];
+    expect(JSON.stringify(pipeline)).not.toContain(
+      '["$organizationId","$organizationId"]',
+    );
+    expect(JSON.stringify(pipeline)).toContain('"$organizationId"');
+
+    expect(pipeline).toEqual(
+      expect.arrayContaining([
+        {
+          $lookup: {
+            from: 'organizations',
+            let: { organizationId: '$organizationId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$id', '$$organizationId'] },
+                      { $eq: ['$status', 'active'] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__activeOrganization',
+          },
+        },
+        { $match: { '__activeOrganization.0': { $exists: true } } },
+        {
+          $lookup: {
+            from: 'organization_follows',
+            let: { organizationId: '$organizationId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$organizationId', '$$organizationId'] },
+                      { $eq: ['$userId', actorUserId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__viewerFollow',
+          },
+        },
+      ]),
+    );
+  });
+});
+
 describe('MongoOrganizationStore commit authority', () => {
+  it('archives and revokes all manager authority in one transaction', async () => {
+    const archived = {
+      id: organizationId,
+      status: 'archived',
+      revision: 4,
+      managementRevision: 8,
+    };
+    const fixture = models({
+      organization: {
+        id: organizationId,
+        status: 'active',
+        revision: 3,
+        managementRevision: 7,
+      },
+      manager: {
+        organizationId,
+        userId: actorUserId,
+        role: 'owner',
+      },
+    });
+    fixture.organizations.findOneAndUpdate.mockReturnValueOnce(query(archived));
+    fixture.audits.create.mockResolvedValue([createArchiveInput().audit]);
+
+    await expect(
+      fixture.store.commitAuthorizedMutation(createArchiveInput()),
+    ).resolves.toEqual({
+      status: 'ok',
+      kind: 'organization.archive',
+      value: archived,
+    });
+
+    expect(fixture.organizations.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        id: organizationId,
+        status: 'active',
+        revision: 3,
+        managementRevision: 7,
+      },
+      {
+        $set: { status: 'archived' },
+        $inc: { revision: 1, managementRevision: 1 },
+      },
+      { new: true, session: fixture.activeSession },
+    );
+    expect(fixture.managers.deleteMany).toHaveBeenCalledWith({
+      organizationId,
+    });
+    expect(fixture.audits.create).toHaveBeenCalledWith(
+      [createArchiveInput().audit],
+      { session: fixture.activeSession },
+    );
+    expect(fixture.posts.create).not.toHaveBeenCalled();
+    expect(fixture.links.deleteOne).not.toHaveBeenCalled();
+    expect(fixture.featuredResources.deleteOne).not.toHaveBeenCalled();
+    expect(fixture.activeSession.withTransaction).toHaveBeenCalledTimes(1);
+  });
+
   it('does not write after management revision changed before commit', async () => {
     const fixture = models({ organization: null });
 
@@ -658,7 +830,7 @@ describe('MongoOrganizationStore commit authority', () => {
     expect(fixture.audits.create.mock.calls).toHaveLength(0);
   });
 
-  it('writes content and audit inside the same authorized transaction', async () => {
+  it('takes the Organization write fence before content and audit commit', async () => {
     const fixture = models({
       organization: {
         id: organizationId,
@@ -697,6 +869,18 @@ describe('MongoOrganizationStore commit authority', () => {
         body: 'Contenido',
       },
     });
+    expect(fixture.organizations.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      { $inc: { capacityRevision: 1 } },
+      { new: true, session: fixture.activeSession },
+    );
+    expect(
+      fixture.organizations.findOneAndUpdate.mock.invocationCallOrder[0],
+    ).toBeLessThan(fixture.posts.create.mock.invocationCallOrder[0]);
     expect(fixture.posts.create).toHaveBeenCalledWith([input.mutation.record], {
       session: fixture.activeSession,
     });

@@ -12,6 +12,7 @@ import { AcademicService } from '../../academic/domain/academic.service';
 import { ProfileService } from '../../profile/domain/profile.service';
 import { ResourceService } from '../../resources/domain/resource.service';
 import type {
+  ArchiveOrganizationDto,
   ChangeOrganizationManagerDto,
   CreateOrganizationDto,
   CreateOrganizationEventDto,
@@ -349,6 +350,60 @@ export class OrganizationService {
         },
         addedAt: row.createdAt.toISOString(),
       })),
+    };
+  }
+
+  async archive(userId: string, id: string, dto: ArchiveOrganizationDto) {
+    const organization = await this.requireActive(id);
+    await this.requireRole(id, userId, ['owner']);
+
+    if (organization.revision !== dto.expectedRevision) {
+      this.revisionConflict();
+    }
+    if (organization.managementRevision !== dto.expectedManagementRevision) {
+      this.managementConflict();
+    }
+
+    const reason = cleanText(dto.reason);
+    if (reason.length < 3) {
+      throw new UnprocessableEntityException({
+        code: 'ORGANIZATION_ARCHIVE_REASON_INVALID',
+        message: 'Organization archive reason must remain meaningful',
+      });
+    }
+
+    const result = await this.store.commitAuthorizedMutation({
+      organizationId: id,
+      authority: this.writeAuthority(organization, userId, ['owner']),
+      mutation: {
+        kind: 'organization.archive',
+        expectedRevision: dto.expectedRevision,
+      },
+      audit: this.audit({
+        organizationId: id,
+        event: 'organization.archived',
+        actorUserId: userId,
+        targetUserId: null,
+        previousRole: null,
+        nextRole: null,
+        reason,
+        metadata: {
+          previousStatus: 'active',
+          nextStatus: 'archived',
+          sharedContentPreserved: true,
+        },
+      }),
+    });
+
+    const archived = this.authorizedValue(result, 'organization.archive');
+    return {
+      organization: {
+        id: archived.id,
+        status: archived.status,
+        revision: archived.revision,
+        managementRevision: archived.managementRevision,
+      },
+      archived: true as const,
     };
   }
 
