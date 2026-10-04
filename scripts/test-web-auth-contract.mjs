@@ -74,6 +74,12 @@ const authService = await read(
 assert.match(authService, /credentials:\s*"include"/u);
 assert.match(authService, /cache:\s*"no-store"/u);
 assert.match(authService, /AbortSignal\.timeout\(15_000\)/u);
+assert.match(authService, /AbortSignal\.any\(\[signal, timeoutSignal\]\)/u);
+assert.match(authService, /signal: requestSignal\(init\.signal\)/u);
+assert.match(authService, /sessions: \(signal\?: AbortSignal\)/u);
+assert.match(authService, /loginMethods: \(signal\?: AbortSignal\)/u);
+assert.match(authService, /googleStatus: \(signal\?: AbortSignal\)/u);
+assert.match(authService, /revokeAllSessions: \(signal\?: AbortSignal\)/u);
 assert.doesNotMatch(authService, /localStorage|sessionStorage/u);
 assert.doesNotMatch(authService, /Authorization\s*:/iu);
 assert.doesNotMatch(authService, /Bearer\s+/u);
@@ -158,6 +164,17 @@ const login = await read(
 assert.match(login, /autoComplete="current-password"/u);
 
 const security = await read('apps/web/src/pages/Security.tsx');
+assert.match(security, /useAsyncAuthorityFence/u);
+assert.equal((security.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
+assert.match(security, /security-load:\$\{authScopeKey\}/u);
+assert.match(security, /security-action:\$\{authScopeKey\}/u);
+assert.match(security, /snapshotState\?\.scopeKey === authScopeKey/u);
+assert.match(security, /draftState\?\.scopeKey === authScopeKey/u);
+assert.match(security, /presentationState\?\.scopeKey === authScopeKey/u);
+assert.match(security, /authApi\.sessions\(ticket\.signal\)/u);
+assert.match(security, /authApi\.revokeAllSessions\(signal\)/u);
+assert.doesNotMatch(security, /\blet active\s*=/u);
+assert.doesNotMatch(security, /setBusyAction\(|setLoading\(/u);
 assert.match(security, /sessionsTruncated/u);
 assert.match(security, /sessionInventoryLimit/u);
 assert.match(security, /Hay sesiones\s+adicionales que siguen activas/u);

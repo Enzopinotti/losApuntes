@@ -66,6 +66,11 @@ function errorMessage(envelope: ErrorEnvelope): string {
   return envelope.message || "No pudimos completar la operación.";
 }
 
+function requestSignal(signal?: AbortSignal | null): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(15_000);
+  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+}
+
 async function parseJson(response: Response): Promise<unknown> {
   const text = await response.text();
 
@@ -98,9 +103,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: requestSignal(init.signal),
     });
-  } catch {
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
     throw new AuthApiError(
       "NETWORK_UNAVAILABLE",
       0,
@@ -185,25 +191,34 @@ export const authApi = {
       body: body({ token, newPassword }),
     }),
 
-  changePassword: (currentPassword: string, newPassword: string) =>
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+    signal?: AbortSignal,
+  ) =>
     request<void>("/auth/password/change", {
       method: "POST",
       body: body({ currentPassword, newPassword }),
+      signal,
     }),
 
-  sessions: () => request<ActiveSessionsResponse>("/auth/sessions"),
+  sessions: (signal?: AbortSignal) =>
+    request<ActiveSessionsResponse>("/auth/sessions", { signal }),
 
-  revokeSession: (sessionId: string) =>
+  revokeSession: (sessionId: string, signal?: AbortSignal) =>
     request<void>(`/auth/sessions/${encodeURIComponent(sessionId)}`, {
       method: "DELETE",
+      signal,
     }),
 
-  revokeAllSessions: () =>
+  revokeAllSessions: (signal?: AbortSignal) =>
     request<void>("/auth/sessions", {
       method: "DELETE",
+      signal,
     }),
 
-  googleStatus: () => request<GoogleAuthStatus>("/auth/google/status"),
+  googleStatus: (signal?: AbortSignal) =>
+    request<GoogleAuthStatus>("/auth/google/status", { signal }),
 
   googleWebStartUrl: (returnTo = "/login") => {
     const url = new URL(apiUrl("/auth/google/web/start"));
@@ -211,18 +226,25 @@ export const authApi = {
     return url.toString();
   },
 
-  loginMethods: () => request<LoginMethods>("/auth/login-methods"),
+  loginMethods: (signal?: AbortSignal) =>
+    request<LoginMethods>("/auth/login-methods", { signal }),
 
-  startGoogleLink: (currentPassword: string, returnTo = "/settings/security") =>
+  startGoogleLink: (
+    currentPassword: string,
+    returnTo = "/settings/security",
+    signal?: AbortSignal,
+  ) =>
     request<GoogleLinkStartResponse>("/auth/google/web/link/start", {
       method: "POST",
       body: body({ currentPassword, returnTo }),
+      signal,
     }),
 
-  unlinkGoogle: (currentPassword: string) =>
+  unlinkGoogle: (currentPassword: string, signal?: AbortSignal) =>
     request<void>("/auth/google", {
       method: "DELETE",
       body: body({ currentPassword }),
+      signal,
     }),
 };
 
