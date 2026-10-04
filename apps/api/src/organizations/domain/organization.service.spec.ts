@@ -589,6 +589,15 @@ describe('OrganizationService', () => {
       },
     });
 
+    await expectCode(
+      service(organizationStore, dependencies).archive('owner-user', orgId, {
+        expectedRevision: 1,
+        expectedManagementRevision: 1,
+        reason: '   ',
+      }),
+      'ORGANIZATION_ARCHIVE_REASON_INVALID',
+    );
+
     organizationStore.findManager.mockResolvedValue(manager('admin'));
     await expectCode(
       service(organizationStore, dependencies).archive('owner-user', orgId, {
