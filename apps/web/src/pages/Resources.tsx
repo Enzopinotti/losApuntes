@@ -5,7 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AcademicSubjectOption,
@@ -16,6 +16,10 @@ import {
   isResourcesApiError,
   resourcesApi,
 } from "../features/resources/services/resourcesService";
+import {
+  useAsyncAuthorityFence,
+  type AsyncAuthorityTicket,
+} from "../shared/useAsyncAuthorityFence";
 import "./Resources.scss";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -58,155 +62,729 @@ function listFrom(value: string): string[] {
     .filter(Boolean);
 }
 
+type ResourcesListState = {
+  scopeKey: string;
+  items: ResourceView[];
+  nextCursor: string | null;
+  loading: boolean;
+  loadingMore: boolean;
+};
+
+type ScopedMessage = {
+  scopeKey: string;
+  message: string;
+  isCurrent?: () => boolean;
+};
+
+type ScopedBusyResource = {
+  scopeKey: string;
+  resourceId: string;
+  ticket: AsyncAuthorityTicket;
+};
+
+type UploadPhase = "intent" | "transfer" | "finalize" | "create";
+
+type ActiveUploadPhase = {
+  ticket: AsyncAuthorityTicket;
+  phase: UploadPhase;
+};
+
+type UncertainResourceCreate = {
+  userId: string;
+  fileIdentity: string;
+  filename: string;
+};
+
+const UNCERTAIN_RESOURCE_CREATE_SESSION_KEY =
+  "__losApuntesUncertainResourceCreateUsers";
+const MAX_UNCERTAIN_RESOURCE_CREATE_STORAGE_BYTES = 8 * 1024;
+const MAX_STORED_USER_ID_LENGTH = 128;
+const retainedUncertainResourceCreates = new Map<
+  string,
+  UncertainResourceCreate
+>();
+
+function uncertainResourceCreateKey(
+  userId: string,
+  fileIdentity: string,
+): string {
+  return JSON.stringify([userId, fileIdentity]);
+}
+
+function readUncertainResourceCreateUsers(): string[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.sessionStorage.getItem(
+      UNCERTAIN_RESOURCE_CREATE_SESSION_KEY,
+    );
+    if (!raw || raw.length > MAX_UNCERTAIN_RESOURCE_CREATE_STORAGE_BYTES) {
+      return [];
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return [
+      ...new Set(
+        parsed.filter(
+          (userId): userId is string =>
+            typeof userId === "string" &&
+            userId.length > 0 &&
+            userId.length <= MAX_STORED_USER_ID_LENGTH,
+        ),
+      ),
+    ];
+  } catch {
+    return [];
+  }
+}
+
+type UncertainResourceCreateUsersUpdate = {
+  userIds: string[];
+  persisted: boolean;
+};
+
+function updateUncertainResourceCreateUsers(
+  userId: string,
+  isUncertain: boolean,
+): UncertainResourceCreateUsersUpdate {
+  const currentUsers = readUncertainResourceCreateUsers();
+  if (
+    userId.length === 0 ||
+    userId.length > MAX_STORED_USER_ID_LENGTH ||
+    typeof window === "undefined"
+  ) {
+    return { userIds: currentUsers, persisted: false };
+  }
+
+  const nextUsers = isUncertain
+    ? [...new Set([...currentUsers, userId])]
+    : currentUsers.filter((currentUserId) => currentUserId !== userId);
+  if (
+    currentUsers.length === nextUsers.length &&
+    currentUsers.every(
+      (currentUserId, index) => currentUserId === nextUsers[index],
+    )
+  ) {
+    return { userIds: nextUsers, persisted: true };
+  }
+
+  try {
+    if (nextUsers.length > 0) {
+      window.sessionStorage.setItem(
+        UNCERTAIN_RESOURCE_CREATE_SESSION_KEY,
+        JSON.stringify(nextUsers),
+      );
+    } else {
+      window.sessionStorage.removeItem(UNCERTAIN_RESOURCE_CREATE_SESSION_KEY);
+    }
+  } catch {
+    return { userIds: currentUsers, persisted: false };
+  }
+
+  return { userIds: nextUsers, persisted: true };
+}
+
+function retainedUncertainResourceCreateValues(): UncertainResourceCreate[] {
+  return [...retainedUncertainResourceCreates.values()];
+}
+
+function fileIdentity(file: File): string {
+  return JSON.stringify([file.name, file.size, file.type, file.lastModified]);
+}
+
+function isUncertainResourceCreateOutcome(error: unknown): boolean {
+  if (!isResourcesApiError(error)) return true;
+  return (
+    error.code === "NETWORK_UNAVAILABLE" ||
+    error.status === 0 ||
+    error.status === 408 ||
+    error.status >= 500 ||
+    (error.status >= 200 && error.status < 300)
+  );
+}
+
 const Resources = () => {
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const routeQuery = searchParams.get("q") ?? "";
   const subjectIdFilter = searchParams.get("subjectId") ?? undefined;
   const authenticated = status === "authenticated";
-  const [items, setItems] = useState<ResourceView[]>([]);
+  const [syncedRouteQuery, setSyncedRouteQuery] = useState({
+    locationKey: location.key,
+    query: routeQuery,
+  });
+  const routeQueryIsSynchronized =
+    syncedRouteQuery.locationKey === location.key &&
+    syncedRouteQuery.query === routeQuery;
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
   const [query, setQuery] = useState(routeQuery);
+  const [queryGeneration, setQueryGeneration] = useState(0);
   const [visibilityFilter, setVisibilityFilter] = useState<
     ResourceVisibility | ""
   >("");
   const [savedMode, setSavedMode] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const savedView = authenticated && savedMode;
+  const listScopeKey = [
+    "resources-list",
+    authScopeKey,
+    location.key,
+    subjectIdFilter ?? "all-subjects",
+    visibilityFilter || "all-visibility",
+    savedView ? "saved" : "discovery",
+    queryGeneration,
+  ].join(":");
+  const listScopeKeyRef = useRef(listScopeKey);
+  listScopeKeyRef.current = listScopeKey;
+  const {
+    begin: beginListRequest,
+    isCurrent: isListRequestCurrent,
+    finish: finishListRequest,
+    invalidate: invalidateListRequest,
+  } = useAsyncAuthorityFence(listScopeKey);
+  const {
+    begin: beginResourceAction,
+    isCurrent: isResourceActionCurrent,
+    finish: finishResourceAction,
+  } = useAsyncAuthorityFence(`resources-actions:${listScopeKey}`);
+  const [listState, setListState] = useState<ResourcesListState | null>(null);
+  const currentListState =
+    listState?.scopeKey === listScopeKey ? listState : null;
+  const items = currentListState?.items ?? [];
+  const loading = currentListState?.loading ?? true;
+  const loadingMore = currentListState?.loadingMore ?? false;
+  const nextCursor = currentListState?.nextCursor ?? null;
+  const [errorState, setErrorState] = useState<ScopedMessage | null>(null);
+  const error =
+    errorState?.scopeKey === listScopeKey && (errorState.isCurrent?.() ?? true)
+      ? errorState.message
+      : null;
+  const [feedbackState, setFeedbackState] = useState<ScopedMessage | null>(
+    null,
+  );
+  const feedback =
+    feedbackState?.scopeKey === listScopeKey &&
+    (feedbackState.isCurrent?.() ?? true)
+      ? feedbackState.message
+      : null;
+  const [busyResource, setBusyResource] = useState<ScopedBusyResource | null>(
+    null,
+  );
+  const busyId =
+    busyResource?.scopeKey === listScopeKey &&
+    isResourceActionCurrent(busyResource.ticket)
+      ? busyResource.resourceId
+      : null;
 
-  const [file, setFile] = useState<File | null>(null);
+  const [fileSelection, setFileSelection] = useState<{
+    authScopeKey: string;
+    file: File;
+  } | null>(null);
+  const file =
+    fileSelection?.authScopeKey === authScopeKey ? fileSelection.file : null;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [visibility, setVisibility] = useState<ResourceVisibility>("private");
   const [subjectQuery, setSubjectQuery] = useState("");
-  const [subjectOptions, setSubjectOptions] = useState<AcademicSubjectOption[]>(
-    [],
-  );
-  const [subject, setSubject] = useState<AcademicSubjectOption | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const uploadAbort = useRef<AbortController | null>(null);
+  const [subjectQueryGeneration, setSubjectQueryGeneration] = useState(0);
+  const subjectSearchScopeKey = `resources-subjects:${authScopeKey}:${subjectQueryGeneration}`;
+  const [subjectOptionsState, setSubjectOptionsState] = useState<{
+    scopeKey: string;
+    options: AcademicSubjectOption[];
+  } | null>(null);
+  const subjectOptions =
+    subjectOptionsState?.scopeKey === subjectSearchScopeKey
+      ? subjectOptionsState.options
+      : [];
+  const [subjectSelection, setSubjectSelection] = useState<{
+    authScopeKey: string;
+    subject: AcademicSubjectOption;
+  } | null>(null);
+  const selectedSubject =
+    subjectSelection?.authScopeKey === authScopeKey
+      ? subjectSelection.subject
+      : null;
+  const subject = selectedSubject;
   const uploadOperationKey = useRef<string | null>(null);
+  const activeUploadPhase = useRef<ActiveUploadPhase | null>(null);
+  const uploadOperationAuthScope = useRef(authScopeKey);
+  if (uploadOperationAuthScope.current !== authScopeKey) {
+    uploadOperationAuthScope.current = authScopeKey;
+    uploadOperationKey.current = null;
+  }
+  const [uploadGeneration, setUploadGeneration] = useState(0);
+  const uploadScopeKey = `resources-upload:${authScopeKey}:${selectedSubject?.id ?? "no-subject"}:${uploadGeneration}`;
+  const [uploadingState, setUploadingState] = useState<{
+    scopeKey: string;
+    value: boolean;
+  } | null>(null);
+  const uploading =
+    uploadingState?.scopeKey === uploadScopeKey && uploadingState.value;
+  const [uploadProgressState, setUploadProgressState] = useState<{
+    scopeKey: string;
+    value: number;
+  } | null>(null);
+  const uploadProgress =
+    uploadProgressState?.scopeKey === uploadScopeKey
+      ? uploadProgressState.value
+      : 0;
+  const [uncertainResourceCreates, setUncertainResourceCreates] = useState<
+    UncertainResourceCreate[]
+  >(() => retainedUncertainResourceCreateValues());
+  const [uncertainResourceCreateUsers, setUncertainResourceCreateUsers] =
+    useState<string[]>(() => [
+      ...new Set([
+        ...readUncertainResourceCreateUsers(),
+        ...retainedUncertainResourceCreateValues().map(
+          (uncertain) => uncertain.userId,
+        ),
+      ]),
+    ]);
+  const {
+    begin: beginSubjectSearch,
+    isCurrent: isSubjectSearchCurrent,
+    finish: finishSubjectSearch,
+    invalidate: invalidateSubjectSearch,
+  } = useAsyncAuthorityFence(subjectSearchScopeKey);
+  const {
+    begin: beginUpload,
+    isCurrent: isUploadCurrent,
+    finish: finishUpload,
+    invalidate: invalidateUpload,
+  } = useAsyncAuthorityFence(uploadScopeKey);
+  const selectedFileIdentity = file ? fileIdentity(file) : null;
+  const currentUncertainResourceCreate = uncertainResourceCreates.find(
+    (uncertain) =>
+      uncertain.userId === user?.id &&
+      uncertain.fileIdentity === selectedFileIdentity,
+  );
+  const hasRecoveredUncertainResourceCreate = Boolean(
+    user?.id &&
+    uncertainResourceCreateUsers.includes(user.id) &&
+    !uncertainResourceCreates.some((uncertain) => uncertain.userId === user.id),
+  );
+  const hasUncertainResourceCreate =
+    Boolean(currentUncertainResourceCreate) ||
+    hasRecoveredUncertainResourceCreate;
+  const rememberUncertainResourceCreate = (
+    next: UncertainResourceCreate,
+  ): boolean => {
+    retainedUncertainResourceCreates.set(
+      uncertainResourceCreateKey(next.userId, next.fileIdentity),
+      next,
+    );
+    setUncertainResourceCreates(retainedUncertainResourceCreateValues());
+    const update = updateUncertainResourceCreateUsers(next.userId, true);
+    setUncertainResourceCreateUsers(update.userIds);
+    return update.persisted;
+  };
+  const forgetUncertainResourceCreate = (userId: string, identity?: string) => {
+    if (identity) {
+      retainedUncertainResourceCreates.delete(
+        uncertainResourceCreateKey(userId, identity),
+      );
+    } else {
+      for (const [key, uncertain] of retainedUncertainResourceCreates) {
+        if (uncertain.userId === userId) {
+          retainedUncertainResourceCreates.delete(key);
+        }
+      }
+    }
+    setUncertainResourceCreates(retainedUncertainResourceCreateValues());
+    const stillUncertain = retainedUncertainResourceCreateValues().some(
+      (uncertain) => uncertain.userId === userId,
+    );
+    const update = updateUncertainResourceCreateUsers(userId, stillUncertain);
+    setUncertainResourceCreateUsers(update.userIds);
+  };
+  const setUploadPhase = (ticket: AsyncAuthorityTicket, phase: UploadPhase) => {
+    if (!isUploadCurrent(ticket)) return;
+    const next = { ticket, phase };
+    activeUploadPhase.current = next;
+  };
+  const clearUploadPhase = (ticket: AsyncAuthorityTicket) => {
+    if (activeUploadPhase.current?.ticket === ticket) {
+      activeUploadPhase.current = null;
+    }
+  };
   const [shareInputs, setShareInputs] = useState<Record<string, string>>({});
 
   const load = useCallback(
     async (cursor?: string, append = false) => {
-      if (append) setLoadingMore(true);
-      else setLoading(true);
-      setError(null);
+      if (!routeQueryIsSynchronized) return;
+      const ticket = beginListRequest();
+      if (!isListRequestCurrent(ticket)) return;
+      setListState((current) => {
+        if (!isListRequestCurrent(ticket)) return current;
+        const currentScope =
+          current?.scopeKey === listScopeKey ? current : null;
+        return {
+          scopeKey: listScopeKey,
+          items: currentScope?.items ?? [],
+          nextCursor: currentScope?.nextCursor ?? null,
+          loading: !append,
+          loadingMore: append,
+        };
+      });
+      if (isListRequestCurrent(ticket)) setErrorState(null);
 
       try {
-        const result =
-          savedMode && authenticated
-            ? await resourcesApi.saved(cursor)
-            : await resourcesApi.search({
+        const result = savedView
+          ? await resourcesApi.saved(cursor, ticket.signal)
+          : await resourcesApi.search(
+              {
                 q: query.trim() || undefined,
                 visibility: visibilityFilter || undefined,
                 subjectId: subjectIdFilter,
                 cursor,
-              });
+              },
+              ticket.signal,
+            );
 
-        setItems((current) =>
-          append ? appendResources(current, result.items) : result.items,
-        );
-        setNextCursor(result.nextCursor);
+        if (!isListRequestCurrent(ticket)) return;
+        setListState((current) => {
+          if (!isListRequestCurrent(ticket)) return current;
+          const currentScope =
+            current?.scopeKey === listScopeKey ? current : null;
+          return {
+            scopeKey: listScopeKey,
+            items: append
+              ? appendResources(currentScope?.items ?? [], result.items)
+              : result.items,
+            nextCursor: result.nextCursor,
+            loading: false,
+            loadingMore: false,
+          };
+        });
       } catch (nextError) {
-        setError(messageFor(nextError));
+        if (isListRequestCurrent(ticket)) {
+          setErrorState({
+            scopeKey: listScopeKey,
+            message: messageFor(nextError),
+            isCurrent: () => isListRequestCurrent(ticket),
+          });
+        }
       } finally {
-        if (append) setLoadingMore(false);
-        else setLoading(false);
+        if (finishListRequest(ticket)) {
+          setListState((current) => {
+            if (!isListRequestCurrent(ticket)) return current;
+            if (current?.scopeKey !== listScopeKey) return current;
+            return { ...current, loading: false, loadingMore: false };
+          });
+        }
       }
     },
-    [authenticated, query, savedMode, subjectIdFilter, visibilityFilter],
+    [
+      beginListRequest,
+      finishListRequest,
+      isListRequestCurrent,
+      listScopeKey,
+      query,
+      routeQueryIsSynchronized,
+      savedView,
+      subjectIdFilter,
+      visibilityFilter,
+    ],
   );
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useEffect(() => {
+    if (routeQueryIsSynchronized) return;
+    invalidateListRequest();
     setQuery(routeQuery);
-  }, [routeQuery]);
+    setQueryGeneration((current) => current + 1);
+    setSyncedRouteQuery({ locationKey: location.key, query: routeQuery });
+  }, [
+    invalidateListRequest,
+    location.key,
+    routeQuery,
+    routeQueryIsSynchronized,
+  ]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  useEffect(
-    () => () => {
-      uploadAbort.current?.abort();
-    },
-    [],
-  );
+  const setResourceActionBusy = (
+    ticket: AsyncAuthorityTicket,
+    resourceId: string,
+  ) => {
+    setBusyResource((current) =>
+      isResourceActionCurrent(ticket)
+        ? { scopeKey: listScopeKey, resourceId, ticket }
+        : current,
+    );
+  };
+
+  const setResourceActionError = (
+    ticket: AsyncAuthorityTicket,
+    message: string,
+  ) => {
+    setErrorState((current) =>
+      isResourceActionCurrent(ticket)
+        ? {
+            scopeKey: listScopeKey,
+            message,
+            isCurrent: () => isResourceActionCurrent(ticket),
+          }
+        : current,
+    );
+  };
+
+  const setResourceActionFeedback = (
+    ticket: AsyncAuthorityTicket,
+    message: string,
+  ) => {
+    setFeedbackState((current) =>
+      isResourceActionCurrent(ticket)
+        ? {
+            scopeKey: listScopeKey,
+            message,
+            isCurrent: () => isResourceActionCurrent(ticket),
+          }
+        : current,
+    );
+  };
+
+  const finishResourceActionUi = (ticket: AsyncAuthorityTicket) => {
+    if (!finishResourceAction(ticket)) return;
+    setBusyResource((current) => (current?.ticket === ticket ? null : current));
+  };
+
+  const handleResourceActionFailure = async (
+    ticket: AsyncAuthorityTicket,
+    nextError: unknown,
+    canReconcile = false,
+  ) => {
+    if (
+      isResourcesApiError(nextError) &&
+      nextError.code === "NETWORK_UNAVAILABLE"
+    ) {
+      if (canReconcile) await loadRef.current();
+      if (isResourceActionCurrent(ticket)) {
+        setResourceActionError(
+          ticket,
+          "No pudimos confirmar el resultado. Revisá el estado antes de volver a intentarlo.",
+        );
+      }
+      return canReconcile;
+    }
+
+    if (isResourceActionCurrent(ticket)) {
+      setResourceActionError(ticket, messageFor(nextError));
+    }
+    return false;
+  };
 
   const searchSubjects = async () => {
     if (subjectQuery.trim().length < 2) return;
 
-    setError(null);
+    const ticket = beginSubjectSearch();
+    if (!isSubjectSearchCurrent(ticket)) return;
+    setErrorState(null);
     try {
-      setSubjectOptions(await resourcesApi.searchSubjects(subjectQuery.trim()));
+      const options = await resourcesApi.searchSubjects(
+        subjectQuery.trim(),
+        ticket.signal,
+      );
+      if (!isSubjectSearchCurrent(ticket)) return;
+      setSubjectOptionsState((current) =>
+        isSubjectSearchCurrent(ticket)
+          ? { scopeKey: subjectSearchScopeKey, options }
+          : current,
+      );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (isSubjectSearchCurrent(ticket)) {
+        setErrorState({
+          scopeKey: listScopeKey,
+          message: messageFor(nextError),
+          isCurrent: () => isSubjectSearchCurrent(ticket),
+        });
+      }
+    } finally {
+      finishSubjectSearch(ticket);
     }
   };
 
   const publish = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file || !subject) return;
+    if (hasUncertainResourceCreate) return;
 
     if (!SUPPORTED_TYPES.has(file.type)) {
-      setError("Usá PDF, JPG, PNG o WebP.");
+      setErrorState({
+        scopeKey: listScopeKey,
+        message: "Usá PDF, JPG, PNG o WebP.",
+      });
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      setError("El archivo supera el máximo de 50 MiB.");
+      setErrorState({
+        scopeKey: listScopeKey,
+        message: "El archivo supera el máximo de 50 MiB.",
+      });
       return;
     }
 
-    const controller = new AbortController();
-    uploadAbort.current = controller;
-    setUploading(true);
-    setUploadProgress(0);
-    setError(null);
-    setFeedback(null);
+    const ticket = beginUpload();
+    if (!isUploadCurrent(ticket)) return;
+    setUploadingState({ scopeKey: ticket.scopeKey, value: true });
+    setUploadProgressState({ scopeKey: ticket.scopeKey, value: 0 });
+    setErrorState(null);
+    setFeedbackState(null);
 
     const operationKey = uploadOperationKey.current ?? crypto.randomUUID();
     uploadOperationKey.current = operationKey;
+    let resourceCreateStarted = false;
+    let reconciliationAttempted = false;
+    let pendingResourceCreate: UncertainResourceCreate | null = null;
+    setUploadPhase(ticket, "intent");
 
     try {
-      const intent = await resourcesApi.createUploadIntent(file, operationKey);
+      const intent = await resourcesApi.createUploadIntent(
+        file,
+        operationKey,
+        ticket.signal,
+      );
+      if (!isUploadCurrent(ticket)) return;
+      setUploadPhase(ticket, "transfer");
       await resourcesApi.uploadDirect(
         intent.upload,
         file,
-        setUploadProgress,
-        controller.signal,
+        (progress) => {
+          setUploadProgressState((current) =>
+            isUploadCurrent(ticket)
+              ? { scopeKey: ticket.scopeKey, value: progress }
+              : current,
+          );
+        },
+        ticket.signal,
       );
-      await resourcesApi.finalize(intent.file.id);
-      const created = await resourcesApi.create({
-        assetId: intent.file.id,
-        title,
-        description: description.trim() || undefined,
-        tags: listFrom(tags),
-        subjectId: subject.id,
-        visibility,
-      });
+      if (!isUploadCurrent(ticket)) return;
+      setUploadPhase(ticket, "finalize");
+      await resourcesApi.finalize(intent.file.id, ticket.signal);
+      if (!isUploadCurrent(ticket)) return;
+      setUploadPhase(ticket, "create");
+      if (!user?.id) {
+        setErrorState({
+          scopeKey: listScopeKeyRef.current,
+          message: "Iniciá sesión nuevamente antes de publicar el recurso.",
+          isCurrent: () => isUploadCurrent(ticket),
+        });
+        return;
+      }
+      pendingResourceCreate = {
+        userId: user.id,
+        fileIdentity: fileIdentity(file),
+        filename: file.name,
+      };
+      if (!rememberUncertainResourceCreate(pendingResourceCreate)) {
+        forgetUncertainResourceCreate(
+          pendingResourceCreate.userId,
+          pendingResourceCreate.fileIdentity,
+        );
+        setErrorState({
+          scopeKey: listScopeKeyRef.current,
+          message:
+            "No pudimos guardar el estado de la publicación. No se envió el recurso; volvé a intentarlo.",
+          isCurrent: () => isUploadCurrent(ticket),
+        });
+        return;
+      }
+      resourceCreateStarted = true;
+      const created = await resourcesApi.create(
+        {
+          assetId: intent.file.id,
+          title,
+          description: description.trim() || undefined,
+          tags: listFrom(tags),
+          subjectId: subject.id,
+          visibility,
+        },
+        ticket.signal,
+      );
+      forgetUncertainResourceCreate(
+        pendingResourceCreate.userId,
+        pendingResourceCreate.fileIdentity,
+      );
+      pendingResourceCreate = null;
+      if (!isUploadCurrent(ticket)) return;
 
-      setFile(null);
+      setFileSelection(null);
       uploadOperationKey.current = null;
+      setUploadGeneration((current) => current + 1);
       setTitle("");
       setDescription("");
       setTags("");
-      setSubject(null);
-      setSubjectOptions([]);
+      setSubjectSelection(null);
+      setSubjectOptionsState(null);
       setSubjectQuery("");
-      setUploadProgress(0);
-      setFeedback(`Publicado: ${created.resource.title}`);
-      await load();
+      setUploadProgressState({ scopeKey: ticket.scopeKey, value: 0 });
+      setFeedbackState({
+        scopeKey: listScopeKeyRef.current,
+        message: `Publicado: ${created.resource.title}`,
+      });
+      reconciliationAttempted = true;
+      void loadRef.current();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (
+        resourceCreateStarted &&
+        isUncertainResourceCreateOutcome(nextError)
+      ) {
+        if (!pendingResourceCreate && user?.id) {
+          pendingResourceCreate = {
+            userId: user.id,
+            fileIdentity: fileIdentity(file),
+            filename: file.name,
+          };
+          rememberUncertainResourceCreate(pendingResourceCreate);
+        }
+        if (isUploadCurrent(ticket)) {
+          setErrorState({
+            scopeKey: listScopeKeyRef.current,
+            message:
+              "No pudimos confirmar si se publicó el recurso. Revisá tus recursos antes de volver a intentarlo.",
+            isCurrent: () => isUploadCurrent(ticket),
+          });
+        }
+        reconciliationAttempted = true;
+        await loadRef.current();
+        return;
+      }
+
+      if (resourceCreateStarted && pendingResourceCreate) {
+        forgetUncertainResourceCreate(
+          pendingResourceCreate.userId,
+          pendingResourceCreate.fileIdentity,
+        );
+      }
+      if (isUploadCurrent(ticket)) {
+        setErrorState({
+          scopeKey: listScopeKeyRef.current,
+          message: messageFor(nextError),
+          isCurrent: () => isUploadCurrent(ticket),
+        });
+      }
     } finally {
-      uploadAbort.current = null;
-      setUploading(false);
+      clearUploadPhase(ticket);
+      if (finishUpload(ticket)) {
+        setUploadingState({ scopeKey: ticket.scopeKey, value: false });
+        setUploadProgressState({ scopeKey: ticket.scopeKey, value: 0 });
+      } else if (
+        ticket.signal.aborted &&
+        resourceCreateStarted &&
+        !reconciliationAttempted
+      ) {
+        void loadRef.current();
+      }
     }
   };
 
@@ -217,11 +795,25 @@ const Resources = () => {
     const target = window.open("about:blank", "_blank");
     if (target) target.opener = null;
 
-    setBusyId(resource.id);
-    setError(null);
+    const ticket = beginResourceAction();
+    if (!isResourceActionCurrent(ticket)) {
+      target?.close();
+      return;
+    }
+    setResourceActionBusy(ticket, resource.id);
+    setErrorState(null);
+    setFeedbackState(null);
 
     try {
-      const result = await resourcesApi.access(resource.id, disposition);
+      const result = await resourcesApi.access(
+        resource.id,
+        disposition,
+        ticket.signal,
+      );
+      if (!isResourceActionCurrent(ticket)) {
+        target?.close();
+        return;
+      }
       if (target) {
         target.location.href = result.access.url;
       } else {
@@ -229,9 +821,11 @@ const Resources = () => {
       }
     } catch (nextError) {
       target?.close();
-      setError(messageFor(nextError));
+      if (isResourceActionCurrent(ticket)) {
+        setResourceActionError(ticket, messageFor(nextError));
+      }
     } finally {
-      setBusyId(null);
+      finishResourceActionUi(ticket);
     }
   };
 
@@ -239,85 +833,150 @@ const Resources = () => {
     resource: ResourceView,
     next: ResourceVisibility,
   ) => {
-    setBusyId(resource.id);
-    setError(null);
+    const ticket = beginResourceAction();
+    if (!isResourceActionCurrent(ticket)) return;
+    setResourceActionBusy(ticket, resource.id);
+    setErrorState(null);
+    setFeedbackState(null);
+    let reconciliationAttempted = false;
 
     try {
-      await resourcesApi.update(resource, { visibility: next });
+      await resourcesApi.update(resource, { visibility: next }, ticket.signal);
+      if (!isResourceActionCurrent(ticket)) return;
       await load();
-      setFeedback("Privacidad actualizada.");
+      if (isResourceActionCurrent(ticket)) {
+        setResourceActionFeedback(ticket, "Privacidad actualizada.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      reconciliationAttempted = await handleResourceActionFailure(
+        ticket,
+        nextError,
+        true,
+      );
     } finally {
-      setBusyId(null);
+      if (ticket.signal.aborted && !reconciliationAttempted) {
+        void loadRef.current();
+      }
+      finishResourceActionUi(ticket);
     }
   };
 
   const save = async (resource: ResourceView) => {
-    setBusyId(resource.id);
-    setError(null);
+    const ticket = beginResourceAction();
+    if (!isResourceActionCurrent(ticket)) return;
+    setResourceActionBusy(ticket, resource.id);
+    setErrorState(null);
+    setFeedbackState(null);
+    let reconciliationAttempted = false;
 
     try {
-      await resourcesApi.save(resource.id);
-      setFeedback("Apunte guardado.");
+      await resourcesApi.save(resource.id, ticket.signal);
+      if (isResourceActionCurrent(ticket)) {
+        setResourceActionFeedback(ticket, "Apunte guardado.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      reconciliationAttempted = await handleResourceActionFailure(
+        ticket,
+        nextError,
+      );
     } finally {
-      setBusyId(null);
+      if (ticket.signal.aborted && !reconciliationAttempted) {
+        void loadRef.current();
+      }
+      finishResourceActionUi(ticket);
     }
   };
 
   const unsave = async (resource: ResourceView) => {
-    setBusyId(resource.id);
-    setError(null);
+    const ticket = beginResourceAction();
+    if (!isResourceActionCurrent(ticket)) return;
+    setResourceActionBusy(ticket, resource.id);
+    setErrorState(null);
+    setFeedbackState(null);
+    let reconciliationAttempted = false;
 
     try {
-      await resourcesApi.unsave(resource.id);
-      setFeedback("Apunte quitado de guardados.");
+      await resourcesApi.unsave(resource.id, ticket.signal);
+      if (!isResourceActionCurrent(ticket)) return;
+      setResourceActionFeedback(ticket, "Apunte quitado de guardados.");
       await load();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      reconciliationAttempted = await handleResourceActionFailure(
+        ticket,
+        nextError,
+        savedView,
+      );
     } finally {
-      setBusyId(null);
+      if (ticket.signal.aborted && !reconciliationAttempted) {
+        void loadRef.current();
+      }
+      finishResourceActionUi(ticket);
     }
   };
 
   const report = async (resource: ResourceView) => {
-    setBusyId(resource.id);
-    setError(null);
+    const ticket = beginResourceAction();
+    if (!isResourceActionCurrent(ticket)) return;
+    setResourceActionBusy(ticket, resource.id);
+    setErrorState(null);
+    setFeedbackState(null);
+    let reconciliationAttempted = false;
 
     try {
-      await resourcesApi.report(resource.id);
-      setFeedback("Reporte recibido para revisión.");
+      await resourcesApi.report(resource.id, ticket.signal);
+      if (isResourceActionCurrent(ticket)) {
+        setResourceActionFeedback(ticket, "Reporte recibido para revisión.");
+      }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      reconciliationAttempted = await handleResourceActionFailure(
+        ticket,
+        nextError,
+      );
     } finally {
-      setBusyId(null);
+      if (ticket.signal.aborted && !reconciliationAttempted) {
+        void loadRef.current();
+      }
+      finishResourceActionUi(ticket);
     }
   };
 
   const share = async (resource: ResourceView, revoke = false) => {
     const profileId = shareInputs[resource.id]?.trim();
     if (!profileId) {
-      setError("Ingresá el UUID público del perfil.");
+      setErrorState({
+        scopeKey: listScopeKey,
+        message: "Ingresá el UUID público del perfil.",
+      });
       return;
     }
 
-    setBusyId(resource.id);
-    setError(null);
+    const ticket = beginResourceAction();
+    if (!isResourceActionCurrent(ticket)) return;
+    setResourceActionBusy(ticket, resource.id);
+    setErrorState(null);
+    setFeedbackState(null);
+    let reconciliationAttempted = false;
 
     try {
       if (revoke) {
-        await resourcesApi.unshare(resource.id, profileId);
-        setFeedback("Acceso compartido revocado.");
+        await resourcesApi.unshare(resource.id, profileId, ticket.signal);
+        if (!isResourceActionCurrent(ticket)) return;
+        setResourceActionFeedback(ticket, "Acceso compartido revocado.");
       } else {
-        await resourcesApi.share(resource.id, profileId);
-        setFeedback("Acceso compartido otorgado.");
+        await resourcesApi.share(resource.id, profileId, ticket.signal);
+        if (!isResourceActionCurrent(ticket)) return;
+        setResourceActionFeedback(ticket, "Acceso compartido otorgado.");
       }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      reconciliationAttempted = await handleResourceActionFailure(
+        ticket,
+        nextError,
+      );
     } finally {
-      setBusyId(null);
+      if (ticket.signal.aborted && !reconciliationAttempted) {
+        void loadRef.current();
+      }
+      finishResourceActionUi(ticket);
     }
   };
 
@@ -336,7 +995,10 @@ const Resources = () => {
           <button
             type="button"
             className="secondary"
-            onClick={() => setSavedMode((current) => !current)}
+            onClick={() => {
+              invalidateListRequest();
+              setSavedMode((current) => !current);
+            }}
           >
             {savedMode ? "Ver descubrimiento" : "Ver guardados"}
           </button>
@@ -372,16 +1034,21 @@ const Resources = () => {
           aria-label="Buscar apuntes"
           placeholder="Buscar por título, descripción o etiqueta"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          disabled={savedMode}
+          onChange={(event) => {
+            invalidateListRequest();
+            setQueryGeneration((current) => current + 1);
+            setQuery(event.target.value);
+          }}
+          disabled={savedView}
         />
         <select
           aria-label="Filtrar privacidad"
           value={visibilityFilter}
-          onChange={(event) =>
-            setVisibilityFilter(event.target.value as ResourceVisibility | "")
-          }
-          disabled={savedMode}
+          onChange={(event) => {
+            invalidateListRequest();
+            setVisibilityFilter(event.target.value as ResourceVisibility | "");
+          }}
+          disabled={savedView}
         >
           <option value="">Todas las visibles</option>
           <option value="public">Públicas</option>
@@ -403,9 +1070,14 @@ const Resources = () => {
                 type="file"
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                disabled={uploading}
                 onChange={(event) => {
                   const selected = event.target.files?.[0] ?? null;
-                  setFile(selected);
+                  invalidateUpload();
+                  setUploadGeneration((current) => current + 1);
+                  setFileSelection(
+                    selected ? { authScopeKey, file: selected } : null,
+                  );
                   uploadOperationKey.current = selected
                     ? crypto.randomUUID()
                     : null;
@@ -420,6 +1092,7 @@ const Resources = () => {
                 required
                 minLength={2}
                 maxLength={160}
+                disabled={uploading}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
@@ -430,6 +1103,7 @@ const Resources = () => {
               <textarea
                 rows={3}
                 maxLength={3000}
+                disabled={uploading}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
               />
@@ -438,6 +1112,7 @@ const Resources = () => {
             <label>
               Etiquetas separadas por coma
               <input
+                disabled={uploading}
                 value={tags}
                 onChange={(event) => setTags(event.target.value)}
               />
@@ -446,6 +1121,7 @@ const Resources = () => {
             <label>
               Privacidad
               <select
+                disabled={uploading}
                 value={visibility}
                 onChange={(event) =>
                   setVisibility(event.target.value as ResourceVisibility)
@@ -464,18 +1140,27 @@ const Resources = () => {
                   <input
                     minLength={2}
                     value={subjectQuery}
-                    onChange={(event) => setSubjectQuery(event.target.value)}
+                    disabled={uploading}
+                    onChange={(event) => {
+                      invalidateSubjectSearch();
+                      setSubjectQueryGeneration((current) => current + 1);
+                      setSubjectQuery(event.target.value);
+                    }}
                     placeholder="Ej. Base de Datos"
                   />
-                  <button type="button" onClick={() => void searchSubjects()}>
+                  <button
+                    type="button"
+                    disabled={uploading || subjectQuery.trim().length < 2}
+                    onClick={() => void searchSubjects()}
+                  >
                     Buscar materia
                   </button>
                 </div>
               </label>
 
-              {subject && (
+              {selectedSubject && (
                 <p className="subject-selected">
-                  Materia seleccionada: <strong>{subject.name}</strong>
+                  Materia seleccionada: <strong>{selectedSubject.name}</strong>
                 </p>
               )}
 
@@ -483,7 +1168,18 @@ const Resources = () => {
                 <ul className="subject-results">
                   {subjectOptions.map((option) => (
                     <li key={option.id}>
-                      <button type="button" onClick={() => setSubject(option)}>
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => {
+                          invalidateUpload();
+                          setUploadGeneration((current) => current + 1);
+                          setSubjectSelection({
+                            authScopeKey,
+                            subject: option,
+                          });
+                        }}
+                      >
                         {option.name}
                       </button>
                     </li>
@@ -500,8 +1196,44 @@ const Resources = () => {
                   type="button"
                   className="secondary"
                   onClick={() => {
-                    uploadOperationKey.current = null;
-                    uploadAbort.current?.abort();
+                    const phase = activeUploadPhase.current;
+                    const resourceCreationMayHaveCommitted =
+                      phase?.phase === "create" &&
+                      isUploadCurrent(phase.ticket);
+                    if (phase) clearUploadPhase(phase.ticket);
+                    invalidateUpload();
+                    if (resourceCreationMayHaveCommitted) {
+                      if (user?.id && file) {
+                        rememberUncertainResourceCreate({
+                          userId: user.id,
+                          fileIdentity: fileIdentity(file),
+                          filename: file.name,
+                        });
+                      } else {
+                        setErrorState({
+                          scopeKey: listScopeKey,
+                          message:
+                            "No pudimos confirmar si se publicó el recurso. Revisá tus recursos antes de volver a intentarlo.",
+                        });
+                      }
+                    } else {
+                      uploadOperationKey.current = null;
+                    }
+                    setUploadGeneration((current) => current + 1);
+                    setUploadingState({
+                      scopeKey: uploadScopeKey,
+                      value: false,
+                    });
+                    setUploadProgressState({
+                      scopeKey: uploadScopeKey,
+                      value: 0,
+                    });
+                    if (!resourceCreationMayHaveCommitted) {
+                      setErrorState({
+                        scopeKey: listScopeKey,
+                        message: "La subida fue cancelada.",
+                      });
+                    }
                   }}
                 >
                   Cancelar subida
@@ -509,8 +1241,50 @@ const Resources = () => {
               </div>
             )}
 
+            {(currentUncertainResourceCreate ||
+              hasRecoveredUncertainResourceCreate) && (
+              <div className="resources-wide resources-error" role="alert">
+                <p>
+                  {currentUncertainResourceCreate
+                    ? `No pudimos confirmar si se publicó “${currentUncertainResourceCreate.filename}”. Revisá tus recursos antes de habilitar otro intento para evitar duplicados.`
+                    : "No pudimos confirmar el resultado de una publicación anterior. Revisá tus recursos antes de volver a publicar para evitar duplicados."}
+                </p>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={uploading}
+                  onClick={() => {
+                    if (!user?.id) return;
+                    if (
+                      currentUncertainResourceCreate &&
+                      selectedFileIdentity
+                    ) {
+                      forgetUncertainResourceCreate(
+                        user.id,
+                        selectedFileIdentity,
+                      );
+                    } else {
+                      forgetUncertainResourceCreate(user.id);
+                    }
+                    uploadOperationKey.current = crypto.randomUUID();
+                    setUploadGeneration((current) => current + 1);
+                  }}
+                >
+                  Ya revisé Recursos; permitir otro intento
+                </button>
+              </div>
+            )}
+
             <div className="resources-wide">
-              <button type="submit" disabled={uploading || !file || !subject}>
+              <button
+                type="submit"
+                disabled={
+                  uploading ||
+                  !file ||
+                  !selectedSubject ||
+                  hasUncertainResourceCreate
+                }
+              >
                 {uploading ? "Subiendo…" : "Publicar recurso"}
               </button>
             </div>
@@ -559,7 +1333,7 @@ const Resources = () => {
                   <>
                     <button
                       type="button"
-                      disabled={busyId === resource.id}
+                      disabled={busyId !== null}
                       onClick={() => void openAccess(resource, "inline")}
                     >
                       Vista previa
@@ -567,7 +1341,7 @@ const Resources = () => {
                     <button
                       type="button"
                       className="secondary"
-                      disabled={busyId === resource.id}
+                      disabled={busyId !== null}
                       onClick={() => void openAccess(resource, "attachment")}
                     >
                       Descargar
@@ -575,18 +1349,18 @@ const Resources = () => {
                     <button
                       type="button"
                       className="secondary"
-                      disabled={busyId === resource.id}
+                      disabled={busyId !== null}
                       onClick={() =>
-                        void (savedMode ? unsave(resource) : save(resource))
+                        void (savedView ? unsave(resource) : save(resource))
                       }
                     >
-                      {savedMode ? "Quitar de guardados" : "Guardar"}
+                      {savedView ? "Quitar de guardados" : "Guardar"}
                     </button>
                     {!resource.capabilities.edit && (
                       <button
                         type="button"
                         className="secondary"
-                        disabled={busyId === resource.id}
+                        disabled={busyId !== null}
                         onClick={() => void report(resource)}
                       >
                         Reportar
@@ -604,7 +1378,7 @@ const Resources = () => {
                     Privacidad
                     <select
                       value={resource.visibility}
-                      disabled={busyId === resource.id}
+                      disabled={busyId !== null}
                       onChange={(event) =>
                         void updateVisibility(
                           resource,
@@ -637,6 +1411,7 @@ const Resources = () => {
                         <div className="resource-actions">
                           <button
                             type="button"
+                            disabled={busyId !== null}
                             onClick={() => void share(resource)}
                           >
                             Compartir
@@ -644,6 +1419,7 @@ const Resources = () => {
                           <button
                             type="button"
                             className="secondary"
+                            disabled={busyId !== null}
                             onClick={() => void share(resource, true)}
                           >
                             Revocar
@@ -661,7 +1437,7 @@ const Resources = () => {
           <button
             type="button"
             className="secondary"
-            disabled={loadingMore}
+            disabled={loading || loadingMore}
             onClick={() => void load(nextCursor, true)}
           >
             {loadingMore ? "Cargando…" : "Cargar más"}
