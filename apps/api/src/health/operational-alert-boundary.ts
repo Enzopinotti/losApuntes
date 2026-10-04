@@ -29,6 +29,11 @@ type AlertState = {
 };
 
 type ObservationWatermarkMap = Map<OperationalAlertSignal, number>;
+type ApiAlertObservation = {
+  signal: Extract<OperationalAlertSignal, 'api.not_ready' | 'api.degraded'>;
+  unhealthy: boolean;
+};
+
 const MAX_TIMESTAMP_MS = 8_640_000_000_000_000;
 const operationalAlertSignalSet = new Set<string>(OPERATIONAL_ALERT_SIGNALS);
 
@@ -162,10 +167,9 @@ export class OperationalAlertBoundary {
 export type ApiOperationalStatus = 'ready' | 'degraded' | 'not_ready';
 export type WorkerOperationalStatus = 'ready' | 'not_ready';
 
-export function apiAlertObservations(status: ApiOperationalStatus): ReadonlyArray<{
-  signal: Extract<OperationalAlertSignal, 'api.not_ready' | 'api.degraded'>;
-  unhealthy: boolean;
-}> {
+export function apiAlertObservations(
+  status: ApiOperationalStatus,
+): readonly ApiAlertObservation[] {
   return [
     {
       signal: 'api.not_ready',
