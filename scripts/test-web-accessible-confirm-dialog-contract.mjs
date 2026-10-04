@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   backdropPointerStart,
+  isPointOnDialogBackdrop,
   shouldDismissFromBackdrop,
 } from "../apps/web/src/shared/components/confirmDialogPointer.ts";
 
@@ -31,10 +32,27 @@ assert.match(dialog, /onPointerDown=/u);
 assert.match(dialog, /onPointerUp=/u);
 assert.match(dialog, /onPointerCancel=/u);
 assert.match(dialog, /event\.pointerId/u);
-assert.match(dialog, /event\.target === event\.currentTarget/u);
+assert.match(dialog, /getBoundingClientRect\(\)/u);
+assert.match(dialog, /event\.clientX/u);
+assert.match(dialog, /event\.clientY/u);
+assert.doesNotMatch(dialog, /event\.target === event\.currentTarget/u);
 assert.match(dialog, /autoFocus/u);
 assert.match(dialog, /aria-labelledby/u);
 assert.match(dialog, /aria-describedby/u);
+
+const dialogBounds = {
+  left: 100,
+  right: 300,
+  top: 100,
+  bottom: 250,
+};
+assert.equal(isPointOnDialogBackdrop(dialogBounds, 99, 150), true);
+assert.equal(isPointOnDialogBackdrop(dialogBounds, 301, 150), true);
+assert.equal(isPointOnDialogBackdrop(dialogBounds, 150, 99), true);
+assert.equal(isPointOnDialogBackdrop(dialogBounds, 150, 251), true);
+assert.equal(isPointOnDialogBackdrop(dialogBounds, 100, 100), false);
+assert.equal(isPointOnDialogBackdrop(dialogBounds, 200, 175), false);
+assert.equal(isPointOnDialogBackdrop(dialogBounds, 300, 250), false);
 
 assert.equal(backdropPointerStart(7, true), 7);
 assert.equal(backdropPointerStart(7, false), null);
