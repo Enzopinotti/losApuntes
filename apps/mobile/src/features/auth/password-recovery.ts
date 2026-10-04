@@ -11,11 +11,7 @@ import type { AuthActionTokenVault } from "./action-token-vault";
 export { newPasswordValidationMessage } from "./password-policy";
 
 export type PasswordRecoveryFailure =
-  | "invalid_link"
-  | "offline"
-  | "timeout"
-  | "server_unavailable"
-  | "rejected";
+  "invalid_link" | "offline" | "timeout" | "server_unavailable" | "rejected";
 
 export type PasswordRecoveryRetryableFailure = Exclude<
   PasswordRecoveryFailure,
@@ -23,11 +19,7 @@ export type PasswordRecoveryRetryableFailure = Exclude<
 >;
 
 type PasswordRecoveryRequestResult =
-  | "accepted"
-  | "offline"
-  | "timeout"
-  | "server_unavailable"
-  | "rejected";
+  "accepted" | "offline" | "timeout" | "server_unavailable" | "rejected";
 
 export type PasswordRecoverySnapshot =
   | { kind: "idle" }
@@ -75,10 +67,7 @@ export const requestPasswordRecovery = async (
   signal?: AbortSignal,
 ): Promise<PasswordRecoveryRequestResult> => {
   try {
-    await api.requestPasswordRecovery(
-      { email: normalizeEmail(email) },
-      signal,
-    );
+    await api.requestPasswordRecovery({ email: normalizeEmail(email) }, signal);
     return "accepted";
   } catch (error) {
     const failure = failureFrom(error);
