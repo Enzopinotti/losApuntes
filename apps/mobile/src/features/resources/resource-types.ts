@@ -1,12 +1,16 @@
-import {
-  RESOURCE_FILE_MIME_TYPES,
-  type FileUploadIntentResponse,
-  type ResourceCreateInput,
-  type ResourceFileMimeType,
-  type ResourceView,
+import type {
+  FileUploadIntentResponse,
+  ResourceCreateInput,
+  ResourceFileMimeType,
+  ResourceView,
 } from "@losapuntes/contracts";
 
-export const RESOURCE_UPLOAD_MIME_TYPES = RESOURCE_FILE_MIME_TYPES;
+export const RESOURCE_UPLOAD_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const satisfies readonly ResourceFileMimeType[];
 
 export const RESOURCE_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
 
