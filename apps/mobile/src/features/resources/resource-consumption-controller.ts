@@ -299,7 +299,12 @@ export class MobileSavedResourcesController {
 
   async loadMore(authorityKey: string): Promise<void> {
     const current = this.currentReady(authorityKey);
-    if (!current || !current.data.nextCursor || current.loadingMore || this.active)
+    if (
+      !current ||
+      !current.data.nextCursor ||
+      current.loadingMore ||
+      this.active
+    )
       return;
 
     const operation = this.begin(authorityKey);
