@@ -30,12 +30,12 @@ export function useAsyncAuthorityFence(scopeKey: string) {
   );
   const invalidate = useCallback(() => fence.invalidate(), [fence]);
 
-  useEffect(
-    () => () => {
-      fence.invalidate();
-    },
-    [fence],
-  );
+  useEffect(() => {
+    fence.resume();
+    return () => {
+      fence.suspend();
+    };
+  }, [fence]);
 
   return { begin, isCurrent, finish, invalidate };
 }
