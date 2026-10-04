@@ -1,6 +1,7 @@
 import type {
   AnswerPageResponse,
   AnswerView,
+  CommunityPerson,
   CreateAnswerInput,
   CreateQuestionInput,
   QuestionDetailResponse,
@@ -16,6 +17,36 @@ export interface QuestionPageInput {
   cursor?: string;
   limit?: number;
 }
+
+export type MobileNotificationType =
+  | "social.followed"
+  | "social.connection_requested"
+  | "social.connection_accepted"
+  | "qa.question_answered"
+  | "qa.answer_accepted";
+
+export type MobileNotificationView = {
+  id: string;
+  type: MobileNotificationType;
+  actor: CommunityPerson | null;
+  target: {
+    type: "profile" | "connection" | "question" | "answer";
+    id: string;
+  };
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type MobileNotificationPage = {
+  items: MobileNotificationView[];
+  nextCursor: string | null;
+};
+
+export type NotificationPageInput = {
+  unreadOnly: boolean;
+  cursor?: string;
+  limit?: number;
+};
 
 export interface CommunityTransport {
   questions(
@@ -46,6 +77,32 @@ export interface CommunityTransport {
     input: CreateAnswerInput,
     signal?: AbortSignal,
   ): Promise<{ answer: AnswerView }>;
+  notifications(
+    credential: string,
+    input: NotificationPageInput,
+    signal?: AbortSignal,
+  ): Promise<MobileNotificationPage>;
+  markNotificationRead(
+    credential: string,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<{ read: true }>;
+  markAllNotificationsRead(
+    credential: string,
+    signal?: AbortSignal,
+  ): Promise<{ updated: number }>;
+}
+
+export interface CommunityNotificationsApi {
+  notifications(
+    input: NotificationPageInput,
+    signal?: AbortSignal,
+  ): Promise<MobileNotificationPage>;
+  markNotificationRead(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<{ read: true }>;
+  markAllNotificationsRead(signal?: AbortSignal): Promise<{ updated: number }>;
 }
 
 export interface CommunityApi {
@@ -142,9 +199,51 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
       },
     );
   }
+
+  notifications(
+    credential: string,
+    input: NotificationPageInput,
+    signal?: AbortSignal,
+  ) {
+    const requestedLimit = Number.isFinite(input.limit)
+      ? Math.trunc(input.limit!)
+      : 30;
+    const limit = Math.min(100, Math.max(1, requestedLimit));
+    const query = new URLSearchParams({
+      unreadOnly: String(input.unreadOnly),
+      limit: String(limit),
+    });
+    if (input.cursor) query.set("cursor", input.cursor);
+
+    return this.client.request<MobileNotificationPage>(
+      `/notifications?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  markNotificationRead(credential: string, id: string, signal?: AbortSignal) {
+    return this.client.request<{ read: true }>(
+      `/notifications/${encodeURIComponent(id)}/read`,
+      {
+        method: "PATCH",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  markAllNotificationsRead(credential: string, signal?: AbortSignal) {
+    return this.client.request<{ updated: number }>("/notifications/read-all", {
+      method: "POST",
+      credential,
+      ...(signal ? { signal } : {}),
+    });
+  }
 }
 
-export class MobileCommunityApi implements CommunityApi {
+export class MobileCommunityApi
+  implements CommunityApi, CommunityNotificationsApi
+{
   constructor(
     private readonly session: SessionController,
     private readonly transport: CommunityTransport,
@@ -186,6 +285,24 @@ export class MobileCommunityApi implements CommunityApi {
   ) {
     return this.authorized((credential) =>
       this.transport.createAnswer(credential, questionId, input, signal),
+    );
+  }
+
+  notifications(input: NotificationPageInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.notifications(credential, input, signal),
+    );
+  }
+
+  markNotificationRead(id: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.markNotificationRead(credential, id, signal),
+    );
+  }
+
+  markAllNotificationsRead(signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.markAllNotificationsRead(credential, signal),
     );
   }
 
