@@ -155,8 +155,7 @@ const Profile = () => {
     actionState?.scopeKey === authScopeKey ? actionState : null;
   const busy = currentActionState?.busy ?? false;
   const feedback = currentActionState?.feedback ?? null;
-  const error =
-    currentActionState?.error ?? currentLoadState?.error ?? null;
+  const error = currentActionState?.error ?? currentLoadState?.error ?? null;
 
   const resetDrafts = useCallback(() => {
     setDisplayName("");
@@ -187,29 +186,26 @@ const Profile = () => {
     setActivityEndedOn("");
   }, []);
 
-  const hydrate = useCallback(
-    (next: ReadyProfile, scopeKey: string) => {
-      setSnapshotState({
-        scopeKey,
-        snapshot: next,
-        onboarding: false,
-      });
-      setDisplayName(next.profile.displayName);
-      setBio(next.profile.bio ?? "");
-      setLanguages(next.profile.languages.join(", "));
-      setSkills(next.profile.skills.join(", "));
-      setInterests(next.profile.interests.join(", "));
-      setHelpTopics(next.profile.helpTopics.join(", "));
-      setLearningTopics(next.profile.learningTopics.join(", "));
-      setHeadline(next.profile.professional.headline ?? "");
-      setCareerDiscovery(next.profile.professional.careerDiscoveryOptIn);
-      setVisibility(next.profile.visibility);
-      setRecommendAcademic(next.profile.recommendationSignals.academicContext);
-      setRecommendLearning(next.profile.recommendationSignals.learning);
-      setRecommendSkills(next.profile.recommendationSignals.skillsInterests);
-    },
-    [],
-  );
+  const hydrate = useCallback((next: ReadyProfile, scopeKey: string) => {
+    setSnapshotState({
+      scopeKey,
+      snapshot: next,
+      onboarding: false,
+    });
+    setDisplayName(next.profile.displayName);
+    setBio(next.profile.bio ?? "");
+    setLanguages(next.profile.languages.join(", "));
+    setSkills(next.profile.skills.join(", "));
+    setInterests(next.profile.interests.join(", "));
+    setHelpTopics(next.profile.helpTopics.join(", "));
+    setLearningTopics(next.profile.learningTopics.join(", "));
+    setHeadline(next.profile.professional.headline ?? "");
+    setCareerDiscovery(next.profile.professional.careerDiscoveryOptIn);
+    setVisibility(next.profile.visibility);
+    setRecommendAcademic(next.profile.recommendationSignals.academicContext);
+    setRecommendLearning(next.profile.recommendationSignals.learning);
+    setRecommendSkills(next.profile.recommendationSignals.skillsInterests);
+  }, []);
 
   const load = useCallback(async () => {
     const ticket = beginLoad();
