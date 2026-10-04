@@ -146,80 +146,80 @@ test("revoking the current session ends the security surface", async () => {
 test(
   "revoke-all fences a late revoke completion from restoring stale state",
   async () => {
-  const lateRevoke = deferred<void>();
-  const { api } = makeApi({
-    listSessions: async () =>
-      inventory([session("current", true), session("other")]),
-    revokeSession: async () => lateRevoke.promise,
-  });
-  const controller = new MobileSecurityController(api);
+    const lateRevoke = deferred<void>();
+    const { api } = makeApi({
+      listSessions: async () =>
+        inventory([session("current", true), session("other")]),
+      revokeSession: async () => lateRevoke.promise,
+    });
+    const controller = new MobileSecurityController(api);
 
-  await controller.load();
-  const ready = controller.getSnapshot();
-  assert.equal(ready.kind, "ready");
-  if (ready.kind !== "ready") throw new Error("missing ready state");
+    await controller.load();
+    const ready = controller.getSnapshot();
+    assert.equal(ready.kind, "ready");
+    if (ready.kind !== "ready") throw new Error("missing ready state");
 
-  const target = ready.sessions.find((item) => item.id === "other");
-  assert.ok(target);
+    const target = ready.sessions.find((item) => item.id === "other");
+    assert.ok(target);
 
-  const staleRevoke = controller.revokeSession(target);
-  await Promise.resolve();
+    const staleRevoke = controller.revokeSession(target);
+    await Promise.resolve();
 
-  await controller.revokeAllSessions();
-  assert.deepEqual(controller.getSnapshot(), {
-    kind: "signed_out",
-    reason: "all_sessions_revoked",
-  });
+    await controller.revokeAllSessions();
+    assert.deepEqual(controller.getSnapshot(), {
+      kind: "signed_out",
+      reason: "all_sessions_revoked",
+    });
 
-  lateRevoke.resolve();
-  await staleRevoke;
+    lateRevoke.resolve();
+    await staleRevoke;
 
-  assert.deepEqual(controller.getSnapshot(), {
-    kind: "signed_out",
-    reason: "all_sessions_revoked",
-  });
+    assert.deepEqual(controller.getSnapshot(), {
+      kind: "signed_out",
+      reason: "all_sessions_revoked",
+    });
   },
 );
 
 test(
   "password success signs out while invalid current password stays retryable",
   async () => {
-  let attempts = 0;
-  const { api } = makeApi({
-    changePassword: async () => {
-      attempts += 1;
-      if (attempts === 1) {
-        throw new ApiRequestError(
-          "validation",
-          400,
-          "INVALID_CURRENT_PASSWORD",
-          "private server text",
-        );
-      }
-    },
-  });
-  const controller = new MobileSecurityController(api);
+    let attempts = 0;
+    const { api } = makeApi({
+      changePassword: async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new ApiRequestError(
+            "validation",
+            400,
+            "INVALID_CURRENT_PASSWORD",
+            "private server text",
+          );
+        }
+      },
+    });
+    const controller = new MobileSecurityController(api);
 
-  await controller.load();
-  await controller.changePassword({
-    currentPassword: "wrong",
-    newPassword: "a sufficiently long password",
-  });
+    await controller.load();
+    await controller.changePassword({
+      currentPassword: "wrong",
+      newPassword: "a sufficiently long password",
+    });
 
-  const retry = controller.getSnapshot();
-  assert.equal(retry.kind, "ready");
-  if (retry.kind !== "ready") throw new Error("missing retry state");
-  assert.equal(retry.failure, "invalid_current_password");
-  assert.equal(JSON.stringify(retry).includes("private server text"), false);
+    const retry = controller.getSnapshot();
+    assert.equal(retry.kind, "ready");
+    if (retry.kind !== "ready") throw new Error("missing retry state");
+    assert.equal(retry.failure, "invalid_current_password");
+    assert.equal(JSON.stringify(retry).includes("private server text"), false);
 
-  await controller.changePassword({
-    currentPassword: "correct",
-    newPassword: "another sufficiently long password",
-  });
-  assert.deepEqual(controller.getSnapshot(), {
-    kind: "signed_out",
-    reason: "password_changed",
-  });
+    await controller.changePassword({
+      currentPassword: "correct",
+      newPassword: "another sufficiently long password",
+    });
+    assert.deepEqual(controller.getSnapshot(), {
+      kind: "signed_out",
+      reason: "password_changed",
+    });
   },
 );
 
