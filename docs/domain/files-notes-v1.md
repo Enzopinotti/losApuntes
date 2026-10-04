@@ -38,6 +38,11 @@ Core fields:
 
 ### Resource
 
+Resource is the product object and, for the current v1 one-to-one model, the
+product lifecycle authority that retains its claimed FileAsset. The FileAsset
+creator and Resource author remain attribution/provenance; neither field alone
+makes claimed bytes purgeable.
+
 Resource is the product object.
 
 Core fields:
@@ -127,7 +132,10 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 - Only a clean scan may transition `scanning -> ready`; scanner outage reschedules bounded retry, malicious verdict transitions to `rejected`, and retry exhaustion fails closed.
 - Legacy `ready` assets without scan evidence are treated as untrusted and re-enter scanning before they are shareable.
 - Resource creation claims a `ready` asset only when `scanCompletedAt + scanEngine` evidence exists. One asset cannot back two unrelated Resources in v1.
-- cleanup first claims an expired asset into `reclaiming`; only then may it delete object bytes. This makes cleanup mutually exclusive with Resource claiming.
+- cleanup first claims an expired **unclaimed** asset into `reclaiming`; only then may it delete object bytes. This makes abandoned-upload cleanup mutually exclusive with Resource claiming.
+- a claimed FileAsset is retained by its Resource lifecycle. Closing the creator account, archiving an Organization, removing a save/share, or losing a reference does not release that claim.
+- current persistence is intentionally one Resource ↔ one claimed FileAsset: `Resource.assetId` and non-null `FileAsset.claimRef` are unique. Do not introduce a speculative refcount unless a future feature changes that cardinality.
+- future Resource purge must define an explicit claim-release transition plus retention/audit/backup semantics before live object deletion is allowed.
 - Resource mutations use `expectedRevision`.
 - Share/save uniqueness is enforced in persistence, not only by controller prechecks.
 - Cross-user resource/file probes use opaque not-found behavior where existence disclosure is unnecessary.
@@ -203,5 +211,11 @@ No earlier-SHA green result counts as merge evidence.
 ## 10. Honest v1 boundaries
 
 Files + Notes v1 does not invent hard Resource deletion or tombstoning semantics. `DELETE-01` in the 2026 domain contract explicitly leaves anonymize/tombstone/retention/physical-delete behavior to the DER and data-retention policy. V1 therefore closes publication/privacy/access lifecycle without pretending that irreversible deletion policy has already been decided.
+
+ADR 0007 narrows one prerequisite without inventing deletion: claimed bytes are
+retained by the Resource relationship; creator/author identity and Organization
+references do not own byte deletion; the current 1:1 model needs no refcount.
+A future destructive carrier must first define how the Resource releases its
+claim and how retention/backups affect physical erasure.
 
 Native Mobile screen acceptance and production HTTPS/presign-origin/CORS evidence also remain outside this slice and are owned by their existing readiness lanes.
