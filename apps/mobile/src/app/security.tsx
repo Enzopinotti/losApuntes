@@ -49,6 +49,10 @@ const signedOutCopy = {
     title: "Contraseña actualizada",
     body: "Cerramos tus sesiones anteriores. Iniciá sesión de nuevo para continuar.",
   },
+  account_restricted: {
+    title: "Cuenta restringida",
+    body: "Tu cuenta tiene acceso restringido. No vamos a tratar este estado como una contraseña incorrecta.",
+  },
   authority_lost: {
     title: "Sesión no disponible",
     body: "Tu sesión cambió o dejó de ser válida. Iniciá sesión de nuevo.",
