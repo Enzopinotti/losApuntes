@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type {
   OrganizationDetail,
   OrganizationManagement,
@@ -9,6 +10,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
 
 function messageFor(error: unknown): string {
@@ -32,10 +34,39 @@ function messageFor(error: unknown): string {
 
 const OrganizationManage = () => {
   const { organizationId } = useParams();
-  const [detail, setDetail] = useState<OrganizationDetail | null>(null);
-  const [management, setManagement] = useState<OrganizationManagement | null>(
-    null,
+  const { status, user, session } = useAuth();
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const organizationScopeKey = [
+    organizationId ?? "missing-organization",
+    authScopeKey,
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(
+    `organization-manage-load:${organizationScopeKey}`,
   );
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(
+    `organization-manage-action:${organizationScopeKey}`,
+  );
+  const [snapshotState, setSnapshotState] = useState<{
+    scopeKey: string;
+    detail: OrganizationDetail;
+    management: OrganizationManagement;
+  } | null>(null);
+  const currentSnapshot =
+    snapshotState?.scopeKey === organizationScopeKey ? snapshotState : null;
+  const detail = currentSnapshot?.detail ?? null;
+  const management = currentSnapshot?.management ?? null;
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -53,27 +84,62 @@ const OrganizationManage = () => {
     useState<OrganizationManagerRole>("editor");
   const [managerReason, setManagerReason] = useState("");
   const [verificationReason, setVerificationReason] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [busyState, setBusyState] = useState<{
+    scopeKey: string;
+    value: string | null;
+  } | null>(null);
+  const busy =
+    busyState?.scopeKey === organizationScopeKey ? busyState.value : null;
+  const [errorState, setErrorState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const error =
+    errorState?.scopeKey === organizationScopeKey ? errorState.message : null;
+  const [feedbackState, setFeedbackState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const feedback =
+    feedbackState?.scopeKey === organizationScopeKey
+      ? feedbackState.message
+      : null;
 
   const load = useCallback(async () => {
     if (!organizationId) return;
-    setError(null);
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setErrorState(null);
     try {
       const [publicResult, managementResult] = await Promise.all([
-        organizationsApi.get(organizationId),
-        organizationsApi.management(organizationId),
+        organizationsApi.get(organizationId, ticket.signal),
+        organizationsApi.management(organizationId, ticket.signal),
       ]);
-      setDetail(publicResult.organization);
-      setManagement(managementResult);
+      if (!isLoadCurrent(ticket)) return;
+      setSnapshotState({
+        scopeKey: organizationScopeKey,
+        detail: publicResult.organization,
+        management: managementResult,
+      });
       setName(publicResult.organization.name);
       setAbout(publicResult.organization.about ?? "");
       setWebsiteUrl(publicResult.organization.websiteUrl ?? "");
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isLoadCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      finishLoad(ticket);
     }
-  }, [organizationId]);
+  }, [
+    beginLoad,
+    finishLoad,
+    isLoadCurrent,
+    organizationId,
+    organizationScopeKey,
+  ]);
 
   useEffect(() => {
     void load();
@@ -81,20 +147,31 @@ const OrganizationManage = () => {
 
   const run = async (
     key: string,
-    operation: () => Promise<unknown>,
+    operation: (signal: AbortSignal) => Promise<unknown>,
     success: string,
-  ) => {
-    setBusy(key);
-    setError(null);
-    setFeedback(null);
+  ): Promise<boolean> => {
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return false;
+    setBusyState({ scopeKey: organizationScopeKey, value: key });
+    setErrorState(null);
+    setFeedbackState(null);
     try {
-      await operation();
-      setFeedback(success);
+      await operation(ticket.signal);
+      if (!isActionCurrent(ticket)) return false;
+      setFeedbackState({ scopeKey: organizationScopeKey, message: success });
       await load();
+      return isActionCurrent(ticket);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return false;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+      return false;
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
     }
   };
 
@@ -103,12 +180,17 @@ const OrganizationManage = () => {
     if (!detail) return;
     await run(
       "profile",
-      () =>
-        organizationsApi.update(detail.id, detail.revision, {
-          name,
-          about: about.trim() || null,
-          websiteUrl: websiteUrl.trim() || null,
-        }),
+      (signal) =>
+        organizationsApi.update(
+          detail.id,
+          detail.revision,
+          {
+            name,
+            about: about.trim() || null,
+            websiteUrl: websiteUrl.trim() || null,
+          },
+          signal,
+        ),
       "Organización actualizada.",
     );
   };
@@ -116,15 +198,20 @@ const OrganizationManage = () => {
   const publishPost = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!detail) return;
-    await run(
+    const succeeded = await run(
       "post",
-      () =>
-        organizationsApi.createPost(detail.id, {
-          title: postTitle.trim() || undefined,
-          body: postBody,
-        }),
+      (signal) =>
+        organizationsApi.createPost(
+          detail.id,
+          {
+            title: postTitle.trim() || undefined,
+            body: postBody,
+          },
+          signal,
+        ),
       "Publicación creada.",
     );
+    if (!succeeded) return;
     setPostTitle("");
     setPostBody("");
   };
@@ -132,17 +219,24 @@ const OrganizationManage = () => {
   const publishEvent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!detail) return;
-    await run(
+    const succeeded = await run(
       "event",
-      () =>
-        organizationsApi.createEvent(detail.id, {
-          title: eventTitle,
-          description: eventDescription.trim() || undefined,
-          startsAt: new Date(eventStartsAt).toISOString(),
-          endsAt: eventEndsAt ? new Date(eventEndsAt).toISOString() : undefined,
-        }),
+      (signal) =>
+        organizationsApi.createEvent(
+          detail.id,
+          {
+            title: eventTitle,
+            description: eventDescription.trim() || undefined,
+            startsAt: new Date(eventStartsAt).toISOString(),
+            endsAt: eventEndsAt
+              ? new Date(eventEndsAt).toISOString()
+              : undefined,
+          },
+          signal,
+        ),
       "Evento publicado.",
     );
+    if (!succeeded) return;
     setEventTitle("");
     setEventDescription("");
     setEventStartsAt("");
@@ -248,12 +342,13 @@ const OrganizationManage = () => {
                     onClick={() =>
                       void run(
                         `remove:${manager.profile.profileId}`,
-                        () =>
+                        (signal) =>
                           organizationsApi.removeManager(
                             detail.id,
                             manager.profile.profileId!,
                             management.organization.managementRevision,
                             "Revocado desde gestión Web",
+                            signal,
                           ),
                         "Manager revocado.",
                       )
@@ -293,13 +388,14 @@ const OrganizationManage = () => {
               onClick={() =>
                 void run(
                   "manager",
-                  () =>
+                  (signal) =>
                     organizationsApi.changeManager(
                       detail.id,
                       managerProfileId.trim(),
                       managerRole,
                       management.organization.managementRevision,
                       managerReason,
+                      signal,
                     ),
                   "Permiso actualizado.",
                 )
@@ -397,11 +493,15 @@ const OrganizationManage = () => {
               onClick={() =>
                 void run(
                   "link",
-                  () =>
-                    organizationsApi.createLink(detail.id, {
-                      label: linkLabel,
-                      url: linkUrl,
-                    }),
+                  (signal) =>
+                    organizationsApi.createLink(
+                      detail.id,
+                      {
+                        label: linkLabel,
+                        url: linkUrl,
+                      },
+                      signal,
+                    ),
                   "Link agregado.",
                 )
               }
@@ -425,10 +525,11 @@ const OrganizationManage = () => {
               onClick={() =>
                 void run(
                   "resource",
-                  () =>
+                  (signal) =>
                     organizationsApi.featureResource(
                       detail.id,
                       resourceId.trim(),
+                      signal,
                     ),
                   "Resource destacado.",
                 )
@@ -462,7 +563,7 @@ const OrganizationManage = () => {
               onClick={() =>
                 void run(
                   "verification",
-                  () =>
+                  (signal) =>
                     organizationsApi.updateVerification(
                       detail.id,
                       detail.revision,
@@ -470,6 +571,7 @@ const OrganizationManage = () => {
                         ? "unverified"
                         : "verified",
                       verificationReason,
+                      signal,
                     ),
                   "Estado de verificación actualizado.",
                 )
