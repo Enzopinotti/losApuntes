@@ -1,3 +1,4 @@
+import type { OperationalAlertPolicy } from './operational-alert-boundary';
 import {
   OperationalAlertBoundary,
   apiAlertObservations,
