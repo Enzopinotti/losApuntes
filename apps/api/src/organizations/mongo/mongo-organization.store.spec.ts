@@ -413,6 +413,81 @@ describe('MongoOrganizationStore public content pagination', () => {
   });
 });
 
+describe('MongoOrganizationStore followed feed isolation', () => {
+  it('joins the exact followed organization and requires it to stay active', async () => {
+    const aggregate = jest.fn(() => ({
+      exec: jest.fn().mockResolvedValue([]),
+    }));
+    const posts = { aggregate };
+    const store = new MongoOrganizationStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      posts as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await store.listFeedPostsForFollower({
+      userId: actorUserId,
+      anchorAt: now,
+      limit: 25,
+    });
+
+    const pipeline = aggregate.mock.calls[0]?.[0];
+    expect(pipeline).toEqual(
+      expect.arrayContaining([
+        {
+          $lookup: {
+            from: 'organizations',
+            let: { organizationId: '$organizationId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$id', '$organizationId'] },
+                      { $eq: ['$status', 'active'] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__activeOrganization',
+          },
+        },
+        { $match: { '__activeOrganization.0': { $exists: true } } },
+        {
+          $lookup: {
+            from: 'organization_follows',
+            let: { organizationId: '$organizationId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$organizationId', '$organizationId'] },
+                      { $eq: ['$userId', actorUserId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__viewerFollow',
+          },
+        },
+      ]),
+    );
+  });
+});
+
 describe('MongoOrganizationStore commit authority', () => {
   it('archives and revokes all manager authority in one transaction', async () => {
     const archived = {
