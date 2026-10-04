@@ -181,9 +181,7 @@ export function apiAlertObservations(
   ];
 }
 
-export function workerAlertObservation(
-  status: WorkerOperationalStatus,
-): {
+export function workerAlertObservation(status: WorkerOperationalStatus): {
   signal: 'worker.not_ready';
   unhealthy: boolean;
 } {
