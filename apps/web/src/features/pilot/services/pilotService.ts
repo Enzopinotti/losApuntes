@@ -45,6 +45,11 @@ function envelopeMessage(envelope: ErrorEnvelope): string {
   return envelope.message || "No pudimos completar la operación.";
 }
 
+function requestSignal(signal?: AbortSignal | null): AbortSignal {
+  const timeout = AbortSignal.timeout(15_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
 
@@ -58,7 +63,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: requestSignal(init.signal),
     });
   } catch {
     throw new PilotApiError(
@@ -102,18 +107,25 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const pilotApi = {
-  home: () => request<PilotHomeResponse>("/pilot/home"),
+  home: (signal?: AbortSignal) =>
+    request<PilotHomeResponse>("/pilot/home", { signal }),
 
-  metrics: (days = 14) =>
+  metrics: (days = 14, signal?: AbortSignal) =>
     request<PilotMetricsResponse>(
       `/pilot/admin/metrics?days=${encodeURIComponent(String(days))}`,
+      { signal },
     ),
 
-  moderation: (status: PilotModerationStatus = "pending", limit = 50) =>
+  moderation: (
+    status: PilotModerationStatus = "pending",
+    limit = 50,
+    signal?: AbortSignal,
+  ) =>
     request<PilotModerationResponse>(
       `/pilot/admin/moderation?status=${encodeURIComponent(
         status,
       )}&limit=${encodeURIComponent(String(limit))}`,
+      { signal },
     ),
 
   review: (
@@ -121,6 +133,7 @@ export const pilotApi = {
     reportId: string,
     action: PilotModerationAction,
     reason: string,
+    signal?: AbortSignal,
   ) =>
     request<{ item: PilotModerationResponse["items"][number] }>(
       `/pilot/admin/moderation/${encodeURIComponent(
@@ -129,6 +142,7 @@ export const pilotApi = {
       {
         method: "PATCH",
         body: JSON.stringify({ action, reason }),
+        signal,
       },
     ),
 };
