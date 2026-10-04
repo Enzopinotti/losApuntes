@@ -415,9 +415,12 @@ describe('MongoOrganizationStore public content pagination', () => {
 
 describe('MongoOrganizationStore followed feed isolation', () => {
   it('joins the exact followed organization and requires it to stay active', async () => {
-    const aggregate = jest.fn((_pipeline: unknown[]) => ({
-      exec: jest.fn().mockResolvedValue([]),
-    }));
+    const aggregate = jest.fn((pipeline: unknown[]) => {
+      void pipeline;
+      return {
+        exec: jest.fn().mockResolvedValue([]),
+      };
+    });
     const posts = { aggregate };
     const store = new MongoOrganizationStore(
       {} as never,
