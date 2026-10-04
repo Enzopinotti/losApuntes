@@ -1034,6 +1034,27 @@ export class MongoOrganizationStore implements OrganizationStore {
         },
         {
           $lookup: {
+            from: 'organizations',
+            let: { organizationId: '$organizationId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$id', '$organizationId'] },
+                      { $eq: ['$status', 'active'] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__activeOrganization',
+          },
+        },
+        { $match: { '__activeOrganization.0': { $exists: true } } },
+        {
+          $lookup: {
             from: 'organization_follows',
             let: { organizationId: '$organizationId' },
             pipeline: [
@@ -1055,7 +1076,12 @@ export class MongoOrganizationStore implements OrganizationStore {
         { $match: { '__viewerFollow.0': { $exists: true } } },
         { $sort: { publishedAt: -1, id: 1 } },
         { $limit: input.limit },
-        { $project: { __viewerFollow: 0 } },
+        {
+          $project: {
+            __activeOrganization: 0,
+            __viewerFollow: 0,
+          },
+        },
       ])
       .exec();
   }
