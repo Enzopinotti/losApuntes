@@ -26,6 +26,16 @@ assert.match(service, /disconnect:[\s\S]*signal\?: AbortSignal/u);
 assert.match(service, /cursor/u);
 assert.match(service, /questions/u);
 assert.match(service, /\/questions\/\$\{encodeURIComponent\(questionId\)\}\/answers/u);
+assert.match(service, /questions:[\s\S]{0,260}signal\?: AbortSignal/u);
+assert.match(service, /question: \(id: string, signal\?: AbortSignal\)/u);
+assert.match(service, /answers:[\s\S]{0,220}signal\?: AbortSignal/u);
+assert.match(service, /createQuestion:[\s\S]{0,220}signal\?: AbortSignal/u);
+assert.match(service, /updateQuestion:[\s\S]{0,320}signal\?: AbortSignal/u);
+assert.match(service, /createAnswer:[\s\S]{0,180}signal\?: AbortSignal/u);
+assert.match(service, /updateAnswer:[\s\S]{0,180}signal\?: AbortSignal/u);
+assert.match(service, /acceptAnswer:[\s\S]{0,220}signal\?: AbortSignal/u);
+assert.match(service, /reportQuestion: \(id: string, signal\?: AbortSignal\)/u);
+assert.match(service, /reportAnswer: \(id: string, signal\?: AbortSignal\)/u);
 assert.match(service, /notifications/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
@@ -59,14 +69,47 @@ assert.doesNotMatch(network, /academic.*connect|auto.*connect/iu);
 assert.doesNotMatch(network, /localStorage|sessionStorage/u);
 
 const questions = await read('apps/web/src/pages/Questions.tsx');
-assert.match(questions, /communityApi\.questions/u);
-assert.match(questions, /communityApi\.createQuestion/u);
-assert.match(questions, /communityApi\.createAnswer/u);
-assert.match(questions, /communityApi\.acceptAnswer/u);
-assert.match(questions, /resourcesApi\.searchSubjects/u);
+assert.match(questions, /useAuth\(\)/u);
+assert.match(questions, /user\?\.id/u);
+assert.match(questions, /session\?\.id/u);
+assert.equal((questions.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 4);
+assert.match(questions, /questions-list:\$\{listScopeKey\}/u);
+assert.match(questions, /questions-detail:\$\{detailScopeKey\}/u);
+assert.match(
+  questions,
+  /questions-subject-search:\$\{subjectSearchScopeKey\}/u,
+);
+assert.match(questions, /questions-action:\$\{actionScopeKey\}/u);
+assert.match(questions, /listState\?\.scopeKey === listScopeKey/u);
+assert.match(questions, /detailState\?\.scopeKey === detailScopeKey/u);
+assert.match(
+  questions,
+  /subjectSearchState\?\.scopeKey === subjectSearchScopeKey/u,
+);
+assert.match(questions, /actionState\?\.scopeKey === actionScopeKey/u);
+assert.match(questions, /communityApi\.questions\([\s\S]{0,420}ticket\.signal/u);
+assert.match(
+  questions,
+  /communityApi\s*\.\s*question\s*\(\s*initialId,\s*ticket\.signal\s*\)/u,
+);
+assert.match(questions, /communityApi\.answers\([\s\S]{0,260}ticket\.signal/u);
+assert.match(
+  questions,
+  /resourcesApi\s*\.\s*searchSubjects\s*\(\s*q,\s*ticket\.signal\s*\)/u,
+);
+assert.match(questions, /communityApi\.createQuestion\([\s\S]{0,300}signal/u);
+assert.match(questions, /communityApi\.createAnswer\([\s\S]{0,180}signal/u);
+assert.match(questions, /communityApi\.updateQuestion\([\s\S]{0,180}signal/u);
+assert.match(questions, /communityApi\.updateAnswer\([\s\S]{0,180}signal/u);
+assert.match(questions, /communityApi\.acceptAnswer\([\s\S]{0,180}signal/u);
+assert.match(questions, /communityApi\.reportQuestion\([\s\S]{0,160}signal/u);
+assert.match(questions, /communityApi\.reportAnswer\([\s\S]{0,160}signal/u);
+assert.match(questions, /await loadListRef\.current\(\)/u);
+assert.match(questions, /loadDetailRef\.current\(\)/u);
+assert.match(questions, /setSearchParams\(\{ id: result\.question\.id \}\)/u);
+assert.match(questions, /Cargando pregunta…/u);
 assert.match(questions, /nextCursor/u);
 assert.match(questions, /questions-more/u);
-assert.match(questions, /communityApi\.answers/u);
 assert.match(questions, /answersNextCursor/u);
 assert.match(questions, /answers-more/u);
 assert.match(questions, /appendAnswers/u);
