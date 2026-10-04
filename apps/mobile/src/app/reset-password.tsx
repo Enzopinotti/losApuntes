@@ -55,12 +55,10 @@ export default function ResetPasswordRoute() {
     };
   }, [controller, handle]);
 
-  const showForm =
-    snapshot.kind === "ready" || snapshot.kind === "submitting";
+  const showForm = snapshot.kind === "ready" || snapshot.kind === "submitting";
   const pending =
     snapshot.kind === "checking" || snapshot.kind === "submitting";
-  const terminalFailure =
-    snapshot.kind === "failed" ? snapshot.failure : null;
+  const terminalFailure = snapshot.kind === "failed" ? snapshot.failure : null;
   const retryableInspectFailure =
     terminalFailure === "offline" ||
     terminalFailure === "timeout" ||
@@ -162,13 +160,9 @@ export default function ResetPasswordRoute() {
                 style={[styles.primary, pending && styles.disabled]}
               >
                 {snapshot.kind === "submitting" ? (
-                  <ActivityIndicator
-                    accessibilityLabel="Guardando contraseña"
-                  />
+                  <ActivityIndicator accessibilityLabel="Guardando contraseña" />
                 ) : (
-                  <Text style={styles.primaryText}>
-                    Cambiar contraseña
-                  </Text>
+                  <Text style={styles.primaryText}>Cambiar contraseña</Text>
                 )}
               </Pressable>
             </>
@@ -207,10 +201,7 @@ export default function ResetPasswordRoute() {
               ) : null}
 
               <Link href="/forgot-password" asChild>
-                <Pressable
-                  accessibilityRole="link"
-                  style={styles.secondary}
-                >
+                <Pressable accessibilityRole="link" style={styles.secondary}>
                   <Text>Pedir otro enlace</Text>
                 </Pressable>
               </Link>
