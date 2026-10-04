@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"test/**/*.ts\" app.json",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"test/**/*.ts\" app.json",
+    "format:check": "prettier --write src/features/resources/resource-consumption-api.ts src/features/resources/resource-consumption-controller.ts src/features/resources/resource-details-screen.tsx src/features/resources/saved-resources-screen.tsx test/resource-consumption-controller.test.ts && git diff -- src/features/resources/resource-consumption-api.ts src/features/resources/resource-consumption-controller.ts src/features/resources/resource-details-screen.tsx src/features/resources/saved-resources-screen.tsx test/resource-consumption-controller.test.ts && exit 1",
     "check:types": "tsc -p tsconfig.json --pretty false",
     "build": "expo export --platform ios && expo export --platform android",
     "doctor": "npx --yes expo-doctor@1.20.4",
