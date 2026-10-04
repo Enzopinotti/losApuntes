@@ -137,13 +137,13 @@ The current Web inventory is:
 - Security: session/login-method/Google-status loads and security mutations;
 - Pilot Home: personalized home snapshot by authenticated principal/session;
 - AdminPilot: metrics/moderation load by principal/session/window and review
-  actions by principal/session.
+  actions by principal/session;
+- Questions/Q&A: public list/detail reads scoped by viewer/session plus
+  query/entity identity, answer pagination by question, subject search by query,
+  and all mutations by viewer/session + current route context.
 
-Questions/Q&A is the remaining #101 surface until its list/detail/subject-search,
-answer pagination and mutation completions are integrated on the same authority
-model.
-
-Public auth-action pages such as password recovery/email verification are
+The #101 transversal audit is complete: no additional principal/session-sensitive
+Web async owner remains unclassified. Public auth-action pages such as password recovery/email verification are
 token/email workflows rather than authenticated principal snapshots; they are
 classified separately and are not treated as substitutes for the session/view
 fence above.
