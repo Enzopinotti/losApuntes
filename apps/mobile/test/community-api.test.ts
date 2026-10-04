@@ -7,6 +7,7 @@ import {
   MobileCommunityApi,
   MobileCommunityHttpTransport,
   type CommunityTransport,
+  type MobileNotificationPage,
 } from "../src/features/community/community-api";
 import type { SessionController } from "../src/features/session/session-controller";
 import {
@@ -42,6 +43,10 @@ function sessionHarness() {
 }
 
 const emptyQuestions: QuestionSearchResponse = {
+  items: [],
+  nextCursor: null,
+};
+const emptyNotifications: MobileNotificationPage = {
   items: [],
   nextCursor: null,
 };
@@ -87,6 +92,27 @@ test("request methods retain the bearer credential and server cursor contract", 
       });
       return { answer: {} as never };
     },
+    notifications: async (credential, input, signal) => {
+      calls.push({
+        method: "notifications",
+        args: [credential, input, signal],
+      });
+      return emptyNotifications;
+    },
+    markNotificationRead: async (credential, id, signal) => {
+      calls.push({
+        method: "markNotificationRead",
+        args: [credential, id, signal],
+      });
+      return { read: true };
+    },
+    markAllNotificationsRead: async (credential, signal) => {
+      calls.push({
+        method: "markAllNotificationsRead",
+        args: [credential, signal],
+      });
+      return { updated: 2 };
+    },
   };
   const api = new MobileCommunityApi(harness.session, transport);
   const signal = new AbortController().signal;
@@ -96,6 +122,12 @@ test("request methods retain the bearer credential and server cursor contract", 
     signal,
   );
   await api.answers("question-a", "answer-cursor", 25, signal);
+  await api.notifications(
+    { unreadOnly: true, limit: 30, cursor: "notification-cursor" },
+    signal,
+  );
+  await api.markNotificationRead("notification-a", signal);
+  await api.markAllNotificationsRead(signal);
 
   assert.deepEqual(calls[0], {
     method: "questions",
@@ -108,6 +140,22 @@ test("request methods retain the bearer credential and server cursor contract", 
   assert.deepEqual(calls[1], {
     method: "answers",
     args: ["secret-session-token", "question-a", "answer-cursor", 25, signal],
+  });
+  assert.deepEqual(calls[2], {
+    method: "notifications",
+    args: [
+      "secret-session-token",
+      { unreadOnly: true, limit: 30, cursor: "notification-cursor" },
+      signal,
+    ],
+  });
+  assert.deepEqual(calls[3], {
+    method: "markNotificationRead",
+    args: ["secret-session-token", "notification-a", signal],
+  });
+  assert.deepEqual(calls[4], {
+    method: "markAllNotificationsRead",
+    args: ["secret-session-token", signal],
   });
 });
 
@@ -130,6 +178,9 @@ test("requires the current session and never silently downgrades to anonymous", 
     createAnswer: async () => {
       throw new Error("unexpected");
     },
+    notifications: async () => emptyNotifications,
+    markNotificationRead: async () => ({ read: true }),
+    markAllNotificationsRead: async () => ({ updated: 0 }),
   };
 
   await assert.rejects(
@@ -160,6 +211,9 @@ test("fences successful responses when the session generation changed", async ()
     createAnswer: async () => {
       throw new Error("unexpected");
     },
+    notifications: async () => emptyNotifications,
+    markNotificationRead: async () => ({ read: true }),
+    markAllNotificationsRead: async () => ({ updated: 0 }),
   };
   const request = new MobileCommunityApi(harness.session, transport).questions({
     limit: 25,
@@ -194,6 +248,13 @@ test("encodes public question API paths and includes only server-supported pagin
     cursor: "opaque+/=",
   });
   await transport.answers("token", "question / one", "answer-cursor", 17);
+  await transport.notifications("token", {
+    unreadOnly: true,
+    limit: 500,
+    cursor: "notification+/cursor",
+  });
+  await transport.markNotificationRead("token", "notification / one");
+  await transport.markAllNotificationsRead("token");
 
   const questionUrl = new URL(calls[0]!.path, "https://api.example");
   assert.equal(questionUrl.pathname, "/questions");
@@ -207,4 +268,25 @@ test("encodes public question API paths and includes only server-supported pagin
   assert.equal(answerUrl.pathname, "/questions/question%20%2F%20one/answers");
   assert.equal(answerUrl.searchParams.get("cursor"), "answer-cursor");
   assert.equal(answerUrl.searchParams.get("limit"), "17");
+
+  const notificationsUrl = new URL(calls[2]!.path, "https://api.example");
+  assert.equal(notificationsUrl.pathname, "/notifications");
+  assert.equal(notificationsUrl.searchParams.get("unreadOnly"), "true");
+  assert.equal(notificationsUrl.searchParams.get("limit"), "100");
+  assert.equal(
+    notificationsUrl.searchParams.get("cursor"),
+    "notification+/cursor",
+  );
+  assert.deepEqual(calls[2]!.options, { credential: "token" });
+
+  assert.equal(calls[3]!.path, "/notifications/notification%20%2F%20one/read");
+  assert.deepEqual(calls[3]!.options, {
+    method: "PATCH",
+    credential: "token",
+  });
+  assert.equal(calls[4]!.path, "/notifications/read-all");
+  assert.deepEqual(calls[4]!.options, {
+    method: "POST",
+    credential: "token",
+  });
 });
