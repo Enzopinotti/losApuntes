@@ -152,7 +152,7 @@ describe('OperationalAlertBoundary', () => {
     ).toBeNull();
   });
 
-  it('ignores stale observations instead of rewinding alert ownership', () => {
+  it('ignores stale observations even after recovery clears active state', () => {
     const boundary = new OperationalAlertBoundary();
     const immediate = {
       activationAfterMs: 0,
@@ -183,6 +183,28 @@ describe('OperationalAlertBoundary', () => {
         policy: immediate,
       }),
     ).toMatchObject({ phase: 'recovery' });
+
+    expect(
+      boundary.observe({
+        signal: 'api.not_ready',
+        unhealthy: true,
+        observedAtMs: 50_500,
+        policy: immediate,
+      }),
+    ).toBeNull();
+
+    expect(
+      boundary.observe({
+        signal: 'api.not_ready',
+        unhealthy: true,
+        observedAtMs: 52_000,
+        policy: immediate,
+      }),
+    ).toMatchObject({
+      signal: 'api.not_ready',
+      phase: 'active',
+      activeSince: '1970-01-01T00:00:52.000Z',
+    });
   });
 
   it('maps API and worker states without exposing dependency details', () => {
@@ -215,6 +237,31 @@ describe('OperationalAlertBoundary', () => {
         policy,
       }),
     ).toThrow('allow-listed operational alert signal');
+  });
+
+  it('reuses the exact signal value that passed runtime validation', () => {
+    const boundary = new OperationalAlertBoundary();
+    let signalReads = 0;
+    const input = {
+      get signal() {
+        signalReads += 1;
+        return signalReads === 1
+          ? 'api.not_ready'
+          : 'api.not_ready:mongodb://secret';
+      },
+      unhealthy: true,
+      observedAtMs: 1,
+      policy: {
+        activationAfterMs: 0,
+        repeatCooldownMs: null,
+      },
+    } as unknown as Parameters<OperationalAlertBoundary['observe']>[0];
+
+    expect(boundary.observe(input)).toMatchObject({
+      signal: 'api.not_ready',
+      phase: 'active',
+    });
+    expect(signalReads).toBe(1);
   });
 
   it('rejects invalid timing policy instead of silently inventing behavior', () => {
