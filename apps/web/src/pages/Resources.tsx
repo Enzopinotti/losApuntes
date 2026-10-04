@@ -95,8 +95,10 @@ type UncertainResourceCreate = {
   filename: string;
 };
 
-const UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY =
+const UNCERTAIN_RESOURCE_CREATE_SESSION_KEY =
   "__losApuntesUncertainResourceCreateUsers";
+const MAX_UNCERTAIN_RESOURCE_CREATE_STORAGE_BYTES = 8 * 1024;
+const MAX_STORED_USER_ID_LENGTH = 128;
 const retainedUncertainResourceCreates = new Map<
   string,
   UncertainResourceCreate
@@ -111,16 +113,31 @@ function uncertainResourceCreateKey(
 
 function readUncertainResourceCreateUsers(): string[] {
   if (typeof window === "undefined") return [];
-  const state = window.history.state;
-  if (typeof state !== "object" || state === null || Array.isArray(state)) {
+
+  try {
+    const raw = window.sessionStorage.getItem(
+      UNCERTAIN_RESOURCE_CREATE_SESSION_KEY,
+    );
+    if (!raw || raw.length > MAX_UNCERTAIN_RESOURCE_CREATE_STORAGE_BYTES) {
+      return [];
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return [
+      ...new Set(
+        parsed.filter(
+          (userId): userId is string =>
+            typeof userId === "string" &&
+            userId.length > 0 &&
+            userId.length <= MAX_STORED_USER_ID_LENGTH,
+        ),
+      ),
+    ];
+  } catch {
     return [];
   }
-  const users = (state as Record<string, unknown>)[
-    UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY
-  ];
-  return Array.isArray(users)
-    ? users.filter((userId): userId is string => typeof userId === "string")
-    : [];
 }
 
 type UncertainResourceCreateUsersUpdate = {
@@ -133,6 +150,14 @@ function updateUncertainResourceCreateUsers(
   isUncertain: boolean,
 ): UncertainResourceCreateUsersUpdate {
   const currentUsers = readUncertainResourceCreateUsers();
+  if (
+    userId.length === 0 ||
+    userId.length > MAX_STORED_USER_ID_LENGTH ||
+    typeof window === "undefined"
+  ) {
+    return { userIds: currentUsers, persisted: false };
+  }
+
   const nextUsers = isUncertain
     ? [...new Set([...currentUsers, userId])]
     : currentUsers.filter((currentUserId) => currentUserId !== userId);
@@ -144,27 +169,20 @@ function updateUncertainResourceCreateUsers(
   ) {
     return { userIds: nextUsers, persisted: true };
   }
-  if (typeof window === "undefined") {
-    return { userIds: currentUsers, persisted: false };
-  }
 
-  const currentState = window.history.state;
-  const nextState: Record<string, unknown> =
-    typeof currentState === "object" &&
-    currentState !== null &&
-    !Array.isArray(currentState)
-      ? { ...currentState }
-      : {};
-  if (nextUsers.length > 0) {
-    nextState[UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY] = nextUsers;
-  } else {
-    delete nextState[UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY];
-  }
   try {
-    window.history.replaceState(nextState, "");
+    if (nextUsers.length > 0) {
+      window.sessionStorage.setItem(
+        UNCERTAIN_RESOURCE_CREATE_SESSION_KEY,
+        JSON.stringify(nextUsers),
+      );
+    } else {
+      window.sessionStorage.removeItem(UNCERTAIN_RESOURCE_CREATE_SESSION_KEY);
+    }
   } catch {
     return { userIds: currentUsers, persisted: false };
   }
+
   return { userIds: nextUsers, persisted: true };
 }
 
@@ -402,6 +420,7 @@ const Resources = () => {
     async (cursor?: string, append = false) => {
       if (!routeQueryIsSynchronized) return;
       const ticket = beginListRequest();
+      if (!isListRequestCurrent(ticket)) return;
       setListState((current) => {
         if (!isListRequestCurrent(ticket)) return current;
         const currentScope =
