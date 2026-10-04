@@ -6,6 +6,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
 
 function appendPosts(
@@ -33,29 +34,90 @@ function messageFor(error: unknown): string {
 
 const Organization = () => {
   const { organizationId } = useParams();
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
-  const [organization, setOrganization] = useState<OrganizationDetail | null>(
-    null,
-  );
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const organizationScopeKey = [
+    organizationId ?? "missing-organization",
+    authScopeKey,
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`organization-load:${organizationScopeKey}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`organization-action:${organizationScopeKey}`);
+  const [organizationState, setOrganizationState] = useState<{
+    scopeKey: string;
+    organization: OrganizationDetail;
+  } | null>(null);
+  const organization =
+    organizationState?.scopeKey === organizationScopeKey
+      ? organizationState.organization
+      : null;
+  const [busyState, setBusyState] = useState<{
+    scopeKey: string;
+    value: string | null;
+  } | null>(null);
+  const busy =
+    busyState?.scopeKey === organizationScopeKey ? busyState.value : null;
+  const [errorState, setErrorState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const error =
+    errorState?.scopeKey === organizationScopeKey ? errorState.message : null;
+  const [feedbackState, setFeedbackState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const feedback =
+    feedbackState?.scopeKey === organizationScopeKey
+      ? feedbackState.message
+      : null;
 
   const load = useCallback(async () => {
     if (!organizationId) return;
-    setError(null);
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setErrorState(null);
     try {
-      const result = await organizationsApi.get(organizationId);
-      setOrganization(result.organization);
+      const result = await organizationsApi.get(
+        organizationId,
+        ticket.signal,
+      );
+      if (!isLoadCurrent(ticket)) return;
+      setOrganizationState({
+        scopeKey: organizationScopeKey,
+        organization: result.organization,
+      });
     } catch (nextError) {
-      if (isOrganizationsApiError(nextError) && nextError.status === 404) {
-        setError("Esta organización no existe o ya no está disponible.");
-        return;
-      }
-      setError(messageFor(nextError));
+      if (!isLoadCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message:
+          isOrganizationsApiError(nextError) && nextError.status === 404
+            ? "Esta organización no existe o ya no está disponible."
+            : messageFor(nextError),
+      });
+    } finally {
+      finishLoad(ticket);
     }
-  }, [organizationId]);
+  }, [
+    beginLoad,
+    finishLoad,
+    isLoadCurrent,
+    organizationId,
+    organizationScopeKey,
+  ]);
 
   useEffect(() => {
     void load();
@@ -63,101 +125,183 @@ const Organization = () => {
 
   const follow = async () => {
     if (!organization) return;
-    setBusy("follow");
-    setError(null);
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "follow" });
+    setErrorState(null);
+    setFeedbackState(null);
     try {
-      if (organization.viewer?.following) {
-        await organizationsApi.unfollow(organization.id);
-        setFeedback("Dejaste de seguir esta organización.");
+      if (target.viewer?.following) {
+        await organizationsApi.unfollow(target.id, ticket.signal);
+        if (!isActionCurrent(ticket)) return;
+        setFeedbackState({
+          scopeKey: organizationScopeKey,
+          message: "Dejaste de seguir esta organización.",
+        });
       } else {
-        await organizationsApi.follow(organization.id);
-        setFeedback("Ahora seguís esta organización.");
+        await organizationsApi.follow(target.id, ticket.signal);
+        if (!isActionCurrent(ticket)) return;
+        setFeedbackState({
+          scopeKey: organizationScopeKey,
+          message: "Ahora seguís esta organización.",
+        });
       }
       await load();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
     }
   };
 
   const loadMorePosts = async () => {
     if (!organization?.postsNextCursor) return;
-    setBusy("posts-more");
-    setError(null);
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "posts-more" });
+    setErrorState(null);
 
     try {
       const page = await organizationsApi.posts(
-        organization.id,
-        organization.postsNextCursor,
+        target.id,
+        target.postsNextCursor,
+        ticket.signal,
       );
-      setOrganization((current) =>
-        current
+      if (!isActionCurrent(ticket)) return;
+      setOrganizationState((current) =>
+        current?.scopeKey === organizationScopeKey &&
+        current.organization.id === target.id
           ? {
-              ...current,
-              posts: appendPosts(current.posts, page.items),
-              postsNextCursor: page.nextCursor,
+              scopeKey: organizationScopeKey,
+              organization: {
+                ...current.organization,
+                posts: appendPosts(current.organization.posts, page.items),
+                postsNextCursor: page.nextCursor,
+              },
             }
           : current,
       );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
     }
   };
 
   const loadMoreEvents = async () => {
     if (!organization?.eventsNextCursor) return;
-    setBusy("events-more");
-    setError(null);
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "events-more" });
+    setErrorState(null);
 
     try {
       const page = await organizationsApi.events(
-        organization.id,
-        organization.eventsNextCursor,
+        target.id,
+        target.eventsNextCursor,
+        ticket.signal,
       );
-      setOrganization((current) =>
-        current
+      if (!isActionCurrent(ticket)) return;
+      setOrganizationState((current) =>
+        current?.scopeKey === organizationScopeKey &&
+        current.organization.id === target.id
           ? {
-              ...current,
-              events: appendEvents(current.events, page.items),
-              eventsNextCursor: page.nextCursor,
+              scopeKey: organizationScopeKey,
+              organization: {
+                ...current.organization,
+                events: appendEvents(current.organization.events, page.items),
+                eventsNextCursor: page.nextCursor,
+              },
             }
           : current,
       );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
     }
   };
 
   const reportPost = async (postId: string) => {
     if (!organization) return;
-    setBusy(`report-post:${postId}`);
-    setError(null);
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({
+      scopeKey: organizationScopeKey,
+      value: `report-post:${postId}`,
+    });
+    setErrorState(null);
+    setFeedbackState(null);
     try {
-      await organizationsApi.reportPost(organization.id, postId);
-      setFeedback("Reporte de publicación recibido.");
+      await organizationsApi.reportPost(target.id, postId, ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      setFeedbackState({
+        scopeKey: organizationScopeKey,
+        message: "Reporte de publicación recibido.",
+      });
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
     }
   };
 
   const reportEvent = async (eventId: string) => {
     if (!organization) return;
-    setBusy(`report-event:${eventId}`);
-    setError(null);
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({
+      scopeKey: organizationScopeKey,
+      value: `report-event:${eventId}`,
+    });
+    setErrorState(null);
+    setFeedbackState(null);
     try {
-      await organizationsApi.reportEvent(organization.id, eventId);
-      setFeedback("Reporte de evento recibido.");
+      await organizationsApi.reportEvent(target.id, eventId, ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      setFeedbackState({
+        scopeKey: organizationScopeKey,
+        message: "Reporte de evento recibido.",
+      });
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
     }
   };
 
