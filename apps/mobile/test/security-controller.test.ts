@@ -126,10 +126,7 @@ test(
     const after = controller.getSnapshot();
     assert.equal(after.kind, "ready");
     if (after.kind !== "ready") throw new Error("missing refreshed state");
-    assert.deepEqual(
-      after.sessions.map((item) => item.id),
-      ["current"],
-    );
+    assert.deepEqual(after.sessions.map((item) => item.id), ["current"]);
     assert.equal(after.feedback, "Sesión cerrada.");
   },
 );
