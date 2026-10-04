@@ -55,7 +55,7 @@ Fields:
 
 Password policy:
 
-- 12–256 characters for the new password;
+- 15–256 Unicode code points for the new password;
 - no forced uppercase/number/symbol checklist;
 - spaces/paste/password managers allowed.
 
@@ -69,7 +69,7 @@ Wrong current password:
 
 Invalid new password:
 
-> Usá una contraseña de al menos 12 caracteres.
+> Usá una contraseña de al menos 15 caracteres.
 
 Concurrent/stale security change:
 
