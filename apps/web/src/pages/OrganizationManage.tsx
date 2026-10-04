@@ -145,6 +145,22 @@ const OrganizationManage = () => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setPostTitle("");
+    setPostBody("");
+    setEventTitle("");
+    setEventDescription("");
+    setEventStartsAt("");
+    setEventEndsAt("");
+    setLinkLabel("");
+    setLinkUrl("");
+    setResourceId("");
+    setManagerProfileId("");
+    setManagerRole("editor");
+    setManagerReason("");
+    setVerificationReason("");
+  }, [organizationScopeKey]);
+
   const run = async (
     key: string,
     operation: (signal: AbortSignal) => Promise<unknown>,
