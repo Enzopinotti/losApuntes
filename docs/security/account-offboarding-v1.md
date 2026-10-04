@@ -45,6 +45,12 @@ Closed Profiles are omitted from People search and public Profile/activity reads
 
 This carrier does not delete Resources, Questions, Answers, organization posts/events, academic affiliations or alumni history.
 
+For Files specifically, `FileAsset.creatorUserId` is upload provenance, not
+destructive ownership. If a FileAsset has been claimed by a Resource, closing
+the creator account does not release `claimRef` and does not make the object
+eligible for abandoned-upload cleanup. The Resource/FileAsset lifecycle
+authority and current one-to-one cardinality are defined by ADR 0007.
+
 ## Durable cleanup
 
 The existing background worker processes durable offboarding jobs independently from file scanning.
