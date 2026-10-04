@@ -24,9 +24,19 @@ export default function ProfileRoute() {
         <Text style={productSurfaceStyles.cardCopy}>{snapshot.user.email}</Text>
       </View>
 
+      <Link href="/saved-resources" asChild>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Ver recursos guardados"
+          style={styles.secondaryLink}
+        >
+          <Text style={styles.secondaryLinkText}>Recursos guardados</Text>
+        </Pressable>
+      </Link>
+
       <Link href="/security" asChild>
-        <Pressable accessibilityRole="link" style={styles.security}>
-          <Text style={styles.securityText}>Seguridad de la cuenta</Text>
+        <Pressable accessibilityRole="link" style={styles.secondaryLink}>
+          <Text style={styles.secondaryLinkText}>Seguridad de la cuenta</Text>
         </Pressable>
       </Link>
 
@@ -43,7 +53,7 @@ export default function ProfileRoute() {
 }
 
 const styles = StyleSheet.create({
-  security: {
+  secondaryLink: {
     minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
@@ -52,7 +62,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#ffffff",
   },
-  securityText: {
+  secondaryLinkText: {
     color: "#292933",
     fontSize: 16,
     fontWeight: "700",
