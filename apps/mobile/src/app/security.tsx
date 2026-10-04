@@ -1,3 +1,5 @@
+import type { AuthSession } from "@losapuntes/contracts";
+
 import { useEffect, useState } from "react";
 import { Link, Redirect } from "expo-router";
 import {
@@ -69,6 +71,8 @@ export default function SecurityRoute() {
     () => new MobileSecurityController(mobileAuthenticatedApi),
   );
   const [snapshot, setSnapshot] = useState(controller.getSnapshot());
+  const authenticatedSessionId =
+    session.kind === "authenticated" ? session.session.id : null;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -88,11 +92,7 @@ export default function SecurityRoute() {
     if (session.kind === "authenticated") {
       void controller.load();
     }
-  }, [
-    controller,
-    session.kind,
-    session.kind === "authenticated" ? session.session.id : null,
-  ]);
+  }, [controller, session.kind, authenticatedSessionId]);
 
   if (snapshot.kind === "signed_out") {
     const copy = signedOutCopy[snapshot.reason];
@@ -118,7 +118,10 @@ export default function SecurityRoute() {
     return <Redirect href="/sign-in" />;
   }
 
-  if (session.kind === "restoring" || transitionPending && session.kind !== "authenticated") {
+  if (
+    session.kind === "restoring" ||
+    (transitionPending && session.kind !== "authenticated")
+  ) {
     return (
       <ProductSurface
         title="Seguridad"
@@ -157,12 +160,7 @@ export default function SecurityRoute() {
     });
   };
 
-  const confirmRevokeSession = (
-    target: Extract<
-      typeof snapshot,
-      { kind: "ready" }
-    >["sessions"][number],
-  ) => {
+  const confirmRevokeSession = (target: AuthSession) => {
     Alert.alert(
       target.current ? "Cerrar esta sesión" : "Cerrar sesión",
       target.current
