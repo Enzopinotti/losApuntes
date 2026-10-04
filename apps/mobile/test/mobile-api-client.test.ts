@@ -190,3 +190,25 @@ test("academic subjects encodes the optional affiliation scope", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("successful empty responses do not become false offline failures", async () => {
+  const previousFetch = globalThis.fetch;
+  let requestInit: RequestInit | undefined;
+
+  globalThis.fetch = async (_input, init) => {
+    requestInit = init;
+    return new Response(null, { status: 200 });
+  };
+
+  try {
+    const client = new MobileApiClient("https://api.example.test");
+    await assert.doesNotReject(() => client.logout("opaque-session"));
+    assert.equal(requestInit?.method, "DELETE");
+    assert.equal(
+      (requestInit?.headers as Record<string, string>).Authorization,
+      "Bearer opaque-session",
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
