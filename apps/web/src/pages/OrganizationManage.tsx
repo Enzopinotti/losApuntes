@@ -179,6 +179,8 @@ const OrganizationManage = () => {
     operation: (signal: AbortSignal) => Promise<unknown>,
     success: string,
   ): Promise<boolean> => {
+    if (busy === "archive") return false;
+
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) return false;
     setBusyState({ scopeKey: organizationScopeKey, value: key });
@@ -388,7 +390,7 @@ const OrganizationManage = () => {
                   onChange={(event) => setWebsiteUrl(event.target.value)}
                 />
               </label>
-              <button disabled={busy === "profile"} type="submit">
+              <button disabled={Boolean(busy)} type="submit">
                 Guardar
               </button>
             </form>
@@ -498,7 +500,7 @@ const OrganizationManage = () => {
                 onChange={(event) => setPostBody(event.target.value)}
               />
             </label>
-            <button disabled={busy === "post"} type="submit">
+            <button disabled={Boolean(busy)} type="submit">
               Publicar
             </button>
           </form>
@@ -540,7 +542,7 @@ const OrganizationManage = () => {
                 onChange={(event) => setEventDescription(event.target.value)}
               />
             </label>
-            <button disabled={busy === "event"} type="submit">
+            <button disabled={Boolean(busy)} type="submit">
               Publicar evento
             </button>
           </form>

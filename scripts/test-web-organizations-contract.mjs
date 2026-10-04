@@ -91,6 +91,12 @@ assert.match(manage, /Archivar organización/u);
 assert.match(manage, /Esta acción no es un borrado/u);
 assert.match(manage, /navigate\("\/organizations", \{ replace: true \}\)/u);
 assert.doesNotMatch(manage, /organizationsApi\.deleteOrganization/u);
+assert.match(manage, /if \(busy === "archive"\) return false;/u);
+assert.equal(
+  [...manage.matchAll(/<button disabled=\{Boolean\(busy\)\} type="submit">/gu)]
+    .length,
+  3,
+);
 assert.match(manage, /\}, \[organizationScopeKey\]\);/u);
 
 const feeds = await read('apps/web/src/pages/Feeds.tsx');
