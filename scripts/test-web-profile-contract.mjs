@@ -53,7 +53,10 @@ assert.match(publicPage, /session\?\.id/u);
 assert.equal((publicPage.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
 assert.match(publicPage, /public-profile-load:\$\{profileScopeKey\}/u);
 assert.match(publicPage, /public-profile-pagination:\$\{profileScopeKey\}/u);
-assert.match(publicPage, /profileApi\.publicProfile\(profileId, ticket\.signal\)/u);
+assert.match(
+  publicPage,
+  /profileApi\s*\.\s*publicProfile\s*\(\s*profileId,\s*ticket\.signal\s*\)/u,
+);
 assert.match(publicPage, /ticket\.signal/u);
 assert.match(publicPage, /snapshotState\?\.scopeKey === profileScopeKey/u);
 assert.doesNotMatch(publicPage, /let\s+active\s*=\s*true/u);
