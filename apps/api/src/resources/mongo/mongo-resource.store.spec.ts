@@ -1,4 +1,27 @@
+import { FileAssetSchema } from '../../files/mongo/file.mongo-schema';
 import { MongoResourceStore } from './mongo-resource.store';
+import { ResourceSchema } from './resource.mongo-schemas';
+
+describe('Resource/FileAsset lifecycle cardinality', () => {
+  it('keeps the current v1 Resource-to-claimed-FileAsset relationship one-to-one', () => {
+    expect(
+      ResourceSchema.indexes().some(
+        ([fields, options]) =>
+          fields.assetId === 1 && options.unique === true,
+      ),
+    ).toBe(true);
+
+    expect(
+      FileAssetSchema.indexes().some(
+        ([fields, options]) =>
+          fields.claimRef === 1 &&
+          options.unique === true &&
+          JSON.stringify(options.partialFilterExpression) ===
+            JSON.stringify({ claimRef: { $type: 'string' } }),
+      ),
+    ).toBe(true);
+  });
+});
 
 describe('MongoResourceStore saved-resource pagination', () => {
   function savedQuery(rows: Array<{ resourceId: string; createdAt: Date }>) {
@@ -245,7 +268,13 @@ describe('MongoResourceStore authorization pipeline', () => {
         claimRef: null,
         expiresAt: { $gt: now },
       }),
-      expect.any(Object),
+      {
+        $set: {
+          claimRef: 'resource:resource-1',
+          claimedAt: now,
+        },
+        $unset: { expiresAt: 1 },
+      },
       expect.objectContaining({ new: true, session }),
     );
   });
