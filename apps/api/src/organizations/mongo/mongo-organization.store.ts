@@ -1041,7 +1041,7 @@ export class MongoOrganizationStore implements OrganizationStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$id', '$organizationId'] },
+                      { $eq: ['$id', '$$organizationId'] },
                       { $eq: ['$status', 'active'] },
                     ],
                   },
@@ -1062,7 +1062,7 @@ export class MongoOrganizationStore implements OrganizationStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$organizationId', '$organizationId'] },
+                      { $eq: ['$organizationId', '$$organizationId'] },
                       { $eq: ['$userId', input.userId] },
                     ],
                   },
