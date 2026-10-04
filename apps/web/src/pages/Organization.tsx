@@ -90,10 +90,7 @@ const Organization = () => {
     if (!isLoadCurrent(ticket)) return;
     setErrorState(null);
     try {
-      const result = await organizationsApi.get(
-        organizationId,
-        ticket.signal,
-      );
+      const result = await organizationsApi.get(organizationId, ticket.signal);
       if (!isLoadCurrent(ticket)) return;
       setOrganizationState({
         scopeKey: organizationScopeKey,
