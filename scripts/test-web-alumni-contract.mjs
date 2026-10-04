@@ -21,7 +21,7 @@ assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /isGraduated/u);
 
 const lifecycle = await read('apps/web/src/pages/AcademicLifecycle.tsx');
-assert.match(lifecycle, /academicApi\.lifecycle\(\)/u);
+assert.match(lifecycle, /academicApi\.lifecycle\(ticket\.signal\)/u);
 assert.match(lifecycle, /academicApi\.graduate\(/u);
 assert.match(lifecycle, /academicApi\.updateRoles\(/u);
 assert.match(lifecycle, /academicApi\.follow\(/u);
