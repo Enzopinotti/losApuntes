@@ -12,6 +12,10 @@ import {
 
 import { mobileCommunityApi } from "@/features/community/community-runtime";
 import type { MobileNotificationView } from "@/features/community/community-api";
+import {
+  mobileNotificationActionLabel,
+  mobileNotificationMessage,
+} from "./notification-presenter";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
@@ -22,23 +26,6 @@ import {
   shouldReconcileMobileNotifications,
   type MobileNotificationsSnapshot,
 } from "./notifications-controller";
-const notificationMessage = (notification: MobileNotificationView): string => {
-  const actor =
-    notification.actor?.displayName ?? "Una persona de la comunidad";
-  switch (notification.type) {
-    case "social.followed":
-      return `${actor} empezó a seguirte.`;
-    case "social.connection_requested":
-      return `${actor} te envió una solicitud de conexión.`;
-    case "social.connection_accepted":
-      return `${actor} aceptó tu solicitud de conexión.`;
-    case "qa.question_answered":
-      return `${actor} respondió tu pregunta.`;
-    case "qa.answer_accepted":
-      return `${actor} aceptó tu respuesta.`;
-  }
-};
-
 function notificationDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.valueOf())
@@ -313,7 +300,7 @@ export function NotificationsScreen() {
               <View key={notification.id} style={styles.notification}>
                 <View style={styles.notificationCopy}>
                   <Text style={styles.message}>
-                    {notificationMessage(notification)}
+                    {mobileNotificationMessage(notification)}
                   </Text>
                   <Text style={styles.date}>
                     {notificationDate(notification.createdAt)}
@@ -325,7 +312,11 @@ export function NotificationsScreen() {
                 <View style={styles.actions}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Abrir notificación"
+                    accessibilityLabel={mobileNotificationActionLabel(
+                      "open",
+                      notification,
+                    )}
+                    accessibilityHint="Abre el perfil, la pregunta o la sección de red relacionada."
                     onPress={() => openNotification(notification)}
                     style={styles.actionButton}
                   >
@@ -334,6 +325,10 @@ export function NotificationsScreen() {
                   {!notification.readAt ? (
                     <Pressable
                       accessibilityRole="button"
+                      accessibilityLabel={mobileNotificationActionLabel(
+                        "mark_read",
+                        notification,
+                      )}
                       disabled={Boolean(actionBusy)}
                       onPress={() => {
                         if (authorityKey)
