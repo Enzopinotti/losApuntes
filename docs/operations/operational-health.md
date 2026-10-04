@@ -136,9 +136,43 @@ Health and worker code may log only bounded event names/status values. Do not lo
 
 Use the existing request id/correlation id for HTTP diagnostics.
 
-## 6. External production work still required
+## 6. Provider-neutral alert transition boundary
 
-Repository health contracts do **not** prove production monitoring.
+The repository includes a pure transition engine for the signals it can already
+observe safely:
+
+- `api.not_ready`;
+- `api.degraded`;
+- `worker.not_ready`.
+
+The engine does not send alerts and does not choose production thresholds. A
+caller must provide the activation window and repeat cooldown for each signal.
+Those values must come from measured operational behavior and the real
+notification/on-call design.
+
+The transition contract is:
+
+1. an unhealthy observation starts a pending interval;
+2. no alert is emitted until the configured activation window has elapsed;
+3. once active, identical observations are deduplicated until the configured
+   repeat cooldown;
+4. a healthy observation after activation emits one `recovery` transition;
+5. a healthy observation before activation clears the pending interval without
+   emitting noise;
+6. observations older than the latest accepted sample cannot rewind state.
+
+The emitted envelope is deliberately bounded to signal, phase and timestamps.
+It accepts no exception message, host, credential, object key, email, request
+body or provider payload.
+
+This is the repository-owned seam for a future monitoring adapter. Pager,
+email, chat, incident-management or metrics-provider wiring belongs outside
+this boundary and must preserve the same privacy limits.
+
+## 7. External production work still required
+
+Repository health contracts and the transition boundary do **not** prove
+production monitoring.
 
 Before external Beta, #99/#48 still require real environment evidence for:
 
