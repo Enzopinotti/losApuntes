@@ -50,6 +50,7 @@ export interface MobileSecurityApi {
 }
 
 type Listener = (snapshot: SecuritySnapshot) => void;
+type ReadySecuritySnapshot = Extract<SecuritySnapshot, { kind: "ready" }>;
 
 const exitReasonFromFailure = (
   failure: SecurityFailure,
@@ -321,7 +322,7 @@ export class MobileSecurityController {
     return generation === this.generation;
   }
 
-  private readySnapshot(): Extract<SecuritySnapshot, { kind: "ready" }> | null {
+  private readySnapshot(): ReadySecuritySnapshot | null {
     return this.snapshot.kind === "ready" ? this.snapshot : null;
   }
 
