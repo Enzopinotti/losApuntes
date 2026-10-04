@@ -151,6 +151,18 @@ test("a bare or guessed server release token cannot qualify", () => {
   assert.equal(qualification.serverRelease, null);
 });
 
+test("server evidence from another source SHA cannot qualify", () => {
+  const qualification = qualifyMobileRelease(productionInput(), {
+    source: "api-observation",
+    apiOrigin: "https://api.example.test",
+    releaseId: "api-2026.10.02-other",
+    sourceSha: "1111111111111111111111111111111111111111",
+  });
+
+  assert.equal(qualification.status, "blocked");
+  assert.deepEqual(qualification.blockers, ["SERVER_SOURCE_SHA_MISMATCH"]);
+});
+
 test("server evidence observed from another origin cannot qualify", () => {
   const qualification = qualifyMobileRelease(productionInput(), {
     source: "api-observation",

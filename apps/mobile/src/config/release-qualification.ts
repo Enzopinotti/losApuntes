@@ -12,7 +12,8 @@ export type MobileReleaseBlocker =
   | "MISSING_SERVER_RELEASE_ID"
   | "MISSING_SERVER_SOURCE_SHA"
   | "MISSING_SOURCE_SHA"
-  | "SERVER_RELEASE_ORIGIN_MISMATCH";
+  | "SERVER_RELEASE_ORIGIN_MISMATCH"
+  | "SERVER_SOURCE_SHA_MISMATCH";
 
 export type MobileReleaseIdentity = Readonly<{
   sourceSha: string | null;
@@ -212,8 +213,13 @@ export function qualifyMobileRelease(
     ) {
       blockers.push("SERVER_RELEASE_ORIGIN_MISMATCH");
     }
-  } else if (serverRelease.apiOrigin !== identity.apiOrigin) {
-    blockers.push("SERVER_RELEASE_ORIGIN_MISMATCH");
+  } else {
+    if (serverRelease.apiOrigin !== identity.apiOrigin) {
+      blockers.push("SERVER_RELEASE_ORIGIN_MISMATCH");
+    }
+    if (identity.sourceSha && serverRelease.sourceSha !== identity.sourceSha) {
+      blockers.push("SERVER_SOURCE_SHA_MISMATCH");
+    }
   }
 
   return Object.freeze({
