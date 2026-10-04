@@ -29,10 +29,9 @@ const PublicProfile = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
-  const profileScopeKey = [
-    profileId ?? "missing-profile",
-    viewerScopeKey,
-  ].join(":");
+  const profileScopeKey = [profileId ?? "missing-profile", viewerScopeKey].join(
+    ":",
+  );
   const {
     begin: beginLoad,
     isCurrent: isLoadCurrent,
@@ -42,9 +41,7 @@ const PublicProfile = () => {
     begin: beginPagination,
     isCurrent: isPaginationCurrent,
     finish: finishPagination,
-  } = useAsyncAuthorityFence(
-    `public-profile-pagination:${profileScopeKey}`,
-  );
+  } = useAsyncAuthorityFence(`public-profile-pagination:${profileScopeKey}`);
 
   const [snapshotState, setSnapshotState] = useState<{
     scopeKey: string;
@@ -107,13 +104,7 @@ const PublicProfile = () => {
       .finally(() => {
         finishLoad(ticket);
       });
-  }, [
-    beginLoad,
-    finishLoad,
-    isLoadCurrent,
-    profileId,
-    profileScopeKey,
-  ]);
+  }, [beginLoad, finishLoad, isLoadCurrent, profileId, profileScopeKey]);
 
   const loadMoreActivities = async () => {
     if (
