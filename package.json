@@ -26,7 +26,7 @@
     "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs",
     "test:web-resources-contract": "node scripts/test-web-resources-contract.mjs",
     "test:web-search-contract": "node scripts/test-web-search-contract.mjs",
-    "test:web-social-qa-contract": "node scripts/test-web-social-qa-contract.mjs",
+    "test:web-social-qa-contract": "node --experimental-strip-types scripts/test-web-social-qa-contract.mjs",
     "test:web-feeds-contract": "node scripts/test-web-feeds-contract.mjs",
     "test:web-pilot-contract": "node scripts/test-web-pilot-contract.mjs",
     "test:web-organizations-contract": "node scripts/test-web-organizations-contract.mjs",

@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type { NotificationView } from "../features/community/interfaces";
 import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import { shouldReconcileNotificationTick } from "../features/community/notificationReconciliation";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
+
+const NOTIFICATION_PAGE_SIZE = 50;
+const NOTIFICATION_RECONCILE_INTERVAL_MS = 30_000;
 
 const labels: Record<NotificationView["type"], string> = {
   "social.followed": "empezó a seguirte",
@@ -23,85 +29,269 @@ function targetPath(item: NotificationView): string | null {
   return null;
 }
 
+function messageFor(error: unknown, fallback: string): string {
+  return isCommunityApiError(error) ? error.message : fallback;
+}
+
 const Notifications = () => {
+  const { status, user, session } = useAuth();
   const [items, setItems] = useState<NotificationView[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadedPages, setLoadedPages] = useState(1);
+  const [reconcileTick, setReconcileTick] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const firstPagePendingRef = useRef(false);
+  const consumedReconcileTickRef = useRef(0);
 
-  const load = useCallback(
-    async (cursor?: string, append = false) => {
-      if (append) {
-        setBusy(true);
-      } else {
-        setLoading(true);
+  const authorityScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const listScope = `notifications:${authorityScope}:${String(unreadOnly)}`;
+  const {
+    begin: beginListRequest,
+    isCurrent: isListRequestCurrent,
+    finish: finishListRequest,
+  } = useAsyncAuthorityFence(listScope);
+  const {
+    begin: beginActionRequest,
+    isCurrent: isActionRequestCurrent,
+    finish: finishActionRequest,
+  } = useAsyncAuthorityFence(`notifications-action:${authorityScope}`);
+
+  const busy = loadingMore || actionBusy;
+
+  const loadFirstPage = useCallback(async () => {
+    const ticket = beginListRequest();
+    firstPagePendingRef.current = true;
+    setLoading(true);
+    setLoadingMore(false);
+    setError(null);
+
+    try {
+      const result = await communityApi.notifications(
+        {
+          unreadOnly,
+          limit: NOTIFICATION_PAGE_SIZE,
+        },
+        ticket.signal,
+      );
+      if (!isListRequestCurrent(ticket)) return;
+
+      setItems(result.items);
+      setNextCursor(result.nextCursor);
+      setLoadedPages(1);
+      setError(null);
+    } catch (nextError) {
+      if (!isListRequestCurrent(ticket)) return;
+      setError(messageFor(nextError, "No pudimos cargar tus notificaciones."));
+    } finally {
+      if (finishListRequest(ticket)) {
+        firstPagePendingRef.current = false;
+        setLoading(false);
       }
+    }
+  }, [beginListRequest, finishListRequest, isListRequestCurrent, unreadOnly]);
+
+  const loadMore = useCallback(
+    async (cursor: string) => {
+      const ticket = beginListRequest();
+      setLoadingMore(true);
       setError(null);
 
       try {
-        const result = await communityApi.notifications({
-          unreadOnly,
-          cursor,
-          limit: 50,
-        });
-        setItems((current) =>
-          append ? [...current, ...result.items] : result.items,
+        const result = await communityApi.notifications(
+          {
+            unreadOnly,
+            cursor,
+            limit: NOTIFICATION_PAGE_SIZE,
+          },
+          ticket.signal,
         );
+        if (!isListRequestCurrent(ticket)) return;
+
+        setItems((current) => [...current, ...result.items]);
         setNextCursor(result.nextCursor);
+        setLoadedPages((current) => current + 1);
       } catch (nextError) {
+        if (!isListRequestCurrent(ticket)) return;
         setError(
-          isCommunityApiError(nextError)
-            ? nextError.message
-            : "No pudimos cargar tus notificaciones.",
+          messageFor(nextError, "No pudimos cargar tus notificaciones."),
         );
       } finally {
-        if (append) {
-          setBusy(false);
-        } else {
-          setLoading(false);
-        }
+        if (finishListRequest(ticket)) setLoadingMore(false);
       }
     },
-    [unreadOnly],
+    [beginListRequest, finishListRequest, isListRequestCurrent, unreadOnly],
   );
 
+  const reconcileLoadedWindow = useCallback(async () => {
+    if (firstPagePendingRef.current) return;
+
+    const ticket = beginListRequest();
+    const reconciled: NotificationView[] = [];
+    let cursor: string | undefined;
+    let finalCursor: string | null = null;
+
+    try {
+      for (let page = 0; page < loadedPages; page += 1) {
+        const result = await communityApi.notifications(
+          {
+            unreadOnly,
+            cursor,
+            limit: NOTIFICATION_PAGE_SIZE,
+          },
+          ticket.signal,
+        );
+        if (!isListRequestCurrent(ticket)) return;
+
+        reconciled.push(...result.items);
+        finalCursor = result.nextCursor;
+        if (!result.nextCursor) break;
+        cursor = result.nextCursor;
+      }
+
+      if (!isListRequestCurrent(ticket)) return;
+      setItems(reconciled);
+      setNextCursor(finalCursor);
+      setError(null);
+    } catch {
+      // Background reconciliation is best-effort; visible state remains usable.
+    } finally {
+      finishListRequest(ticket);
+    }
+  }, [
+    beginListRequest,
+    finishListRequest,
+    isListRequestCurrent,
+    loadedPages,
+    unreadOnly,
+  ]);
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadFirstPage();
+  }, [loadFirstPage]);
+
+  useEffect(() => {
+    setActionBusy(false);
+    setLoadingMore(false);
+  }, [authorityScope]);
+
+  useEffect(() => {
+    if (
+      !shouldReconcileNotificationTick(
+        reconcileTick,
+        consumedReconcileTickRef.current,
+        {
+          authenticated: status === "authenticated",
+          firstPagePending: firstPagePendingRef.current,
+          loading,
+          loadingMore,
+          actionBusy,
+        },
+      )
+    ) {
+      return;
+    }
+    consumedReconcileTickRef.current = reconcileTick;
+    void reconcileLoadedWindow();
+  }, [
+    actionBusy,
+    loading,
+    loadingMore,
+    reconcileLoadedWindow,
+    reconcileTick,
+    status,
+  ]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || busy || loading) return;
+
+    let intervalId: number | null = null;
+
+    const stopPolling = () => {
+      if (intervalId === null) return;
+      window.clearInterval(intervalId);
+      intervalId = null;
+    };
+
+    const reconcile = () => {
+      if (document.visibilityState !== "visible") return;
+      void reconcileLoadedWindow();
+    };
+
+    const startPolling = () => {
+      if (document.visibilityState !== "visible" || intervalId !== null) {
+        return;
+      }
+      intervalId = window.setInterval(
+        reconcile,
+        NOTIFICATION_RECONCILE_INTERVAL_MS,
+      );
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        reconcile();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    const onFocus = () => {
+      if (document.visibilityState === "visible") reconcile();
+    };
+
+    startPolling();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      stopPolling();
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [busy, loading, reconcileLoadedWindow, status]);
 
   const markRead = async (id: string) => {
-    setBusy(true);
+    const ticket = beginActionRequest();
+    setActionBusy(true);
     setError(null);
+
     try {
       await communityApi.markNotificationRead(id);
-      await load();
+      if (!isActionRequestCurrent(ticket)) return;
+      setReconcileTick((current) => current + 1);
     } catch (nextError) {
-      setError(
-        isCommunityApiError(nextError)
-          ? nextError.message
-          : "No pudimos marcar la notificación.",
-      );
+      if (!isActionRequestCurrent(ticket)) return;
+      setError(messageFor(nextError, "No pudimos marcar la notificación."));
     } finally {
-      setBusy(false);
+      if (finishActionRequest(ticket)) setActionBusy(false);
     }
   };
 
   const markAll = async () => {
-    setBusy(true);
+    const ticket = beginActionRequest();
+    setActionBusy(true);
     setError(null);
+
     try {
       await communityApi.markAllNotificationsRead();
-      await load();
+      if (!isActionRequestCurrent(ticket)) return;
+      setReconcileTick((current) => current + 1);
     } catch (nextError) {
+      if (!isActionRequestCurrent(ticket)) return;
       setError(
-        isCommunityApiError(nextError)
-          ? nextError.message
-          : "No pudimos actualizar tus notificaciones.",
+        messageFor(nextError, "No pudimos actualizar tus notificaciones."),
       );
     } finally {
-      setBusy(false);
+      if (finishActionRequest(ticket)) setActionBusy(false);
     }
   };
 
@@ -175,9 +365,9 @@ const Notifications = () => {
                 type="button"
                 className="secondary"
                 disabled={busy}
-                onClick={() => void load(nextCursor, true)}
+                onClick={() => void loadMore(nextCursor)}
               >
-                {busy ? "Cargando…" : "Cargar más"}
+                {loadingMore ? "Cargando…" : "Cargar más"}
               </button>
             )}
           </>
