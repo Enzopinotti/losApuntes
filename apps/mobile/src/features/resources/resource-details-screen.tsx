@@ -9,12 +9,21 @@ import {
   Text,
   View,
 } from "react-native";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
-import { useFencedDetail, type FencedDetailSnapshot } from "@/features/search/use-fenced-detail";
+import {
+  useFencedDetail,
+  type FencedDetailSnapshot,
+} from "@/features/search/use-fenced-detail";
 
 import {
   MobileResourceDetailController,
