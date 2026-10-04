@@ -115,51 +115,64 @@ function json(value: unknown): string {
 }
 
 export const communityApi = {
-  following: (limit = 50, cursor?: string) => {
+  following: (limit = 50, cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set("cursor", cursor);
 
     return request<{ items: FollowingItem[]; nextCursor: string | null }>(
       `/social/me/following?${query.toString()}`,
+      { signal },
     );
   },
 
-  follow: (profileId: string) =>
+  follow: (profileId: string, signal?: AbortSignal) =>
     request<{ following: true }>(
       `/social/profiles/${encodeURIComponent(profileId)}/follow`,
-      { method: "PUT" },
+      { method: "PUT", signal },
     ),
 
-  unfollow: (profileId: string) =>
+  unfollow: (profileId: string, signal?: AbortSignal) =>
     request<void>(`/social/profiles/${encodeURIComponent(profileId)}/follow`, {
       method: "DELETE",
+      signal,
     }),
 
-  connections: (status?: ConnectionStatus, limit = 50, cursor?: string) => {
+  connections: (
+    status?: ConnectionStatus,
+    limit = 50,
+    cursor?: string,
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (status) query.set("status", status);
     if (cursor) query.set("cursor", cursor);
 
     return request<{ items: ConnectionView[]; nextCursor: string | null }>(
       `/social/me/connections?${query.toString()}`,
+      { signal },
     );
   },
 
-  requestConnection: (profileId: string) =>
+  requestConnection: (profileId: string, signal?: AbortSignal) =>
     request<{ connection: ConnectionView }>(
       `/social/profiles/${encodeURIComponent(profileId)}/connections`,
-      { method: "POST" },
+      { method: "POST", signal },
     ),
 
-  respondConnection: (id: string, action: "accept" | "decline") =>
+  respondConnection: (
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ) =>
     request<{ connection: ConnectionView }>(
       `/social/connections/${encodeURIComponent(id)}/${action}`,
-      { method: "POST" },
+      { method: "POST", signal },
     ),
 
-  disconnect: (id: string) =>
+  disconnect: (id: string, signal?: AbortSignal) =>
     request<void>(`/social/connections/${encodeURIComponent(id)}`, {
       method: "DELETE",
+      signal,
     }),
 
   questions: (input: {

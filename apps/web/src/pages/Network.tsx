@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type { SearchPersonResult } from "../features/search/interfaces";
 import {
   isSearchApiError,
@@ -13,6 +20,7 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
 
 function messageFor(error: unknown): string {
@@ -29,39 +37,124 @@ function messageFor(error: unknown): string {
 }
 
 const Network = () => {
+  const { status, user, session } = useAuth();
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`network-load:${authScopeKey}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`network-action:${authScopeKey}`);
+
   const [query, setQuery] = useState("");
-  const [people, setPeople] = useState<SearchPersonResult[]>([]);
-  const [following, setFollowing] = useState<FollowingItem[]>([]);
-  const [followingNextCursor, setFollowingNextCursor] = useState<string | null>(
-    null,
-  );
-  const [connections, setConnections] = useState<ConnectionView[]>([]);
-  const [connectionsNextCursor, setConnectionsNextCursor] = useState<
-    string | null
-  >(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const searchScopeKey = [authScopeKey, query.trim()].join(":");
+  const {
+    begin: beginSearch,
+    isCurrent: isSearchCurrent,
+    finish: finishSearch,
+  } = useAsyncAuthorityFence(`network-search:${searchScopeKey}`);
+
+  const [snapshotState, setSnapshotState] = useState<{
+    scopeKey: string;
+    following: FollowingItem[];
+    followingNextCursor: string | null;
+    connections: ConnectionView[];
+    connectionsNextCursor: string | null;
+  } | null>(null);
+  const snapshot =
+    snapshotState?.scopeKey === authScopeKey ? snapshotState : null;
+  const following = snapshot?.following ?? [];
+  const followingNextCursor = snapshot?.followingNextCursor ?? null;
+  const connections = snapshot?.connections ?? [];
+  const connectionsNextCursor = snapshot?.connectionsNextCursor ?? null;
+
+  const [searchState, setSearchState] = useState<{
+    scopeKey: string;
+    busy: boolean;
+    error: string | null;
+    people: SearchPersonResult[];
+  } | null>(null);
+  const currentSearchState =
+    searchState?.scopeKey === searchScopeKey ? searchState : null;
+  const people = currentSearchState?.people ?? [];
+
+  const [loadState, setLoadState] = useState<{
+    scopeKey: string;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentLoadState =
+    loadState?.scopeKey === authScopeKey ? loadState : null;
+  const loading = currentLoadState?.loading ?? true;
+
+  const [actionState, setActionState] = useState<{
+    scopeKey: string;
+    busy: string | null;
+    error: string | null;
+    feedback: string | null;
+  } | null>(null);
+  const currentActionState =
+    actionState?.scopeKey === authScopeKey ? actionState : null;
+  const busy =
+    currentActionState?.busy ?? (currentSearchState?.busy ? "search" : null);
+  const error =
+    currentActionState?.error ??
+    currentSearchState?.error ??
+    currentLoadState?.error ??
+    null;
+  const feedback = currentActionState?.feedback ?? null;
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setLoadState({ scopeKey: authScopeKey, loading: true, error: null });
+
     try {
       const [followingResult, connectionResult] = await Promise.all([
-        communityApi.following(),
-        communityApi.connections(),
+        communityApi.following(50, undefined, ticket.signal),
+        communityApi.connections(undefined, 50, undefined, ticket.signal),
       ]);
-      setFollowing(followingResult.items);
-      setFollowingNextCursor(followingResult.nextCursor);
-      setConnections(connectionResult.items);
-      setConnectionsNextCursor(connectionResult.nextCursor);
+      if (!isLoadCurrent(ticket)) return;
+      setSnapshotState({
+        scopeKey: authScopeKey,
+        following: followingResult.items,
+        followingNextCursor: followingResult.nextCursor,
+        connections: connectionResult.items,
+        connectionsNextCursor: connectionResult.nextCursor,
+      });
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isLoadCurrent(ticket)) return;
+      setLoadState({
+        scopeKey: authScopeKey,
+        loading: false,
+        error: messageFor(nextError),
+      });
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setLoadState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, loading: false }
+            : current,
+        );
+      }
     }
-  }, []);
+  }, [authScopeKey, beginLoad, finishLoad, isLoadCurrent]);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  useEffect(() => {
+    setQuery("");
+    setSearchState(null);
+    setActionState(null);
+  }, [authScopeKey]);
 
   useEffect(() => {
     void load();
@@ -69,37 +162,92 @@ const Network = () => {
 
   const loadMoreFollowing = async () => {
     if (!followingNextCursor) return;
+    const cursor = followingNextCursor;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setActionState({
+      scopeKey: authScopeKey,
+      busy: "following-more",
+      error: null,
+      feedback: null,
+    });
 
-    setBusy("following-more");
-    setError(null);
     try {
-      const result = await communityApi.following(50, followingNextCursor);
-      setFollowing((current) => [...current, ...result.items]);
-      setFollowingNextCursor(result.nextCursor);
+      const result = await communityApi.following(50, cursor, ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      setSnapshotState((current) =>
+        current?.scopeKey === authScopeKey
+          ? {
+              ...current,
+              following: [...current.following, ...result.items],
+              followingNextCursor: result.nextCursor,
+            }
+          : current,
+      );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: "following-more",
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setActionState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, busy: null }
+            : current,
+        );
+      }
     }
   };
 
   const loadMoreConnections = async () => {
     if (!connectionsNextCursor) return;
+    const cursor = connectionsNextCursor;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setActionState({
+      scopeKey: authScopeKey,
+      busy: "connections-more",
+      error: null,
+      feedback: null,
+    });
 
-    setBusy("connections-more");
-    setError(null);
     try {
       const result = await communityApi.connections(
         undefined,
         50,
-        connectionsNextCursor,
+        cursor,
+        ticket.signal,
       );
-      setConnections((current) => [...current, ...result.items]);
-      setConnectionsNextCursor(result.nextCursor);
+      if (!isActionCurrent(ticket)) return;
+      setSnapshotState((current) =>
+        current?.scopeKey === authScopeKey
+          ? {
+              ...current,
+              connections: [...current.connections, ...result.items],
+              connectionsNextCursor: result.nextCursor,
+            }
+          : current,
+      );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: "connections-more",
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setActionState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, busy: null }
+            : current,
+        );
+      }
     }
   };
 
@@ -108,38 +256,88 @@ const Network = () => {
     const q = query.trim();
     if (q.length < 2) return;
 
-    setBusy("search");
-    setError(null);
+    const ticket = beginSearch();
+    if (!isSearchCurrent(ticket)) return;
+    setSearchState({
+      scopeKey: searchScopeKey,
+      busy: true,
+      error: null,
+      people: currentSearchState?.people ?? [],
+    });
     try {
-      const result = await searchApi.search({
-        q,
-        scope: "people",
-        limit: 12,
+      const result = await searchApi.search(
+        {
+          q,
+          scope: "people",
+          limit: 12,
+        },
+        ticket.signal,
+      );
+      if (!isSearchCurrent(ticket)) return;
+      setSearchState({
+        scopeKey: searchScopeKey,
+        busy: false,
+        error: null,
+        people: result.results.people,
       });
-      setPeople(result.results.people);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isSearchCurrent(ticket)) return;
+      setSearchState({
+        scopeKey: searchScopeKey,
+        busy: false,
+        error: messageFor(nextError),
+        people: [],
+      });
     } finally {
-      setBusy(null);
+      if (finishSearch(ticket)) {
+        setSearchState((current) =>
+          current?.scopeKey === searchScopeKey
+            ? { ...current, busy: false }
+            : current,
+        );
+      }
     }
   };
 
   const run = async (
     key: string,
-    action: () => Promise<unknown>,
+    action: (signal: AbortSignal) => Promise<unknown>,
     success: string,
   ) => {
-    setBusy(key);
-    setError(null);
-    setFeedback(null);
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setActionState({
+      scopeKey: authScopeKey,
+      busy: key,
+      error: null,
+      feedback: null,
+    });
     try {
-      await action();
-      setFeedback(success);
-      await load();
+      await action(ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: key,
+        error: null,
+        feedback: success,
+      });
+      await loadRef.current();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: key,
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setActionState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, busy: null }
+            : current,
+        );
+      }
     }
   };
 
@@ -197,7 +395,8 @@ const Network = () => {
                     onClick={() =>
                       void run(
                         `follow:${person.profileId}`,
-                        () => communityApi.follow(person.profileId),
+                        (signal) =>
+                          communityApi.follow(person.profileId, signal),
                         "Ahora seguís ese perfil.",
                       )
                     }
@@ -211,7 +410,11 @@ const Network = () => {
                     onClick={() =>
                       void run(
                         `connect:${person.profileId}`,
-                        () => communityApi.requestConnection(person.profileId),
+                        (signal) =>
+                          communityApi.requestConnection(
+                            person.profileId,
+                            signal,
+                          ),
                         "Solicitud de conexión enviada.",
                       )
                     }
@@ -248,7 +451,11 @@ const Network = () => {
                       onClick={() =>
                         void run(
                           `unfollow:${item.profile.profileId}`,
-                          () => communityApi.unfollow(item.profile.profileId),
+                          (signal) =>
+                            communityApi.unfollow(
+                              item.profile.profileId,
+                              signal,
+                            ),
                           "Dejaste de seguir ese perfil.",
                         )
                       }
@@ -306,10 +513,11 @@ const Network = () => {
                               onClick={() =>
                                 void run(
                                   `accept:${connection.id}`,
-                                  () =>
+                                  (signal) =>
                                     communityApi.respondConnection(
                                       connection.id,
                                       "accept",
+                                      signal,
                                     ),
                                   "Conexión aceptada.",
                                 )
@@ -324,10 +532,11 @@ const Network = () => {
                               onClick={() =>
                                 void run(
                                   `decline:${connection.id}`,
-                                  () =>
+                                  (signal) =>
                                     communityApi.respondConnection(
                                       connection.id,
                                       "decline",
+                                      signal,
                                     ),
                                   "Solicitud rechazada.",
                                 )
@@ -345,7 +554,8 @@ const Network = () => {
                           onClick={() =>
                             void run(
                               `disconnect:${connection.id}`,
-                              () => communityApi.disconnect(connection.id),
+                              (signal) =>
+                                communityApi.disconnect(connection.id, signal),
                               "Conexión finalizada.",
                             )
                           }
