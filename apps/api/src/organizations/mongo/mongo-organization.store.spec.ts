@@ -459,7 +459,7 @@ describe('MongoOrganizationStore followed feed isolation', () => {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$id', '$organizationId'] },
+                      { $eq: ['$id', '$$organizationId'] },
                       { $eq: ['$status', 'active'] },
                     ],
                   },
@@ -480,7 +480,7 @@ describe('MongoOrganizationStore followed feed isolation', () => {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$organizationId', '$organizationId'] },
+                      { $eq: ['$organizationId', '$$organizationId'] },
                       { $eq: ['$userId', actorUserId] },
                     ],
                   },
