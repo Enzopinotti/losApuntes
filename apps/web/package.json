@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" vite.config.ts",
-    "format:check": "prettier --write src/pages/Home.tsx src/pages/AdminPilot.tsx && git diff -- src/pages/Home.tsx src/pages/AdminPilot.tsx && exit 1",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" vite.config.ts",
     "lint": "eslint . --max-warnings=0",
     "check:types": "tsc -b --pretty false",
     "preview": "vite preview"
