@@ -143,7 +143,9 @@ test("revoking the current session ends the security surface", async () => {
   });
 });
 
-test("revoke-all fences a late revoke completion from restoring stale state", async () => {
+test(
+  "revoke-all fences a late revoke completion from restoring stale state",
+  async () => {
   const lateRevoke = deferred<void>();
   const { api } = makeApi({
     listSessions: async () =>
@@ -176,9 +178,12 @@ test("revoke-all fences a late revoke completion from restoring stale state", as
     kind: "signed_out",
     reason: "all_sessions_revoked",
   });
-});
+  },
+);
 
-test("password success signs out while invalid current password stays retryable", async () => {
+test(
+  "password success signs out while invalid current password stays retryable",
+  async () => {
   let attempts = 0;
   const { api } = makeApi({
     changePassword: async () => {
@@ -215,7 +220,8 @@ test("password success signs out while invalid current password stays retryable"
     kind: "signed_out",
     reason: "password_changed",
   });
-});
+  },
+);
 
 test("dispose aborts pending inventory and fences late completion", async () => {
   const pending = deferred<AuthSessionListResponse>();
