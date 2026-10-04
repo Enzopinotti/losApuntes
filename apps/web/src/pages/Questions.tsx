@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -13,6 +19,7 @@ import {
 } from "../features/community/services/communityService";
 import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
 
 function appendAnswers(
@@ -46,25 +53,108 @@ function messageFor(error: unknown): string {
 }
 
 const Questions = () => {
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const viewerScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id");
-  const [items, setItems] = useState<QuestionView[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [selected, setSelected] = useState<QuestionDetailResponse | null>(null);
+
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<QuestionState | "">("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const listScopeKey = [
+    viewerScopeKey,
+    query.trim(),
+    statusFilter || "all-states",
+  ].join(":");
+  const {
+    begin: beginList,
+    isCurrent: isListCurrent,
+    finish: finishList,
+  } = useAsyncAuthorityFence(`questions-list:${listScopeKey}`);
+
+  const detailScopeKey = [viewerScopeKey, initialId ?? "no-question"].join(":");
+  const {
+    begin: beginDetail,
+    isCurrent: isDetailCurrent,
+    finish: finishDetail,
+  } = useAsyncAuthorityFence(`questions-detail:${detailScopeKey}`);
 
   const [subjectQuery, setSubjectQuery] = useState("");
-  const [subjectOptions, setSubjectOptions] = useState<AcademicSubjectOption[]>(
-    [],
+  const subjectSearchScopeKey = [viewerScopeKey, subjectQuery.trim()].join(":");
+  const {
+    begin: beginSubjectSearch,
+    isCurrent: isSubjectSearchCurrent,
+    finish: finishSubjectSearch,
+  } = useAsyncAuthorityFence(
+    `questions-subject-search:${subjectSearchScopeKey}`,
   );
-  const [subject, setSubject] = useState<AcademicSubjectOption | null>(null);
+
+  const actionScopeKey = [viewerScopeKey, initialId ?? "list"].join(":");
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`questions-action:${actionScopeKey}`);
+
+  const [listState, setListState] = useState<{
+    scopeKey: string;
+    items: QuestionView[];
+    nextCursor: string | null;
+    loading: boolean;
+    busyMore: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentListState =
+    listState?.scopeKey === listScopeKey ? listState : null;
+  const items = currentListState?.items ?? [];
+  const nextCursor = currentListState?.nextCursor ?? null;
+  const loading = currentListState?.loading ?? true;
+
+  const [detailState, setDetailState] = useState<{
+    scopeKey: string;
+    detail: QuestionDetailResponse | null;
+    loading: boolean;
+    busyMore: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentDetailState =
+    detailState?.scopeKey === detailScopeKey ? detailState : null;
+  const selected = currentDetailState?.detail ?? null;
+  const detailLoading = currentDetailState?.loading ?? Boolean(initialId);
+
+  const [subjectSearchState, setSubjectSearchState] = useState<{
+    scopeKey: string;
+    busy: boolean;
+    error: string | null;
+    options: AcademicSubjectOption[];
+  } | null>(null);
+  const currentSubjectSearchState =
+    subjectSearchState?.scopeKey === subjectSearchScopeKey
+      ? subjectSearchState
+      : null;
+  const subjectOptions = currentSubjectSearchState?.options ?? [];
+
+  const [subjectSelection, setSubjectSelection] = useState<{
+    scopeKey: string;
+    subject: AcademicSubjectOption;
+  } | null>(null);
+  const subject =
+    subjectSelection?.scopeKey === viewerScopeKey
+      ? subjectSelection.subject
+      : null;
+  const setSubject = useCallback(
+    (next: AcademicSubjectOption | null) => {
+      setSubjectSelection(
+        next ? { scopeKey: viewerScopeKey, subject: next } : null,
+      );
+    },
+    [viewerScopeKey],
+  );
+
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [answerBody, setAnswerBody] = useState("");
@@ -73,56 +163,155 @@ const Questions = () => {
   const [editAnswerId, setEditAnswerId] = useState<string | null>(null);
   const [editAnswerBody, setEditAnswerBody] = useState("");
 
+  const [actionState, setActionState] = useState<{
+    scopeKey: string;
+    busy: string | null;
+    error: string | null;
+  } | null>(null);
+  const currentActionState =
+    actionState?.scopeKey === actionScopeKey ? actionState : null;
+
+  const [feedbackState, setFeedbackState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const feedback =
+    feedbackState?.scopeKey === viewerScopeKey ? feedbackState.message : null;
+
+  const error =
+    currentActionState?.error ??
+    currentSubjectSearchState?.error ??
+    currentDetailState?.error ??
+    currentListState?.error ??
+    null;
+
+  const busy =
+    currentActionState?.busy ??
+    (currentListState?.busyMore ? "questions-more" : null) ??
+    (currentDetailState?.busyMore ? "answers-more" : null) ??
+    (detailLoading && initialId ? `open:${initialId}` : null);
+
   const loadList = useCallback(
     async (cursor?: string, append = false) => {
-      if (append) {
-        setBusy("questions-more");
-      } else {
-        setLoading(true);
-      }
-      setError(null);
+      const ticket = beginList();
+      if (!isListCurrent(ticket)) return;
+
+      setListState((current) => ({
+        scopeKey: listScopeKey,
+        items: current?.scopeKey === listScopeKey ? current.items : [],
+        nextCursor:
+          current?.scopeKey === listScopeKey ? current.nextCursor : null,
+        loading: !append,
+        busyMore: append,
+        error: null,
+      }));
 
       try {
-        const result = await communityApi.questions({
-          q: query.trim() || undefined,
-          status: statusFilter || undefined,
-          cursor,
-          limit: 25,
-        });
-        setItems((current) =>
-          append ? [...current, ...result.items] : result.items,
+        const result = await communityApi.questions(
+          {
+            q: query.trim() || undefined,
+            status: statusFilter || undefined,
+            cursor,
+            limit: 25,
+          },
+          ticket.signal,
         );
-        setNextCursor(result.nextCursor);
+        if (!isListCurrent(ticket)) return;
+
+        setListState((current) => {
+          const previousItems =
+            current?.scopeKey === listScopeKey ? current.items : [];
+          return {
+            scopeKey: listScopeKey,
+            items: append ? [...previousItems, ...result.items] : result.items,
+            nextCursor: result.nextCursor,
+            loading: false,
+            busyMore: false,
+            error: null,
+          };
+        });
       } catch (nextError) {
-        setError(messageFor(nextError));
+        if (!isListCurrent(ticket)) return;
+        setListState((current) => ({
+          scopeKey: listScopeKey,
+          items: current?.scopeKey === listScopeKey ? current.items : [],
+          nextCursor:
+            current?.scopeKey === listScopeKey ? current.nextCursor : null,
+          loading: false,
+          busyMore: false,
+          error: messageFor(nextError),
+        }));
       } finally {
-        if (append) {
-          setBusy(null);
-        } else {
-          setLoading(false);
+        if (finishList(ticket)) {
+          setListState((current) =>
+            current?.scopeKey === listScopeKey
+              ? { ...current, loading: false, busyMore: false }
+              : current,
+          );
         }
       }
     },
-    [query, statusFilter],
+    [beginList, finishList, isListCurrent, listScopeKey, query, statusFilter],
   );
+  const loadListRef = useRef(loadList);
+  loadListRef.current = loadList;
+
+  const loadDetail = useCallback(async () => {
+    if (!initialId) return;
+
+    const ticket = beginDetail();
+    if (!isDetailCurrent(ticket)) return;
+    setDetailState((current) => ({
+      scopeKey: detailScopeKey,
+      detail: current?.scopeKey === detailScopeKey ? current.detail : null,
+      loading: true,
+      busyMore: false,
+      error: null,
+    }));
+
+    try {
+      const detail = await communityApi.question(initialId, ticket.signal);
+      if (!isDetailCurrent(ticket)) return;
+      setDetailState({
+        scopeKey: detailScopeKey,
+        detail,
+        loading: false,
+        busyMore: false,
+        error: null,
+      });
+      setEditTitle(detail.question.title);
+      setEditBody(detail.question.body);
+    } catch (nextError) {
+      if (!isDetailCurrent(ticket)) return;
+      setDetailState({
+        scopeKey: detailScopeKey,
+        detail: null,
+        loading: false,
+        busyMore: false,
+        error: messageFor(nextError),
+      });
+    } finally {
+      if (finishDetail(ticket)) {
+        setDetailState((current) =>
+          current?.scopeKey === detailScopeKey
+            ? { ...current, loading: false }
+            : current,
+        );
+      }
+    }
+  }, [beginDetail, detailScopeKey, finishDetail, initialId, isDetailCurrent]);
+  const loadDetailRef = useRef(loadDetail);
+  loadDetailRef.current = loadDetail;
 
   const openQuestion = useCallback(
-    async (id: string) => {
-      setBusy(`open:${id}`);
-      setError(null);
-      try {
-        const detail = await communityApi.question(id);
-        setSelected(detail);
-        setEditTitle(detail.question.title);
-        setEditBody(detail.question.body);
-        setSearchParams({ id });
-      } catch (nextError) {
-        setError(messageFor(nextError));
-      } finally {
-        setBusy(null);
+    (id: string) => {
+      if (initialId === id) {
+        void loadDetailRef.current();
+        return;
       }
+      setSearchParams({ id });
     },
-    [setSearchParams],
+    [initialId, setSearchParams],
   );
 
   useEffect(() => {
@@ -130,16 +319,165 @@ const Questions = () => {
   }, [loadList]);
 
   useEffect(() => {
-    if (initialId) void openQuestion(initialId);
-  }, [initialId, openQuestion]);
+    setAnswerBody("");
+    setEditTitle("");
+    setEditBody("");
+    setEditAnswerId(null);
+    setEditAnswerBody("");
+  }, [detailScopeKey]);
+
+  useEffect(() => {
+    if (initialId) {
+      void loadDetail();
+    }
+  }, [initialId, loadDetail]);
+
+  useEffect(() => {
+    setSubjectQuery("");
+    setSubject(null);
+    setTitle("");
+    setBody("");
+    setFeedbackState(null);
+    setActionState(null);
+  }, [setSubject, viewerScopeKey]);
 
   const searchSubjects = async () => {
-    if (subjectQuery.trim().length < 2) return;
-    setError(null);
+    const q = subjectQuery.trim();
+    if (q.length < 2) return;
+
+    const ticket = beginSubjectSearch();
+    if (!isSubjectSearchCurrent(ticket)) return;
+    setSubjectSearchState({
+      scopeKey: subjectSearchScopeKey,
+      busy: true,
+      error: null,
+      options: currentSubjectSearchState?.options ?? [],
+    });
+
     try {
-      setSubjectOptions(await resourcesApi.searchSubjects(subjectQuery.trim()));
+      const options = await resourcesApi.searchSubjects(q, ticket.signal);
+      if (!isSubjectSearchCurrent(ticket)) return;
+      setSubjectSearchState({
+        scopeKey: subjectSearchScopeKey,
+        busy: false,
+        error: null,
+        options,
+      });
     } catch {
-      setError("No pudimos buscar materias.");
+      if (!isSubjectSearchCurrent(ticket)) return;
+      setSubjectSearchState({
+        scopeKey: subjectSearchScopeKey,
+        busy: false,
+        error: "No pudimos buscar materias.",
+        options: [],
+      });
+    } finally {
+      if (finishSubjectSearch(ticket)) {
+        setSubjectSearchState((current) =>
+          current?.scopeKey === subjectSearchScopeKey
+            ? { ...current, busy: false }
+            : current,
+        );
+      }
+    }
+  };
+
+  const loadMoreAnswers = async () => {
+    if (!selected?.answersNextCursor) return;
+
+    const target = selected;
+    const cursor = target.answersNextCursor;
+    const ticket = beginDetail();
+    if (!isDetailCurrent(ticket)) return;
+    setDetailState({
+      scopeKey: detailScopeKey,
+      detail: target,
+      loading: false,
+      busyMore: true,
+      error: null,
+    });
+
+    try {
+      const page = await communityApi.answers(
+        target.question.id,
+        cursor ?? undefined,
+        target.answersLimit,
+        ticket.signal,
+      );
+      if (!isDetailCurrent(ticket)) return;
+      setDetailState((current) =>
+        current?.scopeKey === detailScopeKey &&
+        current.detail?.question.id === target.question.id
+          ? {
+              ...current,
+              detail: {
+                ...current.detail,
+                answers: appendAnswers(current.detail.answers, page.items),
+                answersNextCursor: page.nextCursor,
+              },
+              busyMore: false,
+            }
+          : current,
+      );
+    } catch (nextError) {
+      if (!isDetailCurrent(ticket)) return;
+      setDetailState((current) =>
+        current?.scopeKey === detailScopeKey
+          ? {
+              ...current,
+              busyMore: false,
+              error: messageFor(nextError),
+            }
+          : current,
+      );
+    } finally {
+      if (finishDetail(ticket)) {
+        setDetailState((current) =>
+          current?.scopeKey === detailScopeKey
+            ? { ...current, busyMore: false }
+            : current,
+        );
+      }
+    }
+  };
+
+  const runAction = async <T,>(
+    key: string,
+    operation: (signal: AbortSignal) => Promise<T>,
+    onSuccess: (
+      result: T,
+      ticket: ReturnType<typeof beginAction>,
+    ) => void | Promise<void>,
+  ) => {
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+
+    setActionState({
+      scopeKey: actionScopeKey,
+      busy: key,
+      error: null,
+    });
+    setFeedbackState(null);
+
+    try {
+      const result = await operation(ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      await onSuccess(result, ticket);
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: actionScopeKey,
+        busy: key,
+        error: messageFor(nextError),
+      });
+    } finally {
+      if (finishAction(ticket)) {
+        setActionState((current) =>
+          current?.scopeKey === actionScopeKey
+            ? { ...current, busy: null }
+            : current,
+        );
+      }
     }
   };
 
@@ -147,76 +485,53 @@ const Questions = () => {
     event.preventDefault();
     if (!subject) return;
 
-    setBusy("create-question");
-    setError(null);
-    setFeedback(null);
-    try {
-      const result = await communityApi.createQuestion({
-        subjectId: subject.id,
-        title,
-        body,
-      });
-      setTitle("");
-      setBody("");
-      setSubject(null);
-      setSubjectOptions([]);
-      setSubjectQuery("");
-      setFeedback("Pregunta publicada.");
-      await loadList();
-      await openQuestion(result.question.id);
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const loadMoreAnswers = async () => {
-    if (!selected?.answersNextCursor) return;
-
-    const questionId = selected.question.id;
-    setBusy("answers-more");
-    setError(null);
-
-    try {
-      const page = await communityApi.answers(
-        questionId,
-        selected.answersNextCursor,
-        selected.answersLimit,
-      );
-      setSelected((current) =>
-        current && current.question.id === questionId
-          ? {
-              ...current,
-              answers: appendAnswers(current.answers, page.items),
-              answersNextCursor: page.nextCursor,
-            }
-          : current,
-      );
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
+    const targetSubject = subject;
+    await runAction(
+      "create-question",
+      (signal) =>
+        communityApi.createQuestion(
+          {
+            subjectId: targetSubject.id,
+            title,
+            body,
+          },
+          signal,
+        ),
+      async (result, ticket) => {
+        setTitle("");
+        setBody("");
+        setSubject(null);
+        setSubjectQuery("");
+        setSubjectSearchState(null);
+        setFeedbackState({
+          scopeKey: viewerScopeKey,
+          message: "Pregunta publicada.",
+        });
+        await loadListRef.current();
+        if (!isActionCurrent(ticket)) return;
+        setSearchParams({ id: result.question.id });
+      },
+    );
   };
 
   const createAnswer = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selected) return;
 
-    setBusy("answer");
-    setError(null);
-    try {
-      await communityApi.createAnswer(selected.question.id, answerBody);
-      setAnswerBody("");
-      setFeedback("Respuesta publicada.");
-      await openQuestion(selected.question.id);
-      await loadList();
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
+    const targetQuestion = selected.question;
+    const draft = answerBody;
+    await runAction(
+      "answer",
+      (signal) => communityApi.createAnswer(targetQuestion.id, draft, signal),
+      async () => {
+        setAnswerBody("");
+        setFeedbackState({
+          scopeKey: viewerScopeKey,
+          message: "Respuesta publicada.",
+        });
+        await Promise.all([loadDetailRef.current(), loadListRef.current()]);
+      },
+    );
   };
 
   const updateQuestion = async (patch: {
@@ -225,75 +540,78 @@ const Questions = () => {
     status?: QuestionState;
   }) => {
     if (!selected) return;
-    setBusy("edit-question");
-    setError(null);
-    try {
-      await communityApi.updateQuestion(selected.question, patch);
-      setFeedback("Pregunta actualizada.");
-      await openQuestion(selected.question.id);
-      await loadList();
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
+
+    const targetQuestion = selected.question;
+    await runAction(
+      "edit-question",
+      (signal) => communityApi.updateQuestion(targetQuestion, patch, signal),
+      async () => {
+        setFeedbackState({
+          scopeKey: viewerScopeKey,
+          message: "Pregunta actualizada.",
+        });
+        await Promise.all([loadDetailRef.current(), loadListRef.current()]);
+      },
+    );
   };
 
   const updateAnswer = async (answer: AnswerView) => {
-    setBusy(`edit-answer:${answer.id}`);
-    setError(null);
-    try {
-      await communityApi.updateAnswer(answer, editAnswerBody);
-      setEditAnswerId(null);
-      setEditAnswerBody("");
-      if (selected) await openQuestion(selected.question.id);
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
+    const draft = editAnswerBody;
+    await runAction(
+      `edit-answer:${answer.id}`,
+      (signal) => communityApi.updateAnswer(answer, draft, signal),
+      async () => {
+        setEditAnswerId(null);
+        setEditAnswerBody("");
+        await loadDetailRef.current();
+      },
+    );
   };
 
   const acceptAnswer = async (answerId: string) => {
     if (!selected) return;
-    setBusy(`accept:${answerId}`);
-    setError(null);
-    try {
-      await communityApi.acceptAnswer(selected.question, answerId);
-      setFeedback("Respuesta aceptada.");
-      await openQuestion(selected.question.id);
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
+
+    const targetQuestion = selected.question;
+    await runAction(
+      `accept:${answerId}`,
+      (signal) => communityApi.acceptAnswer(targetQuestion, answerId, signal),
+      async () => {
+        setFeedbackState({
+          scopeKey: viewerScopeKey,
+          message: "Respuesta aceptada.",
+        });
+        await loadDetailRef.current();
+      },
+    );
   };
 
   const reportQuestion = async () => {
     if (!selected) return;
-    setBusy("report-question");
-    setError(null);
-    try {
-      await communityApi.reportQuestion(selected.question.id);
-      setFeedback("Reporte recibido para revisión.");
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
+
+    const questionId = selected.question.id;
+    await runAction(
+      "report-question",
+      (signal) => communityApi.reportQuestion(questionId, signal),
+      () => {
+        setFeedbackState({
+          scopeKey: viewerScopeKey,
+          message: "Reporte recibido para revisión.",
+        });
+      },
+    );
   };
 
   const reportAnswer = async (answerId: string) => {
-    setBusy(`report:${answerId}`);
-    setError(null);
-    try {
-      await communityApi.reportAnswer(answerId);
-      setFeedback("Reporte recibido para revisión.");
-    } catch (nextError) {
-      setError(messageFor(nextError));
-    } finally {
-      setBusy(null);
-    }
+    await runAction(
+      `report:${answerId}`,
+      (signal) => communityApi.reportAnswer(answerId, signal),
+      () => {
+        setFeedbackState({
+          scopeKey: viewerScopeKey,
+          message: "Reporte recibido para revisión.",
+        });
+      },
+    );
   };
 
   return (
@@ -460,7 +778,11 @@ const Questions = () => {
 
         <section className="community-card">
           {!selected ? (
-            <p>Elegí una pregunta para leerla completa.</p>
+            detailLoading ? (
+              <p role="status">Cargando pregunta…</p>
+            ) : (
+              <p>Elegí una pregunta para leerla completa.</p>
+            )
           ) : (
             <>
               <header className="community-question-header">
