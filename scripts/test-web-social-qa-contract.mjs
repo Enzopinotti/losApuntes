@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  shouldReconcileNotificationTick,
+} from '../apps/web/src/features/community/notificationReconciliation.ts';
 
 const root = process.cwd();
 
@@ -50,11 +53,92 @@ assert.match(questions, /Cargar más respuestas/u);
 assert.doesNotMatch(questions, /localStorage|sessionStorage/u);
 
 const notifications = await read('apps/web/src/pages/Notifications.tsx');
+const notificationReconciliation = {
+  authenticated: true,
+  firstPagePending: false,
+  loading: false,
+  loadingMore: false,
+  actionBusy: false,
+};
+let consumedReconcileTick = 0;
+const consumeReconcileTick = (tick, state) => {
+  if (
+    !shouldReconcileNotificationTick(tick, consumedReconcileTick, state)
+  ) {
+    return false;
+  }
+
+  consumedReconcileTick = tick;
+  return true;
+};
+
+assert.equal(
+  consumeReconcileTick(1, {
+    ...notificationReconciliation,
+    firstPagePending: true,
+  }),
+  false,
+);
+assert.equal(
+  consumedReconcileTick,
+  0,
+  'a pending first-page load must not consume the tick',
+);
+assert.equal(consumeReconcileTick(1, notificationReconciliation), true);
+assert.equal(
+  consumeReconcileTick(1, notificationReconciliation),
+  false,
+  'a render with changed filter/page dependencies must not replay the same tick',
+);
+assert.equal(
+  consumeReconcileTick(2, { ...notificationReconciliation, loading: true }),
+  false,
+);
+assert.equal(consumeReconcileTick(2, notificationReconciliation), true);
+assert.equal(
+  shouldReconcileNotificationTick(3, 2, {
+    ...notificationReconciliation,
+    actionBusy: true,
+  }),
+  false,
+);
+
 assert.match(notifications, /communityApi\.notifications/u);
 assert.match(notifications, /communityApi\.markNotificationRead/u);
 assert.match(notifications, /communityApi\.markAllNotificationsRead/u);
 assert.match(notifications, /nextCursor/u);
 assert.match(notifications, /Cargar más/u);
+assert.match(notifications, /useAsyncAuthorityFence/u);
+assert.match(notifications, /NOTIFICATION_RECONCILE_INTERVAL_MS\s*=\s*30_000/u);
+assert.match(notifications, /document\.visibilityState\s*!==\s*"visible"/u);
+assert.match(notifications, /window\.setInterval/u);
+assert.match(notifications, /visibilitychange/u);
+assert.match(notifications, /ticket\.signal/u);
+assert.match(notifications, /session\?\.id/u);
+assert.match(notifications, /loadedPages/u);
+assert.match(notifications, /reconcileLoadedWindow/u);
+assert.match(notifications, /setReconcileTick/u);
+assert.match(notifications, /setActionBusy\(false\)/u);
+assert.match(notifications, /consumedReconcileTickRef/u);
+assert.match(notifications, /firstPagePendingRef/u);
+assert.match(notifications, /shouldReconcileNotificationTick/u);
+assert.match(
+  notifications,
+  /setActionBusy\(false\);\s*setLoadingMore\(false\);\s*\}, \[authorityScope\]/u,
+);
+assert.doesNotMatch(
+  notifications,
+  /await\s+load\(undefined,\s*false,\s*true\)/u,
+  'stale mutation continuations must not invoke a captured list loader',
+);
+assert.doesNotMatch(notifications, /localStorage|sessionStorage/u);
+
+const communityService = await read(
+  'apps/web/src/features/community/services/communityService.ts',
+);
+assert.match(communityService, /AbortSignal\.timeout\(15_000\)/u);
+assert.match(communityService, /AbortSignal\.any/u);
+assert.match(communityService, /notifications:[\s\S]*signal\?: AbortSignal/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
