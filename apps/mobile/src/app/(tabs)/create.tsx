@@ -5,6 +5,7 @@ import {
   AppState,
   ActivityIndicator,
   Pressable,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -22,6 +23,7 @@ import { useSession } from "@/features/session/session-provider";
 import { ApiRequestError } from "@/services/api/client";
 
 import { mobileResourceUploadController } from "@/features/resources/resource-runtime";
+import { ResourcePickedFileLease } from "@/features/resources/resource-picked-file-lease";
 import {
   parseResourceTags,
   resourceFileValidationError,
@@ -121,6 +123,8 @@ function ResourceComposer() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [uncertainCreate, setUncertainCreate] = useState(false);
   const activeAbort = useRef<AbortController | null>(null);
+  const pickedFileLease = useRef<ResourcePickedFileLease | null>(null);
+  const activeUpload = useRef<Promise<unknown> | null>(null);
   const requestGeneration = useRef(0);
   const sessionAuthority =
     session.kind === "authenticated"
@@ -163,6 +167,13 @@ function ResourceComposer() {
     activeAbort.current?.abort();
     if (previousSessionAuthority.current !== sessionAuthority) {
       previousSessionAuthority.current = sessionAuthority;
+      const staleLease = pickedFileLease.current;
+      pickedFileLease.current = null;
+      if (staleLease) {
+        void staleLease
+          .releaseAfter(activeUpload.current ?? undefined)
+          .catch(() => undefined);
+      }
       mobileResourceUploadController.reset();
       setPickedFile(null);
       setUncertainCreate(false);
@@ -192,6 +203,13 @@ function ResourceComposer() {
       requestGeneration.current += 1;
       activeAbort.current?.abort();
       mobileResourceUploadController.reset();
+      const lease = pickedFileLease.current;
+      pickedFileLease.current = null;
+      if (lease) {
+        void lease
+          .releaseAfter(activeUpload.current ?? undefined)
+          .catch(() => undefined);
+      }
     },
     [],
   );
@@ -205,10 +223,22 @@ function ResourceComposer() {
         mimeTypes: [...RESOURCE_UPLOAD_MIME_TYPES],
         multipleFiles: false,
       });
-      if (generation !== requestGeneration.current) return;
       if (result.canceled) return;
 
       const file = result.result;
+      const lease = new ResourcePickedFileLease(
+        file.uri,
+        Platform.OS === "ios",
+        (uri) => {
+          const temporaryCopy = new File(uri);
+          if (temporaryCopy.exists) temporaryCopy.delete();
+        },
+      );
+      if (generation !== requestGeneration.current) {
+        void lease.releaseAfter().catch(() => undefined);
+        return;
+      }
+
       const selected: PickedResourceFile = {
         uri: file.uri,
         name: file.name,
@@ -218,6 +248,12 @@ function ResourceComposer() {
       };
       const validationError = resourceFileValidationError(selected);
       if (validationError) {
+        const previousLease = pickedFileLease.current;
+        pickedFileLease.current = null;
+        if (previousLease) {
+          void previousLease.releaseAfter().catch(() => undefined);
+        }
+        void lease.releaseAfter().catch(() => undefined);
         mobileResourceUploadController.reset();
         setPickedFile(null);
         setUncertainCreate(false);
@@ -225,6 +261,11 @@ function ResourceComposer() {
         return;
       }
 
+      const previousLease = pickedFileLease.current;
+      pickedFileLease.current = lease;
+      if (previousLease) {
+        void previousLease.releaseAfter().catch(() => undefined);
+      }
       mobileResourceUploadController.reset();
       setPickedFile(selected);
       setUncertainCreate(false);
@@ -237,6 +278,9 @@ function ResourceComposer() {
   };
 
   const clearPickedFile = () => {
+    const lease = pickedFileLease.current;
+    pickedFileLease.current = null;
+    if (lease) void lease.releaseAfter().catch(() => undefined);
     mobileResourceUploadController.reset();
     setPickedFile(null);
     setUncertainCreate(false);
@@ -270,6 +314,7 @@ function ResourceComposer() {
     const generation = requestGeneration.current;
     const abort = new AbortController();
     let activeStage: ResourceUploadStage | null = null;
+    let uploadPromise: Promise<unknown> | null = null;
     activeAbort.current = abort;
     setBusy(true);
     setProgress(null);
@@ -277,7 +322,7 @@ function ResourceComposer() {
     setFeedback(null);
 
     try {
-      const created = await mobileResourceUploadController.publish(
+      const upload = mobileResourceUploadController.publish(
         pickedFile,
         {
           title: trimmedTitle,
@@ -296,6 +341,14 @@ function ResourceComposer() {
         },
         abort.signal,
       );
+      uploadPromise = upload;
+      activeUpload.current = upload;
+      const created = await upload;
+      const lease = pickedFileLease.current;
+      if (lease) {
+        pickedFileLease.current = null;
+        await lease.releaseAfter(upload).catch(() => undefined);
+      }
       if (generation !== requestGeneration.current) return;
       mobileResourceUploadController.reset();
       setPickedFile(null);
@@ -321,6 +374,7 @@ function ResourceComposer() {
       setUncertainCreate(isUncertain);
       setError(errorMessage(nextError, isUncertain));
     } finally {
+      if (activeUpload.current === uploadPromise) activeUpload.current = null;
       if (activeAbort.current === abort) activeAbort.current = null;
       setBusy(false);
     }
