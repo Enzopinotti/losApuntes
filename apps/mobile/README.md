@@ -18,6 +18,10 @@ See:
 - `docs/adr/0006-mobile-expo-native-foundation.md`;
 - `docs/mobile/auth-v1.md`.
 
+## Notifications
+
+The authenticated Mobile inbox pages the server's notification feed, supports an unread-only view and read actions, and reloads the visible pages when the screen returns to the foreground. Home links to the inbox using the server's unread count. Navigation from an item is limited to known profile, question, and Network destinations. This inbox does not configure push delivery, device tokens, or retention policy.
+
 ## Release qualification
 
 Mobile release identity is intentionally separate from device/store evidence.

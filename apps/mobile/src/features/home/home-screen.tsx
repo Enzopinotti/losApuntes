@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import {
   useCallback,
   useEffect,
@@ -144,6 +145,7 @@ const failureCopy: Partial<Record<MobileHomeSnapshot["kind"], string>> = {
 };
 
 export function HomeScreen() {
+  const router = useRouter();
   const { snapshot: session } = useSession();
   const { snapshot: academic, retry: retryAcademic } = useAcademicContext();
   const controller = useMemo(
@@ -329,6 +331,27 @@ export function HomeScreen() {
           </Text>
         </View>
       ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir notificaciones, ${data.notifications.unreadCount} sin leer`}
+        onPress={() => router.push("/notifications")}
+        style={({ pressed }) => [
+          styles.notificationsCard,
+          pressed && styles.notificationsPressed,
+        ]}
+      >
+        <View style={styles.notificationsCopy}>
+          <Text style={styles.title}>Notificaciones</Text>
+          <Text style={styles.copy}>
+            {data.notifications.unreadCount === 1
+              ? "Tenés 1 notificación sin leer."
+              : `Tenés ${data.notifications.unreadCount} notificaciones sin leer.`}
+          </Text>
+        </View>
+        <Text style={styles.notificationsCount}>
+          {data.notifications.unreadCount}
+        </Text>
+      </Pressable>
       <FeedSection
         title={
           data.homeFeed.kind === "community"
@@ -356,6 +379,34 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
     backgroundColor: "#ffffff",
+  },
+  notificationsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor: "#ffffff",
+  },
+  notificationsPressed: {
+    backgroundColor: "#f0eff6",
+  },
+  notificationsCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  notificationsCount: {
+    minWidth: 38,
+    borderRadius: 19,
+    overflow: "hidden",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    backgroundColor: "#eeeaf8",
+    color: "#43376a",
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "center",
   },
   title: {
     fontSize: 17,
