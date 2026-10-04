@@ -241,6 +241,44 @@ export class MongoOrganizationStore implements OrganizationStore {
           const mutation = input.mutation;
 
           switch (mutation.kind) {
+            case 'organization.archive': {
+              const archived = await this.organizations
+                .findOneAndUpdate(
+                  {
+                    id: input.organizationId,
+                    status: 'active',
+                    revision: mutation.expectedRevision,
+                    managementRevision:
+                      input.authority.expectedManagementRevision,
+                  },
+                  {
+                    $set: { status: 'archived' },
+                    $inc: { revision: 1, managementRevision: 1 },
+                  },
+                  { new: true, session },
+                )
+                .lean<OrganizationRecord>()
+                .exec();
+
+              if (!archived) {
+                throw new AuthorizedMutationAbort({
+                  status: 'state_conflict',
+                });
+              }
+
+              await this.managers
+                .deleteMany({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: archived,
+              };
+              return;
+            }
+
             case 'organization.update': {
               const updated = await this.organizations
                 .findOneAndUpdate(
