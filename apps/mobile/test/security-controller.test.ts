@@ -143,22 +143,24 @@ test("revoking the current session ends the security surface", async () => {
   });
 });
 
-test("revoke-all fences a late list response from restoring stale sessions", async () => {
-  const lateList = deferred<AuthSessionListResponse>();
-  let listCalls = 0;
+test("revoke-all fences a late revoke completion from restoring stale state", async () => {
+  const lateRevoke = deferred<void>();
   const { api } = makeApi({
-    listSessions: async () => {
-      listCalls += 1;
-      if (listCalls === 1) {
-        return inventory([session("current", true), session("other")]);
-      }
-      return lateList.promise;
-    },
+    listSessions: async () =>
+      inventory([session("current", true), session("other")]),
+    revokeSession: async () => lateRevoke.promise,
   });
   const controller = new MobileSecurityController(api);
 
   await controller.load();
-  const staleRefresh = controller.load();
+  const ready = controller.getSnapshot();
+  assert.equal(ready.kind, "ready");
+  if (ready.kind !== "ready") throw new Error("missing ready state");
+
+  const target = ready.sessions.find((item) => item.id === "other");
+  assert.ok(target);
+
+  const staleRevoke = controller.revokeSession(target);
   await Promise.resolve();
 
   await controller.revokeAllSessions();
@@ -167,8 +169,8 @@ test("revoke-all fences a late list response from restoring stale sessions", asy
     reason: "all_sessions_revoked",
   });
 
-  lateList.resolve(inventory([session("stale", true)]));
-  await staleRefresh;
+  lateRevoke.resolve();
+  await staleRevoke;
 
   assert.deepEqual(controller.getSnapshot(), {
     kind: "signed_out",
