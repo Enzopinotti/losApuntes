@@ -11,6 +11,12 @@ const service = await read(
 );
 assert.match(service, /credentials:\s*"include"/u);
 assert.match(service, /cache:\s*"no-store"/u);
+assert.match(
+  service,
+  /function requestSignal\(signal\?: AbortSignal \| null\)/u,
+);
+assert.match(service, /AbortSignal\.any\(\[signal, timeout\]\)/u);
+assert.match(service, /signal: requestSignal\(init\.signal\)/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
@@ -32,8 +38,25 @@ assert.match(
   /path:\s*"organizations\/:organizationId\/manage"[\s\S]*?<PrivateRoute>[\s\S]*?<OrganizationManage\s*\/>[\s\S]*?<\/PrivateRoute>/u,
 );
 
+const directory = await read('apps/web/src/pages/Organizations.tsx');
+assert.match(directory, /useAsyncAuthorityFence/u);
+assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 3);
+assert.match(directory, /user\?\.id/u);
+assert.match(directory, /session\?\.id/u);
+assert.match(directory, /directoryScopeKey/u);
+assert.match(directory, /institutionSearchScopeKey/u);
+assert.match(directory, /ticket\.signal/u);
+assert.match(directory, /await loadRef\.current\(\)/u);
+assert.match(directory, /setInstitutionSelection\(\{\s*authScopeKey/u);
+
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 assert.match(publicPage, /organizationsApi\.get\(/u);
+assert.match(publicPage, /useAsyncAuthorityFence/u);
+assert.equal((publicPage.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
+assert.match(publicPage, /organizationScopeKey/u);
+assert.match(publicPage, /user\?\.id/u);
+assert.match(publicPage, /session\?\.id/u);
+assert.match(publicPage, /ticket\.signal/u);
 assert.match(publicPage, /verificationState/u);
 assert.match(publicPage, /organizationsApi\.posts\(/u);
 assert.match(publicPage, /organizationsApi\.events\(/u);
@@ -49,6 +72,16 @@ const manage = await read('apps/web/src/pages/OrganizationManage.tsx');
 assert.match(manage, /organizationsApi\.management\(/u);
 assert.match(manage, /managementRevision/u);
 assert.match(manage, /updateVerification/u);
+assert.match(manage, /useAsyncAuthorityFence/u);
+assert.equal((manage.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
+assert.match(manage, /organizationScopeKey/u);
+assert.match(manage, /user\?\.id/u);
+assert.match(manage, /session\?\.id/u);
+assert.match(manage, /operation: \(signal: AbortSignal\)/u);
+assert.match(manage, /return isActionCurrent\(ticket\)/u);
+assert.match(manage, /if \(!succeeded\) return/u);
+assert.match(manage, /setPostTitle\(""\)/u);
+assert.match(manage, /\}, \[organizationScopeKey\]\);/u);
 
 const feeds = await read('apps/web/src/pages/Feeds.tsx');
 assert.match(feeds, /organization_following/u);
