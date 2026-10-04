@@ -1,12 +1,9 @@
-export const MOBILE_DIAGNOSTIC_LIMITS = Object.freeze({
+export const WEB_DIAGNOSTIC_LIMITS = Object.freeze({
   surface: 120,
   metadata: 80,
 });
 
-export type MobileDiagnosticPlatform = "ios" | "android" | "web" | "unknown";
-
-export type MobileDiagnosticContext = {
-  platform: string;
+export type WebDiagnosticContext = {
   appVersion: string | null;
   build: string | null;
   revision: string | null;
@@ -14,8 +11,8 @@ export type MobileDiagnosticContext = {
   now?: (() => Date) | undefined;
 };
 
-export type MobileDiagnosticEnvelope = Readonly<{
-  platform: MobileDiagnosticPlatform;
+export type WebDiagnosticEnvelope = Readonly<{
+  platform: "web";
   appVersion: string | null;
   build: string | null;
   revision: string | null;
@@ -26,33 +23,67 @@ export type MobileDiagnosticEnvelope = Readonly<{
   timestamp: string;
 }>;
 
-export type MobileDiagnosticSink = (envelope: MobileDiagnosticEnvelope) => void;
+export type WebDiagnosticSink = (
+  envelope: WebDiagnosticEnvelope,
+) => void | PromiseLike<void>;
 
-export type MobileGlobalErrorHandler = (
-  error: Error,
-  isFatal?: boolean,
-) => void;
-
-export type MobileErrorUtils = {
-  getGlobalHandler(): MobileGlobalErrorHandler | null | undefined;
-  setGlobalHandler(handler: MobileGlobalErrorHandler): void;
+export type WebDiagnosticEventTarget = {
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+  ): void;
 };
 
 const staticSurfaceSegments = new Set([
-  "create",
-  "home",
+  "academic",
+  "account",
+  "admin",
+  "auth",
+  "dashboard",
+  "feeds",
+  "forgot-password",
+  "lifecycle",
+  "login",
+  "manage",
   "network",
+  "notifications",
+  "organizations",
+  "p",
+  "pending",
+  "pilot",
   "profile",
-  "profiles",
   "questions",
-  "register",
+  "reset-password",
   "resources",
+  "restricted",
   "search",
-  "sign-in",
+  "security",
+  "settings",
+  "sign-up",
   "verify-email",
 ]);
 
-const dynamicParentSegments = new Set(["profiles", "questions", "resources"]);
+const dynamicParentSegments = new Set([
+  "organizations",
+  "p",
+  "questions",
+  "resources",
+]);
+
+const knownErrorClasses = new Set([
+  "AggregateError",
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+]);
 
 function clamp(value: string, maximum: number): string {
   return value.length <= maximum ? value : value.slice(0, maximum);
@@ -62,14 +93,14 @@ function safeAppVersion(value: string | null): string | null {
   if (!value) return null;
   const version = value.trim();
   return /^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?(?:\+\d+)?$/u.test(version)
-    ? clamp(version, MOBILE_DIAGNOSTIC_LIMITS.metadata)
+    ? clamp(version, WEB_DIAGNOSTIC_LIMITS.metadata)
     : null;
 }
 
 function safeBuild(value: string | null): string | null {
   if (!value) return null;
   const build = value.trim();
-  return /^\d[\d.]{0,39}$/u.test(build) ? build : null;
+  return /^(?:\d[\d.]{0,39}|web-\d{1,20})$/u.test(build) ? build : null;
 }
 
 function safeRevision(value: string | null): string | null {
@@ -87,7 +118,7 @@ function normalizeSurfaceSegment(
   return staticSurfaceSegments.has(segment) ? segment : ":segment";
 }
 
-export function normalizeMobileDiagnosticSurface(raw: string): string {
+export function normalizeWebDiagnosticSurface(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return "unknown";
 
@@ -108,7 +139,7 @@ export function normalizeMobileDiagnosticSurface(raw: string): string {
     normalizeSurfaceSegment(segment, segments[index - 1]),
   );
   const surface = normalized.join("/").replace(/\/{2,}/gu, "/") || "/";
-  return clamp(surface, MOBILE_DIAGNOSTIC_LIMITS.surface);
+  return clamp(surface, WEB_DIAGNOSTIC_LIMITS.surface);
 }
 
 function safeStringProperty(value: unknown, property: "name"): string | null {
@@ -127,17 +158,6 @@ function safeStringProperty(value: unknown, property: "name"): string | null {
   }
 }
 
-const knownErrorClasses = new Set([
-  "AggregateError",
-  "Error",
-  "EvalError",
-  "RangeError",
-  "ReferenceError",
-  "SyntaxError",
-  "TypeError",
-  "URIError",
-]);
-
 function safeErrorClass(error: unknown): string {
   const name = safeStringProperty(error, "name");
   return name && knownErrorClasses.has(name) ? name : "Error";
@@ -152,15 +172,15 @@ function fnv1a(value: string): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export function createMobileDiagnosticEnvelope(
+export function createWebDiagnosticEnvelope(
   error: unknown,
-  context: MobileDiagnosticContext,
-): MobileDiagnosticEnvelope {
+  context: WebDiagnosticContext,
+): WebDiagnosticEnvelope {
   const errorClass = safeErrorClass(error);
-  const surface = normalizeMobileDiagnosticSurface(context.surface);
+  const surface = normalizeWebDiagnosticSurface(context.surface);
 
   return Object.freeze({
-    platform: normalizePlatform(context.platform),
+    platform: "web",
     appVersion: safeAppVersion(context.appVersion),
     build: safeBuild(context.build),
     revision: safeRevision(context.revision),
@@ -181,69 +201,77 @@ function safeTimestamp(now?: () => Date): string {
   }
 }
 
-function normalizePlatform(platform: string): MobileDiagnosticPlatform {
-  if (platform === "ios" || platform === "android" || platform === "web") {
-    return platform;
-  }
-  return "unknown";
-}
-
-const defaultMobileDiagnosticSink: MobileDiagnosticSink = (envelope) => {
-  console.error("[losapuntes-mobile-diagnostic]", JSON.stringify(envelope));
+const defaultWebDiagnosticSink: WebDiagnosticSink = (envelope) => {
+  console.error("[losapuntes-web-diagnostic]", JSON.stringify(envelope));
 };
 
-let mobileDiagnosticSink: MobileDiagnosticSink = defaultMobileDiagnosticSink;
+let webDiagnosticSink: WebDiagnosticSink = defaultWebDiagnosticSink;
 
-export function configureMobileDiagnosticSink(
-  sink: MobileDiagnosticSink,
+export function configureWebDiagnosticSink(
+  sink: WebDiagnosticSink,
 ): () => void {
-  const previous = mobileDiagnosticSink;
-  mobileDiagnosticSink = sink;
+  const previous = webDiagnosticSink;
+  webDiagnosticSink = sink;
   return () => {
-    if (mobileDiagnosticSink === sink) mobileDiagnosticSink = previous;
+    if (webDiagnosticSink === sink) webDiagnosticSink = previous;
   };
 }
 
-export function reportMobileDiagnostic(
+export function reportWebDiagnostic(
   error: unknown,
-  context: MobileDiagnosticContext,
-): MobileDiagnosticEnvelope {
-  const envelope = createMobileDiagnosticEnvelope(error, context);
+  context: WebDiagnosticContext,
+): WebDiagnosticEnvelope {
+  const envelope = createWebDiagnosticEnvelope(error, context);
   try {
-    mobileDiagnosticSink(envelope);
+    const delivery = webDiagnosticSink(envelope);
+    if (delivery) {
+      void Promise.resolve(delivery).catch(() => undefined);
+    }
   } catch {
-    // Diagnostics must never prevent recovery or the previous global handler.
+    // Diagnostics must never interfere with app recovery.
   }
   return envelope;
 }
 
-export function installMobileGlobalErrorHandler(
-  errorUtils: MobileErrorUtils | null | undefined,
+export function installWebGlobalDiagnosticHandlers(
+  target: WebDiagnosticEventTarget,
   report: (error: unknown) => void,
 ): () => void {
-  if (!errorUtils) return () => undefined;
-
-  const previous = errorUtils.getGlobalHandler();
-  const handler: MobileGlobalErrorHandler = (error, isFatal) => {
+  const onError: EventListener = (event) => {
+    const errorEvent = event as ErrorEvent;
     try {
-      report(error);
+      report(errorEvent.error ?? new Error());
     } catch {
-      // A diagnostic adapter must never create a second unhandled exception.
-    }
-    if (previous) {
-      // Preserve the native fatal path without forwarding private message/stack data.
-      const safeError = new Error("Client runtime failure");
-      safeError.name = safeErrorClass(error);
-      safeError.stack = "";
-      previous(safeError, isFatal);
+      // Reporting failures must not interfere with the browser error lifecycle.
+    } finally {
+      try {
+        event.preventDefault();
+      } catch {
+        // Ignore malformed or non-cancelable events.
+      }
     }
   };
 
-  errorUtils.setGlobalHandler(handler);
+  const onUnhandledRejection: EventListener = (event) => {
+    const rejectionEvent = event as PromiseRejectionEvent;
+    try {
+      report(rejectionEvent.reason);
+    } catch {
+      // Reporting failures must not interfere with the browser rejection lifecycle.
+    } finally {
+      try {
+        event.preventDefault();
+      } catch {
+        // Ignore malformed or non-cancelable events.
+      }
+    }
+  };
+
+  target.addEventListener("error", onError);
+  target.addEventListener("unhandledrejection", onUnhandledRejection);
 
   return () => {
-    if (previous && errorUtils.getGlobalHandler() === handler) {
-      errorUtils.setGlobalHandler(previous);
-    }
+    target.removeEventListener("error", onError);
+    target.removeEventListener("unhandledrejection", onUnhandledRejection);
   };
 }

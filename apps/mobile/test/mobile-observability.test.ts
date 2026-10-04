@@ -161,8 +161,20 @@ test("a diagnostic sink failure never prevents caller recovery", () => {
 
 test("global JS handler preserves the previous handler if reporting throws", () => {
   const calls: string[] = [];
+  const previousInputs: Array<{
+    name: string;
+    message: string;
+    stack: string | undefined;
+    isFatal: boolean | undefined;
+  }> = [];
   const previous = (error: Error, isFatal?: boolean) => {
     calls.push(`previous:${error.name}:${String(isFatal)}`);
+    previousInputs.push({
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      isFatal,
+    });
   };
   let current = previous;
 
@@ -178,8 +190,18 @@ test("global JS handler preserves the previous handler if reporting throws", () 
     throw new Error("diagnostic adapter failed");
   });
 
-  assert.doesNotThrow(() => current(new TypeError("boom"), true));
+  assert.doesNotThrow(() =>
+    current(new TypeError("Bearer secret-token user@example.test"), true),
+  );
   assert.deepEqual(calls, ["report", "previous:TypeError:true"]);
+  assert.deepEqual(previousInputs, [
+    {
+      name: "TypeError",
+      message: "Client runtime failure",
+      stack: "",
+      isFatal: true,
+    },
+  ]);
 
   cleanup();
   assert.equal(current, previous);
@@ -195,4 +217,34 @@ test("drops invalid release revisions instead of emitting arbitrary env data", (
   });
 
   assert.equal(envelope.revision, null);
+});
+
+test("drops non-public app version and build metadata", () => {
+  const envelope = createMobileDiagnosticEnvelope(new Error("private"), {
+    platform: "ios",
+    appVersion: "1.2.3-enzo@example.test",
+    build: "release-person-name",
+    revision: null,
+    surface: "/",
+  });
+  const serialized = JSON.stringify(envelope);
+
+  assert.equal(envelope.appVersion, null);
+  assert.equal(envelope.build, null);
+  assert.equal(serialized.includes("enzo"), false);
+  assert.equal(serialized.includes("person-name"), false);
+});
+
+test("falls back to a generated timestamp when an injected clock is malformed", () => {
+  const envelope = createMobileDiagnosticEnvelope(new Error("private"), {
+    platform: "android",
+    appVersion: "0.1.0",
+    build: "7",
+    revision: null,
+    surface: "/",
+    now: () => ({ toISOString: () => "email@example.test" }) as unknown as Date,
+  });
+
+  assert.match(envelope.timestamp, /^\d{4}-\d{2}-\d{2}T/u);
+  assert.equal(envelope.timestamp.includes("example.test"), false);
 });
