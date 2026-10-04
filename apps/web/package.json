@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\" vite.config.ts",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" vite.config.ts",
+    "build": "tsc -b && vite build && node ../../scripts/check-web-release-build.mjs",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" vite.config.ts release-manifest.ts",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" vite.config.ts release-manifest.ts",
     "lint": "eslint . --max-warnings=0",
     "check:types": "tsc -b --pretty false",
     "preview": "vite preview"
