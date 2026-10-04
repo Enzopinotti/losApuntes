@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type RefObject } from "react";
 
 import {
   backdropPointerStart,
+  isPointOnDialogBackdrop,
   shouldDismissFromBackdrop,
 } from "./confirmDialogPointer";
 import "./ConfirmDialog.scss";
@@ -68,16 +69,22 @@ export const ConfirmDialog = ({
         onCancel();
       }}
       onPointerDown={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
         backdropPointerRef.current = backdropPointerStart(
           event.pointerId,
-          event.target === event.currentTarget,
+          isPointOnDialogBackdrop(bounds, event.clientX, event.clientY),
         );
       }}
       onPointerUp={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
         const dismiss = shouldDismissFromBackdrop({
           activePointerId: backdropPointerRef.current,
           releasedPointerId: event.pointerId,
-          releasedOnBackdrop: event.target === event.currentTarget,
+          releasedOnBackdrop: isPointOnDialogBackdrop(
+            bounds,
+            event.clientX,
+            event.clientY,
+          ),
         });
         backdropPointerRef.current = null;
 
