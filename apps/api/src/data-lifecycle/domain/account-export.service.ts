@@ -54,14 +54,26 @@ export class AccountExportService {
     return job ? this.publicStatus(job) : null;
   }
 
-  validateContributor(contributor: AccountExportContributor): void {
+  async readContributorPage(
+    contributor: AccountExportContributor,
+    userId: string,
+    cursor: string | null,
+  ) {
     if (!contributor.sectionId.trim()) {
       throw new Error('Account export contributor sectionId is required');
     }
-  }
 
-  contributorPageLimit(): number {
-    return ACCOUNT_EXPORT_PAGE_LIMIT;
+    const page = await contributor.readPage({
+      userId,
+      cursor,
+      limit: ACCOUNT_EXPORT_PAGE_LIMIT,
+    });
+
+    if (page.records.length > ACCOUNT_EXPORT_PAGE_LIMIT) {
+      throw new Error('Account export contributor exceeded the page limit');
+    }
+
+    return page;
   }
 
   private publicStatus(job: AccountExportJobRecord): AccountExportStatus {
