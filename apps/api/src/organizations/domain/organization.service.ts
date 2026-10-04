@@ -364,6 +364,14 @@ export class OrganizationService {
       this.managementConflict();
     }
 
+    const reason = cleanText(dto.reason);
+    if (reason.length < 3) {
+      throw new UnprocessableEntityException({
+        code: 'ORGANIZATION_ARCHIVE_REASON_INVALID',
+        message: 'Organization archive reason must remain meaningful',
+      });
+    }
+
     const result = await this.store.commitAuthorizedMutation({
       organizationId: id,
       authority: this.writeAuthority(organization, userId, ['owner']),
@@ -378,7 +386,7 @@ export class OrganizationService {
         targetUserId: null,
         previousRole: null,
         nextRole: null,
-        reason: cleanText(dto.reason),
+        reason,
         metadata: {
           previousStatus: 'active',
           nextStatus: 'archived',
