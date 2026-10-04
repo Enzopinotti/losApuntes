@@ -66,7 +66,9 @@ const makeApi = (overrides: Partial<MobileSecurityApi> = {}) => {
   return { api, calls };
 };
 
-test("loads only privacy-bounded session inventory contract state", async () => {
+test(
+  "loads only privacy-bounded session inventory contract state",
+  async () => {
   const { api } = makeApi({
     listSessions: async () =>
       inventory(
@@ -95,9 +97,12 @@ test("loads only privacy-bounded session inventory contract state", async () => 
       { id: "web-other", clientType: "web", current: false },
     ],
   );
-});
+  },
+);
 
-test("revoking another session reloads inventory without signing out", async () => {
+test(
+  "revoking another session reloads inventory without signing out",
+  async () => {
   let listCalls = 0;
   const { api, calls } = makeApi({
     listSessions: async () => {
@@ -124,7 +129,8 @@ test("revoking another session reloads inventory without signing out", async () 
   if (after.kind !== "ready") throw new Error("missing refreshed state");
   assert.deepEqual(after.sessions.map((item) => item.id), ["current"]);
   assert.equal(after.feedback, "Sesión cerrada.");
-});
+  },
+);
 
 test("revoking the current session ends the security surface", async () => {
   const { api } = makeApi();
@@ -223,7 +229,9 @@ test(
   },
 );
 
-test("dispose aborts pending inventory and fences late completion", async () => {
+test(
+  "dispose aborts pending inventory and fences late completion",
+  async () => {
   const pending = deferred<AuthSessionListResponse>();
   let signal: AbortSignal | undefined;
   const { api } = makeApi({
@@ -244,7 +252,8 @@ test("dispose aborts pending inventory and fences late completion", async () => 
 
   assert.equal(signal.aborted, true);
   assert.deepEqual(controller.getSnapshot(), { kind: "loading" });
-});
+  },
+);
 
 test("account restriction stays distinct from ordinary sign-out", async () => {
   const { api } = makeApi({
