@@ -85,6 +85,8 @@ The native Create tab now has a repository implementation candidate for the same
 
 Local Mobile tests cover the staged intent → PUT → finalize → create sequence, retry/idempotency behavior, ambiguous create results, file policy, storage URL policy, and authenticated API authority. This code does not claim real-device screen acceptance; physical iOS/Android validation and the full #7 product journey remain open under #7.
 
+The native picker lifecycle tracks the iOS temporary copy and releases it on replacement, removal, successful upload, stale picker completion, session change, and screen disposal. Cleanup waits for an active upload to settle after cancellation. Android's provider-owned `content://` URI is never deleted by the app. Unit tests cover release ordering, idempotency, and Android URI preservation; no device-level lifecycle evidence is claimed.
+
 ## Closure evidence
 
 Files + Notes v1 is closed with exact evidence:
