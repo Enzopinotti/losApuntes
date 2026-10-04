@@ -50,6 +50,7 @@ const access = (id: string): ResourceAccessResponse => ({
 const apiStub = (
   overrides: Partial<ResourceConsumptionApi> = {},
 ): ResourceConsumptionApi => ({
+  resource: async (resourceId) => ({ resource: resource(resourceId) }),
   access: async (resourceId) => access(resourceId),
   save: async () => ({ saved: true }),
   unsave: async () => undefined,
@@ -99,12 +100,8 @@ test("resource detail keeps save state scoped to the current resource authority"
   await controller.unsave("session-a:resource-1", "resource-1");
 
   assert.deepEqual(calls, ["save:resource-1", "unsave:resource-1"]);
-  assert.equal(
-    controller.getSnapshot().kind === "ready"
-      ? controller.getSnapshot().saved
-      : null,
-    false,
-  );
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind === "ready" ? snapshot.saved : null, false);
 });
 
 test("resource access result is discarded when authority changes in flight", async () => {
