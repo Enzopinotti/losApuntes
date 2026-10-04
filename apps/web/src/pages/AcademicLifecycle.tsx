@@ -122,11 +122,9 @@ const AcademicLifecycle = () => {
     "institution",
   );
   const [searchText, setSearchText] = useState("");
-  const searchScopeKey = [
-    authScopeKey,
-    searchKind,
-    searchText.trim(),
-  ].join(":");
+  const searchScopeKey = [authScopeKey, searchKind, searchText.trim()].join(
+    ":",
+  );
   const {
     begin: beginSearch,
     isCurrent: isSearchCurrent,
@@ -160,8 +158,7 @@ const AcademicLifecycle = () => {
   const currentMutationState =
     mutationState?.scopeKey === authScopeKey ? mutationState : null;
   const busy =
-    currentMutationState?.busy ??
-    (currentSearchState?.busy ? "search" : null);
+    currentMutationState?.busy ?? (currentSearchState?.busy ? "search" : null);
   const feedback = currentMutationState?.feedback ?? null;
   const error =
     currentMutationState?.error ??
