@@ -90,6 +90,45 @@ Owner/admin only.
 
 Uses `expectedRevision`.
 
+### POST /organizations/:id/archive
+
+Owner only; requires an active authenticated session and verified email.
+
+Body:
+
+```json
+{
+  "expectedRevision": 3,
+  "expectedManagementRevision": 7,
+  "reason": "Cierre de la organización"
+}
+```
+
+The reason is bounded to 3–500 characters and must remain meaningful after
+server normalization. The current organization and management revisions are
+both required; stale values fail with their corresponding revision-conflict
+code.
+
+The successful response is:
+
+```json
+{
+  "organization": {
+    "id": "uuid",
+    "status": "archived",
+    "revision": 4,
+    "managementRevision": 8
+  },
+  "archived": true
+}
+```
+
+The owner check, status/revision transition, revocation of every operational
+manager grant and `organization.archived` audit event commit in one transaction.
+Posts, events, links, follows, featured Resource references and shared history
+are preserved; active-only public surfaces stop exposing the archived
+Organization. Archiving is not deletion or a purge operation.
+
 ### POST /organizations/:id/posts
 
 Owner/admin/editor.
@@ -183,6 +222,7 @@ Stable codes include:
 - `ORGANIZATION_FINAL_OWNER_REQUIRED`;
 - `ORGANIZATION_REVISION_CONFLICT`;
 - `ORGANIZATION_MANAGEMENT_REVISION_CONFLICT`;
+- `ORGANIZATION_ARCHIVE_REASON_INVALID`;
 - `ORGANIZATION_VERIFICATION_FORBIDDEN`;
 - `ORGANIZATION_EVENT_PERIOD_INVALID`;
 - `ORGANIZATION_LINK_INVALID`;

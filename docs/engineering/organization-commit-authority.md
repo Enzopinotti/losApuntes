@@ -42,6 +42,8 @@ This creates deterministic ordering:
 
 The single `OrganizationStore.commitAuthorizedMutation()` boundary owns:
 
+- Organization archive, including transactional revocation of every manager
+  grant;
 - Organization profile update;
 - Post create/update/delete;
 - Event create/update;
@@ -66,6 +68,8 @@ For an authorized managed write the transaction contains:
 - current actor manager-role check;
 - target write;
 - optimistic target revision check where applicable;
+- for archive, the active-to-archived transition and deletion of operational
+  manager grants;
 - Organization audit event when the write changes durable state.
 
 An audit event that claims a managed mutation committed must never be written
@@ -91,6 +95,9 @@ captures a fresh authority epoch.
 
 The Mongo store tests explicitly prove:
 
+- archive checks current owner authority/revisions, revokes manager grants, and
+  writes the archive audit in the same transaction without deleting shared
+  content;
 - changed `managementRevision` before commit -> no target write and no audit;
 - actor role revoked before commit -> no target write and no audit;
 - valid authority -> target write and audit execute inside the same transaction.
