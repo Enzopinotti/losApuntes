@@ -84,6 +84,10 @@ function eventFor(
 
 export class OperationalAlertBoundary {
   private readonly states = new Map<OperationalAlertSignal, AlertState>();
+  private readonly observationWatermarks = new Map<
+    OperationalAlertSignal,
+    number
+  >();
 
   observe(input: {
     signal: OperationalAlertSignal;
@@ -91,25 +95,29 @@ export class OperationalAlertBoundary {
     observedAtMs: number;
     policy: OperationalAlertPolicy;
   }): OperationalAlertEvent | null {
-    assertSignal(input.signal);
-    assertTimestamp(input.observedAtMs);
-    assertPolicy(input.policy);
+    const signal = input.signal;
+    const unhealthy = input.unhealthy;
+    const observedAtMs = input.observedAtMs;
+    const policy = input.policy;
 
-    const previous = this.states.get(input.signal);
+    assertSignal(signal);
+    assertTimestamp(observedAtMs);
+    assertPolicy(policy);
 
-    if (
-      previous !== undefined &&
-      input.observedAtMs < previous.lastObservedAtMs
-    ) {
+    const watermark = this.observationWatermarks.get(signal);
+    if (watermark !== undefined && observedAtMs < watermark) {
       return null;
     }
+    this.observationWatermarks.set(signal, observedAtMs);
 
-    if (!input.unhealthy) {
+    const previous = this.states.get(signal);
+
+    if (!unhealthy) {
       if (previous === undefined) return null;
 
-      this.states.delete(input.signal);
+      this.states.delete(signal);
       return previous.active
-        ? eventFor(input.signal, 'recovery', previous, input.observedAtMs)
+        ? eventFor(signal, 'recovery', previous, observedAtMs)
         : null;
     }
 
@@ -117,34 +125,33 @@ export class OperationalAlertBoundary {
       previous ??
       ({
         active: false,
-        unhealthySinceMs: input.observedAtMs,
+        unhealthySinceMs: observedAtMs,
         lastActiveEmissionMs: null,
-        lastObservedAtMs: input.observedAtMs,
+        lastObservedAtMs: observedAtMs,
       } satisfies AlertState);
 
-    state.lastObservedAtMs = input.observedAtMs;
-    this.states.set(input.signal, state);
+    state.lastObservedAtMs = observedAtMs;
+    this.states.set(signal, state);
 
     if (!state.active) {
-      const unhealthyForMs = input.observedAtMs - state.unhealthySinceMs;
-      if (unhealthyForMs < input.policy.activationAfterMs) return null;
+      const unhealthyForMs = observedAtMs - state.unhealthySinceMs;
+      if (unhealthyForMs < policy.activationAfterMs) return null;
 
       state.active = true;
-      state.lastActiveEmissionMs = input.observedAtMs;
-      return eventFor(input.signal, 'active', state, input.observedAtMs);
+      state.lastActiveEmissionMs = observedAtMs;
+      return eventFor(signal, 'active', state, observedAtMs);
     }
 
     if (
-      input.policy.repeatCooldownMs === null ||
+      policy.repeatCooldownMs === null ||
       state.lastActiveEmissionMs === null ||
-      input.observedAtMs - state.lastActiveEmissionMs <
-        input.policy.repeatCooldownMs
+      observedAtMs - state.lastActiveEmissionMs < policy.repeatCooldownMs
     ) {
       return null;
     }
 
-    state.lastActiveEmissionMs = input.observedAtMs;
-    return eventFor(input.signal, 'active', state, input.observedAtMs);
+    state.lastActiveEmissionMs = observedAtMs;
+    return eventFor(signal, 'active', state, observedAtMs);
   }
 }
 
