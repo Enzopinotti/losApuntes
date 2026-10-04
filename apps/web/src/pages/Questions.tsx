@@ -76,10 +76,7 @@ const Questions = () => {
     finish: finishList,
   } = useAsyncAuthorityFence(`questions-list:${listScopeKey}`);
 
-  const detailScopeKey = [
-    viewerScopeKey,
-    initialId ?? "no-question",
-  ].join(":");
+  const detailScopeKey = [viewerScopeKey, initialId ?? "no-question"].join(":");
   const {
     begin: beginDetail,
     isCurrent: isDetailCurrent,
@@ -87,10 +84,7 @@ const Questions = () => {
   } = useAsyncAuthorityFence(`questions-detail:${detailScopeKey}`);
 
   const [subjectQuery, setSubjectQuery] = useState("");
-  const subjectSearchScopeKey = [
-    viewerScopeKey,
-    subjectQuery.trim(),
-  ].join(":");
+  const subjectSearchScopeKey = [viewerScopeKey, subjectQuery.trim()].join(":");
   const {
     begin: beginSubjectSearch,
     isCurrent: isSubjectSearchCurrent,
@@ -99,10 +93,7 @@ const Questions = () => {
     `questions-subject-search:${subjectSearchScopeKey}`,
   );
 
-  const actionScopeKey = [
-    viewerScopeKey,
-    initialId ?? "list",
-  ].join(":");
+  const actionScopeKey = [viewerScopeKey, initialId ?? "list"].join(":");
   const {
     begin: beginAction,
     isCurrent: isActionCurrent,
@@ -133,8 +124,7 @@ const Questions = () => {
   const currentDetailState =
     detailState?.scopeKey === detailScopeKey ? detailState : null;
   const selected = currentDetailState?.detail ?? null;
-  const detailLoading =
-    currentDetailState?.loading ?? Boolean(initialId);
+  const detailLoading = currentDetailState?.loading ?? Boolean(initialId);
 
   const [subjectSearchState, setSubjectSearchState] = useState<{
     scopeKey: string;
@@ -186,9 +176,7 @@ const Questions = () => {
     message: string;
   } | null>(null);
   const feedback =
-    feedbackState?.scopeKey === viewerScopeKey
-      ? feedbackState.message
-      : null;
+    feedbackState?.scopeKey === viewerScopeKey ? feedbackState.message : null;
 
   const error =
     currentActionState?.error ??
@@ -210,8 +198,7 @@ const Questions = () => {
 
       setListState((current) => ({
         scopeKey: listScopeKey,
-        items:
-          current?.scopeKey === listScopeKey ? current.items : [],
+        items: current?.scopeKey === listScopeKey ? current.items : [],
         nextCursor:
           current?.scopeKey === listScopeKey ? current.nextCursor : null,
         loading: !append,
@@ -236,9 +223,7 @@ const Questions = () => {
             current?.scopeKey === listScopeKey ? current.items : [];
           return {
             scopeKey: listScopeKey,
-            items: append
-              ? [...previousItems, ...result.items]
-              : result.items,
+            items: append ? [...previousItems, ...result.items] : result.items,
             nextCursor: result.nextCursor,
             loading: false,
             busyMore: false,
@@ -249,12 +234,9 @@ const Questions = () => {
         if (!isListCurrent(ticket)) return;
         setListState((current) => ({
           scopeKey: listScopeKey,
-          items:
-            current?.scopeKey === listScopeKey ? current.items : [],
+          items: current?.scopeKey === listScopeKey ? current.items : [],
           nextCursor:
-            current?.scopeKey === listScopeKey
-              ? current.nextCursor
-              : null,
+            current?.scopeKey === listScopeKey ? current.nextCursor : null,
           loading: false,
           busyMore: false,
           error: messageFor(nextError),
@@ -269,14 +251,7 @@ const Questions = () => {
         }
       }
     },
-    [
-      beginList,
-      finishList,
-      isListCurrent,
-      listScopeKey,
-      query,
-      statusFilter,
-    ],
+    [beginList, finishList, isListCurrent, listScopeKey, query, statusFilter],
   );
   const loadListRef = useRef(loadList);
   loadListRef.current = loadList;
@@ -288,8 +263,7 @@ const Questions = () => {
     if (!isDetailCurrent(ticket)) return;
     setDetailState((current) => ({
       scopeKey: detailScopeKey,
-      detail:
-        current?.scopeKey === detailScopeKey ? current.detail : null,
+      detail: current?.scopeKey === detailScopeKey ? current.detail : null,
       loading: true,
       busyMore: false,
       error: null,
@@ -325,13 +299,7 @@ const Questions = () => {
         );
       }
     }
-  }, [
-    beginDetail,
-    detailScopeKey,
-    finishDetail,
-    initialId,
-    isDetailCurrent,
-  ]);
+  }, [beginDetail, detailScopeKey, finishDetail, initialId, isDetailCurrent]);
   const loadDetailRef = useRef(loadDetail);
   loadDetailRef.current = loadDetail;
 
@@ -444,10 +412,7 @@ const Questions = () => {
               ...current,
               detail: {
                 ...current.detail,
-                answers: appendAnswers(
-                  current.detail.answers,
-                  page.items,
-                ),
+                answers: appendAnswers(current.detail.answers, page.items),
                 answersNextCursor: page.nextCursor,
               },
               busyMore: false,
@@ -557,18 +522,14 @@ const Questions = () => {
     const draft = answerBody;
     await runAction(
       "answer",
-      (signal) =>
-        communityApi.createAnswer(targetQuestion.id, draft, signal),
+      (signal) => communityApi.createAnswer(targetQuestion.id, draft, signal),
       async () => {
         setAnswerBody("");
         setFeedbackState({
           scopeKey: viewerScopeKey,
           message: "Respuesta publicada.",
         });
-        await Promise.all([
-          loadDetailRef.current(),
-          loadListRef.current(),
-        ]);
+        await Promise.all([loadDetailRef.current(), loadListRef.current()]);
       },
     );
   };
@@ -583,8 +544,7 @@ const Questions = () => {
     const targetQuestion = selected.question;
     await runAction(
       "edit-question",
-      (signal) =>
-        communityApi.updateQuestion(targetQuestion, patch, signal),
+      (signal) => communityApi.updateQuestion(targetQuestion, patch, signal),
       async () => {
         setFeedbackState({
           scopeKey: viewerScopeKey,
@@ -617,12 +577,7 @@ const Questions = () => {
     const targetQuestion = selected.question;
     await runAction(
       `accept:${answerId}`,
-      (signal) =>
-        communityApi.acceptAnswer(
-          targetQuestion,
-          answerId,
-          signal,
-        ),
+      (signal) => communityApi.acceptAnswer(targetQuestion, answerId, signal),
       async () => {
         setFeedbackState({
           scopeKey: viewerScopeKey,
