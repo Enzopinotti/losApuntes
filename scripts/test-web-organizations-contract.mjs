@@ -46,7 +46,7 @@ assert.match(directory, /session\?\.id/u);
 assert.match(directory, /directoryScopeKey/u);
 assert.match(directory, /institutionSearchScopeKey/u);
 assert.match(directory, /ticket\.signal/u);
-assert.match(directory, /void loadRef\.current\(\)/u);
+assert.match(directory, /await loadRef\.current\(\)/u);
 assert.match(directory, /setInstitutionSelection\(\{\s*authScopeKey/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');

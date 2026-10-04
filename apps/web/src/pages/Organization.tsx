@@ -169,7 +169,7 @@ const Organization = () => {
     try {
       const page = await organizationsApi.posts(
         target.id,
-        target.postsNextCursor,
+        target.postsNextCursor ?? undefined,
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
@@ -210,7 +210,7 @@ const Organization = () => {
     try {
       const page = await organizationsApi.events(
         target.id,
-        target.eventsNextCursor,
+        target.eventsNextCursor ?? undefined,
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
