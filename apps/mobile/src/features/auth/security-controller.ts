@@ -34,6 +34,7 @@ export type SecuritySnapshot =
         | "current_session_revoked"
         | "all_sessions_revoked"
         | "password_changed"
+        | "account_restricted"
         | "authority_lost";
     }
   | { kind: "failed"; failure: SecurityFailure };
@@ -49,6 +50,14 @@ export interface MobileSecurityApi {
 }
 
 type Listener = (snapshot: SecuritySnapshot) => void;
+
+const exitReasonFromFailure = (
+  failure: SecurityFailure,
+): Extract<SecuritySnapshot, { kind: "signed_out" }>["reason"] | null => {
+  if (failure === "restricted") return "account_restricted";
+  if (failure === "unauthorized") return "authority_lost";
+  return null;
+};
 
 const failureFrom = (error: unknown): SecurityFailure => {
   if (error instanceof ApiRequestError) {
@@ -100,8 +109,9 @@ export class MobileSecurityController {
 
       this.activeRequest = null;
       const failure = failureFrom(error);
-      if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out", reason: "authority_lost" });
+      const exitReason = exitReasonFromFailure(failure);
+      if (exitReason) {
+        this.publish({ kind: "signed_out", reason: exitReason });
         return;
       }
 
@@ -143,8 +153,9 @@ export class MobileSecurityController {
 
       this.activeRequest = null;
       const failure = failureFrom(error);
-      if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out", reason: "authority_lost" });
+      const exitReason = exitReasonFromFailure(failure);
+      if (exitReason) {
+        this.publish({ kind: "signed_out", reason: exitReason });
         return;
       }
 
@@ -183,8 +194,9 @@ export class MobileSecurityController {
 
       this.activeRequest = null;
       const failure = failureFrom(error);
-      if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out", reason: "authority_lost" });
+      const exitReason = exitReasonFromFailure(failure);
+      if (exitReason) {
+        this.publish({ kind: "signed_out", reason: exitReason });
         return;
       }
 
@@ -223,8 +235,9 @@ export class MobileSecurityController {
 
       this.activeRequest = null;
       const failure = failureFrom(error);
-      if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out", reason: "authority_lost" });
+      const exitReason = exitReasonFromFailure(failure);
+      if (exitReason) {
+        this.publish({ kind: "signed_out", reason: exitReason });
         return;
       }
 
@@ -275,8 +288,9 @@ export class MobileSecurityController {
 
       this.activeRequest = null;
       const failure = failureFrom(error);
-      if (failure === "unauthorized" || failure === "restricted") {
-        this.publish({ kind: "signed_out", reason: "authority_lost" });
+      const exitReason = exitReasonFromFailure(failure);
+      if (exitReason) {
+        this.publish({ kind: "signed_out", reason: exitReason });
         return;
       }
 
