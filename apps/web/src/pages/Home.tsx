@@ -7,6 +7,7 @@ import {
   isPilotApiError,
   pilotApi,
 } from "../features/pilot/services/pilotService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Pilot.scss";
 
 function FeedPreview({
@@ -83,33 +84,76 @@ function Landing() {
 }
 
 const Home = () => {
-  const { status } = useAuth();
-  const [snapshot, setSnapshot] = useState<PilotHomeResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { status, user, session } = useAuth();
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`pilot-home:${authScopeKey}`);
+
+  const [snapshotState, setSnapshotState] = useState<{
+    scopeKey: string;
+    snapshot: PilotHomeResponse;
+  } | null>(null);
+  const snapshot =
+    snapshotState?.scopeKey === authScopeKey ? snapshotState.snapshot : null;
+
+  const [viewState, setViewState] = useState<{
+    scopeKey: string;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentViewState =
+    viewState?.scopeKey === authScopeKey ? viewState : null;
+  const loading = currentViewState?.loading ?? status === "authenticated";
+  const error = currentViewState?.error ?? null;
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    if (status !== "authenticated") return;
+
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setViewState({
+      scopeKey: authScopeKey,
+      loading: true,
+      error: null,
+    });
 
     try {
-      setSnapshot(await pilotApi.home());
+      const result = await pilotApi.home(ticket.signal);
+      if (!isLoadCurrent(ticket)) return;
+      setSnapshotState({
+        scopeKey: authScopeKey,
+        snapshot: result,
+      });
     } catch (nextError) {
-      setError(
-        isPilotApiError(nextError)
+      if (!isLoadCurrent(ticket)) return;
+      setViewState({
+        scopeKey: authScopeKey,
+        loading: false,
+        error: isPilotApiError(nextError)
           ? nextError.message
           : "No pudimos preparar tu inicio.",
-      );
+      });
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setViewState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, loading: false }
+            : current,
+        );
+      }
     }
-  }, []);
+  }, [authScopeKey, beginLoad, finishLoad, isLoadCurrent, status]);
 
   useEffect(() => {
     if (status === "authenticated") {
       void load();
-    } else {
-      setSnapshot(null);
     }
   }, [load, status]);
 

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "../contexts/useAuth";
 import type {
   PilotMetricsResponse,
   PilotModerationAction,
@@ -8,6 +9,7 @@ import {
   isPilotApiError,
   pilotApi,
 } from "../features/pilot/services/pilotService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Pilot.scss";
 
 function percentage(value: number): string {
@@ -22,39 +24,107 @@ function returningRate(activeUsers: number, returningUsers: number): string {
 }
 
 const AdminPilot = () => {
-  const [metrics, setMetrics] = useState<PilotMetricsResponse | null>(null);
-  const [queue, setQueue] = useState<PilotModerationItem[]>([]);
+  const { status, user, session } = useAuth();
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
   const [days, setDays] = useState(14);
+  const loadScopeKey = [authScopeKey, String(days)].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`pilot-admin-load:${loadScopeKey}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`pilot-admin-action:${authScopeKey}`);
+
+  const [snapshotState, setSnapshotState] = useState<{
+    scopeKey: string;
+    metrics: PilotMetricsResponse;
+    queue: PilotModerationItem[];
+  } | null>(null);
+  const snapshot =
+    snapshotState?.scopeKey === loadScopeKey ? snapshotState : null;
+  const metrics = snapshot?.metrics ?? null;
+  const queue = snapshot?.queue ?? [];
+
   const [reason, setReason] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<string | null>(null);
-  const [forbidden, setForbidden] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [viewState, setViewState] = useState<{
+    scopeKey: string;
+    forbidden: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentViewState =
+    viewState?.scopeKey === loadScopeKey ? viewState : null;
+  const forbidden = currentViewState?.forbidden ?? false;
+
+  const [actionState, setActionState] = useState<{
+    scopeKey: string;
+    busy: string | null;
+    error: string | null;
+  } | null>(null);
+  const currentActionState =
+    actionState?.scopeKey === authScopeKey ? actionState : null;
+  const busy = currentActionState?.busy ?? null;
+  const error = currentActionState?.error ?? currentViewState?.error ?? null;
 
   const load = useCallback(async () => {
-    setError(null);
-    setForbidden(false);
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setViewState({
+      scopeKey: loadScopeKey,
+      forbidden: false,
+      error: null,
+    });
 
     try {
       const [metricsResult, queueResult] = await Promise.all([
-        pilotApi.metrics(days),
-        pilotApi.moderation("pending", 50),
+        pilotApi.metrics(days, ticket.signal),
+        pilotApi.moderation("pending", 50, ticket.signal),
       ]);
-      setMetrics(metricsResult);
-      setQueue(queueResult.items);
+      if (!isLoadCurrent(ticket)) return;
+      setSnapshotState({
+        scopeKey: loadScopeKey,
+        metrics: metricsResult,
+        queue: queueResult.items,
+      });
     } catch (nextError) {
+      if (!isLoadCurrent(ticket)) return;
       if (isPilotApiError(nextError) && nextError.status === 403) {
-        setForbidden(true);
-        setMetrics(null);
-        setQueue([]);
+        setSnapshotState((current) =>
+          current?.scopeKey === loadScopeKey ? null : current,
+        );
+        setViewState({
+          scopeKey: loadScopeKey,
+          forbidden: true,
+          error: null,
+        });
         return;
       }
-      setError(
-        isPilotApiError(nextError)
+
+      setViewState({
+        scopeKey: loadScopeKey,
+        forbidden: false,
+        error: isPilotApiError(nextError)
           ? nextError.message
           : "No pudimos cargar la operación del piloto.",
-      );
+      });
+    } finally {
+      finishLoad(ticket);
     }
-  }, [days]);
+  }, [beginLoad, days, finishLoad, isLoadCurrent, loadScopeKey]);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  useEffect(() => {
+    setReason({});
+    setActionState(null);
+  }, [authScopeKey]);
 
   useEffect(() => {
     void load();
@@ -66,25 +136,50 @@ const AdminPilot = () => {
   ) => {
     const reviewReason = reason[item.reportId]?.trim() ?? "";
     if (reviewReason.length < 3) {
-      setError("Ingresá un motivo de revisión de al menos 3 caracteres.");
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: null,
+        error: "Ingresá un motivo de revisión de al menos 3 caracteres.",
+      });
       return;
     }
 
-    setBusy(item.reportId);
-    setError(null);
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setActionState({
+      scopeKey: authScopeKey,
+      busy: item.reportId,
+      error: null,
+    });
 
     try {
-      await pilotApi.review(item.kind, item.reportId, action, reviewReason);
+      await pilotApi.review(
+        item.kind,
+        item.reportId,
+        action,
+        reviewReason,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
       setReason((current) => ({ ...current, [item.reportId]: "" }));
-      await load();
+      await loadRef.current();
     } catch (nextError) {
-      setError(
-        isPilotApiError(nextError)
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: item.reportId,
+        error: isPilotApiError(nextError)
           ? nextError.message
           : "No pudimos resolver el reporte.",
-      );
+      });
     } finally {
-      setBusy(null);
+      if (finishAction(ticket)) {
+        setActionState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, busy: null }
+            : current,
+        );
+      }
     }
   };
 
