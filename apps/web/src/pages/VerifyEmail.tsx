@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  readAuthActionToken,
+  scrubAuthActionTokenFromHistory,
+} from "../features/auth/actionTokenLocation";
 import { authErrorMessage, isAuthCode } from "../features/auth/authMessages";
 import { authApi } from "../features/auth/services/authService";
 
 type VerifyState = "verifying" | "success" | "unavailable" | "error";
 
 const VerifyEmail = () => {
-  const [token] = useState(
-    () => new URLSearchParams(window.location.search).get("token") ?? "",
-  );
+  const [token] = useState(() => readAuthActionToken(window.location));
   const [state, setState] = useState<VerifyState>("verifying");
   const [message, setMessage] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {
-    window.history.replaceState(null, "", window.location.pathname);
+    scrubAuthActionTokenFromHistory();
 
     if (startedRef.current) {
       return;

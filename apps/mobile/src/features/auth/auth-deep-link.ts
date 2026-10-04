@@ -20,6 +20,7 @@ const parseActionRoute = (
   } catch {
     return null;
   }
+
   if (url.protocol !== "losapuntes:") return null;
 
   const route = [url.hostname, url.pathname]
@@ -31,7 +32,7 @@ const parseActionRoute = (
   return null;
 };
 
-export const captureEmailVerificationLink = (
+export const captureAuthActionLink = (
   raw: string,
   vault: AuthActionTokenVault,
 ): string | null => {
@@ -43,14 +44,15 @@ export const captureEmailVerificationLink = (
     return "/sign-in?notice=invalid-action-link";
   }
 
-  if (route.kind === "password_recovery") {
-    return "/sign-in?notice=recovery-unavailable";
-  }
-
   const handle = vault.capture(route.kind, token);
   if (!handle) return "/sign-in?notice=invalid-action-link";
-  return `/verify-email?handle=${encodeURIComponent(handle)}`;
+
+  return route.kind === "email_verification"
+    ? `/verify-email?handle=${encodeURIComponent(handle)}`
+    : `/reset-password?handle=${encodeURIComponent(handle)}`;
 };
+
+export const captureEmailVerificationLink = captureAuthActionLink;
 
 export const parseAuthActionLink = (
   raw: string,
@@ -59,7 +61,6 @@ export const parseAuthActionLink = (
   if (!route) return null;
 
   const token = route.url.searchParams.get("token");
-
   if (!token || !ACTION_TOKEN_PATTERN.test(token)) return null;
 
   return { kind: route.kind, token };
