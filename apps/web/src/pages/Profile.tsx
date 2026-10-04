@@ -365,7 +365,7 @@ const Profile = () => {
 
     try {
       const page = await profileApi.activities(
-        target.activitiesNextCursor,
+        target.activitiesNextCursor ?? undefined,
         target.activitiesLimit,
         ticket.signal,
       );
