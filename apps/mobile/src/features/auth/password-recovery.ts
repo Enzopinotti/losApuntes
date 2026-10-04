@@ -22,6 +22,13 @@ export type PasswordRecoveryRetryableFailure = Exclude<
   "invalid_link"
 >;
 
+type PasswordRecoveryRequestResult =
+  | "accepted"
+  | "offline"
+  | "timeout"
+  | "server_unavailable"
+  | "rejected";
+
 export type PasswordRecoverySnapshot =
   | { kind: "idle" }
   | { kind: "checking" }
@@ -66,11 +73,12 @@ export const requestPasswordRecovery = async (
   api: PasswordRecoveryApi,
   email: string,
   signal?: AbortSignal,
-): Promise<
-  "accepted" | "offline" | "timeout" | "server_unavailable" | "rejected"
-> => {
+): Promise<PasswordRecoveryRequestResult> => {
   try {
-    await api.requestPasswordRecovery({ email: normalizeEmail(email) }, signal);
+    await api.requestPasswordRecovery(
+      { email: normalizeEmail(email) },
+      signal,
+    );
     return "accepted";
   } catch (error) {
     const failure = failureFrom(error);

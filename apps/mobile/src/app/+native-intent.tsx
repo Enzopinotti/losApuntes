@@ -3,9 +3,7 @@ import { mobileAuthActionTokenVault } from "@/features/auth/action-token-runtime
 
 export function redirectSystemPath({ path }: { path: string }): string {
   try {
-    return (
-      captureAuthActionLink(path, mobileAuthActionTokenVault) ?? path
-    );
+    return captureAuthActionLink(path, mobileAuthActionTokenVault) ?? path;
   } catch {
     return "/sign-in?notice=invalid-action-link";
   }

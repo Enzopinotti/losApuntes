@@ -50,6 +50,7 @@ export interface MobileSecurityApi {
 }
 
 type Listener = (snapshot: SecuritySnapshot) => void;
+type ReadySecuritySnapshot = Extract<SecuritySnapshot, { kind: "ready" }>;
 
 const exitReasonFromFailure = (
   failure: SecurityFailure,
@@ -64,7 +65,10 @@ const failureFrom = (error: unknown): SecurityFailure => {
     if (error.code === "INVALID_CURRENT_PASSWORD") {
       return "invalid_current_password";
     }
-    if (error.code === "PASSWORD_CHANGE_CONFLICT" || error.kind === "conflict") {
+    if (
+      error.code === "PASSWORD_CHANGE_CONFLICT" ||
+      error.kind === "conflict"
+    ) {
       return "conflict";
     }
     if (error.code === "ACCOUNT_RESTRICTED") return "restricted";
@@ -318,7 +322,7 @@ export class MobileSecurityController {
     return generation === this.generation;
   }
 
-  private readySnapshot(): Extract<SecuritySnapshot, { kind: "ready" }> | null {
+  private readySnapshot(): ReadySecuritySnapshot | null {
     return this.snapshot.kind === "ready" ? this.snapshot : null;
   }
 

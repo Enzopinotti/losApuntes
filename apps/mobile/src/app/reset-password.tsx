@@ -162,9 +162,13 @@ export default function ResetPasswordRoute() {
                 style={[styles.primary, pending && styles.disabled]}
               >
                 {snapshot.kind === "submitting" ? (
-                  <ActivityIndicator accessibilityLabel="Guardando contraseña" />
+                  <ActivityIndicator
+                    accessibilityLabel="Guardando contraseña"
+                  />
                 ) : (
-                  <Text style={styles.primaryText}>Cambiar contraseña</Text>
+                  <Text style={styles.primaryText}>
+                    Cambiar contraseña
+                  </Text>
                 )}
               </Pressable>
             </>
@@ -178,7 +182,9 @@ export default function ResetPasswordRoute() {
               </Text>
               <Link href="/sign-in" asChild>
                 <Pressable accessibilityRole="link" style={styles.primary}>
-                  <Text style={styles.primaryText}>Iniciar sesión de nuevo</Text>
+                  <Text style={styles.primaryText}>
+                    Iniciar sesión de nuevo
+                  </Text>
                 </Pressable>
               </Link>
             </>
@@ -201,7 +207,10 @@ export default function ResetPasswordRoute() {
               ) : null}
 
               <Link href="/forgot-password" asChild>
-                <Pressable accessibilityRole="link" style={styles.secondary}>
+                <Pressable
+                  accessibilityRole="link"
+                  style={styles.secondary}
+                >
                   <Text>Pedir otro enlace</Text>
                 </Pressable>
               </Link>
@@ -257,5 +266,9 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.55 },
   primaryText: { color: "#ffffff", fontWeight: "700", fontSize: 16 },
-  secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
+  secondary: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
