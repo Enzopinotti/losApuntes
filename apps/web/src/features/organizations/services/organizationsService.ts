@@ -118,13 +118,17 @@ export function isOrganizationsApiError(
 }
 
 export const organizationsApi = {
-  search: (input: { q?: string; type?: OrganizationType; cursor?: string }) => {
+  search: (
+    input: { q?: string; type?: OrganizationType; cursor?: string },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({ limit: "25" });
     if (input.q) query.set("q", input.q);
     if (input.type) query.set("type", input.type);
     if (input.cursor) query.set("cursor", input.cursor);
     return request<{ items: OrganizationCard[]; nextCursor: string | null }>(
       `/organizations?${query.toString()}`,
+      { signal },
     );
   },
 
@@ -142,6 +146,7 @@ export const organizationsApi = {
 
   searchInstitutions: async (
     q: string,
+    signal?: AbortSignal,
   ): Promise<AcademicInstitutionOption[]> => {
     const query = new URLSearchParams({
       kind: "institution",
@@ -150,20 +155,24 @@ export const organizationsApi = {
     });
     const result = await request<{
       items: Array<{ id: string; name: string }>;
-    }>(`/academic/catalog/search?${query.toString()}`);
+    }>(`/academic/catalog/search?${query.toString()}`, { signal });
     return result.items.map(({ id, name }) => ({ id, name }));
   },
 
-  create: (input: {
-    name: string;
-    type: OrganizationType;
-    institutionId: string;
-    about?: string;
-    websiteUrl?: string;
-  }) =>
+  create: (
+    input: {
+      name: string;
+      type: OrganizationType;
+      institutionId: string;
+      about?: string;
+      websiteUrl?: string;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<{ organization: OrganizationDetail }>("/organizations", {
       method: "POST",
       body: json(input),
+      signal,
     }),
 
   update: (
