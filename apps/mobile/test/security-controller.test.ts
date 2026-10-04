@@ -66,9 +66,7 @@ const makeApi = (overrides: Partial<MobileSecurityApi> = {}) => {
   return { api, calls };
 };
 
-test(
-  "loads only privacy-bounded session inventory contract state",
-  async () => {
+test("loads only privacy-bounded session inventory contract state", async () => {
     const { api } = makeApi({
       listSessions: async () =>
         inventory(
@@ -97,11 +95,8 @@ test(
         { id: "web-other", clientType: "web", current: false },
       ],
     );
-  },
-);
-test(
-  "revoking another session reloads inventory without signing out",
-  async () => {
+});
+test("revoking another session reloads inventory without signing out", async () => {
     let listCalls = 0;
     const { api, calls } = makeApi({
       listSessions: async () => {
@@ -126,10 +121,12 @@ test(
     const after = controller.getSnapshot();
     assert.equal(after.kind, "ready");
     if (after.kind !== "ready") throw new Error("missing refreshed state");
-    assert.deepEqual(after.sessions.map((item) => item.id), ["current"]);
+    assert.deepEqual(
+      after.sessions.map((item) => item.id),
+      ["current"],
+    );
     assert.equal(after.feedback, "Sesión cerrada.");
-  },
-);
+});
 test("revoking the current session ends the security surface", async () => {
   const { api } = makeApi();
   const controller = new MobileSecurityController(api);
@@ -147,9 +144,7 @@ test("revoking the current session ends the security surface", async () => {
   });
 });
 
-test(
-  "revoke-all fences a late revoke completion from restoring stale state",
-  async () => {
+test("revoke-all fences a late revoke completion from restoring stale state", async () => {
     const lateRevoke = deferred<void>();
     const { api } = makeApi({
       listSessions: async () =>
@@ -182,12 +177,9 @@ test(
       kind: "signed_out",
       reason: "all_sessions_revoked",
     });
-  },
-);
+});
 
-test(
-  "password success signs out while invalid current password stays retryable",
-  async () => {
+test("password success signs out while invalid current password stays retryable", async () => {
     let attempts = 0;
     const { api } = makeApi({
       changePassword: async () => {
@@ -224,12 +216,9 @@ test(
       kind: "signed_out",
       reason: "password_changed",
     });
-  },
-);
+});
 
-test(
-  "dispose aborts pending inventory and fences late completion",
-  async () => {
+test("dispose aborts pending inventory and fences late completion", async () => {
     const pending = deferred<AuthSessionListResponse>();
     let signal: AbortSignal | undefined;
     const { api } = makeApi({
@@ -250,8 +239,7 @@ test(
 
     assert.equal(signal.aborted, true);
     assert.deepEqual(controller.getSnapshot(), { kind: "loading" });
-  },
-);
+});
 test("account restriction stays distinct from ordinary sign-out", async () => {
   const { api } = makeApi({
     listSessions: async () => {
