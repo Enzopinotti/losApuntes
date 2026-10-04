@@ -19,6 +19,7 @@ export type ResourceSavedPage = {
 };
 
 export interface ResourceConsumptionApi {
+  resource(resourceId: string, signal?: AbortSignal): Promise<{ resource: ResourceView }>;
   access(
     resourceId: string,
     disposition: "inline" | "attachment",
@@ -30,6 +31,11 @@ export interface ResourceConsumptionApi {
 }
 
 export interface MobileResourceConsumptionTransport {
+  resource(
+    credential: string,
+    resourceId: string,
+    signal?: AbortSignal,
+  ): Promise<{ resource: ResourceView }>;
   access(
     credential: string,
     resourceId: string,
@@ -57,6 +63,16 @@ export class MobileResourceConsumptionHttpTransport
   implements MobileResourceConsumptionTransport
 {
   constructor(private readonly client: MobileApiClient) {}
+
+  resource(credential: string, resourceId: string, signal?: AbortSignal) {
+    return this.client.request<{ resource: ResourceView }>(
+      `/resources/${encodeURIComponent(resourceId)}`,
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 
   access(
     credential: string,
@@ -120,6 +136,12 @@ export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
     private readonly session: SessionController,
     private readonly transport: MobileResourceConsumptionTransport,
   ) {}
+
+  resource(resourceId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.resource(credential, resourceId, signal),
+    );
+  }
 
   access(
     resourceId: string,
