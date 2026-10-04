@@ -83,13 +83,13 @@ const Organizations = () => {
     scopeKey: string;
     value: boolean;
   } | null>(null);
-  const busy =
-    busyState?.scopeKey === authScopeKey ? busyState.value : false;
+  const busy = busyState?.scopeKey === authScopeKey ? busyState.value : false;
   const [errorState, setErrorState] = useState<{
     scopeKey: string;
     message: string;
   } | null>(null);
-  const error = errorState?.scopeKey === authScopeKey ? errorState.message : null;
+  const error =
+    errorState?.scopeKey === authScopeKey ? errorState.message : null;
   const [feedbackState, setFeedbackState] = useState<{
     scopeKey: string;
     message: string;
@@ -135,8 +135,7 @@ const Organizations = () => {
     if (!isDirectoryLoadCurrent(ticket)) return;
     setListState((current) => ({
       scopeKey: directoryScopeKey,
-      items:
-        current?.scopeKey === directoryScopeKey ? current.items : [],
+      items: current?.scopeKey === directoryScopeKey ? current.items : [],
       loading: true,
     }));
     setErrorState(null);
