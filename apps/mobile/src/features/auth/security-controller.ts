@@ -99,7 +99,13 @@ export class MobileSecurityController {
       if (!this.isCurrent(operation.generation)) return;
 
       this.activeRequest = null;
-      this.publish({ kind: "failed", failure: failureFrom(error) });
+      const failure = failureFrom(error);
+      if (failure === "unauthorized" || failure === "restricted") {
+        this.publish({ kind: "signed_out", reason: "authority_lost" });
+        return;
+      }
+
+      this.publish({ kind: "failed", failure });
     }
   }
 
