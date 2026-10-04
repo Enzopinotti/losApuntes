@@ -240,6 +240,27 @@ test("dispose aborts pending inventory and fences late completion", async () => 
   assert.deepEqual(controller.getSnapshot(), { kind: "loading" });
 });
 
+test("account restriction stays distinct from ordinary sign-out", async () => {
+  const { api } = makeApi({
+    listSessions: async () => {
+      throw new ApiRequestError(
+        "forbidden",
+        403,
+        "ACCOUNT_RESTRICTED",
+        "private restriction detail",
+      );
+    },
+  });
+  const controller = new MobileSecurityController(api);
+
+  await controller.load();
+
+  assert.deepEqual(controller.getSnapshot(), {
+    kind: "signed_out",
+    reason: "account_restricted",
+  });
+});
+
 test("lost authentication authority becomes a signed-out state", async () => {
   const { api } = makeApi({
     listSessions: async () => {
