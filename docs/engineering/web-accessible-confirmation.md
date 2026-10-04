@@ -15,6 +15,8 @@ The component must:
 - give initial focus to the non-destructive Cancel action;
 - treat Escape as Cancel;
 - restore focus to the control that opened the dialog;
+- allow pointer/touch backdrop cancellation only when the same pointer starts and ends on the backdrop;
+- never treat a pointer that starts or ends on dialog content as outside dismissal;
 - preserve visible keyboard focus;
 - respect reduced-motion and forced-colors preferences;
 - never make the destructive action the default focused control.
@@ -33,7 +35,7 @@ The modal does not introduce a second auth or permission rule.
 
 This carrier does not claim that every Web overlay has been migrated to the same primitive. Issue #85 remains open for the wider focus/overlay/virtual-keyboard/accessibility audit.
 
-Backdrop-click dismissal is intentionally not required for this destructive confirmation. Cancel and Escape are explicit and predictable, avoiding accidental destructive-flow state changes from ambiguous pointer events.
+Backdrop dismissal is supported, but it is deliberately pointer-safe: the same pointer must begin and end on the backdrop. A press that starts inside the dialog, releases inside the dialog, changes pointer identity, or is cancelled cannot dismiss it. The backdrop path maps only to Cancel; it never confirms the destructive action.
 
 ## Verification
 
