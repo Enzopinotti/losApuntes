@@ -166,7 +166,9 @@ export default function ResetPasswordRoute() {
                     accessibilityLabel="Guardando contraseña"
                   />
                 ) : (
-                  <Text style={styles.primaryText}>Cambiar contraseña</Text>
+                  <Text style={styles.primaryText}>
+                    Cambiar contraseña
+                  </Text>
                 )}
               </Pressable>
             </>
@@ -205,7 +207,10 @@ export default function ResetPasswordRoute() {
               ) : null}
 
               <Link href="/forgot-password" asChild>
-                <Pressable accessibilityRole="link" style={styles.secondary}>
+                <Pressable
+                  accessibilityRole="link"
+                  style={styles.secondary}
+                >
                   <Text>Pedir otro enlace</Text>
                 </Pressable>
               </Link>
@@ -261,5 +266,9 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.55 },
   primaryText: { color: "#ffffff", fontWeight: "700", fontSize: 16 },
-  secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
+  secondary: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
