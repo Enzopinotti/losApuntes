@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type {
   OwnerProfileResponse,
   ProfileActivity,
@@ -11,6 +18,7 @@ import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Profile.scss";
 
 type ReadyProfile = Extract<
@@ -71,8 +79,33 @@ function messageFor(error: unknown): string {
 }
 
 const Profile = () => {
-  const [snapshot, setSnapshot] = useState<ReadyProfile | null>(null);
-  const [onboarding, setOnboarding] = useState(false);
+  const { status, user, session } = useAuth();
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`profile-owner-load:${authScopeKey}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`profile-owner-action:${authScopeKey}`);
+
+  const [snapshotState, setSnapshotState] = useState<{
+    scopeKey: string;
+    snapshot: ReadyProfile | null;
+    onboarding: boolean;
+  } | null>(null);
+  const currentSnapshotState =
+    snapshotState?.scopeKey === authScopeKey ? snapshotState : null;
+  const snapshot = currentSnapshotState?.snapshot ?? null;
+  const onboarding = currentSnapshotState?.onboarding ?? false;
+
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [languages, setLanguages] = useState("");
@@ -102,14 +135,63 @@ const Profile = () => {
   const [activityDescription, setActivityDescription] = useState("");
   const [activityStartedOn, setActivityStartedOn] = useState("");
   const [activityEndedOn, setActivityEndedOn] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const hydrate = useCallback((next: ReadyProfile) => {
-    setSnapshot(next);
-    setOnboarding(false);
+  const [loadState, setLoadState] = useState<{
+    scopeKey: string;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentLoadState =
+    loadState?.scopeKey === authScopeKey ? loadState : null;
+  const loading = currentLoadState?.loading ?? true;
+
+  const [actionState, setActionState] = useState<{
+    scopeKey: string;
+    busy: boolean;
+    error: string | null;
+    feedback: string | null;
+  } | null>(null);
+  const currentActionState =
+    actionState?.scopeKey === authScopeKey ? actionState : null;
+  const busy = currentActionState?.busy ?? false;
+  const feedback = currentActionState?.feedback ?? null;
+  const error = currentActionState?.error ?? currentLoadState?.error ?? null;
+
+  const resetDrafts = useCallback(() => {
+    setDisplayName("");
+    setBio("");
+    setLanguages("");
+    setSkills("");
+    setInterests("");
+    setHelpTopics("");
+    setLearningTopics("");
+    setHeadline("");
+    setCareerDiscovery(false);
+    setVisibility({
+      about: "public",
+      academic: "private",
+      learning: "private",
+      activities: "private",
+      skills: "private",
+      professional: "private",
+      contributions: "private",
+    });
+    setRecommendAcademic(true);
+    setRecommendLearning(true);
+    setRecommendSkills(true);
+    setActivityType("project");
+    setActivityTitle("");
+    setActivityDescription("");
+    setActivityStartedOn("");
+    setActivityEndedOn("");
+  }, []);
+
+  const hydrate = useCallback((next: ReadyProfile, scopeKey: string) => {
+    setSnapshotState({
+      scopeKey,
+      snapshot: next,
+      onboarding: false,
+    });
     setDisplayName(next.profile.displayName);
     setBio(next.profile.bio ?? "");
     setLanguages(next.profile.languages.join(", "));
@@ -126,132 +208,235 @@ const Profile = () => {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setLoadState({ scopeKey: authScopeKey, loading: true, error: null });
 
     try {
-      const result = await profileApi.me();
+      const result = await profileApi.me(ticket.signal);
+      if (!isLoadCurrent(ticket)) return;
       if (result.onboardingRequired) {
-        setSnapshot(null);
-        setOnboarding(true);
+        setSnapshotState({
+          scopeKey: authScopeKey,
+          snapshot: null,
+          onboarding: true,
+        });
       } else {
-        hydrate(result);
+        hydrate(result, authScopeKey);
       }
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isLoadCurrent(ticket)) return;
+      setLoadState({
+        scopeKey: authScopeKey,
+        loading: false,
+        error: messageFor(nextError),
+      });
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setLoadState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, loading: false }
+            : current,
+        );
+      }
     }
-  }, [hydrate]);
+  }, [authScopeKey, beginLoad, finishLoad, hydrate, isLoadCurrent]);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  useEffect(() => {
+    resetDrafts();
+    setActionState(null);
+  }, [authScopeKey, resetDrafts]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const beginBusyAction = () => {
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return null;
+    setActionState({
+      scopeKey: authScopeKey,
+      busy: true,
+      error: null,
+      feedback: null,
+    });
+    return ticket;
+  };
+
+  const finishBusyAction = (ticket: ReturnType<typeof beginAction>) => {
+    if (finishAction(ticket)) {
+      setActionState((current) =>
+        current?.scopeKey === authScopeKey
+          ? { ...current, busy: false }
+          : current,
+      );
+    }
+  };
+
   const createProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
+    const ticket = beginBusyAction();
+    if (!ticket) return;
 
     try {
-      await profileApi.create(displayName);
-      await load();
-      setFeedback("Tu perfil ya está listo. Podés completarlo de a poco.");
+      await profileApi.create(displayName, ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      await loadRef.current();
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: null,
+        feedback: "Tu perfil ya está listo. Podés completarlo de a poco.",
+      });
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(false);
+      finishBusyAction(ticket);
     }
   };
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!snapshot) return;
-
-    setBusy(true);
-    setError(null);
-    setFeedback(null);
+    const target = snapshot;
+    const ticket = beginBusyAction();
+    if (!ticket) return;
 
     try {
-      await profileApi.update({
-        expectedRevision: snapshot.profile.revision,
-        displayName,
-        bio: bio.trim() || null,
-        languages: toList(languages),
-        skills: toList(skills),
-        interests: toList(interests),
-        helpTopics: toList(helpTopics),
-        learningTopics: toList(learningTopics),
-        professional: {
-          headline: headline.trim() || null,
-          careerDiscoveryOptIn: careerDiscovery,
+      await profileApi.update(
+        {
+          expectedRevision: target.profile.revision,
+          displayName,
+          bio: bio.trim() || null,
+          languages: toList(languages),
+          skills: toList(skills),
+          interests: toList(interests),
+          helpTopics: toList(helpTopics),
+          learningTopics: toList(learningTopics),
+          professional: {
+            headline: headline.trim() || null,
+            careerDiscoveryOptIn: careerDiscovery,
+          },
+          visibility,
+          recommendationSignals: {
+            academicContext: recommendAcademic,
+            learning: recommendLearning,
+            skillsInterests: recommendSkills,
+          },
         },
-        visibility,
-        recommendationSignals: {
-          academicContext: recommendAcademic,
-          learning: recommendLearning,
-          skillsInterests: recommendSkills,
-        },
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      await loadRef.current();
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: null,
+        feedback: "Perfil actualizado.",
       });
-      await load();
-      setFeedback("Perfil actualizado.");
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(false);
+      finishBusyAction(ticket);
     }
   };
 
   const loadMoreActivities = async () => {
     if (!snapshot?.activitiesNextCursor) return;
-
-    setBusy(true);
-    setError(null);
+    const target = snapshot;
+    const ticket = beginBusyAction();
+    if (!ticket) return;
 
     try {
       const page = await profileApi.activities(
-        snapshot.activitiesNextCursor,
-        snapshot.activitiesLimit,
+        target.activitiesNextCursor ?? undefined,
+        target.activitiesLimit,
+        ticket.signal,
       );
-      setSnapshot((current) =>
-        current
+      if (!isActionCurrent(ticket)) return;
+      setSnapshotState((current) =>
+        current?.scopeKey === authScopeKey && current.snapshot
           ? {
               ...current,
-              activities: appendActivities(current.activities, page.items),
-              activitiesNextCursor: page.nextCursor,
+              snapshot: {
+                ...current.snapshot,
+                activities: appendActivities(
+                  current.snapshot.activities,
+                  page.items,
+                ),
+                activitiesNextCursor: page.nextCursor,
+              },
             }
           : current,
       );
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(false);
+      finishBusyAction(ticket);
     }
   };
 
   const addActivity = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
+    const ticket = beginBusyAction();
+    if (!ticket) return;
 
     try {
-      await profileApi.createActivity({
-        type: activityType,
-        title: activityTitle,
-        description: activityDescription.trim() || null,
-        startedOn: activityStartedOn || null,
-        endedOn: activityEndedOn || null,
-      });
+      await profileApi.createActivity(
+        {
+          type: activityType,
+          title: activityTitle,
+          description: activityDescription.trim() || null,
+          startedOn: activityStartedOn || null,
+          endedOn: activityEndedOn || null,
+        },
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
       setActivityTitle("");
       setActivityDescription("");
       setActivityStartedOn("");
       setActivityEndedOn("");
-      await load();
-      setFeedback("Actividad agregada.");
+      await loadRef.current();
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: null,
+        feedback: "Actividad agregada.",
+      });
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(false);
+      finishBusyAction(ticket);
     }
   };
 
@@ -259,18 +444,30 @@ const Profile = () => {
     if (!snapshot) return;
     const target = snapshot.activities.find((item) => item.id === id);
     if (!target) return;
-
-    setBusy(true);
-    setError(null);
+    const ticket = beginBusyAction();
+    if (!ticket) return;
 
     try {
-      await profileApi.deleteActivity(target);
-      await load();
-      setFeedback("Actividad eliminada.");
+      await profileApi.deleteActivity(target, ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      await loadRef.current();
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: null,
+        feedback: "Actividad eliminada.",
+      });
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: messageFor(nextError),
+        feedback: null,
+      });
     } finally {
-      setBusy(false);
+      finishBusyAction(ticket);
     }
   };
 

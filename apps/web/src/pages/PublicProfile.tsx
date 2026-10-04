@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useAuth } from "../contexts/useAuth";
 import type {
   ProfileActivity,
   PublicProfileResponse,
@@ -8,6 +9,7 @@ import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Profile.scss";
 
 function appendActivities(
@@ -21,68 +23,155 @@ function appendActivities(
 
 const PublicProfile = () => {
   const { profileId } = useParams();
-  const [snapshot, setSnapshot] = useState<PublicProfileResponse | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { status, user, session } = useAuth();
+  const viewerScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const profileScopeKey = [profileId ?? "missing-profile", viewerScopeKey].join(
+    ":",
+  );
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`public-profile-load:${profileScopeKey}`);
+  const {
+    begin: beginPagination,
+    isCurrent: isPaginationCurrent,
+    finish: finishPagination,
+  } = useAsyncAuthorityFence(`public-profile-pagination:${profileScopeKey}`);
+
+  const [snapshotState, setSnapshotState] = useState<{
+    scopeKey: string;
+    profileId: string;
+    snapshot: PublicProfileResponse;
+  } | null>(null);
+  const currentSnapshotState =
+    snapshotState?.scopeKey === profileScopeKey ? snapshotState : null;
+  const snapshot = currentSnapshotState?.snapshot ?? null;
+
+  const [viewState, setViewState] = useState<{
+    scopeKey: string;
+    loadingMore: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentViewState =
+    viewState?.scopeKey === profileScopeKey ? viewState : null;
+  const loadingMore = currentViewState?.loadingMore ?? false;
+  const error = currentViewState?.error ?? null;
 
   useEffect(() => {
     if (!profileId) {
-      setError("Perfil inválido.");
+      setViewState({
+        scopeKey: profileScopeKey,
+        loadingMore: false,
+        error: "Perfil inválido.",
+      });
       return;
     }
 
-    let active = true;
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setViewState({
+      scopeKey: profileScopeKey,
+      loadingMore: false,
+      error: null,
+    });
 
     void profileApi
-      .publicProfile(profileId)
+      .publicProfile(profileId, ticket.signal)
       .then((result) => {
-        if (active) setSnapshot(result);
+        if (!isLoadCurrent(ticket)) return;
+        setSnapshotState({
+          scopeKey: profileScopeKey,
+          profileId,
+          snapshot: result,
+        });
       })
       .catch((nextError: unknown) => {
-        if (!active) return;
-        if (isProfileApiError(nextError) && nextError.status === 404) {
-          setError("Este perfil no existe o ya no está disponible.");
-          return;
-        }
-        setError("No pudimos cargar este perfil.");
+        if (!isLoadCurrent(ticket)) return;
+        setViewState({
+          scopeKey: profileScopeKey,
+          loadingMore: false,
+          error:
+            isProfileApiError(nextError) && nextError.status === 404
+              ? "Este perfil no existe o ya no está disponible."
+              : "No pudimos cargar este perfil.",
+        });
+      })
+      .finally(() => {
+        finishLoad(ticket);
       });
-
-    return () => {
-      active = false;
-    };
-  }, [profileId]);
+  }, [beginLoad, finishLoad, isLoadCurrent, profileId, profileScopeKey]);
 
   const loadMoreActivities = async () => {
-    if (!profileId || !snapshot?.profile.activitiesNextCursor) return;
+    if (
+      !profileId ||
+      !snapshot?.profile.activitiesNextCursor ||
+      currentSnapshotState?.profileId !== profileId
+    ) {
+      return;
+    }
 
-    setLoadingMore(true);
-    setError(null);
+    const target = snapshot;
+    const cursor = target.profile.activitiesNextCursor;
+    const ticket = beginPagination();
+    if (!isPaginationCurrent(ticket)) return;
+    setViewState({
+      scopeKey: profileScopeKey,
+      loadingMore: true,
+      error: null,
+    });
 
     try {
       const page = await profileApi.publicActivities(
         profileId,
-        snapshot.profile.activitiesNextCursor,
-        snapshot.profile.activitiesLimit ?? 20,
+        cursor ?? undefined,
+        target.profile.activitiesLimit ?? 20,
+        ticket.signal,
       );
-      setSnapshot((current) => {
-        if (!current?.profile.activities) return current;
+      if (!isPaginationCurrent(ticket)) return;
+      setSnapshotState((current) => {
+        if (
+          current?.scopeKey !== profileScopeKey ||
+          current.profileId !== profileId ||
+          !current.snapshot.profile.activities
+        ) {
+          return current;
+        }
 
         return {
           ...current,
-          profile: {
-            ...current.profile,
-            activities: appendActivities(
-              current.profile.activities,
-              page.items,
-            ),
-            activitiesNextCursor: page.nextCursor,
+          snapshot: {
+            ...current.snapshot,
+            profile: {
+              ...current.snapshot.profile,
+              activities: appendActivities(
+                current.snapshot.profile.activities,
+                page.items,
+              ),
+              activitiesNextCursor: page.nextCursor,
+            },
           },
         };
       });
     } catch {
-      setError("No pudimos cargar más actividades de este perfil.");
+      if (!isPaginationCurrent(ticket)) return;
+      setViewState({
+        scopeKey: profileScopeKey,
+        loadingMore: true,
+        error: "No pudimos cargar más actividades de este perfil.",
+      });
     } finally {
-      setLoadingMore(false);
+      if (finishPagination(ticket)) {
+        setViewState((current) =>
+          current?.scopeKey === profileScopeKey
+            ? { ...current, loadingMore: false }
+            : current,
+        );
+      }
     }
   };
 
