@@ -830,7 +830,7 @@ describe('MongoOrganizationStore commit authority', () => {
     expect(fixture.audits.create.mock.calls).toHaveLength(0);
   });
 
-  it('writes content and audit inside the same authorized transaction', async () => {
+  it('takes the Organization write fence before content and audit commit', async () => {
     const fixture = models({
       organization: {
         id: organizationId,
@@ -869,6 +869,18 @@ describe('MongoOrganizationStore commit authority', () => {
         body: 'Contenido',
       },
     });
+    expect(fixture.organizations.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        id: organizationId,
+        status: 'active',
+        managementRevision: 7,
+      },
+      { $inc: { capacityRevision: 1 } },
+      { new: true, session: fixture.activeSession },
+    );
+    expect(
+      fixture.organizations.findOneAndUpdate.mock.invocationCallOrder[0],
+    ).toBeLessThan(fixture.posts.create.mock.invocationCallOrder[0]);
     expect(fixture.posts.create).toHaveBeenCalledWith([input.mutation.record], {
       session: fixture.activeSession,
     });
