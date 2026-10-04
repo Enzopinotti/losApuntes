@@ -47,6 +47,11 @@ function message(envelope: ErrorEnvelope): string {
   return envelope.message || "No pudimos completar la operación.";
 }
 
+function requestSignal(signal?: AbortSignal | null): AbortSignal {
+  const timeout = AbortSignal.timeout(15_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
 
@@ -60,7 +65,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: init.signal ?? AbortSignal.timeout(15_000),
+      signal: requestSignal(init.signal),
     });
   } catch {
     throw new OrganizationsApiError(
@@ -113,28 +118,35 @@ export function isOrganizationsApiError(
 }
 
 export const organizationsApi = {
-  search: (input: { q?: string; type?: OrganizationType; cursor?: string }) => {
+  search: (
+    input: { q?: string; type?: OrganizationType; cursor?: string },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({ limit: "25" });
     if (input.q) query.set("q", input.q);
     if (input.type) query.set("type", input.type);
     if (input.cursor) query.set("cursor", input.cursor);
     return request<{ items: OrganizationCard[]; nextCursor: string | null }>(
       `/organizations?${query.toString()}`,
+      { signal },
     );
   },
 
-  get: (id: string) =>
+  get: (id: string, signal?: AbortSignal) =>
     request<{ organization: OrganizationDetail }>(
       `/organizations/${encodeURIComponent(id)}`,
+      { signal },
     ),
 
-  management: (id: string) =>
+  management: (id: string, signal?: AbortSignal) =>
     request<OrganizationManagement>(
       `/organizations/${encodeURIComponent(id)}/manage`,
+      { signal },
     ),
 
   searchInstitutions: async (
     q: string,
+    signal?: AbortSignal,
   ): Promise<AcademicInstitutionOption[]> => {
     const query = new URLSearchParams({
       kind: "institution",
@@ -143,20 +155,24 @@ export const organizationsApi = {
     });
     const result = await request<{
       items: Array<{ id: string; name: string }>;
-    }>(`/academic/catalog/search?${query.toString()}`);
+    }>(`/academic/catalog/search?${query.toString()}`, { signal });
     return result.items.map(({ id, name }) => ({ id, name }));
   },
 
-  create: (input: {
-    name: string;
-    type: OrganizationType;
-    institutionId: string;
-    about?: string;
-    websiteUrl?: string;
-  }) =>
+  create: (
+    input: {
+      name: string;
+      type: OrganizationType;
+      institutionId: string;
+      about?: string;
+      websiteUrl?: string;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<{ organization: OrganizationDetail }>("/organizations", {
       method: "POST",
       body: json(input),
+      signal,
     }),
 
   update: (
@@ -169,25 +185,27 @@ export const organizationsApi = {
       avatarUrl?: string | null;
       coverUrl?: string | null;
     },
+    signal?: AbortSignal,
   ) =>
     request<{ organization: OrganizationDetail }>(
       `/organizations/${encodeURIComponent(id)}`,
       {
         method: "PATCH",
         body: json({ expectedRevision, ...patch }),
+        signal,
       },
     ),
 
-  follow: (id: string) =>
+  follow: (id: string, signal?: AbortSignal) =>
     request<{ following: true; changed: boolean }>(
       `/organizations/${encodeURIComponent(id)}/follow`,
-      { method: "PUT" },
+      { method: "PUT", signal },
     ),
 
-  unfollow: (id: string) =>
+  unfollow: (id: string, signal?: AbortSignal) =>
     request<{ following: false; changed: boolean }>(
       `/organizations/${encodeURIComponent(id)}/follow`,
-      { method: "DELETE" },
+      { method: "DELETE", signal },
     ),
 
   changeManager: (
@@ -196,6 +214,7 @@ export const organizationsApi = {
     role: OrganizationManagerRole,
     expectedManagementRevision: number,
     reason: string,
+    signal?: AbortSignal,
   ) =>
     request<OrganizationManagement>(
       `/organizations/${encodeURIComponent(
@@ -204,6 +223,7 @@ export const organizationsApi = {
       {
         method: "PUT",
         body: json({ role, expectedManagementRevision, reason }),
+        signal,
       },
     ),
 
@@ -212,6 +232,7 @@ export const organizationsApi = {
     profileId: string,
     expectedManagementRevision: number,
     reason: string,
+    signal?: AbortSignal,
   ) =>
     request<OrganizationManagement>(
       `/organizations/${encodeURIComponent(
@@ -220,29 +241,36 @@ export const organizationsApi = {
       {
         method: "DELETE",
         body: json({ expectedManagementRevision, reason }),
+        signal,
       },
     ),
 
-  posts: (id: string, cursor?: string) => {
+  posts: (id: string, cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
     return request<{ items: OrganizationPost[]; nextCursor: string | null }>(
       `/organizations/${encodeURIComponent(id)}/posts?${query.toString()}`,
+      { signal },
     );
   },
 
-  events: (id: string, cursor?: string) => {
+  events: (id: string, cursor?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
     return request<{ items: OrganizationEvent[]; nextCursor: string | null }>(
       `/organizations/${encodeURIComponent(id)}/events?${query.toString()}`,
+      { signal },
     );
   },
 
-  createPost: (id: string, input: { title?: string; body: string }) =>
+  createPost: (
+    id: string,
+    input: { title?: string; body: string },
+    signal?: AbortSignal,
+  ) =>
     request<{ post: OrganizationPost }>(
       `/organizations/${encodeURIComponent(id)}/posts`,
-      { method: "POST", body: json(input) },
+      { method: "POST", body: json(input), signal },
     ),
 
   createEvent: (
@@ -255,27 +283,32 @@ export const organizationsApi = {
       locationLabel?: string;
       externalUrl?: string;
     },
+    signal?: AbortSignal,
   ) =>
     request<{ event: OrganizationEvent }>(
       `/organizations/${encodeURIComponent(id)}/events`,
-      { method: "POST", body: json(input) },
+      { method: "POST", body: json(input), signal },
     ),
 
-  createLink: (id: string, input: { label: string; url: string }) =>
+  createLink: (
+    id: string,
+    input: { label: string; url: string },
+    signal?: AbortSignal,
+  ) =>
     request<{ link: { id: string; label: string; url: string } }>(
       `/organizations/${encodeURIComponent(id)}/links`,
-      { method: "POST", body: json(input) },
+      { method: "POST", body: json(input), signal },
     ),
 
-  featureResource: (id: string, resourceId: string) =>
+  featureResource: (id: string, resourceId: string, signal?: AbortSignal) =>
     request<{ featured: true }>(
       `/organizations/${encodeURIComponent(
         id,
       )}/resources/${encodeURIComponent(resourceId)}`,
-      { method: "PUT" },
+      { method: "PUT", signal },
     ),
 
-  reportPost: (id: string, postId: string) =>
+  reportPost: (id: string, postId: string, signal?: AbortSignal) =>
     request<{ report: { id: string; status: "pending" } }>(
       `/organizations/${encodeURIComponent(
         id,
@@ -286,10 +319,11 @@ export const organizationsApi = {
           reason: "other",
           details: "Reporte enviado desde la interfaz web",
         }),
+        signal,
       },
     ),
 
-  reportEvent: (id: string, eventId: string) =>
+  reportEvent: (id: string, eventId: string, signal?: AbortSignal) =>
     request<{ report: { id: string; status: "pending" } }>(
       `/organizations/${encodeURIComponent(
         id,
@@ -300,6 +334,7 @@ export const organizationsApi = {
           reason: "other",
           details: "Reporte enviado desde la interfaz web",
         }),
+        signal,
       },
     ),
 
@@ -308,12 +343,14 @@ export const organizationsApi = {
     expectedRevision: number,
     verificationState: "unverified" | "verified",
     reason: string,
+    signal?: AbortSignal,
   ) =>
     request<{ organization: OrganizationDetail; changed: boolean }>(
       `/organizations/${encodeURIComponent(id)}/verification`,
       {
         method: "PATCH",
         body: json({ expectedRevision, verificationState, reason }),
+        signal,
       },
     ),
 };
