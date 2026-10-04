@@ -443,6 +443,11 @@ describe('MongoOrganizationStore followed feed isolation', () => {
     });
 
     const pipeline = aggregate.mock.calls[0]?.[0];
+    expect(JSON.stringify(pipeline)).not.toContain(
+      '["$organizationId","$organizationId"]',
+    );
+    expect(JSON.stringify(pipeline)).toContain('"$organizationId"');
+
     expect(pipeline).toEqual(
       expect.arrayContaining([
         {
