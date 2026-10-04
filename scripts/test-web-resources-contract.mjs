@@ -50,6 +50,10 @@ assert.match(page, /if \(!routeQueryIsSynchronized\) return/u);
 assert.match(page, /uploadingState\?\.scopeKey === uploadScopeKey/u);
 assert.match(page, /uploadProgressState\?\.scopeKey === uploadScopeKey/u);
 assert.match(page, /isListRequestCurrent\(ticket\)/u);
+assert.match(
+  page,
+  /const ticket = beginListRequest\(\);\s*if \(!isListRequestCurrent\(ticket\)\) return;/u,
+);
 assert.match(page, /finishListRequest\(ticket\)/u);
 assert.match(page, /isSubjectSearchCurrent\(ticket\)/u);
 assert.match(page, /finishSubjectSearch\(ticket\)/u);
@@ -64,8 +68,22 @@ assert.match(page, /isUncertainResourceCreateOutcome\(nextError\)/u);
 assert.match(page, /resourceCreationMayHaveCommitted/u);
 assert.match(page, /uncertainResourceCreates/u);
 assert.match(page, /retainedUncertainResourceCreates = new Map/u);
-assert.match(page, /window\.history\.replaceState/u);
-assert.match(page, /UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY/u);
+assert.match(page, /window\.sessionStorage\.getItem/u);
+assert.match(page, /window\.sessionStorage\.setItem/u);
+assert.match(page, /window\.sessionStorage\.removeItem/u);
+assert.match(page, /UNCERTAIN_RESOURCE_CREATE_SESSION_KEY/u);
+assert.match(page, /MAX_UNCERTAIN_RESOURCE_CREATE_STORAGE_BYTES/u);
+const uncertaintyStorageWrite = page.match(
+  /window\.sessionStorage\.setItem\([\s\S]{0,240}?JSON\.stringify\(nextUsers\)[\s\S]{0,40}?\);/u,
+)?.[0];
+assert.ok(
+  uncertaintyStorageWrite,
+  'uncertain create persistence must write only the bounded user marker',
+);
+assert.doesNotMatch(
+  uncertaintyStorageWrite,
+  /filename|fileIdentity|assetId|operationKey/u,
+);
 assert.match(page, /hasRecoveredUncertainResourceCreate/u);
 assert.match(page, /rememberUncertainResourceCreate/u);
 assert.match(page, /forgetUncertainResourceCreate/u);
@@ -102,7 +120,7 @@ assert.match(page, /load\(nextCursor, true\)/u);
 assert.match(page, /Cargar más/u);
 assert.doesNotMatch(page, /let active\s*=/u);
 assert.doesNotMatch(page, /objectKey/u);
-assert.doesNotMatch(page, /localStorage|sessionStorage/u);
+assert.doesNotMatch(page, /localStorage/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
