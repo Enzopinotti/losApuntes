@@ -1,5 +1,9 @@
 import Constants from "expo-constants";
 
+import {
+  type MobileReleaseFetch,
+  observeMobileServerRelease,
+} from "./release-observation";
 import { mobileRuntime } from "./runtime";
 import {
   type MobileReleaseIdentityInput,
@@ -28,4 +32,21 @@ export function qualifyCurrentMobileRelease(
     currentMobileReleaseIdentity,
     observedServerRelease,
   );
+}
+
+export function observeCurrentMobileServerRelease(
+  fetcher?: MobileReleaseFetch,
+) {
+  return observeMobileServerRelease(
+    currentMobileReleaseIdentity.apiOrigin,
+    fetcher,
+  );
+}
+
+export async function qualifyCurrentMobileReleaseFromApi(
+  fetcher?: MobileReleaseFetch,
+) {
+  const observedServerRelease =
+    await observeCurrentMobileServerRelease(fetcher);
+  return qualifyCurrentMobileRelease(observedServerRelease);
 }
