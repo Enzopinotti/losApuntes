@@ -248,11 +248,7 @@ export const communityApi = {
       },
     ),
 
-  createAnswer: (
-    questionId: string,
-    body: string,
-    signal?: AbortSignal,
-  ) =>
+  createAnswer: (questionId: string, body: string, signal?: AbortSignal) =>
     request<{ answer: AnswerView }>(
       `/questions/${encodeURIComponent(questionId)}/answers`,
       {
@@ -262,11 +258,7 @@ export const communityApi = {
       },
     ),
 
-  updateAnswer: (
-    answer: AnswerView,
-    body: string,
-    signal?: AbortSignal,
-  ) =>
+  updateAnswer: (answer: AnswerView, body: string, signal?: AbortSignal) =>
     request<{ answer: AnswerView }>(
       `/answers/${encodeURIComponent(answer.id)}`,
       {
