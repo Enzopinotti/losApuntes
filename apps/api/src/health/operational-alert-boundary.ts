@@ -29,6 +29,13 @@ type AlertState = {
 };
 
 const MAX_TIMESTAMP_MS = 8_640_000_000_000_000;
+const operationalAlertSignalSet = new Set<string>(OPERATIONAL_ALERT_SIGNALS);
+
+function assertSignal(signal: string): asserts signal is OperationalAlertSignal {
+  if (!operationalAlertSignalSet.has(signal)) {
+    throw new Error('signal must be an allow-listed operational alert signal');
+  }
+}
 
 function assertDuration(name: string, value: number): void {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -84,6 +91,7 @@ export class OperationalAlertBoundary {
     observedAtMs: number;
     policy: OperationalAlertPolicy;
   }): OperationalAlertEvent | null {
+    assertSignal(input.signal);
     assertTimestamp(input.observedAtMs);
     assertPolicy(input.policy);
 
