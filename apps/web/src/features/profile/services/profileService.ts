@@ -157,14 +157,17 @@ export const profileApi = {
       { signal },
     ),
 
-  createActivity: (input: {
-    type: ProfileActivityType;
-    title: string;
-    description?: string | null;
-    url?: string | null;
-    startedOn?: string | null;
-    endedOn?: string | null;
-  }, signal?: AbortSignal) =>
+  createActivity: (
+    input: {
+      type: ProfileActivityType;
+      title: string;
+      description?: string | null;
+      url?: string | null;
+      startedOn?: string | null;
+      endedOn?: string | null;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<{ activity: ProfileActivity }>("/profile/me/activities", {
       method: "POST",
       body: json(input),
