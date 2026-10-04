@@ -208,6 +208,16 @@ function defaults(
     async ({ mutation }) => {
       await Promise.resolve();
       switch (mutation.kind) {
+        case 'organization.archive':
+          return {
+            status: 'ok',
+            kind: mutation.kind,
+            value: organization({
+              status: 'archived',
+              revision: mutation.expectedRevision + 1,
+              managementRevision: 2,
+            }),
+          };
         case 'organization.update':
           return {
             status: 'ok',
@@ -530,6 +540,83 @@ describe('OrganizationService', () => {
       },
       mutation: { kind: 'post.create' },
     });
+  });
+
+  it('archives only for the current owner and records authority shutdown', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    defaults(organizationStore, dependencies);
+
+    const result = await service(organizationStore, dependencies).archive(
+      'owner-user',
+      orgId,
+      {
+        expectedRevision: 1,
+        expectedManagementRevision: 1,
+        reason: ' Fin de la organización ',
+      },
+    );
+
+    expect(result).toEqual({
+      organization: {
+        id: orgId,
+        status: 'archived',
+        revision: 2,
+        managementRevision: 2,
+      },
+      archived: true,
+    });
+    expect(
+      organizationStore.commitAuthorizedMutation.mock.calls.at(-1)?.[0],
+    ).toMatchObject({
+      authority: {
+        actorUserId: 'owner-user',
+        expectedManagementRevision: 1,
+        allowedRoles: ['owner'],
+      },
+      mutation: {
+        kind: 'organization.archive',
+        expectedRevision: 1,
+      },
+      audit: {
+        event: 'organization.archived',
+        reason: 'Fin de la organización',
+        metadata: {
+          previousStatus: 'active',
+          nextStatus: 'archived',
+          sharedContentPreserved: true,
+        },
+      },
+    });
+
+    organizationStore.findManager.mockResolvedValue(manager('admin'));
+    await expectCode(
+      service(organizationStore, dependencies).archive('owner-user', orgId, {
+        expectedRevision: 1,
+        expectedManagementRevision: 1,
+        reason: 'No autorizado',
+      }),
+      'ORGANIZATION_MANAGEMENT_FORBIDDEN',
+    );
+
+    organizationStore.findManager.mockResolvedValue(manager('owner'));
+    await expectCode(
+      service(organizationStore, dependencies).archive('owner-user', orgId, {
+        expectedRevision: 2,
+        expectedManagementRevision: 1,
+        reason: 'Revision stale',
+      }),
+      'ORGANIZATION_REVISION_CONFLICT',
+    );
+
+    await expectCode(
+      service(organizationStore, dependencies).archive('owner-user', orgId, {
+        expectedRevision: 1,
+        expectedManagementRevision: 2,
+        reason: 'Management stale',
+      }),
+      'ORGANIZATION_MANAGEMENT_REVISION_CONFLICT',
+    );
   });
 
   it('denies profile edits to editors', async () => {
