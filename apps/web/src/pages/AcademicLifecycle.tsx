@@ -2,9 +2,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
+import { useAuth } from "../contexts/useAuth";
 import type {
   AcademicAffiliation,
   AcademicCatalogNode,
@@ -15,6 +17,7 @@ import {
   academicApi,
   isAcademicApiError,
 } from "../features/academic/services/academicService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./AcademicLifecycle.scss";
 
 const roleLabels: Record<AcademicRelationshipRole, string> = {
@@ -78,13 +81,39 @@ function errorMessage(error: unknown): string {
 }
 
 const AcademicLifecycle = () => {
-  const [lifecycle, setLifecycle] = useState<AcademicLifecycleResponse | null>(
-    null,
-  );
-  const [affiliations, setAffiliations] = useState<AcademicAffiliation[]>([]);
-  const [affiliationsTruncated, setAffiliationsTruncated] = useState(false);
-  const [affiliationLimit, setAffiliationLimit] = useState(50);
-  const [labels, setLabels] = useState<Record<string, string>>({});
+  const { status, user, session } = useAuth();
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`academic-load:${authScopeKey}`);
+  const {
+    begin: beginMutation,
+    isCurrent: isMutationCurrent,
+    finish: finishMutation,
+  } = useAsyncAuthorityFence(`academic-mutation:${authScopeKey}`);
+
+  const [snapshotState, setSnapshotState] = useState<{
+    scopeKey: string;
+    lifecycle: AcademicLifecycleResponse;
+    affiliations: AcademicAffiliation[];
+    affiliationsTruncated: boolean;
+    affiliationLimit: number;
+    labels: Record<string, string>;
+  } | null>(null);
+  const snapshot =
+    snapshotState?.scopeKey === authScopeKey ? snapshotState : null;
+  const lifecycle = snapshot?.lifecycle ?? null;
+  const affiliations = snapshot?.affiliations ?? [];
+  const affiliationsTruncated = snapshot?.affiliationsTruncated ?? false;
+  const affiliationLimit = snapshot?.affiliationLimit ?? 50;
+  const labels = snapshot?.labels ?? {};
+
   const [graduatedOn, setGraduatedOn] = useState<Record<string, string>>({});
   const [roleDrafts, setRoleDrafts] = useState<
     Record<string, AcademicRelationshipRole[]>
@@ -93,11 +122,49 @@ const AcademicLifecycle = () => {
     "institution",
   );
   const [searchText, setSearchText] = useState("");
-  const [results, setResults] = useState<AcademicCatalogNode[]>([]);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const searchScopeKey = [authScopeKey, searchKind, searchText.trim()].join(
+    ":",
+  );
+  const {
+    begin: beginSearch,
+    isCurrent: isSearchCurrent,
+    finish: finishSearch,
+  } = useAsyncAuthorityFence(`academic-search:${searchScopeKey}`);
+  const [searchState, setSearchState] = useState<{
+    scopeKey: string;
+    busy: boolean;
+    error: string | null;
+    items: AcademicCatalogNode[];
+  } | null>(null);
+  const currentSearchState =
+    searchState?.scopeKey === searchScopeKey ? searchState : null;
+  const results = currentSearchState?.items ?? [];
+
+  const [loadState, setLoadState] = useState<{
+    scopeKey: string;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentLoadState =
+    loadState?.scopeKey === authScopeKey ? loadState : null;
+  const loading = currentLoadState?.loading ?? true;
+
+  const [mutationState, setMutationState] = useState<{
+    scopeKey: string;
+    busy: string | null;
+    error: string | null;
+    feedback: string | null;
+  } | null>(null);
+  const currentMutationState =
+    mutationState?.scopeKey === authScopeKey ? mutationState : null;
+  const busy =
+    currentMutationState?.busy ?? (currentSearchState?.busy ? "search" : null);
+  const feedback = currentMutationState?.feedback ?? null;
+  const error =
+    currentMutationState?.error ??
+    currentSearchState?.error ??
+    currentLoadState?.error ??
+    null;
 
   const followedIds = useMemo(
     () => new Set(lifecycle?.follows.map((item) => item.targetId) ?? []),
@@ -105,23 +172,20 @@ const AcademicLifecycle = () => {
   );
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    setLoadState({
+      scopeKey: authScopeKey,
+      loading: true,
+      error: null,
+    });
 
     try {
       const [nextLifecycle, affiliationResponse] = await Promise.all([
-        academicApi.lifecycle(),
-        academicApi.affiliations(),
+        academicApi.lifecycle(ticket.signal),
+        academicApi.affiliations(ticket.signal),
       ]);
-      setLifecycle(nextLifecycle);
-      setAffiliations(affiliationResponse.affiliations);
-      setAffiliationsTruncated(affiliationResponse.truncated);
-      setAffiliationLimit(affiliationResponse.limit);
-      setRoleDrafts(
-        Object.fromEntries(
-          affiliationResponse.affiliations.map((row) => [row.id, row.roles]),
-        ),
-      );
+      if (!isLoadCurrent(ticket)) return;
 
       const nodeIds = [
         ...new Set(
@@ -135,68 +199,139 @@ const AcademicLifecycle = () => {
       const entries = await Promise.all(
         nodeIds.map(async (id) => {
           try {
-            const result = await academicApi.node(id);
+            const result = await academicApi.node(id, ticket.signal);
             return [id, result.node.name] as const;
           } catch {
             return [id, id] as const;
           }
         }),
       );
-      setLabels(Object.fromEntries(entries));
+      if (!isLoadCurrent(ticket)) return;
+
+      setSnapshotState({
+        scopeKey: authScopeKey,
+        lifecycle: nextLifecycle,
+        affiliations: affiliationResponse.affiliations,
+        affiliationsTruncated: affiliationResponse.truncated,
+        affiliationLimit: affiliationResponse.limit,
+        labels: Object.fromEntries(entries),
+      });
+      setRoleDrafts(
+        Object.fromEntries(
+          affiliationResponse.affiliations.map((row) => [row.id, row.roles]),
+        ),
+      );
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (!isLoadCurrent(ticket)) return;
+      setLoadState({
+        scopeKey: authScopeKey,
+        loading: false,
+        error: errorMessage(nextError),
+      });
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        setLoadState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, loading: false }
+            : current,
+        );
+      }
     }
-  }, []);
+  }, [authScopeKey, beginLoad, finishLoad, isLoadCurrent]);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  useEffect(() => {
+    setGraduatedOn({});
+    setRoleDrafts({});
+    setSearchKind("institution");
+    setSearchText("");
+    setSearchState(null);
+    setMutationState(null);
+  }, [authScopeKey]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  async function runMutation<T>(
+    key: string,
+    operation: (signal: AbortSignal) => Promise<T>,
+    success: (result: T) => string,
+  ): Promise<boolean> {
+    const ticket = beginMutation();
+    if (!isMutationCurrent(ticket)) return false;
+    setMutationState({
+      scopeKey: authScopeKey,
+      busy: key,
+      error: null,
+      feedback: null,
+    });
+
+    try {
+      const result = await operation(ticket.signal);
+      if (!isMutationCurrent(ticket)) return false;
+      setMutationState({
+        scopeKey: authScopeKey,
+        busy: key,
+        error: null,
+        feedback: success(result),
+      });
+      await loadRef.current();
+      return isMutationCurrent(ticket);
+    } catch (nextError) {
+      if (!isMutationCurrent(ticket)) return false;
+      setMutationState({
+        scopeKey: authScopeKey,
+        busy: key,
+        error: errorMessage(nextError),
+        feedback: null,
+      });
+      return false;
+    } finally {
+      if (finishMutation(ticket)) {
+        setMutationState((current) =>
+          current?.scopeKey === authScopeKey
+            ? { ...current, busy: null }
+            : current,
+        );
+      }
+    }
+  }
+
   const graduate = async (affiliation: AcademicAffiliation) => {
     const value = graduatedOn[affiliation.id]?.trim();
     if (!value) {
-      setError("Indicá el período de graduación antes de confirmar.");
+      setMutationState({
+        scopeKey: authScopeKey,
+        busy: null,
+        error: "Indicá el período de graduación antes de confirmar.",
+        feedback: null,
+      });
       return;
     }
 
-    setBusy(`graduate:${affiliation.id}`);
-    setError(null);
-    setFeedback(null);
-
-    try {
-      const result = await academicApi.graduate(affiliation.id, value);
-      setFeedback(
+    await runMutation(
+      `graduate:${affiliation.id}`,
+      (signal) => academicApi.graduate(affiliation.id, value, signal),
+      (result) =>
         result.transitionedSubjectCount > 0
           ? `Graduación registrada. ${result.transitionedSubjectCount} materia(s) actuales pasaron a completadas.`
           : "Graduación registrada sin perder tu historial académico.",
-      );
-      await load();
-    } catch (nextError) {
-      setError(errorMessage(nextError));
-    } finally {
-      setBusy(null);
-    }
+    );
   };
 
   const saveRoles = async (affiliation: AcademicAffiliation) => {
-    setBusy(`roles:${affiliation.id}`);
-    setError(null);
-    setFeedback(null);
-
-    try {
-      await academicApi.updateRoles(
-        affiliation.id,
-        roleDrafts[affiliation.id] ?? [],
-      );
-      setFeedback("Roles de trayectoria actualizados.");
-      await load();
-    } catch (nextError) {
-      setError(errorMessage(nextError));
-    } finally {
-      setBusy(null);
-    }
+    await runMutation(
+      `roles:${affiliation.id}`,
+      (signal) =>
+        academicApi.updateRoles(
+          affiliation.id,
+          roleDrafts[affiliation.id] ?? [],
+          signal,
+        ),
+      () => "Roles de trayectoria actualizados.",
+    );
   };
 
   const toggleRole = (
@@ -218,50 +353,61 @@ const AcademicLifecycle = () => {
     event.preventDefault();
     if (searchText.trim().length < 2) return;
 
-    setBusy("search");
-    setError(null);
+    const ticket = beginSearch();
+    if (!isSearchCurrent(ticket)) return;
+    setSearchState({
+      scopeKey: searchScopeKey,
+      busy: true,
+      error: null,
+      items: currentSearchState?.items ?? [],
+    });
 
     try {
       const response = await academicApi.searchCatalog(
         searchKind,
         searchText.trim(),
+        ticket.signal,
       );
-      setResults(response.items);
+      if (!isSearchCurrent(ticket)) return;
+      setSearchState({
+        scopeKey: searchScopeKey,
+        busy: false,
+        error: null,
+        items: response.items,
+      });
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      if (!isSearchCurrent(ticket)) return;
+      setSearchState({
+        scopeKey: searchScopeKey,
+        busy: false,
+        error: errorMessage(nextError),
+        items: [],
+      });
     } finally {
-      setBusy(null);
+      if (finishSearch(ticket)) {
+        setSearchState((current) =>
+          current?.scopeKey === searchScopeKey
+            ? { ...current, busy: false }
+            : current,
+        );
+      }
     }
   };
 
   const follow = async (node: AcademicCatalogNode) => {
-    setBusy(`follow:${node.id}`);
-    setError(null);
-
-    try {
-      await academicApi.follow(node.id);
-      setFeedback(`Ahora seguís ${node.name}.`);
-      await load();
-    } catch (nextError) {
-      setError(errorMessage(nextError));
-    } finally {
-      setBusy(null);
-    }
+    await runMutation(
+      `follow:${node.id}`,
+      (signal) => academicApi.follow(node.id, signal),
+      () => `Ahora seguís ${node.name}.`,
+    );
   };
 
   const unfollow = async (nodeId: string) => {
-    setBusy(`unfollow:${nodeId}`);
-    setError(null);
-
-    try {
-      await academicApi.unfollow(nodeId);
-      setFeedback("Seguimiento académico eliminado.");
-      await load();
-    } catch (nextError) {
-      setError(errorMessage(nextError));
-    } finally {
-      setBusy(null);
-    }
+    await runMutation(
+      `unfollow:${nodeId}`,
+      (signal) => academicApi.unfollow(nodeId, signal),
+      () => "Seguimiento académico eliminado.",
+    );
   };
 
   if (loading && !lifecycle) {
@@ -469,7 +615,7 @@ const AcademicLifecycle = () => {
               value={searchKind}
               onChange={(event) => {
                 setSearchKind(event.target.value as "institution" | "program");
-                setResults([]);
+                setSearchState(null);
               }}
             >
               <option value="institution">Instituciones</option>
