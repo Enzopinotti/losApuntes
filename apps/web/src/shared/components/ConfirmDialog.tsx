@@ -1,5 +1,9 @@
 import { useEffect, useId, useRef, type RefObject } from "react";
 
+import {
+  backdropPointerStart,
+  shouldDismissFromBackdrop,
+} from "./confirmDialogPointer";
 import "./ConfirmDialog.scss";
 
 type ConfirmDialogProps = {
@@ -25,6 +29,7 @@ export const ConfirmDialog = ({
 }: ConfirmDialogProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const backdropPointerRef = useRef<number | null>(null);
   const wasOpenRef = useRef(false);
   const titleId = useId();
   const descriptionId = useId();
@@ -61,6 +66,27 @@ export const ConfirmDialog = ({
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
+      }}
+      onPointerDown={(event) => {
+        backdropPointerRef.current = backdropPointerStart(
+          event.pointerId,
+          event.target === event.currentTarget,
+        );
+      }}
+      onPointerUp={(event) => {
+        const dismiss = shouldDismissFromBackdrop({
+          activePointerId: backdropPointerRef.current,
+          releasedPointerId: event.pointerId,
+          releasedOnBackdrop: event.target === event.currentTarget,
+        });
+        backdropPointerRef.current = null;
+
+        if (dismiss) {
+          onCancel();
+        }
+      }}
+      onPointerCancel={() => {
+        backdropPointerRef.current = null;
       }}
     >
       <div className="confirm-dialog__content">
