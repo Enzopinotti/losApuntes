@@ -93,6 +93,24 @@ Fencing only successful data writes is insufficient. A stale operation must not:
 - append a page to a different feed/filter;
 - resurrect protected data after logout/login.
 
+## Fence lifecycle and React Strict Mode
+
+The canonical fence is reusable across React Strict Mode effect replay but must
+reject work after a real unmount:
+
+- effect setup calls `resume()`;
+- cleanup calls `suspend()`, which invalidates the epoch and aborts the current
+  controller immediately;
+- a replayed setup may resume the same fence;
+- callbacks that run after a real unmount receive an already-aborted ticket and
+  cannot acquire presentation ownership;
+- `dispose()` remains terminal for the pure primitive and is covered by the
+  deterministic regression contract.
+
+This lifecycle is tested together with the A -> B -> A invariant so an old
+ticket cannot regain authority after either a scope round-trip or an effect
+replay.
+
 ## Transport contract
 
 Transports that participate in this pattern accept an optional
@@ -101,15 +119,34 @@ timeout. Caller cancellation is not reported as proof of logout/revocation.
 
 ## Current covered surfaces
 
-- Search explicit results;
-- Search contextual discovery;
-- Feed preferences;
-- academic/for-you feed loads and pagination;
-- Feed preference mutations;
-- Feed feedback mutations.
+The current Web inventory is:
 
-Auth itself already has separate generation fencing for restore/login/logout
-and cross-tab authority convergence.
+- Auth restore/login/logout and cross-tab authority convergence through its own
+  generation fencing;
+- Search explicit results and contextual discovery;
+- Feeds: academic/for-you loads, pagination, preferences and feedback;
+- Resources: list/detail/filter/pagination and mutations;
+- Organizations: directory, public detail, pagination and management actions;
+- AcademicLifecycle: lifecycle snapshot, affiliations, catalog search and
+  mutations;
+- Network: following/connections lists, pagination, people search and
+  relationship actions;
+- Profile: owner snapshot/actions/activity pagination plus public profile route
+  and public activity pagination;
+- Notifications: list reconciliation and notification actions;
+- Security: session/login-method/Google-status loads and security mutations;
+- Pilot Home: personalized home snapshot by authenticated principal/session;
+- AdminPilot: metrics/moderation load by principal/session/window and review
+  actions by principal/session.
+
+Questions/Q&A is the remaining #101 surface until its list/detail/subject-search,
+answer pagination and mutation completions are integrated on the same authority
+model.
+
+Public auth-action pages such as password recovery/email verification are
+token/email workflows rather than authenticated principal snapshots; they are
+classified separately and are not treated as substitutes for the session/view
+fence above.
 
 ## New feature checklist
 
@@ -124,3 +161,7 @@ Before adding a new async private Web flow, answer:
 
 Avoid page-global `let active = true` flags or a single boolean shared across
 different operations. They do not encode which operation owns the state.
+
+A mount-only boolean used for non-principal provider capability/config fetches
+is not equivalent to authority fencing and must not be copied into private or
+viewer-sensitive flows.
