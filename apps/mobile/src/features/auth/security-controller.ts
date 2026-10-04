@@ -148,10 +148,7 @@ export class MobileSecurityController {
         return;
       }
 
-      await this.reloadAfterMutation(
-        operation.generation,
-        "Sesión cerrada.",
-      );
+      await this.reloadAfterMutation(operation.generation, "Sesión cerrada.");
     } catch (error) {
       if (!this.isCurrent(operation.generation)) return;
 
