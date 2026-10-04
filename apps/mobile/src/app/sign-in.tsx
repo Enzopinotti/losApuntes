@@ -51,11 +51,9 @@ export default function SignInRoute() {
               ? "Ocurrió un error inesperado."
               : null;
   const linkNotice =
-    notice === "recovery-unavailable"
-      ? "La recuperación de contraseña todavía no está disponible en la app."
-      : notice === "invalid-action-link"
-        ? "El enlace de verificación no es válido o venció."
-        : null;
+    notice === "invalid-action-link"
+      ? "El enlace de acceso no es válido o venció."
+      : null;
 
   return (
     <KeyboardAvoidingView
@@ -120,6 +118,12 @@ export default function SignInRoute() {
             <Text>Reintentar conexión</Text>
           </Pressable>
         ) : null}
+
+        <Link href="/forgot-password" asChild>
+          <Pressable accessibilityRole="link" style={styles.secondary}>
+            <Text>Olvidé mi contraseña</Text>
+          </Pressable>
+        </Link>
 
         <Link href="/register" asChild>
           <Pressable accessibilityRole="link" style={styles.secondary}>

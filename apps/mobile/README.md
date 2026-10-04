@@ -32,6 +32,8 @@ App version and build number come from Expo's immutable native binary identity (
 
 The qualification contract also requires a **server release observation bound to the same API origin**. It does not accept a bare release string. The API now exposes the provider-neutral `GET /health/release` seam: a deployment with valid release metadata returns a bounded `releaseId` plus its exact server `sourceSha`; missing or malformed metadata returns 503/`unavailable`. Mobile qualification must use an observation from the configured API origin—never `main`, a guessed SHA, a CI run number or hand-authored evidence. Until that live observation is captured, qualification remains `blocked`.
 
+`observeCurrentMobileServerRelease()` fetches that endpoint from the baked API origin with credentials omitted, redirects rejected, caching disabled and a 15-second timeout. It accepts only an `available` API response with a bounded release id and exact source SHA; unavailable, malformed or unreachable responses produce no observation, with no retry. `qualifyCurrentMobileReleaseFromApi()` combines that observed server identity with the installed Mobile build identity. This is runtime qualification input; it does not claim a signed/distributed build, simulator/device, store or deployment smoke.
+
 HTTP loopback targets are valid for local development only. Qualification requires HTTPS and rejects API origins containing credentials, paths, query strings or fragments.
 
 CI/source evidence does not claim simulator, physical-device, signing, store or provider validation.

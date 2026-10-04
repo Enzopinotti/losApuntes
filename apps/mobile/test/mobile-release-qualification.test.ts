@@ -68,6 +68,7 @@ test("local development HTTP is represented honestly but cannot qualify", () => 
       source: "api-observation",
       apiOrigin: "http://127.0.0.1:4000",
       releaseId: "api-local",
+      sourceSha: SOURCE_SHA,
     },
   );
 
@@ -85,6 +86,7 @@ test("unknown distribution profiles fail closed", () => {
       source: "api-observation",
       apiOrigin: "https://api.example.test",
       releaseId: "api-2026.10.02",
+      sourceSha: SOURCE_SHA,
     },
   );
 
@@ -111,6 +113,7 @@ test("qualification stays blocked while required release evidence is unknown", (
     "MISSING_BUILD_ID",
     "MISSING_DISTRIBUTION_PROFILE",
     "MISSING_SERVER_RELEASE_ID",
+    "MISSING_SERVER_SOURCE_SHA",
   ]);
 });
 
@@ -119,6 +122,7 @@ test("a distributed build qualifies only with origin-bound API observation", () 
     source: "api-observation",
     apiOrigin: "https://api.example.test",
     releaseId: "api-2026.10.02-6668828",
+    sourceSha: SOURCE_SHA,
   });
 
   assert.equal(qualification.status, "qualified");
@@ -129,6 +133,7 @@ test("a distributed build qualifies only with origin-bound API observation", () 
     source: "api-observation",
     apiOrigin: "https://api.example.test",
     releaseId: "api-2026.10.02-6668828",
+    sourceSha: SOURCE_SHA,
   });
 });
 
@@ -139,7 +144,10 @@ test("a bare or guessed server release token cannot qualify", () => {
   );
 
   assert.equal(qualification.status, "blocked");
-  assert.deepEqual(qualification.blockers, ["MISSING_SERVER_RELEASE_ID"]);
+  assert.deepEqual(qualification.blockers, [
+    "MISSING_SERVER_RELEASE_ID",
+    "MISSING_SERVER_SOURCE_SHA",
+  ]);
   assert.equal(qualification.serverRelease, null);
 });
 
@@ -148,6 +156,7 @@ test("server evidence observed from another origin cannot qualify", () => {
     source: "api-observation",
     apiOrigin: "https://staging-api.example.test",
     releaseId: "api-2026.10.02-6668828",
+    sourceSha: SOURCE_SHA,
   });
 
   assert.equal(qualification.status, "blocked");
@@ -165,6 +174,7 @@ test("qualification revalidates structural identity input at the boundary", () =
     source: "api-observation",
     apiOrigin: "http://attacker.example",
     releaseId: "api-2026.10.02",
+    sourceSha: SOURCE_SHA,
   });
 
   assert.equal(qualification.status, "blocked");
@@ -177,9 +187,22 @@ test("invalid observed server release text cannot make a build qualified", () =>
     source: "api-observation",
     apiOrigin: "https://api.example.test",
     releaseId: "api release with spaces and private text",
+    sourceSha: SOURCE_SHA,
   });
 
   assert.equal(qualification.status, "blocked");
   assert.equal(qualification.serverRelease, null);
   assert.deepEqual(qualification.blockers, ["MISSING_SERVER_RELEASE_ID"]);
+});
+
+test("a release id without an exact API source SHA cannot qualify", () => {
+  const qualification = qualifyMobileRelease(productionInput(), {
+    source: "api-observation",
+    apiOrigin: "https://api.example.test",
+    releaseId: "api-2026.10.02-6668828",
+  });
+
+  assert.equal(qualification.status, "blocked");
+  assert.deepEqual(qualification.blockers, ["MISSING_SERVER_SOURCE_SHA"]);
+  assert.equal(qualification.serverRelease, null);
 });

@@ -31,7 +31,10 @@ describe('ReleaseIdentityService', () => {
     {},
     { API_RELEASE_ID: 'api-1' },
     { API_RELEASE_SOURCE_SHA: sourceSha },
-    { API_RELEASE_ID: 'contains whitespace', API_RELEASE_SOURCE_SHA: sourceSha },
+    {
+      API_RELEASE_ID: 'contains whitespace',
+      API_RELEASE_SOURCE_SHA: sourceSha,
+    },
     { API_RELEASE_ID: 'api-1', API_RELEASE_SOURCE_SHA: 'main' },
   ])('fails closed for missing or malformed identity %#', (values) => {
     const service = createService(values);
