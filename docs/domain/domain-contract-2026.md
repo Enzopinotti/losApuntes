@@ -322,6 +322,19 @@ The system cannot simply hard-delete shared domain nodes if that would corrupt a
 
 Exactly when to anonymize, tombstone, retain or physically delete remains a DER/data-policy question.
 
+For the current Files/Resources implementation, a claimed `FileAsset` is retained
+by its `Resource` relationship, not by the lifecycle of the user who created
+the upload nor by an Organization that references the Resource.
+`FileAsset.creatorUserId` and `Resource.authorUserId` are provenance/
+attribution fields for this decision, not byte-deletion authority.
+
+V1 intentionally enforces one Resource ↔ one claimed FileAsset through unique
+`Resource.assetId` and non-null `FileAsset.claimRef`. Do not add a generic
+refcount while that cardinality remains true. Abandoned-upload reclamation and
+future Resource purge are separate state machines. A claimed asset may become
+purgeable only after an explicit future Resource lifecycle transition plus the
+applicable retention/backup policy. See ADR 0007.
+
 ---
 
 ## 3. Relationship expectations before physical cardinalities
