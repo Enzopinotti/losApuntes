@@ -173,11 +173,7 @@ const Network = () => {
     });
 
     try {
-      const result = await communityApi.following(
-        50,
-        cursor,
-        ticket.signal,
-      );
+      const result = await communityApi.following(50, cursor, ticket.signal);
       if (!isActionCurrent(ticket)) return;
       setSnapshotState((current) =>
         current?.scopeKey === authScopeKey
@@ -399,7 +395,8 @@ const Network = () => {
                     onClick={() =>
                       void run(
                         `follow:${person.profileId}`,
-                        (signal) => communityApi.follow(person.profileId, signal),
+                        (signal) =>
+                          communityApi.follow(person.profileId, signal),
                         "Ahora seguís ese perfil.",
                       )
                     }
@@ -413,7 +410,11 @@ const Network = () => {
                     onClick={() =>
                       void run(
                         `connect:${person.profileId}`,
-                        (signal) => communityApi.requestConnection(person.profileId, signal),
+                        (signal) =>
+                          communityApi.requestConnection(
+                            person.profileId,
+                            signal,
+                          ),
                         "Solicitud de conexión enviada.",
                       )
                     }
@@ -450,7 +451,11 @@ const Network = () => {
                       onClick={() =>
                         void run(
                           `unfollow:${item.profile.profileId}`,
-                          (signal) => communityApi.unfollow(item.profile.profileId, signal),
+                          (signal) =>
+                            communityApi.unfollow(
+                              item.profile.profileId,
+                              signal,
+                            ),
                           "Dejaste de seguir ese perfil.",
                         )
                       }
@@ -549,7 +554,8 @@ const Network = () => {
                           onClick={() =>
                             void run(
                               `disconnect:${connection.id}`,
-                              (signal) => communityApi.disconnect(connection.id, signal),
+                              (signal) =>
+                                communityApi.disconnect(connection.id, signal),
                               "Conexión finalizada.",
                             )
                           }
