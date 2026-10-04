@@ -53,6 +53,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
 
   try {
+    const timeoutSignal = AbortSignal.timeout(15_000);
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, timeoutSignal])
+      : timeoutSignal;
+
     response = await fetch(apiUrl(path), {
       ...init,
       credentials: "include",
@@ -62,7 +67,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: init.signal ?? AbortSignal.timeout(15_000),
+      signal,
     });
   } catch {
     throw new CommunityApiError(
@@ -267,11 +272,14 @@ export const communityApi = {
       },
     ),
 
-  notifications: (input: {
-    unreadOnly: boolean;
-    cursor?: string;
-    limit?: number;
-  }) => {
+  notifications: (
+    input: {
+      unreadOnly: boolean;
+      cursor?: string;
+      limit?: number;
+    },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({
       unreadOnly: String(input.unreadOnly),
       limit: String(input.limit ?? 50),
@@ -279,6 +287,7 @@ export const communityApi = {
     if (input.cursor) query.set("cursor", input.cursor);
     return request<{ items: NotificationView[]; nextCursor: string | null }>(
       `/notifications?${query.toString()}`,
+      { signal },
     );
   },
 
