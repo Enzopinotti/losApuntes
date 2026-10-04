@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import {
+  readAuthActionToken,
+  scrubAuthActionTokenFromHistory,
+} from "../features/auth/actionTokenLocation";
+import {
   authErrorMessage,
   authErrorRequestId,
   isAuthCode,
@@ -12,9 +16,7 @@ type RecoveryState =
   "checking" | "ready" | "submitting" | "success" | "unavailable" | "error";
 
 const ResetPassword = () => {
-  const [token] = useState(
-    () => new URLSearchParams(window.location.search).get("token") ?? "",
-  );
+  const [token] = useState(() => readAuthActionToken(window.location));
   const [state, setState] = useState<RecoveryState>("checking");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -23,7 +25,7 @@ const ResetPassword = () => {
   const startedRef = useRef(false);
 
   useEffect(() => {
-    window.history.replaceState(null, "", window.location.pathname);
+    scrubAuthActionTokenFromHistory();
 
     if (startedRef.current) {
       return;

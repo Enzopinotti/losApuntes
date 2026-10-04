@@ -126,6 +126,31 @@ function setSyntheticAccountStatus(email, status) {
   );
 }
 
+async function registerVerifiedSmokeAccount(credentials) {
+  const registration = await requestJson(
+    '/auth/register',
+    jsonRequest('POST', credentials),
+  );
+  assert.equal(registration.response.status, 202);
+  assert.deepEqual(registration.body, { accepted: true });
+  assertRequestId(registration.response);
+
+  const verificationMail = await waitForMail(
+    credentials.email,
+    'Verificá tu email en Los Apuntes',
+  );
+  const verificationToken = extractActionToken(
+    verificationMail,
+    '/auth/verify-email',
+  );
+  const verificationComplete = await request(
+    '/auth/email-verification/complete',
+    jsonRequest('POST', { token: verificationToken }),
+  );
+  assert.equal(verificationComplete.response.status, 204);
+  assert.equal(verificationComplete.text, '');
+}
+
 await waitForMailpit();
 
 const credentials = {
@@ -559,7 +584,21 @@ const restoredLogin = await requestJson(
 assert.equal(restoredLogin.response.status, 200);
 assert.match(restoredLogin.body.sessionToken, SESSION_TOKEN);
 
-const closureBearer = `Bearer ${restoredLogin.body.sessionToken}`;
+const closureCredentials = {
+  email: 'runtime-smoke-closure@example.test',
+  password: 'runtime-smoke-closure-credential-2026',
+};
+assert.notEqual(closureCredentials.email, credentials.email);
+await registerVerifiedSmokeAccount(closureCredentials);
+
+const closureLogin = await requestJson(
+  '/auth/mobile/login',
+  jsonRequest('POST', closureCredentials),
+);
+assert.equal(closureLogin.response.status, 200);
+assert.match(closureLogin.body.sessionToken, SESSION_TOKEN);
+
+const closureBearer = `Bearer ${closureLogin.body.sessionToken}`;
 
 const closurePreflight = await requestJson('/account/closure/preflight', {
   headers: { authorization: closureBearer },
@@ -588,7 +627,7 @@ const accountClosure = await requestJson(
   '/account/closure',
   jsonRequest(
     'POST',
-    { currentPassword: changedPassword },
+    { currentPassword: closureCredentials.password },
     { authorization: closureBearer },
   ),
 );
@@ -598,7 +637,7 @@ assert.match(accountClosure.body.cleanupJobId, UUID_V4);
 
 const closureState = mongoJson(
   [
-    `const user = db.users.findOne({ email: ${JSON.stringify(credentials.email)} });`,
+    `const user = db.users.findOne({ email: ${JSON.stringify(closureCredentials.email)} });`,
     `if (!user) quit(2);`,
     `const userId = user._id.toString();`,
     `const job = db.account_offboarding_jobs.findOne({ userId });`,
@@ -625,10 +664,7 @@ assert.ok(
 
 const closedLogin = await requestJson(
   '/auth/mobile/login',
-  jsonRequest('POST', {
-    email: credentials.email,
-    password: changedPassword,
-  }),
+  jsonRequest('POST', closureCredentials),
 );
 assert.equal(closedLogin.response.status, 403);
 assert.equal(closedLogin.body.code, 'ACCOUNT_RESTRICTED');

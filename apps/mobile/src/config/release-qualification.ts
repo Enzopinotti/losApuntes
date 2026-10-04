@@ -10,6 +10,7 @@ export type MobileReleaseBlocker =
   | "MISSING_BUILD_ID"
   | "MISSING_DISTRIBUTION_PROFILE"
   | "MISSING_SERVER_RELEASE_ID"
+  | "MISSING_SERVER_SOURCE_SHA"
   | "MISSING_SOURCE_SHA"
   | "SERVER_RELEASE_ORIGIN_MISMATCH";
 
@@ -26,6 +27,7 @@ export type MobileServerReleaseObservation = Readonly<{
   source: "api-observation";
   apiOrigin: string;
   releaseId: string;
+  sourceSha: string;
 }>;
 
 export type MobileReleaseQualification = Readonly<{
@@ -47,6 +49,7 @@ export type MobileServerReleaseObservationInput = {
   source: "api-observation";
   apiOrigin: string;
   releaseId?: string | null | undefined;
+  sourceSha?: string | null | undefined;
 };
 
 const RELEASE_TOKEN_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
@@ -150,12 +153,14 @@ function normalizeServerReleaseObservation(
   }
 
   const releaseId = normalizeBoundedToken(raw.releaseId);
-  if (!releaseId) return null;
+  const sourceSha = normalizeMobileSourceSha(raw.sourceSha);
+  if (!releaseId || !sourceSha) return null;
 
   return Object.freeze({
     source: "api-observation" as const,
     apiOrigin,
     releaseId,
+    sourceSha,
   });
 }
 
@@ -188,7 +193,25 @@ export function qualifyMobileRelease(
     blockers.push("MISSING_DISTRIBUTION_PROFILE");
   }
   if (!serverRelease) {
-    blockers.push("MISSING_SERVER_RELEASE_ID");
+    if (
+      observedServerRelease?.source !== "api-observation" ||
+      !normalizeBoundedToken(observedServerRelease.releaseId)
+    ) {
+      blockers.push("MISSING_SERVER_RELEASE_ID");
+    }
+    if (
+      observedServerRelease?.source !== "api-observation" ||
+      !normalizeMobileSourceSha(observedServerRelease.sourceSha)
+    ) {
+      blockers.push("MISSING_SERVER_SOURCE_SHA");
+    }
+    if (
+      observedServerRelease?.source === "api-observation" &&
+      normalizeBoundedToken(observedServerRelease.releaseId) &&
+      normalizeMobileSourceSha(observedServerRelease.sourceSha)
+    ) {
+      blockers.push("SERVER_RELEASE_ORIGIN_MISMATCH");
+    }
   } else if (serverRelease.apiOrigin !== identity.apiOrigin) {
     blockers.push("SERVER_RELEASE_ORIGIN_MISMATCH");
   }

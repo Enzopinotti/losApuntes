@@ -1,0 +1,101 @@
+.confirm-dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  max-width: 100%;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 1rem;
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 24%);
+
+  &::backdrop {
+    background: rgb(15 23 42 / 58%);
+  }
+
+  &__content {
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+
+  h2,
+  p {
+    margin: 0;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  &__cancel,
+  &__confirm {
+    min-height: 2.75rem;
+    padding: 0.65rem 1rem;
+    border-radius: 0.7rem;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  &__cancel {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #172033;
+  }
+
+  &__confirm {
+    border: 1px solid #b42318;
+    background: #b42318;
+    color: #fff;
+  }
+
+  &__cancel:focus-visible,
+  &__confirm:focus-visible {
+    outline: 3px solid #2d6bc8;
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    &[open] {
+      animation: confirm-dialog-in 120ms ease-out;
+    }
+
+    &::backdrop {
+      animation: confirm-dialog-backdrop-in 120ms ease-out;
+    }
+  }
+
+  @media (forced-colors: active) {
+    border: 1px solid CanvasText;
+
+    &__confirm {
+      border-color: ButtonText;
+    }
+  }
+}
+
+@keyframes confirm-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes confirm-dialog-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

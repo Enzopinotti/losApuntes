@@ -25,6 +25,34 @@ Mobile is a consumer of existing Identity/Auth semantics. It must not invent ano
 14. Google availability/login;
 15. Google link/unlink with reauthentication.
 
+### Password recovery implementation status
+
+The Mobile code-level recovery path now covers:
+
+- a neutral forgot-password request surface;
+- the existing `POST /auth/password/recovery/request` contract;
+- custom-scheme `losapuntes://recover-password` parsing;
+- immediate exchange of the raw bearer for an in-memory, purpose-bound opaque handle before Expo Router navigation;
+- server inspection before the reset form becomes usable;
+- retryable offline/timeout handling without persisting the bearer;
+- password completion and terminal `RECOVERY_NOT_AVAILABLE` handling.
+
+This does **not** by itself close native recovery acceptance. Transactional email now exposes the Mobile recovery deep link through merged #154. HTTPS universal/app-link association and real-device/provider evidence remain external/native acceptance work.
+
+### Account security implementation status
+
+The Mobile account-security surface now consumes the existing authenticated authority boundary for:
+
+- privacy-bounded active-session inventory;
+- revoke-one and revoke-all;
+- current-session revocation;
+- authenticated password change;
+- local SecureStore clearing after current-session revoke, revoke-all and password change;
+- stale-request fencing and abort on scope loss;
+- native destructive confirmations and explicit post-security sign-out copy.
+
+The UI intentionally does not display raw IP, exact location, full User-Agent, fingerprints or hardware identifiers. Google link/unlink remains a separate provider-dependent slice.
+
 ## Credential lifecycle
 
 ```text
