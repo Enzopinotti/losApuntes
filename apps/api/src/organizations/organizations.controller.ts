@@ -21,6 +21,7 @@ import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { OptionalAuthSessionGuard } from '../auth/guards/optional-auth-session.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
 import {
+  ArchiveOrganizationDto,
   ChangeOrganizationManagerDto,
   CreateOrganizationDto,
   CreateOrganizationEventDto,
@@ -103,6 +104,16 @@ export class OrganizationsController {
     @Body() dto: CreateOrganizationDto,
   ) {
     return this.organizations.create(request.user.id, dto);
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Post(':id/archive')
+  archive(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: ArchiveOrganizationDto,
+  ) {
+    return this.organizations.archive(request.user.id, id, dto);
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)

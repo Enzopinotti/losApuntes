@@ -100,6 +100,22 @@ export class UpdateOrganizationDto {
   websiteUrl?: string | null;
 }
 
+export class ArchiveOrganizationDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedManagementRevision!: number;
+
+  @IsString()
+  @Length(3, 500)
+  reason!: string;
+}
+
 export class OrganizationSearchDto {
   @IsOptional()
   @IsString()

@@ -70,6 +70,7 @@ export interface OrganizationManagerRecord {
 export const ORGANIZATION_AUDIT_EVENTS = [
   'organization.created',
   'organization.updated',
+  'organization.archived',
   'organization.verification_updated',
   'organization.manager_granted',
   'organization.manager_changed',

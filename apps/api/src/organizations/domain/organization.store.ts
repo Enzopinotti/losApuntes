@@ -63,6 +63,10 @@ export type OrganizationWriteAuthority = {
 
 export type AuthorizedOrganizationMutation =
   | {
+      kind: 'organization.archive';
+      expectedRevision: number;
+    }
+  | {
       kind: 'organization.update';
       expectedRevision: number;
       patch: UpdateOrganizationRecord;
@@ -118,6 +122,7 @@ export type AuthorizedOrganizationMutationResult =
   | { status: 'state_conflict' }
   | { status: 'not_found' }
   | { status: 'collection_limit'; collection: 'links' | 'featured_resources' }
+  | { status: 'ok'; kind: 'organization.archive'; value: OrganizationRecord }
   | { status: 'ok'; kind: 'organization.update'; value: OrganizationRecord }
   | { status: 'ok'; kind: 'post.create'; value: OrganizationPostRecord }
   | { status: 'ok'; kind: 'post.update'; value: OrganizationPostRecord }

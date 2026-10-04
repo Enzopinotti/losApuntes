@@ -241,6 +241,44 @@ export class MongoOrganizationStore implements OrganizationStore {
           const mutation = input.mutation;
 
           switch (mutation.kind) {
+            case 'organization.archive': {
+              const archived = await this.organizations
+                .findOneAndUpdate(
+                  {
+                    id: input.organizationId,
+                    status: 'active',
+                    revision: mutation.expectedRevision,
+                    managementRevision:
+                      input.authority.expectedManagementRevision,
+                  },
+                  {
+                    $set: { status: 'archived' },
+                    $inc: { revision: 1, managementRevision: 1 },
+                  },
+                  { new: true, session },
+                )
+                .lean<OrganizationRecord>()
+                .exec();
+
+              if (!archived) {
+                throw new AuthorizedMutationAbort({
+                  status: 'state_conflict',
+                });
+              }
+
+              await this.managers
+                .deleteMany({ organizationId: input.organizationId })
+                .session(session)
+                .exec();
+              await this.audits.create([input.audit], { session });
+              output = {
+                status: 'ok',
+                kind: mutation.kind,
+                value: archived,
+              };
+              return;
+            }
+
             case 'organization.update': {
               const updated = await this.organizations
                 .findOneAndUpdate(
@@ -276,6 +314,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'post.create': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const created = await this.posts.create([mutation.record], {
                 session,
               });
@@ -292,6 +335,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'post.update': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const updated = await this.posts
                 .findOneAndUpdate(
                   {
@@ -325,6 +373,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'post.delete': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const deleted = await this.posts
                 .deleteOne(
                   {
@@ -349,6 +402,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'event.create': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const created = await this.events.create([mutation.record], {
                 session,
               });
@@ -365,6 +423,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'event.update': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const updated = await this.events
                 .findOneAndUpdate(
                   {
@@ -397,7 +460,7 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.create': {
-              await this.acquireCapacityLock(
+              await this.acquireMutationFence(
                 input.organizationId,
                 input.authority.expectedManagementRevision,
                 session,
@@ -430,6 +493,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.delete': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const deleted = await this.links
                 .deleteOne(
                   {
@@ -472,7 +540,7 @@ export class MongoOrganizationStore implements OrganizationStore {
                 return;
               }
 
-              await this.acquireCapacityLock(
+              await this.acquireMutationFence(
                 input.organizationId,
                 input.authority.expectedManagementRevision,
                 session,
@@ -516,6 +584,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'resource.unfeature': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const deleted = await this.featuredResources
                 .deleteOne(
                   {
@@ -553,7 +626,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     }
   }
 
-  private async acquireCapacityLock(
+  private async acquireMutationFence(
     organizationId: string,
     expectedManagementRevision: number,
     session: ClientSession,
@@ -996,6 +1069,27 @@ export class MongoOrganizationStore implements OrganizationStore {
         },
         {
           $lookup: {
+            from: 'organizations',
+            let: { organizationId: '$organizationId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$id', '$$organizationId'] },
+                      { $eq: ['$status', 'active'] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__activeOrganization',
+          },
+        },
+        { $match: { '__activeOrganization.0': { $exists: true } } },
+        {
+          $lookup: {
             from: 'organization_follows',
             let: { organizationId: '$organizationId' },
             pipeline: [
@@ -1003,7 +1097,7 @@ export class MongoOrganizationStore implements OrganizationStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$organizationId', '$organizationId'] },
+                      { $eq: ['$organizationId', '$$organizationId'] },
                       { $eq: ['$userId', input.userId] },
                     ],
                   },
@@ -1017,7 +1111,12 @@ export class MongoOrganizationStore implements OrganizationStore {
         { $match: { '__viewerFollow.0': { $exists: true } } },
         { $sort: { publishedAt: -1, id: 1 } },
         { $limit: input.limit },
-        { $project: { __viewerFollow: 0 } },
+        {
+          $project: {
+            __activeOrganization: 0,
+            __viewerFollow: 0,
+          },
+        },
       ])
       .exec();
   }

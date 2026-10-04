@@ -22,6 +22,9 @@ assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
 assert.match(service, /posts:\s*\(id:\s*string, cursor\?/u);
 assert.match(service, /events:\s*\(id:\s*string, cursor\?/u);
+assert.match(service, /archive:\s*\(/u);
+assert.match(service, /\/organizations\/\$\{encodeURIComponent\(id\)\}\/archive/u);
+assert.match(service, /expectedManagementRevision/u);
 assert.match(service, /nextCursor:\s*string\s*\|\s*null/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
@@ -81,6 +84,19 @@ assert.match(manage, /operation: \(signal: AbortSignal\)/u);
 assert.match(manage, /return isActionCurrent\(ticket\)/u);
 assert.match(manage, /if \(!succeeded\) return/u);
 assert.match(manage, /setPostTitle\(""\)/u);
+assert.match(manage, /ConfirmDialog/u);
+assert.match(manage, /management\.actorRole !== "owner"/u);
+assert.match(manage, /organizationsApi\.archive\(/u);
+assert.match(manage, /Archivar organización/u);
+assert.match(manage, /Esta acción no es un borrado/u);
+assert.match(manage, /navigate\("\/organizations", \{ replace: true \}\)/u);
+assert.doesNotMatch(manage, /organizationsApi\.deleteOrganization/u);
+assert.match(manage, /if \(busy === "archive"\) return false;/u);
+assert.equal(
+  [...manage.matchAll(/<button disabled=\{Boolean\(busy\)\} type="submit">/gu)]
+    .length,
+  3,
+);
 assert.match(manage, /\}, \[organizationScopeKey\]\);/u);
 
 const feeds = await read('apps/web/src/pages/Feeds.tsx');
