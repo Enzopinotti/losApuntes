@@ -314,6 +314,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'post.create': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const created = await this.posts.create([mutation.record], {
                 session,
               });
@@ -330,6 +335,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'post.update': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const updated = await this.posts
                 .findOneAndUpdate(
                   {
@@ -363,6 +373,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'post.delete': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const deleted = await this.posts
                 .deleteOne(
                   {
@@ -387,6 +402,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'event.create': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const created = await this.events.create([mutation.record], {
                 session,
               });
@@ -403,6 +423,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'event.update': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const updated = await this.events
                 .findOneAndUpdate(
                   {
@@ -435,7 +460,7 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.create': {
-              await this.acquireCapacityLock(
+              await this.acquireMutationFence(
                 input.organizationId,
                 input.authority.expectedManagementRevision,
                 session,
@@ -468,6 +493,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'link.delete': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const deleted = await this.links
                 .deleteOne(
                   {
@@ -510,7 +540,7 @@ export class MongoOrganizationStore implements OrganizationStore {
                 return;
               }
 
-              await this.acquireCapacityLock(
+              await this.acquireMutationFence(
                 input.organizationId,
                 input.authority.expectedManagementRevision,
                 session,
@@ -554,6 +584,11 @@ export class MongoOrganizationStore implements OrganizationStore {
             }
 
             case 'resource.unfeature': {
+              await this.acquireMutationFence(
+                input.organizationId,
+                input.authority.expectedManagementRevision,
+                session,
+              );
               const deleted = await this.featuredResources
                 .deleteOne(
                   {
@@ -591,7 +626,7 @@ export class MongoOrganizationStore implements OrganizationStore {
     }
   }
 
-  private async acquireCapacityLock(
+  private async acquireMutationFence(
     organizationId: string,
     expectedManagementRevision: number,
     session: ClientSession,
