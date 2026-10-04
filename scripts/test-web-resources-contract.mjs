@@ -63,8 +63,18 @@ assert.match(
 assert.match(page, /isUncertainResourceCreateOutcome\(nextError\)/u);
 assert.match(page, /resourceCreationMayHaveCommitted/u);
 assert.match(page, /uncertainResourceCreates/u);
+assert.match(page, /retainedUncertainResourceCreates = new Map/u);
+assert.match(page, /window\.history\.replaceState/u);
+assert.match(page, /UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY/u);
+assert.match(page, /hasRecoveredUncertainResourceCreate/u);
 assert.match(page, /rememberUncertainResourceCreate/u);
 assert.match(page, /forgetUncertainResourceCreate/u);
+assert.match(
+  page,
+  /if \(!rememberUncertainResourceCreate\(pendingResourceCreate\)\)/u,
+);
+assert.match(page, /listScopeKeyRef\.current/u);
+assert.match(page, /void loadRef\.current\(\)/u);
 assert.match(page, /No pudimos confirmar si se publicó/u);
 assert.match(page, /Ya revisé Recursos; permitir otro intento/u);
 assert.match(page, /isResourceActionCurrent\(ticket\)/u);

@@ -95,6 +95,83 @@ type UncertainResourceCreate = {
   filename: string;
 };
 
+const UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY =
+  "__losApuntesUncertainResourceCreateUsers";
+const retainedUncertainResourceCreates = new Map<
+  string,
+  UncertainResourceCreate
+>();
+
+function uncertainResourceCreateKey(
+  userId: string,
+  fileIdentity: string,
+): string {
+  return JSON.stringify([userId, fileIdentity]);
+}
+
+function readUncertainResourceCreateUsers(): string[] {
+  if (typeof window === "undefined") return [];
+  const state = window.history.state;
+  if (typeof state !== "object" || state === null || Array.isArray(state)) {
+    return [];
+  }
+  const users = (state as Record<string, unknown>)[
+    UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY
+  ];
+  return Array.isArray(users)
+    ? users.filter((userId): userId is string => typeof userId === "string")
+    : [];
+}
+
+type UncertainResourceCreateUsersUpdate = {
+  userIds: string[];
+  persisted: boolean;
+};
+
+function updateUncertainResourceCreateUsers(
+  userId: string,
+  isUncertain: boolean,
+): UncertainResourceCreateUsersUpdate {
+  const currentUsers = readUncertainResourceCreateUsers();
+  const nextUsers = isUncertain
+    ? [...new Set([...currentUsers, userId])]
+    : currentUsers.filter((currentUserId) => currentUserId !== userId);
+  if (
+    currentUsers.length === nextUsers.length &&
+    currentUsers.every(
+      (currentUserId, index) => currentUserId === nextUsers[index],
+    )
+  ) {
+    return { userIds: nextUsers, persisted: true };
+  }
+  if (typeof window === "undefined") {
+    return { userIds: currentUsers, persisted: false };
+  }
+
+  const currentState = window.history.state;
+  const nextState: Record<string, unknown> =
+    typeof currentState === "object" &&
+    currentState !== null &&
+    !Array.isArray(currentState)
+      ? { ...currentState }
+      : {};
+  if (nextUsers.length > 0) {
+    nextState[UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY] = nextUsers;
+  } else {
+    delete nextState[UNCERTAIN_RESOURCE_CREATE_HISTORY_KEY];
+  }
+  try {
+    window.history.replaceState(nextState, "");
+  } catch {
+    return { userIds: currentUsers, persisted: false };
+  }
+  return { userIds: nextUsers, persisted: true };
+}
+
+function retainedUncertainResourceCreateValues(): UncertainResourceCreate[] {
+  return [...retainedUncertainResourceCreates.values()];
+}
+
 function fileIdentity(file: File): string {
   return JSON.stringify([file.name, file.size, file.type, file.lastModified]);
 }
@@ -145,6 +222,8 @@ const Resources = () => {
     savedView ? "saved" : "discovery",
     queryGeneration,
   ].join(":");
+  const listScopeKeyRef = useRef(listScopeKey);
+  listScopeKeyRef.current = listScopeKey;
   const {
     begin: beginListRequest,
     isCurrent: isListRequestCurrent,
@@ -240,7 +319,16 @@ const Resources = () => {
       : 0;
   const [uncertainResourceCreates, setUncertainResourceCreates] = useState<
     UncertainResourceCreate[]
-  >([]);
+  >(() => retainedUncertainResourceCreateValues());
+  const [uncertainResourceCreateUsers, setUncertainResourceCreateUsers] =
+    useState<string[]>(() => [
+      ...new Set([
+        ...readUncertainResourceCreateUsers(),
+        ...retainedUncertainResourceCreateValues().map(
+          (uncertain) => uncertain.userId,
+        ),
+      ]),
+    ]);
   const {
     begin: beginSubjectSearch,
     isCurrent: isSubjectSearchCurrent,
@@ -259,29 +347,44 @@ const Resources = () => {
       uncertain.userId === user?.id &&
       uncertain.fileIdentity === selectedFileIdentity,
   );
-  const hasUncertainResourceCreate = Boolean(currentUncertainResourceCreate);
-  const rememberUncertainResourceCreate = (next: UncertainResourceCreate) => {
-    setUncertainResourceCreates((current) =>
-      current.some(
-        (uncertain) =>
-          uncertain.userId === next.userId &&
-          uncertain.fileIdentity === next.fileIdentity,
-      )
-        ? current
-        : [...current, next],
+  const hasRecoveredUncertainResourceCreate = Boolean(
+    user?.id &&
+    uncertainResourceCreateUsers.includes(user.id) &&
+    !uncertainResourceCreates.some((uncertain) => uncertain.userId === user.id),
+  );
+  const hasUncertainResourceCreate =
+    Boolean(currentUncertainResourceCreate) ||
+    hasRecoveredUncertainResourceCreate;
+  const rememberUncertainResourceCreate = (
+    next: UncertainResourceCreate,
+  ): boolean => {
+    retainedUncertainResourceCreates.set(
+      uncertainResourceCreateKey(next.userId, next.fileIdentity),
+      next,
     );
+    setUncertainResourceCreates(retainedUncertainResourceCreateValues());
+    const update = updateUncertainResourceCreateUsers(next.userId, true);
+    setUncertainResourceCreateUsers(update.userIds);
+    return update.persisted;
   };
-  const forgetUncertainResourceCreate = (
-    userId: string,
-    fileIdentity: string,
-  ) => {
-    setUncertainResourceCreates((current) =>
-      current.filter(
-        (uncertain) =>
-          uncertain.userId !== userId ||
-          uncertain.fileIdentity !== fileIdentity,
-      ),
+  const forgetUncertainResourceCreate = (userId: string, identity?: string) => {
+    if (identity) {
+      retainedUncertainResourceCreates.delete(
+        uncertainResourceCreateKey(userId, identity),
+      );
+    } else {
+      for (const [key, uncertain] of retainedUncertainResourceCreates) {
+        if (uncertain.userId === userId) {
+          retainedUncertainResourceCreates.delete(key);
+        }
+      }
+    }
+    setUncertainResourceCreates(retainedUncertainResourceCreateValues());
+    const stillUncertain = retainedUncertainResourceCreateValues().some(
+      (uncertain) => uncertain.userId === userId,
     );
+    const update = updateUncertainResourceCreateUsers(userId, stillUncertain);
+    setUncertainResourceCreateUsers(update.userIds);
   };
   const setUploadPhase = (ticket: AsyncAuthorityTicket, phase: UploadPhase) => {
     if (!isUploadCurrent(ticket)) return;
@@ -523,6 +626,7 @@ const Resources = () => {
     uploadOperationKey.current = operationKey;
     let resourceCreateStarted = false;
     let reconciliationAttempted = false;
+    let pendingResourceCreate: UncertainResourceCreate | null = null;
     setUploadPhase(ticket, "intent");
 
     try {
@@ -550,6 +654,32 @@ const Resources = () => {
       await resourcesApi.finalize(intent.file.id, ticket.signal);
       if (!isUploadCurrent(ticket)) return;
       setUploadPhase(ticket, "create");
+      if (!user?.id) {
+        setErrorState({
+          scopeKey: listScopeKeyRef.current,
+          message: "Iniciá sesión nuevamente antes de publicar el recurso.",
+          isCurrent: () => isUploadCurrent(ticket),
+        });
+        return;
+      }
+      pendingResourceCreate = {
+        userId: user.id,
+        fileIdentity: fileIdentity(file),
+        filename: file.name,
+      };
+      if (!rememberUncertainResourceCreate(pendingResourceCreate)) {
+        forgetUncertainResourceCreate(
+          pendingResourceCreate.userId,
+          pendingResourceCreate.fileIdentity,
+        );
+        setErrorState({
+          scopeKey: listScopeKeyRef.current,
+          message:
+            "No pudimos guardar el estado de la publicación. No se envió el recurso; volvé a intentarlo.",
+          isCurrent: () => isUploadCurrent(ticket),
+        });
+        return;
+      }
       resourceCreateStarted = true;
       const created = await resourcesApi.create(
         {
@@ -562,6 +692,11 @@ const Resources = () => {
         },
         ticket.signal,
       );
+      forgetUncertainResourceCreate(
+        pendingResourceCreate.userId,
+        pendingResourceCreate.fileIdentity,
+      );
+      pendingResourceCreate = null;
       if (!isUploadCurrent(ticket)) return;
 
       setFileSelection(null);
@@ -575,25 +710,27 @@ const Resources = () => {
       setSubjectQuery("");
       setUploadProgressState({ scopeKey: ticket.scopeKey, value: 0 });
       setFeedbackState({
-        scopeKey: listScopeKey,
+        scopeKey: listScopeKeyRef.current,
         message: `Publicado: ${created.resource.title}`,
       });
       reconciliationAttempted = true;
-      void load();
+      void loadRef.current();
     } catch (nextError) {
       if (
         resourceCreateStarted &&
         isUncertainResourceCreateOutcome(nextError)
       ) {
-        if (user?.id) {
-          rememberUncertainResourceCreate({
+        if (!pendingResourceCreate && user?.id) {
+          pendingResourceCreate = {
             userId: user.id,
             fileIdentity: fileIdentity(file),
             filename: file.name,
-          });
-        } else if (isUploadCurrent(ticket)) {
+          };
+          rememberUncertainResourceCreate(pendingResourceCreate);
+        }
+        if (isUploadCurrent(ticket)) {
           setErrorState({
-            scopeKey: listScopeKey,
+            scopeKey: listScopeKeyRef.current,
             message:
               "No pudimos confirmar si se publicó el recurso. Revisá tus recursos antes de volver a intentarlo.",
             isCurrent: () => isUploadCurrent(ticket),
@@ -604,9 +741,15 @@ const Resources = () => {
         return;
       }
 
+      if (resourceCreateStarted && pendingResourceCreate) {
+        forgetUncertainResourceCreate(
+          pendingResourceCreate.userId,
+          pendingResourceCreate.fileIdentity,
+        );
+      }
       if (isUploadCurrent(ticket)) {
         setErrorState({
-          scopeKey: listScopeKey,
+          scopeKey: listScopeKeyRef.current,
           message: messageFor(nextError),
           isCurrent: () => isUploadCurrent(ticket),
         });
@@ -1079,24 +1222,31 @@ const Resources = () => {
               </div>
             )}
 
-            {currentUncertainResourceCreate && (
+            {(currentUncertainResourceCreate ||
+              hasRecoveredUncertainResourceCreate) && (
               <div className="resources-wide resources-error" role="alert">
                 <p>
-                  No pudimos confirmar si se publicó “
-                  {currentUncertainResourceCreate.filename}”. Revisá tus
-                  recursos antes de habilitar otro intento para evitar
-                  duplicados.
+                  {currentUncertainResourceCreate
+                    ? `No pudimos confirmar si se publicó “${currentUncertainResourceCreate.filename}”. Revisá tus recursos antes de habilitar otro intento para evitar duplicados.`
+                    : "No pudimos confirmar el resultado de una publicación anterior. Revisá tus recursos antes de volver a publicar para evitar duplicados."}
                 </p>
                 <button
                   type="button"
                   className="secondary"
                   disabled={uploading}
                   onClick={() => {
-                    if (!user?.id || !selectedFileIdentity) return;
-                    forgetUncertainResourceCreate(
-                      user.id,
-                      selectedFileIdentity,
-                    );
+                    if (!user?.id) return;
+                    if (
+                      currentUncertainResourceCreate &&
+                      selectedFileIdentity
+                    ) {
+                      forgetUncertainResourceCreate(
+                        user.id,
+                        selectedFileIdentity,
+                      );
+                    } else {
+                      forgetUncertainResourceCreate(user.id);
+                    }
                     uploadOperationKey.current = crypto.randomUUID();
                     setUploadGeneration((current) => current + 1);
                   }}
