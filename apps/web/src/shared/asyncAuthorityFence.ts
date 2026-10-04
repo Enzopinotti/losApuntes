@@ -8,6 +8,7 @@ export class AsyncAuthorityFence {
   private epoch = 0;
   private currentScopeKey: string;
   private controller: AbortController | null = null;
+  private suspended = false;
   private disposed = false;
 
   constructor(scopeKey: string) {
@@ -22,7 +23,7 @@ export class AsyncAuthorityFence {
   }
 
   begin(scopeKey: string): AsyncAuthorityTicket {
-    if (this.disposed || scopeKey !== this.currentScopeKey) {
+    if (this.disposed || this.suspended || scopeKey !== this.currentScopeKey) {
       return {
         epoch: this.epoch,
         scopeKey,
@@ -46,6 +47,7 @@ export class AsyncAuthorityFence {
   isCurrent(ticket: AsyncAuthorityTicket): boolean {
     return (
       !this.disposed &&
+      !this.suspended &&
       ticket.epoch === this.epoch &&
       ticket.scopeKey === this.currentScopeKey &&
       !ticket.signal.aborted
@@ -64,6 +66,19 @@ export class AsyncAuthorityFence {
     this.epoch += 1;
     this.controller?.abort();
     this.controller = null;
+  }
+
+  suspend(): void {
+    if (this.disposed || this.suspended) return;
+
+    this.suspended = true;
+    this.invalidate();
+  }
+
+  resume(): void {
+    if (this.disposed) return;
+
+    this.suspended = false;
   }
 
   dispose(): void {
