@@ -64,7 +64,10 @@ const failureFrom = (error: unknown): SecurityFailure => {
     if (error.code === "INVALID_CURRENT_PASSWORD") {
       return "invalid_current_password";
     }
-    if (error.code === "PASSWORD_CHANGE_CONFLICT" || error.kind === "conflict") {
+    if (
+      error.code === "PASSWORD_CHANGE_CONFLICT" ||
+      error.kind === "conflict"
+    ) {
       return "conflict";
     }
     if (error.code === "ACCOUNT_RESTRICTED") return "restricted";
