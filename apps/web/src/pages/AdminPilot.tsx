@@ -71,8 +71,7 @@ const AdminPilot = () => {
   const currentActionState =
     actionState?.scopeKey === authScopeKey ? actionState : null;
   const busy = currentActionState?.busy ?? null;
-  const error =
-    currentActionState?.error ?? currentViewState?.error ?? null;
+  const error = currentActionState?.error ?? currentViewState?.error ?? null;
 
   const load = useCallback(async () => {
     const ticket = beginLoad();
@@ -118,13 +117,7 @@ const AdminPilot = () => {
     } finally {
       finishLoad(ticket);
     }
-  }, [
-    beginLoad,
-    days,
-    finishLoad,
-    isLoadCurrent,
-    loadScopeKey,
-  ]);
+  }, [beginLoad, days, finishLoad, isLoadCurrent, loadScopeKey]);
   const loadRef = useRef(load);
   loadRef.current = load;
 
