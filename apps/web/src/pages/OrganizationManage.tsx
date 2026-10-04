@@ -205,12 +205,7 @@ const OrganizationManage = () => {
   };
 
   const archiveOrganization = async () => {
-    if (
-      !detail ||
-      !management ||
-      management.actorRole !== "owner" ||
-      busy
-    ) {
+    if (!detail || !management || management.actorRole !== "owner" || busy) {
       return;
     }
 
@@ -640,9 +635,7 @@ const OrganizationManage = () => {
                 ref={archiveButtonRef}
                 type="button"
                 className="secondary"
-                disabled={
-                  Boolean(busy) || archiveReason.trim().length < 3
-                }
+                disabled={Boolean(busy) || archiveReason.trim().length < 3}
                 onClick={() => setArchiveConfirmOpen(true)}
               >
                 Archivar organización
