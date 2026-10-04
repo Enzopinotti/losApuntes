@@ -1,4 +1,4 @@
-import { Redirect } from "expo-router";
+import { Link, Redirect } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -24,6 +24,12 @@ export default function ProfileRoute() {
         <Text style={productSurfaceStyles.cardCopy}>{snapshot.user.email}</Text>
       </View>
 
+      <Link href="/security" asChild>
+        <Pressable accessibilityRole="link" style={styles.security}>
+          <Text style={styles.securityText}>Seguridad de la cuenta</Text>
+        </Pressable>
+      </Link>
+
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Cerrar sesión"
@@ -37,6 +43,20 @@ export default function ProfileRoute() {
 }
 
 const styles = StyleSheet.create({
+  security: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#c9cad4",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+  },
+  securityText: {
+    color: "#292933",
+    fontSize: 16,
+    fontWeight: "700",
+  },
   logout: {
     minHeight: 48,
     alignItems: "center",
