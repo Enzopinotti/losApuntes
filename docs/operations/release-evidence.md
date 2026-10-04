@@ -19,6 +19,11 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - API observable release endpoint: `/health/release`
 - API observed release identifier:
 - API observed source SHA:
+- Web observable release manifest: `/release.json`
+- Web observed release identifier:
+- Web observed source SHA:
+- Web embedded API origin:
+- Web/API source SHA match: yes/no
 - Deployment timestamp/window:
 
 ## Planning traceability
@@ -127,5 +132,7 @@ One release candidate should be reconstructable from one bounded record. Copy th
 - local smoke does not replace provider/production evidence;
 - a deployment is not launch-ready while any required field is unknown or any high/critical blocker remains open;
 - API release observation is valid only when `/health/release` returns `status=available` with the deployment-provided release identifier and exact 40-character source SHA; a 503/unavailable response is an explicit blocker, not evidence to replace manually;
+- Web release identity is valid only when the deployed `/release.json` is `status=available`, names the exact built source SHA and the exact embedded API origin; an unavailable manifest is an explicit blocker;
+- Web/Mobile qualification must reject an observed API source SHA that differs from the client artifact source SHA; an origin match alone is insufficient;
 - a data-sensitive/destructive release with existing durable data requires a recent verified recovery point; only a genuinely empty first install may record recovery as N/A;
 - keep the project Excel reconciled with this record rather than creating a second planning backlog here.
