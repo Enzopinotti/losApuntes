@@ -8,6 +8,7 @@ import type {
 import { ApiRequestError } from "@/services/api/client";
 
 import type { AuthActionTokenVault } from "./action-token-vault";
+export { newPasswordValidationMessage } from "./password-policy";
 
 export type PasswordRecoveryFailure =
   | "invalid_link"
@@ -45,25 +46,6 @@ export interface PasswordRecoveryApi {
 }
 
 type Listener = (snapshot: PasswordRecoverySnapshot) => void;
-
-const PASSWORD_MIN_LENGTH = 15;
-const PASSWORD_MAX_LENGTH = 256;
-
-export const newPasswordValidationMessage = (
-  password: string,
-): true | string => {
-  const length = Array.from(password.normalize("NFC")).length;
-
-  if (length < PASSWORD_MIN_LENGTH) {
-    return `Usá al menos ${PASSWORD_MIN_LENGTH} caracteres.`;
-  }
-
-  if (length > PASSWORD_MAX_LENGTH) {
-    return `Usá como máximo ${PASSWORD_MAX_LENGTH} caracteres.`;
-  }
-
-  return true;
-};
 
 const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
