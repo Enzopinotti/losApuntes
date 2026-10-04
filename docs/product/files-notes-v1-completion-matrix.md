@@ -71,6 +71,20 @@ Files + Notes v1 does **not** claim:
 
 Those are separate future concerns and must not be inferred from this module.
 
+## Native Mobile upload slice — tracked in #7
+
+The native Create tab now has a repository implementation candidate for the same Files/Resources boundary:
+
+- system file picker for PDF, JPEG, PNG and WebP, capped at 50 MiB;
+- upload intents use a per-selection UUID operation key;
+- binary PUT uses only the short-lived signed URL and the exact server-provided headers; app bearer/cookie headers are rejected at this boundary;
+- progress, cancellation, and retry resume from the last completed upload stage;
+- finalize remains server-authoritative, and resource creation starts private;
+- publishing selects from the session's server-loaded academic participation list; the API re-resolves the canonical Subject and optional CourseOffering;
+- an uncertain resource-create response blocks an immediate duplicate attempt for that selected file.
+
+Local Mobile tests cover the staged intent → PUT → finalize → create sequence, retry/idempotency behavior, ambiguous create results, file policy, storage URL policy, and authenticated API authority. This code does not claim real-device screen acceptance; physical iOS/Android validation and the full #7 product journey remain open under #7.
+
 ## Closure evidence
 
 Files + Notes v1 is closed with exact evidence:
