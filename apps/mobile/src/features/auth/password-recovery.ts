@@ -75,7 +75,10 @@ export const requestPasswordRecovery = async (
   signal?: AbortSignal,
 ): Promise<PasswordRecoveryRequestResult> => {
   try {
-    await api.requestPasswordRecovery({ email: normalizeEmail(email) }, signal);
+    await api.requestPasswordRecovery(
+      { email: normalizeEmail(email) },
+      signal,
+    );
     return "accepted";
   } catch (error) {
     const failure = failureFrom(error);
