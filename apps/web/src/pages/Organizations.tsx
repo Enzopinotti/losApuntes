@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -10,6 +16,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
 
 const typeLabels: Record<OrganizationType, string> = {
@@ -38,15 +45,57 @@ function messageFor(error: unknown): string {
 }
 
 const Organizations = () => {
-  const { status } = useAuth();
+  const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
-  const [items, setItems] = useState<OrganizationCard[]>([]);
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
   const [query, setQuery] = useState("");
   const [type, setType] = useState<OrganizationType | "">("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const directoryScopeKey = [
+    "organizations-directory",
+    authScopeKey,
+    query.trim(),
+    type || "all-types",
+  ].join(":");
+  const {
+    begin: beginDirectoryLoad,
+    isCurrent: isDirectoryLoadCurrent,
+    finish: finishDirectoryLoad,
+  } = useAsyncAuthorityFence(directoryScopeKey);
+  const {
+    begin: beginCreate,
+    isCurrent: isCreateCurrent,
+    finish: finishCreate,
+  } = useAsyncAuthorityFence(`organizations-create:${authScopeKey}`);
+  const [listState, setListState] = useState<{
+    scopeKey: string;
+    items: OrganizationCard[];
+    loading: boolean;
+  } | null>(null);
+  const currentListState =
+    listState?.scopeKey === directoryScopeKey ? listState : null;
+  const items = currentListState?.items ?? [];
+  const loading = currentListState?.loading ?? true;
+  const [busyState, setBusyState] = useState<{
+    scopeKey: string;
+    value: boolean;
+  } | null>(null);
+  const busy =
+    busyState?.scopeKey === authScopeKey ? busyState.value : false;
+  const [errorState, setErrorState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const error = errorState?.scopeKey === authScopeKey ? errorState.message : null;
+  const [feedbackState, setFeedbackState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const feedback =
+    feedbackState?.scopeKey === authScopeKey ? feedbackState.message : null;
 
   const [name, setName] = useState("");
   const [createType, setCreateType] =
@@ -54,41 +103,119 @@ const Organizations = () => {
   const [about, setAbout] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [institutionQuery, setInstitutionQuery] = useState("");
-  const [institutions, setInstitutions] = useState<AcademicInstitutionOption[]>(
-    [],
-  );
-  const [institution, setInstitution] =
-    useState<AcademicInstitutionOption | null>(null);
+  const institutionSearchScopeKey = [
+    "organizations-institutions",
+    authScopeKey,
+    institutionQuery.trim(),
+  ].join(":");
+  const {
+    begin: beginInstitutionSearch,
+    isCurrent: isInstitutionSearchCurrent,
+    finish: finishInstitutionSearch,
+  } = useAsyncAuthorityFence(institutionSearchScopeKey);
+  const [institutionsState, setInstitutionsState] = useState<{
+    scopeKey: string;
+    items: AcademicInstitutionOption[];
+  } | null>(null);
+  const institutions =
+    institutionsState?.scopeKey === institutionSearchScopeKey
+      ? institutionsState.items
+      : [];
+  const [institutionSelection, setInstitutionSelection] = useState<{
+    authScopeKey: string;
+    institution: AcademicInstitutionOption;
+  } | null>(null);
+  const institution =
+    institutionSelection?.authScopeKey === authScopeKey
+      ? institutionSelection.institution
+      : null;
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    const ticket = beginDirectoryLoad();
+    if (!isDirectoryLoadCurrent(ticket)) return;
+    setListState((current) => ({
+      scopeKey: directoryScopeKey,
+      items:
+        current?.scopeKey === directoryScopeKey ? current.items : [],
+      loading: true,
+    }));
+    setErrorState(null);
     try {
-      const result = await organizationsApi.search({
-        q: query.trim() || undefined,
-        type: type || undefined,
+      const result = await organizationsApi.search(
+        {
+          q: query.trim() || undefined,
+          type: type || undefined,
+        },
+        ticket.signal,
+      );
+      if (!isDirectoryLoadCurrent(ticket)) return;
+      setListState({
+        scopeKey: directoryScopeKey,
+        items: result.items,
+        loading: false,
       });
-      setItems(result.items);
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isDirectoryLoadCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: authScopeKey,
+        message: messageFor(nextError),
+      });
+      setListState((current) =>
+        current?.scopeKey === directoryScopeKey
+          ? { ...current, loading: false }
+          : current,
+      );
     } finally {
-      setLoading(false);
+      finishDirectoryLoad(ticket);
     }
-  }, [query, type]);
+  }, [
+    authScopeKey,
+    beginDirectoryLoad,
+    directoryScopeKey,
+    finishDirectoryLoad,
+    isDirectoryLoadCurrent,
+    query,
+    type,
+  ]);
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setName("");
+    setAbout("");
+    setWebsiteUrl("");
+    setInstitutionQuery("");
+    setInstitutionsState(null);
+    setInstitutionSelection(null);
+  }, [authScopeKey]);
+
   const searchInstitutions = async () => {
     if (institutionQuery.trim().length < 2) return;
-    setError(null);
+    const ticket = beginInstitutionSearch();
+    if (!isInstitutionSearchCurrent(ticket)) return;
+    setErrorState(null);
     try {
-      setInstitutions(
-        await organizationsApi.searchInstitutions(institutionQuery.trim()),
+      const result = await organizationsApi.searchInstitutions(
+        institutionQuery.trim(),
+        ticket.signal,
       );
+      if (!isInstitutionSearchCurrent(ticket)) return;
+      setInstitutionsState({
+        scopeKey: institutionSearchScopeKey,
+        items: result,
+      });
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isInstitutionSearchCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: authScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      finishInstitutionSearch(ticket);
     }
   };
 
@@ -96,31 +223,45 @@ const Organizations = () => {
     event.preventDefault();
     if (!institution) return;
 
-    setBusy(true);
-    setError(null);
-    setFeedback(null);
+    const selectedInstitution = institution;
+    const ticket = beginCreate();
+    if (!isCreateCurrent(ticket)) return;
+    setBusyState({ scopeKey: authScopeKey, value: true });
+    setErrorState(null);
+    setFeedbackState(null);
     try {
-      const result = await organizationsApi.create({
-        name,
-        type: createType,
-        institutionId: institution.id,
-        about: about.trim() || undefined,
-        websiteUrl: websiteUrl.trim() || undefined,
-      });
+      const result = await organizationsApi.create(
+        {
+          name,
+          type: createType,
+          institutionId: selectedInstitution.id,
+          about: about.trim() || undefined,
+          websiteUrl: websiteUrl.trim() || undefined,
+        },
+        ticket.signal,
+      );
+      if (!isCreateCurrent(ticket)) return;
       setName("");
       setAbout("");
       setWebsiteUrl("");
-      setInstitution(null);
+      setInstitutionSelection(null);
       setInstitutionQuery("");
-      setInstitutions([]);
-      setFeedback(
-        `Organización creada: ${result.organization.name}. Empieza sin verificación institucional.`,
-      );
-      await load();
+      setInstitutionsState(null);
+      setFeedbackState({
+        scopeKey: authScopeKey,
+        message: `Organización creada: ${result.organization.name}. Empieza sin verificación institucional.`,
+      });
+      await loadRef.current();
     } catch (nextError) {
-      setError(messageFor(nextError));
+      if (!isCreateCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: authScopeKey,
+        message: messageFor(nextError),
+      });
     } finally {
-      setBusy(false);
+      if (finishCreate(ticket)) {
+        setBusyState({ scopeKey: authScopeKey, value: false });
+      }
     }
   };
 
@@ -292,7 +433,12 @@ const Organizations = () => {
                     <li key={option.id}>
                       <button
                         type="button"
-                        onClick={() => setInstitution(option)}
+                        onClick={() =>
+                          setInstitutionSelection({
+                            authScopeKey,
+                            institution: option,
+                          })
+                        }
                       >
                         {option.name}
                       </button>
