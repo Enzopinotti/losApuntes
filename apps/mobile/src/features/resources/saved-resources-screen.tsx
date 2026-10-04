@@ -108,6 +108,15 @@ export function SavedResourcesScreen() {
       onRefresh={authorityKey ? refresh : undefined}
       refreshing={current?.kind === "loading"}
     >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Volver a Perfil"
+        onPress={() => router.back()}
+        style={styles.backButton}
+      >
+        <Text style={styles.backLabel}>Volver</Text>
+      </Pressable>
+
       {!current || current.kind === "loading" ? (
         <View style={styles.card}>
           <View style={styles.loadingRow}>
@@ -186,6 +195,17 @@ export function SavedResourcesScreen() {
 }
 
 const styles = StyleSheet.create({
+  backButton: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  backLabel: {
+    color: "#43366a",
+    fontSize: 15,
+    fontWeight: "700",
+  },
   card: {
     gap: 12,
     borderRadius: 18,

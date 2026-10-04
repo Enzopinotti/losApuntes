@@ -156,7 +156,12 @@ export class MobileApiClient {
         return undefined as T;
       }
 
-      return (await response.json()) as T;
+      const responseBody = await response.text();
+      if (!responseBody.trim()) {
+        return undefined as T;
+      }
+
+      return JSON.parse(responseBody) as T;
     } catch (error) {
       if (error instanceof ApiRequestError) throw error;
 

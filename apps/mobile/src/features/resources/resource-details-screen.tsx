@@ -148,10 +148,11 @@ export function MobileResourceDetailsScreen({
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
-  const authorityKey =
-    appState === "active" && sessionAuthority && resourceId
+  const scopeKey =
+    sessionAuthority && resourceId
       ? `${sessionAuthority}:resource:${resourceId}`
       : null;
+  const authorityKey = appState === "active" ? scopeKey : null;
   const load = useCallback(
     (signal: AbortSignal) =>
       mobileResourceConsumptionApi.resource(resourceId, signal),
@@ -162,14 +163,19 @@ export function MobileResourceDetailsScreen({
   useEffect(() => controller.subscribe(setAction), [controller]);
 
   useEffect(() => {
-    if (!authorityKey) {
+    if (!scopeKey) {
       controller.invalidate();
       return;
     }
 
-    controller.setScope(authorityKey, resourceId, initialSaved);
-    return () => controller.invalidate(authorityKey);
-  }, [authorityKey, controller, initialSaved, resourceId]);
+    controller.setScope(scopeKey, resourceId, initialSaved);
+    if (appState !== "active") {
+      controller.suspend(scopeKey);
+      return;
+    }
+
+    return () => controller.suspend(scopeKey);
+  }, [appState, controller, initialSaved, resourceId, scopeKey]);
 
   if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
 
@@ -184,9 +190,7 @@ export function MobileResourceDetailsScreen({
   }
 
   const currentAction =
-    action.kind === "ready" && action.authorityKey === authorityKey
-      ? action
-      : null;
+    action.kind === "ready" && action.authorityKey === scopeKey ? action : null;
 
   const openFile = async () => {
     if (!authorityKey) return;

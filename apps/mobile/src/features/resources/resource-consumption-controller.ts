@@ -138,6 +138,19 @@ export class MobileResourceDetailController {
     }
   }
 
+  suspend(authorityKey: string): void {
+    if (
+      this.snapshot.kind !== "ready" ||
+      this.snapshot.authorityKey !== authorityKey
+    ) {
+      return;
+    }
+
+    const current = this.snapshot;
+    this.cancel();
+    this.publish({ ...current, busy: null });
+  }
+
   invalidate(authorityKey?: string): void {
     if (
       authorityKey &&

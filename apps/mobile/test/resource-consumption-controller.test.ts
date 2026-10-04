@@ -104,6 +104,23 @@ test("resource detail keeps save state scoped to the current resource authority"
   assert.equal(snapshot.kind === "ready" ? snapshot.saved : null, false);
 });
 
+test("resource detail preserves server-confirmed saved state across suspension", async () => {
+  const controller = new MobileResourceDetailController(apiStub());
+
+  controller.setScope("session-a:resource-1", "resource-1", true);
+  await controller.unsave("session-a:resource-1", "resource-1");
+  controller.suspend("session-a:resource-1");
+
+  controller.setScope("session-a:resource-1", "resource-1", true);
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.saved, false);
+    assert.equal(snapshot.busy, null);
+  }
+});
+
 test("resource access result is discarded when authority changes in flight", async () => {
   const pending = deferred<ResourceAccessResponse>();
   let signal: AbortSignal | undefined;
