@@ -19,6 +19,10 @@ import type {
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import { authApi } from "../features/auth/services/authService";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
+import {
+  useAsyncAuthorityFence,
+  type AsyncAuthorityTicket,
+} from "../shared/useAsyncAuthorityFence";
 
 const googleCallbackMessages: Record<string, string> = {
   linked: "Google quedó conectado como método para iniciar sesión.",
@@ -27,60 +31,188 @@ const googleCallbackMessages: Record<string, string> = {
   cancelled: "Cancelaste la vinculación con Google.",
 };
 
+type Scoped<T> = { scopeKey: string; value: T };
+
+type SecuritySnapshot = {
+  sessions: PublicAuthSession[];
+  sessionsTruncated: boolean;
+  sessionInventoryLimit: number;
+  methods: LoginMethods | null;
+  googleEnabled: boolean;
+};
+
+type SecurityPresentation = {
+  loading: boolean;
+  busyAction: string | null;
+  feedback: string | null;
+  error: string | null;
+  requestId: string | undefined;
+};
+
+type SecurityDrafts = {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  googlePassword: string;
+};
+
+const initialSecurityPresentation: SecurityPresentation = {
+  loading: true,
+  busyAction: null,
+  feedback: null,
+  error: null,
+  requestId: undefined,
+};
+
+const emptySecurityDrafts: SecurityDrafts = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+  googlePassword: "",
+};
+
 const Security = () => {
-  const { session, refresh } = useAuth();
+  const { status, user, session, refresh } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [sessions, setSessions] = useState<PublicAuthSession[]>([]);
-  const [sessionsTruncated, setSessionsTruncated] = useState(false);
-  const [sessionInventoryLimit, setSessionInventoryLimit] = useState(20);
-  const [methods, setMethods] = useState<LoginMethods | null>(null);
-  const [googleEnabled, setGoogleEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [requestId, setRequestId] = useState<string | undefined>();
-  const [revokeAllConfirmOpen, setRevokeAllConfirmOpen] = useState(false);
+  const authScopeKey = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "no-session",
+  ].join(":");
+  const {
+    begin: beginLoad,
+    isCurrent: isLoadCurrent,
+    finish: finishLoad,
+  } = useAsyncAuthorityFence(`security-load:${authScopeKey}`);
+  const {
+    begin: beginAction,
+    isCurrent: isActionCurrent,
+    finish: finishAction,
+  } = useAsyncAuthorityFence(`security-action:${authScopeKey}`);
+
+  const [snapshotState, setSnapshotState] =
+    useState<Scoped<SecuritySnapshot> | null>(null);
+  const snapshot =
+    snapshotState?.scopeKey === authScopeKey ? snapshotState.value : null;
+  const sessions = snapshot?.sessions ?? [];
+  const sessionsTruncated = snapshot?.sessionsTruncated ?? false;
+  const sessionInventoryLimit = snapshot?.sessionInventoryLimit ?? 20;
+  const methods = snapshot?.methods ?? null;
+  const googleEnabled = snapshot?.googleEnabled ?? false;
+
+  const [presentationState, setPresentationState] =
+    useState<Scoped<SecurityPresentation> | null>(null);
+  const presentation =
+    presentationState?.scopeKey === authScopeKey
+      ? presentationState.value
+      : initialSecurityPresentation;
+  const { loading, busyAction, feedback, error, requestId } = presentation;
+  const updatePresentation = useCallback(
+    (update: (current: SecurityPresentation) => SecurityPresentation) => {
+      setPresentationState((current) => ({
+        scopeKey: authScopeKey,
+        value: update(
+          current?.scopeKey === authScopeKey
+            ? current.value
+            : initialSecurityPresentation,
+        ),
+      }));
+    },
+    [authScopeKey],
+  );
+
+  const [draftState, setDraftState] = useState<Scoped<SecurityDrafts> | null>(
+    null,
+  );
+  const drafts =
+    draftState?.scopeKey === authScopeKey
+      ? draftState.value
+      : emptySecurityDrafts;
+  const { currentPassword, newPassword, confirmPassword, googlePassword } =
+    drafts;
+  const updateDrafts = useCallback(
+    (update: (current: SecurityDrafts) => SecurityDrafts) => {
+      setDraftState((current) => ({
+        scopeKey: authScopeKey,
+        value: update(
+          current?.scopeKey === authScopeKey
+            ? current.value
+            : emptySecurityDrafts,
+        ),
+      }));
+    },
+    [authScopeKey],
+  );
+
+  const [confirmState, setConfirmState] = useState<Scoped<boolean> | null>(
+    null,
+  );
+  const revokeAllConfirmOpen =
+    confirmState?.scopeKey === authScopeKey ? confirmState.value : false;
+  const setRevokeAllConfirmOpen = (open: boolean) =>
+    setConfirmState({ scopeKey: authScopeKey, value: open });
   const revokeAllButtonRef = useRef<HTMLButtonElement>(null);
 
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [googlePassword, setGooglePassword] = useState("");
-
   const loadSecurity = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setRequestId(undefined);
+    const ticket = beginLoad();
+    if (!isLoadCurrent(ticket)) return;
+    updatePresentation((current) => ({
+      ...current,
+      loading: true,
+      error: null,
+      requestId: undefined,
+    }));
 
     try {
       const [sessionResult, loginMethods, googleStatus] = await Promise.all([
-        authApi.sessions(),
-        authApi.loginMethods(),
-        authApi.googleStatus().catch(() => ({
+        authApi.sessions(ticket.signal),
+        authApi.loginMethods(ticket.signal),
+        authApi.googleStatus(ticket.signal).catch(() => ({
           webEnabled: false,
           mobileEnabled: false,
         })),
       ]);
 
-      setSessions(sessionResult.sessions);
-      setSessionsTruncated(sessionResult.truncated);
-      setSessionInventoryLimit(sessionResult.limit);
-      setMethods(loginMethods);
-      setGoogleEnabled(googleStatus.webEnabled);
+      if (!isLoadCurrent(ticket)) return;
+      setSnapshotState({
+        scopeKey: authScopeKey,
+        value: {
+          sessions: sessionResult.sessions,
+          sessionsTruncated: sessionResult.truncated,
+          sessionInventoryLimit: sessionResult.limit,
+          methods: loginMethods,
+          googleEnabled: googleStatus.webEnabled,
+        },
+      });
     } catch (nextError) {
-      setError(
-        authErrorMessage(
+      if (!isLoadCurrent(ticket)) return;
+      updatePresentation((current) => ({
+        ...current,
+        error: authErrorMessage(
           nextError,
           "No pudimos cargar la configuración de seguridad.",
         ),
-      );
-      setRequestId(authErrorRequestId(nextError));
+        requestId: authErrorRequestId(nextError),
+      }));
     } finally {
-      setLoading(false);
+      if (finishLoad(ticket)) {
+        updatePresentation((current) => ({ ...current, loading: false }));
+      }
     }
-  }, []);
+  }, [authScopeKey, beginLoad, finishLoad, isLoadCurrent, updatePresentation]);
+  const loadRef = useRef(loadSecurity);
+  loadRef.current = loadSecurity;
+
+  useEffect(() => {
+    setSnapshotState(null);
+    setPresentationState({
+      scopeKey: authScopeKey,
+      value: initialSecurityPresentation,
+    });
+    setDraftState({ scopeKey: authScopeKey, value: emptySecurityDrafts });
+    setConfirmState({ scopeKey: authScopeKey, value: false });
+  }, [authScopeKey]);
 
   useEffect(() => {
     void loadSecurity();
@@ -89,139 +221,170 @@ const Security = () => {
   useEffect(() => {
     const google = searchParams.get("google");
     if (google) {
-      setFeedback(
-        googleCallbackMessages[google] ||
+      updatePresentation((current) => ({
+        ...current,
+        feedback:
+          googleCallbackMessages[google] ||
           "Terminó el flujo de Google. Revisá el estado del método de acceso.",
-      );
+      }));
       void loadSecurity();
     }
-  }, [loadSecurity, searchParams]);
+  }, [loadSecurity, searchParams, updatePresentation]);
+
+  const runAction = async <T,>(
+    key: string,
+    operation: (signal: AbortSignal) => Promise<T>,
+    complete: (result: T, ticket: AsyncAuthorityTicket) => Promise<void> | void,
+    fallbackMessage: string,
+  ) => {
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    updatePresentation((current) => ({
+      ...current,
+      busyAction: key,
+      error: null,
+      feedback: null,
+      requestId: undefined,
+    }));
+
+    try {
+      const result = await operation(ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      await complete(result, ticket);
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      updatePresentation((current) => ({
+        ...current,
+        error: authErrorMessage(nextError, fallbackMessage),
+        requestId: authErrorRequestId(nextError),
+      }));
+    } finally {
+      if (finishAction(ticket)) {
+        updatePresentation((current) => ({ ...current, busyAction: null }));
+      }
+    }
+  };
 
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
-    setFeedback(null);
-    setRequestId(undefined);
 
     const passwordValidation = newPasswordValidationMessage(newPassword);
     if (passwordValidation !== true) {
-      setError(passwordValidation);
+      updatePresentation((current) => ({
+        ...current,
+        error: passwordValidation,
+        feedback: null,
+        requestId: undefined,
+      }));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError("Las contraseñas nuevas no coinciden.");
+      updatePresentation((current) => ({
+        ...current,
+        error: "Las contraseñas nuevas no coinciden.",
+        feedback: null,
+        requestId: undefined,
+      }));
       return;
     }
 
-    setBusyAction("password");
-
-    try {
-      await authApi.changePassword(currentPassword, newPassword);
-      publishAuthAuthorityChanged();
-      await refresh();
-      navigate("/login?password=changed", { replace: true });
-    } catch (nextError) {
-      setError(
-        authErrorMessage(nextError, "No pudimos cambiar la contraseña."),
-      );
-      setRequestId(authErrorRequestId(nextError));
-    } finally {
-      setBusyAction(null);
-    }
+    await runAction(
+      "password",
+      (signal) => authApi.changePassword(currentPassword, newPassword, signal),
+      async (_result, ticket) => {
+        if (!isActionCurrent(ticket)) return;
+        updateDrafts(() => emptySecurityDrafts);
+        publishAuthAuthorityChanged();
+        navigate("/login?password=changed", { replace: true });
+        void refresh();
+      },
+      "No pudimos cambiar la contraseña.",
+    );
   };
 
   const revokeSession = async (target: PublicAuthSession) => {
-    setBusyAction(`session:${target.id}`);
-    setError(null);
-    setFeedback(null);
+    await runAction(
+      `session:${target.id}`,
+      (signal) => authApi.revokeSession(target.id, signal),
+      async (_result, ticket) => {
+        if (target.current || target.id === session?.id) {
+          if (!isActionCurrent(ticket)) return;
+          publishAuthAuthorityChanged();
+          navigate("/login", { replace: true });
+          void refresh();
+          return;
+        }
 
-    try {
-      await authApi.revokeSession(target.id);
-
-      if (target.current || target.id === session?.id) {
-        publishAuthAuthorityChanged();
-        await refresh();
-        navigate("/login", { replace: true });
-        return;
-      }
-
-      await loadSecurity();
-      setFeedback("Sesión cerrada.");
-    } catch (nextError) {
-      setError(authErrorMessage(nextError, "No pudimos cerrar esa sesión."));
-      setRequestId(authErrorRequestId(nextError));
-    } finally {
-      setBusyAction(null);
-    }
+        await loadRef.current();
+        if (!isActionCurrent(ticket)) return;
+        updatePresentation((current) => ({
+          ...current,
+          feedback: "Sesión cerrada.",
+        }));
+      },
+      "No pudimos cerrar esa sesión.",
+    );
   };
 
   const revokeAll = async () => {
-    setBusyAction("all-sessions");
-    setError(null);
-    setFeedback(null);
-
-    try {
-      await authApi.revokeAllSessions();
-      publishAuthAuthorityChanged();
-      await refresh();
-      navigate("/login", { replace: true });
-    } catch (nextError) {
-      setError(
-        authErrorMessage(nextError, "No pudimos cerrar todas las sesiones."),
-      );
-      setRequestId(authErrorRequestId(nextError));
-    } finally {
-      setBusyAction(null);
-    }
+    await runAction(
+      "all-sessions",
+      (signal) => authApi.revokeAllSessions(signal),
+      async (_result, ticket) => {
+        if (!isActionCurrent(ticket)) return;
+        publishAuthAuthorityChanged();
+        navigate("/login", { replace: true });
+        void refresh();
+      },
+      "No pudimos cerrar todas las sesiones.",
+    );
   };
 
   const connectGoogle = async () => {
-    setBusyAction("google-link");
-    setError(null);
-    setFeedback(null);
+    await runAction(
+      "google-link",
+      (signal) =>
+        authApi.startGoogleLink(googlePassword, "/settings/security", signal),
+      async (outcome, ticket) => {
+        if (outcome.alreadyLinked) {
+          await loadRef.current();
+          if (!isActionCurrent(ticket)) return;
+          updatePresentation((current) => ({
+            ...current,
+            feedback: "Google ya está conectado.",
+          }));
+          return;
+        }
 
-    try {
-      const outcome = await authApi.startGoogleLink(
-        googlePassword,
-        "/settings/security",
-      );
+        if (!outcome.authorizationUrl) {
+          throw new Error("Google link start did not return a destination");
+        }
 
-      if (outcome.alreadyLinked) {
-        await loadSecurity();
-        setFeedback("Google ya está conectado.");
-        return;
-      }
-
-      if (!outcome.authorizationUrl) {
-        throw new Error("Google link start did not return a destination");
-      }
-
-      window.location.assign(outcome.authorizationUrl);
-    } catch (nextError) {
-      setError(authErrorMessage(nextError, "No pudimos conectar Google."));
-      setRequestId(authErrorRequestId(nextError));
-    } finally {
-      setBusyAction(null);
-    }
+        if (isActionCurrent(ticket)) {
+          window.location.assign(outcome.authorizationUrl);
+        }
+      },
+      "No pudimos conectar Google.",
+    );
   };
 
   const disconnectGoogle = async () => {
-    setBusyAction("google-unlink");
-    setError(null);
-    setFeedback(null);
-
-    try {
-      await authApi.unlinkGoogle(googlePassword);
-      setGooglePassword("");
-      await loadSecurity();
-      setFeedback("Google ya no está conectado a tu cuenta.");
-    } catch (nextError) {
-      setError(authErrorMessage(nextError, "No pudimos desconectar Google."));
-      setRequestId(authErrorRequestId(nextError));
-    } finally {
-      setBusyAction(null);
-    }
+    await runAction(
+      "google-unlink",
+      (signal) => authApi.unlinkGoogle(googlePassword, signal),
+      async (_result, ticket) => {
+        if (!isActionCurrent(ticket)) return;
+        updateDrafts((current) => ({ ...current, googlePassword: "" }));
+        await loadRef.current();
+        if (!isActionCurrent(ticket)) return;
+        updatePresentation((current) => ({
+          ...current,
+          feedback: "Google ya no está conectado a tu cuenta.",
+        }));
+      },
+      "No pudimos desconectar Google.",
+    );
   };
 
   return (
@@ -248,6 +411,7 @@ const Security = () => {
         confirmLabel="Cerrar todas las sesiones"
         onCancel={() => setRevokeAllConfirmOpen(false)}
         onConfirm={() => {
+          if (!revokeAllConfirmOpen || busyAction !== null) return;
           setRevokeAllConfirmOpen(false);
           void revokeAll();
         }}
@@ -273,7 +437,13 @@ const Security = () => {
                   required
                   maxLength={256}
                   value={currentPassword}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  disabled={busyAction !== null}
+                  onChange={(event) =>
+                    updateDrafts((current) => ({
+                      ...current,
+                      currentPassword: event.target.value,
+                    }))
+                  }
                 />
 
                 <label htmlFor="security-new-password">Nueva contraseña</label>
@@ -283,7 +453,13 @@ const Security = () => {
                   autoComplete="new-password"
                   required
                   value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
+                  disabled={busyAction !== null}
+                  onChange={(event) =>
+                    updateDrafts((current) => ({
+                      ...current,
+                      newPassword: event.target.value,
+                    }))
+                  }
                 />
 
                 <label htmlFor="security-confirm-password">
@@ -295,14 +471,20 @@ const Security = () => {
                   autoComplete="new-password"
                   required
                   value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  disabled={busyAction !== null}
+                  onChange={(event) =>
+                    updateDrafts((current) => ({
+                      ...current,
+                      confirmPassword: event.target.value,
+                    }))
+                  }
                 />
 
                 <p>
                   Al cambiarla se cierran todas las sesiones, incluida esta.
                 </p>
 
-                <button type="submit" disabled={busyAction === "password"}>
+                <button type="submit" disabled={busyAction !== null}>
                   {busyAction === "password"
                     ? "Cambiando…"
                     : "Cambiar contraseña"}
@@ -354,7 +536,7 @@ const Security = () => {
                     </div>
                     <button
                       type="button"
-                      disabled={busyAction === `session:${item.id}`}
+                      disabled={busyAction !== null}
                       onClick={() => void revokeSession(item)}
                     >
                       {item.current ? "Cerrar esta sesión" : "Cerrar sesión"}
@@ -367,7 +549,7 @@ const Security = () => {
             <button
               ref={revokeAllButtonRef}
               type="button"
-              disabled={busyAction === "all-sessions"}
+              disabled={busyAction !== null}
               onClick={() => setRevokeAllConfirmOpen(true)}
             >
               Cerrar todas las sesiones
@@ -401,8 +583,13 @@ const Security = () => {
                   autoComplete="current-password"
                   maxLength={256}
                   value={googlePassword}
-                  onChange={(event) => setGooglePassword(event.target.value)}
-                  disabled={!methods?.passwordConfigured}
+                  onChange={(event) =>
+                    updateDrafts((current) => ({
+                      ...current,
+                      googlePassword: event.target.value,
+                    }))
+                  }
+                  disabled={!methods?.passwordConfigured || busyAction !== null}
                 />
 
                 {methods?.googleConnected ? (
@@ -412,7 +599,7 @@ const Security = () => {
                     disabled={
                       !methods.passwordConfigured ||
                       !googlePassword ||
-                      busyAction === "google-unlink"
+                      busyAction !== null
                     }
                   >
                     Desconectar Google
@@ -424,7 +611,7 @@ const Security = () => {
                     disabled={
                       !methods?.passwordConfigured ||
                       !googlePassword ||
-                      busyAction === "google-link"
+                      busyAction !== null
                     }
                   >
                     Conectar Google
