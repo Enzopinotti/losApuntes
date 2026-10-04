@@ -175,13 +175,16 @@ export const communityApi = {
       signal,
     }),
 
-  questions: (input: {
-    q?: string;
-    subjectId?: string;
-    status?: QuestionState;
-    cursor?: string;
-    limit?: number;
-  }) => {
+  questions: (
+    input: {
+      q?: string;
+      subjectId?: string;
+      status?: QuestionState;
+      cursor?: string;
+      limit?: number;
+    },
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({
       limit: String(input.limit ?? 25),
     });
@@ -189,25 +192,39 @@ export const communityApi = {
     if (input.subjectId) query.set("subjectId", input.subjectId);
     if (input.status) query.set("status", input.status);
     if (input.cursor) query.set("cursor", input.cursor);
-    return request<QuestionSearchResponse>(`/questions?${query.toString()}`);
+    return request<QuestionSearchResponse>(`/questions?${query.toString()}`, {
+      signal,
+    });
   },
 
-  question: (id: string) =>
-    request<QuestionDetailResponse>(`/questions/${encodeURIComponent(id)}`),
+  question: (id: string, signal?: AbortSignal) =>
+    request<QuestionDetailResponse>(`/questions/${encodeURIComponent(id)}`, {
+      signal,
+    }),
 
-  answers: (questionId: string, cursor?: string, limit = 25) => {
+  answers: (
+    questionId: string,
+    cursor?: string,
+    limit = 25,
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set("cursor", cursor);
 
     return request<AnswerPageResponse>(
       `/questions/${encodeURIComponent(questionId)}/answers?${query.toString()}`,
+      { signal },
     );
   },
 
-  createQuestion: (input: { subjectId: string; title: string; body: string }) =>
+  createQuestion: (
+    input: { subjectId: string; title: string; body: string },
+    signal?: AbortSignal,
+  ) =>
     request<{ question: QuestionView }>("/questions", {
       method: "POST",
       body: json(input),
+      signal,
     }),
 
   updateQuestion: (
@@ -217,6 +234,7 @@ export const communityApi = {
       body?: string;
       status?: QuestionState;
     },
+    signal?: AbortSignal,
   ) =>
     request<{ question: QuestionView }>(
       `/questions/${encodeURIComponent(question.id)}`,
@@ -226,19 +244,29 @@ export const communityApi = {
           expectedRevision: question.revision,
           ...patch,
         }),
+        signal,
       },
     ),
 
-  createAnswer: (questionId: string, body: string) =>
+  createAnswer: (
+    questionId: string,
+    body: string,
+    signal?: AbortSignal,
+  ) =>
     request<{ answer: AnswerView }>(
       `/questions/${encodeURIComponent(questionId)}/answers`,
       {
         method: "POST",
         body: json({ body }),
+        signal,
       },
     ),
 
-  updateAnswer: (answer: AnswerView, body: string) =>
+  updateAnswer: (
+    answer: AnswerView,
+    body: string,
+    signal?: AbortSignal,
+  ) =>
     request<{ answer: AnswerView }>(
       `/answers/${encodeURIComponent(answer.id)}`,
       {
@@ -247,10 +275,15 @@ export const communityApi = {
           expectedRevision: answer.revision,
           body,
         }),
+        signal,
       },
     ),
 
-  acceptAnswer: (question: QuestionView, answerId: string) =>
+  acceptAnswer: (
+    question: QuestionView,
+    answerId: string,
+    signal?: AbortSignal,
+  ) =>
     request<{ question: QuestionView }>(
       `/questions/${encodeURIComponent(
         question.id,
@@ -258,10 +291,11 @@ export const communityApi = {
       {
         method: "POST",
         body: json({ expectedRevision: question.revision }),
+        signal,
       },
     ),
 
-  reportQuestion: (id: string) =>
+  reportQuestion: (id: string, signal?: AbortSignal) =>
     request<{ report: { id: string; status: "pending" } }>(
       `/questions/${encodeURIComponent(id)}/reports`,
       {
@@ -270,10 +304,11 @@ export const communityApi = {
           reason: "other",
           details: "Reporte enviado desde la interfaz web",
         }),
+        signal,
       },
     ),
 
-  reportAnswer: (id: string) =>
+  reportAnswer: (id: string, signal?: AbortSignal) =>
     request<{ report: { id: string; status: "pending" } }>(
       `/answers/${encodeURIComponent(id)}/reports`,
       {
@@ -282,6 +317,7 @@ export const communityApi = {
           reason: "other",
           details: "Reporte enviado desde la interfaz web",
         }),
+        signal,
       },
     ),
 
