@@ -18,6 +18,11 @@ assert.match(service, /credentials:\s*"include"/u);
 assert.match(service, /cache:\s*"no-store"/u);
 assert.match(service, /AbortSignal\.timeout\(15_000\)/u);
 assert.match(service, /social\/me\/connections/u);
+assert.match(service, /following:[\s\S]*signal\?: AbortSignal/u);
+assert.match(service, /connections:[\s\S]*signal\?: AbortSignal/u);
+assert.match(service, /requestConnection:[\s\S]*signal\?: AbortSignal/u);
+assert.match(service, /respondConnection:[\s\S]*signal\?: AbortSignal/u);
+assert.match(service, /disconnect:[\s\S]*signal\?: AbortSignal/u);
 assert.match(service, /cursor/u);
 assert.match(service, /questions/u);
 assert.match(service, /\/questions\/\$\{encodeURIComponent\(questionId\)\}\/answers/u);
@@ -28,6 +33,22 @@ assert.doesNotMatch(service, /Bearer\s+/u);
 
 const network = await read('apps/web/src/pages/Network.tsx');
 assert.match(network, /searchApi\.search/u);
+assert.match(network, /useAuth\(\)/u);
+assert.match(network, /user\?\.id/u);
+assert.match(network, /session\?\.id/u);
+assert.equal((network.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 3);
+assert.match(network, /network-load:\$\{authScopeKey\}/u);
+assert.match(network, /network-action:\$\{authScopeKey\}/u);
+assert.match(network, /network-search:\$\{searchScopeKey\}/u);
+assert.match(network, /communityApi\.following\(50, undefined, ticket\.signal\)/u);
+assert.match(
+  network,
+  /communityApi\.connections\(undefined, 50, undefined, ticket\.signal\)/u,
+);
+assert.match(network, /await loadRef\.current\(\)/u);
+assert.match(network, /searchApi\.search\([\s\S]*ticket\.signal/u);
+assert.match(network, /snapshotState\?\.scopeKey === authScopeKey/u);
+assert.match(network, /searchState\?\.scopeKey === searchScopeKey/u);
 assert.match(network, /scope:\s*"people"/u);
 assert.match(network, /communityApi\.follow/u);
 assert.match(network, /communityApi\.requestConnection/u);
