@@ -1,5 +1,40 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { AsyncAuthorityFence } from "../apps/web/src/shared/asyncAuthorityFence.ts";
+
+const hook = await readFile(
+  new URL("../apps/web/src/shared/useAsyncAuthorityFence.ts", import.meta.url),
+  "utf8",
+);
+assert.match(hook, /fence\.resume\(\)/u);
+assert.match(hook, /fence\.suspend\(\)/u);
+assert.doesNotMatch(hook, /fence\.dispose\(\)/u);
+
+const strictModeReplayFence = new AsyncAuthorityFence("strict-mode-replay");
+strictModeReplayFence.resume();
+const firstMount = strictModeReplayFence.begin("strict-mode-replay");
+strictModeReplayFence.suspend();
+assert.equal(firstMount.signal.aborted, true);
+assert.equal(
+  strictModeReplayFence.begin("strict-mode-replay").signal.aborted,
+  true,
+  "cleanup must reject callbacks that try to begin work before setup resumes",
+);
+
+strictModeReplayFence.resume();
+const replayedMount = strictModeReplayFence.begin("strict-mode-replay");
+assert.equal(
+  strictModeReplayFence.isCurrent(replayedMount),
+  true,
+  "effect replay cleanup must invalidate old work without disabling the next setup",
+);
+assert.equal(strictModeReplayFence.finish(replayedMount), true);
+strictModeReplayFence.suspend();
+assert.equal(
+  strictModeReplayFence.begin("strict-mode-replay").signal.aborted,
+  true,
+  "a real unmount must leave later callbacks unable to start new work",
+);
 
 const fence = new AsyncAuthorityFence("A");
 const firstA = fence.begin("A");
