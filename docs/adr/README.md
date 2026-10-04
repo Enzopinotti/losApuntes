@@ -9,6 +9,8 @@ Accepted:
 - [ADR 0003 — Use opaque revocable sessions for Web and Mobile](0003-opaque-auth-sessions.md)
 - [ADR 0004 — Use replaceable transactional persistence before/after DER reconciliation](0004-persistence-after-der.md)
 - [ADR 0005 — Private object storage and resource-owned authorization](0005-private-object-storage-resource-authorization.md)
+- [ADR 0006 — Expo native foundation for Mobile v1](0006-mobile-expo-native-foundation.md)
+- [ADR 0007 — Resource authority over claimed FileAsset lifecycle](0007-resource-fileasset-lifecycle-authority.md)
 
 Planned future ADRs:
 
@@ -16,4 +18,3 @@ Planned future ADRs:
 - derived-file/preview processing if richer formats or OCR are introduced.
 
 An ADR records context, decision, consequences and rejected alternatives.
-- [0006 — Expo native foundation for Mobile v1](./0006-mobile-expo-native-foundation.md)
