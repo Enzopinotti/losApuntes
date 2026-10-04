@@ -98,13 +98,32 @@ export function NotificationsScreen() {
   const visible = shouldReconcileMobileNotifications(isFocused, appState);
 
   useEffect(() => {
-    if (!authorityKey || !visible) {
+    if (!authorityKey) {
       controller.invalidate();
       return;
     }
-    void controller.load(authorityKey, unreadOnly);
-    return () => controller.invalidate(authorityKey);
-  }, [authorityKey, controller, unreadOnly, visible]);
+    if (!visible) {
+      if (!isFocused && appState === "active") {
+        controller.suspend(authorityKey);
+      } else {
+        controller.invalidate(authorityKey);
+      }
+      return;
+    }
+
+    const current = controller.getSnapshot();
+    if (
+      current.kind === "ready" &&
+      current.authorityKey === authorityKey &&
+      current.unreadOnly === unreadOnly
+    ) {
+      void controller.reconcile(authorityKey);
+    } else {
+      void controller.load(authorityKey, unreadOnly);
+    }
+  }, [authorityKey, appState, controller, isFocused, unreadOnly, visible]);
+
+  useEffect(() => () => controller.invalidate(), [controller]);
 
   const readyAuthority =
     snapshot.kind === "ready" &&

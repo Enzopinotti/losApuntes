@@ -256,6 +256,28 @@ export class MobileNotificationsController {
     this.publish({ kind: "idle" });
   }
 
+  suspend(authorityKey: string): void {
+    if (authorityKey !== this.authorityKey) return;
+
+    this.listGeneration += 1;
+    this.activeList?.controller.abort();
+    this.activeList = null;
+    this.cancelAction();
+
+    if (
+      this.snapshot.kind === "ready" &&
+      this.snapshot.authorityKey === authorityKey
+    ) {
+      this.publish({
+        ...this.snapshot,
+        loadingMore: false,
+        actionBusy: false,
+      });
+    } else {
+      this.publish({ kind: "idle" });
+    }
+  }
+
   private async runReadAction(
     authorityKey: string,
     action: (signal: AbortSignal) => Promise<unknown>,

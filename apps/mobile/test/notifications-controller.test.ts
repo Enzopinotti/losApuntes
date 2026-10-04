@@ -150,6 +150,44 @@ test("read actions reconcile the loaded list from the server", async () => {
   }
 });
 
+test("screen suspension preserves and reconciles the loaded page window", async () => {
+  const { api, calls } = apiHarness((input, call) => {
+    if (call === 1) return page(["one"], "cursor-1");
+    if (call === 2) return page(["two"], "cursor-2");
+    if (call === 3) return page(["fresh-one"], "cursor-1b");
+    return page(["fresh-two"], "cursor-2b");
+  });
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user:session", false);
+  await controller.loadMore("user:session");
+  controller.suspend("user:session");
+
+  const suspended = controller.getSnapshot();
+  assert.equal(suspended.kind, "ready");
+  if (suspended.kind === "ready") {
+    assert.equal(suspended.loadedPages, 2);
+    assert.deepEqual(
+      suspended.data.items.map(({ id }) => id),
+      ["one", "two"],
+    );
+  }
+
+  await controller.reconcile("user:session");
+  assert.deepEqual(
+    calls.map(({ cursor }) => cursor ?? null),
+    [null, "cursor-1", null, "cursor-1b"],
+  );
+  const resumed = controller.getSnapshot();
+  assert.equal(resumed.kind, "ready");
+  if (resumed.kind === "ready") {
+    assert.equal(resumed.loadedPages, 2);
+    assert.deepEqual(
+      resumed.data.items.map(({ id }) => id),
+      ["fresh-one", "fresh-two"],
+    );
+  }
+});
+
 test("quiet foreground reconciliation preserves the last good page on failure", async () => {
   const { api } = apiHarness((_input, call) => {
     if (call === 1) return page(["retained"]);
