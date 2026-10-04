@@ -4,8 +4,7 @@ export const OPERATIONAL_ALERT_SIGNALS = [
   'worker.not_ready',
 ] as const;
 
-export type OperationalAlertSignal =
-  (typeof OPERATIONAL_ALERT_SIGNALS)[number];
+export type OperationalAlertSignal = (typeof OPERATIONAL_ALERT_SIGNALS)[number];
 
 export type OperationalAlertPhase = 'active' | 'recovery';
 
@@ -31,7 +30,9 @@ type AlertState = {
 const MAX_TIMESTAMP_MS = 8_640_000_000_000_000;
 const operationalAlertSignalSet = new Set<string>(OPERATIONAL_ALERT_SIGNALS);
 
-function assertSignal(signal: string): asserts signal is OperationalAlertSignal {
+function assertSignal(
+  signal: string,
+): asserts signal is OperationalAlertSignal {
   if (!operationalAlertSignalSet.has(signal)) {
     throw new Error('signal must be an allow-listed operational alert signal');
   }
@@ -158,7 +159,9 @@ export class OperationalAlertBoundary {
 export type ApiOperationalStatus = 'ready' | 'degraded' | 'not_ready';
 export type WorkerOperationalStatus = 'ready' | 'not_ready';
 
-export function apiAlertObservations(status: ApiOperationalStatus): ReadonlyArray<{
+export function apiAlertObservations(
+  status: ApiOperationalStatus,
+): ReadonlyArray<{
   signal: Extract<OperationalAlertSignal, 'api.not_ready' | 'api.degraded'>;
   unhealthy: boolean;
 }> {
