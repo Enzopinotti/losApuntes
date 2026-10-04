@@ -42,4 +42,16 @@ assert.equal(latestB.signal.aborted, true);
 assert.equal(fence.isCurrent(latestB), false);
 
 fence.dispose();
+const afterDispose = fence.begin("B");
+assert.equal(afterDispose.signal.aborted, true);
+assert.equal(fence.isCurrent(afterDispose), false);
+fence.setScope("A");
+const afterDisposedScopeChange = fence.begin("A");
+assert.equal(afterDisposedScopeChange.signal.aborted, true);
+assert.equal(
+  fence.isCurrent(afterDisposedScopeChange),
+  false,
+  "disposed fences must never regain request ownership",
+);
+
 console.log("PASS Web async authority ownership A → B → A");
