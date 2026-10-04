@@ -198,7 +198,10 @@ test("saved resources ignore stale results after principal switch", async () => 
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind === "ready") {
     assert.equal(snapshot.authorityKey, "session-b");
-    assert.deepEqual(snapshot.data.items.map((item) => item.id), ["b"]);
+    assert.deepEqual(
+      snapshot.data.items.map((item) => item.id),
+      ["b"],
+    );
   }
 });
 
