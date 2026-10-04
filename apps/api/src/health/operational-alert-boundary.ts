@@ -152,10 +152,7 @@ export type ApiOperationalStatus = 'ready' | 'degraded' | 'not_ready';
 export type WorkerOperationalStatus = 'ready' | 'not_ready';
 
 export function apiAlertObservations(status: ApiOperationalStatus): ReadonlyArray<{
-  signal: Extract<
-    OperationalAlertSignal,
-    'api.not_ready' | 'api.degraded'
-  >;
+  signal: Extract<OperationalAlertSignal, 'api.not_ready' | 'api.degraded'>;
   unhealthy: boolean;
 }> {
   return [
