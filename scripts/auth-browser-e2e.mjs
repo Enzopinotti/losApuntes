@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { dirname, resolve } from "node:path";
@@ -188,6 +188,41 @@ async function authenticatedMe(page) {
 
     return { status: response.status, body };
   }, API_ORIGIN);
+}
+
+function setSyntheticAccountStatus(email, status) {
+  const script = [
+    "const result = db.users.updateOne(",
+    `  { email: ${JSON.stringify(email)} },`,
+    `  { $set: { account_status: ${JSON.stringify(status)} } },`,
+    ");",
+    "if (result.matchedCount !== 1) {",
+    "  printjson(result);",
+    "  quit(2);",
+    "}",
+  ].join("\n");
+
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      "compose.local.yml",
+      "exec",
+      "-T",
+      "mongo",
+      "mongosh",
+      "--quiet",
+      "losapuntes_local",
+      "--eval",
+      script,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
 }
 
 async function run() {
@@ -724,6 +759,57 @@ async function run() {
     await page.waitForURL((url) => url.pathname === "/dashboard");
     assert.equal((await authenticatedMe(page)).status, 200);
 
+    setSyntheticAccountStatus(email, "restricted");
+    try {
+      await page.reload();
+      await page.waitForURL((url) => url.pathname === "/account/restricted");
+      await page
+        .getByRole("heading", { name: "Acceso restringido", exact: true })
+        .waitFor();
+
+      const restrictedSessionMe = await authenticatedMe(page);
+      assert.equal(
+        restrictedSessionMe.status,
+        403,
+        "an existing session should observe account restriction on revalidation",
+      );
+      assert.equal(
+        restrictedSessionMe.body?.code,
+        "ACCOUNT_RESTRICTED",
+        "restricted revalidation should preserve the stable Auth error code",
+      );
+
+      await context.clearCookies();
+      await page.goto(new URL("/login", WEB_ORIGIN).toString());
+      const restrictedLoginEmail = page.getByLabel("Email", { exact: true });
+      const restrictedLoginPassword = page.getByLabel("Contraseña", {
+        exact: true,
+      });
+      await restrictedLoginEmail.fill(email);
+      await restrictedLoginPassword.fill(recoveredPassword);
+
+      const restrictedLoginResponsePromise = page.waitForResponse((response) => {
+        const request = response.request();
+        return (
+          new URL(response.url()).pathname === "/auth/login" &&
+          request.method() === "POST"
+        );
+      });
+      await page.getByRole("button", { name: "Iniciar sesión" }).click();
+      const restrictedLoginResponse = await restrictedLoginResponsePromise;
+      assert.equal(
+        restrictedLoginResponse.status(),
+        403,
+        "correct credentials for a restricted account should be rejected",
+      );
+      await page.waitForURL((url) => url.pathname === "/account/restricted");
+      await page
+        .getByRole("heading", { name: "Acceso restringido", exact: true })
+        .waitFor();
+    } finally {
+      setSyntheticAccountStatus(email, "active");
+    }
+
     assert.deepEqual(
       pageErrors,
       [],
@@ -732,7 +818,7 @@ async function run() {
 
     await context.close();
     console.log(
-      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout and recovered credential login.",
+      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout, recovered credential login and restricted-account routing.",
     );
   } finally {
     await browser?.close();
