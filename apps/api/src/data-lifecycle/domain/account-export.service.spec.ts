@@ -59,20 +59,25 @@ describe('AccountExportService', () => {
     const result = await f.service.request('user-1', now);
 
     expect(result.created).toBe(true);
+    expect(typeof result.export.id).toBe('string');
     expect(result.export).toEqual({
-      id: expect.any(String),
+      id: result.export.id,
       format: ACCOUNT_EXPORT_FORMAT,
       formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
       state: 'pending',
       requestedAt: now.toISOString(),
       failureCode: null,
     });
-    expect(f.store.requestActive).toHaveBeenCalledWith({
-      id: expect.any(String),
-      userId: 'user-1',
-      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-      now,
-    });
+    expect(f.store.requestActive.mock.calls).toEqual([
+      [
+        {
+          id: result.export.id,
+          userId: 'user-1',
+          formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+          now,
+        },
+      ],
+    ]);
     expect(result.export).not.toHaveProperty('claimId');
     expect(result.export).not.toHaveProperty('leaseExpiresAt');
   });
@@ -107,7 +112,7 @@ describe('AccountExportService', () => {
         state: 'processing',
       },
     );
-    expect(f.store.findOwned).toHaveBeenCalledWith('export-1', 'user-1');
+    expect(f.store.findOwned.mock.calls).toEqual([['export-1', 'user-1']]);
 
     f.store.findOwned.mockResolvedValue(null);
     await expect(
