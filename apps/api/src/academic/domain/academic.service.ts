@@ -903,6 +903,17 @@ export class AcademicService {
     const { context } = await this.getCurrentContext(userId);
     if (!context) return null;
 
+    const affiliation = await this.store.findAffiliationById(
+      context.affiliationId,
+    );
+    if (
+      !affiliation ||
+      affiliation.userId !== userId ||
+      affiliation.status === 'withdrawn'
+    ) {
+      return null;
+    }
+
     return {
       affiliationId: context.affiliationId,
       subjectParticipationId: context.subjectParticipationId ?? null,
