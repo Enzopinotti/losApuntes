@@ -3,10 +3,7 @@ import {
   mobileSessionController,
 } from "@/features/session/session-runtime";
 
-import {
-  MobileProfileApi,
-  MobileProfileHttpTransport,
-} from "./profile-api";
+import { MobileProfileApi, MobileProfileHttpTransport } from "./profile-api";
 import { MobileProfileController } from "./profile-controller";
 
 export const mobileProfileApi = new MobileProfileApi(
