@@ -187,6 +187,8 @@ function createStore() {
     transitionSubjectParticipationStates:
       mockFn<AcademicStore['transitionSubjectParticipationStates']>(),
     getCurrentContext: mockFn<AcademicStore['getCurrentContext']>(),
+    findCurrentContextForExport:
+      mockFn<AcademicStore['findCurrentContextForExport']>(),
     setCurrentContext: mockFn<AcademicStore['setCurrentContext']>(),
     upsertAcademicFollow: mockFn<AcademicStore['upsertAcademicFollow']>(),
     listAcademicFollows: mockFn<AcademicStore['listAcademicFollows']>(),
@@ -347,7 +349,7 @@ describe('AcademicService', () => {
     const store = createStore();
     const service = new AcademicService(store);
 
-    store.getCurrentContext.mockResolvedValue({
+    store.findCurrentContextForExport.mockResolvedValue({
       userId: 'user-1',
       affiliationId: 'aff-1',
       subjectParticipationId: 'part-stale',
@@ -370,6 +372,8 @@ describe('AcademicService', () => {
       revision: 4,
       updatedAt: now.toISOString(),
     });
+    expect(store.findCurrentContextForExport).toHaveBeenCalledWith('user-1');
+    expect(store.getCurrentContext).not.toHaveBeenCalled();
     expect(store.findAffiliationById).toHaveBeenCalledWith('aff-1');
     expect(store.findSubjectParticipationById).toHaveBeenCalledWith(
       'part-stale',
@@ -377,6 +381,25 @@ describe('AcademicService', () => {
     expect(store.setCurrentContext).not.toHaveBeenCalled();
     expect(store.appendAuditEvent).not.toHaveBeenCalled();
 
+    store.findCurrentContextForExport.mockResolvedValueOnce({
+      userId: 'user-1',
+      affiliationId: 'aff-1',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await expect(
+      service.getAccountExportCurrentContext('user-1'),
+    ).resolves.toMatchObject({
+      revision: 1,
+    });
+
+    store.findCurrentContextForExport.mockResolvedValueOnce({
+      userId: 'user-1',
+      affiliationId: 'aff-1',
+      revision: 4,
+      createdAt: now,
+      updatedAt: now,
+    });
     store.findAffiliationById.mockResolvedValueOnce(
       affiliation({ id: 'aff-1', status: 'withdrawn' }),
     );
