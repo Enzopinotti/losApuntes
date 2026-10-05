@@ -157,6 +157,7 @@ export class AcademicAffiliation {
 export const AcademicAffiliationSchema =
   SchemaFactory.createForClass(AcademicAffiliation);
 AcademicAffiliationSchema.index({ userId: 1, updatedAt: -1, id: 1 });
+AcademicAffiliationSchema.index({ userId: 1, id: 1 });
 AcademicAffiliationSchema.index({
   userId: 1,
   status: 1,
@@ -208,6 +209,7 @@ AcademicSubjectParticipationSchema.index({
   updatedAt: -1,
   id: 1,
 });
+AcademicSubjectParticipationSchema.index({ userId: 1, id: 1 });
 AcademicSubjectParticipationSchema.index({
   userId: 1,
   state: 1,
@@ -241,6 +243,7 @@ export const AcademicFollowSchema =
   SchemaFactory.createForClass(AcademicFollow);
 AcademicFollowSchema.index({ userId: 1, targetNodeId: 1 }, { unique: true });
 AcademicFollowSchema.index({ userId: 1, updatedAt: -1, id: 1 });
+AcademicFollowSchema.index({ userId: 1, id: 1 });
 
 @Schema({ collection: 'academic_current_contexts', timestamps: true })
 export class AcademicCurrentContext {

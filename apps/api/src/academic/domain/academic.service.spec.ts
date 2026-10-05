@@ -169,6 +169,8 @@ function createStore() {
     findAffiliationById: mockFn<AcademicStore['findAffiliationById']>(),
     guardAcademicAffiliation,
     listAffiliationsForUser: mockFn<AcademicStore['listAffiliationsForUser']>(),
+    listAffiliationsForExport:
+      mockFn<AcademicStore['listAffiliationsForExport']>(),
     updateAffiliationStatus: mockFn<AcademicStore['updateAffiliationStatus']>(),
     updateAffiliationRoles: mockFn<AcademicStore['updateAffiliationRoles']>(),
     transitionAffiliationToAlumni:
@@ -180,12 +182,18 @@ function createStore() {
       mockFn<AcademicStore['findSubjectParticipationById']>(),
     listSubjectParticipationsForUser:
       mockFn<AcademicStore['listSubjectParticipationsForUser']>(),
+    listSubjectParticipationsForExport:
+      mockFn<AcademicStore['listSubjectParticipationsForExport']>(),
     transitionSubjectParticipationStates:
       mockFn<AcademicStore['transitionSubjectParticipationStates']>(),
     getCurrentContext: mockFn<AcademicStore['getCurrentContext']>(),
+    findCurrentContextForExport:
+      mockFn<AcademicStore['findCurrentContextForExport']>(),
     setCurrentContext: mockFn<AcademicStore['setCurrentContext']>(),
     upsertAcademicFollow: mockFn<AcademicStore['upsertAcademicFollow']>(),
     listAcademicFollows: mockFn<AcademicStore['listAcademicFollows']>(),
+    listAcademicFollowsForExport:
+      mockFn<AcademicStore['listAcademicFollowsForExport']>(),
     removeAcademicFollows: mockFn<AcademicStore['removeAcademicFollows']>(),
     createProposal: mockFn<AcademicStore['createProposal']>(),
     findProposalById: mockFn<AcademicStore['findProposalById']>(),
@@ -196,6 +204,211 @@ function createStore() {
 }
 
 describe('AcademicService', () => {
+  it('pages account-export affiliations with an opaque stable-id cursor', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const first = affiliation({
+      id: 'aff-001',
+      campusId: undefined,
+      academicUnitId: undefined,
+      roles: undefined,
+      startedOn: undefined,
+      endedOn: undefined,
+    });
+    const second = affiliation({ id: 'aff-002' });
+
+    store.listAffiliationsForExport.mockResolvedValueOnce(
+      page([first, second], true),
+    );
+
+    const firstPage = await service.listAccountExportAffiliations('user-1', {
+      limit: 2,
+      cursor: null,
+    });
+
+    expect(firstPage.items).toEqual([
+      {
+        id: 'aff-001',
+        institutionId: first.institutionId,
+        campusId: null,
+        academicUnitId: null,
+        programId: first.programId ?? null,
+        curriculumId: first.curriculumId ?? null,
+        status: first.status,
+        roles: ['student'],
+        startedOn: null,
+        endedOn: null,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+      expect.objectContaining({ id: 'aff-002' }),
+    ]);
+    expect(typeof firstPage.nextCursor).toBe('string');
+    expect(store.listAffiliationsForExport.mock.calls).toEqual([
+      [
+        {
+          userId: 'user-1',
+          limit: 2,
+          afterId: undefined,
+        },
+      ],
+    ]);
+
+    store.listAffiliationsForExport.mockResolvedValueOnce(page([]));
+    await service.listAccountExportAffiliations('user-1', {
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(store.listAffiliationsForExport.mock.calls.at(-1)).toEqual([
+      {
+        userId: 'user-1',
+        limit: 2,
+        afterId: 'aff-002',
+      },
+    ]);
+  });
+
+  it('rejects malformed account-export cursors before persistence', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+
+    const error = await rejectedUnprocessable(
+      service.listAccountExportAffiliations('user-1', {
+        limit: 100,
+        cursor: 'not-a-valid-export-cursor',
+      }),
+    );
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'ACADEMIC_EXPORT_CURSOR_INVALID',
+    });
+    expect(store.listAffiliationsForExport).not.toHaveBeenCalled();
+  });
+
+  it('projects bounded subject participation and follow export pages', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const subject = participation({
+      id: 'part-001',
+      courseOfferingId: undefined,
+      periodLabel: undefined,
+    });
+    const follow = {
+      id: 'follow-001',
+      userId: 'user-1',
+      targetNodeId: 'institution-1',
+      targetKind: 'institution' as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    store.listSubjectParticipationsForExport.mockResolvedValue(page([subject]));
+    store.listAcademicFollowsForExport.mockResolvedValue(page([follow]));
+
+    await expect(
+      service.listAccountExportSubjectParticipations('user-1', {
+        limit: 100,
+        cursor: null,
+      }),
+    ).resolves.toEqual({
+      items: [
+        {
+          id: 'part-001',
+          subjectId: subject.subjectId,
+          courseOfferingId: null,
+          state: subject.state,
+          periodLabel: null,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        },
+      ],
+      nextCursor: null,
+    });
+
+    await expect(
+      service.listAccountExportFollows('user-1', {
+        limit: 100,
+        cursor: null,
+      }),
+    ).resolves.toEqual({
+      items: [
+        {
+          id: 'follow-001',
+          targetNodeId: 'institution-1',
+          targetKind: 'institution',
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        },
+      ],
+      nextCursor: null,
+    });
+  });
+
+  it('exports effective current context without mutating Academic state', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+
+    store.findCurrentContextForExport.mockResolvedValue({
+      userId: 'user-1',
+      affiliationId: 'aff-1',
+      subjectParticipationId: 'part-stale',
+      revision: 4,
+      createdAt: now,
+      updatedAt: now,
+    });
+    store.findAffiliationById.mockResolvedValue(
+      affiliation({ id: 'aff-1', status: 'active' }),
+    );
+    store.findSubjectParticipationById.mockResolvedValue(
+      participation({ id: 'part-stale', state: 'dropped' }),
+    );
+
+    await expect(
+      service.getAccountExportCurrentContext('user-1'),
+    ).resolves.toEqual({
+      affiliationId: 'aff-1',
+      subjectParticipationId: null,
+      revision: 4,
+      updatedAt: now.toISOString(),
+    });
+    expect(store.findCurrentContextForExport).toHaveBeenCalledWith('user-1');
+    expect(store.getCurrentContext).not.toHaveBeenCalled();
+    expect(store.findAffiliationById).toHaveBeenCalledWith('aff-1');
+    expect(store.findSubjectParticipationById).toHaveBeenCalledWith(
+      'part-stale',
+    );
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
+    expect(store.appendAuditEvent).not.toHaveBeenCalled();
+
+    store.findCurrentContextForExport.mockResolvedValueOnce({
+      userId: 'user-1',
+      affiliationId: 'aff-1',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await expect(
+      service.getAccountExportCurrentContext('user-1'),
+    ).resolves.toMatchObject({
+      revision: 1,
+    });
+
+    store.findCurrentContextForExport.mockResolvedValueOnce({
+      userId: 'user-1',
+      affiliationId: 'aff-1',
+      revision: 4,
+      createdAt: now,
+      updatedAt: now,
+    });
+    store.findAffiliationById.mockResolvedValueOnce(
+      affiliation({ id: 'aff-1', status: 'withdrawn' }),
+    );
+    await expect(
+      service.getAccountExportCurrentContext('user-1'),
+    ).resolves.toBeNull();
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
+  });
+
   it('creates canonical nodes with normalized aliases and auditable provenance', async () => {
     const store = createStore();
     const service = new AcademicService(store);
