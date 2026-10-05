@@ -301,9 +301,7 @@ describe('AcademicService', () => {
       updatedAt: now,
     };
 
-    store.listSubjectParticipationsForExport.mockResolvedValue(
-      page([subject]),
-    );
+    store.listSubjectParticipationsForExport.mockResolvedValue(page([subject]));
     store.listAcademicFollowsForExport.mockResolvedValue(page([follow]));
 
     await expect(
