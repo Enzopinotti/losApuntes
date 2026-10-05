@@ -323,6 +323,17 @@ export function CommunityNetworkScreen() {
             )}
           </View>
 
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Organizaciones</Text>
+            <Text style={styles.copy}>
+              Explorá centros, clubes, laboratorios y comunidades del campus.
+            </Text>
+            <ActionButton
+              label="Explorar organizaciones"
+              onPress={() => router.push("/organizations")}
+            />
+          </View>
+
           {!visibleFeed || visibleFeed.kind === "loading" ? (
             <FeedLoading />
           ) : visibleFeed.kind === "failure" ? (
