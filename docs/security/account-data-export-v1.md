@@ -148,8 +148,8 @@ Academic now contributes four user-state sections:
   state;
 - `academic.subjectParticipations` — the user's subject/course-offering
   relationship history;
-- `academic.currentContext` — the effective current Academic context after the
-  Academic domain has applied its stale-reference sanitation;
+- `academic.currentContext` — the effective current Academic context after a
+  read-only Academic-domain validation of stale references;
 - `academic.follows` — the user's institution/program follow relationships.
 
 Affiliations, subject participations and follows use dedicated export reads
@@ -159,7 +159,10 @@ These reads do not change or reuse the existing UI/lifecycle ordering by
 `updatedAt`.
 
 The three paginated export reads have matching `{ userId: 1, id: 1 }` indexes.
-`academic.currentContext` is cursorless and may be empty.
+`academic.currentContext` is cursorless and may be empty. Its export projection never repairs persistence:
+invalid subject references are omitted in memory, invalid/withdrawn affiliation
+contexts produce an empty section, and export does not call context mutation or
+append Academic audit events.
 
 Academic export contains relationship references and user-owned lifecycle state,
 not the global Academic catalog. It does not export catalog source provenance,
