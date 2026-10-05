@@ -158,8 +158,14 @@ test("organization directory appends cursor pages with id dedupe", async () => {
 });
 
 test("directory principal/filter switch aborts and discards stale results", async () => {
-  const first = deferred<{ items: OrganizationCard[]; nextCursor: string | null }>();
-  const second = deferred<{ items: OrganizationCard[]; nextCursor: string | null }>();
+  const first = deferred<{
+    items: OrganizationCard[];
+    nextCursor: string | null;
+  }>();
+  const second = deferred<{
+    items: OrganizationCard[];
+    nextCursor: string | null;
+  }>();
   const signals: AbortSignal[] = [];
   let calls = 0;
   const controller = new MobileOrganizationsDirectoryController(
@@ -185,7 +191,10 @@ test("directory principal/filter switch aborts and discards stale results", asyn
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind === "ready") {
     assert.equal(snapshot.authorityKey, "session-b:labs");
-    assert.deepEqual(snapshot.page.items.map((item) => item.id), ["lab"]);
+    assert.deepEqual(
+      snapshot.page.items.map((item) => item.id),
+      ["lab"],
+    );
   }
 });
 
@@ -285,10 +294,12 @@ test("ambiguous follow failure reconciles instead of blindly repeating mutation"
 });
 
 test("detail paginates posts and events with id dedupe", async () => {
-  const initial = detail("o1", false, [post("p1"), post("p2")], [
-    event("e1"),
-    event("e2"),
-  ]);
+  const initial = detail(
+    "o1",
+    false,
+    [post("p1"), post("p2")],
+    [event("e1"), event("e2")],
+  );
   initial.postsNextCursor = "posts-2";
   initial.eventsNextCursor = "events-2";
 
@@ -329,13 +340,23 @@ test("detail paginates posts and events with id dedupe", async () => {
 test("organization failures distinguish missing, auth, and network states", () => {
   assert.deepEqual(
     mobileOrganizationsFailure(
-      new ApiRequestError("unexpected", 404, "ORGANIZATION_NOT_FOUND", "missing"),
+      new ApiRequestError(
+        "unexpected",
+        404,
+        "ORGANIZATION_NOT_FOUND",
+        "missing",
+      ),
     ),
     { kind: "not_found", code: "ORGANIZATION_NOT_FOUND" },
   );
   assert.deepEqual(
     mobileOrganizationsFailure(
-      new ApiRequestError("unauthorized", 401, "AUTHENTICATION_REQUIRED", "auth"),
+      new ApiRequestError(
+        "unauthorized",
+        401,
+        "AUTHENTICATION_REQUIRED",
+        "auth",
+      ),
     ),
     { kind: "auth_required", code: "AUTHENTICATION_REQUIRED" },
   );
