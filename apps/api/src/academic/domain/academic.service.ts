@@ -800,7 +800,7 @@ export class AcademicService {
       });
 
       if (!isCurrentSubjectParticipationState(participation.state)) {
-        const context = await this.store.findCurrentContextForExport(userId);
+        const context = await this.store.getCurrentContext(userId);
         if (context?.subjectParticipationId === participation.id) {
           const cleared = await this.store.setCurrentContext(
             {
@@ -900,7 +900,7 @@ export class AcademicService {
   }
 
   async getAccountExportCurrentContext(userId: string) {
-    const context = await this.store.getCurrentContext(userId);
+    const context = await this.store.findCurrentContextForExport(userId);
     if (!context) return null;
 
     const affiliation = await this.store.findAffiliationById(
