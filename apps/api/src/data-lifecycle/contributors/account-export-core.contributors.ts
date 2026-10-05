@@ -30,7 +30,9 @@ export class AccountIdentityExportContributor
     assertSingletonCursor(this.sectionId, input.cursor);
 
     const account = await this.users.getAccountExportProjection(input.userId);
-    if (!account) return { records: [], nextCursor: null };
+    if (!account) {
+      throw new Error('Account export owner record is missing');
+    }
 
     const record: AccountExportRecord = {
       id: account.id,
