@@ -327,6 +327,113 @@ describe('ProfileService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('exports the complete owner profile independent of public visibility', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const row = profile({
+      lifecycleState: 'closed',
+      bio: 'Private bio',
+      skills: ['SQL'],
+      professional: {
+        headline: 'Private headline',
+        careerDiscoveryOptIn: true,
+      },
+      visibility: {
+        about: 'private',
+        academic: 'private',
+        learning: 'private',
+        activities: 'private',
+        skills: 'private',
+        professional: 'private',
+        contributions: 'private',
+      },
+      recommendationSignals: {
+        academicContext: false,
+        learning: true,
+        skillsInterests: false,
+      },
+    });
+    profileStore.findProfileByUserId.mockResolvedValue(row);
+
+    await expect(
+      service(profileStore, academicService).getAccountExportProfile('user-1'),
+    ).resolves.toEqual({
+      lifecycleState: 'closed',
+      id: row.id,
+      displayName: row.displayName,
+      bio: 'Private bio',
+      avatarUrl: row.avatarUrl,
+      languages: row.languages,
+      skills: ['SQL'],
+      interests: row.interests,
+      helpTopics: row.helpTopics,
+      learningTopics: row.learningTopics,
+      professional: {
+        headline: 'Private headline',
+        careerDiscoveryOptIn: true,
+      },
+      presentation: row.presentation,
+      visibility: row.visibility,
+      recommendationSignals: {
+        academicContext: false,
+        learning: true,
+        skillsInterests: false,
+      },
+      revision: row.revision,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    });
+    expect(academicService.listAffiliations).not.toHaveBeenCalled();
+  });
+
+  it('exports profile activities through the existing bounded cursor contract', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    const first = activity({
+      createdAt: new Date('2026-09-23T03:00:00.000Z'),
+    });
+    profileStore.listActivitiesForUser.mockResolvedValue(
+      activityPage([first], true),
+    );
+
+    const firstPage = await service(
+      profileStore,
+      academicService,
+    ).listAccountExportActivities('user-1', {
+      limit: 100,
+      cursor: null,
+    });
+
+    expect(firstPage.items).toHaveLength(1);
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+    expect(profileStore.listActivitiesForUser.mock.calls).toEqual([
+      [{ userId: 'user-1', limit: 50, after: undefined }],
+    ]);
+
+    profileStore.listActivitiesForUser.mockResolvedValueOnce(
+      activityPage([activity({ id: 'next-activity' })]),
+    );
+
+    await service(
+      profileStore,
+      academicService,
+    ).listAccountExportActivities('user-1', {
+      limit: 100,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(profileStore.listActivitiesForUser.mock.calls.at(-1)).toEqual([
+      {
+        userId: 'user-1',
+        limit: 50,
+        after: {
+          createdAt: first.createdAt,
+          id: first.id,
+        },
+      },
+    ]);
+  });
+
   it('composes owner academic state without duplicating it in profile storage', async () => {
     const profileStore = store();
     const academicService = academic();
