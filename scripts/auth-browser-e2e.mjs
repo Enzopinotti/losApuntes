@@ -225,6 +225,41 @@ function setSyntheticAccountStatus(email, status) {
   );
 }
 
+function expireSyntheticSession(sessionId) {
+  const script = [
+    "const result = db.auth_sessions.updateOne(",
+    `  { sessionId: ${JSON.stringify(sessionId)} },`,
+    "  { $set: { expiresAt: new Date(0) } },",
+    ");",
+    "if (result.matchedCount !== 1) {",
+    "  printjson(result);",
+    "  quit(2);",
+    "}",
+  ].join("\n");
+
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      "compose.local.yml",
+      "exec",
+      "-T",
+      "mongo",
+      "mongosh",
+      "--quiet",
+      "losapuntes_local",
+      "--eval",
+      script,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+}
+
 async function run() {
   const health = await fetch(new URL("/health/ready", API_ORIGIN), {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -945,9 +980,72 @@ async function run() {
       throw revocationFlowError;
     }
 
+    await page.goto(new URL("/login", WEB_ORIGIN).toString());
+    const expiryLoginEmail = page.getByLabel("Email", { exact: true });
+    const expiryLoginPassword = page.getByLabel("Contraseña", { exact: true });
+    await expiryLoginEmail.fill(email);
+    await expiryLoginPassword.fill(recoveredPassword);
+    const expiryLoginResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/auth/login" &&
+        request.method() === "POST"
+      );
+    });
+    await page.getByRole("button", { name: "Iniciar sesión" }).click();
+    const expiryLoginResponse = await expiryLoginResponsePromise;
+    assert.equal(
+      expiryLoginResponse.status(),
+      200,
+      "browser login should succeed before synthetic absolute expiry",
+    );
+    await page.waitForURL((url) => url.pathname === "/dashboard");
+
+    const expirySnapshot = await authenticatedMe(page);
+    assert.equal(expirySnapshot.status, 200);
+    const expiringSessionId = expirySnapshot.body?.session?.id;
+    assert.equal(
+      typeof expiringSessionId,
+      "string",
+      "authenticated Web snapshot should expose the expiring session id",
+    );
+
+    expireSyntheticSession(expiringSessionId);
+
+    const expiredBootstrapResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/auth/me" &&
+        request.method() === "GET"
+      );
+    });
+    await page.reload();
+    const expiredBootstrapResponse = await expiredBootstrapResponsePromise;
+    assert.equal(
+      expiredBootstrapResponse.status(),
+      401,
+      "expired Web session should fail the next Auth bootstrap",
+    );
+    const expiredBootstrapBody = await expiredBootstrapResponse.json();
+    assert.equal(
+      expiredBootstrapBody?.code,
+      "AUTHENTICATION_REQUIRED",
+      "expired Web session should preserve the stable anonymous Auth code",
+    );
+    await page.waitForURL((url) => url.pathname === "/login");
+    await page
+      .getByRole("heading", { name: "Inicia sesión en tu cuenta", exact: true })
+      .waitFor();
+
+    assert.deepEqual(
+      pageErrors,
+      [],
+      "auth journey should not produce uncaught page errors",
+    );
+
     await context.close();
     console.log(
-      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout, recovered credential login, restricted-account routing and remote Web-session revocation.",
+      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout, recovered credential login, restricted-account routing, remote Web-session revocation and expired-session routing.",
     );
   } finally {
     await browser?.close();
