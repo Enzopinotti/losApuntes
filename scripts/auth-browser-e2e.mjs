@@ -821,6 +821,104 @@ async function run() {
       setSyntheticAccountStatus(email, "active");
     }
 
+    await page.goto(new URL("/login", WEB_ORIGIN).toString());
+    const revocationLoginEmail = page.getByLabel("Email", { exact: true });
+    const revocationLoginPassword = page.getByLabel("Contraseña", {
+      exact: true,
+    });
+    await revocationLoginEmail.fill(email);
+    await revocationLoginPassword.fill(recoveredPassword);
+    const revocationWebLoginResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/auth/login" &&
+        request.method() === "POST"
+      );
+    });
+    await page.getByRole("button", { name: "Iniciar sesión" }).click();
+    const revocationWebLoginResponse =
+      await revocationWebLoginResponsePromise;
+    assert.equal(
+      revocationWebLoginResponse.status(),
+      200,
+      "browser login should succeed before remote session revocation",
+    );
+    await page.waitForURL((url) => url.pathname === "/dashboard");
+
+    const revocationWebSnapshot = await authenticatedMe(page);
+    assert.equal(revocationWebSnapshot.status, 200);
+    const revocationWebSessionId = revocationWebSnapshot.body?.session?.id;
+    assert.equal(
+      typeof revocationWebSessionId,
+      "string",
+      "authenticated Web snapshot should expose a public session id",
+    );
+
+    const revokerLogin = await requestJson(
+      "/auth/mobile/login",
+      jsonPost({ email, password: recoveredPassword }),
+    );
+    assert.equal(
+      revokerLogin.response.status,
+      200,
+      "secondary Mobile session should authenticate for remote revocation",
+    );
+    const revokerToken = revokerLogin.body?.sessionToken;
+    assert.equal(
+      typeof revokerToken,
+      "string",
+      "secondary Mobile login should return its bearer token",
+    );
+    const revokerAuthorization = `Bearer ${revokerToken}`;
+
+    const remoteRevocation = await requestJson(
+      `/auth/sessions/${encodeURIComponent(revocationWebSessionId)}`,
+      {
+        method: "DELETE",
+        headers: { authorization: revokerAuthorization },
+      },
+    );
+    assert.equal(
+      remoteRevocation.response.status,
+      204,
+      "secondary session should revoke the active Web session",
+    );
+
+    const revokedBootstrapResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/auth/me" &&
+        request.method() === "GET"
+      );
+    });
+    await page.reload();
+    const revokedBootstrapResponse = await revokedBootstrapResponsePromise;
+    assert.equal(
+      revokedBootstrapResponse.status(),
+      401,
+      "revoked Web session should fail the next Auth bootstrap",
+    );
+    const revokedBootstrapBody = await revokedBootstrapResponse.json();
+    assert.equal(
+      revokedBootstrapBody?.code,
+      "AUTHENTICATION_REQUIRED",
+      "revoked Web session should preserve the stable anonymous Auth code",
+    );
+    await page.waitForURL((url) => url.pathname === "/login");
+    await page
+      .getByRole("heading", { name: "Iniciar sesión", exact: true })
+      .waitFor();
+
+    const revokerLogout = await requestJson("/auth/session", {
+      method: "DELETE",
+      headers: { authorization: revokerAuthorization },
+    });
+    assert.equal(
+      revokerLogout.response.status,
+      204,
+      "secondary Mobile revoker session should be cleaned up",
+    );
+
     assert.deepEqual(
       pageErrors,
       [],
@@ -829,7 +927,7 @@ async function run() {
 
     await context.close();
     console.log(
-      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout, recovered credential login and restricted-account routing.",
+      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout, recovered credential login, restricted-account routing and remote Web-session revocation.",
     );
   } finally {
     await browser?.close();
