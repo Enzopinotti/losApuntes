@@ -27,22 +27,20 @@ describe('Academic account export contributors', () => {
       ],
       nextCursor: 'aff-next',
     });
-    const listAccountExportSubjectParticipations = jest
-      .fn()
-      .mockResolvedValue({
-        items: [
-          {
-            id: 'part-1',
-            subjectId: 'subject-1',
-            courseOfferingId: null,
-            state: 'completed',
-            periodLabel: null,
-            createdAt: '2026-01-01T00:00:00.000Z',
-            updatedAt: '2026-01-02T00:00:00.000Z',
-          },
-        ],
-        nextCursor: null,
-      });
+    const listAccountExportSubjectParticipations = jest.fn().mockResolvedValue({
+      items: [
+        {
+          id: 'part-1',
+          subjectId: 'subject-1',
+          courseOfferingId: null,
+          state: 'completed',
+          periodLabel: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+      nextCursor: null,
+    });
     const listAccountExportFollows = jest.fn().mockResolvedValue({
       items: [
         {
