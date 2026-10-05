@@ -312,9 +312,12 @@ export class MobileProfileController {
     const operation = this.begin(authorityKey);
     this.publish({ ...current, busy: true, failure: null, notice: null });
 
+    let actionCommitted = false;
+
     try {
       await action(operation.controller.signal);
       if (!this.isCurrent(operation)) return "cancelled";
+      actionCommitted = true;
 
       const response = await this.api.me(operation.controller.signal);
       if (!this.isCurrent(operation)) return "cancelled";
@@ -331,11 +334,13 @@ export class MobileProfileController {
           this.publishFromOwnerResponse(
             authorityKey,
             response,
-            failure.kind === "conflict"
-              ? "El perfil cambió en otro lugar. Recargamos la versión confirmada por el servidor; revisala antes de volver a guardar."
-              : "La conexión se interrumpió. Recargamos el estado confirmado por el servidor; revisalo antes de repetir la acción.",
+            actionCommitted
+              ? successNotice
+              : failure.kind === "conflict"
+                ? "El perfil cambió en otro lugar. Recargamos la versión confirmada por el servidor; revisala antes de volver a guardar."
+                : "La conexión se interrumpió. Recargamos el estado confirmado por el servidor; revisalo antes de repetir la acción.",
           );
-          return "reconciled";
+          return actionCommitted ? "committed" : "reconciled";
         } catch (refreshError) {
           if (!this.isCurrent(operation)) return "cancelled";
           this.publishFailureOnCurrent(
