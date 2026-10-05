@@ -19,6 +19,8 @@ import {
   parseProfileHeadline,
   parseProfileListInput,
   profileListInputCapacity,
+  unicodeCodePointLength,
+  unicodeTextInputCapacity,
 } from "../src/features/profile/profile-input-policy";
 import { ApiRequestError } from "../src/services/api/client";
 
@@ -436,6 +438,21 @@ test("profile list input policy matches server count and item-length limits", ()
   if (!tooManyTopics.ok) {
     assert.match(tooManyTopics.message, /máximo 20/u);
   }
+});
+
+test("profile text policy counts Unicode code points consistently", () => {
+  assert.equal(unicodeCodePointLength("😀"), 1);
+  assert.equal(unicodeCodePointLength("😀😀"), 2);
+  assert.equal(unicodeTextInputCapacity(80), 160);
+  assert.equal(unicodeTextInputCapacity(500), 1000);
+  assert.equal(unicodeTextInputCapacity(1000), 2000);
+
+  assert.deepEqual(parseProfileHeadline("😀😀"), {
+    ok: true,
+    value: "😀😀",
+  });
+  const oneEmojiHeadline = parseProfileHeadline("😀");
+  assert.equal(oneEmojiHeadline.ok, false);
 });
 
 test("profile list policy counts Unicode code points like the API", () => {
