@@ -169,6 +169,14 @@ export interface AcademicStore {
   getCurrentContext(
     userId: string,
   ): Promise<AcademicCurrentContextRecord | null>;
+  findCurrentContextForExport(
+    userId: string,
+  ): Promise<
+    | (Omit<AcademicCurrentContextRecord, 'revision'> & {
+        revision?: number;
+      })
+    | null
+  >;
   setCurrentContext(
     input: Omit<
       AcademicCurrentContextRecord,
