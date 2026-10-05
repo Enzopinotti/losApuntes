@@ -15,6 +15,10 @@ const [
   exportSchema,
   exportDocs,
   dataLifecycleModule,
+  exportContributors,
+  exportRegistry,
+  usersService,
+  profileService,
 ] = await Promise.all([
   readFile(new URL('../apps/api/src/data-lifecycle/account-lifecycle.controller.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-lifecycle.service.ts', import.meta.url), 'utf8'),
@@ -29,6 +33,10 @@ const [
   readFile(new URL('../apps/api/src/data-lifecycle/mongo/account-export.mongo-schema.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/security/account-data-export-v1.md', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/data-lifecycle.module.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/contributors/account-export-core.contributors.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/users/users.service.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/profile/domain/profile.service.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.match(controller, /@Get\('closure\/preflight'\)/u);
@@ -78,6 +86,25 @@ assert.match(exportDocs, /does \*\*not\*\* expose a public request/iu);
 assert.match(exportDocs, /los-apuntes-account-export/u);
 assert.match(dataLifecycleModule, /AccountExportService/u);
 assert.match(dataLifecycleModule, /ACCOUNT_EXPORT_STORE/u);
+
+assert.match(exportContributors, /readonly sectionId = 'account'/u);
+assert.match(exportContributors, /readonly sectionId = 'profile'/u);
+assert.match(exportContributors, /readonly sectionId = 'profile\.activities'/u);
+assert.match(exportContributors, /does not accept a cursor/u);
+assert.match(exportRegistry, /Duplicate account export contributor sectionId/u);
+assert.match(exportRegistry, /localeCompare/u);
+assert.match(usersService, /USER_ACCOUNT_EXPORT_SELECT/u);
+assert.match(usersService, /email_verified_at:\s*1/u);
+assert.match(usersService, /account_status:\s*1/u);
+assert.doesNotMatch(
+  usersService.match(/USER_ACCOUNT_EXPORT_SELECT\s*=\s*\{[\s\S]*?\}\s*as const;/u)?.[0] ?? '',
+  /(password_hash|credential_version|management_authority_revision|account_lifecycle_revision|platform_permissions)/u,
+  'account export select must remain secret/authority-metadata free',
+);
+assert.match(profileService, /getAccountExportProfile/u);
+assert.match(profileService, /listAccountExportActivities/u);
+assert.match(dataLifecycleModule, /AccountExportContributorRegistry/u);
+assert.match(dataLifecycleModule, /ProfileActivitiesExportContributor/u);
 assert.doesNotMatch(
   controller,
   /@(Get|Post)\('(?:data-)?exports?/u,
