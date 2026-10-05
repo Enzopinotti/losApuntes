@@ -8,27 +8,28 @@ import {
 
 describe('Academic account export contributors', () => {
   it('delegates paginated Academic sections', async () => {
-    const academic = {
-      listAccountExportAffiliations: jest.fn().mockResolvedValue({
-        items: [
-          {
-            id: 'aff-1',
-            institutionId: 'inst-1',
-            campusId: null,
-            academicUnitId: null,
-            programId: null,
-            curriculumId: null,
-            status: 'active',
-            roles: [],
-            startedOn: null,
-            endedOn: null,
-            createdAt: '2026-01-01T00:00:00.000Z',
-            updatedAt: '2026-01-02T00:00:00.000Z',
-          },
-        ],
-        nextCursor: 'aff-next',
-      }),
-      listAccountExportSubjectParticipations: jest.fn().mockResolvedValue({
+    const listAccountExportAffiliations = jest.fn().mockResolvedValue({
+      items: [
+        {
+          id: 'aff-1',
+          institutionId: 'inst-1',
+          campusId: null,
+          academicUnitId: null,
+          programId: null,
+          curriculumId: null,
+          status: 'active',
+          roles: [],
+          startedOn: null,
+          endedOn: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+      nextCursor: 'aff-next',
+    });
+    const listAccountExportSubjectParticipations = jest
+      .fn()
+      .mockResolvedValue({
         items: [
           {
             id: 'part-1',
@@ -41,19 +42,23 @@ describe('Academic account export contributors', () => {
           },
         ],
         nextCursor: null,
-      }),
-      listAccountExportFollows: jest.fn().mockResolvedValue({
-        items: [
-          {
-            id: 'follow-1',
-            targetNodeId: 'inst-1',
-            targetKind: 'institution',
-            createdAt: '2026-01-01T00:00:00.000Z',
-            updatedAt: '2026-01-02T00:00:00.000Z',
-          },
-        ],
-        nextCursor: 'follow-next',
-      }),
+      });
+    const listAccountExportFollows = jest.fn().mockResolvedValue({
+      items: [
+        {
+          id: 'follow-1',
+          targetNodeId: 'inst-1',
+          targetKind: 'institution',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+      nextCursor: 'follow-next',
+    });
+    const academic = {
+      listAccountExportAffiliations,
+      listAccountExportSubjectParticipations,
+      listAccountExportFollows,
     } as unknown as jest.Mocked<AcademicService>;
 
     await expect(
@@ -89,30 +94,32 @@ describe('Academic account export contributors', () => {
       records: [{ id: 'follow-1', targetNodeId: 'inst-1' }],
     });
 
-    expect(academic.listAccountExportAffiliations).toHaveBeenCalledWith(
+    expect(listAccountExportAffiliations).toHaveBeenCalledWith('user-1', {
+      limit: 100,
+      cursor: 'aff-cursor',
+    });
+    expect(listAccountExportSubjectParticipations).toHaveBeenCalledWith(
       'user-1',
-      { limit: 100, cursor: 'aff-cursor' },
+      { limit: 50, cursor: null },
     );
-    expect(
-      academic.listAccountExportSubjectParticipations,
-    ).toHaveBeenCalledWith('user-1', { limit: 50, cursor: null });
-    expect(academic.listAccountExportFollows).toHaveBeenCalledWith('user-1', {
+    expect(listAccountExportFollows).toHaveBeenCalledWith('user-1', {
       limit: 25,
       cursor: 'follow-cursor',
     });
   });
 
   it('keeps current context cursorless and optional', async () => {
+    const getAccountExportCurrentContext = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        affiliationId: 'aff-1',
+        subjectParticipationId: null,
+        revision: 3,
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      });
     const academic = {
-      getAccountExportCurrentContext: jest
-        .fn()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          affiliationId: 'aff-1',
-          subjectParticipationId: null,
-          revision: 3,
-          updatedAt: '2026-01-02T00:00:00.000Z',
-        }),
+      getAccountExportCurrentContext,
     } as unknown as jest.Mocked<AcademicService>;
     const contributor = new AcademicCurrentContextExportContributor(academic);
 
@@ -139,6 +146,6 @@ describe('Academic account export contributors', () => {
         limit: 100,
       }),
     ).rejects.toThrow('does not accept a cursor');
-    expect(academic.getAccountExportCurrentContext).toHaveBeenCalledTimes(2);
+    expect(getAccountExportCurrentContext).toHaveBeenCalledTimes(2);
   });
 });
