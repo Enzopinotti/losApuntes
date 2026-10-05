@@ -83,7 +83,9 @@ function EventCard({
   return (
     <View style={styles.item}>
       <Text style={styles.itemTitle}>{event.title}</Text>
-      {event.description ? <Text style={styles.copy}>{event.description}</Text> : null}
+      {event.description ? (
+        <Text style={styles.copy}>{event.description}</Text>
+      ) : null}
       <Text style={styles.meta}>
         {new Date(event.startsAt).toLocaleString()}
         {event.endsAt ? ` → ${new Date(event.endsAt).toLocaleString()}` : ""}
@@ -304,7 +306,9 @@ export function MobileOrganizationDetailScreen({
               <Pressable
                 accessibilityRole="link"
                 accessibilityLabel={`Abrir sitio web de ${current.organization.name}`}
-                onPress={() => void openExternal(current.organization.websiteUrl!)}
+                onPress={() =>
+                  void openExternal(current.organization.websiteUrl!)
+                }
                 style={styles.secondaryButton}
               >
                 <Text style={styles.secondaryButtonText}>Sitio web</Text>
