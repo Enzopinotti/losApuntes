@@ -526,4 +526,38 @@ describe('MongoAcademicStore current-context concurrency', () => {
       { new: true, session: undefined },
     );
   });
+
+  it('reads legacy context for export without normalizing persistence', async () => {
+    const legacy = {
+      userId: 'user-1',
+      affiliationId: 'aff-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const findChain = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(legacy),
+    };
+    findChain.lean.mockReturnValue(findChain);
+    const contexts = {
+      findOne: jest.fn().mockReturnValue(findChain),
+      findOneAndUpdate: jest.fn(),
+    };
+    const store = new MongoAcademicStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      contexts as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(store.findCurrentContextForExport('user-1')).resolves.toEqual(
+      legacy,
+    );
+    expect(contexts.findOne).toHaveBeenCalledWith({ userId: 'user-1' });
+    expect(contexts.findOneAndUpdate).not.toHaveBeenCalled();
+  });
 });
