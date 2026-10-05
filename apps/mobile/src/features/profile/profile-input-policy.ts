@@ -101,7 +101,9 @@ export function parseProfileHeadline(
   const normalized = value.normalize("NFC").trim();
   if (!normalized) return { ok: true, value: null };
 
-  const length = unicodeCodePointLength(normalized);\n\n  if (length < 2 || length > 140) {
+  const length = unicodeCodePointLength(normalized);
+
+  if (length < 2 || length > 140) {
     return {
       ok: false,
       message: "El titular debe tener entre 2 y 140 caracteres.",
