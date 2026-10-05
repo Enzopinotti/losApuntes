@@ -343,19 +343,23 @@ describe('AcademicService', () => {
     });
   });
 
-  it('exports the effective sanitized academic current context', async () => {
+  it('exports effective current context without mutating Academic state', async () => {
     const store = createStore();
     const service = new AcademicService(store);
 
     store.getCurrentContext.mockResolvedValue({
       userId: 'user-1',
       affiliationId: 'aff-1',
+      subjectParticipationId: 'part-stale',
       revision: 4,
       createdAt: now,
       updatedAt: now,
     });
     store.findAffiliationById.mockResolvedValue(
       affiliation({ id: 'aff-1', status: 'active' }),
+    );
+    store.findSubjectParticipationById.mockResolvedValue(
+      participation({ id: 'part-stale', state: 'dropped' }),
     );
 
     await expect(
@@ -367,7 +371,11 @@ describe('AcademicService', () => {
       updatedAt: now.toISOString(),
     });
     expect(store.findAffiliationById).toHaveBeenCalledWith('aff-1');
-    expect(store.findSubjectParticipationById).not.toHaveBeenCalled();
+    expect(store.findSubjectParticipationById).toHaveBeenCalledWith(
+      'part-stale',
+    );
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
+    expect(store.appendAuditEvent).not.toHaveBeenCalled();
 
     store.findAffiliationById.mockResolvedValueOnce(
       affiliation({ id: 'aff-1', status: 'withdrawn' }),
@@ -375,6 +383,7 @@ describe('AcademicService', () => {
     await expect(
       service.getAccountExportCurrentContext('user-1'),
     ).resolves.toBeNull();
+    expect(store.setCurrentContext).not.toHaveBeenCalled();
   });
 
   it('creates canonical nodes with normalized aliases and auditable provenance', async () => {
