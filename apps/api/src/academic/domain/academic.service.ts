@@ -506,7 +506,7 @@ export class AcademicService {
         programId: row.programId ?? null,
         curriculumId: row.curriculumId ?? null,
         status: row.status,
-        roles: row.roles ?? [],
+        roles: effectiveAcademicRelationshipRoles(row.status, row.roles),
         startedOn: row.startedOn ?? null,
         endedOn: row.endedOn ?? null,
         createdAt: row.createdAt.toISOString(),
