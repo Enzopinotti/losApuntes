@@ -293,6 +293,26 @@ export class ProfileService {
     return { profile: this.ownerProfile(updated) };
   }
 
+  async getAccountExportProfile(userId: string) {
+    const profile = await this.store.findProfileByUserId(userId);
+    if (!profile) return null;
+
+    return {
+      lifecycleState: profile.lifecycleState ?? 'active',
+      ...this.ownerProfile(profile),
+    };
+  }
+
+  async listAccountExportActivities(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    return this.activityPage(userId, {
+      limit: input.limit,
+      cursor: input.cursor ?? undefined,
+    });
+  }
+
   async searchPublicProfiles(query: string, limit: number) {
     const rows = await this.store.searchPublicProfiles(cleanText(query), limit);
 

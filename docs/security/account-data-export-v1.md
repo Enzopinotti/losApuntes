@@ -114,11 +114,40 @@ rejects a contributor that returns more records than the budget.
 A contributor must preserve its own domain authority and ordering. Export is a
 read projection: it does not mutate ownership or grant access.
 
+### Implemented core sections
+
+The first concrete contributors are:
+
+- `account` — one allowlisted account identity/lifecycle record;
+- `profile` — one owner profile snapshot, including private visibility,
+  presentation and recommendation controls because this is the owner's export;
+- `profile.activities` — cursor-paginated owner activity history.
+
+`account` and `profile` are singleton sections. A non-null cursor for either
+section is invalid rather than silently ignored.
+
+`profile.activities` reuses Profile's existing deterministic cursor ordering
+and domain limit. The export orchestrator may request up to 100 records, while
+Profile currently clamps the persistence read to its own maximum of 50.
+
+The core contributor registry sorts section ids deterministically and rejects
+blank, padded/noncanonical, or duplicate ids during dependency wiring. This
+prevents two domains from silently claiming the same export section or exposing
+an id that differs from its registry key.
+
+The `account` projection is allowlisted at query time. The Mongo read selects
+only the fields needed by the portable account record; password hashes,
+credential/lifecycle authority revisions and platform permissions are not read
+and therefore cannot leak through later serialization.
+
+
 ## Security and privacy exclusions
 
 Export output must never contain:
 
 - password or password hash;
+- credential/account-lifecycle/management authority revision counters;
+- internal platform permission grants;
 - raw AuthSession credential;
 - cookie;
 - raw verification/recovery/action token or token hash;
@@ -161,6 +190,11 @@ This foundation does not decide:
 - production legal wording.
 
 Those remain #82/#48 or later #183 slices.
+
+Academic, Resources/Files, Social/Q&A, Organizations, Notifications and Alumni
+are still unimplemented export domains. The presence of the three core sections
+does not make the overall export product complete or ready for public HTTP
+delivery.
 
 ## Merge acceptance for this foundation
 

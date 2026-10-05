@@ -6,10 +6,20 @@ import {
   OrganizationManager,
   OrganizationManagerSchema,
 } from '../organizations/mongo/organization.mongo-schemas';
+import { ProfileModule } from '../profile/profile.module';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { AccountLifecycleController } from './account-lifecycle.controller';
+import {
+  AccountIdentityExportContributor,
+  ProfileActivitiesExportContributor,
+  ProfileExportContributor,
+} from './contributors/account-export-core.contributors';
+import {
+  ACCOUNT_EXPORT_CONTRIBUTORS,
+  AccountExportContributorRegistry,
+} from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
 import { ACCOUNT_EXPORT_STORE } from './domain/account-export.store';
 import { AccountLifecycleService } from './domain/account-lifecycle.service';
@@ -31,6 +41,7 @@ import {
   imports: [
     AuthModule,
     UsersModule,
+    ProfileModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
@@ -44,6 +55,23 @@ import {
   providers: [
     AccountLifecycleService,
     AccountExportService,
+    AccountIdentityExportContributor,
+    ProfileExportContributor,
+    ProfileActivitiesExportContributor,
+    {
+      provide: ACCOUNT_EXPORT_CONTRIBUTORS,
+      useFactory: (
+        account: AccountIdentityExportContributor,
+        profile: ProfileExportContributor,
+        activities: ProfileActivitiesExportContributor,
+      ) => [account, profile, activities],
+      inject: [
+        AccountIdentityExportContributor,
+        ProfileExportContributor,
+        ProfileActivitiesExportContributor,
+      ],
+    },
+    AccountExportContributorRegistry,
     MongoAccountLifecycleStore,
     MongoAccountExportStore,
     {
@@ -55,6 +83,10 @@ import {
       useExisting: MongoAccountExportStore,
     },
   ],
-  exports: [AccountLifecycleService, AccountExportService],
+  exports: [
+    AccountLifecycleService,
+    AccountExportService,
+    AccountExportContributorRegistry,
+  ],
 })
 export class DataLifecycleModule {}
