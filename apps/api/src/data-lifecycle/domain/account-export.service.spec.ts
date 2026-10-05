@@ -47,7 +47,9 @@ function fixture() {
 }
 
 describe('AccountExportService', () => {
-  it('creates one active export request and returns only public status fields', async () => {
+  it(
+    'creates one active export request and returns only public status fields',
+    async () => {
     const f = fixture();
     f.store.requestActive.mockImplementation((input) =>
       Promise.resolve({
@@ -74,10 +76,13 @@ describe('AccountExportService', () => {
       now,
     });
     expect(result.export).not.toHaveProperty('claimId');
-    expect(result.export).not.toHaveProperty('leaseExpiresAt');
-  });
+      expect(result.export).not.toHaveProperty('leaseExpiresAt');
+    },
+  );
 
-  it('replays the existing active export instead of manufacturing another job', async () => {
+  it(
+    'replays the existing active export instead of manufacturing another job',
+    async () => {
     const f = fixture();
     f.store.requestActive.mockResolvedValue({
       created: false,
@@ -94,14 +99,17 @@ describe('AccountExportService', () => {
         requestedAt: now.toISOString(),
         failureCode: null,
       },
-    });
-  });
+      });
+    },
+  );
 
   it('looks up status through the owner-scoped store boundary', async () => {
     const f = fixture();
     f.store.findOwned.mockResolvedValue(job({ state: 'processing' }));
 
-    await expect(f.service.status('user-1', 'export-1')).resolves.toMatchObject({
+    await expect(
+      f.service.status('user-1', 'export-1'),
+    ).resolves.toMatchObject({
       id: 'export-1',
       state: 'processing',
     });
