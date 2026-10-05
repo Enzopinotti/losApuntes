@@ -17,6 +17,7 @@ import {
   MobileOrganizationsDirectoryController,
   mobileOrganizationsFailure,
 } from "../src/features/organizations/organizations-controller";
+import { normalizeOrganizationQuery } from "../src/features/organizations/organizations-input-policy";
 import { ApiRequestError } from "../src/services/api/client";
 
 const card = (id: string): OrganizationCard => ({
@@ -335,6 +336,22 @@ test("detail paginates posts and events with id dedupe", async () => {
     assert.equal(snapshot.organization.postsNextCursor, null);
     assert.equal(snapshot.organization.eventsNextCursor, null);
   }
+});
+
+test("organization search query policy mirrors the server 2-120 contract", () => {
+  assert.deepEqual(normalizeOrganizationQuery("  "), { ok: true, query: "" });
+  assert.deepEqual(normalizeOrganizationQuery("  GIDAS  "), {
+    ok: true,
+    query: "GIDAS",
+  });
+
+  const tooShort = normalizeOrganizationQuery("g");
+  assert.equal(tooShort.ok, false);
+  if (!tooShort.ok) assert.match(tooShort.message, /al menos 2/u);
+
+  const tooLong = normalizeOrganizationQuery("x".repeat(121));
+  assert.equal(tooLong.ok, false);
+  if (!tooLong.ok) assert.match(tooLong.message, /120/u);
 });
 
 test("organization failures distinguish missing, auth, and network states", () => {
