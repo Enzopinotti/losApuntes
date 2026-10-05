@@ -60,10 +60,7 @@ function ambiguousFailure(failure: MobileOrganizationsFailure): boolean {
   );
 }
 
-function appendUnique<T extends { id: string }>(
-  current: T[],
-  next: T[],
-): T[] {
+function appendUnique<T extends { id: string }>(current: T[], next: T[]): T[] {
   const byId = new Map(current.map((item) => [item.id, item]));
   for (const item of next) byId.set(item.id, item);
   return [...byId.values()];
@@ -388,11 +385,7 @@ export class MobileOrganizationDetailController {
         }
       }
 
-      this.publishFailureOnReady(
-        authorityKey,
-        organizationId,
-        failure,
-      );
+      this.publishFailureOnReady(authorityKey, organizationId, failure);
     } finally {
       this.finish(operation);
     }
@@ -413,7 +406,12 @@ export class MobileOrganizationDetailController {
     }
 
     const operation = this.begin(authorityKey);
-    this.publish({ ...current, busy: "posts-more", failure: null, notice: null });
+    this.publish({
+      ...current,
+      busy: "posts-more",
+      failure: null,
+      notice: null,
+    });
 
     try {
       const page = await this.api.posts(
@@ -464,7 +462,12 @@ export class MobileOrganizationDetailController {
     }
 
     const operation = this.begin(authorityKey);
-    this.publish({ ...current, busy: "events-more", failure: null, notice: null });
+    this.publish({
+      ...current,
+      busy: "events-more",
+      failure: null,
+      notice: null,
+    });
 
     try {
       const page = await this.api.events(
