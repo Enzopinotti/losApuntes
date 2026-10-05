@@ -16,6 +16,7 @@ import { mobileSessionController } from "@/features/session/session-runtime";
 interface SessionContextValue {
   snapshot: SessionSnapshot;
   login(email: string, password: string): Promise<void>;
+  loginWithGoogle(idToken: string): Promise<void>;
   logout(): Promise<void>;
   retryRestore(): Promise<void>;
 }
@@ -59,12 +60,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }),
     [],
   );
+  const loginWithGoogle = useCallback(
+    (idToken: string) => controller.loginWithGoogle({ idToken }),
+    [],
+  );
   const logout = useCallback(() => controller.logout(), []);
   const retryRestore = useCallback(() => controller.restore(), []);
 
   const value = useMemo(
-    () => ({ snapshot, login, logout, retryRestore }),
-    [snapshot, login, logout, retryRestore],
+    () => ({ snapshot, login, loginWithGoogle, logout, retryRestore }),
+    [snapshot, login, loginWithGoogle, logout, retryRestore],
   );
 
   return (

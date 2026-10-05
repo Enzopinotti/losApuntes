@@ -2,6 +2,7 @@ import type {
   AuthSession,
   AuthenticatedSessionResponse,
   AuthUser,
+  GoogleMobileInput,
   MobileAuthenticatedSessionResponse,
   PasswordLoginInput,
 } from "@losapuntes/contracts";
@@ -24,6 +25,10 @@ type Listener = (snapshot: SessionSnapshot) => void;
 export interface SessionApi {
   mobileLogin(
     input: PasswordLoginInput,
+    signal?: AbortSignal,
+  ): Promise<MobileAuthenticatedSessionResponse>;
+  googleMobileLogin?(
+    input: GoogleMobileInput,
     signal?: AbortSignal,
   ): Promise<MobileAuthenticatedSessionResponse>;
   me(
@@ -111,13 +116,31 @@ export class SessionController {
   }
 
   async login(input: PasswordLoginInput): Promise<void> {
+    return this.loginWith((signal) => this.api.mobileLogin(input, signal));
+  }
+
+  async loginWithGoogle(input: GoogleMobileInput): Promise<void> {
+    const googleMobileLogin = this.api.googleMobileLogin;
+    if (!googleMobileLogin) {
+      throw new ApiRequestError(
+        "server_unavailable",
+        null,
+        "GOOGLE_AUTH_UNAVAILABLE",
+        "Google mobile login is unavailable",
+      );
+    }
+    return this.loginWith((signal) => googleMobileLogin(input, signal));
+  }
+
+  private async loginWith(
+    request: (
+      signal?: AbortSignal,
+    ) => Promise<MobileAuthenticatedSessionResponse>,
+  ): Promise<void> {
     const generation = this.beginOperation({ kind: "restoring" });
 
     try {
-      const result = await this.api.mobileLogin(
-        input,
-        this.activeOperation?.signal,
-      );
+      const result = await request(this.activeOperation?.signal);
       if (!this.isCurrent(generation)) {
         await this.bestEffortRevokeCandidate(result.sessionToken);
         return;
