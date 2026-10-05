@@ -908,7 +908,7 @@ async function run() {
       );
       await page.waitForURL((url) => url.pathname === "/login");
       await page
-        .getByRole("heading", { name: "Iniciar sesión", exact: true })
+        .getByRole("heading", { name: "Inicia sesión en tu cuenta", exact: true })
         .waitFor();
 
       assert.deepEqual(
