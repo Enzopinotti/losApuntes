@@ -492,7 +492,9 @@ export function MobileOwnerProfileScreen() {
       title="Perfil"
       description="Tu identidad en Los Apuntes. El contexto académico sigue siendo autoridad del servidor y no se edita desde esta pantalla."
       onRefresh={
-        scopeKey && active ? () => void controller.load(scopeKey) : undefined
+        scopeKey && active && !mutationsBlocked
+          ? () => void controller.load(scopeKey)
+          : undefined
       }
       refreshing={current?.kind === "loading"}
     >
