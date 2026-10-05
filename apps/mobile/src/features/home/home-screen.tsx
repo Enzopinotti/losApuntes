@@ -261,8 +261,7 @@ export function HomeScreen() {
   const refreshControlEnabled = Boolean(activeHomeAuthority && canLoad);
   const refreshing =
     refreshPending ||
-    (home.kind === "loading" &&
-      home.authorityKey === activeHomeAuthority);
+    (home.kind === "loading" && home.authorityKey === activeHomeAuthority);
 
   const renderSurface = (content: ReactNode) => (
     <ProductSurface
