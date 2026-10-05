@@ -229,12 +229,40 @@ async function run() {
       typeof verificationMail.Text === "string" ? verificationMail.Text : "",
       typeof verificationMail.HTML === "string" ? verificationMail.HTML : "",
     ].join("\n");
+    const verificationUrl = (
+      verificationMailBody.match(/https?:\/\/[^\s"'<>]+/g) ?? []
+    )
+      .map((candidate) => candidate.replace(/[),.;\]]+$/, ""))
+      .map((candidate) => {
+        try {
+          return new URL(candidate);
+        } catch {
+          return undefined;
+        }
+      })
+      .find(
+        (candidate) =>
+          candidate?.pathname === "/auth/verify-email" &&
+          candidate.hash === `#token=${verificationToken}`,
+      );
     assert.equal(
-      verificationMailBody.includes(
-        `/auth/verify-email#token=${verificationToken}`,
-      ),
+      verificationUrl instanceof URL,
       true,
-      "verification email should keep the one-time token in the URL fragment",
+      "verification email should contain a complete fragment-based browser URL",
+    );
+    const verificationOrigin = loopbackOrigin(
+      "captured verification link origin",
+      verificationUrl.origin,
+    );
+    assert.equal(
+      verificationOrigin,
+      WEB_ORIGIN,
+      "verification email should target the configured local Web origin",
+    );
+    assert.equal(
+      verificationUrl.search,
+      "",
+      "verification email should not put the one-time token in the query",
     );
 
     let verificationTokenAppearedInRequestUrl = false;
@@ -245,12 +273,7 @@ async function run() {
     });
 
     try {
-      await page.goto(
-        new URL(
-          `/auth/verify-email#token=${verificationToken}`,
-          WEB_ORIGIN,
-        ).toString(),
-      );
+      await page.goto(verificationUrl.toString());
     } catch {
       throw new Error(
         "Browser could not open the local email-verification link",
