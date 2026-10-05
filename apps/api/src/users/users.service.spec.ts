@@ -2,10 +2,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { User } from './schemas/user.schema';
-import {
-  USER_ACCOUNT_EXPORT_SELECT,
-  UsersService,
-} from './users.service';
+import { USER_ACCOUNT_EXPORT_SELECT, UsersService } from './users.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -87,30 +84,28 @@ describe('UsersService', () => {
       updatedAt: new Date('2026-09-01T12:00:00.000Z'),
     });
 
-    await expect(
-      service.getAccountExportProjection('user-1'),
-    ).resolves.toEqual({
-      id: 'user-1',
-      email: 'enzo@example.com',
-      username: 'enzo',
-      emailVerifiedAt: '2026-09-01T12:00:00.000Z',
-      accountStatus: 'restricted',
-      accountClosedAt: null,
-      fullName: 'Enzo Pinotti',
-      avatarUrl: null,
-      bio: 'Bio',
-      careerId: 42,
-      cohortYear: 2026,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-09-01T12:00:00.000Z',
-    });
+    await expect(service.getAccountExportProjection('user-1')).resolves.toEqual(
+      {
+        id: 'user-1',
+        email: 'enzo@example.com',
+        username: 'enzo',
+        emailVerifiedAt: '2026-09-01T12:00:00.000Z',
+        accountStatus: 'restricted',
+        accountClosedAt: null,
+        fullName: 'Enzo Pinotti',
+        avatarUrl: null,
+        bio: 'Bio',
+        careerId: 42,
+        cohortYear: 2026,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-09-01T12:00:00.000Z',
+      },
+    );
 
     expect(userModel.findById).toHaveBeenLastCalledWith('user-1');
     expect(exportQuery.select).toHaveBeenCalledWith(USER_ACCOUNT_EXPORT_SELECT);
     expect(USER_ACCOUNT_EXPORT_SELECT).not.toHaveProperty('password_hash');
-    expect(USER_ACCOUNT_EXPORT_SELECT).not.toHaveProperty(
-      'credential_version',
-    );
+    expect(USER_ACCOUNT_EXPORT_SELECT).not.toHaveProperty('credential_version');
     expect(USER_ACCOUNT_EXPORT_SELECT).not.toHaveProperty(
       'management_authority_revision',
     );
@@ -129,23 +124,23 @@ describe('UsersService', () => {
       email: 'new@example.com',
     });
 
-    await expect(
-      service.getAccountExportProjection('user-2'),
-    ).resolves.toEqual({
-      id: 'user-2',
-      email: 'new@example.com',
-      username: null,
-      emailVerifiedAt: null,
-      accountStatus: 'active',
-      accountClosedAt: null,
-      fullName: null,
-      avatarUrl: null,
-      bio: null,
-      careerId: null,
-      cohortYear: null,
-      createdAt: null,
-      updatedAt: null,
-    });
+    await expect(service.getAccountExportProjection('user-2')).resolves.toEqual(
+      {
+        id: 'user-2',
+        email: 'new@example.com',
+        username: null,
+        emailVerifiedAt: null,
+        accountStatus: 'active',
+        accountClosedAt: null,
+        fullName: null,
+        avatarUrl: null,
+        bio: null,
+        careerId: null,
+        cohortYear: null,
+        createdAt: null,
+        updatedAt: null,
+      },
+    );
   });
 
   it('migrates only the exact current password hash without changing credential authority', async () => {
