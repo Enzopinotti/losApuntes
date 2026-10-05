@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
 import {
   OrganizationManager,
@@ -11,6 +12,12 @@ import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { AccountLifecycleController } from './account-lifecycle.controller';
+import {
+  AcademicAffiliationsExportContributor,
+  AcademicCurrentContextExportContributor,
+  AcademicFollowsExportContributor,
+  AcademicSubjectParticipationsExportContributor,
+} from './contributors/account-export-academic.contributors';
 import {
   AccountIdentityExportContributor,
   ProfileActivitiesExportContributor,
@@ -39,6 +46,7 @@ import {
 
 @Module({
   imports: [
+    AcademicModule,
     AuthModule,
     UsersModule,
     ProfileModule,
@@ -58,17 +66,37 @@ import {
     AccountIdentityExportContributor,
     ProfileExportContributor,
     ProfileActivitiesExportContributor,
+    AcademicAffiliationsExportContributor,
+    AcademicSubjectParticipationsExportContributor,
+    AcademicCurrentContextExportContributor,
+    AcademicFollowsExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
         account: AccountIdentityExportContributor,
         profile: ProfileExportContributor,
         activities: ProfileActivitiesExportContributor,
-      ) => [account, profile, activities],
+        academicAffiliations: AcademicAffiliationsExportContributor,
+        academicParticipations: AcademicSubjectParticipationsExportContributor,
+        academicContext: AcademicCurrentContextExportContributor,
+        academicFollows: AcademicFollowsExportContributor,
+      ) => [
+        account,
+        profile,
+        activities,
+        academicAffiliations,
+        academicParticipations,
+        academicContext,
+        academicFollows,
+      ],
       inject: [
         AccountIdentityExportContributor,
         ProfileExportContributor,
         ProfileActivitiesExportContributor,
+        AcademicAffiliationsExportContributor,
+        AcademicSubjectParticipationsExportContributor,
+        AcademicCurrentContextExportContributor,
+        AcademicFollowsExportContributor,
       ],
     },
     AccountExportContributorRegistry,
