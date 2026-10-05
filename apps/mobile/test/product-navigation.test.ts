@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   PRODUCT_TAB_ROUTES,
+  activeNavigationAuthorityKey,
   navigationAuthorityKey,
 } from "../src/features/navigation/product-navigation";
 
@@ -26,4 +28,37 @@ test("changes the navigation scope when session authority changes", () => {
   assert.equal(first, same);
   assert.notEqual(first, nextSession);
   assert.notEqual(first, nextPrincipal);
+});
+
+test("active screen authority requires focus and an active AppState", () => {
+  assert.equal(
+    activeNavigationAuthorityKey("user-a:session-1", true, "active"),
+    "user-a:session-1",
+  );
+  assert.equal(
+    activeNavigationAuthorityKey("user-a:session-1", false, "active"),
+    null,
+  );
+  assert.equal(
+    activeNavigationAuthorityKey("user-a:session-1", true, "background"),
+    null,
+  );
+  assert.equal(
+    activeNavigationAuthorityKey("user-a:session-1", true, "inactive"),
+    null,
+  );
+  assert.equal(activeNavigationAuthorityKey(null, true, "active"), null);
+});
+
+test("remaining visual detail surfaces bind authority to navigation focus", () => {
+  const sources = [
+    "../src/features/home/home-screen.tsx",
+    "../src/features/resources/resource-details-screen.tsx",
+    "../src/features/search/search-result-screens.tsx",
+  ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
+
+  for (const source of sources) {
+    assert.match(source, /useIsFocused/u);
+    assert.match(source, /activeNavigationAuthorityKey/u);
+  }
 });
