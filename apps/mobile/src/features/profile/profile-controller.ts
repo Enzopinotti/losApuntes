@@ -28,10 +28,7 @@ export type MobileProfileFailure = {
 };
 
 export type MobileProfileMutationResult =
-  | "committed"
-  | "reconciled"
-  | "failed"
-  | "cancelled";
+  "committed" | "reconciled" | "failed" | "cancelled";
 
 type ReadyOwnerProfile = Extract<
   OwnerProfileResponse,
