@@ -5,11 +5,6 @@ import type {
 
 const ACTION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
-export interface ParsedAuthActionLink {
-  kind: AuthActionKind;
-  token: string;
-}
-
 const parseActionRoute = (
   raw: string,
 ): { url: URL; kind: AuthActionKind } | null => {
@@ -53,15 +48,3 @@ export const captureAuthActionLink = (
 };
 
 export const captureEmailVerificationLink = captureAuthActionLink;
-
-export const parseAuthActionLink = (
-  raw: string,
-): ParsedAuthActionLink | null => {
-  const route = parseActionRoute(raw);
-  if (!route) return null;
-
-  const token = route.url.searchParams.get("token");
-  if (!token || !ACTION_TOKEN_PATTERN.test(token)) return null;
-
-  return { kind: route.kind, token };
-};
