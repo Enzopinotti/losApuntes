@@ -39,7 +39,6 @@ const resource = (id: string): ResourceView => ({
 });
 
 const access = (id: string): ResourceAccessResponse => ({
-  resource: resource(id),
   file: resource(id).file,
   access: {
     url: `https://storage.example.invalid/${id}?signature=secret`,
