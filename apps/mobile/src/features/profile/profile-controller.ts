@@ -221,7 +221,12 @@ export class MobileProfileController {
     }
 
     const operation = this.begin(authorityKey);
-    this.publish({ ...current, loadingMore: true, failure: null, notice: null });
+    this.publish({
+      ...current,
+      loadingMore: true,
+      failure: null,
+      notice: null,
+    });
 
     try {
       const page = await this.api.activities(
@@ -384,8 +389,7 @@ export class MobileProfileController {
     | Extract<MobileProfileSnapshot, { kind: "onboarding" }>
     | null {
     if (
-      (this.snapshot.kind === "ready" ||
-        this.snapshot.kind === "onboarding") &&
+      (this.snapshot.kind === "ready" || this.snapshot.kind === "onboarding") &&
       this.snapshot.authorityKey === authorityKey
     ) {
       return this.snapshot;
