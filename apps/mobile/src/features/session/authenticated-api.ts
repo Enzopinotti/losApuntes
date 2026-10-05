@@ -1,5 +1,6 @@
 import type {
   AuthSessionListResponse,
+  GoogleAvailabilityResponse,
   GoogleMobileLinkInput,
   GoogleUnlinkInput,
   LoginMethodsResponse,
@@ -12,6 +13,7 @@ import { ApiRequestError } from "@/services/api/client";
 import type { SessionController } from "./session-controller";
 
 export interface AuthenticatedApiTransport {
+  googleStatus(signal?: AbortSignal): Promise<GoogleAvailabilityResponse>;
   pilotHome(
     credential: string,
     signal?: AbortSignal,
@@ -57,6 +59,10 @@ export class AuthenticatedMobileApi {
     private readonly session: SessionController,
     private readonly api: AuthenticatedApiTransport,
   ) {}
+
+  googleStatus(signal?: AbortSignal) {
+    return this.api.googleStatus(signal);
+  }
 
   async pilotHome(signal?: AbortSignal): Promise<PilotHomeResponse> {
     return (
@@ -120,6 +126,13 @@ export class AuthenticatedMobileApi {
     await this.execute((credential) =>
       this.api.googleMobileLink(credential, input, signal),
     );
+  }
+
+  async linkGoogle(
+    input: GoogleMobileLinkInput,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.googleMobileLink(input, signal);
   }
 
   async loginMethods(signal?: AbortSignal) {
