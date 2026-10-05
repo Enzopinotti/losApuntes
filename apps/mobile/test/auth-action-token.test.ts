@@ -1,29 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  captureAuthActionLink,
-  parseAuthActionLink,
-} from "../src/features/auth/auth-deep-link";
+import { captureAuthActionLink } from "../src/features/auth/auth-deep-link";
 import { createAuthActionTokenVault } from "../src/features/auth/action-token-vault";
 
 const TOKEN = "A".repeat(43);
 
-test("parses only allow-listed Los Apuntes auth action links", () => {
-  assert.deepEqual(
-    parseAuthActionLink(`losapuntes://verify-email?token=${TOKEN}`),
-    { kind: "email_verification", token: TOKEN },
-  );
-  assert.deepEqual(
-    parseAuthActionLink(`losapuntes://recover-password?token=${TOKEN}`),
-    { kind: "password_recovery", token: TOKEN },
-  );
+test("capture path rejects non-allowlisted and malformed auth action links", () => {
+  const vault = createAuthActionTokenVault();
+
   assert.equal(
-    parseAuthActionLink(`https://evil.example/verify-email?token=${TOKEN}`),
+    captureAuthActionLink(
+      `https://evil.example/verify-email?token=${TOKEN}`,
+      vault,
+    ),
     null,
   );
   assert.equal(
-    parseAuthActionLink("losapuntes://verify-email?token=short"),
+    captureAuthActionLink("losapuntes://verify-email?token=short", vault),
+    "/sign-in?notice=invalid-action-link",
+  );
+  assert.equal(
+    captureAuthActionLink(`losapuntes://unknown?token=${TOKEN}`, vault),
     null,
   );
 });
