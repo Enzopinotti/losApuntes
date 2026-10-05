@@ -4,6 +4,54 @@ import { Model } from 'mongoose';
 
 import { User, UserDocument } from './schemas/user.schema';
 
+export type UserAccountExportProjection = {
+  id: string;
+  email: string;
+  username: string | null;
+  emailVerifiedAt: string | null;
+  accountStatus: 'active' | 'restricted' | 'closed';
+  accountClosedAt: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  careerId: number | null;
+  cohortYear: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+type UserAccountExportRow = {
+  _id: unknown;
+  email: string;
+  username?: string;
+  email_verified_at?: Date | null;
+  account_status?: 'active' | 'restricted' | 'closed';
+  account_closed_at?: Date | null;
+  full_name?: string;
+  avatar_url?: string;
+  bio?: string;
+  career_id?: number;
+  cohort_year?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export const USER_ACCOUNT_EXPORT_SELECT = {
+  _id: 1,
+  email: 1,
+  username: 1,
+  email_verified_at: 1,
+  account_status: 1,
+  account_closed_at: 1,
+  full_name: 1,
+  avatar_url: 1,
+  bio: 1,
+  career_id: 1,
+  cohort_year: 1,
+  createdAt: 1,
+  updatedAt: 1,
+} as const;
+
 function isDuplicateKeyError(error: unknown): boolean {
   return (
     typeof error === 'object' &&
@@ -89,6 +137,34 @@ export class UsersService {
 
   findById(id: string) {
     return this.userModel.findById(id).exec();
+  }
+
+  async getAccountExportProjection(
+    userId: string,
+  ): Promise<UserAccountExportProjection | null> {
+    const row = await this.userModel
+      .findById(userId)
+      .select(USER_ACCOUNT_EXPORT_SELECT)
+      .lean<UserAccountExportRow>()
+      .exec();
+
+    if (!row) return null;
+
+    return {
+      id: String(row._id),
+      email: row.email,
+      username: row.username ?? null,
+      emailVerifiedAt: row.email_verified_at?.toISOString() ?? null,
+      accountStatus: row.account_status ?? 'active',
+      accountClosedAt: row.account_closed_at?.toISOString() ?? null,
+      fullName: row.full_name ?? null,
+      avatarUrl: row.avatar_url ?? null,
+      bio: row.bio ?? null,
+      careerId: row.career_id ?? null,
+      cohortYear: row.cohort_year ?? null,
+      createdAt: row.createdAt?.toISOString() ?? null,
+      updatedAt: row.updatedAt?.toISOString() ?? null,
+    };
   }
 
   async hasPlatformPermission(

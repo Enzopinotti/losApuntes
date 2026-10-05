@@ -23,6 +23,11 @@ import {
 } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
 import { mobileAuthenticatedApi } from "@/features/session/session-runtime";
+import { requestGoogleIdToken } from "@/features/auth/google-mobile-flow";
+import {
+  isNativeGoogleConfigured,
+  nativeGoogleIdentityProvider,
+} from "@/features/auth/native-google-identity-provider";
 
 const failureCopy: Record<SecurityFailure, string> = {
   invalid_current_password: "La contraseña actual no es correcta.",
@@ -33,6 +38,11 @@ const failureCopy: Record<SecurityFailure, string> = {
   offline: "Sin conexión. Revisá internet e intentá de nuevo.",
   timeout: "El servidor tardó demasiado en responder.",
   server_unavailable: "Los Apuntes no está disponible en este momento.",
+  google_unavailable: "Google no está disponible en esta instalación.",
+  google_identity_already_linked:
+    "Esa cuenta Google ya está vinculada a otra cuenta de Los Apuntes.",
+  google_unlink_would_lock_account:
+    "No podés desvincular Google porque es tu único método de acceso. Configurá una contraseña primero.",
   rejected: "No pudimos completar la operación. Intentá de nuevo.",
 };
 
@@ -85,6 +95,11 @@ export default function SecurityRoute() {
   const [localPasswordError, setLocalPasswordError] = useState<string | null>(
     null,
   );
+  const [googleCurrentPassword, setGoogleCurrentPassword] = useState("");
+  const [googleActionError, setGoogleActionError] = useState<string | null>(
+    null,
+  );
+  const [googleIdentityBusy, setGoogleIdentityBusy] = useState(false);
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setSnapshot);
@@ -198,6 +213,78 @@ export default function SecurityRoute() {
     );
   };
 
+  const linkGoogle = async () => {
+    setGoogleActionError(null);
+    controller.clearFeedback();
+    if (!googleCurrentPassword) {
+      setGoogleActionError(
+        "Ingresá tu contraseña actual para vincular Google.",
+      );
+      return;
+    }
+    if (
+      !isNativeGoogleConfigured() ||
+      snapshot.kind !== "ready" ||
+      snapshot.googleAvailability?.mobileEnabled !== true
+    ) {
+      setGoogleActionError("Google no está disponible en esta instalación.");
+      return;
+    }
+
+    setGoogleIdentityBusy(true);
+    const identity = await requestGoogleIdToken(nativeGoogleIdentityProvider);
+    setGoogleIdentityBusy(false);
+    if (identity.kind === "cancelled") return;
+    if (identity.kind !== "success") {
+      setGoogleActionError(
+        identity.kind === "unavailable"
+          ? "Google no está disponible en esta instalación."
+          : "No pudimos abrir el acceso de Google. Intentá de nuevo.",
+      );
+      return;
+    }
+
+    await controller.linkGoogle({
+      idToken: identity.idToken,
+      currentPassword: googleCurrentPassword,
+    });
+    setGoogleCurrentPassword("");
+  };
+
+  const confirmUnlinkGoogle = () => {
+    if (!googleCurrentPassword) {
+      setGoogleActionError(
+        "Ingresá tu contraseña actual para desvincular Google.",
+      );
+      return;
+    }
+    if (
+      snapshot.kind !== "ready" ||
+      !snapshot.loginMethods?.passwordConfigured
+    ) {
+      setGoogleActionError(failureCopy.google_unlink_would_lock_account);
+      return;
+    }
+
+    Alert.alert(
+      "Desvincular Google",
+      "Vas a dejar de iniciar sesión con esta cuenta Google.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Desvincular",
+          style: "destructive",
+          onPress: () => {
+            void controller.unlinkGoogle({
+              currentPassword: googleCurrentPassword,
+            });
+            setGoogleCurrentPassword("");
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ProductSurface
       title="Seguridad"
@@ -242,6 +329,13 @@ export default function SecurityRoute() {
           {snapshot.failure ? (
             <Text accessibilityRole="alert" style={styles.error}>
               {failureCopy[snapshot.failure]}
+            </Text>
+          ) : null}
+
+          {snapshot.googleFailure ? (
+            <Text accessibilityRole="alert" style={styles.notice}>
+              Estado de Google no disponible:{" "}
+              {failureCopy[snapshot.googleFailure]}
             </Text>
           ) : null}
 
@@ -351,6 +445,121 @@ export default function SecurityRoute() {
                 <Text style={styles.primaryText}>Cambiar contraseña</Text>
               )}
             </Pressable>
+          </View>
+
+          <View style={productSurfaceStyles.card}>
+            <Text style={productSurfaceStyles.cardTitle}>
+              Acceso con Google
+            </Text>
+            <Text style={productSurfaceStyles.cardCopy}>
+              Usá Google como método adicional. Para vincular o desvincular,
+              confirmá tu contraseña actual.
+            </Text>
+
+            <Text style={styles.label}>Contraseña actual</Text>
+            <TextInput
+              accessibilityLabel="Contraseña actual para Google"
+              autoCapitalize="none"
+              autoComplete="current-password"
+              editable={snapshot.busyAction === null && !googleIdentityBusy}
+              secureTextEntry
+              textContentType="password"
+              value={googleCurrentPassword}
+              onChangeText={(value) => {
+                setGoogleCurrentPassword(value);
+                setGoogleActionError(null);
+                controller.clearFeedback();
+              }}
+              style={styles.input}
+            />
+
+            {snapshot.loginMethods?.googleConnected ? (
+              <>
+                <Text style={styles.success}>
+                  Una cuenta Google está vinculada.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={
+                    snapshot.busyAction !== null ||
+                    googleIdentityBusy ||
+                    !snapshot.loginMethods.passwordConfigured
+                  }
+                  onPress={confirmUnlinkGoogle}
+                  style={[
+                    styles.destructive,
+                    (snapshot.busyAction !== null || googleIdentityBusy) &&
+                      styles.disabled,
+                  ]}
+                >
+                  {snapshot.busyAction === "unlink-google" ? (
+                    <ActivityIndicator accessibilityLabel="Desvinculando Google" />
+                  ) : (
+                    <Text style={styles.destructiveText}>
+                      Desvincular Google
+                    </Text>
+                  )}
+                </Pressable>
+                {!snapshot.loginMethods.passwordConfigured ? (
+                  <View style={styles.notice}>
+                    <Text style={styles.noticeText}>
+                      Configurá una contraseña antes de quitar Google para
+                      conservar otro método de acceso.
+                    </Text>
+                    <Link href="/forgot-password" asChild>
+                      <Pressable
+                        accessibilityRole="link"
+                        style={styles.noticeLink}
+                      >
+                        <Text style={styles.noticeLinkText}>
+                          Crear o recuperar contraseña
+                        </Text>
+                      </Pressable>
+                    </Link>
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <Text style={styles.muted}>
+                  No hay una cuenta Google vinculada.
+                </Text>
+                {snapshot.googleAvailability?.mobileEnabled &&
+                isNativeGoogleConfigured() ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={
+                      snapshot.busyAction !== null || googleIdentityBusy
+                    }
+                    onPress={() => void linkGoogle()}
+                    style={[
+                      styles.primary,
+                      (snapshot.busyAction !== null || googleIdentityBusy) &&
+                        styles.disabled,
+                    ]}
+                  >
+                    {googleIdentityBusy ||
+                    snapshot.busyAction === "link-google" ? (
+                      <ActivityIndicator accessibilityLabel="Vinculando Google" />
+                    ) : (
+                      <Text style={styles.primaryText}>Vincular Google</Text>
+                    )}
+                  </Pressable>
+                ) : (
+                  <Text style={styles.notice}>
+                    {snapshot.googleAvailability?.mobileEnabled
+                      ? "Configurá una versión nativa de la app para habilitar Google."
+                      : "El acceso móvil con Google no está habilitado en el servidor."}
+                  </Text>
+                )}
+              </>
+            )}
+
+            {googleActionError ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {googleActionError}
+              </Text>
+            ) : null}
           </View>
 
           <View style={productSurfaceStyles.card}>
@@ -495,9 +704,19 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     backgroundColor: "#f1f3f8",
+  },
+  noticeText: {
     fontSize: 14,
     lineHeight: 20,
     color: "#34343e",
+  },
+  noticeLink: {
+    minHeight: 40,
+    justifyContent: "center",
+  },
+  noticeLinkText: {
+    color: "#34345a",
+    fontWeight: "700",
   },
   muted: {
     fontSize: 14,

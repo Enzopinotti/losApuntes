@@ -4,6 +4,8 @@ import test from "node:test";
 import type {
   AuthSession,
   AuthSessionListResponse,
+  GoogleMobileLinkInput,
+  GoogleUnlinkInput,
   PasswordChangeInput,
 } from "@losapuntes/contracts";
 
@@ -61,6 +63,17 @@ const makeApi = (overrides: Partial<MobileSecurityApi> = {}) => {
     changePassword: async (_input: PasswordChangeInput) => {
       calls.push("password");
     },
+    googleStatus: async () => ({ webEnabled: true, mobileEnabled: true }),
+    loginMethods: async () => ({
+      passwordConfigured: true,
+      googleConnected: false,
+    }),
+    linkGoogle: async (_input: GoogleMobileLinkInput) => {
+      calls.push("link-google");
+    },
+    unlinkGoogle: async (_input: GoogleUnlinkInput) => {
+      calls.push("unlink-google");
+    },
     ...overrides,
   };
   return { api, calls };
@@ -95,6 +108,59 @@ test("loads only privacy-bounded session inventory contract state", async () => 
       { id: "web-other", clientType: "web", current: false },
     ],
   );
+});
+
+test("links Google with the reauthentication payload and refreshes methods", async () => {
+  let connected = false;
+  const input: GoogleMobileLinkInput = {
+    idToken: "google-id-token",
+    currentPassword: "current-password",
+  };
+  const { api, calls } = makeApi({
+    linkGoogle: async (received) => {
+      assert.deepEqual(received, input);
+      connected = true;
+      calls.push("link-google");
+    },
+    loginMethods: async () => ({
+      passwordConfigured: true,
+      googleConnected: connected,
+    }),
+  });
+  const controller = new MobileSecurityController(api);
+
+  await controller.load();
+  await controller.linkGoogle(input);
+
+  assert.deepEqual(calls, ["list", "link-google", "list"]);
+  const after = controller.getSnapshot();
+  assert.equal(after.kind, "ready");
+  if (after.kind !== "ready") throw new Error("missing ready state");
+  assert.equal(after.loginMethods?.googleConnected, true);
+  assert.equal(after.feedback, "Google quedó vinculado.");
+});
+
+test("does not unlink the only configured login method", async () => {
+  let unlinkCalls = 0;
+  const { api } = makeApi({
+    loginMethods: async () => ({
+      passwordConfigured: false,
+      googleConnected: true,
+    }),
+    unlinkGoogle: async () => {
+      unlinkCalls += 1;
+    },
+  });
+  const controller = new MobileSecurityController(api);
+
+  await controller.load();
+  await controller.unlinkGoogle({ currentPassword: "password" });
+
+  assert.equal(unlinkCalls, 0);
+  const after = controller.getSnapshot();
+  assert.equal(after.kind, "ready");
+  if (after.kind !== "ready") throw new Error("missing ready state");
+  assert.equal(after.failure, "google_unlink_would_lock_account");
 });
 test("revoking another session reloads inventory without signing out", async () => {
   let listCalls = 0;
