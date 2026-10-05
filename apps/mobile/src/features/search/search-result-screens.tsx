@@ -2,7 +2,7 @@ import type {
   PublicProfileResponse,
   ResourceView,
 } from "@losapuntes/contracts";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   AppState,
@@ -14,7 +14,10 @@ import {
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { FencedDetailSnapshot } from "./use-fenced-detail";
 
-import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
+import {
+  activeNavigationAuthorityKey,
+  navigationAuthorityKey,
+} from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
 
@@ -111,15 +114,21 @@ function DetailState<T>({
 
 export function ResourceDetailsScreen({ resourceId }: { resourceId: string }) {
   const { snapshot: session } = useSession();
+  const isFocused = useIsFocused();
   const appState = useActiveAppState();
   const sessionAuthority =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
-  const authorityKey =
-    appState === "active" && sessionAuthority && resourceId
+  const scopeKey =
+    sessionAuthority && resourceId
       ? `${sessionAuthority}:resource:${resourceId}`
       : null;
+  const authorityKey = activeNavigationAuthorityKey(
+    scopeKey,
+    isFocused,
+    appState,
+  );
   const load = useCallback(
     (signal: AbortSignal) => mobileSearchApi.resource(resourceId, signal),
     [resourceId],
@@ -188,15 +197,21 @@ export function ResourceDetailsScreen({ resourceId }: { resourceId: string }) {
 
 export function PublicProfileScreen({ profileId }: { profileId: string }) {
   const { snapshot: session } = useSession();
+  const isFocused = useIsFocused();
   const appState = useActiveAppState();
   const sessionAuthority =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
-  const authorityKey =
-    appState === "active" && sessionAuthority && profileId
+  const scopeKey =
+    sessionAuthority && profileId
       ? `${sessionAuthority}:profile:${profileId}`
       : null;
+  const authorityKey = activeNavigationAuthorityKey(
+    scopeKey,
+    isFocused,
+    appState,
+  );
   const load = useCallback(
     (signal: AbortSignal) => mobileSearchApi.publicProfile(profileId, signal),
     [profileId],
