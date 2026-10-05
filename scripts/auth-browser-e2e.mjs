@@ -870,6 +870,7 @@ async function run() {
       "secondary Mobile login should return its bearer token",
     );
     const revokerAuthorization = `Bearer ${revokerToken}`;
+    let revocationFlowError;
 
     try {
       const remoteRevocation = await requestJson(
@@ -879,59 +880,70 @@ async function run() {
           headers: { authorization: revokerAuthorization },
         },
       );
-    assert.equal(
-      remoteRevocation.response.status,
-      204,
-      "secondary session should revoke the active Web session",
-    );
-
-    const revokedBootstrapResponsePromise = page.waitForResponse((response) => {
-      const request = response.request();
-      return (
-        new URL(response.url()).pathname === "/auth/me" &&
-        request.method() === "GET"
+      assert.equal(
+        remoteRevocation.response.status,
+        204,
+        "secondary session should revoke the active Web session",
       );
-    });
-    await page.reload();
-    const revokedBootstrapResponse = await revokedBootstrapResponsePromise;
-    assert.equal(
-      revokedBootstrapResponse.status(),
-      401,
-      "revoked Web session should fail the next Auth bootstrap",
-    );
-    const revokedBootstrapBody = await revokedBootstrapResponse.json();
-    assert.equal(
-      revokedBootstrapBody?.code,
-      "AUTHENTICATION_REQUIRED",
-      "revoked Web session should preserve the stable anonymous Auth code",
-    );
-    await page.waitForURL((url) => url.pathname === "/login");
-    await page
-      .getByRole("heading", { name: "Iniciar sesión", exact: true })
-      .waitFor();
+
+      const revokedBootstrapResponsePromise = page.waitForResponse((response) => {
+        const request = response.request();
+        return (
+          new URL(response.url()).pathname === "/auth/me" &&
+          request.method() === "GET"
+        );
+      });
+      await page.reload();
+      const revokedBootstrapResponse = await revokedBootstrapResponsePromise;
+      assert.equal(
+        revokedBootstrapResponse.status(),
+        401,
+        "revoked Web session should fail the next Auth bootstrap",
+      );
+      const revokedBootstrapBody = await revokedBootstrapResponse.json();
+      assert.equal(
+        revokedBootstrapBody?.code,
+        "AUTHENTICATION_REQUIRED",
+        "revoked Web session should preserve the stable anonymous Auth code",
+      );
+      await page.waitForURL((url) => url.pathname === "/login");
+      await page
+        .getByRole("heading", { name: "Iniciar sesión", exact: true })
+        .waitFor();
 
       assert.deepEqual(
         pageErrors,
         [],
         "auth journey should not produce uncaught page errors",
       );
+    } catch (error) {
+      revocationFlowError = error;
     } finally {
-      const revokerLogout = await requestJson("/auth/session", {
-        method: "DELETE",
-        headers: { authorization: revokerAuthorization },
-      });
-      assert.equal(
-        revokerLogout.response.status,
-        204,
-        "secondary Mobile revoker session should be cleaned up",
-      );
+      try {
+        const revokerLogout = await requestJson("/auth/session", {
+          method: "DELETE",
+          headers: { authorization: revokerAuthorization },
+        });
+        assert.equal(
+          revokerLogout.response.status,
+          204,
+          "secondary Mobile revoker session should be cleaned up",
+        );
+      } catch (cleanupError) {
+        if (revocationFlowError) {
+          throw new AggregateError(
+            [revocationFlowError, cleanupError],
+            "remote Web-session revocation flow and revoker cleanup both failed",
+          );
+        }
+
+        throw cleanupError;
+      }
     }
 
-    assert.deepEqual(
-      pageErrors,
-      [],
-      "auth journey should not produce uncaught page errors",
-    );
+    if (revocationFlowError) {
+      throw revocationFlowError;
+    }
 
     await context.close();
     console.log(
