@@ -314,7 +314,9 @@ async function run() {
       "email",
     );
     assert.equal(
-      await page.getByLabel("Contraseña").getAttribute("autocomplete"),
+      await page
+        .getByLabel("Contraseña", { exact: true })
+        .getAttribute("autocomplete"),
       "new-password",
     );
     assert.equal(
