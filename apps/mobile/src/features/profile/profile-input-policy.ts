@@ -84,3 +84,26 @@ export function parseProfileListInput(
 
   return { ok: true, values };
 }
+
+export function profileListInputCapacity(field: ProfileListField): number {
+  const rule = PROFILE_LIST_RULES[field];
+  return rule.maxItems * rule.maxLength + Math.max(0, rule.maxItems - 1) * 2;
+}
+
+export type ProfileHeadlineParseResult =
+  | { ok: true; value: string | null }
+  | { ok: false; message: string };
+
+export function parseProfileHeadline(value: string): ProfileHeadlineParseResult {
+  const normalized = value.normalize("NFC").trim();
+  if (!normalized) return { ok: true, value: null };
+
+  if (normalized.length < 2 || normalized.length > 140) {
+    return {
+      ok: false,
+      message: "El titular debe tener entre 2 y 140 caracteres.",
+    };
+  }
+
+  return { ok: true, value: normalized };
+}
