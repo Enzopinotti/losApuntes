@@ -306,6 +306,25 @@ export class MongoAcademicStore implements AcademicStore {
     };
   }
 
+  async listAffiliationsForExport(
+    input: Parameters<AcademicStore['listAffiliationsForExport']>[0],
+  ): ReturnType<AcademicStore['listAffiliationsForExport']> {
+    const rows = await this.affiliations
+      .find({
+        userId: input.userId,
+        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<AcademicAffiliationRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
   async updateAffiliationStatus(
     userId: string,
     id: string,
@@ -449,6 +468,25 @@ export class MongoAcademicStore implements AcademicStore {
     };
   }
 
+  async listSubjectParticipationsForExport(
+    input: Parameters<AcademicStore['listSubjectParticipationsForExport']>[0],
+  ): ReturnType<AcademicStore['listSubjectParticipationsForExport']> {
+    const rows = await this.participations
+      .find({
+        userId: input.userId,
+        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<SubjectParticipationRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
   async transitionSubjectParticipationStates(
     userId: string,
     ids: string[],
@@ -575,6 +613,25 @@ export class MongoAcademicStore implements AcademicStore {
     return {
       items: rows.slice(0, limit),
       hasMore: rows.length > limit,
+    };
+  }
+
+  async listAcademicFollowsForExport(
+    input: Parameters<AcademicStore['listAcademicFollowsForExport']>[0],
+  ): ReturnType<AcademicStore['listAcademicFollowsForExport']> {
+    const rows = await this.follows
+      .find({
+        userId: input.userId,
+        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<AcademicFollowRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
     };
   }
 
