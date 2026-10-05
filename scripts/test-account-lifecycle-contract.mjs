@@ -10,6 +10,11 @@ const [
   http,
   profileStore,
   authSmoke,
+  exportService,
+  exportStore,
+  exportSchema,
+  exportDocs,
+  dataLifecycleModule,
 ] = await Promise.all([
   readFile(new URL('../apps/api/src/data-lifecycle/account-lifecycle.controller.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-lifecycle.service.ts', import.meta.url), 'utf8'),
@@ -19,6 +24,11 @@ const [
   readFile(new URL('../docs/contracts/account-lifecycle-http-v1.md', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/profile/mongo/mongo-profile.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('./smoke-auth-lifecycle.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export.service.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/mongo/mongo-account-export.store.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/mongo/account-export.mongo-schema.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/security/account-data-export-v1.md', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/data-lifecycle.module.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.match(controller, /@Get\('closure\/preflight'\)/u);
@@ -56,6 +66,22 @@ assert.match(
   authSmoke,
   /const closedLogin = await requestJson\(\s*'\/auth\/mobile\/login',\s*jsonRequest\('POST', closureCredentials\),\s*\);/u,
   'post-closure login proof must target the dedicated account',
+);
+
+assert.match(exportService, /ACCOUNT_EXPORT_PAGE_LIMIT/u);
+assert.match(exportService, /page\.records\.length > ACCOUNT_EXPORT_PAGE_LIMIT/u);
+assert.match(exportStore, /active: true/u);
+assert.match(exportStore, /leaseExpiresAt: \{ \$lte: input\.now \}/u);
+assert.match(exportStore, /error.*code.*11000/su);
+assert.match(exportSchema, /partialFilterExpression: \{ active: true \}/u);
+assert.match(exportDocs, /does \*\*not\*\* expose a public request/iu);
+assert.match(exportDocs, /los-apuntes-account-export/u);
+assert.match(dataLifecycleModule, /AccountExportService/u);
+assert.match(dataLifecycleModule, /ACCOUNT_EXPORT_STORE/u);
+assert.doesNotMatch(
+  controller,
+  /@(Get|Post)\('(?:data-)?exports?/u,
+  'export foundation must not expose incomplete public HTTP behavior',
 );
 
 console.log('PASS account lifecycle authority/cleanup contract');
