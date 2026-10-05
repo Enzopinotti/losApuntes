@@ -306,6 +306,40 @@ test("activity mutations use canonical snapshots and refresh after commit", asyn
   }
 });
 
+test("deleting an already-removed activity reconciles canonical state", async () => {
+  let meCalls = 0;
+  let deleteCalls = 0;
+  const controller = new MobileProfileController(
+    apiStub({
+      me: async () => {
+        meCalls += 1;
+        return meCalls === 1 ? ready([activity("a1")]) : ready([]);
+      },
+      deleteActivity: async () => {
+        deleteCalls += 1;
+        throw new ApiRequestError(
+          "unexpected",
+          404,
+          "PROFILE_ACTIVITY_NOT_FOUND",
+          "missing",
+        );
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  await controller.deleteActivity("session-a", "a1");
+
+  assert.equal(deleteCalls, 1);
+  assert.equal(meCalls, 2);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(snapshot.data.activities, []);
+    assert.equal(snapshot.failure, null);
+  }
+});
+
 test("confirmed activity create stays committed when only canonical refresh is transient", async () => {
   let meCalls = 0;
   const controller = new MobileProfileController(
