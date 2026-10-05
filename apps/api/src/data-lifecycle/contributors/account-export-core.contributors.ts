@@ -10,14 +10,14 @@ import type {
 
 function assertSingletonCursor(sectionId: string, cursor: string | null): void {
   if (cursor !== null) {
-    throw new Error(`Account export section ${sectionId} does not accept a cursor`);
+    throw new Error(
+      `Account export section ${sectionId} does not accept a cursor`,
+    );
   }
 }
 
 @Injectable()
-export class AccountIdentityExportContributor
-  implements AccountExportContributor
-{
+export class AccountIdentityExportContributor implements AccountExportContributor {
   readonly sectionId = 'account';
 
   constructor(private readonly users: UsersService) {}
@@ -114,9 +114,7 @@ export class ProfileExportContributor implements AccountExportContributor {
 }
 
 @Injectable()
-export class ProfileActivitiesExportContributor
-  implements AccountExportContributor
-{
+export class ProfileActivitiesExportContributor implements AccountExportContributor {
   readonly sectionId = 'profile.activities';
 
   constructor(private readonly profiles: ProfileService) {}
@@ -132,20 +130,18 @@ export class ProfileActivitiesExportContributor
     });
 
     return {
-      records: page.items.map(
-        (activity): AccountExportRecord => ({
-          id: activity.id,
-          type: activity.type,
-          title: activity.title,
-          description: activity.description,
-          url: activity.url,
-          startedOn: activity.startedOn,
-          endedOn: activity.endedOn,
-          revision: activity.revision,
-          createdAt: activity.createdAt,
-          updatedAt: activity.updatedAt,
-        }),
-      ),
+      records: page.items.map((activity): AccountExportRecord => ({
+        id: activity.id,
+        type: activity.type,
+        title: activity.title,
+        description: activity.description,
+        url: activity.url,
+        startedOn: activity.startedOn,
+        endedOn: activity.endedOn,
+        revision: activity.revision,
+        createdAt: activity.createdAt,
+        updatedAt: activity.updatedAt,
+      })),
       nextCursor: page.nextCursor,
     };
   }
