@@ -414,13 +414,13 @@ describe('ProfileService', () => {
       activityPage([activity({ id: 'next-activity' })]),
     );
 
-    await service(
-      profileStore,
-      academicService,
-    ).listAccountExportActivities('user-1', {
-      limit: 100,
-      cursor: firstPage.nextCursor,
-    });
+    await service(profileStore, academicService).listAccountExportActivities(
+      'user-1',
+      {
+        limit: 100,
+        cursor: firstPage.nextCursor,
+      },
+    );
 
     expect(profileStore.listActivitiesForUser.mock.calls.at(-1)).toEqual([
       {
