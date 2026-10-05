@@ -291,6 +291,18 @@ export function CommunityNetworkScreen() {
       onRefresh={authority.gate === "ready" ? retry : undefined}
       refreshing={refreshing}
     >
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Organizaciones</Text>
+        <Text style={styles.copy}>
+          Explorá centros, clubes, laboratorios y comunidades del campus. No
+          necesitás tener una materia actual para entrar al directorio.
+        </Text>
+        <ActionButton
+          label="Explorar organizaciones"
+          onPress={() => router.push("/organizations")}
+        />
+      </View>
+
       {authority.gate !== "ready" ? (
         <GateCard gate={authority.gate} onRetry={retry} />
       ) : authority.scope.kind === "unresolved" ? (
