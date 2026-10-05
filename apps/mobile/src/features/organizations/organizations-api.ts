@@ -79,9 +79,7 @@ export interface MobileOrganizationsApiContract {
   ): Promise<OrganizationEventPage>;
 }
 
-export class MobileOrganizationsHttpTransport
-  implements MobileOrganizationsTransport
-{
+export class MobileOrganizationsHttpTransport implements MobileOrganizationsTransport {
   constructor(private readonly client: MobileApiClient) {}
 
   search(
@@ -135,12 +133,7 @@ export class MobileOrganizationsHttpTransport
     );
   }
 
-  posts(
-    credential: string,
-    id: string,
-    cursor?: string,
-    signal?: AbortSignal,
-  ) {
+  posts(credential: string, id: string, cursor?: string, signal?: AbortSignal) {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
 
