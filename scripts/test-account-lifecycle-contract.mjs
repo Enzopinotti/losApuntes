@@ -131,7 +131,10 @@ const academicContextExport =
   academicService.match(
     /async getAccountExportCurrentContext[\s\S]*?\n  async setCurrentContext/u,
   )?.[0] ?? '';
-assert.match(academicContextExport, /this\.store\.getCurrentContext/u);
+assert.match(
+  academicContextExport,
+  /this\.store\.findCurrentContextForExport/u,
+);
 assert.doesNotMatch(
   academicContextExport,
   /this\.getCurrentContext|this\.store\.setCurrentContext|this\.audit/u,
@@ -141,6 +144,17 @@ assert.match(academicService, /listAccountExportFollows/u);
 assert.match(academicStore, /listAffiliationsForExport/u);
 assert.match(academicStore, /listSubjectParticipationsForExport/u);
 assert.match(academicStore, /listAcademicFollowsForExport/u);
+const academicContextExportStore =
+  academicStore.match(
+    /async findCurrentContextForExport[\s\S]*?\n  async getCurrentContext/u,
+  )?.[0] ?? '';
+assert.match(academicContextExportStore, /\.findOne\(\{ userId \}\)/u);
+assert.match(academicContextExportStore, /\.lean</u);
+assert.doesNotMatch(
+  academicContextExportStore,
+  /findOneAndUpdate|updateOne|updateMany|setCurrentContext/u,
+  'Academic export context store read must never normalize or mutate persistence',
+);
 assert.match(academicStore, /\.sort\(\{ id: 1 \}\)/u);
 assert.match(
   academicSchemas,
