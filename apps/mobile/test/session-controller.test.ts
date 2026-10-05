@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type {
   AuthenticatedSessionResponse,
+  GoogleMobileInput,
   MobileAuthenticatedSessionResponse,
   PasswordLoginInput,
 } from "@losapuntes/contracts";
@@ -77,12 +78,65 @@ class MemoryCredentialStore implements SessionCredentialStore {
 
 const api = (overrides: Partial<SessionApi> = {}): SessionApi => ({
   mobileLogin: async (_input: PasswordLoginInput) => authResult(),
+  googleMobileLogin: async (_input: GoogleMobileInput) => authResult(),
   me: async (_credential: string): Promise<AuthenticatedSessionResponse> => ({
     user: USER,
     session: SESSION,
   }),
   logout: async (_credential: string) => undefined,
   ...overrides,
+});
+
+test("Google login exchanges the ID token and stores only the Los Apuntes session", async () => {
+  const providerToken = "google-id-token-must-not-be-persisted";
+  const appSessionToken = "s".repeat(43);
+  const store = new MemoryCredentialStore();
+  const calls: GoogleMobileInput[] = [];
+  const controller = new SessionController(
+    api({
+      googleMobileLogin: async (input) => {
+        calls.push(input);
+        return authResult(appSessionToken);
+      },
+    }),
+    store,
+  );
+
+  await controller.loginWithGoogle({ idToken: providerToken });
+
+  assert.deepEqual(calls, [{ idToken: providerToken }]);
+  assert.deepEqual(store.writes, [appSessionToken]);
+  assert.equal(store.value, appSessionToken);
+  assert.equal(store.writes.includes(providerToken), false);
+  assert.equal(controller.getSnapshot().kind, "authenticated");
+});
+
+test("Google login failure preserves the provider error without storing a credential", async () => {
+  const providerToken = "google-id-token";
+  const store = new MemoryCredentialStore();
+  const controller = new SessionController(
+    api({
+      googleMobileLogin: async () => {
+        throw new ApiRequestError(
+          "forbidden",
+          403,
+          "GOOGLE_LINK_REQUIRED",
+          "private server details",
+        );
+      },
+    }),
+    store,
+  );
+
+  await assert.rejects(
+    controller.loginWithGoogle({ idToken: providerToken }),
+    (error: unknown) =>
+      error instanceof ApiRequestError && error.code === "GOOGLE_LINK_REQUIRED",
+  );
+
+  assert.equal(store.writes.length, 0);
+  assert.equal(controller.getCredentialSnapshot(), null);
+  assert.equal(controller.getSnapshot().kind, "error");
 });
 
 test("restores only after the server revalidates the secure credential", async () => {

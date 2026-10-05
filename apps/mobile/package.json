@@ -32,14 +32,16 @@
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-nitro-google-signin": "2.3.0",
+    "react-native-nitro-modules": "0.37.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0"
   },
   "devDependencies": {
+    "@types/node": "^22.10.7",
     "@types/react": "~19.2.2",
     "prettier": "^3.6.2",
-    "typescript": "~6.0.3",
     "tsx": "^4.8.1",
-    "@types/node": "^22.10.7"
+    "typescript": "~6.0.3"
   }
 }

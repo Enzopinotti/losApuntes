@@ -1,6 +1,10 @@
 import type {
   AuthSession,
   AuthSessionListResponse,
+  GoogleAvailabilityResponse,
+  GoogleMobileLinkInput,
+  GoogleUnlinkInput,
+  LoginMethodsResponse,
   PasswordChangeInput,
 } from "@losapuntes/contracts";
 
@@ -14,6 +18,9 @@ export type SecurityFailure =
   | "offline"
   | "timeout"
   | "server_unavailable"
+  | "google_unavailable"
+  | "google_identity_already_linked"
+  | "google_unlink_would_lock_account"
   | "rejected";
 
 export type SecuritySnapshot =
@@ -27,6 +34,9 @@ export type SecuritySnapshot =
       busyAction: string | null;
       feedback: string | null;
       failure: SecurityFailure | null;
+      googleAvailability: GoogleAvailabilityResponse | null;
+      loginMethods: LoginMethodsResponse | null;
+      googleFailure: SecurityFailure | null;
     }
   | {
       kind: "signed_out";
@@ -47,6 +57,10 @@ export interface MobileSecurityApi {
     input: PasswordChangeInput,
     signal?: AbortSignal,
   ): Promise<void>;
+  googleStatus(signal?: AbortSignal): Promise<GoogleAvailabilityResponse>;
+  loginMethods(signal?: AbortSignal): Promise<LoginMethodsResponse>;
+  linkGoogle(input: GoogleMobileLinkInput, signal?: AbortSignal): Promise<void>;
+  unlinkGoogle(input: GoogleUnlinkInput, signal?: AbortSignal): Promise<void>;
 }
 
 type Listener = (snapshot: SecuritySnapshot) => void;
@@ -64,6 +78,16 @@ const failureFrom = (error: unknown): SecurityFailure => {
   if (error instanceof ApiRequestError) {
     if (error.code === "INVALID_CURRENT_PASSWORD") {
       return "invalid_current_password";
+    }
+    if (error.code === "REAUTHENTICATION_REQUIRED") {
+      return "invalid_current_password";
+    }
+    if (error.code === "GOOGLE_AUTH_UNAVAILABLE") return "google_unavailable";
+    if (error.code === "GOOGLE_IDENTITY_ALREADY_LINKED") {
+      return "google_identity_already_linked";
+    }
+    if (error.code === "GOOGLE_UNLINK_WOULD_LOCK_ACCOUNT") {
+      return "google_unlink_would_lock_account";
     }
     if (
       error.code === "PASSWORD_CHANGE_CONFLICT" ||
@@ -103,11 +127,38 @@ export class MobileSecurityController {
     this.publish({ kind: "loading" });
 
     try {
-      const result = await this.api.listSessions(operation.signal);
+      const [sessions, googleStatus, loginMethods] = await Promise.all([
+        this.api.listSessions(operation.signal),
+        this.api.googleStatus(operation.signal).then(
+          (value) => ({ value, failure: null as SecurityFailure | null }),
+          (error) => ({ value: null, failure: failureFrom(error) }),
+        ),
+        this.api.loginMethods(operation.signal).then(
+          (value) => ({ value, failure: null as SecurityFailure | null }),
+          (error) => ({ value: null, failure: failureFrom(error) }),
+        ),
+      ]);
       if (!this.isCurrent(operation.generation)) return;
 
       this.activeRequest = null;
-      this.publishReady(result, null, null);
+      const authFailure = [googleStatus.failure, loginMethods.failure].find(
+        (failure) => failure && exitReasonFromFailure(failure),
+      );
+      if (authFailure) {
+        this.publish({
+          kind: "signed_out",
+          reason: exitReasonFromFailure(authFailure)!,
+        });
+        return;
+      }
+      this.publishReady(
+        sessions,
+        null,
+        null,
+        googleStatus.value,
+        loginMethods.value,
+        googleStatus.failure ?? loginMethods.failure,
+      );
     } catch (error) {
       if (!this.isCurrent(operation.generation)) return;
 
@@ -251,6 +302,75 @@ export class MobileSecurityController {
     }
   }
 
+  async linkGoogle(input: GoogleMobileLinkInput): Promise<void> {
+    await this.mutateGoogle("link-google", (signal) =>
+      this.api.linkGoogle(input, signal),
+    );
+  }
+
+  async unlinkGoogle(input: GoogleUnlinkInput): Promise<void> {
+    const current = this.readySnapshot();
+    if (!current || current.busyAction !== null) return;
+    if (
+      current.loginMethods?.googleConnected &&
+      !current.loginMethods.passwordConfigured
+    ) {
+      this.publish({
+        ...current,
+        failure: "google_unlink_would_lock_account",
+        feedback: null,
+      });
+      return;
+    }
+    await this.mutateGoogle("unlink-google", (signal) =>
+      this.api.unlinkGoogle(input, signal),
+    );
+  }
+
+  private async mutateGoogle(
+    action: "link-google" | "unlink-google",
+    mutation: (signal: AbortSignal) => Promise<void>,
+  ): Promise<void> {
+    const current = this.readySnapshot();
+    if (!current || current.busyAction !== null) return;
+
+    const operation = this.beginOperation();
+    this.publish({
+      ...current,
+      busyAction: action,
+      feedback: null,
+      failure: null,
+      googleFailure: null,
+    });
+
+    try {
+      await mutation(operation.signal);
+      if (!this.isCurrent(operation.generation)) return;
+      this.activeRequest = null;
+      await this.reloadAfterMutation(
+        operation.generation,
+        action === "link-google"
+          ? "Google quedó vinculado."
+          : "Google quedó desvinculado.",
+      );
+    } catch (error) {
+      if (!this.isCurrent(operation.generation)) return;
+      this.activeRequest = null;
+      const failure = failureFrom(error);
+      const exitReason = exitReasonFromFailure(failure);
+      if (exitReason) {
+        this.publish({ kind: "signed_out", reason: exitReason });
+        return;
+      }
+      this.publish({
+        ...current,
+        busyAction: null,
+        feedback: null,
+        failure,
+      });
+    }
+  }
+
   clearFeedback(): void {
     const current = this.readySnapshot();
     if (!current) return;
@@ -279,11 +399,38 @@ export class MobileSecurityController {
     this.activeRequest = controller;
 
     try {
-      const result = await this.api.listSessions(controller.signal);
+      const [sessions, googleStatus, loginMethods] = await Promise.all([
+        this.api.listSessions(controller.signal),
+        this.api.googleStatus(controller.signal).then(
+          (value) => ({ value, failure: null as SecurityFailure | null }),
+          (error) => ({ value: null, failure: failureFrom(error) }),
+        ),
+        this.api.loginMethods(controller.signal).then(
+          (value) => ({ value, failure: null as SecurityFailure | null }),
+          (error) => ({ value: null, failure: failureFrom(error) }),
+        ),
+      ]);
       if (!this.isCurrent(generation)) return;
 
       this.activeRequest = null;
-      this.publishReady(result, feedback, null);
+      const authFailure = [googleStatus.failure, loginMethods.failure].find(
+        (failure) => failure && exitReasonFromFailure(failure),
+      );
+      if (authFailure) {
+        this.publish({
+          kind: "signed_out",
+          reason: exitReasonFromFailure(authFailure)!,
+        });
+        return;
+      }
+      this.publishReady(
+        sessions,
+        feedback,
+        null,
+        googleStatus.value,
+        loginMethods.value,
+        googleStatus.failure ?? loginMethods.failure,
+      );
     } catch (error) {
       if (!this.isCurrent(generation)) return;
 
@@ -327,6 +474,9 @@ export class MobileSecurityController {
     result: AuthSessionListResponse,
     feedback: string | null,
     failure: SecurityFailure | null,
+    googleAvailability: GoogleAvailabilityResponse | null,
+    loginMethods: LoginMethodsResponse | null,
+    googleFailure: SecurityFailure | null,
   ): void {
     this.publish({
       kind: "ready",
@@ -336,6 +486,9 @@ export class MobileSecurityController {
       busyAction: null,
       feedback,
       failure,
+      googleAvailability,
+      loginMethods,
+      googleFailure,
     });
   }
 
