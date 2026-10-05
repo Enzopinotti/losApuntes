@@ -15,7 +15,9 @@ export type AccountExportJsonScalar = string | number | boolean | null;
 export type AccountExportJsonValue =
   | AccountExportJsonScalar
   | readonly AccountExportJsonValue[]
-  | { readonly [key: string]: AccountExportJsonValue };
+  | {
+      readonly [key: string]: AccountExportJsonValue;
+    };
 
 export type AccountExportRecord = Readonly<
   Record<string, AccountExportJsonValue>
