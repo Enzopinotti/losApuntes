@@ -1,5 +1,5 @@
 import type { ResourceView } from "@losapuntes/contracts";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   AppState,
@@ -17,7 +17,10 @@ import {
   type ReactNode,
 } from "react";
 
-import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
+import {
+  activeNavigationAuthorityKey,
+  navigationAuthorityKey,
+} from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
 import {
@@ -135,6 +138,7 @@ export function MobileResourceDetailsScreen({
   initialSaved?: boolean | null;
 }) {
   const { snapshot: session } = useSession();
+  const isFocused = useIsFocused();
   const appState = useActiveAppState();
   const controller = useMemo(
     () => new MobileResourceDetailController(mobileResourceConsumptionApi),
@@ -152,7 +156,11 @@ export function MobileResourceDetailsScreen({
     sessionAuthority && resourceId
       ? `${sessionAuthority}:resource:${resourceId}`
       : null;
-  const authorityKey = appState === "active" ? scopeKey : null;
+  const authorityKey = activeNavigationAuthorityKey(
+    scopeKey,
+    isFocused,
+    appState,
+  );
   const load = useCallback(
     (signal: AbortSignal) =>
       mobileResourceConsumptionApi.resource(resourceId, signal),
@@ -169,13 +177,13 @@ export function MobileResourceDetailsScreen({
     }
 
     controller.setScope(scopeKey, resourceId, initialSaved);
-    if (appState !== "active") {
+    if (!authorityKey) {
       controller.suspend(scopeKey);
       return;
     }
 
     return () => controller.suspend(scopeKey);
-  }, [appState, controller, initialSaved, resourceId, scopeKey]);
+  }, [authorityKey, controller, initialSaved, resourceId, scopeKey]);
 
   if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
 
@@ -190,7 +198,9 @@ export function MobileResourceDetailsScreen({
   }
 
   const currentAction =
-    action.kind === "ready" && action.authorityKey === scopeKey ? action : null;
+    action.kind === "ready" && action.authorityKey === authorityKey
+      ? action
+      : null;
 
   const openFile = async () => {
     if (!authorityKey) return;
