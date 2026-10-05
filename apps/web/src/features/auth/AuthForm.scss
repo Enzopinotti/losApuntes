@@ -22,9 +22,13 @@
       width: 100%;
 
       &:focus {
-        outline: none;
         border-color: #2d6bc8;
         box-shadow: 0 0 1px #2d6bc8;
+      }
+
+      &:focus-visible {
+        outline: 3px solid CanvasText;
+        outline-offset: 2px;
       }
 
       &::placeholder {
