@@ -22,3 +22,13 @@ export function navigationAuthorityKey(
 ): string {
   return `${userId}:${sessionId}`;
 }
+
+export function activeNavigationAuthorityKey(
+  authorityKey: string | null,
+  isFocused: boolean,
+  appState: string,
+): string | null {
+  return authorityKey && isFocused && appState === "active"
+    ? authorityKey
+    : null;
+}
