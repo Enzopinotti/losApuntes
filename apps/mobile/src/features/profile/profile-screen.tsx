@@ -34,6 +34,8 @@ import {
   parseProfileHeadline,
   parseProfileListInput,
   profileListInputCapacity,
+  unicodeCodePointLength,
+  unicodeTextInputCapacity,
 } from "./profile-input-policy";
 import { mobileProfileApi } from "./profile-runtime";
 
@@ -337,11 +339,13 @@ export function MobileOwnerProfileScreen() {
   const saveProfile = async () => {
     if (!scopeKey || current?.kind !== "ready") return;
     const normalizedName = displayName.trim();
-    if (normalizedName.length < 2 || normalizedName.length > 80) {
+    const displayNameLength = unicodeCodePointLength(normalizedName);
+    if (displayNameLength < 2 || displayNameLength > 80) {
       setLocalError("El nombre debe tener entre 2 y 80 caracteres.");
       return;
     }
-    if (bio.length > 500) {
+    const normalizedBio = bio.trim();
+    if (unicodeCodePointLength(normalizedBio) > 500) {
       setLocalError("La bio no puede superar los 500 caracteres.");
       return;
     }
@@ -384,7 +388,7 @@ export function MobileOwnerProfileScreen() {
     const input: UpdateProfileInput = {
       expectedRevision: current.data.profile.revision,
       displayName: normalizedName,
-      bio: bio.trim() || null,
+      bio: normalizedBio || null,
       languages: languageList.values,
       skills: skillList.values,
       interests: interestList.values,
@@ -407,7 +411,8 @@ export function MobileOwnerProfileScreen() {
   const createProfile = async () => {
     if (!scopeKey || current?.kind !== "onboarding") return;
     const normalizedName = displayName.trim();
-    if (normalizedName.length < 2 || normalizedName.length > 80) {
+    const displayNameLength = unicodeCodePointLength(normalizedName);
+    if (displayNameLength < 2 || displayNameLength > 80) {
       setLocalError("El nombre debe tener entre 2 y 80 caracteres.");
       return;
     }
@@ -418,12 +423,21 @@ export function MobileOwnerProfileScreen() {
   const addActivity = async () => {
     if (!scopeKey || current?.kind !== "ready") return;
     const normalizedTitle = activityTitle.trim();
-    if (normalizedTitle.length < 2 || normalizedTitle.length > 120) {
+    const titleLength = unicodeCodePointLength(normalizedTitle);
+    if (titleLength < 2 || titleLength > 120) {
       setLocalError(
         "El título de la actividad debe tener entre 2 y 120 caracteres.",
       );
       return;
     }
+    const normalizedDescription = activityDescription.trim();
+    if (unicodeCodePointLength(normalizedDescription) > 1000) {
+      setLocalError(
+        "La descripción de la actividad no puede superar los 1000 caracteres.",
+      );
+      return;
+    }
+
     const startedOn = monthValue(activityStartedOn);
     const endedOn = monthValue(activityEndedOn);
     if (activityStartedOn.trim() && !startedOn) {
@@ -444,7 +458,7 @@ export function MobileOwnerProfileScreen() {
     const result = await controller.createActivity(submittedAuthority, {
       type: activityType,
       title: normalizedTitle,
-      description: activityDescription.trim() || null,
+      description: normalizedDescription || null,
       startedOn,
       endedOn,
     });
@@ -517,7 +531,7 @@ export function MobileOwnerProfileScreen() {
           <TextInput
             accessibilityLabel="Nombre para mostrar"
             editable={!busy}
-            maxLength={80}
+            maxLength={unicodeTextInputCapacity(80)}
             onChangeText={setDisplayName}
             placeholder="Tu nombre"
             style={styles.input}
@@ -610,7 +624,7 @@ export function MobileOwnerProfileScreen() {
             <TextInput
               accessibilityLabel="Nombre para mostrar"
               editable={!busy}
-              maxLength={80}
+              maxLength={unicodeTextInputCapacity(80)}
               onChangeText={setDisplayName}
               style={styles.input}
               value={displayName}
@@ -619,7 +633,7 @@ export function MobileOwnerProfileScreen() {
             <TextInput
               accessibilityLabel="Bio del perfil"
               editable={!busy}
-              maxLength={500}
+              maxLength={unicodeTextInputCapacity(500)}
               multiline
               onChangeText={setBio}
               style={[styles.input, styles.multiline]}
@@ -630,7 +644,7 @@ export function MobileOwnerProfileScreen() {
             <TextInput
               accessibilityLabel="Titular profesional"
               editable={!busy}
-              maxLength={140}
+              maxLength={unicodeTextInputCapacity(140)}
               onChangeText={setHeadline}
               style={styles.input}
               value={headline}
@@ -848,7 +862,7 @@ export function MobileOwnerProfileScreen() {
             <TextInput
               accessibilityLabel="Título de la actividad"
               editable={!busy}
-              maxLength={120}
+              maxLength={unicodeTextInputCapacity(120)}
               onChangeText={setActivityTitle}
               style={styles.input}
               value={activityTitle}
@@ -857,7 +871,7 @@ export function MobileOwnerProfileScreen() {
             <TextInput
               accessibilityLabel="Descripción de la actividad"
               editable={!busy}
-              maxLength={1000}
+              maxLength={unicodeTextInputCapacity(1000)}
               multiline
               onChangeText={setActivityDescription}
               style={[styles.input, styles.multiline]}
