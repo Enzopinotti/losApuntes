@@ -557,7 +557,7 @@ async function run() {
       typeof recoveryMail.HTML === "string" ? recoveryMail.HTML : "",
     ].join("\n");
     const recoveryUrl = (
-      recoveryMailBody.match(/https?:\\/\\/[^\\s"'<>]+/g) ?? []
+      recoveryMailBody.match(/https?:\/\/[^\s"'<>]+/g) ?? []
     )
       .map((candidate) => candidate.replace(/[),.;\]]+$/, ""))
       .map((candidate) => {
