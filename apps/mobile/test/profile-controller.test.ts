@@ -15,6 +15,7 @@ import {
   MobileProfileController,
   mobileProfileFailure,
 } from "../src/features/profile/profile-controller";
+import { parseProfileListInput } from "../src/features/profile/profile-input-policy";
 import { ApiRequestError } from "../src/services/api/client";
 
 const activity = (id: string): ProfileActivity => ({
@@ -278,10 +279,11 @@ test("activity mutations use canonical snapshots and refresh after commit", asyn
   );
 
   await controller.load("session-a");
-  await controller.createActivity("session-a", {
+  const createResult = await controller.createActivity("session-a", {
     type: "project",
     title: "Nuevo proyecto",
   });
+  assert.equal(createResult, "committed");
   await controller.deleteActivity("session-a", "a1");
 
   assert.deepEqual(created, [{ type: "project", title: "Nuevo proyecto" }]);
@@ -298,6 +300,100 @@ test("activity mutations use canonical snapshots and refresh after commit", asyn
   }
 });
 
+
+test("ambiguous activity create reports reconciliation instead of a committed result", async () => {
+  let meCalls = 0;
+  const controller = new MobileProfileController(
+    apiStub({
+      me: async () => {
+        meCalls += 1;
+        return meCalls === 1
+          ? ready([activity("a1")])
+          : ready([activity("a1"), activity("a2")]);
+      },
+      createActivity: async () => {
+        throw new ApiRequestError(
+          "timeout",
+          null,
+          "REQUEST_TIMEOUT",
+          "timeout",
+        );
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  const result = await controller.createActivity("session-a", {
+    type: "project",
+    title: "Proyecto ambiguo",
+  });
+
+  assert.equal(result, "reconciled");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.data.activities.map((item) => item.id),
+      ["a1", "a2"],
+    );
+  }
+});
+
+test("suspended activity create reports cancelled so the UI can preserve its draft", async () => {
+  const pending = deferred<{ activity: ProfileActivity }>();
+  let signal: AbortSignal | undefined;
+  const controller = new MobileProfileController(
+    apiStub({
+      createActivity: async (_input, nextSignal) => {
+        signal = nextSignal;
+        return pending.promise;
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  const request = controller.createActivity("session-a", {
+    type: "project",
+    title: "Proyecto en vuelo",
+  });
+
+  controller.suspend("session-a");
+  pending.resolve({ activity: activity("created") });
+
+  assert.equal(await request, "cancelled");
+  assert.equal(signal?.aborted, true);
+});
+
+test("profile list input policy matches server count and item-length limits", () => {
+  assert.deepEqual(parseProfileListInput("languages", "es, en, es"), {
+    ok: true,
+    values: ["es", "en"],
+  });
+
+  const tooManyLanguages = parseProfileListInput(
+    "languages",
+    Array.from({ length: 11 }, (_, index) => `l${index}`).join(","),
+  );
+  assert.equal(tooManyLanguages.ok, false);
+  if (!tooManyLanguages.ok) {
+    assert.match(tooManyLanguages.message, /máximo 10/u);
+  }
+
+  const longSkill = parseProfileListInput("skills", "x".repeat(61));
+  assert.equal(longSkill.ok, false);
+  if (!longSkill.ok) {
+    assert.match(longSkill.message, /entre 1 y 60/u);
+  }
+
+  const tooManyTopics = parseProfileListInput(
+    "learningTopics",
+    Array.from({ length: 21 }, (_, index) => `tema ${index}`).join(","),
+  );
+  assert.equal(tooManyTopics.ok, false);
+  if (!tooManyTopics.ok) {
+    assert.match(tooManyTopics.message, /máximo 20/u);
+  }
+});
 
 test("revision conflict reloads canonical profile before another update", async () => {
   let meCalls = 0;
