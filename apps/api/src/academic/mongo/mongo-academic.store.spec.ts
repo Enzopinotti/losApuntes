@@ -127,6 +127,91 @@ describe('MongoAcademicStore bounded user inventories', () => {
     expect(result.hasMore).toBe(true);
   });
 
+  it('pages affiliation export by immutable id instead of updatedAt', async () => {
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `affiliation-${index + 2}`,
+      userId: 'user-1',
+      institutionId: 'institution-1',
+      status: 'active',
+      roles: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    const chain = query(rows);
+    const fixture = store({ affiliations: chain });
+
+    const result = await fixture.store.listAffiliationsForExport({
+      userId: 'user-1',
+      limit: 2,
+      afterId: 'affiliation-1',
+    });
+
+    expect(fixture.affiliations.find).toHaveBeenCalledWith({
+      userId: 'user-1',
+      id: { $gt: 'affiliation-1' },
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(result.items).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('pages subject-participation export by immutable id', async () => {
+    const rows = Array.from({ length: 2 }, (_, index) => ({
+      id: `participation-${index + 2}`,
+      userId: 'user-1',
+      subjectId: `subject-${index}`,
+      state: 'completed',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    const chain = query(rows);
+    const fixture = store({ participations: chain });
+
+    const result = await fixture.store.listSubjectParticipationsForExport({
+      userId: 'user-1',
+      limit: 2,
+      afterId: 'participation-1',
+    });
+
+    expect(fixture.participations.find).toHaveBeenCalledWith({
+      userId: 'user-1',
+      id: { $gt: 'participation-1' },
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(result.items).toHaveLength(2);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('pages follow export by immutable id', async () => {
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `follow-${index + 2}`,
+      userId: 'user-1',
+      targetNodeId: `target-${index}`,
+      targetKind: 'institution',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    const chain = query(rows);
+    const fixture = store({ follows: chain });
+
+    const result = await fixture.store.listAcademicFollowsForExport({
+      userId: 'user-1',
+      limit: 2,
+      afterId: 'follow-1',
+    });
+
+    expect(fixture.follows.find).toHaveBeenCalledWith({
+      userId: 'user-1',
+      id: { $gt: 'follow-1' },
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(result.items).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+  });
+
   it('bounds academic follows and keeps stable ordering', async () => {
     const rows = Array.from({ length: 3 }, (_, index) => ({
       id: `follow-${index}`,
