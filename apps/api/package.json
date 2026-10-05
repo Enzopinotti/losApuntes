@@ -7,7 +7,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" && git diff -- src/data-lifecycle/domain/account-export.service.spec.ts src/data-lifecycle/domain/account-export.types.ts && exit 1",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
