@@ -48,4 +48,3 @@ export const captureAuthActionLink = (
 };
 
 export const captureEmailVerificationLink = captureAuthActionLink;
-
