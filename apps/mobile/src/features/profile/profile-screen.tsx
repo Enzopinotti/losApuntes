@@ -16,7 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import {
@@ -253,7 +253,7 @@ export function MobileOwnerProfileScreen() {
       : null;
   const active = Boolean(scopeKey && isFocused && appState === "active");
 
-  const resetDrafts = () => {
+  const resetDrafts = useCallback(() => {
     hydratedProfile.current = null;
     setDisplayName("");
     setBio("");
@@ -274,9 +274,9 @@ export function MobileOwnerProfileScreen() {
     setActivityStartedOn("");
     setActivityEndedOn("");
     setLocalError(null);
-  };
+  }, []);
 
-  const hydrateProfile = (profile: OwnerProfile) => {
+  const hydrateProfile = useCallback((profile: OwnerProfile) => {
     hydratedProfile.current = { id: profile.id, revision: profile.revision };
     setDisplayName(profile.displayName);
     setBio(profile.bio ?? "");
@@ -291,7 +291,7 @@ export function MobileOwnerProfileScreen() {
     setRecommendAcademic(profile.recommendationSignals.academicContext);
     setRecommendLearning(profile.recommendationSignals.learning);
     setRecommendSkills(profile.recommendationSignals.skillsInterests);
-  };
+  }, []);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
 
@@ -302,7 +302,7 @@ export function MobileOwnerProfileScreen() {
 
   useEffect(() => {
     resetDrafts();
-  }, [scopeKey]);
+  }, [resetDrafts, scopeKey]);
 
   useEffect(() => {
     if (!scopeKey) {
@@ -336,7 +336,7 @@ export function MobileOwnerProfileScreen() {
       return;
     }
     hydrateProfile(snapshot.data.profile);
-  }, [scopeKey, snapshot]);
+  }, [hydrateProfile, scopeKey, snapshot]);
 
   if (session.kind !== "authenticated") {
     return <Redirect href="/sign-in" />;
