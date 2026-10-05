@@ -761,23 +761,34 @@ async function run() {
 
     setSyntheticAccountStatus(email, "restricted");
     try {
+      const restrictedRevalidationResponsePromise = page.waitForResponse(
+        (response) => {
+          const request = response.request();
+          return (
+            new URL(response.url()).pathname === "/auth/me" &&
+            request.method() === "GET"
+          );
+        },
+      );
       await page.reload();
+      const restrictedRevalidationResponse =
+        await restrictedRevalidationResponsePromise;
+      assert.equal(
+        restrictedRevalidationResponse.status(),
+        403,
+        "an existing session should observe account restriction on revalidation",
+      );
+      const restrictedRevalidationBody =
+        await restrictedRevalidationResponse.json();
+      assert.equal(
+        restrictedRevalidationBody?.code,
+        "ACCOUNT_RESTRICTED",
+        "restricted revalidation should preserve the stable Auth error code",
+      );
       await page.waitForURL((url) => url.pathname === "/account/restricted");
       await page
         .getByRole("heading", { name: "Acceso restringido", exact: true })
         .waitFor();
-
-      const restrictedSessionMe = await authenticatedMe(page);
-      assert.equal(
-        restrictedSessionMe.status,
-        403,
-        "an existing session should observe account restriction on revalidation",
-      );
-      assert.equal(
-        restrictedSessionMe.body?.code,
-        "ACCOUNT_RESTRICTED",
-        "restricted revalidation should preserve the stable Auth error code",
-      );
 
       await context.clearCookies();
       await page.goto(new URL("/login", WEB_ORIGIN).toString());
