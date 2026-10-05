@@ -26,9 +26,12 @@ import { mobileOrganizationsApi } from "./organizations-runtime";
 const types: Array<{ value: OrganizationType | null; label: string }> = [
   { value: null, label: "Todas" },
   { value: "student_center", label: "Centros" },
+  { value: "association", label: "Asociaciones" },
   { value: "club", label: "Clubes" },
   { value: "lab", label: "Laboratorios" },
   { value: "research_group", label: "Investigación" },
+  { value: "incubator", label: "Incubadoras" },
+  { value: "cultural_sports", label: "Cultura y deportes" },
   { value: "career_community", label: "Carreras" },
   { value: "alumni_association", label: "Graduados" },
 ];
