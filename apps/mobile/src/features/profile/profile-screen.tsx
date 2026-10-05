@@ -171,11 +171,7 @@ function ChoiceGroup<T extends string>({
   );
 }
 
-function AccountActions({
-  logout,
-}: {
-  logout: () => Promise<void>;
-}) {
+function AccountActions({ logout }: { logout: () => Promise<void> }) {
   return (
     <View style={styles.accountActions}>
       <Link href="/saved-resources" asChild>
@@ -402,7 +398,9 @@ export function MobileOwnerProfileScreen() {
     if (!scopeKey || current?.kind !== "ready") return;
     const normalizedTitle = activityTitle.trim();
     if (normalizedTitle.length < 2 || normalizedTitle.length > 120) {
-      setLocalError("El título de la actividad debe tener entre 2 y 120 caracteres.");
+      setLocalError(
+        "El título de la actividad debe tener entre 2 y 120 caracteres.",
+      );
       return;
     }
     const startedOn = monthValue(activityStartedOn);
@@ -754,7 +752,8 @@ export function MobileOwnerProfileScreen() {
                     accessibilityLabel={`Eliminar actividad ${item.title}`}
                     disabled={busy}
                     onPress={() =>
-                      scopeKey && void controller.deleteActivity(scopeKey, item.id)
+                      scopeKey &&
+                      void controller.deleteActivity(scopeKey, item.id)
                     }
                     style={styles.dangerButton}
                   >
