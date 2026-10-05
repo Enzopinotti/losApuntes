@@ -30,7 +30,11 @@ import {
   type MobileProfileFailure,
   type MobileProfileSnapshot,
 } from "./profile-controller";
-import { parseProfileListInput } from "./profile-input-policy";
+import {
+  parseProfileHeadline,
+  parseProfileListInput,
+  profileListInputCapacity,
+} from "./profile-input-policy";
 import { mobileProfileApi } from "./profile-runtime";
 
 const profileSections: Array<{ key: ProfileSection; label: string }> = [
@@ -341,8 +345,9 @@ export function MobileOwnerProfileScreen() {
       setLocalError("La bio no puede superar los 500 caracteres.");
       return;
     }
-    if (headline.length > 140) {
-      setLocalError("El titular no puede superar los 140 caracteres.");
+    const headlineResult = parseProfileHeadline(headline);
+    if (!headlineResult.ok) {
+      setLocalError(headlineResult.message);
       return;
     }
 
@@ -386,7 +391,7 @@ export function MobileOwnerProfileScreen() {
       helpTopics: helpList.values,
       learningTopics: learningList.values,
       professional: {
-        headline: headline.trim() || null,
+        headline: headlineResult.value,
         careerDiscoveryOptIn: careerDiscovery,
       },
       visibility,
@@ -465,6 +470,8 @@ export function MobileOwnerProfileScreen() {
     current?.kind === "ready" || current?.kind === "onboarding"
       ? current.busy
       : false;
+  const mutationsBlocked =
+    current?.kind === "ready" ? current.busy || current.loadingMore : busy;
 
   return (
     <ProductSurface
@@ -650,21 +657,46 @@ export function MobileOwnerProfileScreen() {
             </Text>
             <Text style={styles.helper}>Separá los valores con comas.</Text>
             {[
-              ["Idiomas", languages, setLanguages],
-              ["Habilidades", skills, setSkills],
-              ["Intereses", interests, setInterests],
-              ["Puedo ayudar con", helpTopics, setHelpTopics],
-              ["Quiero aprender", learningTopics, setLearningTopics],
-            ].map(([label, value, setter]) => (
-              <View key={label as string} style={styles.field}>
-                <Text style={styles.label}>{label as string}</Text>
+              {
+                field: "languages" as const,
+                label: "Idiomas",
+                value: languages,
+                setter: setLanguages,
+              },
+              {
+                field: "skills" as const,
+                label: "Habilidades",
+                value: skills,
+                setter: setSkills,
+              },
+              {
+                field: "interests" as const,
+                label: "Intereses",
+                value: interests,
+                setter: setInterests,
+              },
+              {
+                field: "helpTopics" as const,
+                label: "Puedo ayudar con",
+                value: helpTopics,
+                setter: setHelpTopics,
+              },
+              {
+                field: "learningTopics" as const,
+                label: "Quiero aprender",
+                value: learningTopics,
+                setter: setLearningTopics,
+              },
+            ].map(({ field, label, value, setter }) => (
+              <View key={field} style={styles.field}>
+                <Text style={styles.label}>{label}</Text>
                 <TextInput
-                  accessibilityLabel={label as string}
+                  accessibilityLabel={label}
                   editable={!busy}
-                  maxLength={600}
-                  onChangeText={setter as (value: string) => void}
+                  maxLength={profileListInputCapacity(field)}
+                  onChangeText={setter}
                   style={styles.input}
-                  value={value as string}
+                  value={value}
                 />
               </View>
             ))}
@@ -728,10 +760,13 @@ export function MobileOwnerProfileScreen() {
             ))}
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: busy }}
-              disabled={busy}
+              accessibilityState={{ disabled: mutationsBlocked }}
+              disabled={mutationsBlocked}
               onPress={() => void saveProfile()}
-              style={[styles.primaryButton, busy && styles.disabled]}
+              style={[
+                styles.primaryButton,
+                mutationsBlocked && styles.disabled,
+              ]}
             >
               <Text style={styles.primaryButtonText}>
                 {busy ? "Guardando…" : "Guardar perfil"}
@@ -766,12 +801,16 @@ export function MobileOwnerProfileScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Eliminar actividad ${item.title}`}
-                    disabled={busy}
+                    accessibilityState={{ disabled: mutationsBlocked }}
+                    disabled={mutationsBlocked}
                     onPress={() =>
                       scopeKey &&
                       void controller.deleteActivity(scopeKey, item.id)
                     }
-                    style={styles.dangerButton}
+                    style={[
+                      styles.dangerButton,
+                      mutationsBlocked && styles.disabled,
+                    ]}
                   >
                     <Text style={styles.dangerButtonText}>Eliminar</Text>
                   </Pressable>
@@ -849,10 +888,13 @@ export function MobileOwnerProfileScreen() {
             />
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: busy }}
-              disabled={busy}
+              accessibilityState={{ disabled: mutationsBlocked }}
+              disabled={mutationsBlocked}
               onPress={() => void addActivity()}
-              style={[styles.primaryButton, busy && styles.disabled]}
+              style={[
+                styles.primaryButton,
+                mutationsBlocked && styles.disabled,
+              ]}
             >
               <Text style={styles.primaryButtonText}>
                 {busy ? "Guardando…" : "Agregar actividad"}
