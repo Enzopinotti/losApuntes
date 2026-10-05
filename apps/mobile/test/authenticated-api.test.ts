@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {
+  GoogleAvailabilityResponse,
   AuthSessionListResponse,
   AuthenticatedSessionResponse,
   MobileAuthenticatedSessionResponse,
@@ -59,6 +60,11 @@ const sessionApi = (tokenRef: { value: string }): SessionApi => ({
     session: sessionRecord(`session-${tokenRef.value[0]}`),
     sessionToken: tokenRef.value,
   }),
+  googleMobileLogin: async () => ({
+    user,
+    session: sessionRecord("session-google"),
+    sessionToken: tokenRef.value,
+  }),
   me: async (): Promise<AuthenticatedSessionResponse> => ({
     user,
     session: sessionRecord("session-restored"),
@@ -69,6 +75,10 @@ const sessionApi = (tokenRef: { value: string }): SessionApi => ({
 const transport = (
   overrides: Partial<AuthenticatedApiTransport> = {},
 ): AuthenticatedApiTransport => ({
+  googleStatus: async (): Promise<GoogleAvailabilityResponse> => ({
+    webEnabled: false,
+    mobileEnabled: false,
+  }),
   pilotHome: async (): Promise<PilotHomeResponse> => ({
     profileReady: true,
     lifecycle: {

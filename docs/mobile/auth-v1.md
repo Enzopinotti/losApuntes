@@ -51,7 +51,20 @@ The Mobile account-security surface now consumes the existing authenticated auth
 - stale-request fencing and abort on scope loss;
 - native destructive confirmations and explicit post-security sign-out copy.
 
-The UI intentionally does not display raw IP, exact location, full User-Agent, fingerprints or hardware identifiers. Google link/unlink remains a separate provider-dependent slice.
+The UI intentionally does not display raw IP, exact location, full User-Agent, fingerprints or hardware identifiers. Mobile Google sign-in and account link/unlink now consume the existing Auth endpoints. Account linking and unlinking reauthenticate with the current password, and the UI blocks unlinking when Google is the only configured login method.
+
+### Google native provider setup
+
+The native provider bridge uses `react-native-nitro-google-signin` and requires a development build; Expo Go does not include its native module. Configure public OAuth client IDs at build time:
+
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` for the server-audience ID token used by both platforms;
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME` for iOS.
+
+Android additionally needs the OAuth Android client registered with the app package and signing-certificate SHA-1 in Google Cloud. The iOS URL scheme is the reversed iOS client ID. These values are client configuration, not client secrets; no provider credentials are committed. The Expo config plugin is enabled only when the iOS client ID and URL scheme are present. Missing configuration or unavailable native modules leave email/password available and report Google as unavailable.
+
+The provider ID token is exchanged with Los Apuntes Auth and remains in memory for that request. Only the returned Los Apuntes session credential is eligible for SecureStore. No Google access token or server authorization code is requested.
+
+Repository code now covers Google login, status, link/unlink, stable error handling, and the no-lockout guard. Real OAuth client setup, native development builds, Google Console configuration, and sign-in/link/unlink evidence on supported devices remain external acceptance work; #49 stays open until those checks are recorded.
 
 ## Credential lifecycle
 
