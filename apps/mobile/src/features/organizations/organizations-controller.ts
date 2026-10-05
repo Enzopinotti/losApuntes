@@ -118,7 +118,10 @@ export class MobileOrganizationsDirectoryController {
     authorityKey: string,
     input: OrganizationDirectoryInput,
   ): Promise<void> {
-    this.input = { q: input.q, type: input.type };
+    this.input = {
+      ...(input.q ? { q: input.q } : {}),
+      ...(input.type ? { type: input.type } : {}),
+    };
     const operation = this.begin(authorityKey);
     this.publish({ kind: "loading", authorityKey });
 
