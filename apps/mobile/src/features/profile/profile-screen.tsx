@@ -444,10 +444,7 @@ export function MobileOwnerProfileScreen() {
       endedOn,
     });
 
-    if (
-      result === "committed" &&
-      scopeKeyRef.current === submittedAuthority
-    ) {
+    if (result === "committed" && scopeKeyRef.current === submittedAuthority) {
       setActivityTitle("");
       setActivityDescription("");
       setActivityStartedOn("");
