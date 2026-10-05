@@ -201,6 +201,8 @@ async function run() {
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     const page = await context.newPage();
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.emulateMedia({ forcedColors: "active" });
     const pageErrors = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
@@ -223,19 +225,199 @@ async function run() {
       verificationMail,
       "/auth/verify-email",
     );
-    const verification = await requestJson(
-      "/auth/email-verification/complete",
-      jsonPost({ token: verificationToken }),
+    const verificationMailBody = [
+      typeof verificationMail.Text === "string" ? verificationMail.Text : "",
+      typeof verificationMail.HTML === "string" ? verificationMail.HTML : "",
+    ].join("\n");
+    const verificationUrl = (
+      verificationMailBody.match(/https?:\/\/[^\s"'<>]+/g) ?? []
+    )
+      .map((candidate) => candidate.replace(/[),.;\]]+$/, ""))
+      .map((candidate) => {
+        try {
+          return new URL(candidate);
+        } catch {
+          return undefined;
+        }
+      })
+      .find(
+        (candidate) =>
+          candidate?.pathname === "/auth/verify-email" &&
+          candidate.hash === `#token=${verificationToken}`,
+      );
+    assert.equal(
+      verificationUrl instanceof URL,
+      true,
+      "verification email should contain a complete fragment-based browser URL",
+    );
+    const verificationOrigin = loopbackOrigin(
+      "captured verification link origin",
+      verificationUrl.origin,
     );
     assert.equal(
-      verification.response.status,
-      204,
-      "verification should complete",
+      verificationOrigin,
+      WEB_ORIGIN,
+      "verification email should target the configured local Web origin",
+    );
+    assert.equal(
+      verificationUrl.search,
+      "",
+      "verification email should not put the one-time token in the query",
+    );
+
+    let verificationTokenAppearedInRequestUrl = false;
+    page.on("request", (request) => {
+      if (request.url().includes(verificationToken)) {
+        verificationTokenAppearedInRequestUrl = true;
+      }
+    });
+
+    try {
+      await page.goto(verificationUrl.toString());
+    } catch {
+      throw new Error(
+        "Browser could not open the local email-verification link",
+      );
+    }
+    await page.waitForFunction(
+      () =>
+        window.location.pathname === "/auth/verify-email" &&
+        window.location.search === "" &&
+        window.location.hash === "",
+    );
+    await page
+      .getByText("Email verificado correctamente.", { exact: true })
+      .waitFor();
+    assert.equal(
+      verificationTokenAppearedInRequestUrl,
+      false,
+      "one-time verification token must not appear in any browser request URL",
+    );
+    assert.equal(
+      new URL(page.url()).hash,
+      "",
+      "verified action token should be absent from the address bar",
+    );
+
+    await page.getByRole("link", { name: "Iniciar sesión" }).click();
+    await page.waitForURL((url) => url.pathname === "/login");
+    await page.goBack();
+    await page.waitForFunction(
+      () =>
+        window.location.pathname === "/auth/verify-email" &&
+        window.location.search === "" &&
+        window.location.hash === "",
+    );
+    assert.equal(
+      page.url().includes(verificationToken),
+      false,
+      "browser history must not restore the one-time verification token",
     );
 
     await page.goto(new URL("/login", WEB_ORIGIN).toString());
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Contraseña").fill(password);
+    const loginEmail = page.getByLabel("Email");
+    const loginPassword = page.getByLabel("Contraseña");
+    const loginSubmit = page.getByRole("button", { name: "Iniciar sesión" });
+    assert.equal(await loginEmail.getAttribute("autocomplete"), "email");
+    assert.equal(
+      await loginPassword.getAttribute("autocomplete"),
+      "current-password",
+    );
+    assert.equal(
+      await page.evaluate(
+        () => window.matchMedia("(forced-colors: active)").matches,
+      ),
+      true,
+      "Chromium should exercise the browser's forced-colors mode",
+    );
+
+    await page.goto(new URL("/sign-up", WEB_ORIGIN).toString());
+    assert.equal(
+      await page.getByLabel("Email").getAttribute("autocomplete"),
+      "email",
+    );
+    assert.equal(
+      await page
+        .getByLabel("Contraseña", { exact: true })
+        .getAttribute("autocomplete"),
+      "new-password",
+    );
+    assert.equal(
+      await page
+        .getByLabel("Confirmar contraseña")
+        .getAttribute("autocomplete"),
+      "new-password",
+    );
+
+    await page.goto(new URL("/login", WEB_ORIGIN).toString());
+    await page.getByRole("link", { name: "Olvidé mi contraseña" }).click();
+    await page.waitForURL((url) => url.pathname === "/forgot-password");
+    await page
+      .getByRole("heading", { name: "Recuperar contraseña", exact: true })
+      .waitFor();
+    assert.equal(
+      await page.getByLabel("Email").getAttribute("autocomplete"),
+      "email",
+    );
+    await page.getByRole("link", { name: "Volver a iniciar sesión" }).click();
+    await page.waitForURL((url) => url.pathname === "/login");
+    await page
+      .getByRole("heading", {
+        name: "Inicia sesión en tu cuenta",
+        exact: true,
+      })
+      .waitFor();
+
+    await loginEmail.focus();
+    await page.keyboard.press("Tab");
+    assert.equal(
+      await loginPassword.evaluate(
+        (element) => document.activeElement === element,
+      ),
+      true,
+      "Tab should move focus from email to password",
+    );
+    const focusedPassword = await loginPassword.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      const bounds = element.getBoundingClientRect();
+      return {
+        focusVisible: element.matches(":focus-visible"),
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+        insideViewport:
+          bounds.left >= 0 &&
+          bounds.top >= 0 &&
+          bounds.right <= window.innerWidth &&
+          bounds.bottom <= window.innerHeight,
+      };
+    });
+    assert.equal(focusedPassword.focusVisible, true);
+    assert.equal(focusedPassword.outlineStyle, "solid");
+    assert.equal(focusedPassword.outlineWidth, "3px");
+    assert.equal(
+      focusedPassword.insideViewport,
+      true,
+      "password input should remain visible in the constrained viewport",
+    );
+
+    await page.keyboard.press("Shift+Tab");
+    assert.equal(
+      await loginEmail.evaluate(
+        (element) => document.activeElement === element,
+      ),
+      true,
+    );
+    await page.keyboard.type(email);
+    await page.keyboard.press("Tab");
+    await page.keyboard.type(password);
+    await page.keyboard.press("Tab");
+    assert.equal(
+      await loginSubmit.evaluate(
+        (element) => document.activeElement === element,
+      ),
+      true,
+      "keyboard traversal should reach the login action",
+    );
 
     const loginResponsePromise = page.waitForResponse((response) => {
       const request = response.request();
@@ -244,7 +426,7 @@ async function run() {
         request.method() === "POST"
       );
     });
-    await page.getByRole("button", { name: "Iniciar sesión" }).click();
+    await page.keyboard.press("Enter");
     const loginResponse = await loginResponsePromise;
     assert.equal(loginResponse.status(), 200, "Web login should succeed");
     const loginSnapshot = await loginResponse.json();
@@ -361,7 +543,7 @@ async function run() {
 
     await context.close();
     console.log(
-      "Auth browser E2E passed: HttpOnly login, /auth/me, CSRF rejection and logout.",
+      "Auth browser E2E passed: verification URL/history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection and logout.",
     );
   } finally {
     await browser?.close();
