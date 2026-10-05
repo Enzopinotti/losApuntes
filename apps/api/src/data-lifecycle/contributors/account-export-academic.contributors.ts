@@ -16,9 +16,7 @@ function assertSingletonCursor(sectionId: string, cursor: string | null): void {
 }
 
 @Injectable()
-export class AcademicAffiliationsExportContributor
-  implements AccountExportContributor
-{
+export class AcademicAffiliationsExportContributor implements AccountExportContributor {
   readonly sectionId = 'academic.affiliations';
 
   constructor(private readonly academic: AcademicService) {}
@@ -37,31 +35,27 @@ export class AcademicAffiliationsExportContributor
     );
 
     return {
-      records: page.items.map(
-        (row): AccountExportRecord => ({
-          id: row.id,
-          institutionId: row.institutionId,
-          campusId: row.campusId,
-          academicUnitId: row.academicUnitId,
-          programId: row.programId,
-          curriculumId: row.curriculumId,
-          status: row.status,
-          roles: row.roles,
-          startedOn: row.startedOn,
-          endedOn: row.endedOn,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        }),
-      ),
+      records: page.items.map((row): AccountExportRecord => ({
+        id: row.id,
+        institutionId: row.institutionId,
+        campusId: row.campusId,
+        academicUnitId: row.academicUnitId,
+        programId: row.programId,
+        curriculumId: row.curriculumId,
+        status: row.status,
+        roles: row.roles,
+        startedOn: row.startedOn,
+        endedOn: row.endedOn,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
       nextCursor: page.nextCursor,
     };
   }
 }
 
 @Injectable()
-export class AcademicSubjectParticipationsExportContributor
-  implements AccountExportContributor
-{
+export class AcademicSubjectParticipationsExportContributor implements AccountExportContributor {
   readonly sectionId = 'academic.subjectParticipations';
 
   constructor(private readonly academic: AcademicService) {}
@@ -80,26 +74,22 @@ export class AcademicSubjectParticipationsExportContributor
     );
 
     return {
-      records: page.items.map(
-        (row): AccountExportRecord => ({
-          id: row.id,
-          subjectId: row.subjectId,
-          courseOfferingId: row.courseOfferingId,
-          state: row.state,
-          periodLabel: row.periodLabel,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        }),
-      ),
+      records: page.items.map((row): AccountExportRecord => ({
+        id: row.id,
+        subjectId: row.subjectId,
+        courseOfferingId: row.courseOfferingId,
+        state: row.state,
+        periodLabel: row.periodLabel,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
       nextCursor: page.nextCursor,
     };
   }
 }
 
 @Injectable()
-export class AcademicCurrentContextExportContributor
-  implements AccountExportContributor
-{
+export class AcademicCurrentContextExportContributor implements AccountExportContributor {
   readonly sectionId = 'academic.currentContext';
 
   constructor(private readonly academic: AcademicService) {}
@@ -132,9 +122,7 @@ export class AcademicCurrentContextExportContributor
 }
 
 @Injectable()
-export class AcademicFollowsExportContributor
-  implements AccountExportContributor
-{
+export class AcademicFollowsExportContributor implements AccountExportContributor {
   readonly sectionId = 'academic.follows';
 
   constructor(private readonly academic: AcademicService) {}
@@ -150,15 +138,13 @@ export class AcademicFollowsExportContributor
     });
 
     return {
-      records: page.items.map(
-        (row): AccountExportRecord => ({
-          id: row.id,
-          targetNodeId: row.targetNodeId,
-          targetKind: row.targetKind,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        }),
-      ),
+      records: page.items.map((row): AccountExportRecord => ({
+        id: row.id,
+        targetNodeId: row.targetNodeId,
+        targetKind: row.targetKind,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
       nextCursor: page.nextCursor,
     };
   }
