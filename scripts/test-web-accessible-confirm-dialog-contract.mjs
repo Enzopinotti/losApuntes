@@ -102,6 +102,6 @@ assert.doesNotMatch(
 assert.match(security, /<ConfirmDialog/u);
 assert.match(security, /returnFocusRef=\{revokeAllButtonRef\}/u);
 assert.match(security, /setRevokeAllConfirmOpen\(true\)/u);
-assert.match(security, /authApi\.revokeAllSessions\(\)/u);
+assert.match(security, /authApi\.revokeAllSessions\(signal\)/u);
 
 console.log("PASS Web accessible confirmation contract");
