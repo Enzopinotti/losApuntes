@@ -70,7 +70,7 @@ export function parseProfileListInput(
   }
 
   const invalid = values.find((item) => {
-    const length = [...item].length;
+    const length = unicodeCodePointLength(item);
     return length < rule.minLength || length > rule.maxLength;
   });
   if (invalid) {
@@ -101,7 +101,7 @@ export function parseProfileHeadline(
   const normalized = value.normalize("NFC").trim();
   if (!normalized) return { ok: true, value: null };
 
-  if (normalized.length < 2 || normalized.length > 140) {
+  const length = unicodeCodePointLength(normalized);\n\n  if (length < 2 || length > 140) {
     return {
       ok: false,
       message: "El titular debe tener entre 2 y 140 caracteres.",
@@ -109,4 +109,12 @@ export function parseProfileHeadline(
   }
 
   return { ok: true, value: normalized };
+}
+
+export function unicodeCodePointLength(value: string): number {
+  return [...value].length;
+}
+
+export function unicodeTextInputCapacity(maxCodePoints: number): number {
+  return maxCodePoints * 2;
 }
