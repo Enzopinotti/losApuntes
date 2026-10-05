@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import {
   useCallback,
   useEffect,
@@ -23,7 +23,10 @@ import type {
   PilotHomeResponse,
 } from "@losapuntes/contracts";
 
-import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
+import {
+  activeNavigationAuthorityKey,
+  navigationAuthorityKey,
+} from "@/features/navigation/product-navigation";
 import { AcademicContextCard } from "@/features/academic/academic-context-card";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { mobileAuthenticatedApi } from "@/features/session/session-runtime";
@@ -146,6 +149,7 @@ const failureCopy: Partial<Record<MobileHomeSnapshot["kind"], string>> = {
 
 export function HomeScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { snapshot: session } = useSession();
   const { snapshot: academic, retry: retryAcademic } = useAcademicContext();
   const controller = useMemo(
@@ -183,39 +187,47 @@ export function HomeScreen() {
     sessionAuthority && academicData && academicBelongsToSession
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
+  const activeHomeAuthority = activeNavigationAuthorityKey(
+    homeAuthority,
+    isFocused,
+    appState,
+  );
   const expectedContext: AcademicCurrentContext | null =
     academicData?.context ?? null;
   const contextSignature = academicContextSignature(expectedContext);
   const canLoad =
-    Boolean(homeAuthority) &&
+    Boolean(activeHomeAuthority) &&
     Boolean(academicData) &&
-    appState === "active" &&
     (academic.kind === "ready" || academic.kind === "no_context");
 
   useEffect(() => {
-    if (!canLoad || !homeAuthority) {
+    if (!canLoad || !activeHomeAuthority) {
       controller.invalidate();
       return;
     }
 
-    void controller.load(homeAuthority, expectedContext);
-    return () => controller.invalidate(homeAuthority);
+    void controller.load(activeHomeAuthority, expectedContext);
+    return () => controller.invalidate(activeHomeAuthority);
   }, [
     academic.kind,
+    activeHomeAuthority,
     canLoad,
     contextSignature,
     controller,
     expectedContext,
-    homeAuthority,
   ]);
 
   const refresh = useCallback(() => {
-    if (!canLoad || !homeAuthority) return;
+    if (!canLoad || !activeHomeAuthority) return;
     setRefreshPending(true);
     void retryAcademic();
-  }, [canLoad, homeAuthority, retryAcademic]);
+  }, [activeHomeAuthority, canLoad, retryAcademic]);
 
   useEffect(() => {
+    if (!activeHomeAuthority && refreshPending) {
+      setRefreshPending(false);
+      return;
+    }
     if (!refreshPending) return;
 
     const academicUnavailable =
@@ -225,31 +237,32 @@ export function HomeScreen() {
       academic.kind === "error";
     const homeFinished =
       "authorityKey" in home &&
-      home.authorityKey === homeAuthority &&
+      home.authorityKey === activeHomeAuthority &&
       home.kind !== "loading";
     if (academicUnavailable || homeFinished) setRefreshPending(false);
-  }, [academic.kind, home, homeAuthority, refreshPending]);
+  }, [academic.kind, activeHomeAuthority, home, refreshPending]);
 
   useEffect(() => {
     if (
       home.kind !== "context_mismatch" ||
-      !homeAuthority ||
-      home.authorityKey !== homeAuthority ||
-      reconciledAuthority.current === homeAuthority
+      !activeHomeAuthority ||
+      home.authorityKey !== activeHomeAuthority ||
+      reconciledAuthority.current === activeHomeAuthority
     ) {
       return;
     }
 
-    reconciledAuthority.current = homeAuthority;
+    reconciledAuthority.current = activeHomeAuthority;
     void retryAcademic();
-  }, [home, homeAuthority, retryAcademic]);
+  }, [activeHomeAuthority, home, retryAcademic]);
 
   useEffect(() => () => controller.invalidate(), [controller]);
 
-  const refreshControlEnabled = Boolean(homeAuthority && canLoad);
+  const refreshControlEnabled = Boolean(activeHomeAuthority && canLoad);
   const refreshing =
     refreshPending ||
-    (home.kind === "loading" && home.authorityKey === homeAuthority);
+    (home.kind === "loading" &&
+      home.authorityKey === activeHomeAuthority);
 
   const renderSurface = (content: ReactNode) => (
     <ProductSurface
@@ -282,7 +295,9 @@ export function HomeScreen() {
   }
 
   const currentHome =
-    "authorityKey" in home && home.authorityKey === homeAuthority ? home : null;
+    "authorityKey" in home && home.authorityKey === activeHomeAuthority
+      ? home
+      : null;
   const data: PilotHomeResponse | null =
     currentHome?.kind === "ready"
       ? currentHome.data
