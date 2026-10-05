@@ -506,6 +506,19 @@ export class MongoAcademicStore implements AcademicStore {
     return result.modifiedCount;
   }
 
+  async findCurrentContextForExport(
+    userId: string,
+  ): ReturnType<AcademicStore['findCurrentContextForExport']> {
+    return this.contexts
+      .findOne({ userId })
+      .lean<
+        Omit<AcademicCurrentContextRecord, 'revision'> & {
+          revision?: number;
+        }
+      >()
+      .exec();
+  }
+
   async getCurrentContext(
     userId: string,
   ): Promise<AcademicCurrentContextRecord | null> {
