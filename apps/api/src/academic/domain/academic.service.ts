@@ -900,7 +900,7 @@ export class AcademicService {
   }
 
   async getAccountExportCurrentContext(userId: string) {
-    const { context } = await this.getCurrentContext(userId);
+    const context = await this.store.getCurrentContext(userId);
     if (!context) return null;
 
     const affiliation = await this.store.findAffiliationById(
@@ -914,11 +914,34 @@ export class AcademicService {
       return null;
     }
 
+    let subjectParticipationId: string | null = null;
+    if (context.subjectParticipationId) {
+      const participation = await this.store.findSubjectParticipationById(
+        context.subjectParticipationId,
+      );
+      const participationEligible =
+        affiliationAllowsCurrentSubjectContext(affiliation.status) &&
+        participation != null &&
+        participation.userId === userId &&
+        isCurrentSubjectParticipationState(participation.state);
+
+      if (
+        participationEligible &&
+        participation &&
+        (await this.participationBelongsToAffiliation(
+          participation.subjectId,
+          affiliation,
+        ))
+      ) {
+        subjectParticipationId = participation.id;
+      }
+    }
+
     return {
       affiliationId: context.affiliationId,
-      subjectParticipationId: context.subjectParticipationId ?? null,
+      subjectParticipationId,
       revision: context.revision,
-      updatedAt: context.updatedAt,
+      updatedAt: context.updatedAt.toISOString(),
     };
   }
 
