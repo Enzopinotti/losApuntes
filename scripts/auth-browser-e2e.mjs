@@ -871,13 +871,14 @@ async function run() {
     );
     const revokerAuthorization = `Bearer ${revokerToken}`;
 
-    const remoteRevocation = await requestJson(
-      `/auth/sessions/${encodeURIComponent(revocationWebSessionId)}`,
-      {
-        method: "DELETE",
-        headers: { authorization: revokerAuthorization },
-      },
-    );
+    try {
+      const remoteRevocation = await requestJson(
+        `/auth/sessions/${encodeURIComponent(revocationWebSessionId)}`,
+        {
+          method: "DELETE",
+          headers: { authorization: revokerAuthorization },
+        },
+      );
     assert.equal(
       remoteRevocation.response.status,
       204,
@@ -909,15 +910,22 @@ async function run() {
       .getByRole("heading", { name: "Iniciar sesión", exact: true })
       .waitFor();
 
-    const revokerLogout = await requestJson("/auth/session", {
-      method: "DELETE",
-      headers: { authorization: revokerAuthorization },
-    });
-    assert.equal(
-      revokerLogout.response.status,
-      204,
-      "secondary Mobile revoker session should be cleaned up",
-    );
+      assert.deepEqual(
+        pageErrors,
+        [],
+        "auth journey should not produce uncaught page errors",
+      );
+    } finally {
+      const revokerLogout = await requestJson("/auth/session", {
+        method: "DELETE",
+        headers: { authorization: revokerAuthorization },
+      });
+      assert.equal(
+        revokerLogout.response.status,
+        204,
+        "secondary Mobile revoker session should be cleaned up",
+      );
+    }
 
     assert.deepEqual(
       pageErrors,
