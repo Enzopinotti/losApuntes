@@ -64,13 +64,10 @@ describe('core account export contributors', () => {
     ).rejects.toThrow('does not accept a cursor');
   });
 
-  it('emits an empty singleton section when account or profile is absent', async () => {
+  it('fails closed when the export owner record is missing', async () => {
     const users = {
       getAccountExportProjection: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<UsersService>;
-    const profiles = {
-      getAccountExportProfile: jest.fn().mockResolvedValue(null),
-    } as unknown as jest.Mocked<ProfileService>;
 
     await expect(
       new AccountIdentityExportContributor(users).readPage({
@@ -78,11 +75,17 @@ describe('core account export contributors', () => {
         cursor: null,
         limit: 100,
       }),
-    ).resolves.toEqual({ records: [], nextCursor: null });
+    ).rejects.toThrow('Account export owner record is missing');
+  });
+
+  it('keeps missing optional Profile as an empty singleton section', async () => {
+    const profiles = {
+      getAccountExportProfile: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<ProfileService>;
 
     await expect(
       new ProfileExportContributor(profiles).readPage({
-        userId: 'missing',
+        userId: 'missing-profile',
         cursor: null,
         limit: 100,
       }),
