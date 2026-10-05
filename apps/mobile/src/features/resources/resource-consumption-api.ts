@@ -5,7 +5,6 @@ import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 import type { SessionController } from "../session/session-controller";
 
 export type ResourceAccessResponse = {
-  resource: ResourceView;
   file: ResourceView["file"];
   access: {
     url: string;
