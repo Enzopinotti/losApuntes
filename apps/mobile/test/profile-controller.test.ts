@@ -291,7 +291,10 @@ test("activity mutations use canonical snapshots and refresh after commit", asyn
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind === "ready") {
-    assert.deepEqual(snapshot.data.activities.map((item) => item.id), ["a2"]);
+    assert.deepEqual(
+      snapshot.data.activities.map((item) => item.id),
+      ["a2"],
+    );
   }
 });
 
