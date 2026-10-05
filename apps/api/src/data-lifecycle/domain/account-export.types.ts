@@ -8,8 +8,7 @@ export const ACCOUNT_EXPORT_JOB_STATES = [
   'failed',
 ] as const;
 
-export type AccountExportJobState =
-  (typeof ACCOUNT_EXPORT_JOB_STATES)[number];
+export type AccountExportJobState = (typeof ACCOUNT_EXPORT_JOB_STATES)[number];
 
 export type AccountExportJsonScalar = string | number | boolean | null;
 export type AccountExportJsonValue =
