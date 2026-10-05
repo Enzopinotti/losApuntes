@@ -320,14 +320,16 @@ export class MobileProfileController {
       if (!this.isCurrent(operation)) return;
       const failure = mobileProfileFailure(error);
 
-      if (ambiguousFailure(failure)) {
+      if (ambiguousFailure(failure) || failure.kind === "conflict") {
         try {
           const response = await this.api.me(operation.controller.signal);
           if (!this.isCurrent(operation)) return;
           this.publishFromOwnerResponse(
             authorityKey,
             response,
-            "La conexión se interrumpió. Recargamos el estado confirmado por el servidor; revisalo antes de repetir la acción.",
+            failure.kind === "conflict"
+              ? "El perfil cambió en otro lugar. Recargamos la versión confirmada por el servidor; revisala antes de volver a guardar."
+              : "La conexión se interrumpió. Recargamos el estado confirmado por el servidor; revisalo antes de repetir la acción.",
           );
           return;
         } catch (refreshError) {
