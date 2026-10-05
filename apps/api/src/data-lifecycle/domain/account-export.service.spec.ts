@@ -50,32 +50,32 @@ describe('AccountExportService', () => {
   it(
     'creates one active export request and returns only public status fields',
     async () => {
-    const f = fixture();
-    f.store.requestActive.mockImplementation((input) =>
-      Promise.resolve({
-        created: true,
-        job: job({ id: input.id, userId: input.userId }),
-      }),
-    );
+      const f = fixture();
+      f.store.requestActive.mockImplementation((input) =>
+        Promise.resolve({
+          created: true,
+          job: job({ id: input.id, userId: input.userId }),
+        }),
+      );
 
-    const result = await f.service.request('user-1', now);
+      const result = await f.service.request('user-1', now);
 
-    expect(result.created).toBe(true);
-    expect(result.export).toEqual({
-      id: expect.any(String),
-      format: ACCOUNT_EXPORT_FORMAT,
-      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-      state: 'pending',
-      requestedAt: now.toISOString(),
-      failureCode: null,
-    });
-    expect(f.store.requestActive).toHaveBeenCalledWith({
-      id: expect.any(String),
-      userId: 'user-1',
-      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-      now,
-    });
-    expect(result.export).not.toHaveProperty('claimId');
+      expect(result.created).toBe(true);
+      expect(result.export).toEqual({
+        id: expect.any(String),
+        format: ACCOUNT_EXPORT_FORMAT,
+        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        state: 'pending',
+        requestedAt: now.toISOString(),
+        failureCode: null,
+      });
+      expect(f.store.requestActive).toHaveBeenCalledWith({
+        id: expect.any(String),
+        userId: 'user-1',
+        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        now,
+      });
+      expect(result.export).not.toHaveProperty('claimId');
       expect(result.export).not.toHaveProperty('leaseExpiresAt');
     },
   );
@@ -83,22 +83,22 @@ describe('AccountExportService', () => {
   it(
     'replays the existing active export instead of manufacturing another job',
     async () => {
-    const f = fixture();
-    f.store.requestActive.mockResolvedValue({
-      created: false,
-      job: job({ id: 'existing-export' }),
-    });
+      const f = fixture();
+      f.store.requestActive.mockResolvedValue({
+        created: false,
+        job: job({ id: 'existing-export' }),
+      });
 
-    await expect(f.service.request('user-1', now)).resolves.toEqual({
-      created: false,
-      export: {
-        id: 'existing-export',
-        format: ACCOUNT_EXPORT_FORMAT,
-        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-        state: 'pending',
-        requestedAt: now.toISOString(),
-        failureCode: null,
-      },
+      await expect(f.service.request('user-1', now)).resolves.toEqual({
+        created: false,
+        export: {
+          id: 'existing-export',
+          format: ACCOUNT_EXPORT_FORMAT,
+          formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+          state: 'pending',
+          requestedAt: now.toISOString(),
+          failureCode: null,
+        },
       });
     },
   );
