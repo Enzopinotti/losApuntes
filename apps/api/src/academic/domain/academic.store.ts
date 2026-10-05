@@ -68,6 +68,13 @@ export type CreateSubjectParticipationRecord = Omit<
   'createdAt' | 'updatedAt'
 >;
 
+export type AcademicCurrentContextExportRecord = Omit<
+  AcademicCurrentContextRecord,
+  'revision'
+> & {
+  revision?: number;
+};
+
 export type CreateProposalRecord = Omit<
   AcademicCatalogProposalRecord,
   'createdAt' | 'updatedAt'
@@ -171,12 +178,7 @@ export interface AcademicStore {
   ): Promise<AcademicCurrentContextRecord | null>;
   findCurrentContextForExport(
     userId: string,
-  ): Promise<
-    | (Omit<AcademicCurrentContextRecord, 'revision'> & {
-        revision?: number;
-      })
-    | null
-  >;
+  ): Promise<AcademicCurrentContextExportRecord | null>;
   setCurrentContext(
     input: Omit<
       AcademicCurrentContextRecord,
