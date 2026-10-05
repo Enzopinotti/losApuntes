@@ -406,11 +406,20 @@ jobs:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
       - name: Use Node 24 without cache
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
+
+      - name: Install root and Web workspace dependencies
+        run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
+
+      - name: Install Chromium for browser smoke
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Validate Compose definition
         run: docker compose -f compose.local.yml -f compose.health.yml config --quiet
@@ -444,6 +453,7 @@ jobs:
 
       - name: Probe runtime
         run: |
+          pnpm test:auth-browser-e2e
           node scripts/smoke-api-runtime.mjs
           node scripts/smoke-auth-lifecycle.mjs
           node scripts/smoke-academic-lifecycle.mjs
