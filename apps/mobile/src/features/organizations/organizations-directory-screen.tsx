@@ -1,7 +1,4 @@
-import type {
-  OrganizationCard,
-  OrganizationType,
-} from "@losapuntes/contracts";
+import type { OrganizationCard, OrganizationType } from "@losapuntes/contracts";
 import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
   ActivityIndicator,
@@ -83,7 +80,10 @@ function OrganizationRow({
       <View style={styles.rowHeading}>
         <Text style={styles.rowTitle}>{organization.name}</Text>
         {organization.verificationState === "verified" ? (
-          <Text accessibilityLabel="Organización verificada" style={styles.badge}>
+          <Text
+            accessibilityLabel="Organización verificada"
+            style={styles.badge}
+          >
             Verificada
           </Text>
         ) : null}
