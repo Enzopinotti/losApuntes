@@ -27,6 +27,12 @@ export type MobileProfileFailure = {
   code: string | null;
 };
 
+export type MobileProfileMutationResult =
+  | "committed"
+  | "reconciled"
+  | "failed"
+  | "cancelled";
+
 type ReadyOwnerProfile = Extract<
   OwnerProfileResponse,
   { onboardingRequired: false }
@@ -181,10 +187,10 @@ export class MobileProfileController {
   async createActivity(
     authorityKey: string,
     input: CreateProfileActivityInput,
-  ): Promise<void> {
-    if (!this.currentReady(authorityKey)) return;
+  ): Promise<MobileProfileMutationResult> {
+    if (!this.currentReady(authorityKey)) return "cancelled";
 
-    await this.mutate(
+    return this.mutate(
       authorityKey,
       (signal) => this.api.createActivity(input, signal),
       "Actividad agregada.",
@@ -302,28 +308,29 @@ export class MobileProfileController {
     authorityKey: string,
     action: (signal: AbortSignal) => Promise<T>,
     successNotice: string,
-  ): Promise<void> {
+  ): Promise<MobileProfileMutationResult> {
     const current = this.currentActionable(authorityKey);
-    if (!current || current.busy || this.active) return;
+    if (!current || current.busy || this.active) return "cancelled";
 
     const operation = this.begin(authorityKey);
     this.publish({ ...current, busy: true, failure: null, notice: null });
 
     try {
       await action(operation.controller.signal);
-      if (!this.isCurrent(operation)) return;
+      if (!this.isCurrent(operation)) return "cancelled";
 
       const response = await this.api.me(operation.controller.signal);
-      if (!this.isCurrent(operation)) return;
+      if (!this.isCurrent(operation)) return "cancelled";
       this.publishFromOwnerResponse(authorityKey, response, successNotice);
+      return "committed";
     } catch (error) {
-      if (!this.isCurrent(operation)) return;
+      if (!this.isCurrent(operation)) return "cancelled";
       const failure = mobileProfileFailure(error);
 
       if (ambiguousFailure(failure) || failure.kind === "conflict") {
         try {
           const response = await this.api.me(operation.controller.signal);
-          if (!this.isCurrent(operation)) return;
+          if (!this.isCurrent(operation)) return "cancelled";
           this.publishFromOwnerResponse(
             authorityKey,
             response,
@@ -331,18 +338,19 @@ export class MobileProfileController {
               ? "El perfil cambió en otro lugar. Recargamos la versión confirmada por el servidor; revisala antes de volver a guardar."
               : "La conexión se interrumpió. Recargamos el estado confirmado por el servidor; revisalo antes de repetir la acción.",
           );
-          return;
+          return "reconciled";
         } catch (refreshError) {
-          if (!this.isCurrent(operation)) return;
+          if (!this.isCurrent(operation)) return "cancelled";
           this.publishFailureOnCurrent(
             authorityKey,
             mobileProfileFailure(refreshError),
           );
-          return;
+          return "failed";
         }
       }
 
       this.publishFailureOnCurrent(authorityKey, failure);
+      return "failed";
     } finally {
       this.finish(operation);
     }
