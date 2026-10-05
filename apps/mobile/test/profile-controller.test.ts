@@ -15,7 +15,11 @@ import {
   MobileProfileController,
   mobileProfileFailure,
 } from "../src/features/profile/profile-controller";
-import { parseProfileListInput } from "../src/features/profile/profile-input-policy";
+import {
+  parseProfileHeadline,
+  parseProfileListInput,
+  profileListInputCapacity,
+} from "../src/features/profile/profile-input-policy";
 import { ApiRequestError } from "../src/services/api/client";
 
 const activity = (id: string): ProfileActivity => ({
@@ -392,6 +396,27 @@ test("profile list input policy matches server count and item-length limits", ()
   if (!tooManyTopics.ok) {
     assert.match(tooManyTopics.message, /máximo 20/u);
   }
+});
+
+test("profile list capacities allow every API-valid item with separators", () => {
+  assert.equal(profileListInputCapacity("languages"), 368);
+  assert.equal(profileListInputCapacity("skills"), 1858);
+  assert.equal(profileListInputCapacity("interests"), 1858);
+  assert.equal(profileListInputCapacity("helpTopics"), 2038);
+  assert.equal(profileListInputCapacity("learningTopics"), 2038);
+});
+
+test("profile headline accepts empty or 2-140 trimmed characters", () => {
+  assert.deepEqual(parseProfileHeadline("   "), { ok: true, value: null });
+  assert.deepEqual(parseProfileHeadline(" AB "), { ok: true, value: "AB" });
+
+  const tooShort = parseProfileHeadline("x");
+  assert.equal(tooShort.ok, false);
+  if (!tooShort.ok) assert.match(tooShort.message, /2 y 140/u);
+
+  const tooLong = parseProfileHeadline("x".repeat(141));
+  assert.equal(tooLong.ok, false);
+  if (!tooLong.ok) assert.match(tooLong.message, /2 y 140/u);
 });
 
 test("revision conflict reloads canonical profile before another update", async () => {
