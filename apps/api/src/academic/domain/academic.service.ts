@@ -97,6 +97,43 @@ function decodeCursor(value?: string): CatalogSearchCursor | undefined {
   }
 }
 
+function encodeAcademicExportCursor(id: string): string {
+  return Buffer.from(JSON.stringify({ id }), 'utf8').toString('base64url');
+}
+
+function decodeAcademicExportCursor(value: string | null): string | undefined {
+  if (value === null) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (
+      Object.keys(parsed).length !== 1 ||
+      typeof parsed.id !== 'string' ||
+      parsed.id.length === 0
+    ) {
+      throw new Error('Invalid export cursor shape');
+    }
+
+    return parsed.id;
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ACADEMIC_EXPORT_CURSOR_INVALID',
+      message: 'Academic export cursor is invalid',
+    });
+  }
+}
+
+function nextAcademicExportCursor(
+  items: readonly { id: string }[],
+  hasMore: boolean,
+): string | null {
+  const last = items.at(-1);
+  return hasMore && last ? encodeAcademicExportCursor(last.id) : null;
+}
+
 function publicNode(node: AcademicCatalogNodeRecord) {
   return {
     id: node.id,
@@ -450,6 +487,35 @@ export class AcademicService {
     };
   }
 
+  async listAccountExportAffiliations(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    const page = await this.store.listAffiliationsForExport({
+      userId,
+      limit: input.limit,
+      afterId: decodeAcademicExportCursor(input.cursor),
+    });
+
+    return {
+      items: page.items.map((row) => ({
+        id: row.id,
+        institutionId: row.institutionId,
+        campusId: row.campusId ?? null,
+        academicUnitId: row.academicUnitId ?? null,
+        programId: row.programId ?? null,
+        curriculumId: row.curriculumId ?? null,
+        status: row.status,
+        roles: effectiveAcademicRelationshipRoles(row.status, row.roles),
+        startedOn: row.startedOn ?? null,
+        endedOn: row.endedOn ?? null,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor: nextAcademicExportCursor(page.items, page.hasMore),
+    };
+  }
+
   async createAffiliation(userId: string, dto: CreateAcademicAffiliationDto) {
     const institution = await this.requireKind(
       dto.institutionId,
@@ -648,6 +714,30 @@ export class AcademicService {
     };
   }
 
+  async listAccountExportSubjectParticipations(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    const page = await this.store.listSubjectParticipationsForExport({
+      userId,
+      limit: input.limit,
+      afterId: decodeAcademicExportCursor(input.cursor),
+    });
+
+    return {
+      items: page.items.map((row) => ({
+        id: row.id,
+        subjectId: row.subjectId,
+        courseOfferingId: row.courseOfferingId ?? null,
+        state: row.state,
+        periodLabel: row.periodLabel ?? null,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor: nextAcademicExportCursor(page.items, page.hasMore),
+    };
+  }
+
   async upsertSubjectParticipation(
     userId: string,
     subjectId: string,
@@ -807,6 +897,52 @@ export class AcademicService {
     }
 
     this.contextRevisionConflict();
+  }
+
+  async getAccountExportCurrentContext(userId: string) {
+    const context = await this.store.findCurrentContextForExport(userId);
+    if (!context) return null;
+
+    const affiliation = await this.store.findAffiliationById(
+      context.affiliationId,
+    );
+    if (
+      !affiliation ||
+      affiliation.userId !== userId ||
+      affiliation.status === 'withdrawn'
+    ) {
+      return null;
+    }
+
+    let subjectParticipationId: string | null = null;
+    if (context.subjectParticipationId) {
+      const participation = await this.store.findSubjectParticipationById(
+        context.subjectParticipationId,
+      );
+      const participationEligible =
+        affiliationAllowsCurrentSubjectContext(affiliation.status) &&
+        participation != null &&
+        participation.userId === userId &&
+        isCurrentSubjectParticipationState(participation.state);
+
+      if (
+        participationEligible &&
+        participation &&
+        (await this.participationBelongsToAffiliation(
+          participation.subjectId,
+          affiliation,
+        ))
+      ) {
+        subjectParticipationId = participation.id;
+      }
+    }
+
+    return {
+      affiliationId: context.affiliationId,
+      subjectParticipationId,
+      revision: context.revision ?? 1,
+      updatedAt: context.updatedAt.toISOString(),
+    };
   }
 
   async setCurrentContext(userId: string, dto: SetAcademicContextDto) {
@@ -1030,6 +1166,28 @@ export class AcademicService {
     return {
       subjectId: subject.id,
       courseOfferingId: offeringId,
+    };
+  }
+
+  async listAccountExportFollows(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    const page = await this.store.listAcademicFollowsForExport({
+      userId,
+      limit: input.limit,
+      afterId: decodeAcademicExportCursor(input.cursor),
+    });
+
+    return {
+      items: page.items.map((row) => ({
+        id: row.id,
+        targetNodeId: row.targetNodeId,
+        targetKind: row.targetKind,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor: nextAcademicExportCursor(page.items, page.hasMore),
     };
   }
 

@@ -140,6 +140,38 @@ only the fields needed by the portable account record; password hashes,
 credential/lifecycle authority revisions and platform permissions are not read
 and therefore cannot leak through later serialization.
 
+### Implemented Academic sections
+
+Academic now contributes four user-state sections:
+
+- `academic.affiliations` — the user's affiliation relationships and lifecycle
+  state;
+- `academic.subjectParticipations` — the user's subject/course-offering
+  relationship history;
+- `academic.currentContext` — the effective current Academic context after a
+  read-only Academic-domain validation of stale references;
+- `academic.follows` — the user's institution/program follow relationships.
+
+Affiliations, subject participations and follows use dedicated export reads
+ordered by immutable `id ASC`. Their opaque cursor contains only the last
+emitted id, and persistence reads `limit + 1` to determine continuation.
+These reads do not change or reuse the existing UI/lifecycle ordering by
+`updatedAt`.
+
+The three paginated export reads have matching `{ userId: 1, id: 1 }` indexes.
+`academic.currentContext` is cursorless and may be empty. Its export projection never repairs persistence:
+invalid subject references are omitted in memory, invalid/withdrawn affiliation
+contexts produce an empty section, and export does not call context mutation or
+append Academic audit events. The export path uses a dedicated pure Mongo
+`findOne().lean()` lookup rather than Academic's normalizing context getter.
+For legacy rows with no persisted revision, the portable projection reports
+revision `1` in memory without rewriting the row or its timestamps.
+
+Academic export contains relationship references and user-owned lifecycle state,
+not the global Academic catalog. It does not export catalog source provenance,
+admin audit events, internal context guard revisions, or catalog proposals in
+this carrier.
+
 
 ## Security and privacy exclusions
 
@@ -191,10 +223,11 @@ This foundation does not decide:
 
 Those remain #82/#48 or later #183 slices.
 
-Academic, Resources/Files, Social/Q&A, Organizations, Notifications and Alumni
-are still unimplemented export domains. The presence of the three core sections
-does not make the overall export product complete or ready for public HTTP
-delivery.
+Resources/Files, Social/Q&A, Organizations, Notifications and Alumni are still
+unimplemented export domains. User-authored Academic catalog proposals are also
+outside the currently implemented v1 Academic carrier pending a separate
+inclusion decision. The presence of the core and Academic sections does not make
+the overall export product complete or ready for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 
