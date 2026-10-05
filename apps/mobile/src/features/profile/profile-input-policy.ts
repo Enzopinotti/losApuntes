@@ -69,9 +69,10 @@ export function parseProfileListInput(
     };
   }
 
-  const invalid = values.find(
-    (item) => item.length < rule.minLength || item.length > rule.maxLength,
-  );
+  const invalid = values.find((item) => {
+    const length = [...item].length;
+    return length < rule.minLength || length > rule.maxLength;
+  });
   if (invalid) {
     return {
       ok: false,
@@ -87,7 +88,8 @@ export function parseProfileListInput(
 
 export function profileListInputCapacity(field: ProfileListField): number {
   const rule = PROFILE_LIST_RULES[field];
-  return rule.maxItems * rule.maxLength + Math.max(0, rule.maxItems - 1) * 2;
+  const separators = Math.max(0, rule.maxItems - 1) * 2;
+  return rule.maxItems * rule.maxLength * 2 + separators;
 }
 
 export type ProfileHeadlineParseResult =
