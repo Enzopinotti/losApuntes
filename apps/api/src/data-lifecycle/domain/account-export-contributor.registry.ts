@@ -22,6 +22,11 @@ export class AccountExportContributorRegistry {
       if (!sectionId) {
         throw new Error('Account export contributor sectionId is required');
       }
+      if (sectionId !== contributor.sectionId) {
+        throw new Error(
+          'Account export contributor sectionId must not have surrounding whitespace',
+        );
+      }
       if (bySection.has(sectionId)) {
         throw new Error(
           `Duplicate account export contributor sectionId: ${sectionId}`,
