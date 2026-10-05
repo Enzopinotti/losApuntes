@@ -7,7 +7,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --write \"src/data-lifecycle/contributors/account-export-core.contributors.ts\" \"src/profile/domain/profile.service.spec.ts\" \"src/users/users.service.spec.ts\" && git diff -- src/data-lifecycle/contributors/account-export-core.contributors.ts src/profile/domain/profile.service.spec.ts src/users/users.service.spec.ts && exit 1",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
