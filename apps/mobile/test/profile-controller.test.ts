@@ -300,7 +300,6 @@ test("activity mutations use canonical snapshots and refresh after commit", asyn
   }
 });
 
-
 test("ambiguous activity create reports reconciliation instead of a committed result", async () => {
   let meCalls = 0;
   const controller = new MobileProfileController(
