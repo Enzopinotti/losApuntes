@@ -20,10 +20,7 @@ export type CreateProfileActivityInput = {
 };
 
 export interface MobileProfileTransport {
-  me(
-    credential: string,
-    signal?: AbortSignal,
-  ): Promise<OwnerProfileResponse>;
+  me(credential: string, signal?: AbortSignal): Promise<OwnerProfileResponse>;
   create(
     credential: string,
     displayName: string,
@@ -87,11 +84,7 @@ export class MobileProfileHttpTransport implements MobileProfileTransport {
     });
   }
 
-  create(
-    credential: string,
-    displayName: string,
-    signal?: AbortSignal,
-  ) {
+  create(credential: string, displayName: string, signal?: AbortSignal) {
     return this.client.request<{ profile: OwnerProfile }>("/profile/me", {
       method: "POST",
       credential,
@@ -100,11 +93,7 @@ export class MobileProfileHttpTransport implements MobileProfileTransport {
     });
   }
 
-  update(
-    credential: string,
-    input: UpdateProfileInput,
-    signal?: AbortSignal,
-  ) {
+  update(credential: string, input: UpdateProfileInput, signal?: AbortSignal) {
     return this.client.request<{ profile: OwnerProfile }>("/profile/me", {
       method: "PATCH",
       credential,
