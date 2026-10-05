@@ -1,9 +1,5 @@
 export type ProfileListField =
-  | "languages"
-  | "skills"
-  | "interests"
-  | "helpTopics"
-  | "learningTopics";
+  "languages" | "skills" | "interests" | "helpTopics" | "learningTopics";
 
 type ProfileListRule = {
   label: string;
@@ -46,8 +42,7 @@ export const PROFILE_LIST_RULES: Record<ProfileListField, ProfileListRule> = {
 };
 
 export type ProfileListParseResult =
-  | { ok: true; values: string[] }
-  | { ok: false; message: string };
+  { ok: true; values: string[] } | { ok: false; message: string };
 
 export function parseProfileListInput(
   field: ProfileListField,
@@ -75,8 +70,7 @@ export function parseProfileListInput(
   }
 
   const invalid = values.find(
-    (item) =>
-      item.length < rule.minLength || item.length > rule.maxLength,
+    (item) => item.length < rule.minLength || item.length > rule.maxLength,
   );
   if (invalid) {
     return {
