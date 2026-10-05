@@ -2,9 +2,7 @@ export type OrganizationQueryResult =
   | { ok: true; query: string }
   | { ok: false; message: string };
 
-export function normalizeOrganizationQuery(
-  value: string,
-): OrganizationQueryResult {
+export function normalizeOrganizationQuery(value: string): OrganizationQueryResult {
   const query = value.normalize("NFC").trim();
 
   if (query.length === 0) return { ok: true, query: "" };
