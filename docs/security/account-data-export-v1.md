@@ -162,7 +162,10 @@ The three paginated export reads have matching `{ userId: 1, id: 1 }` indexes.
 `academic.currentContext` is cursorless and may be empty. Its export projection never repairs persistence:
 invalid subject references are omitted in memory, invalid/withdrawn affiliation
 contexts produce an empty section, and export does not call context mutation or
-append Academic audit events.
+append Academic audit events. The export path uses a dedicated pure Mongo
+`findOne().lean()` lookup rather than Academic's normalizing context getter.
+For legacy rows with no persisted revision, the portable projection reports
+revision `1` in memory without rewriting the row or its timestamps.
 
 Academic export contains relationship references and user-owned lifecycle state,
 not the global Academic catalog. It does not export catalog source provenance,
