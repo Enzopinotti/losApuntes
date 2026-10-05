@@ -114,6 +114,11 @@ export interface AcademicStore {
     limit: number;
     statuses?: AcademicAffiliationRecord['status'][];
   }): Promise<BoundedAcademicPage<AcademicAffiliationRecord>>;
+  listAffiliationsForExport(input: {
+    userId: string;
+    limit: number;
+    afterId?: string;
+  }): Promise<BoundedAcademicPage<AcademicAffiliationRecord>>;
   updateAffiliationStatus(
     userId: string,
     id: string,
@@ -149,6 +154,11 @@ export interface AcademicStore {
     limit: number;
     states?: SubjectParticipationRecord['state'][];
   }): Promise<BoundedAcademicPage<SubjectParticipationRecord>>;
+  listSubjectParticipationsForExport(input: {
+    userId: string;
+    limit: number;
+    afterId?: string;
+  }): Promise<BoundedAcademicPage<SubjectParticipationRecord>>;
   transitionSubjectParticipationStates(
     userId: string,
     ids: string[],
@@ -174,6 +184,11 @@ export interface AcademicStore {
     userId: string,
     limit: number,
   ): Promise<BoundedAcademicPage<AcademicFollowRecord>>;
+  listAcademicFollowsForExport(input: {
+    userId: string;
+    limit: number;
+    afterId?: string;
+  }): Promise<BoundedAcademicPage<AcademicFollowRecord>>;
   removeAcademicFollows(
     userId: string,
     targetNodeIds: string[],
