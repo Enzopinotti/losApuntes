@@ -91,10 +91,11 @@ export function profileListInputCapacity(field: ProfileListField): number {
 }
 
 export type ProfileHeadlineParseResult =
-  | { ok: true; value: string | null }
-  | { ok: false; message: string };
+  { ok: true; value: string | null } | { ok: false; message: string };
 
-export function parseProfileHeadline(value: string): ProfileHeadlineParseResult {
+export function parseProfileHeadline(
+  value: string,
+): ProfileHeadlineParseResult {
   const normalized = value.normalize("NFC").trim();
   if (!normalized) return { ok: true, value: null };
 
