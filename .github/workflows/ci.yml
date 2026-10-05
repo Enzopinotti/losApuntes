@@ -412,6 +412,12 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
+      - name: Install root and Web workspace dependencies
+        run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
+
+      - name: Install Chromium for browser smoke
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Validate Compose definition
         run: docker compose -f compose.local.yml -f compose.health.yml config --quiet
 
@@ -444,6 +450,7 @@ jobs:
 
       - name: Probe runtime
         run: |
+          pnpm test:auth-browser-e2e
           node scripts/smoke-api-runtime.mjs
           node scripts/smoke-auth-lifecycle.mjs
           node scripts/smoke-academic-lifecycle.mjs
