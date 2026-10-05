@@ -20,6 +20,7 @@ import {
   type MobileOrganizationsDirectorySnapshot,
   type MobileOrganizationsFailure,
 } from "./organizations-controller";
+import { normalizeOrganizationQuery } from "./organizations-input-policy";
 import { mobileOrganizationsApi } from "./organizations-runtime";
 
 const types: Array<{ value: OrganizationType | null; label: string }> = [
@@ -111,6 +112,7 @@ export function MobileOrganizationsDirectoryScreen() {
   const [appState, setAppState] = useState(AppState.currentState);
   const [queryDraft, setQueryDraft] = useState("");
   const [query, setQuery] = useState("");
+  const [queryError, setQueryError] = useState<string | null>(null);
   const [type, setType] = useState<OrganizationType | null>(null);
 
   const sessionKey =
@@ -157,7 +159,16 @@ export function MobileOrganizationsDirectoryScreen() {
       ? snapshot
       : null;
 
-  const applySearch = () => setQuery(queryDraft.trim().slice(0, 120));
+  const applySearch = () => {
+    const result = normalizeOrganizationQuery(queryDraft);
+    if (!result.ok) {
+      setQueryError(result.message);
+      return;
+    }
+
+    setQueryError(null);
+    setQuery(result.query);
+  };
 
   const retry = () => {
     if (!authorityKey) return;
@@ -180,13 +191,24 @@ export function MobileOrganizationsDirectoryScreen() {
           accessibilityLabel="Buscar organizaciones por nombre"
           autoCorrect={false}
           maxLength={120}
-          onChangeText={setQueryDraft}
+          onChangeText={(value) => {
+            setQueryDraft(value);
+            if (queryError) setQueryError(null);
+          }}
           onSubmitEditing={applySearch}
           placeholder="Ej. GIDAS"
           returnKeyType="search"
           style={styles.input}
           value={queryDraft}
         />
+        <Text style={styles.meta}>
+          Dejá vacío para ver todo o escribí entre 2 y 120 caracteres.
+        </Text>
+        {queryError ? (
+          <Text accessibilityRole="alert" style={styles.error}>
+            {queryError}
+          </Text>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           onPress={applySearch}
