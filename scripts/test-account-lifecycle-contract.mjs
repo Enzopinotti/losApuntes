@@ -127,6 +127,16 @@ assert.match(academicService, /ACADEMIC_EXPORT_CURSOR_INVALID/u);
 assert.match(academicService, /listAccountExportAffiliations/u);
 assert.match(academicService, /listAccountExportSubjectParticipations/u);
 assert.match(academicService, /getAccountExportCurrentContext/u);
+const academicContextExport =
+  academicService.match(
+    /async getAccountExportCurrentContext[\s\S]*?\n  async setCurrentContext/u,
+  )?.[0] ?? '';
+assert.match(academicContextExport, /this\.store\.getCurrentContext/u);
+assert.doesNotMatch(
+  academicContextExport,
+  /this\.getCurrentContext|this\.store\.setCurrentContext|this\.audit/u,
+  'Academic current-context export must remain a read-only projection',
+);
 assert.match(academicService, /listAccountExportFollows/u);
 assert.match(academicStore, /listAffiliationsForExport/u);
 assert.match(academicStore, /listSubjectParticipationsForExport/u);
