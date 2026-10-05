@@ -39,6 +39,10 @@ describe('AccountExportContributorRegistry', () => {
           contributor('profile'),
         ]),
     ).toThrow('Duplicate account export contributor sectionId: profile');
+
+    expect(
+      () => new AccountExportContributorRegistry([contributor(' profile')]),
+    ).toThrow('sectionId must not have surrounding whitespace');
   });
 
   it('rejects unknown sections instead of falling back to another contributor', () => {
