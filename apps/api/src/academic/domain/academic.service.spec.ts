@@ -233,7 +233,7 @@ describe('AcademicService', () => {
         programId: first.programId ?? null,
         curriculumId: first.curriculumId ?? null,
         status: first.status,
-        roles: [],
+        roles: ['student'],
         startedOn: null,
         endedOn: null,
         createdAt: now.toISOString(),
