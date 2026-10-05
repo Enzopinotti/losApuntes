@@ -304,6 +304,46 @@ test("activity mutations use canonical snapshots and refresh after commit", asyn
   }
 });
 
+test("confirmed activity create stays committed when only canonical refresh is transient", async () => {
+  let meCalls = 0;
+  const controller = new MobileProfileController(
+    apiStub({
+      me: async () => {
+        meCalls += 1;
+        if (meCalls === 1) return ready([activity("a1")]);
+        if (meCalls === 2) {
+          throw new ApiRequestError(
+            "timeout",
+            null,
+            "REQUEST_TIMEOUT",
+            "timeout",
+          );
+        }
+        return ready([activity("a1"), activity("created")]);
+      },
+      createActivity: async () => ({ activity: activity("created") }),
+    }),
+  );
+
+  await controller.load("session-a");
+  const result = await controller.createActivity("session-a", {
+    type: "project",
+    title: "Proyecto confirmado",
+  });
+
+  assert.equal(result, "committed");
+  assert.equal(meCalls, 3);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.data.activities.map((item) => item.id),
+      ["a1", "created"],
+    );
+    assert.equal(snapshot.notice, "Actividad agregada.");
+  }
+});
+
 test("ambiguous activity create reports reconciliation instead of a committed result", async () => {
   let meCalls = 0;
   const controller = new MobileProfileController(
@@ -398,12 +438,28 @@ test("profile list input policy matches server count and item-length limits", ()
   }
 });
 
+test("profile list policy counts Unicode code points like the API", () => {
+  const oneEmojiLanguage = parseProfileListInput("languages", "😀");
+  assert.equal(oneEmojiLanguage.ok, false);
+
+  assert.deepEqual(parseProfileListInput("languages", "😀😀"), {
+    ok: true,
+    values: ["😀😀"],
+  });
+
+  const emojiSkill = "😀".repeat(31);
+  assert.deepEqual(parseProfileListInput("skills", emojiSkill), {
+    ok: true,
+    values: [emojiSkill],
+  });
+});
+
 test("profile list capacities allow every API-valid item with separators", () => {
-  assert.equal(profileListInputCapacity("languages"), 368);
-  assert.equal(profileListInputCapacity("skills"), 1858);
-  assert.equal(profileListInputCapacity("interests"), 1858);
-  assert.equal(profileListInputCapacity("helpTopics"), 2038);
-  assert.equal(profileListInputCapacity("learningTopics"), 2038);
+  assert.equal(profileListInputCapacity("languages"), 718);
+  assert.equal(profileListInputCapacity("skills"), 3658);
+  assert.equal(profileListInputCapacity("interests"), 3658);
+  assert.equal(profileListInputCapacity("helpTopics"), 4038);
+  assert.equal(profileListInputCapacity("learningTopics"), 4038);
 });
 
 test("profile headline accepts empty or 2-140 trimmed characters", () => {
