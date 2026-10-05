@@ -118,6 +118,7 @@ describe('MongoAccountExportStore', () => {
     });
     const f = fixture({ active: record() });
     f.claimQuery.exec.mockResolvedValue(claimed);
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
     const leaseExpiresAt = new Date(now.getTime() + 120_000);
 
     await expect(
@@ -128,7 +129,7 @@ describe('MongoAccountExportStore', () => {
       }),
     ).resolves.toEqual(claimed);
 
-    expect(f.jobs.findOneAndUpdate.mock.calls[1]).toEqual([
+    expect(f.jobs.findOneAndUpdate.mock.calls[0]).toEqual([
       {
         active: true,
         $or: [
