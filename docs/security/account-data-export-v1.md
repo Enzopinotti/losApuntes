@@ -131,8 +131,9 @@ and domain limit. The export orchestrator may request up to 100 records, while
 Profile currently clamps the persistence read to its own maximum of 50.
 
 The core contributor registry sorts section ids deterministically and rejects
-blank or duplicate ids during dependency wiring. This prevents two domains from
-silently claiming the same export section.
+blank, padded/noncanonical, or duplicate ids during dependency wiring. This
+prevents two domains from silently claiming the same export section or exposing
+an id that differs from its registry key.
 
 The `account` projection is allowlisted at query time. The Mongo read selects
 only the fields needed by the portable account record; password hashes,
