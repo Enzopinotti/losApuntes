@@ -47,72 +47,66 @@ function fixture() {
 }
 
 describe('AccountExportService', () => {
-  it(
-    'creates one active export request and returns only public status fields',
-    async () => {
-      const f = fixture();
-      f.store.requestActive.mockImplementation((input) =>
-        Promise.resolve({
-          created: true,
-          job: job({ id: input.id, userId: input.userId }),
-        }),
-      );
+  it('creates one active export request and returns only public status fields', async () => {
+    const f = fixture();
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ id: input.id, userId: input.userId }),
+      }),
+    );
 
-      const result = await f.service.request('user-1', now);
+    const result = await f.service.request('user-1', now);
 
-      expect(result.created).toBe(true);
-      expect(result.export).toEqual({
-        id: expect.any(String),
+    expect(result.created).toBe(true);
+    expect(result.export).toEqual({
+      id: expect.any(String),
+      format: ACCOUNT_EXPORT_FORMAT,
+      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+      state: 'pending',
+      requestedAt: now.toISOString(),
+      failureCode: null,
+    });
+    expect(f.store.requestActive).toHaveBeenCalledWith({
+      id: expect.any(String),
+      userId: 'user-1',
+      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+      now,
+    });
+    expect(result.export).not.toHaveProperty('claimId');
+    expect(result.export).not.toHaveProperty('leaseExpiresAt');
+  });
+
+  it('replays the existing active export instead of manufacturing another job', async () => {
+    const f = fixture();
+    f.store.requestActive.mockResolvedValue({
+      created: false,
+      job: job({ id: 'existing-export' }),
+    });
+
+    await expect(f.service.request('user-1', now)).resolves.toEqual({
+      created: false,
+      export: {
+        id: 'existing-export',
         format: ACCOUNT_EXPORT_FORMAT,
         formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
         state: 'pending',
         requestedAt: now.toISOString(),
         failureCode: null,
-      });
-      expect(f.store.requestActive).toHaveBeenCalledWith({
-        id: expect.any(String),
-        userId: 'user-1',
-        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-        now,
-      });
-      expect(result.export).not.toHaveProperty('claimId');
-      expect(result.export).not.toHaveProperty('leaseExpiresAt');
-    },
-  );
-
-  it(
-    'replays the existing active export instead of manufacturing another job',
-    async () => {
-      const f = fixture();
-      f.store.requestActive.mockResolvedValue({
-        created: false,
-        job: job({ id: 'existing-export' }),
-      });
-
-      await expect(f.service.request('user-1', now)).resolves.toEqual({
-        created: false,
-        export: {
-          id: 'existing-export',
-          format: ACCOUNT_EXPORT_FORMAT,
-          formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-          state: 'pending',
-          requestedAt: now.toISOString(),
-          failureCode: null,
-        },
-      });
-    },
-  );
+      },
+    });
+  });
 
   it('looks up status through the owner-scoped store boundary', async () => {
     const f = fixture();
     f.store.findOwned.mockResolvedValue(job({ state: 'processing' }));
 
-    await expect(
-      f.service.status('user-1', 'export-1'),
-    ).resolves.toMatchObject({
-      id: 'export-1',
-      state: 'processing',
-    });
+    await expect(f.service.status('user-1', 'export-1')).resolves.toMatchObject(
+      {
+        id: 'export-1',
+        state: 'processing',
+      },
+    );
     expect(f.store.findOwned).toHaveBeenCalledWith('export-1', 'user-1');
 
     f.store.findOwned.mockResolvedValue(null);
