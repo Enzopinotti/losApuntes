@@ -26,6 +26,7 @@ const API_ORIGIN = loopbackOrigin(
 const REQUEST_TIMEOUT_MS = 5_000;
 const WEB_START_TIMEOUT_MS = 30_000;
 const EMAIL_SUBJECT = "Verificá tu email en Los Apuntes";
+const RECOVERY_EMAIL_SUBJECT = "Recuperá tu acceso a Los Apuntes";
 
 function loopbackOrigin(name, fallback) {
   const configured = process.env[name] ?? fallback;
@@ -535,6 +536,189 @@ async function run() {
       401,
       "revoked session must no longer authorize /auth/me",
     );
+
+    await page.goto(new URL("/forgot-password", WEB_ORIGIN).toString());
+    await page.getByLabel("Email").fill(email);
+    await page.getByRole("button", { name: "Enviar instrucciones" }).click();
+    await page
+      .getByText(
+        "Si existe una cuenta que puede recuperarse, te enviamos instrucciones.",
+        { exact: true },
+      )
+      .waitFor();
+
+    const recoveryMail = await waitForMail(email, RECOVERY_EMAIL_SUBJECT);
+    const recoveryToken = extractActionToken(
+      recoveryMail,
+      "/auth/reset-password",
+    );
+    const recoveryMailBody = [
+      typeof recoveryMail.Text === "string" ? recoveryMail.Text : "",
+      typeof recoveryMail.HTML === "string" ? recoveryMail.HTML : "",
+    ].join("\n");
+    const recoveryUrl = (
+      recoveryMailBody.match(/https?:\\/\\/[^\\s"'<>]+/g) ?? []
+    )
+      .map((candidate) => candidate.replace(/[),.;\\]]+$/, ""))
+      .map((candidate) => {
+        try {
+          return new URL(candidate);
+        } catch {
+          return undefined;
+        }
+      })
+      .find(
+        (candidate) =>
+          candidate?.pathname === "/auth/reset-password" &&
+          candidate.hash === `#token=${recoveryToken}`,
+      );
+    assert.equal(
+      recoveryUrl instanceof URL,
+      true,
+      "recovery email should contain a complete fragment-based browser URL",
+    );
+    const recoveryOrigin = loopbackOrigin(
+      "captured recovery link origin",
+      recoveryUrl.origin,
+    );
+    assert.equal(
+      recoveryOrigin,
+      WEB_ORIGIN,
+      "recovery email should target the configured local Web origin",
+    );
+    assert.equal(
+      recoveryUrl.search,
+      "",
+      "recovery email should not put the one-time token in the query",
+    );
+
+    let recoveryTokenAppearedInRequestUrl = false;
+    page.on("request", (request) => {
+      if (request.url().includes(recoveryToken)) {
+        recoveryTokenAppearedInRequestUrl = true;
+      }
+    });
+
+    await page.goto(recoveryUrl.toString());
+    await page.waitForFunction(
+      () =>
+        window.location.pathname === "/auth/reset-password" &&
+        window.location.search === "" &&
+        window.location.hash === "",
+    );
+    await page
+      .getByRole("heading", {
+        name: "Elegí una nueva contraseña",
+        exact: true,
+      })
+      .waitFor();
+    const resetPassword = page.getByLabel("Nueva contraseña");
+    const resetPasswordConfirmation = page.getByLabel("Confirmar contraseña");
+    await resetPassword.waitFor();
+    assert.equal(
+      await resetPassword.getAttribute("autocomplete"),
+      "new-password",
+    );
+    assert.equal(
+      await resetPasswordConfirmation.getAttribute("autocomplete"),
+      "new-password",
+    );
+
+    const recoveredPassword =
+      `Recovered-${randomBytes(24).toString("base64url")}!7b`;
+    await resetPassword.fill(recoveredPassword);
+    await resetPasswordConfirmation.fill(recoveredPassword);
+    const recoveryCompleteResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname ===
+          "/auth/password/recovery/complete" &&
+        request.method() === "POST"
+      );
+    });
+    await page.getByRole("button", { name: "Cambiar contraseña" }).click();
+    const recoveryCompleteResponse = await recoveryCompleteResponsePromise;
+    assert.equal(
+      recoveryCompleteResponse.status(),
+      204,
+      "browser password recovery should succeed",
+    );
+    await page
+      .getByText(
+        "Contraseña actualizada. Cerramos las sesiones anteriores.",
+        { exact: true },
+      )
+      .waitFor();
+    assert.equal(
+      recoveryTokenAppearedInRequestUrl,
+      false,
+      "one-time recovery token must not appear in any browser request URL",
+    );
+    assert.equal(
+      page.url().includes(recoveryToken),
+      false,
+      "recovery token should be absent from the address bar after parsing",
+    );
+
+    await page.getByRole("link", { name: "Iniciar sesión de nuevo" }).click();
+    await page.waitForURL((url) => url.pathname === "/login");
+    await page.goBack();
+    await page.waitForFunction(
+      () =>
+        window.location.pathname === "/auth/reset-password" &&
+        window.location.search === "" &&
+        window.location.hash === "",
+    );
+    assert.equal(
+      page.url().includes(recoveryToken),
+      false,
+      "browser history must not restore the one-time recovery token",
+    );
+
+    await page.goto(new URL("/login", WEB_ORIGIN).toString());
+    const recoveredLoginEmail = page.getByLabel("Email");
+    const recoveredLoginPassword = page.getByLabel("Contraseña");
+    const recoveredLoginSubmit = page.getByRole("button", {
+      name: "Iniciar sesión",
+    });
+    await recoveredLoginEmail.fill(email);
+    await recoveredLoginPassword.fill(password);
+    const stalePasswordResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/auth/login" &&
+        request.method() === "POST"
+      );
+    });
+    await recoveredLoginSubmit.click();
+    const stalePasswordResponse = await stalePasswordResponsePromise;
+    assert.equal(
+      stalePasswordResponse.status(),
+      401,
+      "old password should be rejected after recovery",
+    );
+    await page
+      .getByText("Email o contraseña incorrectos.", { exact: true })
+      .waitFor();
+
+    await recoveredLoginPassword.fill(recoveredPassword);
+    const recoveredLoginResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/auth/login" &&
+        request.method() === "POST"
+      );
+    });
+    await recoveredLoginSubmit.click();
+    const recoveredLoginResponse = await recoveredLoginResponsePromise;
+    assert.equal(
+      recoveredLoginResponse.status(),
+      200,
+      "new password should authenticate after recovery",
+    );
+    await page.waitForURL((url) => url.pathname === "/dashboard");
+    assert.equal((await authenticatedMe(page)).status, 200);
+
     assert.deepEqual(
       pageErrors,
       [],
@@ -543,7 +727,7 @@ async function run() {
 
     await context.close();
     console.log(
-      "Auth browser E2E passed: verification URL/history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection and logout.",
+      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout and recovered credential login.",
     );
   } finally {
     await browser?.close();
