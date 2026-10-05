@@ -19,6 +19,10 @@ const [
   exportRegistry,
   usersService,
   profileService,
+  academicExportContributors,
+  academicService,
+  academicStore,
+  academicSchemas,
 ] = await Promise.all([
   readFile(new URL('../apps/api/src/data-lifecycle/account-lifecycle.controller.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-lifecycle.service.ts', import.meta.url), 'utf8'),
@@ -37,6 +41,10 @@ const [
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/users/users.service.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/profile/domain/profile.service.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/contributors/account-export-academic.contributors.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/academic/domain/academic.service.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/academic/mongo/mongo-academic.store.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/academic/mongo/academic.mongo-schemas.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.match(controller, /@Get\('closure\/preflight'\)/u);
@@ -105,6 +113,44 @@ assert.match(profileService, /getAccountExportProfile/u);
 assert.match(profileService, /listAccountExportActivities/u);
 assert.match(dataLifecycleModule, /AccountExportContributorRegistry/u);
 assert.match(dataLifecycleModule, /ProfileActivitiesExportContributor/u);
+assert.match(academicExportContributors, /readonly sectionId = 'academic\.affiliations'/u);
+assert.match(
+  academicExportContributors,
+  /readonly sectionId = 'academic\.subjectParticipations'/u,
+);
+assert.match(
+  academicExportContributors,
+  /readonly sectionId = 'academic\.currentContext'/u,
+);
+assert.match(academicExportContributors, /readonly sectionId = 'academic\.follows'/u);
+assert.match(academicService, /ACADEMIC_EXPORT_CURSOR_INVALID/u);
+assert.match(academicService, /listAccountExportAffiliations/u);
+assert.match(academicService, /listAccountExportSubjectParticipations/u);
+assert.match(academicService, /getAccountExportCurrentContext/u);
+assert.match(academicService, /listAccountExportFollows/u);
+assert.match(academicStore, /listAffiliationsForExport/u);
+assert.match(academicStore, /listSubjectParticipationsForExport/u);
+assert.match(academicStore, /listAcademicFollowsForExport/u);
+assert.match(academicStore, /\.sort\(\{ id: 1 \}\)/u);
+assert.match(
+  academicSchemas,
+  /AcademicAffiliationSchema\.index\(\{ userId: 1, id: 1 \}\)/u,
+);
+assert.match(
+  academicSchemas,
+  /AcademicSubjectParticipationSchema\.index\(\{ userId: 1, id: 1 \}\)/u,
+);
+assert.match(
+  academicSchemas,
+  /AcademicFollowSchema\.index\(\{ userId: 1, id: 1 \}\)/u,
+);
+assert.match(dataLifecycleModule, /AcademicModule/u);
+assert.match(dataLifecycleModule, /AcademicFollowsExportContributor/u);
+assert.doesNotMatch(
+  academicExportContributors,
+  /(AcademicCatalogProposal|provenance|appendAuditEvent|contextGuardRevision)/u,
+  'Academic export adapters must not expose catalog/admin/internal guard state',
+);
 assert.doesNotMatch(
   controller,
   /@(Get|Post)\('(?:data-)?exports?/u,
