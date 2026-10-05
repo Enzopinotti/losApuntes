@@ -208,6 +208,7 @@ export class MobileProfileController {
       authorityKey,
       (signal) => this.api.deleteActivity(activity, signal),
       "Actividad eliminada.",
+      new Set(["PROFILE_ACTIVITY_NOT_FOUND"]),
     );
   }
 
@@ -305,6 +306,7 @@ export class MobileProfileController {
     authorityKey: string,
     action: (signal: AbortSignal) => Promise<T>,
     successNotice: string,
+    reconcileCodes: ReadonlySet<string> = new Set(),
   ): Promise<MobileProfileMutationResult> {
     const current = this.currentActionable(authorityKey);
     if (!current || current.busy || this.active) return "cancelled";
@@ -327,7 +329,11 @@ export class MobileProfileController {
       if (!this.isCurrent(operation)) return "cancelled";
       const failure = mobileProfileFailure(error);
 
-      if (ambiguousFailure(failure) || failure.kind === "conflict") {
+      if (
+        ambiguousFailure(failure) ||
+        failure.kind === "conflict" ||
+        (failure.code !== null && reconcileCodes.has(failure.code))
+      ) {
         try {
           const response = await this.api.me(operation.controller.signal);
           if (!this.isCurrent(operation)) return "cancelled";
