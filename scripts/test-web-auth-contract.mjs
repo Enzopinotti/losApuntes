@@ -163,6 +163,19 @@ const login = await read(
 );
 assert.match(login, /autoComplete="current-password"/u);
 
+const authFormStyles = await read(
+  'apps/web/src/features/auth/AuthForm.scss',
+);
+assert.match(
+  authFormStyles,
+  /&:focus-visible\s*\{\s*outline:\s*3px solid CanvasText;\s*outline-offset:\s*2px;/u,
+);
+assert.doesNotMatch(
+  authFormStyles,
+  /&:focus\s*\{[^}]*outline:\s*none;/su,
+  'keyboard focus must not be suppressed on Login/SignUp inputs',
+);
+
 const security = await read('apps/web/src/pages/Security.tsx');
 assert.match(security, /useAsyncAuthorityFence/u);
 assert.equal((security.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
