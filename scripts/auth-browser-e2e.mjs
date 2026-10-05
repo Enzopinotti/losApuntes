@@ -28,9 +28,8 @@ const WEB_START_TIMEOUT_MS = 30_000;
 const EMAIL_SUBJECT = "Verificá tu email en Los Apuntes";
 const RECOVERY_EMAIL_SUBJECT = "Recuperá tu acceso a Los Apuntes";
 
-function loopbackOrigin(name, fallback) {
-  const configured = process.env[name] ?? fallback;
-  const url = new URL(configured);
+function validateLoopbackOrigin(name, value) {
+  const url = new URL(value);
   const hostname = url.hostname.toLowerCase();
 
   assert.equal(url.protocol, "http:", `${name} must use local HTTP`);
@@ -45,6 +44,10 @@ function loopbackOrigin(name, fallback) {
   assert.equal(url.hash, "", `${name} must not contain a fragment`);
 
   return url.origin;
+}
+
+function loopbackOrigin(name, fallback) {
+  return validateLoopbackOrigin(name, process.env[name] ?? fallback);
 }
 
 async function requestJson(path, options = {}) {
@@ -251,7 +254,7 @@ async function run() {
       true,
       "verification email should contain a complete fragment-based browser URL",
     );
-    const verificationOrigin = loopbackOrigin(
+    const verificationOrigin = validateLoopbackOrigin(
       "captured verification link origin",
       verificationUrl.origin,
     );
@@ -577,7 +580,7 @@ async function run() {
       true,
       "recovery email should contain a complete fragment-based browser URL",
     );
-    const recoveryOrigin = loopbackOrigin(
+    const recoveryOrigin = validateLoopbackOrigin(
       "captured recovery link origin",
       recoveryUrl.origin,
     );
@@ -612,8 +615,10 @@ async function run() {
         exact: true,
       })
       .waitFor();
-    const resetPassword = page.getByLabel("Nueva contraseña");
-    const resetPasswordConfirmation = page.getByLabel("Confirmar contraseña");
+    const resetPassword = page.getByLabel("Nueva contraseña", { exact: true });
+    const resetPasswordConfirmation = page.getByLabel("Confirmar contraseña", {
+      exact: true,
+    });
     await resetPassword.waitFor();
     assert.equal(
       await resetPassword.getAttribute("autocomplete"),
