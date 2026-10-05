@@ -352,12 +352,21 @@ async function run() {
     await page.goto(new URL("/login", WEB_ORIGIN).toString());
     await page.getByRole("link", { name: "Olvidé mi contraseña" }).click();
     await page.waitForURL((url) => url.pathname === "/forgot-password");
+    await page
+      .getByRole("heading", { name: "Recuperar contraseña", exact: true })
+      .waitFor();
     assert.equal(
       await page.getByLabel("Email").getAttribute("autocomplete"),
       "email",
     );
     await page.getByRole("link", { name: "Volver a iniciar sesión" }).click();
     await page.waitForURL((url) => url.pathname === "/login");
+    await page
+      .getByRole("heading", {
+        name: "Inicia sesión en tu cuenta",
+        exact: true,
+      })
+      .waitFor();
 
     await loginEmail.focus();
     await page.keyboard.press("Tab");
