@@ -30,6 +30,7 @@ import {
   type MobileProfileFailure,
   type MobileProfileSnapshot,
 } from "./profile-controller";
+import { parseProfileListInput } from "./profile-input-policy";
 import { mobileProfileApi } from "./profile-runtime";
 
 const profileSections: Array<{ key: ProfileSection; label: string }> = [
@@ -70,29 +71,13 @@ const defaultVisibility = (): Record<ProfileSection, ProfileVisibility> => ({
   contributions: "private",
 });
 
-function listFromText(value: string): string[] {
-  const seen = new Set<string>();
-  const values: string[] = [];
-
-  for (const raw of value.split(",")) {
-    const item = raw.normalize("NFC").trim();
-    if (!item) continue;
-    const key = item.toLocaleLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    values.push(item);
-  }
-
-  return values;
-}
-
 function listText(values: string[]): string {
   return values.join(", ");
 }
 
 function failureMessage(failure: MobileProfileFailure): string {
   if (failure.code === "PROFILE_REVISION_CONFLICT") {
-    return "Tu perfil cambió en otro lugar. Recargamos la autoridad del servidor; revisá los datos antes de volver a guardar.";
+    return "Tu perfil cambió en otro lugar. Actualizá el estado confirmado antes de volver a guardar.";
   }
   if (failure.code === "PROFILE_ACTIVITY_PERIOD_INVALID") {
     return "La fecha de fin no puede ser anterior a la fecha de inicio.";
@@ -242,11 +227,13 @@ export function MobileOwnerProfileScreen() {
   const [localError, setLocalError] = useState<string | null>(null);
 
   const hydratedProfile = useRef<{ id: string; revision: number } | null>(null);
+  const scopeKeyRef = useRef<string | null>(null);
 
   const scopeKey =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
+  scopeKeyRef.current = scopeKey;
   const active = Boolean(scopeKey && isFocused && appState === "active");
 
   const resetDrafts = useCallback(() => {
@@ -359,16 +346,45 @@ export function MobileOwnerProfileScreen() {
       return;
     }
 
+    const languageList = parseProfileListInput("languages", languages);
+    if (!languageList.ok) {
+      setLocalError(languageList.message);
+      return;
+    }
+    const skillList = parseProfileListInput("skills", skills);
+    if (!skillList.ok) {
+      setLocalError(skillList.message);
+      return;
+    }
+    const interestList = parseProfileListInput("interests", interests);
+    if (!interestList.ok) {
+      setLocalError(interestList.message);
+      return;
+    }
+    const helpList = parseProfileListInput("helpTopics", helpTopics);
+    if (!helpList.ok) {
+      setLocalError(helpList.message);
+      return;
+    }
+    const learningList = parseProfileListInput(
+      "learningTopics",
+      learningTopics,
+    );
+    if (!learningList.ok) {
+      setLocalError(learningList.message);
+      return;
+    }
+
     setLocalError(null);
     const input: UpdateProfileInput = {
       expectedRevision: current.data.profile.revision,
       displayName: normalizedName,
       bio: bio.trim() || null,
-      languages: listFromText(languages),
-      skills: listFromText(skills),
-      interests: listFromText(interests),
-      helpTopics: listFromText(helpTopics),
-      learningTopics: listFromText(learningTopics),
+      languages: languageList.values,
+      skills: skillList.values,
+      interests: interestList.values,
+      helpTopics: helpList.values,
+      learningTopics: learningList.values,
       professional: {
         headline: headline.trim() || null,
         careerDiscoveryOptIn: careerDiscovery,
@@ -419,7 +435,8 @@ export function MobileOwnerProfileScreen() {
     }
 
     setLocalError(null);
-    await controller.createActivity(scopeKey, {
+    const submittedAuthority = scopeKey;
+    const result = await controller.createActivity(submittedAuthority, {
       type: activityType,
       title: normalizedTitle,
       description: activityDescription.trim() || null,
@@ -427,8 +444,10 @@ export function MobileOwnerProfileScreen() {
       endedOn,
     });
 
-    const next = controller.getSnapshot();
-    if (next.kind === "ready" && next.failure === null) {
+    if (
+      result === "committed" &&
+      scopeKeyRef.current === submittedAuthority
+    ) {
       setActivityTitle("");
       setActivityDescription("");
       setActivityStartedOn("");
