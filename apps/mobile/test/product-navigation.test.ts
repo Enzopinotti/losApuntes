@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   PRODUCT_TAB_ROUTES,
@@ -47,4 +48,17 @@ test("active screen authority requires focus and an active AppState", () => {
     null,
   );
   assert.equal(activeNavigationAuthorityKey(null, true, "active"), null);
+});
+
+test("remaining visual detail surfaces bind authority to navigation focus", () => {
+  const sources = [
+    "../src/features/home/home-screen.tsx",
+    "../src/features/resources/resource-details-screen.tsx",
+    "../src/features/search/search-result-screens.tsx",
+  ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
+
+  for (const source of sources) {
+    assert.match(source, /useIsFocused/u);
+    assert.match(source, /activeNavigationAuthorityKey/u);
+  }
 });
