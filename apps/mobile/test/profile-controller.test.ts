@@ -298,6 +298,45 @@ test("activity mutations use canonical snapshots and refresh after commit", asyn
   }
 });
 
+
+test("revision conflict reloads canonical profile before another update", async () => {
+  let meCalls = 0;
+  let updateCalls = 0;
+  const controller = new MobileProfileController(
+    apiStub({
+      me: async () => {
+        meCalls += 1;
+        return meCalls === 1 ? ready([], null, 1) : ready([], null, 4);
+      },
+      update: async () => {
+        updateCalls += 1;
+        throw new ApiRequestError(
+          "conflict",
+          409,
+          "PROFILE_REVISION_CONFLICT",
+          "conflict",
+        );
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  await controller.updateProfile("session-a", {
+    expectedRevision: 1,
+    bio: "Cambio viejo",
+  });
+
+  assert.equal(updateCalls, 1);
+  assert.equal(meCalls, 2);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.profile.revision, 4);
+    assert.equal(snapshot.failure, null);
+    assert.match(snapshot.notice ?? "", /versión confirmada por el servidor/u);
+  }
+});
+
 test("profile failures keep conflict and validation distinct from network failures", () => {
   assert.deepEqual(
     mobileProfileFailure(
