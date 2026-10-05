@@ -354,6 +354,9 @@ describe('AcademicService', () => {
       createdAt: now,
       updatedAt: now,
     });
+    store.findAffiliationById.mockResolvedValue(
+      affiliation({ id: 'aff-1', status: 'active' }),
+    );
 
     await expect(
       service.getAccountExportCurrentContext('user-1'),
@@ -363,8 +366,15 @@ describe('AcademicService', () => {
       revision: 4,
       updatedAt: now.toISOString(),
     });
-    expect(store.findAffiliationById).not.toHaveBeenCalled();
+    expect(store.findAffiliationById).toHaveBeenCalledWith('aff-1');
     expect(store.findSubjectParticipationById).not.toHaveBeenCalled();
+
+    store.findAffiliationById.mockResolvedValueOnce(
+      affiliation({ id: 'aff-1', status: 'withdrawn' }),
+    );
+    await expect(
+      service.getAccountExportCurrentContext('user-1'),
+    ).resolves.toBeNull();
   });
 
   it('creates canonical nodes with normalized aliases and auditable provenance', async () => {
