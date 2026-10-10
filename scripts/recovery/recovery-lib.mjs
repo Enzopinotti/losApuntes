@@ -384,6 +384,17 @@ export async function readInventory(filename) {
 }
 
 export async function verifyBackupSet(setDirectory) {
+  // Check the bundle path itself, not only its regular child entrypoints.
+  // An aliased set can otherwise validate by reading matching bytes from
+  // a different directory during idempotent backup reuse.
+  const setMetadata = await lstat(setDirectory);
+  if (
+    !setMetadata.isDirectory() ||
+    path.resolve(setDirectory) !== (await realpath(setDirectory))
+  ) {
+    throw new Error('backup set directory must not use symbolic links');
+  }
+
   const manifestPath = path.join(setDirectory, 'manifest.json');
   // Entry-point symlinks can lead outside the declared recovery set even when
   // their current bytes happen to match the manifest checksums.
