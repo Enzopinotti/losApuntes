@@ -1,4 +1,6 @@
 import { MongoResourceStore } from './mongo-resource.store';
+import { ResourceSchema } from './resource.mongo-schemas';
+import { ResourceAssetUnavailableError } from '../domain/resource.store';
 
 describe('MongoResourceStore saved-resource pagination', () => {
   function savedQuery(rows: Array<{ resourceId: string; createdAt: Date }>) {
@@ -245,8 +247,53 @@ describe('MongoResourceStore authorization pipeline', () => {
         claimRef: null,
         expiresAt: { $gt: now },
       }),
-      expect.any(Object),
+      {
+        $set: { claimRef: 'resource:resource-1', claimedAt: now },
+        $unset: { expiresAt: 1 },
+      },
       expect.objectContaining({ new: true, session }),
     );
+    expect(resources.create).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'resource-1', assetId: 'asset-1' })],
+      { session },
+    );
+  });
+
+  it('does not create another Resource when the FileAsset is already claimed', async () => {
+    const assetExec = jest.fn().mockResolvedValue(null);
+    const assetLean = jest.fn().mockReturnValue({ exec: assetExec });
+    const findOneAndUpdate = jest.fn().mockReturnValue({ lean: assetLean });
+    const resources = { create: jest.fn() };
+    const session = {
+      withTransaction: jest.fn(async (operation: () => Promise<void>) =>
+        operation(),
+      ),
+      endSession: jest.fn().mockResolvedValue(undefined),
+    };
+    const store = new MongoResourceStore(
+      { startSession: jest.fn().mockResolvedValue(session) } as never,
+      resources as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { findOneAndUpdate } as never,
+    );
+
+    await expect(
+      store.createClaimingAsset({
+        actorUserId: 'user-1',
+        now: new Date('2026-10-01T12:00:00.000Z'),
+        resource: { id: 'resource-2', assetId: 'asset-1' } as never,
+      }),
+    ).rejects.toBeInstanceOf(ResourceAssetUnavailableError);
+
+    expect(resources.create).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Resource/FileAsset v1 cardinality', () => {
+  it('keeps each FileAsset attached to at most one Resource', () => {
+    expect(ResourceSchema.path('assetId')?.options.unique).toBe(true);
   });
 });
