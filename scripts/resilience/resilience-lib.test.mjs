@@ -98,6 +98,42 @@ test('accepts measured budgets that fit inside the shared host', () => {
   assert.equal(validated.services.api.limits.memoryBytes, 1024 ** 3);
 });
 
+test('accepts explicit UTC and numeric-offset measurement timestamps', () => {
+  for (const timestamp of [
+    '2024-02-29T22:00:00Z',
+    '2026-10-01T22:00:00.000Z',
+    '2026-10-01T19:00:00-03:00',
+    '2026-10-02T00:00:00+02:00',
+    '2026-10-01T22:00:00.123456789Z',
+  ]) {
+    const value = evidence();
+    value.measuredAt = timestamp;
+    assert.equal(validateProductionResilienceEvidence(value).measuredAt, timestamp);
+  }
+});
+
+test('rejects ambiguous or calendar-invalid measurement timestamps', () => {
+  for (const timestamp of [
+    '2026-10-01T22:00:00',
+    '2026-10-01',
+    '2026-10-01T22:00Z',
+    '2026-02-31T22:00:00Z',
+    '2025-02-29T22:00:00Z',
+    '2026-13-01T22:00:00Z',
+    '2026-10-01T24:00:00Z',
+    '2026-10-01T22:00:00+03',
+    '2026-10-01T22:00:00Z extra',
+  ]) {
+    const value = evidence();
+    value.measuredAt = timestamp;
+    assert.throws(
+      () => validateProductionResilienceEvidence(value),
+      /measuredAt must be (an ISO timestamp with an explicit timezone|a valid calendar timestamp)/u,
+      timestamp,
+    );
+  }
+});
+
 test('renders only non-secret Compose resilience inputs', () => {
   assert.deepEqual(composeEnvironmentFromEvidence(evidence()), {
     API_CPU_LIMIT: '2',
