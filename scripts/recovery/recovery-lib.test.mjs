@@ -233,6 +233,33 @@ test('backup verifier rejects symlinked entrypoints despite matching checksums',
 
     assert.equal((await verifyBackupSet(setDirectory)).inventory.length, 1);
 
+    // A byte-for-byte valid bundle must not be trusted through a symlink
+    // that hides the actual backup set directory.
+    const setAlias = path.join(root, 'aliased-backup-set');
+    await symlink(setDirectory, setAlias, 'dir');
+    try {
+      await assert.rejects(
+        () => verifyBackupSet(setAlias),
+        /backup set directory must not use symbolic links/u,
+      );
+    } finally {
+      await rm(setAlias);
+    }
+
+    // Also reject an alias in an ancestor component of the set path.
+    const parentAlias = path.join(root, 'aliased-parent');
+    await symlink(root, parentAlias, 'dir');
+    try {
+      await assert.rejects(
+        () => verifyBackupSet(path.join(parentAlias, 'backup-set')),
+        /backup set directory must not use symbolic links/u,
+      );
+    } finally {
+      await rm(parentAlias);
+    }
+
+    assert.equal((await verifyBackupSet(setDirectory)).inventory.length, 1);
+
     // Each external target has the same bytes as the original entrypoint.
     // The verifier must reject the link itself, not just checksum mismatches.
     for (const entry of [
