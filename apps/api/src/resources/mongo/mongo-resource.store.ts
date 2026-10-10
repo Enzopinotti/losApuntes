@@ -380,7 +380,7 @@ export class MongoResourceStore implements ResourceStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$resourceId', '$resourceId'] },
+                      { $eq: ['$resourceId', '$$resourceId'] },
                       { $eq: ['$userId', input.viewerUserId] },
                     ],
                   },
@@ -395,7 +395,12 @@ export class MongoResourceStore implements ResourceStore {
           $match: {
             $or: [
               { visibility: 'public' },
-              { '__viewerShares.0': { $exists: true } },
+              {
+                $and: [
+                  { visibility: 'shared' },
+                  { '__viewerShares.0': { $exists: true } },
+                ],
+              },
             ],
           },
         },
