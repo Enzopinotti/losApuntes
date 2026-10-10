@@ -15,7 +15,14 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
@@ -27,6 +34,10 @@ import {
   type ContextualDiscoverySnapshot,
   type MobileSearchSnapshot,
 } from "./search-controller";
+import {
+  initialSearchInputState,
+  searchInputReducer,
+} from "./search-input-state";
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
 
@@ -274,9 +285,11 @@ export function SearchScreen() {
   const [contextual, setContextual] = useState<ContextualDiscoverySnapshot>(
     controller.getContextualSnapshot(),
   );
-  const [query, setQuery] = useState("");
-  const [scope, setScope] = useState<SearchScope>("all");
-  const [subjectId, setSubjectId] = useState<string | undefined>();
+  const [searchInputState, dispatchSearchInput] = useReducer(
+    searchInputReducer,
+    initialSearchInputState,
+  );
+  const { query, scope, subjectId } = searchInputState;
   const [appState, setAppState] = useState(AppState.currentState);
   const [foregroundContextFresh, setForegroundContextFresh] = useState(
     AppState.currentState === "active",
@@ -413,11 +426,15 @@ export function SearchScreen() {
   const setQueryText = useCallback(
     (value: string) => {
       clearSearch();
-      setSubjectId(undefined);
-      setQuery(value.slice(0, 120));
+      dispatchSearchInput({ type: "queryChanged", query: value });
     },
     [clearSearch],
   );
+
+  const clearSubjectFilter = useCallback(() => {
+    clearSearch();
+    dispatchSearchInput({ type: "subjectFilterCleared" });
+  }, [clearSearch]);
 
   const openResource = useCallback(
     (resource: ResourceView) => {
@@ -439,9 +456,7 @@ export function SearchScreen() {
         return;
       }
       clearSearch();
-      setQuery("");
-      setScope("resources");
-      setSubjectId(subject.id);
+      dispatchSearchInput({ type: "subjectSelected", subjectId: subject.id });
     },
     [clearSearch, query.length, scope, subjectId],
   );
@@ -530,8 +545,10 @@ export function SearchScreen() {
               onPress={() => {
                 if (scope === option.value) return;
                 clearSearch();
-                setScope(option.value);
-                setSubjectId(undefined);
+                dispatchSearchInput({
+                  type: "scopeChanged",
+                  scope: option.value,
+                });
               }}
               style={[
                 styles.scopeButton,
@@ -550,9 +567,21 @@ export function SearchScreen() {
           ))}
         </View>
         {subjectId ? (
-          <Text style={styles.meta}>
-            Filtrando por la materia que elegiste.
-          </Text>
+          <View style={styles.filterNotice}>
+            <Text style={styles.meta}>
+              Filtrando por la materia que elegiste.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Quitar filtro de materia"
+              onPress={clearSubjectFilter}
+              style={styles.clearFilterButton}
+            >
+              <Text style={styles.clearFilterLabel}>
+                Quitar filtro de materia
+              </Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>
 
@@ -656,6 +685,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#17171c",
     backgroundColor: "#ffffff",
+  },
+  filterNotice: {
+    gap: 4,
+    alignItems: "flex-start",
+  },
+  clearFilterButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#c8c8d2",
+    borderRadius: 10,
+  },
+  clearFilterLabel: {
+    color: "#43366a",
+    fontSize: 14,
+    fontWeight: "700",
   },
   scopeList: {
     flexDirection: "row",
