@@ -2,6 +2,8 @@ import type {
   AnswerPageResponse,
   AnswerView,
   CommunityPerson,
+  ConnectionStatus,
+  ConnectionView,
   CreateAnswerInput,
   CreateQuestionInput,
   QuestionDetailResponse,
@@ -48,6 +50,30 @@ export type NotificationPageInput = {
   limit?: number;
 };
 
+export type ConnectionsPageInput = {
+  status?: ConnectionStatus;
+  cursor?: string;
+  limit?: number;
+};
+
+export type ConnectionsPageResponse = {
+  items: ConnectionView[];
+  nextCursor: string | null;
+};
+
+export interface SocialConnectionsApi {
+  connections(
+    input: ConnectionsPageInput,
+    signal?: AbortSignal,
+  ): Promise<ConnectionsPageResponse>;
+  respondConnection(
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
+  disconnectConnection(id: string, signal?: AbortSignal): Promise<void>;
+}
+
 export interface CommunityTransport {
   questions(
     credential: string,
@@ -91,6 +117,22 @@ export interface CommunityTransport {
     credential: string,
     signal?: AbortSignal,
   ): Promise<{ updated: number }>;
+  connections(
+    credential: string,
+    input: ConnectionsPageInput,
+    signal?: AbortSignal,
+  ): Promise<ConnectionsPageResponse>;
+  respondConnection(
+    credential: string,
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
+  disconnectConnection(
+    credential: string,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }
 
 export interface CommunityNotificationsApi {
@@ -239,10 +281,56 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
       ...(signal ? { signal } : {}),
     });
   }
+
+  connections(
+    credential: string,
+    input: ConnectionsPageInput,
+    signal?: AbortSignal,
+  ) {
+    const requestedLimit = Number.isFinite(input.limit)
+      ? Math.trunc(input.limit!)
+      : 25;
+    const limit = Math.min(100, Math.max(1, requestedLimit));
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (input.status) query.set("status", input.status);
+    if (input.cursor) query.set("cursor", input.cursor);
+
+    return this.client.request<ConnectionsPageResponse>(
+      `/social/me/connections?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  respondConnection(
+    credential: string,
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ connection: ConnectionView }>(
+      `/social/connections/${encodeURIComponent(id)}/${action}`,
+      {
+        method: "POST",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  disconnectConnection(credential: string, id: string, signal?: AbortSignal) {
+    return this.client.request<void>(
+      `/social/connections/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 }
 
 export class MobileCommunityApi
-  implements CommunityApi, CommunityNotificationsApi
+  implements CommunityApi, CommunityNotificationsApi, SocialConnectionsApi
 {
   constructor(
     private readonly session: SessionController,
@@ -303,6 +391,28 @@ export class MobileCommunityApi
   markAllNotificationsRead(signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.markAllNotificationsRead(credential, signal),
+    );
+  }
+
+  connections(input: ConnectionsPageInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.connections(credential, input, signal),
+    );
+  }
+
+  respondConnection(
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.respondConnection(credential, id, action, signal),
+    );
+  }
+
+  disconnectConnection(id: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.disconnectConnection(credential, id, signal),
     );
   }
 

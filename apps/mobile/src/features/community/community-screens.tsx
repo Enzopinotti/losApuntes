@@ -292,6 +292,18 @@ export function CommunityNetworkScreen() {
       refreshing={refreshing}
     >
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Solicitudes y conexiones</Text>
+        <Text style={styles.copy}>
+          Revisá quién quiere conectar con vos y administrá las relaciones
+          aceptadas.
+        </Text>
+        <ActionButton
+          label="Abrir mi red"
+          onPress={() => router.push("/social-connections")}
+        />
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Organizaciones</Text>
         <Text style={styles.copy}>
           Explorá centros, clubes, laboratorios y comunidades del campus. No

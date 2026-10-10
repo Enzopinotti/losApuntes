@@ -4,6 +4,28 @@ export interface CommunityPerson {
   avatarUrl: string | null;
 }
 
+export type ConnectionStatus =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "disconnected";
+
+export interface FollowingItem {
+  followedAt: string;
+  profile: CommunityPerson;
+}
+
+export interface ConnectionView {
+  id: string;
+  status: ConnectionStatus;
+  other: CommunityPerson;
+  requestedByMe: boolean;
+  incoming: boolean;
+  respondedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type QuestionState = "open" | "closed";
 
 export interface QuestionView {

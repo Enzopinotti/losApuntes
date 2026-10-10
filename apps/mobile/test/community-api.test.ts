@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { QuestionSearchResponse } from "@losapuntes/contracts/social-qa";
+import type {
+  ConnectionView,
+  QuestionSearchResponse,
+} from "@losapuntes/contracts/social-qa";
 
 import {
   MobileCommunityApi,
@@ -50,6 +53,18 @@ const emptyNotifications: MobileNotificationPage = {
   items: [],
   nextCursor: null,
 };
+const emptyConnections = { items: [], nextCursor: null };
+
+const connection = (status: ConnectionView["status"]): ConnectionView => ({
+  id: "connection-a",
+  status,
+  other: { profileId: "profile-a", displayName: "Ada", avatarUrl: null },
+  requestedByMe: false,
+  incoming: status === "pending",
+  respondedAt: null,
+  createdAt: "2026-10-01T00:00:00.000Z",
+  updatedAt: "2026-10-01T00:00:00.000Z",
+});
 
 test("request methods retain the bearer credential and server cursor contract", async () => {
   const harness = sessionHarness();
@@ -113,6 +128,25 @@ test("request methods retain the bearer credential and server cursor contract", 
       });
       return { updated: 2 };
     },
+    connections: async (credential, input, signal) => {
+      calls.push({ method: "connections", args: [credential, input, signal] });
+      return emptyConnections;
+    },
+    respondConnection: async (credential, id, action, signal) => {
+      calls.push({
+        method: "respondConnection",
+        args: [credential, id, action, signal],
+      });
+      return {
+        connection: connection(action === "accept" ? "accepted" : "declined"),
+      };
+    },
+    disconnectConnection: async (credential, id, signal) => {
+      calls.push({
+        method: "disconnectConnection",
+        args: [credential, id, signal],
+      });
+    },
   };
   const api = new MobileCommunityApi(harness.session, transport);
   const signal = new AbortController().signal;
@@ -128,6 +162,12 @@ test("request methods retain the bearer credential and server cursor contract", 
   );
   await api.markNotificationRead("notification-a", signal);
   await api.markAllNotificationsRead(signal);
+  await api.connections(
+    { status: "pending", limit: 25, cursor: "opaque-connections" },
+    signal,
+  );
+  await api.respondConnection("connection-a", "accept", signal);
+  await api.disconnectConnection("connection-a", signal);
 
   assert.deepEqual(calls[0], {
     method: "questions",
@@ -157,6 +197,70 @@ test("request methods retain the bearer credential and server cursor contract", 
     method: "markAllNotificationsRead",
     args: ["secret-session-token", signal],
   });
+  assert.deepEqual(calls[5], {
+    method: "connections",
+    args: [
+      "secret-session-token",
+      { status: "pending", limit: 25, cursor: "opaque-connections" },
+      signal,
+    ],
+  });
+  assert.deepEqual(calls[6], {
+    method: "respondConnection",
+    args: ["secret-session-token", "connection-a", "accept", signal],
+  });
+  assert.deepEqual(calls[7], {
+    method: "disconnectConnection",
+    args: ["secret-session-token", "connection-a", signal],
+  });
+});
+
+test("connection transport uses the authenticated paginated Social endpoints", async () => {
+  const calls: Array<{ path: string; init?: Record<string, unknown> }> = [];
+  const client = {
+    request: async (path: string, init?: Record<string, unknown>) => {
+      calls.push({ path, ...(init ? { init } : {}) });
+      if (path.startsWith("/social/me/connections")) return emptyConnections;
+      if (path.endsWith("/accept")) {
+        return { connection: connection("accepted") };
+      }
+      return undefined;
+    },
+  } as unknown as MobileApiClient;
+  const transport = new MobileCommunityHttpTransport(client);
+  const signal = new AbortController().signal;
+
+  await transport.connections(
+    "secret-session-token",
+    { status: "pending", limit: 30, cursor: "opaque/cursor" },
+    signal,
+  );
+  await transport.respondConnection(
+    "secret-session-token",
+    "connection/a",
+    "accept",
+    signal,
+  );
+  await transport.disconnectConnection(
+    "secret-session-token",
+    "connection/a",
+    signal,
+  );
+
+  assert.deepEqual(calls, [
+    {
+      path: "/social/me/connections?limit=30&status=pending&cursor=opaque%2Fcursor",
+      init: { credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/connections/connection%2Fa/accept",
+      init: { method: "POST", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/connections/connection%2Fa",
+      init: { method: "DELETE", credential: "secret-session-token", signal },
+    },
+  ]);
 });
 
 test("requires the current session and never silently downgrades to anonymous", async () => {
@@ -181,6 +285,9 @@ test("requires the current session and never silently downgrades to anonymous", 
     notifications: async () => emptyNotifications,
     markNotificationRead: async () => ({ read: true }),
     markAllNotificationsRead: async () => ({ updated: 0 }),
+    connections: async () => emptyConnections,
+    respondConnection: async () => ({ connection: connection("pending") }),
+    disconnectConnection: async () => undefined,
   };
 
   await assert.rejects(
@@ -214,6 +321,9 @@ test("fences successful responses when the session generation changed", async ()
     notifications: async () => emptyNotifications,
     markNotificationRead: async () => ({ read: true }),
     markAllNotificationsRead: async () => ({ updated: 0 }),
+    connections: async () => emptyConnections,
+    respondConnection: async () => ({ connection: connection("pending") }),
+    disconnectConnection: async () => undefined,
   };
   const request = new MobileCommunityApi(harness.session, transport).questions({
     limit: 25,
