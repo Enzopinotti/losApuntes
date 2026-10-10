@@ -12,7 +12,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
+import { createReadStream, lstatSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -138,19 +138,48 @@ export function pathIsInside(parent, candidate) {
   );
 }
 
+function canonicalArtifactPath(value) {
+  // The requested leaf may not exist yet. Resolve the nearest existing
+  // ancestor so an external symlink into the repo cannot evade containment
+  // checks before mkdir() is called.
+  let ancestor = value;
+  const missing = [];
+
+  while (true) {
+    try {
+      return path.resolve(realpathSync(ancestor), ...missing.reverse());
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        throw new Error('artifact root path could not be resolved');
+      }
+      // A dangling symlink exists even though realpath reports ENOENT.
+      // Treat it as invalid instead of assuming it is a missing directory.
+      if (lstatSync(ancestor, { throwIfNoEntry: false })) {
+        throw new Error('artifact root must not contain unresolved symbolic links');
+      }
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) {
+        throw new Error('artifact root path could not be resolved');
+      }
+      missing.push(path.basename(ancestor));
+      ancestor = parent;
+    }
+  }
+}
+
 export function assertArtifactRootOutsideRepo(value, repoRoot = REPO_ROOT) {
   if (!path.isAbsolute(value)) {
     throw new Error('artifact root must be an absolute path');
   }
 
-  const resolved = path.resolve(value);
-  if (resolved === path.parse(resolved).root) {
+  const canonical = canonicalArtifactPath(path.resolve(value));
+  if (canonical === path.parse(canonical).root) {
     throw new Error('artifact root must not be a filesystem root');
   }
-  if (pathIsInside(repoRoot, resolved)) {
+  if (pathIsInside(realpathSync(repoRoot), canonical)) {
     throw new Error('backup/recovery artifacts must live outside the repository');
   }
-  return resolved;
+  return canonical;
 }
 
 export async function sha256File(filename) {
