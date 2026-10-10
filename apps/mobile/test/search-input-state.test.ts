@@ -37,6 +37,19 @@ test("typing clears the subject filter while preserving the selected scope", () 
   );
 });
 
+test("clearing a text query keeps its scope and returns to contextual discovery", () => {
+  const withQuery = searchInputReducer(
+    { query: "álgebra", scope: "resources", subjectId: null },
+    { type: "queryChanged", query: "" },
+  );
+
+  assert.deepEqual(withQuery, {
+    query: "",
+    scope: "resources",
+    subjectId: null,
+  });
+});
+
 test("changing scope clears the subject filter", () => {
   const scoped = searchInputReducer(initialSearchInputState, {
     type: "subjectSelected",

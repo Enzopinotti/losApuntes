@@ -575,13 +575,23 @@ export function SearchScreen() {
               accessibilityRole="button"
               accessibilityLabel="Quitar filtro de materia"
               onPress={clearSubjectFilter}
-              style={styles.clearFilterButton}
+              style={styles.searchActionButton}
             >
-              <Text style={styles.clearFilterLabel}>
+              <Text style={styles.searchActionLabel}>
                 Quitar filtro de materia
               </Text>
             </Pressable>
           </View>
+        ) : null}
+        {query.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Limpiar texto de búsqueda"
+            onPress={() => setQueryText("")}
+            style={styles.searchActionButton}
+          >
+            <Text style={styles.searchActionLabel}>Limpiar búsqueda</Text>
+          </Pressable>
         ) : null}
       </View>
 
@@ -690,7 +700,7 @@ const styles = StyleSheet.create({
     gap: 4,
     alignItems: "flex-start",
   },
-  clearFilterButton: {
+  searchActionButton: {
     minHeight: 44,
     justifyContent: "center",
     paddingHorizontal: 10,
@@ -698,7 +708,7 @@ const styles = StyleSheet.create({
     borderColor: "#c8c8d2",
     borderRadius: 10,
   },
-  clearFilterLabel: {
+  searchActionLabel: {
     color: "#43366a",
     fontSize: 14,
     fontWeight: "700",
