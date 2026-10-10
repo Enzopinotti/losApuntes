@@ -27,6 +27,7 @@ import {
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import { resourceFileTypeLabel } from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -89,7 +90,8 @@ function ResourceResult({
         </Text>
       ) : null}
       <Text style={styles.meta}>
-        {resource.file.mimeType} · {bytesLabel(resource.file.byteSize)}
+        {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
+        {bytesLabel(resource.file.byteSize)}
       </Text>
       <Text style={styles.actionLabel}>Ver recurso</Text>
     </Pressable>
