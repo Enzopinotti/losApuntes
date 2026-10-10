@@ -108,7 +108,10 @@ test('accepts explicit UTC and numeric-offset measurement timestamps', () => {
   ]) {
     const value = evidence();
     value.measuredAt = timestamp;
-    assert.equal(validateProductionResilienceEvidence(value).measuredAt, timestamp);
+    assert.equal(
+      validateProductionResilienceEvidence(value).measuredAt,
+      timestamp,
+    );
   }
 });
 
