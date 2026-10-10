@@ -11,7 +11,6 @@ import {
   type UpdateResourceRecord,
 } from '../domain/resource.store';
 import type {
-  ResourceAccountExportRecord,
   ResourceRecord,
   ResourceReportRecord,
   ResourceSearchCursor,
@@ -244,39 +243,6 @@ export class MongoResourceStore implements ResourceStore {
       .sort({ createdAt: -1, resourceId: 1 })
       .limit(input.limit + 1)
       .lean<Array<{ resourceId: string; createdAt: Date }>>()
-      .exec();
-
-    return {
-      items: rows.slice(0, input.limit),
-      hasMore: rows.length > input.limit,
-    };
-  }
-
-  async listAuthoredResourcesForExport(
-    input: Parameters<ResourceStore['listAuthoredResourcesForExport']>[0],
-  ): ReturnType<ResourceStore['listAuthoredResourcesForExport']> {
-    const rows = await this.resources
-      .find({
-        authorUserId: input.authorUserId,
-        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
-      })
-      .select({
-        _id: 0,
-        id: 1,
-        title: 1,
-        description: 1,
-        tags: 1,
-        subjectId: 1,
-        courseOfferingId: 1,
-        visibility: 1,
-        moderationState: 1,
-        revision: 1,
-        createdAt: 1,
-        updatedAt: 1,
-      })
-      .sort({ id: 1 })
-      .limit(input.limit + 1)
-      .lean<ResourceAccountExportRecord[]>()
       .exec();
 
     return {

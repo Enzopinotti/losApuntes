@@ -23,6 +23,10 @@ import {
   type ResourceStore,
   type SavedResourceCursor,
 } from './resource.store';
+import {
+  RESOURCE_EXPORT_STORE,
+  type ResourceExportStore,
+} from './resource-export.store';
 import type { ResourceRecord, ResourceSearchCursor } from './resource.types';
 
 const RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT = 100;
@@ -203,6 +207,8 @@ export class ResourceService {
   constructor(
     @Inject(RESOURCE_STORE)
     private readonly store: ResourceStore,
+    @Inject(RESOURCE_EXPORT_STORE)
+    private readonly exportStore: ResourceExportStore,
     private readonly files: FileService,
     private readonly academic: AcademicService,
     private readonly profiles: ProfileService,
@@ -446,7 +452,7 @@ export class ResourceService {
     input: { limit: number; cursor: string | null },
   ) {
     assertResourceExportLimit(input.limit);
-    const page = await this.store.listAuthoredResourcesForExport({
+    const page = await this.exportStore.listAuthoredResourcesForExport({
       authorUserId: userId,
       limit: input.limit,
       afterId: decodeResourceExportCursor(input.cursor),

@@ -12,6 +12,7 @@ import type { PilotEventService } from '../../pilot/telemetry/pilot-event.servic
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { ResourceStore } from './resource.store';
 import { ResourceAssetUnavailableError } from './resource.store';
+import type { ResourceExportStore } from './resource-export.store';
 import { ResourceService } from './resource.service';
 import type { ResourceRecord } from './resource.types';
 
@@ -68,7 +69,6 @@ function store(): jest.Mocked<ResourceStore> {
     upsertSave: jest.fn(),
     removeSave: jest.fn(),
     listSavedResources: jest.fn(),
-    listAuthoredResourcesForExport: jest.fn(),
     searchAuthorized: jest.fn(),
     listFeedCandidates: jest.fn(),
     upsertPendingReport: jest.fn(),
@@ -89,6 +89,9 @@ type ProfileApi = Pick<
 >;
 
 function dependencies() {
+  const exportStore: jest.Mocked<ResourceExportStore> = {
+    listAuthoredResourcesForExport: jest.fn(),
+  };
   const files: jest.Mocked<FileApi> = {
     getReadyAssetForResource: jest.fn(),
     createAuthorizedDownloadIntent: jest.fn(),
@@ -105,7 +108,7 @@ function dependencies() {
     recordBestEffort: jest.fn().mockResolvedValue(undefined),
   };
 
-  return { files, academic, profiles, events };
+  return { exportStore, files, academic, profiles, events };
 }
 
 function service(
@@ -114,6 +117,7 @@ function service(
 ) {
   return new ResourceService(
     resourceStore,
+    deps.exportStore,
     deps.files as unknown as FileService,
     deps.academic as unknown as AcademicService,
     deps.profiles as unknown as ProfileService,
@@ -152,7 +156,7 @@ describe('ResourceService', () => {
   it('exports only bounded owner-authored metadata, including private and hidden history', async () => {
     const resourceStore = store();
     const deps = dependencies();
-    resourceStore.listAuthoredResourcesForExport.mockResolvedValue({
+    deps.exportStore.listAuthoredResourcesForExport.mockResolvedValue({
       items: [
         {
           ...resource({
@@ -177,7 +181,7 @@ describe('ResourceService', () => {
       cursor,
     });
 
-    expect(resourceStore.listAuthoredResourcesForExport.mock.calls).toEqual([
+    expect(deps.exportStore.listAuthoredResourcesForExport.mock.calls).toEqual([
       [
         {
           authorUserId: 'owner-1',
@@ -225,7 +229,7 @@ describe('ResourceService', () => {
       response: { code: 'RESOURCE_EXPORT_PAGE_LIMIT_INVALID' },
     });
     expect(
-      resourceStore.listAuthoredResourcesForExport.mock.calls,
+      deps.exportStore.listAuthoredResourcesForExport.mock.calls,
     ).toHaveLength(0);
   });
 

@@ -1,6 +1,5 @@
 import type { FileAssetRecord } from '../../files/domain/file.types';
 import type {
-  ResourceAccountExportRecord,
   ResourceRecord,
   ResourceReportRecord,
   ResourceReportReason,
@@ -63,11 +62,6 @@ export interface ResourceStore {
     limit: number;
     after?: SavedResourceCursor;
   }): Promise<SavedResourcePage>;
-  listAuthoredResourcesForExport(input: {
-    authorUserId: string;
-    limit: number;
-    afterId?: string;
-  }): Promise<{ items: ResourceAccountExportRecord[]; hasMore: boolean }>;
   searchAuthorized(input: {
     viewerUserId?: string;
     q?: string;
