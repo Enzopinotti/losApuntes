@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import {
   mkdtemp,
   mkdir,
@@ -119,12 +120,7 @@ test('artifact root checks physical ancestors before creating directories', asyn
 
     // Root validation happens before mkdir; no directory should be created
     // through the alias on a rejected path.
-    assert.equal(
-      await import('node:fs').then(({ existsSync }) =>
-        existsSync(path.join(repoRoot, 'new')),
-      ),
-      false,
-    );
+    assert.equal(existsSync(path.join(repoRoot, 'new')), false);
 
     const legitimate = path.join(externalRoot, 'new', 'nested');
     assert.equal(assertArtifactRootOutsideRepo(legitimate, repoRoot), legitimate);
