@@ -155,7 +155,9 @@ function canonicalArtifactPath(value) {
       // A dangling symlink exists even though realpath reports ENOENT.
       // Treat it as invalid instead of assuming it is a missing directory.
       if (lstatSync(ancestor, { throwIfNoEntry: false })) {
-        throw new Error('artifact root must not contain unresolved symbolic links');
+        throw new Error(
+          'artifact root must not contain unresolved symbolic links',
+        );
       }
       const parent = path.dirname(ancestor);
       if (parent === ancestor) {
