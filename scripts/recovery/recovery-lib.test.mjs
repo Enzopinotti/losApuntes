@@ -25,6 +25,56 @@ test('release and environment guards fail closed', () => {
   assert.equal(assertNonProductionTarget('restore-drill'), 'restore-drill');
 });
 
+test('destructive restore rejects production labels with suffixes and aliases', () => {
+  const forbidden = [
+    'prod',
+    'production',
+    'prod-eu',
+    'prd-2',
+    'live-1',
+    'public-west',
+    'restore-prod',
+    'restore-live1',
+    'qa-Prod',
+    'staging.production',
+    'PreProduction',
+    'restore-prodclone',
+    'LIVE',
+  ];
+
+  for (const label of forbidden) {
+    assert.throws(
+      () => assertNonProductionTarget(label),
+      /restore target must not be production/u,
+      label,
+    );
+  }
+});
+
+test('destructive restore requires an explicit nonproduction designation', () => {
+  for (const label of ['beta', 'campus', 'unknown', 'qa2', 'preprod']) {
+    assert.throws(
+      () => assertNonProductionTarget(label),
+      /explicit non-production label/u,
+      label,
+    );
+  }
+
+  for (const label of [
+    'restore-drill',
+    'dev',
+    'development-east',
+    'test_1',
+    'qa-west',
+    'staging',
+    'sandbox-1',
+    'local.test',
+    'preview_2',
+  ]) {
+    assert.equal(assertNonProductionTarget(label), label);
+  }
+});
+
 test('path containment cannot confuse siblings with descendants', () => {
   assert.equal(pathIsInside('/srv/losApuntes', '/srv/losApuntes/backups'), true);
   assert.equal(pathIsInside('/srv/losApuntes', '/srv/losApuntes-backups'), false);
