@@ -95,9 +95,15 @@ export function assertNoStoreCacheControl(value, code) {
 
 export function assertImmutableAssetCacheControl(value, code) {
   const parsed = directives(value);
-  const maxAge = Number(parsed.get('max-age'));
+  const rawMaxAge = parsed.get('max-age');
+  const maxAge =
+    typeof rawMaxAge === 'string' && /^\d+$/u.test(rawMaxAge)
+      ? Number(rawMaxAge)
+      : NaN;
 
   if (
+    parsed.has('no-store') ||
+    parsed.has('no-cache') ||
     !parsed.has('immutable') ||
     !Number.isSafeInteger(maxAge) ||
     maxAge < 86_400
