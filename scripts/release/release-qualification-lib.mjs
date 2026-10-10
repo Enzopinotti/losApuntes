@@ -63,6 +63,9 @@ function directives(value) {
     const [rawName, ...rawValue] = part.trim().split('=');
     const name = rawName?.trim().toLowerCase();
     if (!name) continue;
+    // A duplicate directive makes the effective cache policy ambiguous.
+    // Do not let the last value silently override an earlier instruction.
+    if (parsed.has(name)) return null;
     parsed.set(
       name,
       rawValue.length > 0
@@ -75,7 +78,7 @@ function directives(value) {
 
 export function assertRevalidatableCacheControl(value, code) {
   const parsed = directives(value);
-  if (parsed.has('immutable')) fail(code);
+  if (!parsed || parsed.has('immutable')) fail(code);
   if (parsed.has('no-store') || parsed.has('no-cache')) return;
 
   const maxAge = parsed.get('max-age');
@@ -90,11 +93,13 @@ export function assertRevalidatableCacheControl(value, code) {
 }
 
 export function assertNoStoreCacheControl(value, code) {
-  if (!directives(value).has('no-store')) fail(code);
+  const parsed = directives(value);
+  if (!parsed || !parsed.has('no-store')) fail(code);
 }
 
 export function assertImmutableAssetCacheControl(value, code) {
   const parsed = directives(value);
+  if (!parsed) fail(code);
   const rawMaxAge = parsed.get('max-age');
   const maxAge =
     typeof rawMaxAge === 'string' && /^\d+$/u.test(rawMaxAge)
