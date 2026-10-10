@@ -8,6 +8,7 @@ import {
   OrganizationManagerSchema,
 } from '../organizations/mongo/organization.mongo-schemas';
 import { ProfileModule } from '../profile/profile.module';
+import { ResourcesModule } from '../resources/resources.module';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -23,6 +24,10 @@ import {
   ProfileActivitiesExportContributor,
   ProfileExportContributor,
 } from './contributors/account-export-core.contributors';
+import {
+  AuthoredResourcesExportContributor,
+  SavedResourcesExportContributor,
+} from './contributors/account-export-resource.contributors';
 import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
@@ -51,6 +56,7 @@ import {
     AuthModule,
     UsersModule,
     ProfileModule,
+    ResourcesModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
@@ -72,6 +78,8 @@ import {
     AcademicSubjectParticipationsExportContributor,
     AcademicCurrentContextExportContributor,
     AcademicFollowsExportContributor,
+    AuthoredResourcesExportContributor,
+    SavedResourcesExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -82,6 +90,8 @@ import {
         academicParticipations: AcademicSubjectParticipationsExportContributor,
         academicContext: AcademicCurrentContextExportContributor,
         academicFollows: AcademicFollowsExportContributor,
+        authoredResources: AuthoredResourcesExportContributor,
+        savedResources: SavedResourcesExportContributor,
       ) => [
         account,
         profile,
@@ -90,6 +100,8 @@ import {
         academicParticipations,
         academicContext,
         academicFollows,
+        authoredResources,
+        savedResources,
       ],
       inject: [
         AccountIdentityExportContributor,
@@ -99,6 +111,8 @@ import {
         AcademicSubjectParticipationsExportContributor,
         AcademicCurrentContextExportContributor,
         AcademicFollowsExportContributor,
+        AuthoredResourcesExportContributor,
+        SavedResourcesExportContributor,
       ],
     },
     AccountExportContributorRegistry,

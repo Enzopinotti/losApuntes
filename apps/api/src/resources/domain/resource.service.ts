@@ -25,6 +25,8 @@ import {
 } from './resource.store';
 import type { ResourceRecord, ResourceSearchCursor } from './resource.types';
 
+const RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT = 100;
+
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
 }
@@ -139,6 +141,61 @@ function decodeSavedCursor(value?: string): SavedResourceCursor | undefined {
       message: 'Saved Resource cursor is invalid',
     });
   }
+}
+
+function encodeResourceExportCursor(id: string): string {
+  return Buffer.from(JSON.stringify({ id }), 'utf8').toString('base64url');
+}
+
+function decodeResourceExportCursor(value: string | null): string | undefined {
+  if (value === null) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (
+      Object.keys(parsed).length !== 1 ||
+      typeof parsed.id !== 'string' ||
+      parsed.id.length === 0
+    ) {
+      throw new Error('Invalid Resource export cursor shape');
+    }
+
+    return parsed.id;
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_EXPORT_CURSOR_INVALID',
+      message: 'Resource export cursor is invalid',
+    });
+  }
+}
+
+function assertResourceExportLimit(limit: number): void {
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT
+  ) {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_EXPORT_PAGE_LIMIT_INVALID',
+      message: 'Resource export page limit is invalid',
+    });
+  }
+}
+
+function decodeResourceSaveExportCursor(
+  value: string | null,
+): SavedResourceCursor | undefined {
+  if (value === null) return undefined;
+  if (!value) {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_SAVED_CURSOR_INVALID',
+      message: 'Saved Resource cursor is invalid',
+    });
+  }
+  return decodeSavedCursor(value);
 }
 
 @Injectable()
@@ -374,6 +431,64 @@ export class ResourceService {
       items: await Promise.all(
         visible.map((row) => this.projection(row, userId)),
       ),
+      nextCursor:
+        page.hasMore && last
+          ? encodeSavedCursor({
+              createdAt: last.createdAt,
+              resourceId: last.resourceId,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportResources(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    assertResourceExportLimit(input.limit);
+    const page = await this.store.listAuthoredResourcesForExport({
+      authorUserId: userId,
+      limit: input.limit,
+      afterId: decodeResourceExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        tags: row.tags,
+        subjectId: row.subjectId,
+        courseOfferingId: row.courseOfferingId,
+        visibility: row.visibility,
+        moderationState: row.moderationState,
+        revision: row.revision,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last ? encodeResourceExportCursor(last.id) : null,
+    };
+  }
+
+  async listAccountExportSaves(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    assertResourceExportLimit(input.limit);
+    const page = await this.store.listSavedResources({
+      userId,
+      limit: input.limit,
+      after: decodeResourceSaveExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => ({
+        resourceId: row.resourceId,
+        savedAt: row.createdAt.toISOString(),
+      })),
       nextCursor:
         page.hasMore && last
           ? encodeSavedCursor({
