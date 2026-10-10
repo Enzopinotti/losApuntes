@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -12,6 +20,8 @@ import {
   pathIsInside,
   sha256File,
   validateManifestShape,
+  verifyBackupSet,
+  writeInventory,
 } from './recovery-lib.mjs';
 
 test('release and environment guards fail closed', () => {
@@ -103,6 +113,90 @@ test('inventory is stable, sorted and content-addressed', async () => {
       ['1.txt', 'b/2.txt'],
     );
     assert.equal(rows[0].sha256, await sha256File(path.join(root, '1.txt')));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+
+test('backup verifier rejects symlinked entrypoints despite matching checksums', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'losapuntes-recovery-links-'));
+  const setDirectory = path.join(root, 'backup-set');
+  const filesDirectory = path.join(setDirectory, 'files');
+  const externalDirectory = path.join(root, 'external');
+
+  try {
+    await mkdir(filesDirectory, { recursive: true });
+    await mkdir(externalDirectory);
+    await writeFile(path.join(filesDirectory, 'note.txt'), 'trusted file');
+    const mongoPath = path.join(setDirectory, 'mongo.archive.gz');
+    await writeFile(mongoPath, 'mongo archive fixture');
+
+    const inventory = await inventoryDirectory(filesDirectory);
+    const inventoryPath = path.join(setDirectory, 'files.inventory.jsonl');
+    await writeInventory(inventoryPath, inventory);
+
+    const manifest = {
+      formatVersion: 1,
+      backupSetId: 'fixture-set',
+      createdAt: '2026-10-10T00:00:00.000Z',
+      releaseSha: 'a'.repeat(40),
+      schemaVersion: 'mongo-v1',
+      sourceEnvironment: 'production',
+      consistencyMode: 'application-quiesced',
+      mongo: {
+        archive: 'mongo.archive.gz',
+        sha256: await sha256File(mongoPath),
+        byteSize: (await readFile(mongoPath)).byteLength,
+      },
+      files: {
+        directory: 'files',
+        inventory: 'files.inventory.jsonl',
+        inventorySha256: await sha256File(inventoryPath),
+        objectCount: inventory.length,
+        totalBytes: inventory.reduce((sum, row) => sum + row.byteSize, 0),
+      },
+    };
+    const manifestPath = path.join(setDirectory, 'manifest.json');
+    await writeFile(manifestPath, JSON.stringify(manifest));
+
+    assert.equal((await verifyBackupSet(setDirectory)).inventory.length, 1);
+
+    // Each external target has the same bytes as the original entrypoint.
+    // The verifier must reject the link itself, not just checksum mismatches.
+    for (const entry of [
+      'manifest.json',
+      'mongo.archive.gz',
+      'files.inventory.jsonl',
+      'files',
+    ]) {
+      const original = path.join(setDirectory, entry);
+      const preserved = path.join(setDirectory, `${entry}.original`);
+      const outside = path.join(externalDirectory, entry);
+      const directory = entry === 'files';
+
+      if (directory) {
+        await mkdir(outside);
+        await writeFile(path.join(outside, 'note.txt'), 'trusted file');
+      } else {
+        await writeFile(outside, await readFile(original));
+      }
+
+      await rename(original, preserved);
+      try {
+        await symlink(outside, original, directory ? 'dir' : 'file');
+        await assert.rejects(
+          () => verifyBackupSet(setDirectory),
+          /backup (manifest must be a regular file|set entrypoints must be regular files\/directories)/u,
+          entry,
+        );
+      } finally {
+        await rm(original, { force: true });
+        await rename(preserved, original);
+      }
+    }
+
+    assert.equal((await verifyBackupSet(setDirectory)).inventory.length, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
