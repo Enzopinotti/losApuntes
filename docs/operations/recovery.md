@@ -34,7 +34,7 @@ The manifest records:
 
 It deliberately does **not** record Mongo DSNs, passwords, storage credentials or signed URLs.
 
-The backup directory must be an absolute path outside the Git repository. A symlink-resolved path is checked again before any artifact is created.
+The backup directory must be an absolute path outside the Git repository. Before creating directories, the guard resolves the nearest existing physical ancestor (including symlinks), then checks the canonical destination against the real Git repository root. Paths that resolve inside the repo, alias a filesystem root, or contain dangling symlinks fail closed. This also covers a *not-yet-created* backup directory nested beneath an existing symlink. The scripts retain a second post-creation check. The check protects the local artifact path, not the identity of external Mongo or object-storage credentials.
 
 Recovery verification also requires real files for `manifest.json`, `mongo.archive.gz`, and `files.inventory.jsonl`, plus a real `files/` directory. Symlinks at these bundle entrypoints are rejected before restoring: matching checksums alone are not sufficient if a backup-set entrypoint can point outside the set.
 
