@@ -201,7 +201,7 @@ downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"account":[...],"profile":[...],"profile.activities":[...],"resources.authored":[...],"resources.saved":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"resources.authored":[...],"resources.saved":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
