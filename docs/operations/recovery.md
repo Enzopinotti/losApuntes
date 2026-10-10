@@ -133,7 +133,7 @@ export RECOVERY_EVIDENCE_ROOT="/srv/losapuntes-recovery-evidence"
 pnpm recovery:restore
 ```
 
-The script refuses common production labels. The explicit non-production ACK is still required because no program can infer deployment ownership safely from a hostname alone.
+The script now requires an explicit non-production target label prefix such as `restore-`, `drill-`, `dev-`, `test-`, `qa-`, `stage-`, `staging-`, `sandbox-`, `local-` or `preview-` (or the exact unsuffixed label). It refuses production-like tokens anywhere in the label, including `prod-eu`, `live-1`, `restore-prod` and `qa-Prod`; unknown labels fail closed. This is only a label guard, **not verification of the target URI, bucket, credentials or deployment identity**. Before setting `RESTORE_NONPRODUCTION_ACK`, the operator must independently verify that both the Mongo URI and Files endpoint/bucket point to isolated non-production infrastructure. The explicit ACK and exact backup-set/delete confirmations remain mandatory, because hostnames alone cannot prove ownership.
 
 Restore performs:
 
