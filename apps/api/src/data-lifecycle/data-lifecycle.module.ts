@@ -23,6 +23,7 @@ import {
   ProfileActivitiesExportContributor,
   ProfileExportContributor,
 } from './contributors/account-export-core.contributors';
+import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
@@ -63,6 +64,7 @@ import {
   providers: [
     AccountLifecycleService,
     AccountExportService,
+    AccountExportAssembler,
     AccountIdentityExportContributor,
     ProfileExportContributor,
     ProfileActivitiesExportContributor,
@@ -114,6 +116,7 @@ import {
   exports: [
     AccountLifecycleService,
     AccountExportService,
+    AccountExportAssembler,
     AccountExportContributorRegistry,
   ],
 })

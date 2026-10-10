@@ -172,6 +172,28 @@ not the global Academic catalog. It does not export catalog source provenance,
 admin audit events, internal context guard revisions, or catalog proposals in
 this carrier.
 
+## Streaming artifact assembly — candidate for #183
+
+The internal v1 artifact is a compact JSON envelope:
+
+```json
+{"format":"los-apuntes-account-export","version":1,"sections":{"account":[...],"profile":[...],"profile.activities":[...]}}
+```
+
+Section keys follow the contributor registry's stable lexicographic order.
+Records preserve each contributor's cursor order. The assembler writes the
+envelope and each serialized record as separate awaited sink chunks, and it
+reads at most the existing 100-record contributor page budget at a time. It
+does not collect an entire section or export into an in-memory array. Cursor
+cycle detection retains only a constant-size checkpoint per section.
+
+The sink is attempt-scoped. Any contributor, serialization or sink failure
+aborts the partial output; a caller must not publish or persist completion
+metadata for an aborted attempt. This assembler is an internal building block,
+not evidence of a complete v1 export: remaining domain inclusion decisions,
+contributors, durable artifact storage, owner-reauthorized delivery and the
+public HTTP surface remain open. No generated partial export may be presented
+as complete to an account owner.
 
 ## Security and privacy exclusions
 
