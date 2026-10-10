@@ -13,6 +13,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  assertArtifactRootOutsideRepo,
   assertNonProductionTarget,
   assertReleaseSha,
   generatedBackupSetId,
@@ -88,6 +89,74 @@ test('destructive restore requires an explicit nonproduction designation', () =>
 test('path containment cannot confuse siblings with descendants', () => {
   assert.equal(pathIsInside('/srv/losApuntes', '/srv/losApuntes/backups'), true);
   assert.equal(pathIsInside('/srv/losApuntes', '/srv/losApuntes-backups'), false);
+});
+
+test('artifact root checks physical ancestors before creating directories', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'losapuntes-recovery-roots-'));
+  const repoRoot = path.join(root, 'repo');
+  const externalRoot = path.join(root, 'external');
+
+  try {
+    await mkdir(repoRoot);
+    await mkdir(externalRoot);
+    await mkdir(path.join(repoRoot, 'existing'));
+
+    const aliasToRepo = path.join(externalRoot, 'repo-alias');
+    await symlink(repoRoot, aliasToRepo, 'dir');
+
+    for (const unsafe of [
+      path.join(repoRoot, 'backup'),
+      aliasToRepo,
+      path.join(aliasToRepo, 'existing'),
+      path.join(aliasToRepo, 'new', 'nested'),
+    ]) {
+      assert.throws(
+        () => assertArtifactRootOutsideRepo(unsafe, repoRoot),
+        /outside the repository/u,
+        unsafe,
+      );
+    }
+
+    // Root validation happens before mkdir; no directory should be created
+    // through the alias on a rejected path.
+    assert.equal(
+      await import('node:fs').then(({ existsSync }) =>
+        existsSync(path.join(repoRoot, 'new')),
+      ),
+      false,
+    );
+
+    const legitimate = path.join(externalRoot, 'new', 'nested');
+    assert.equal(assertArtifactRootOutsideRepo(legitimate, repoRoot), legitimate);
+    assert.equal(
+      assertArtifactRootOutsideRepo(path.join(root, 'repo-sibling'), repoRoot),
+      path.join(root, 'repo-sibling'),
+    );
+
+    const aliasToOutside = path.join(externalRoot, 'safe-alias');
+    await mkdir(path.join(externalRoot, 'safe'));
+    await symlink(path.join(externalRoot, 'safe'), aliasToOutside, 'dir');
+    assert.equal(
+      assertArtifactRootOutsideRepo(path.join(aliasToOutside, 'backup'), repoRoot),
+      path.join(externalRoot, 'safe', 'backup'),
+    );
+
+    const aliasToFilesystemRoot = path.join(externalRoot, 'fs-root');
+    await symlink(path.parse(root).root, aliasToFilesystemRoot, 'dir');
+    assert.throws(
+      () => assertArtifactRootOutsideRepo(aliasToFilesystemRoot, repoRoot),
+      /filesystem root/u,
+    );
+
+    const dangling = path.join(externalRoot, 'dangling');
+    await symlink(path.join(root, 'missing-destination'), dangling, 'dir');
+    assert.throws(
+      () => assertArtifactRootOutsideRepo(path.join(dangling, 'new'), repoRoot),
+      /unresolved symbolic links/u,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('backup ids are deterministic from timestamp and release', () => {
