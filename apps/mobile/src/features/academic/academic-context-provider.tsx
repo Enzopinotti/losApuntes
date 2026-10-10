@@ -11,6 +11,10 @@ import {
 import { AppState } from "react-native";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
+import type {
+  AcademicCatalogSearchResponse,
+  AcademicNodeKind,
+} from "@losapuntes/contracts";
 import { useSession } from "@/features/session/session-provider";
 import {
   mobileApiClient,
@@ -20,6 +24,7 @@ import {
 import { AcademicMobileApi } from "./academic-api";
 import {
   AcademicContextController,
+  type AcademicAffiliationActivationResult,
   type AcademicContextSnapshot,
 } from "./academic-context-controller";
 
@@ -32,6 +37,18 @@ const controller = new AcademicContextController(academicApi);
 interface AcademicContextValue {
   snapshot: AcademicContextSnapshot;
   retry(): Promise<void>;
+  catalogSearch(
+    input: {
+      kind: AcademicNodeKind;
+      q: string;
+      limit: number;
+      cursor?: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<AcademicCatalogSearchResponse>;
+  addInstitutionAffiliation(
+    institutionId: string,
+  ): Promise<AcademicAffiliationActivationResult>;
   selectAffiliation(affiliationId: string): Promise<void>;
   selectSubject(subjectParticipationId: string | null): Promise<void>;
 }
@@ -92,6 +109,31 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
     if (currentAuthority) await controller.restore(currentAuthority);
   }, []);
 
+  const catalogSearch = useCallback(
+    (
+      input: {
+        kind: AcademicNodeKind;
+        q: string;
+        limit: number;
+        cursor?: string;
+      },
+      signal?: AbortSignal,
+    ) => academicApi.catalogSearch(input, signal),
+    [],
+  );
+
+  const addInstitutionAffiliation = useCallback(
+    async (institutionId: string) => {
+      const currentAuthority = authorityRef.current;
+      if (!currentAuthority) return { kind: "stale" } as const;
+      return controller.addInstitutionAffiliation(
+        currentAuthority,
+        institutionId,
+      );
+    },
+    [],
+  );
+
   const selectAffiliation = useCallback(async (affiliationId: string) => {
     const currentAuthority = authorityRef.current;
     if (!currentAuthority) return;
@@ -108,8 +150,22 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ snapshot, retry, selectAffiliation, selectSubject }),
-    [snapshot, retry, selectAffiliation, selectSubject],
+    () => ({
+      snapshot,
+      retry,
+      catalogSearch,
+      addInstitutionAffiliation,
+      selectAffiliation,
+      selectSubject,
+    }),
+    [
+      snapshot,
+      retry,
+      catalogSearch,
+      addInstitutionAffiliation,
+      selectAffiliation,
+      selectSubject,
+    ],
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

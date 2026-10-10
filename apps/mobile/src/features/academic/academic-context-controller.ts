@@ -4,7 +4,7 @@ import type {
   AcademicSubjectParticipation,
 } from "@losapuntes/contracts";
 
-import { ApiRequestError } from "@/services/api/client";
+import { ApiRequestError, type ApiFailureKind } from "@/services/api/client";
 
 import type { AcademicContextApi } from "./academic-api";
 
@@ -30,6 +30,12 @@ export type AcademicContextSnapshot =
   | { kind: "timeout" }
   | { kind: "server_unavailable" }
   | { kind: "error"; code: string | null };
+
+export type AcademicAffiliationActivationResult =
+  | { kind: "selected"; affiliation: AcademicAffiliation }
+  | { kind: "reconcile" }
+  | { kind: "failed"; failure: ApiFailureKind; code: string | null }
+  | { kind: "stale" };
 
 type Listener = (snapshot: AcademicContextSnapshot) => void;
 
@@ -61,6 +67,10 @@ export class AcademicContextController {
   private lastContextSignature: string | null = null;
   private contextRevision = 0;
   private mutationTail: Promise<void> = Promise.resolve();
+  private uncertainInstitutionCreates = new Map<
+    string,
+    { affiliation?: AcademicAffiliation }
+  >();
   private authorityRecoveryNeededFor: string | null = null;
   private authorityRecoveryWaiters = new Set<{
     authorityKey: string;
@@ -164,6 +174,156 @@ export class AcademicContextController {
       } catch (error) {
         await this.handleMutationFailure(authorityKey, generation, error);
       }
+    });
+  }
+
+  async addInstitutionAffiliation(
+    authorityKey: string,
+    institutionId: string,
+  ): Promise<AcademicAffiliationActivationResult> {
+    return this.enqueueMutation(async () => {
+      let current = await this.currentDataForMutation(authorityKey);
+      if (!current || this.authorityKey !== authorityKey) {
+        return { kind: "stale" };
+      }
+
+      let generation = this.startMutation(authorityKey, current);
+      const pendingKey = JSON.stringify([authorityKey, institutionId]);
+      let affiliation = current.affiliations.find(
+        (item) =>
+          item.institutionId === institutionId && item.status === "active",
+      );
+      let knownCreatedAffiliation =
+        this.uncertainInstitutionCreates.get(pendingKey)?.affiliation;
+
+      if (affiliation) {
+        this.uncertainInstitutionCreates.delete(pendingKey);
+      } else if (
+        !knownCreatedAffiliation &&
+        !this.uncertainInstitutionCreates.has(pendingKey) &&
+        current.affiliationsTruncated
+      ) {
+        this.publishData(authorityKey, current);
+        return { kind: "reconcile" };
+      } else if (
+        !knownCreatedAffiliation &&
+        this.uncertainInstitutionCreates.has(pendingKey) &&
+        current.affiliationsTruncated
+      ) {
+        this.publishData(authorityKey, current);
+        return { kind: "reconcile" };
+      } else if (
+        !knownCreatedAffiliation &&
+        this.uncertainInstitutionCreates.has(pendingKey)
+      ) {
+        // A complete server inventory confirms an earlier ambiguous POST did
+        // not create this affiliation, so a new attempt is safe.
+        this.uncertainInstitutionCreates.delete(pendingKey);
+      }
+
+      if (!affiliation && !knownCreatedAffiliation) {
+        this.uncertainInstitutionCreates.set(pendingKey, {});
+        try {
+          const created = await this.api.createAffiliation({
+            institutionId,
+            status: "active",
+          });
+          if (!this.isCurrent(generation, authorityKey)) {
+            return { kind: "stale" };
+          }
+          knownCreatedAffiliation = created.affiliation;
+          this.uncertainInstitutionCreates.set(pendingKey, {
+            affiliation: knownCreatedAffiliation,
+          });
+        } catch (error) {
+          if (!this.isCurrent(generation, authorityKey)) {
+            return { kind: "stale" };
+          }
+
+          const restored = await this.restoreNow(authorityKey);
+          if (!restored) return { kind: "reconcile" };
+          current = this.currentData();
+          if (!current) return { kind: "reconcile" };
+          affiliation = current.affiliations.find(
+            (item) =>
+              item.institutionId === institutionId && item.status === "active",
+          );
+
+          if (affiliation) {
+            this.uncertainInstitutionCreates.delete(pendingKey);
+          } else if (current.affiliationsTruncated) {
+            return { kind: "reconcile" };
+          } else {
+            this.uncertainInstitutionCreates.delete(pendingKey);
+            return this.failedAffiliationActivation(error);
+          }
+        }
+      }
+
+      const restored = await this.restoreNow(authorityKey);
+      if (!restored) return { kind: "reconcile" };
+      current = this.currentData();
+      if (!current || this.authorityKey !== authorityKey) {
+        return { kind: "stale" };
+      }
+
+      affiliation = current.affiliations.find(
+        (item) =>
+          item.institutionId === institutionId && item.status === "active",
+      );
+      if (!affiliation && knownCreatedAffiliation) {
+        // A successful create response is itself server authority for the ID;
+        // context selection is still revalidated by the existing PUT endpoint.
+        affiliation = knownCreatedAffiliation;
+      }
+      if (!affiliation) {
+        if (current.affiliationsTruncated) return { kind: "reconcile" };
+        this.uncertainInstitutionCreates.delete(pendingKey);
+        return {
+          kind: "failed",
+          failure: "unexpected",
+          code: "ACADEMIC_AFFILIATION_NOT_FOUND",
+        };
+      }
+
+      if (current.context?.affiliationId === affiliation.id) {
+        this.uncertainInstitutionCreates.delete(pendingKey);
+        return { kind: "selected", affiliation };
+      }
+
+      generation = this.startMutation(authorityKey, current);
+      try {
+        await this.api.setContext({
+          affiliationId: affiliation.id,
+          expectedRevision: current.context?.revision ?? 0,
+        });
+        if (!this.isCurrent(generation, authorityKey)) {
+          return { kind: "stale" };
+        }
+      } catch (error) {
+        if (!this.isCurrent(generation, authorityKey)) {
+          return { kind: "stale" };
+        }
+
+        const reconciled = await this.restoreNow(authorityKey);
+        if (!reconciled) return { kind: "reconcile" };
+        current = this.currentData();
+        if (current?.context?.affiliationId === affiliation.id) {
+          this.uncertainInstitutionCreates.delete(pendingKey);
+          return { kind: "selected", affiliation };
+        }
+        return this.failedAffiliationActivation(error);
+      }
+
+      const contextRestored = await this.restoreNow(authorityKey);
+      if (!contextRestored) return { kind: "reconcile" };
+      current = this.currentData();
+      if (current?.context?.affiliationId !== affiliation.id) {
+        return { kind: "reconcile" };
+      }
+
+      this.uncertainInstitutionCreates.delete(pendingKey);
+      return { kind: "selected", affiliation };
     });
   }
 
@@ -277,7 +437,17 @@ export class AcademicContextController {
     this.publish(failureSnapshot(error));
   }
 
-  private enqueueMutation(operation: () => Promise<void>): Promise<void> {
+  private failedAffiliationActivation(
+    error: unknown,
+  ): AcademicAffiliationActivationResult {
+    return {
+      kind: "failed",
+      failure: error instanceof ApiRequestError ? error.kind : "unexpected",
+      code: error instanceof ApiRequestError ? error.code : null,
+    };
+  }
+
+  private enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
     const queued = this.mutationTail.then(operation, operation);
     this.mutationTail = queued.then(
       () => undefined,

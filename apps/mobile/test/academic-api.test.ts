@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {
+  AcademicCatalogSearchResponse,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
@@ -70,6 +71,10 @@ const sessionApi = (tokenRef: { value: string }): SessionApi => ({
 const transport = (
   overrides: Partial<AcademicContextTransport> = {},
 ): AcademicContextTransport => ({
+  academicCatalogSearch: async (): Promise<AcademicCatalogSearchResponse> => ({
+    items: [],
+    nextCursor: null,
+  }),
   academicAffiliations: async (): Promise<AcademicAffiliationListResponse> => ({
     affiliations: [],
     truncated: false,
@@ -81,6 +86,16 @@ const transport = (
       truncated: false,
       limit: 100,
     }),
+  createAcademicAffiliation: async (_credential, input) => ({
+    affiliation: {
+      id: "aff-created",
+      institutionId: input.institutionId,
+      status: input.status,
+      roles: input.roles ?? ["student"],
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    },
+  }),
   academicContext: async (): Promise<AcademicCurrentContextResponse> => ({
     context: null,
   }),
@@ -143,4 +158,72 @@ test("subjects forwards the affiliation scope under the same credential authorit
   await api.subjects("aff-a");
 
   assert.equal(receivedAffiliation, "aff-a");
+});
+
+test("catalog institution search remains public and forwards the opaque cursor", async () => {
+  const token = { value: "a".repeat(43) };
+  const session = new SessionController(sessionApi(token), new Store());
+  let receivedInput:
+    Parameters<AcademicContextTransport["academicCatalogSearch"]>[0] | null =
+    null;
+  const api = new AcademicMobileApi(
+    session,
+    transport({
+      academicCatalogSearch: async (input) => {
+        receivedInput = input;
+        return { items: [], nextCursor: null };
+      },
+    }),
+  );
+
+  await api.catalogSearch({
+    kind: "institution",
+    q: "Universidad",
+    limit: 25,
+    cursor: "opaque-cursor",
+  });
+
+  assert.deepEqual(receivedInput, {
+    kind: "institution",
+    q: "Universidad",
+    limit: 25,
+    cursor: "opaque-cursor",
+  });
+  assert.equal(session.getCredentialSnapshot(), null);
+});
+
+test("creating an affiliation uses the active Mobile credential", async () => {
+  const token = { value: "a".repeat(43) };
+  const store = new Store();
+  const session = new SessionController(sessionApi(token), store);
+  await session.login({ email: "a@example.edu", password: "password" });
+  let receivedCredential = "";
+  let receivedInstitution = "";
+  const api = new AcademicMobileApi(
+    session,
+    transport({
+      createAcademicAffiliation: async (credential, input) => {
+        receivedCredential = credential;
+        receivedInstitution = input.institutionId;
+        return {
+          affiliation: {
+            id: "aff-created",
+            institutionId: input.institutionId,
+            status: input.status,
+            roles: ["student"],
+            createdAt: "2026-10-01T00:00:00.000Z",
+            updatedAt: "2026-10-01T00:00:00.000Z",
+          },
+        };
+      },
+    }),
+  );
+
+  await api.createAffiliation({
+    institutionId: "institution-1",
+    status: "active",
+  });
+
+  assert.equal(receivedCredential, token.value);
+  assert.equal(receivedInstitution, "institution-1");
 });

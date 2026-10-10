@@ -1,34 +1,29 @@
 export const ACADEMIC_NODE_KINDS = [
-  'country',
-  'institution',
-  'campus',
-  'academic_unit',
-  'program',
-  'curriculum',
-  'subject',
-  'course_offering',
+  "country",
+  "institution",
+  "campus",
+  "academic_unit",
+  "program",
+  "curriculum",
+  "subject",
+  "course_offering",
 ] as const;
 
 export type AcademicNodeKind = (typeof ACADEMIC_NODE_KINDS)[number];
-export type AcademicNodeStatus = 'active' | 'inactive' | 'merged';
+export type AcademicNodeStatus = "active" | "inactive" | "merged";
 
 export type AcademicAffiliationStatus =
-  | 'applicant'
-  | 'active'
-  | 'paused'
-  | 'completed'
-  | 'withdrawn'
-  | 'alumni';
+  "applicant" | "active" | "paused" | "completed" | "withdrawn" | "alumni";
 
 export const ACADEMIC_RELATIONSHIP_ROLES = [
-  'student',
-  'advanced_student',
-  'recent_graduate',
-  'alumni',
-  'mentor',
-  'teaching',
-  'research',
-  'community',
+  "student",
+  "advanced_student",
+  "recent_graduate",
+  "alumni",
+  "mentor",
+  "teaching",
+  "research",
+  "community",
 ] as const;
 
 export type AcademicRelationshipRole =
@@ -50,10 +45,7 @@ export interface AcademicAffiliation {
 }
 
 export type SubjectParticipationState =
-  | 'planned'
-  | 'current'
-  | 'completed'
-  | 'dropped';
+  "planned" | "current" | "completed" | "dropped";
 
 export interface AcademicSubjectParticipation {
   id: string;
@@ -80,6 +72,22 @@ export interface AcademicAffiliationListResponse {
   limit: number;
 }
 
+export interface CreateAcademicAffiliationInput {
+  institutionId: string;
+  campusId?: string;
+  academicUnitId?: string;
+  programId?: string;
+  curriculumId?: string;
+  status: AcademicAffiliationStatus;
+  roles?: AcademicRelationshipRole[];
+  startedOn?: string;
+  endedOn?: string;
+}
+
+export interface CreateAcademicAffiliationResponse {
+  affiliation: AcademicAffiliation;
+}
+
 export interface AcademicSubjectParticipationListResponse {
   participations: AcademicSubjectParticipation[];
   truncated: boolean;
@@ -88,6 +96,11 @@ export interface AcademicSubjectParticipationListResponse {
 
 export interface AcademicCurrentContextResponse {
   context: AcademicCurrentContext | null;
+}
+
+export interface AcademicCatalogSearchResponse {
+  items: AcademicCatalogNode[];
+  nextCursor: string | null;
 }
 
 export interface SetAcademicContextInput {

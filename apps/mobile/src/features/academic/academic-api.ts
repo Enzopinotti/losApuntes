@@ -1,7 +1,11 @@
 import type {
+  AcademicCatalogSearchResponse,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
+  CreateAcademicAffiliationInput,
+  CreateAcademicAffiliationResponse,
+  AcademicNodeKind,
   SetAcademicContextInput,
 } from "@losapuntes/contracts";
 
@@ -9,10 +13,24 @@ import type { SessionController } from "@/features/session/session-controller";
 import { ApiRequestError } from "@/services/api/client";
 
 export interface AcademicContextTransport {
+  academicCatalogSearch(
+    input: {
+      kind: AcademicNodeKind;
+      q: string;
+      limit: number;
+      cursor?: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<AcademicCatalogSearchResponse>;
   academicAffiliations(
     credential: string,
     signal?: AbortSignal,
   ): Promise<AcademicAffiliationListResponse>;
+  createAcademicAffiliation(
+    credential: string,
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ): Promise<CreateAcademicAffiliationResponse>;
   academicSubjects(
     credential: string,
     affiliationId?: string,
@@ -30,7 +48,20 @@ export interface AcademicContextTransport {
 }
 
 export interface AcademicContextApi {
+  catalogSearch(
+    input: {
+      kind: AcademicNodeKind;
+      q: string;
+      limit: number;
+      cursor?: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<AcademicCatalogSearchResponse>;
   affiliations(signal?: AbortSignal): Promise<AcademicAffiliationListResponse>;
+  createAffiliation(
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ): Promise<CreateAcademicAffiliationResponse>;
   subjects(
     affiliationId?: string,
     signal?: AbortSignal,
@@ -48,9 +79,30 @@ export class AcademicMobileApi implements AcademicContextApi {
     private readonly transport: AcademicContextTransport,
   ) {}
 
+  catalogSearch(
+    input: {
+      kind: AcademicNodeKind;
+      q: string;
+      limit: number;
+      cursor?: string;
+    },
+    signal?: AbortSignal,
+  ) {
+    return this.transport.academicCatalogSearch(input, signal);
+  }
+
   affiliations(signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.academicAffiliations(credential, signal),
+    );
+  }
+
+  createAffiliation(
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.createAcademicAffiliation(credential, input, signal),
     );
   }
 

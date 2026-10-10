@@ -5,6 +5,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 
 import type {
   AcademicAffiliation,
@@ -70,6 +71,7 @@ const failureCopy = {
 } as const;
 
 export function AcademicContextCard() {
+  const router = useRouter();
   const { snapshot, retry, selectAffiliation, selectSubject } =
     useAcademicContext();
 
@@ -170,10 +172,20 @@ export function AcademicContextCard() {
       ) : null}
 
       {affiliations.length === 0 ? (
-        <Text style={styles.copy}>
-          No hay afiliaciones en el inventario visible. El alta y la búsqueda
-          del Grafo Académico llegan en el siguiente tramo de onboarding.
-        </Text>
+        <View style={styles.emptyAffiliations}>
+          <Text style={styles.copy}>
+            {data.affiliationsTruncated
+              ? "No encontramos una afiliación en la parte visible de tu lista. Revalidá antes de agregar otra."
+              : "Todavía no agregaste una institución. Buscá una opción del catálogo para empezar tu recorrido académico."}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/academic/onboarding")}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.secondaryButtonText}>Agregar institución</Text>
+          </Pressable>
+        </View>
       ) : (
         <View style={styles.options}>
           <Text style={styles.sectionLabel}>Cambiar afiliación</Text>
@@ -295,6 +307,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     backgroundColor: "#f2f2f7",
+  },
+  emptyAffiliations: {
+    gap: 10,
   },
   currentLabel: {
     fontSize: 13,

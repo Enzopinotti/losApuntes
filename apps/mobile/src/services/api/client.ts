@@ -1,6 +1,7 @@
 import type {
   AcceptedResponse,
   ActionTokenInput,
+  AcademicCatalogSearchResponse,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
@@ -20,11 +21,14 @@ import type {
   PasswordRecoveryCompleteInput,
   RegisterInput,
   ContextualDiscoveryResponse,
+  CreateAcademicAffiliationInput,
+  CreateAcademicAffiliationResponse,
   PublicProfileResponse,
   ResourceView,
   SearchResponse,
   SearchScope,
   SetAcademicContextInput,
+  AcademicNodeKind,
 } from "@losapuntes/contracts";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -378,6 +382,44 @@ export class MobileApiClient {
       "/academic/me/affiliations",
       {
         credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  academicCatalogSearch(
+    input: {
+      kind: AcademicNodeKind;
+      q: string;
+      limit: number;
+      cursor?: string;
+    },
+    signal?: AbortSignal,
+  ) {
+    const query = new URLSearchParams({
+      kind: input.kind,
+      q: input.q,
+      limit: String(input.limit),
+    });
+    if (input.cursor) query.set("cursor", input.cursor);
+
+    return this.request<AcademicCatalogSearchResponse>(
+      `/academic/catalog/search?${query.toString()}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  createAcademicAffiliation(
+    credential: string,
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<CreateAcademicAffiliationResponse>(
+      "/academic/me/affiliations",
+      {
+        method: "POST",
+        credential,
+        body: input,
         ...(signal ? { signal } : {}),
       },
     );

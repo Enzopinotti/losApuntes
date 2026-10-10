@@ -72,6 +72,75 @@ test("pilot Home uses the authenticated server-owned endpoint", async () => {
   }
 });
 
+test("Academic onboarding uses public canonical search and authenticated affiliation creation", async () => {
+  const previousFetch = globalThis.fetch;
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const affiliation = {
+    id: "aff-created",
+    institutionId: "institution-1",
+    status: "active",
+    roles: ["student"],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  };
+  globalThis.fetch = async (input, init) => {
+    requests.push({ url: String(input), ...(init ? { init } : {}) });
+    return new Response(
+      JSON.stringify(
+        new URL(String(input)).pathname === "/academic/catalog/search"
+          ? { items: [], nextCursor: null }
+          : { affiliation },
+      ),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  };
+
+  try {
+    const client = new MobileApiClient("https://api.example.test");
+    await client.academicCatalogSearch({
+      kind: "institution",
+      q: "Universidad",
+      limit: 25,
+      cursor: "opaque-cursor",
+    });
+    await client.createAcademicAffiliation("opaque-session", {
+      institutionId: "institution-1",
+      status: "active",
+    });
+
+    const search = requests[0]!;
+    const searchUrl = new URL(search.url);
+    assert.equal(searchUrl.pathname, "/academic/catalog/search");
+    assert.equal(searchUrl.searchParams.get("kind"), "institution");
+    assert.equal(searchUrl.searchParams.get("q"), "Universidad");
+    assert.equal(searchUrl.searchParams.get("limit"), "25");
+    assert.equal(searchUrl.searchParams.get("cursor"), "opaque-cursor");
+    assert.equal(search.init?.method, "GET");
+    assert.equal(
+      (search.init?.headers as Record<string, string> | undefined)
+        ?.Authorization,
+      undefined,
+    );
+
+    const create = requests[1]!;
+    assert.equal(new URL(create.url).pathname, "/academic/me/affiliations");
+    assert.equal(create.init?.method, "POST");
+    assert.equal(
+      (create.init?.headers as Record<string, string>).Authorization,
+      "Bearer opaque-session",
+    );
+    assert.deepEqual(JSON.parse(String(create.init?.body)), {
+      institutionId: "institution-1",
+      status: "active",
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("Search and result destinations use the existing authenticated routes", async () => {
   const previousFetch = globalThis.fetch;
   const requests: Array<{ url: string; init?: RequestInit }> = [];

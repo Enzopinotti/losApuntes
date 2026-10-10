@@ -78,7 +78,18 @@ const contextWithoutSubject = (
 const api = (
   overrides: Partial<AcademicContextApi> = {},
 ): AcademicContextApi => ({
+  catalogSearch: async () => ({ items: [], nextCursor: null }),
   affiliations: async () => affiliations,
+  createAffiliation: async (input) => ({
+    affiliation: {
+      id: "aff-created",
+      institutionId: input.institutionId,
+      status: input.status,
+      roles: input.roles ?? ["student"],
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    },
+  }),
   subjects: async () => subjects,
   context: async () => context(),
   setContext: async (input: SetAcademicContextInput) =>
@@ -534,4 +545,221 @@ test("keeps a queued selection pending until failed reconciliation recovers auth
   if (snapshot.kind !== "ready") throw new Error("expected ready");
   assert.equal(snapshot.data.context?.subjectParticipationId, "part-b");
   assert.equal(snapshot.data.context?.revision, 3);
+});
+
+test("creates an institutional affiliation and selects it from fresh server authority", async () => {
+  const createdAffiliation = {
+    id: "aff-new",
+    institutionId: "inst-new",
+    status: "active" as const,
+    roles: ["student" as const],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  };
+  let storedAffiliation = false;
+  let serverContext: AcademicCurrentContextResponse = { context: null };
+  let createCalls = 0;
+  const writes: SetAcademicContextInput[] = [];
+  const controller = new AcademicContextController(
+    api({
+      affiliations: async () => ({
+        affiliations: storedAffiliation ? [createdAffiliation] : [],
+        truncated: false,
+        limit: 50,
+      }),
+      subjects: async () => ({
+        participations: [],
+        truncated: false,
+        limit: 100,
+      }),
+      context: async () => serverContext,
+      createAffiliation: async (input) => {
+        createCalls += 1;
+        assert.deepEqual(input, {
+          institutionId: "inst-new",
+          status: "active",
+        });
+        storedAffiliation = true;
+        return { affiliation: createdAffiliation };
+      },
+      setContext: async (input) => {
+        writes.push(input);
+        serverContext = {
+          context: {
+            affiliationId: input.affiliationId,
+            revision: input.expectedRevision + 1,
+            updatedAt: "2026-10-10T00:00:00.000Z",
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addInstitutionAffiliation(
+    "user-1:session-1",
+    "inst-new",
+  );
+
+  assert.deepEqual(result, {
+    kind: "selected",
+    affiliation: createdAffiliation,
+  });
+  assert.equal(createCalls, 1);
+  assert.deepEqual(writes, [{ affiliationId: "aff-new", expectedRevision: 0 }]);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.affiliationId, "aff-new");
+});
+
+test("reconciles a committed affiliation after an ambiguous create response", async () => {
+  const createdAffiliation = {
+    id: "aff-new",
+    institutionId: "inst-new",
+    status: "active" as const,
+    roles: ["student" as const],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  };
+  let storedAffiliation = false;
+  let serverContext: AcademicCurrentContextResponse = { context: null };
+  let createCalls = 0;
+  const controller = new AcademicContextController(
+    api({
+      affiliations: async () => ({
+        affiliations: storedAffiliation ? [createdAffiliation] : [],
+        truncated: false,
+        limit: 50,
+      }),
+      subjects: async () => ({
+        participations: [],
+        truncated: false,
+        limit: 100,
+      }),
+      context: async () => serverContext,
+      createAffiliation: async () => {
+        createCalls += 1;
+        storedAffiliation = true;
+        throw new ApiRequestError(
+          "timeout",
+          null,
+          "REQUEST_TIMEOUT",
+          "The server committed before the response timed out",
+        );
+      },
+      setContext: async (input) => {
+        serverContext = {
+          context: {
+            affiliationId: input.affiliationId,
+            revision: input.expectedRevision + 1,
+            updatedAt: "2026-10-10T00:00:00.000Z",
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addInstitutionAffiliation(
+    "user-1:session-1",
+    "inst-new",
+  );
+
+  assert.equal(result.kind, "selected");
+  assert.equal(createCalls, 1);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.affiliationId, "aff-new");
+});
+
+test("does not retry an ambiguous create while the affiliation inventory is truncated", async () => {
+  let createCalls = 0;
+  const controller = new AcademicContextController(
+    api({
+      affiliations: async () => ({
+        affiliations: [],
+        truncated: createCalls > 0,
+        limit: 50,
+      }),
+      createAffiliation: async () => {
+        createCalls += 1;
+        throw new ApiRequestError(
+          "timeout",
+          null,
+          "REQUEST_TIMEOUT",
+          "ambiguous response",
+        );
+      },
+      context: async () => ({ context: null }),
+      subjects: async () => ({
+        participations: [],
+        truncated: false,
+        limit: 100,
+      }),
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  assert.deepEqual(
+    await controller.addInstitutionAffiliation("user-1:session-1", "inst-new"),
+    { kind: "reconcile" },
+  );
+  assert.deepEqual(
+    await controller.addInstitutionAffiliation("user-1:session-1", "inst-new"),
+    { kind: "reconcile" },
+  );
+  assert.equal(createCalls, 1);
+});
+
+test("reuses an existing active institution affiliation instead of duplicating it", async () => {
+  const existingAffiliation = {
+    id: "aff-existing",
+    institutionId: "inst-existing",
+    status: "active" as const,
+    roles: ["student" as const],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  };
+  let serverContext: AcademicCurrentContextResponse = { context: null };
+  let createCalls = 0;
+  const controller = new AcademicContextController(
+    api({
+      affiliations: async () => ({
+        affiliations: [existingAffiliation],
+        truncated: false,
+        limit: 50,
+      }),
+      context: async () => serverContext,
+      createAffiliation: async () => {
+        createCalls += 1;
+        return { affiliation: existingAffiliation };
+      },
+      setContext: async (input) => {
+        serverContext = {
+          context: {
+            affiliationId: input.affiliationId,
+            revision: input.expectedRevision + 1,
+            updatedAt: "2026-10-10T00:00:00.000Z",
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addInstitutionAffiliation(
+    "user-1:session-1",
+    "inst-existing",
+  );
+
+  assert.deepEqual(result, {
+    kind: "selected",
+    affiliation: existingAffiliation,
+  });
+  assert.equal(createCalls, 0);
 });
