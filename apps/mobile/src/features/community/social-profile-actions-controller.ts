@@ -5,7 +5,7 @@ import {
   isAmbiguousCommunityMutationFailure,
   type CommunityFailure,
 } from "./community-controller";
-import type { SocialConnectionsApi } from "./community-api";
+import type { SocialConnectionsApi, SocialFollowingApi } from "./community-api";
 
 const RECONCILIATION_LIMIT = 100;
 
@@ -16,6 +16,10 @@ export type SocialProfileActionsSnapshot =
       authorityKey: string;
       profileId: string;
       connection: ConnectionView | null;
+      following: boolean;
+      followBusy: boolean;
+      followFailure: CommunityFailure | null;
+      followNotice: string | null;
       busy: boolean;
       reconciling: boolean;
       reconciliationRequired: boolean;
@@ -55,7 +59,10 @@ export class SocialProfileActionsController {
   private snapshot: SocialProfileActionsSnapshot = { kind: "idle" };
   private readonly listeners = new Set<Listener>();
 
-  constructor(private readonly api: SocialConnectionsApi) {}
+  constructor(
+    private readonly api: SocialConnectionsApi &
+      Pick<SocialFollowingApi, "followProfile">,
+  ) {}
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -81,6 +88,10 @@ export class SocialProfileActionsController {
             authorityKey,
             profileId,
             connection: null,
+            following: false,
+            followBusy: false,
+            followFailure: null,
+            followNotice: null,
             busy: false,
             reconciling: false,
             reconciliationRequired: false,
@@ -144,6 +155,59 @@ export class SocialProfileActionsController {
             notice: null,
           });
         }
+      }
+    } finally {
+      this.finish(operation);
+    }
+  }
+
+  async followProfile(authorityKey: string): Promise<void> {
+    const current = this.ready(authorityKey);
+    if (
+      !current ||
+      current.following ||
+      current.followBusy ||
+      current.busy ||
+      current.reconciling ||
+      this.operation
+    ) {
+      return;
+    }
+
+    const operation = this.begin(authorityKey, current.profileId);
+    if (!operation) return;
+    this.publish({
+      ...current,
+      followBusy: true,
+      followFailure: null,
+      followNotice: null,
+    });
+
+    try {
+      await this.api.followProfile(
+        current.profileId,
+        operation.controller.signal,
+      );
+      if (!this.isCurrent(operation)) return;
+      const latest = this.ready(authorityKey);
+      if (!latest) return;
+      this.publish({
+        ...latest,
+        following: true,
+        followBusy: false,
+        followFailure: null,
+        followNotice: "El servidor confirma que ahora seguís este perfil.",
+      });
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const latest = this.ready(authorityKey);
+      if (latest) {
+        this.publish({
+          ...latest,
+          followBusy: false,
+          followFailure: communityFailure(error),
+          followNotice: null,
+        });
       }
     } finally {
       this.finish(operation);

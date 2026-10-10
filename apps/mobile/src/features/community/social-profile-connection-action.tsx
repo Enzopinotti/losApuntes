@@ -49,14 +49,30 @@ function failureCopy(failure: CommunityFailure): string {
   }
 }
 
-export function SocialProfileConnectionAction({
-  profileId,
-  displayName,
-}: {
-  profileId: string;
-  displayName: string;
-}) {
-  const router = useRouter();
+function followFailureCopy(failure: CommunityFailure): string {
+  if (failure.code === "EMAIL_VERIFICATION_REQUIRED") {
+    return "Verificá tu email para seguir perfiles.";
+  }
+  if (failure.code === "SOCIAL_PROFILE_REQUIRED") {
+    return "Completá tu perfil antes de seguir a otras personas.";
+  }
+  switch (failure.kind) {
+    case "offline":
+      return "No hay conexión. Volvé a intentarlo cuando estés en línea.";
+    case "timeout":
+      return "No pudimos confirmar si ya seguís este perfil. Podés reintentar.";
+    case "server_unavailable":
+      return "El servicio de red no está disponible ahora.";
+    case "auth_required":
+      return "La sesión venció. Iniciá sesión para continuar.";
+    case "restricted":
+      return "La cuenta no puede seguir perfiles.";
+    default:
+      return "No pudimos seguir este perfil. Podés volver a intentar.";
+  }
+}
+
+function useSocialProfileActions(profileId: string) {
   const isFocused = useIsFocused();
   const { snapshot: session } = useSession();
   const [appState, setAppState] = useState(AppState.currentState ?? "active");
@@ -86,6 +102,20 @@ export function SocialProfileConnectionAction({
     controller.setAuthority(authorityKey, profileId);
     return () => controller.invalidate(authorityKey ?? undefined);
   }, [authorityKey, controller, profileId]);
+
+  return { authorityKey, controller, session, snapshot };
+}
+
+export function SocialProfileConnectionAction({
+  profileId,
+  displayName,
+}: {
+  profileId: string;
+  displayName: string;
+}) {
+  const router = useRouter();
+  const { authorityKey, controller, session, snapshot } =
+    useSocialProfileActions(profileId);
 
   if (
     session.kind !== "authenticated" ||
@@ -195,6 +225,72 @@ export function SocialProfileConnectionAction({
           onPress={() => void controller.requestConnection(authorityKey)}
         />
       ) : null}
+    </View>
+  );
+}
+
+export function SocialProfileFollowAction({
+  profileId,
+}: {
+  profileId: string;
+}) {
+  const router = useRouter();
+  const { authorityKey, controller, session, snapshot } =
+    useSocialProfileActions(profileId);
+
+  if (
+    session.kind !== "authenticated" ||
+    !authorityKey ||
+    snapshot.kind !== "ready" ||
+    snapshot.authorityKey !== authorityKey ||
+    snapshot.profileId !== profileId
+  ) {
+    return null;
+  }
+
+  return (
+    <View style={styles.card}>
+      <Text accessibilityRole="header" style={styles.title}>
+        Seguir perfil
+      </Text>
+      <Text style={styles.copy}>
+        Seguir expresa interés; no crea una conexión ni cambia qué secciones
+        podés ver.
+      </Text>
+      {snapshot.followNotice ? (
+        <Text accessibilityLiveRegion="polite" style={styles.notice}>
+          {snapshot.followNotice}
+        </Text>
+      ) : null}
+      {snapshot.followFailure ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {followFailureCopy(snapshot.followFailure)}
+        </Text>
+      ) : null}
+      {snapshot.following ? (
+        <ActionButton
+          label="Administrar perfiles que sigo"
+          accessibilityLabel="Administrar los perfiles que sigo"
+          disabled={false}
+          secondary
+          onPress={() => router.push("/social-following")}
+        />
+      ) : (
+        <ActionButton
+          label={
+            snapshot.followBusy
+              ? "Siguiendo…"
+              : snapshot.followFailure
+                ? "Reintentar"
+                : "Seguir"
+          }
+          accessibilityLabel="Seguir este perfil"
+          disabled={
+            snapshot.followBusy || snapshot.busy || snapshot.reconciling
+          }
+          onPress={() => void controller.followProfile(authorityKey)}
+        />
+      )}
     </View>
   );
 }

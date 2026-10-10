@@ -20,7 +20,10 @@ import {
 } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
-import { SocialProfileConnectionAction } from "@/features/community/social-profile-connection-action";
+import {
+  SocialProfileConnectionAction,
+  SocialProfileFollowAction,
+} from "@/features/community/social-profile-connection-action";
 
 import { mobileSearchApi } from "./search-runtime";
 import { useFencedDetail } from "./use-fenced-detail";
@@ -294,6 +297,7 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
               profileId={profileId}
               displayName={data.profile.about?.displayName ?? "este perfil"}
             />
+            <SocialProfileFollowAction profileId={profileId} />
           </View>
         )}
       </DetailState>

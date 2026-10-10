@@ -154,6 +154,23 @@ test("request methods retain the bearer credential and server cursor contract", 
       });
       return { connection: connection("pending") };
     },
+    following: async (credential, input, signal) => {
+      calls.push({ method: "following", args: [credential, input, signal] });
+      return { items: [], nextCursor: null };
+    },
+    followProfile: async (credential, profileId, signal) => {
+      calls.push({
+        method: "followProfile",
+        args: [credential, profileId, signal],
+      });
+      return { following: true };
+    },
+    unfollowProfile: async (credential, profileId, signal) => {
+      calls.push({
+        method: "unfollowProfile",
+        args: [credential, profileId, signal],
+      });
+    },
   };
   const api = new MobileCommunityApi(harness.session, transport);
   const signal = new AbortController().signal;
@@ -176,6 +193,9 @@ test("request methods retain the bearer credential and server cursor contract", 
   await api.respondConnection("connection-a", "accept", signal);
   await api.disconnectConnection("connection-a", signal);
   await api.requestConnection("profile-a", signal);
+  await api.following({ limit: 30, cursor: "follow-cursor" }, signal);
+  await api.followProfile("profile-a", signal);
+  await api.unfollowProfile("profile-a", signal);
 
   assert.deepEqual(calls[0], {
     method: "questions",
@@ -225,6 +245,22 @@ test("request methods retain the bearer credential and server cursor contract", 
     method: "requestConnection",
     args: ["secret-session-token", "profile-a", signal],
   });
+  assert.deepEqual(calls[9], {
+    method: "following",
+    args: [
+      "secret-session-token",
+      { limit: 30, cursor: "follow-cursor" },
+      signal,
+    ],
+  });
+  assert.deepEqual(calls[10], {
+    method: "followProfile",
+    args: ["secret-session-token", "profile-a", signal],
+  });
+  assert.deepEqual(calls[11], {
+    method: "unfollowProfile",
+    args: ["secret-session-token", "profile-a", signal],
+  });
 });
 
 test("connection transport uses the authenticated paginated Social endpoints", async () => {
@@ -266,6 +302,13 @@ test("connection transport uses the authenticated paginated Social endpoints", a
     "profile/a",
     signal,
   );
+  await transport.following(
+    "secret-session-token",
+    { limit: 30, cursor: "opaque/cursor" },
+    signal,
+  );
+  await transport.followProfile("secret-session-token", "profile/a", signal);
+  await transport.unfollowProfile("secret-session-token", "profile/a", signal);
 
   assert.deepEqual(calls, [
     {
@@ -283,6 +326,18 @@ test("connection transport uses the authenticated paginated Social endpoints", a
     {
       path: "/social/profiles/profile%2Fa/connections",
       init: { method: "POST", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/me/following?limit=30&cursor=opaque%2Fcursor",
+      init: { credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/profiles/profile%2Fa/follow",
+      init: { method: "PUT", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/profiles/profile%2Fa/follow",
+      init: { method: "DELETE", credential: "secret-session-token", signal },
     },
   ]);
 });
@@ -313,6 +368,9 @@ test("requires the current session and never silently downgrades to anonymous", 
     respondConnection: async () => ({ connection: connection("pending") }),
     disconnectConnection: async () => undefined,
     requestConnection: async () => ({ connection: connection("pending") }),
+    following: async () => ({ items: [], nextCursor: null }),
+    followProfile: async () => ({ following: true }),
+    unfollowProfile: async () => undefined,
   };
 
   await assert.rejects(
@@ -350,6 +408,9 @@ test("fences successful responses when the session generation changed", async ()
     respondConnection: async () => ({ connection: connection("pending") }),
     disconnectConnection: async () => undefined,
     requestConnection: async () => ({ connection: connection("pending") }),
+    following: async () => ({ items: [], nextCursor: null }),
+    followProfile: async () => ({ following: true }),
+    unfollowProfile: async () => undefined,
   };
   const request = new MobileCommunityApi(harness.session, transport).questions({
     limit: 25,

@@ -6,6 +6,7 @@ import type {
   ConnectionView,
   CreateAnswerInput,
   CreateQuestionInput,
+  FollowingItem,
   QuestionDetailResponse,
   QuestionSearchResponse,
 } from "@losapuntes/contracts/social-qa";
@@ -61,6 +62,16 @@ export type ConnectionsPageResponse = {
   nextCursor: string | null;
 };
 
+export type FollowingPageInput = {
+  cursor?: string;
+  limit?: number;
+};
+
+export type FollowingPageResponse = {
+  items: FollowingItem[];
+  nextCursor: string | null;
+};
+
 export interface SocialConnectionsApi {
   connections(
     input: ConnectionsPageInput,
@@ -76,6 +87,18 @@ export interface SocialConnectionsApi {
     profileId: string,
     signal?: AbortSignal,
   ): Promise<{ connection: ConnectionView }>;
+}
+
+export interface SocialFollowingApi {
+  following(
+    input: FollowingPageInput,
+    signal?: AbortSignal,
+  ): Promise<FollowingPageResponse>;
+  followProfile(
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ following: true }>;
+  unfollowProfile(profileId: string, signal?: AbortSignal): Promise<void>;
 }
 
 export interface CommunityTransport {
@@ -142,6 +165,21 @@ export interface CommunityTransport {
     profileId: string,
     signal?: AbortSignal,
   ): Promise<{ connection: ConnectionView }>;
+  following(
+    credential: string,
+    input: FollowingPageInput,
+    signal?: AbortSignal,
+  ): Promise<FollowingPageResponse>;
+  followProfile(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ following: true }>;
+  unfollowProfile(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }
 
 export interface CommunityNotificationsApi {
@@ -351,10 +389,46 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
       },
     );
   }
+
+  following(
+    credential: string,
+    input: FollowingPageInput,
+    signal?: AbortSignal,
+  ) {
+    const requestedLimit = Number.isFinite(input.limit)
+      ? Math.trunc(input.limit!)
+      : 25;
+    const limit = Math.min(100, Math.max(1, requestedLimit));
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (input.cursor) query.set("cursor", input.cursor);
+
+    return this.client.request<FollowingPageResponse>(
+      `/social/me/following?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  followProfile(credential: string, profileId: string, signal?: AbortSignal) {
+    return this.client.request<{ following: true }>(
+      `/social/profiles/${encodeURIComponent(profileId)}/follow`,
+      { method: "PUT", credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  unfollowProfile(credential: string, profileId: string, signal?: AbortSignal) {
+    return this.client.request<void>(
+      `/social/profiles/${encodeURIComponent(profileId)}/follow`,
+      { method: "DELETE", credential, ...(signal ? { signal } : {}) },
+    );
+  }
 }
 
 export class MobileCommunityApi
-  implements CommunityApi, CommunityNotificationsApi, SocialConnectionsApi
+  implements
+    CommunityApi,
+    CommunityNotificationsApi,
+    SocialConnectionsApi,
+    SocialFollowingApi
 {
   constructor(
     private readonly session: SessionController,
@@ -443,6 +517,24 @@ export class MobileCommunityApi
   requestConnection(profileId: string, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.requestConnection(credential, profileId, signal),
+    );
+  }
+
+  following(input: FollowingPageInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.following(credential, input, signal),
+    );
+  }
+
+  followProfile(profileId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.followProfile(credential, profileId, signal),
+    );
+  }
+
+  unfollowProfile(profileId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.unfollowProfile(credential, profileId, signal),
     );
   }
 

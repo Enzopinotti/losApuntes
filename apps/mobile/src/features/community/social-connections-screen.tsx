@@ -468,6 +468,13 @@ export function SocialConnectionsScreen() {
           })}
 
           <ActionButton
+            label="Perfiles que sigo"
+            accessibilityLabel="Abrir los perfiles que sigo"
+            disabled={false}
+            secondary
+            onPress={() => router.push("/social-following")}
+          />
+          <ActionButton
             label="Buscar personas"
             accessibilityLabel="Buscar personas para descubrir perfiles"
             disabled={false}
