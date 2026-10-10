@@ -123,7 +123,10 @@ test('artifact root checks physical ancestors before creating directories', asyn
     assert.equal(existsSync(path.join(repoRoot, 'new')), false);
 
     const legitimate = path.join(externalRoot, 'new', 'nested');
-    assert.equal(assertArtifactRootOutsideRepo(legitimate, repoRoot), legitimate);
+    assert.equal(
+      assertArtifactRootOutsideRepo(legitimate, repoRoot),
+      legitimate,
+    );
     assert.equal(
       assertArtifactRootOutsideRepo(path.join(root, 'repo-sibling'), repoRoot),
       path.join(root, 'repo-sibling'),
@@ -133,7 +136,10 @@ test('artifact root checks physical ancestors before creating directories', asyn
     await mkdir(path.join(externalRoot, 'safe'));
     await symlink(path.join(externalRoot, 'safe'), aliasToOutside, 'dir');
     assert.equal(
-      assertArtifactRootOutsideRepo(path.join(aliasToOutside, 'backup'), repoRoot),
+      assertArtifactRootOutsideRepo(
+        path.join(aliasToOutside, 'backup'),
+        repoRoot,
+      ),
       path.join(externalRoot, 'safe', 'backup'),
     );
 
