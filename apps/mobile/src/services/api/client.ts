@@ -2,6 +2,7 @@ import type {
   AcceptedResponse,
   ActionTokenInput,
   AcademicCatalogSearchResponse,
+  AcademicCatalogSearchInput,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
@@ -28,7 +29,8 @@ import type {
   SearchResponse,
   SearchScope,
   SetAcademicContextInput,
-  AcademicNodeKind,
+  UpsertAcademicSubjectParticipationInput,
+  UpsertAcademicSubjectParticipationResponse,
 } from "@losapuntes/contracts";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -388,12 +390,7 @@ export class MobileApiClient {
   }
 
   academicCatalogSearch(
-    input: {
-      kind: AcademicNodeKind;
-      q: string;
-      limit: number;
-      cursor?: string;
-    },
+    input: AcademicCatalogSearchInput,
     signal?: AbortSignal,
   ) {
     const query = new URLSearchParams({
@@ -402,6 +399,7 @@ export class MobileApiClient {
       limit: String(input.limit),
     });
     if (input.cursor) query.set("cursor", input.cursor);
+    if (input.parentId) query.set("parentId", input.parentId);
 
     return this.request<AcademicCatalogSearchResponse>(
       `/academic/catalog/search?${query.toString()}`,
@@ -448,6 +446,23 @@ export class MobileApiClient {
       "/academic/me/context",
       {
         credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  upsertAcademicSubjectParticipation(
+    credential: string,
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<UpsertAcademicSubjectParticipationResponse>(
+      `/academic/me/subjects/${encodeURIComponent(subjectId)}`,
+      {
+        method: "PUT",
+        credential,
+        body: input,
         ...(signal ? { signal } : {}),
       },
     );

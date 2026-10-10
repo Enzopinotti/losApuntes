@@ -4,8 +4,8 @@ import test from "node:test";
 import type { AcademicCatalogNode } from "@losapuntes/contracts";
 
 import {
-  AcademicInstitutionSearchController,
-  type AcademicInstitutionSearchApi,
+  AcademicCatalogSearchController,
+  type AcademicCatalogSearchApi,
 } from "../src/features/academic/academic-onboarding-controller";
 
 const institution = (id: string, name = id): AcademicCatalogNode => ({
@@ -17,20 +17,21 @@ const institution = (id: string, name = id): AcademicCatalogNode => ({
 });
 
 const api = (
-  overrides: Partial<AcademicInstitutionSearchApi> = {},
-): AcademicInstitutionSearchApi => ({
+  overrides: Partial<AcademicCatalogSearchApi> = {},
+): AcademicCatalogSearchApi => ({
   catalogSearch: async () => ({ items: [], nextCursor: null }),
   ...overrides,
 });
 
 test("institution search trims queries and pages with the opaque cursor", async () => {
   const requests: Array<{
-    kind: "institution";
+    kind: "institution" | "program" | "subject";
     q: string;
     limit: number;
     cursor?: string;
+    parentId?: string;
   }> = [];
-  const controller = new AcademicInstitutionSearchController(
+  const controller = new AcademicCatalogSearchController(
     api({
       catalogSearch: async (input) => {
         requests.push(input);
@@ -67,12 +68,76 @@ test("institution search trims queries and pages with the opaque cursor", async 
   }
 });
 
+test("program and subject searches stay scoped to the selected parent", async () => {
+  const program: AcademicCatalogNode = {
+    id: "program-a",
+    kind: "program",
+    name: "Medicina",
+    parentIds: ["inst-a"],
+    status: "active",
+  };
+  const requests: Array<{
+    kind: "institution" | "program" | "subject";
+    q: string;
+    limit: number;
+    cursor?: string;
+    parentId?: string;
+  }> = [];
+  const controller = new AcademicCatalogSearchController(
+    api({
+      catalogSearch: async (input) => {
+        requests.push(input);
+        return { items: [program], nextCursor: null };
+      },
+    }),
+    "program",
+    "inst-a",
+  );
+  controller.setAuthority("user-a:session-a");
+
+  await controller.search("user-a:session-a", "Medicina");
+
+  assert.deepEqual(requests, [
+    {
+      kind: "program",
+      q: "Medicina",
+      limit: 25,
+      parentId: "inst-a",
+    },
+  ]);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(snapshot.items, [program]);
+  }
+
+  const subjectController = new AcademicCatalogSearchController(
+    api({
+      catalogSearch: async (input) => {
+        requests.push(input);
+        return { items: [], nextCursor: null };
+      },
+    }),
+    "subject",
+    "program-a",
+  );
+  subjectController.setAuthority("user-a:session-a");
+  await subjectController.search("user-a:session-a", "Anatomía");
+
+  assert.deepEqual(requests[1], {
+    kind: "subject",
+    q: "Anatomía",
+    limit: 25,
+    parentId: "program-a",
+  });
+});
+
 test("a search response from the previous session cannot replace the new scope", async () => {
   let resolveSearch!: (response: {
     items: AcademicCatalogNode[];
     nextCursor: string | null;
   }) => void;
-  const controller = new AcademicInstitutionSearchController(
+  const controller = new AcademicCatalogSearchController(
     api({
       catalogSearch: async () =>
         new Promise((resolve) => {
@@ -97,7 +162,7 @@ test("a search response from the previous session cannot replace the new scope",
 });
 
 test("inactive catalog rows are not offered as selectable institutions", async () => {
-  const controller = new AcademicInstitutionSearchController(
+  const controller = new AcademicCatalogSearchController(
     api({
       catalogSearch: async () => ({
         items: [

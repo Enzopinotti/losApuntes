@@ -89,7 +89,18 @@ test("Academic onboarding uses public canonical search and authenticated affilia
       JSON.stringify(
         new URL(String(input)).pathname === "/academic/catalog/search"
           ? { items: [], nextCursor: null }
-          : { affiliation },
+          : new URL(String(input)).pathname.startsWith("/academic/me/subjects/")
+            ? {
+                participation: {
+                  id: "part-created",
+                  subjectId: "subject-1",
+                  subjectName: "Álgebra",
+                  state: "current",
+                  createdAt: "2026-10-01T00:00:00.000Z",
+                  updatedAt: "2026-10-01T00:00:00.000Z",
+                },
+              }
+            : { affiliation },
       ),
       {
         status: 200,
@@ -101,23 +112,31 @@ test("Academic onboarding uses public canonical search and authenticated affilia
   try {
     const client = new MobileApiClient("https://api.example.test");
     await client.academicCatalogSearch({
-      kind: "institution",
-      q: "Universidad",
+      kind: "program",
+      q: "Medicina",
       limit: 25,
+      parentId: "institution-1",
       cursor: "opaque-cursor",
     });
     await client.createAcademicAffiliation("opaque-session", {
       institutionId: "institution-1",
+      programId: "program-1",
       status: "active",
     });
+    await client.upsertAcademicSubjectParticipation(
+      "opaque-session",
+      "subject-1",
+      { state: "current" },
+    );
 
     const search = requests[0]!;
     const searchUrl = new URL(search.url);
     assert.equal(searchUrl.pathname, "/academic/catalog/search");
-    assert.equal(searchUrl.searchParams.get("kind"), "institution");
-    assert.equal(searchUrl.searchParams.get("q"), "Universidad");
+    assert.equal(searchUrl.searchParams.get("kind"), "program");
+    assert.equal(searchUrl.searchParams.get("q"), "Medicina");
     assert.equal(searchUrl.searchParams.get("limit"), "25");
     assert.equal(searchUrl.searchParams.get("cursor"), "opaque-cursor");
+    assert.equal(searchUrl.searchParams.get("parentId"), "institution-1");
     assert.equal(search.init?.method, "GET");
     assert.equal(
       (search.init?.headers as Record<string, string> | undefined)
@@ -134,7 +153,21 @@ test("Academic onboarding uses public canonical search and authenticated affilia
     );
     assert.deepEqual(JSON.parse(String(create.init?.body)), {
       institutionId: "institution-1",
+      programId: "program-1",
       status: "active",
+    });
+    const upsert = requests[2]!;
+    assert.equal(
+      new URL(upsert.url).pathname,
+      "/academic/me/subjects/subject-1",
+    );
+    assert.equal(upsert.init?.method, "PUT");
+    assert.equal(
+      (upsert.init?.headers as Record<string, string>).Authorization,
+      "Bearer opaque-session",
+    );
+    assert.deepEqual(JSON.parse(String(upsert.init?.body)), {
+      state: "current",
     });
   } finally {
     globalThis.fetch = previousFetch;

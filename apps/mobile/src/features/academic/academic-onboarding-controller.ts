@@ -1,13 +1,27 @@
 import type {
   AcademicCatalogNode,
   AcademicCatalogSearchResponse,
+  AcademicNodeKind,
 } from "@losapuntes/contracts";
 
 import { ApiRequestError, type ApiFailureKind } from "@/services/api/client";
 
-const INSTITUTION_SEARCH_LIMIT = 25;
+const CATALOG_SEARCH_LIMIT = 25;
 
-export type AcademicInstitutionSearchSnapshot =
+type OnboardingCatalogKind = Extract<
+  AcademicNodeKind,
+  "institution" | "program" | "subject"
+>;
+
+interface OnboardingCatalogSearchInput {
+  kind: OnboardingCatalogKind;
+  q: string;
+  limit: number;
+  cursor?: string;
+  parentId?: string;
+}
+
+export type AcademicCatalogSearchSnapshot =
   | { kind: "idle"; authorityKey: string | null }
   | { kind: "loading"; authorityKey: string; query: string }
   | {
@@ -26,16 +40,11 @@ export type AcademicInstitutionSearchSnapshot =
       failure: ApiFailureKind;
     };
 
-type Listener = (snapshot: AcademicInstitutionSearchSnapshot) => void;
+type Listener = (snapshot: AcademicCatalogSearchSnapshot) => void;
 
-export interface AcademicInstitutionSearchApi {
+export interface AcademicCatalogSearchApi {
   catalogSearch(
-    input: {
-      kind: "institution";
-      q: string;
-      limit: number;
-      cursor?: string;
-    },
+    input: OnboardingCatalogSearchInput,
     signal?: AbortSignal,
   ): Promise<AcademicCatalogSearchResponse>;
 }
@@ -43,8 +52,8 @@ export interface AcademicInstitutionSearchApi {
 const failureKind = (error: unknown): ApiFailureKind =>
   error instanceof ApiRequestError ? error.kind : "unexpected";
 
-export class AcademicInstitutionSearchController {
-  private snapshot: AcademicInstitutionSearchSnapshot = {
+export class AcademicCatalogSearchController {
+  private snapshot: AcademicCatalogSearchSnapshot = {
     kind: "idle",
     authorityKey: null,
   };
@@ -53,9 +62,13 @@ export class AcademicInstitutionSearchController {
   private authorityKey: string | null = null;
   private activeSearch: AbortController | null = null;
 
-  constructor(private readonly api: AcademicInstitutionSearchApi) {}
+  constructor(
+    private readonly api: AcademicCatalogSearchApi,
+    private readonly kind: OnboardingCatalogKind = "institution",
+    private readonly parentId?: string,
+  ) {}
 
-  getSnapshot(): AcademicInstitutionSearchSnapshot {
+  getSnapshot(): AcademicCatalogSearchSnapshot {
     return this.snapshot;
   }
 
@@ -87,7 +100,12 @@ export class AcademicInstitutionSearchController {
 
     try {
       const response = await this.api.catalogSearch(
-        { kind: "institution", q: query, limit: INSTITUTION_SEARCH_LIMIT },
+        {
+          kind: this.kind,
+          q: query,
+          limit: CATALOG_SEARCH_LIMIT,
+          ...(this.parentId ? { parentId: this.parentId } : {}),
+        },
         signal,
       );
       if (!this.isCurrent(generation, authorityKey)) return;
@@ -96,7 +114,7 @@ export class AcademicInstitutionSearchController {
         authorityKey,
         query,
         items: response.items.filter(
-          (item) => item.kind === "institution" && item.status === "active",
+          (item) => item.kind === this.kind && item.status === "active",
         ),
         nextCursor: response.nextCursor,
         loadingMore: false,
@@ -132,10 +150,11 @@ export class AcademicInstitutionSearchController {
     try {
       const response = await this.api.catalogSearch(
         {
-          kind: "institution",
+          kind: this.kind,
           q: current.query,
-          limit: INSTITUTION_SEARCH_LIMIT,
+          limit: CATALOG_SEARCH_LIMIT,
           cursor: current.nextCursor,
+          ...(this.parentId ? { parentId: this.parentId } : {}),
         },
         signal,
       );
@@ -150,7 +169,7 @@ export class AcademicInstitutionSearchController {
       }
       const items = new Map(latest.items.map((item) => [item.id, item]));
       for (const item of response.items) {
-        if (item.kind === "institution" && item.status === "active") {
+        if (item.kind === this.kind && item.status === "active") {
           items.set(item.id, item);
         }
       }
@@ -197,7 +216,7 @@ export class AcademicInstitutionSearchController {
     return this.generation === generation && this.authorityKey === authorityKey;
   }
 
-  private publish(snapshot: AcademicInstitutionSearchSnapshot): void {
+  private publish(snapshot: AcademicCatalogSearchSnapshot): void {
     this.snapshot = snapshot;
     for (const listener of this.listeners) listener(snapshot);
   }

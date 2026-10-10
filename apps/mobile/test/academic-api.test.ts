@@ -102,6 +102,20 @@ const transport = (
   setAcademicContext: async (): Promise<AcademicCurrentContextResponse> => ({
     context: null,
   }),
+  upsertAcademicSubjectParticipation: async (
+    _credential,
+    subjectId,
+    input,
+  ) => ({
+    participation: {
+      id: "part-created",
+      subjectId,
+      subjectName: subjectId,
+      state: input.state,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    },
+  }),
   ...overrides,
 });
 
@@ -177,19 +191,58 @@ test("catalog institution search remains public and forwards the opaque cursor",
   );
 
   await api.catalogSearch({
-    kind: "institution",
-    q: "Universidad",
+    kind: "program",
+    q: "Medicina",
     limit: 25,
+    parentId: "institution-1",
     cursor: "opaque-cursor",
   });
 
   assert.deepEqual(receivedInput, {
-    kind: "institution",
-    q: "Universidad",
+    kind: "program",
+    q: "Medicina",
     limit: 25,
+    parentId: "institution-1",
     cursor: "opaque-cursor",
   });
   assert.equal(session.getCredentialSnapshot(), null);
+});
+
+test("subject participation upsert uses the active Mobile credential", async () => {
+  const token = { value: "a".repeat(43) };
+  const store = new Store();
+  const session = new SessionController(sessionApi(token), store);
+  await session.login({ email: "a@example.edu", password: "password" });
+  let receivedCredential = "";
+  let receivedSubject = "";
+  const api = new AcademicMobileApi(
+    session,
+    transport({
+      upsertAcademicSubjectParticipation: async (
+        credential,
+        subjectId,
+        input,
+      ) => {
+        receivedCredential = credential;
+        receivedSubject = subjectId;
+        return {
+          participation: {
+            id: "part-current",
+            subjectId,
+            subjectName: subjectId,
+            state: input.state,
+            createdAt: "2026-10-01T00:00:00.000Z",
+            updatedAt: "2026-10-01T00:00:00.000Z",
+          },
+        };
+      },
+    }),
+  );
+
+  await api.upsertSubjectParticipation("subject-a", { state: "current" });
+
+  assert.equal(receivedCredential, token.value);
+  assert.equal(receivedSubject, "subject-a");
 });
 
 test("creating an affiliation uses the active Mobile credential", async () => {

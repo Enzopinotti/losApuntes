@@ -94,6 +94,16 @@ const api = (
   context: async () => context(),
   setContext: async (input: SetAcademicContextInput) =>
     context(input.affiliationId, input.subjectParticipationId),
+  upsertSubjectParticipation: async (subjectId, input) => ({
+    participation: {
+      id: "part-created",
+      subjectId,
+      subjectName: subjectId,
+      state: input.state,
+      createdAt: "2026-10-10T00:00:00.000Z",
+      updatedAt: "2026-10-10T00:00:00.000Z",
+    },
+  }),
   ...overrides,
 });
 
@@ -612,6 +622,315 @@ test("creates an institutional affiliation and selects it from fresh server auth
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind !== "ready") throw new Error("expected ready");
   assert.equal(snapshot.data.context?.affiliationId, "aff-new");
+});
+
+test("creates a program-scoped affiliation without reusing an institution-only one", async () => {
+  const existingInstitutionAffiliation = {
+    id: "aff-institution-only",
+    institutionId: "inst-new",
+    status: "active" as const,
+    roles: ["student" as const],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  };
+  const programAffiliation = {
+    id: "aff-program",
+    institutionId: "inst-new",
+    programId: "program-new",
+    status: "active" as const,
+    roles: ["student" as const],
+    createdAt: "2026-10-10T00:00:00.000Z",
+    updatedAt: "2026-10-10T00:00:00.000Z",
+  };
+  let storedAffiliation = false;
+  let serverContext: AcademicCurrentContextResponse = { context: null };
+  let createdInput: unknown;
+  const controller = new AcademicContextController(
+    api({
+      affiliations: async () => ({
+        affiliations: storedAffiliation
+          ? [existingInstitutionAffiliation, programAffiliation]
+          : [existingInstitutionAffiliation],
+        truncated: false,
+        limit: 50,
+      }),
+      subjects: async () => ({
+        participations: [],
+        truncated: false,
+        limit: 100,
+      }),
+      context: async () => serverContext,
+      createAffiliation: async (input) => {
+        createdInput = input;
+        storedAffiliation = true;
+        return { affiliation: programAffiliation };
+      },
+      setContext: async (input) => {
+        serverContext = {
+          context: {
+            affiliationId: input.affiliationId,
+            revision: input.expectedRevision + 1,
+            updatedAt: "2026-10-10T00:00:00.000Z",
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addInstitutionAffiliation(
+    "user-1:session-1",
+    "inst-new",
+    "program-new",
+  );
+
+  assert.deepEqual(result, {
+    kind: "selected",
+    affiliation: programAffiliation,
+  });
+  assert.deepEqual(createdInput, {
+    institutionId: "inst-new",
+    programId: "program-new",
+    status: "active",
+  });
+  assert.equal(serverContext.context?.affiliationId, "aff-program");
+});
+
+test("adds a current subject and selects it with the latest server context revision", async () => {
+  const created = {
+    id: "part-new",
+    subjectId: "subject-new",
+    subjectName: "Física I",
+    state: "current" as const,
+    createdAt: "2026-10-10T00:00:00.000Z",
+    updatedAt: "2026-10-10T00:00:00.000Z",
+  };
+  let serverContext = context("aff-a");
+  let write: SetAcademicContextInput | null = null;
+  let storedSubjects: AcademicSubjectParticipationListResponse = subjects;
+  const controller = new AcademicContextController(
+    api({
+      subjects: async () => storedSubjects,
+      context: async () => serverContext,
+      upsertSubjectParticipation: async (subjectId, input) => {
+        assert.equal(subjectId, "subject-new");
+        assert.equal(input.state, "current");
+        storedSubjects = {
+          participations: [...subjects.participations, created],
+          truncated: false,
+          limit: 100,
+        };
+        return { participation: created };
+      },
+      setContext: async (input) => {
+        write = input;
+        serverContext = {
+          context: {
+            affiliationId: input.affiliationId,
+            ...(input.subjectParticipationId
+              ? { subjectParticipationId: input.subjectParticipationId }
+              : {}),
+            revision: input.expectedRevision + 1,
+            updatedAt: "2026-10-10T00:00:00.000Z",
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addSubjectParticipation(
+    "user-1:session-1",
+    "aff-a",
+    "subject-new",
+    "current",
+  );
+
+  assert.deepEqual(result, {
+    kind: "added",
+    participation: created,
+    usedAsCurrentContext: true,
+  });
+  assert.deepEqual(write, {
+    affiliationId: "aff-a",
+    subjectParticipationId: "part-new",
+    expectedRevision: 1,
+  });
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") throw new Error("expected ready");
+  assert.equal(snapshot.data.context?.subjectParticipationId, "part-new");
+});
+
+test("reconciles an ambiguous current-subject upsert before selecting its context", async () => {
+  const created = {
+    id: "part-new",
+    subjectId: "subject-new",
+    subjectName: "Física I",
+    state: "current" as const,
+    createdAt: "2026-10-10T00:00:00.000Z",
+    updatedAt: "2026-10-10T00:00:00.000Z",
+  };
+  let serverContext = context("aff-a");
+  let storedSubjects: AcademicSubjectParticipationListResponse = subjects;
+  let upsertCalls = 0;
+  const controller = new AcademicContextController(
+    api({
+      subjects: async () => storedSubjects,
+      context: async () => serverContext,
+      upsertSubjectParticipation: async () => {
+        upsertCalls += 1;
+        storedSubjects = {
+          participations: [...subjects.participations, created],
+          truncated: false,
+          limit: 100,
+        };
+        throw new ApiRequestError(
+          "timeout",
+          null,
+          "REQUEST_TIMEOUT",
+          "The server committed before the response timed out",
+        );
+      },
+      setContext: async (input) => {
+        serverContext = {
+          context: {
+            affiliationId: input.affiliationId,
+            ...(input.subjectParticipationId
+              ? { subjectParticipationId: input.subjectParticipationId }
+              : {}),
+            revision: input.expectedRevision + 1,
+            updatedAt: "2026-10-10T00:00:00.000Z",
+          },
+        };
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addSubjectParticipation(
+    "user-1:session-1",
+    "aff-a",
+    "subject-new",
+    "current",
+  );
+
+  assert.deepEqual(result, {
+    kind: "added",
+    participation: created,
+    usedAsCurrentContext: true,
+  });
+  assert.equal(upsertCalls, 1);
+  assert.equal(serverContext.context?.subjectParticipationId, "part-new");
+});
+
+test("does not upsert a subject when fresh context authority changed", async () => {
+  let upsertCalls = 0;
+  const controller = new AcademicContextController(
+    api({
+      context: async () => context("aff-b"),
+      upsertSubjectParticipation: async () => {
+        upsertCalls += 1;
+        return {
+          participation: {
+            id: "part-new",
+            subjectId: "subject-new",
+            subjectName: "Física I",
+            state: "current",
+            createdAt: "2026-10-10T00:00:00.000Z",
+            updatedAt: "2026-10-10T00:00:00.000Z",
+          },
+        };
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addSubjectParticipation(
+    "user-1:session-1",
+    "aff-a",
+    "subject-new",
+    "current",
+  );
+
+  assert.deepEqual(result, { kind: "reconcile" });
+  assert.equal(upsertCalls, 0);
+});
+
+test("restores an actionable context snapshot after a rejected subject upsert", async () => {
+  const controller = new AcademicContextController(
+    api({
+      upsertSubjectParticipation: async () => {
+        throw new ApiRequestError(
+          "validation",
+          422,
+          "ACADEMIC_CONTEXT_INELIGIBLE",
+          "The server rejected this subject for the current affiliation",
+        );
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addSubjectParticipation(
+    "user-1:session-1",
+    "aff-a",
+    "subject-new",
+    "current",
+  );
+
+  assert.deepEqual(result, {
+    kind: "failed",
+    failure: "validation",
+    code: "ACADEMIC_CONTEXT_INELIGIBLE",
+  });
+  assert.equal(controller.getSnapshot().kind, "ready");
+});
+
+test("adds a planned subject without changing the current academic context", async () => {
+  const planned = {
+    id: "part-planned",
+    subjectId: "subject-next",
+    subjectName: "Análisis II",
+    state: "planned" as const,
+    createdAt: "2026-10-10T00:00:00.000Z",
+    updatedAt: "2026-10-10T00:00:00.000Z",
+  };
+  let serverContext = context("aff-a");
+  let setContextCalls = 0;
+  const controller = new AcademicContextController(
+    api({
+      context: async () => serverContext,
+      upsertSubjectParticipation: async (subjectId, input) => {
+        assert.equal(subjectId, "subject-next");
+        assert.equal(input.state, "planned");
+        return { participation: planned };
+      },
+      setContext: async () => {
+        setContextCalls += 1;
+        return serverContext;
+      },
+    }),
+  );
+
+  await controller.restore("user-1:session-1");
+  const result = await controller.addSubjectParticipation(
+    "user-1:session-1",
+    "aff-a",
+    "subject-next",
+    "planned",
+  );
+
+  assert.deepEqual(result, {
+    kind: "added",
+    participation: planned,
+    usedAsCurrentContext: false,
+  });
+  assert.equal(setContextCalls, 0);
+  assert.equal(serverContext.context?.subjectParticipationId, "part-a");
 });
 
 test("reconciles a committed affiliation after an ambiguous create response", async () => {

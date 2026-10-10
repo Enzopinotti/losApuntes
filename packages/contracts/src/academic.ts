@@ -103,6 +103,24 @@ export interface AcademicCatalogSearchResponse {
   nextCursor: string | null;
 }
 
+export interface AcademicCatalogSearchInput {
+  kind: AcademicNodeKind;
+  q: string;
+  limit: number;
+  cursor?: string;
+  parentId?: string;
+}
+
+export interface UpsertAcademicSubjectParticipationInput {
+  courseOfferingId?: string;
+  state: SubjectParticipationState;
+  periodLabel?: string;
+}
+
+export interface UpsertAcademicSubjectParticipationResponse {
+  participation: AcademicSubjectParticipation;
+}
+
 export interface SetAcademicContextInput {
   affiliationId: string;
   subjectParticipationId?: string;

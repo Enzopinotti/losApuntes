@@ -12,8 +12,9 @@ import { AppState } from "react-native";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import type {
+  AcademicCatalogSearchInput,
   AcademicCatalogSearchResponse,
-  AcademicNodeKind,
+  SubjectParticipationState,
 } from "@losapuntes/contracts";
 import { useSession } from "@/features/session/session-provider";
 import {
@@ -26,6 +27,7 @@ import {
   AcademicContextController,
   type AcademicAffiliationActivationResult,
   type AcademicContextSnapshot,
+  type AcademicSubjectAdditionResult,
 } from "./academic-context-controller";
 
 const academicApi = new AcademicMobileApi(
@@ -38,17 +40,18 @@ interface AcademicContextValue {
   snapshot: AcademicContextSnapshot;
   retry(): Promise<void>;
   catalogSearch(
-    input: {
-      kind: AcademicNodeKind;
-      q: string;
-      limit: number;
-      cursor?: string;
-    },
+    input: AcademicCatalogSearchInput,
     signal?: AbortSignal,
   ): Promise<AcademicCatalogSearchResponse>;
   addInstitutionAffiliation(
     institutionId: string,
+    programId?: string,
   ): Promise<AcademicAffiliationActivationResult>;
+  addSubjectParticipation(
+    affiliationId: string,
+    subjectId: string,
+    state: Extract<SubjectParticipationState, "planned" | "current">,
+  ): Promise<AcademicSubjectAdditionResult>;
   selectAffiliation(affiliationId: string): Promise<void>;
   selectSubject(subjectParticipationId: string | null): Promise<void>;
 }
@@ -110,25 +113,37 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const catalogSearch = useCallback(
-    (
-      input: {
-        kind: AcademicNodeKind;
-        q: string;
-        limit: number;
-        cursor?: string;
-      },
-      signal?: AbortSignal,
-    ) => academicApi.catalogSearch(input, signal),
+    (input: AcademicCatalogSearchInput, signal?: AbortSignal) =>
+      academicApi.catalogSearch(input, signal),
     [],
   );
 
   const addInstitutionAffiliation = useCallback(
-    async (institutionId: string) => {
+    async (institutionId: string, programId?: string) => {
       const currentAuthority = authorityRef.current;
       if (!currentAuthority) return { kind: "stale" } as const;
       return controller.addInstitutionAffiliation(
         currentAuthority,
         institutionId,
+        programId,
+      );
+    },
+    [],
+  );
+
+  const addSubjectParticipation = useCallback(
+    async (
+      affiliationId: string,
+      subjectId: string,
+      state: Extract<SubjectParticipationState, "planned" | "current">,
+    ) => {
+      const currentAuthority = authorityRef.current;
+      if (!currentAuthority) return { kind: "stale" } as const;
+      return controller.addSubjectParticipation(
+        currentAuthority,
+        affiliationId,
+        subjectId,
+        state,
       );
     },
     [],
@@ -155,6 +170,7 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
       retry,
       catalogSearch,
       addInstitutionAffiliation,
+      addSubjectParticipation,
       selectAffiliation,
       selectSubject,
     }),
@@ -163,6 +179,7 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
       retry,
       catalogSearch,
       addInstitutionAffiliation,
+      addSubjectParticipation,
       selectAffiliation,
       selectSubject,
     ],

@@ -1,12 +1,14 @@
 import type {
   AcademicCatalogSearchResponse,
+  AcademicCatalogSearchInput,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
   CreateAcademicAffiliationInput,
   CreateAcademicAffiliationResponse,
-  AcademicNodeKind,
   SetAcademicContextInput,
+  UpsertAcademicSubjectParticipationInput,
+  UpsertAcademicSubjectParticipationResponse,
 } from "@losapuntes/contracts";
 
 import type { SessionController } from "@/features/session/session-controller";
@@ -14,12 +16,7 @@ import { ApiRequestError } from "@/services/api/client";
 
 export interface AcademicContextTransport {
   academicCatalogSearch(
-    input: {
-      kind: AcademicNodeKind;
-      q: string;
-      limit: number;
-      cursor?: string;
-    },
+    input: AcademicCatalogSearchInput,
     signal?: AbortSignal,
   ): Promise<AcademicCatalogSearchResponse>;
   academicAffiliations(
@@ -45,16 +42,17 @@ export interface AcademicContextTransport {
     input: SetAcademicContextInput,
     signal?: AbortSignal,
   ): Promise<AcademicCurrentContextResponse>;
+  upsertAcademicSubjectParticipation(
+    credential: string,
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ): Promise<UpsertAcademicSubjectParticipationResponse>;
 }
 
 export interface AcademicContextApi {
   catalogSearch(
-    input: {
-      kind: AcademicNodeKind;
-      q: string;
-      limit: number;
-      cursor?: string;
-    },
+    input: AcademicCatalogSearchInput,
     signal?: AbortSignal,
   ): Promise<AcademicCatalogSearchResponse>;
   affiliations(signal?: AbortSignal): Promise<AcademicAffiliationListResponse>;
@@ -71,6 +69,11 @@ export interface AcademicContextApi {
     input: SetAcademicContextInput,
     signal?: AbortSignal,
   ): Promise<AcademicCurrentContextResponse>;
+  upsertSubjectParticipation(
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ): Promise<UpsertAcademicSubjectParticipationResponse>;
 }
 
 export class AcademicMobileApi implements AcademicContextApi {
@@ -79,15 +82,7 @@ export class AcademicMobileApi implements AcademicContextApi {
     private readonly transport: AcademicContextTransport,
   ) {}
 
-  catalogSearch(
-    input: {
-      kind: AcademicNodeKind;
-      q: string;
-      limit: number;
-      cursor?: string;
-    },
-    signal?: AbortSignal,
-  ) {
+  catalogSearch(input: AcademicCatalogSearchInput, signal?: AbortSignal) {
     return this.transport.academicCatalogSearch(input, signal);
   }
 
@@ -121,6 +116,21 @@ export class AcademicMobileApi implements AcademicContextApi {
   setContext(input: SetAcademicContextInput, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.setAcademicContext(credential, input, signal),
+    );
+  }
+
+  upsertSubjectParticipation(
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.upsertAcademicSubjectParticipation(
+        credential,
+        subjectId,
+        input,
+        signal,
+      ),
     );
   }
 
