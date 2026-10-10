@@ -72,6 +72,10 @@ export interface SocialConnectionsApi {
     signal?: AbortSignal,
   ): Promise<{ connection: ConnectionView }>;
   disconnectConnection(id: string, signal?: AbortSignal): Promise<void>;
+  requestConnection(
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
 }
 
 export interface CommunityTransport {
@@ -133,6 +137,11 @@ export interface CommunityTransport {
     id: string,
     signal?: AbortSignal,
   ): Promise<void>;
+  requestConnection(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
 }
 
 export interface CommunityNotificationsApi {
@@ -327,6 +336,21 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
       },
     );
   }
+
+  requestConnection(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ connection: ConnectionView }>(
+      `/social/profiles/${encodeURIComponent(profileId)}/connections`,
+      {
+        method: "POST",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 }
 
 export class MobileCommunityApi
@@ -413,6 +437,12 @@ export class MobileCommunityApi
   disconnectConnection(id: string, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.disconnectConnection(credential, id, signal),
+    );
+  }
+
+  requestConnection(profileId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.requestConnection(credential, profileId, signal),
     );
   }
 

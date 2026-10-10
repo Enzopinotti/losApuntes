@@ -51,6 +51,16 @@ function api(
       connection: connection(id, action === "accept" ? "accepted" : "declined"),
     }),
     disconnectConnection: async () => undefined,
+    requestConnection: async (profileId) => ({
+      connection: {
+        ...connection(profileId, "pending", false),
+        other: {
+          profileId,
+          displayName: `Person ${profileId}`,
+          avatarUrl: null,
+        },
+      },
+    }),
     ...overrides,
   };
 }
