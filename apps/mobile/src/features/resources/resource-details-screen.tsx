@@ -35,6 +35,10 @@ import {
   type MobileResourceDetailSnapshot,
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
+import {
+  resourceFileTypeLabel,
+  resourceVisibilityLabel,
+} from "./resource-details-copy";
 import { mobileResourceConsumptionApi } from "./resource-runtime";
 
 const detailFailureCopy: Record<string, string> = {
@@ -295,11 +299,12 @@ export function MobileResourceDetailsScreen({
                   Etiquetas: {resource.tags.join(", ")}
                 </Text>
               ) : null}
+              <Text style={styles.meta}>Archivo: {resource.file.filename}</Text>
               <Text style={styles.meta}>
-                Archivo: {resource.file.filename} · {resource.file.mimeType}
+                Formato: {resourceFileTypeLabel(resource.file.mimeType)}
               </Text>
               <Text style={styles.meta}>
-                Visibilidad: {resource.visibility}
+                Visibilidad: {resourceVisibilityLabel(resource.visibility)}
               </Text>
             </View>
 
