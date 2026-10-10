@@ -229,6 +229,38 @@ test('requires hashed Vite assets and long-lived immutable caching', async () =>
   );
 });
 
+test('rejects immutable assets with contradictory no-store/no-cache directives', async () => {
+  for (const assetCache of [
+    'public, max-age=31536000, immutable, no-store',
+    'public, max-age=31536000, immutable, no-cache',
+  ]) {
+    await expectReason('WEB_ASSET_CACHE_INVALID', () =>
+      qualifyLiveRelease({
+        webOrigin: WEB_ORIGIN,
+        apiOrigin: API_ORIGIN,
+        expectedSourceSha: SHA,
+        fetcher: fixtures({ assetCache }),
+      }),
+    );
+  }
+});
+
+test('rejects non-integer HTTP max-age syntax for immutable assets', async () => {
+  for (const assetCache of [
+    'public, max-age=3.1536e7, immutable',
+    'public, max-age=31536000.0, immutable',
+  ]) {
+    await expectReason('WEB_ASSET_CACHE_INVALID', () =>
+      qualifyLiveRelease({
+        webOrigin: WEB_ORIGIN,
+        apiOrigin: API_ORIGIN,
+        expectedSourceSha: SHA,
+        fetcher: fixtures({ assetCache }),
+      }),
+    );
+  }
+});
+
 test('does not accept a shell without a hashed JavaScript entry asset', () => {
   assert.throws(
     () =>
