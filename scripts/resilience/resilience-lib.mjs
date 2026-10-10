@@ -81,12 +81,33 @@ function imageDigest(value, path) {
 }
 
 function isoTimestamp(value, path) {
+  // Measurements must identify one instant independently of host timezone.
+  // Date.parse alone accepts missing offsets and normalizes invalid dates.
+  const match =
+    typeof value === 'string'
+      ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u.exec(value)
+      : null;
+  if (!match || !Number.isFinite(Date.parse(value))) {
+    fail(`${path} must be an ISO timestamp with an explicit timezone`);
+  }
+
+  const [year, month, day, hour, minute, second] = match
+    .slice(1)
+    .map(Number);
+  // Construct independently of the parsed timezone, then compare calendar
+  // fields so overflowing days (e.g. February 31) cannot be normalized.
+  const calendar = new Date(0);
+  calendar.setUTCFullYear(year, month - 1, day);
+  calendar.setUTCHours(hour, minute, second, 0);
   if (
-    typeof value !== 'string' ||
-    !/^\d{4}-\d{2}-\d{2}T/u.test(value) ||
-    !Number.isFinite(Date.parse(value))
+    calendar.getUTCFullYear() !== year ||
+    calendar.getUTCMonth() !== month - 1 ||
+    calendar.getUTCDate() !== day ||
+    calendar.getUTCHours() !== hour ||
+    calendar.getUTCMinutes() !== minute ||
+    calendar.getUTCSeconds() !== second
   ) {
-    fail(`${path} must be an ISO timestamp`);
+    fail(`${path} must be a valid calendar timestamp`);
   }
   return value;
 }
