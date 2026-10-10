@@ -8,6 +8,13 @@ import type {
 
 export const SOCIAL_STORE = Symbol('SOCIAL_STORE');
 
+export class SocialParticipantInactiveError extends Error {
+  constructor() {
+    super('Social relationships cannot involve an inactive account');
+    this.name = 'SocialParticipantInactiveError';
+  }
+}
+
 export interface SocialStore {
   follow: (input: {
     id: string;

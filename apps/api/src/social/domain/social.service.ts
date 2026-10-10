@@ -9,7 +9,11 @@ import { randomUUID } from 'node:crypto';
 
 import { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import { ProfileService } from '../../profile/domain/profile.service';
-import { SOCIAL_STORE, type SocialStore } from './social.store';
+import {
+  SOCIAL_STORE,
+  SocialParticipantInactiveError,
+  type SocialStore,
+} from './social.store';
 import type { ConnectionRecord, SocialCursor } from './social.types';
 
 function encodeCursor(cursor: SocialCursor): string {
@@ -61,20 +65,22 @@ export class SocialService {
 
     if (targetUserId === userId) this.selfRelation();
 
-    const result = await this.store.follow({
-      id: randomUUID(),
-      followerUserId: userId,
-      followeeUserId: targetUserId,
-      notification: {
+    const result = await this.withActiveParticipants(() =>
+      this.store.follow({
         id: randomUUID(),
-        userId: targetUserId,
-        type: 'social.followed',
-        actorUserId: userId,
-        targetType: 'profile',
-        targetId: actor.profileId,
-        readAt: null,
-      },
-    });
+        followerUserId: userId,
+        followeeUserId: targetUserId,
+        notification: {
+          id: randomUUID(),
+          userId: targetUserId,
+          type: 'social.followed',
+          actorUserId: userId,
+          targetType: 'profile',
+          targetId: actor.profileId,
+          readAt: null,
+        },
+      }),
+    );
 
     if (result.created) {
       await this.events.recordBestEffort({
@@ -130,21 +136,23 @@ export class SocialService {
     if (targetUserId === userId) this.selfRelation();
 
     const id = randomUUID();
-    const result = await this.store.requestConnection({
-      id,
-      requesterUserId: userId,
-      targetUserId,
-      now: new Date(),
-      notification: {
-        id: randomUUID(),
-        userId: targetUserId,
-        type: 'social.connection_requested',
-        actorUserId: userId,
-        targetType: 'connection',
-        targetId: id,
-        readAt: null,
-      },
-    });
+    const result = await this.withActiveParticipants(() =>
+      this.store.requestConnection({
+        id,
+        requesterUserId: userId,
+        targetUserId,
+        now: new Date(),
+        notification: {
+          id: randomUUID(),
+          userId: targetUserId,
+          type: 'social.connection_requested',
+          actorUserId: userId,
+          targetType: 'connection',
+          targetId: id,
+          readAt: null,
+        },
+      }),
+    );
 
     return {
       connection: await this.projection(result.connection, userId),
@@ -221,25 +229,27 @@ export class SocialService {
       });
     }
 
-    const updated = await this.store.respondConnection({
-      id,
-      recipientUserId: userId,
-      status,
-      now: new Date(),
-      ...(status === 'accepted'
-        ? {
-            notification: {
-              id: randomUUID(),
-              userId: current.requestedByUserId,
-              type: 'social.connection_accepted' as const,
-              actorUserId: userId,
-              targetType: 'connection' as const,
-              targetId: id,
-              readAt: null,
-            },
-          }
-        : {}),
-    });
+    const updated = await this.withActiveParticipants(() =>
+      this.store.respondConnection({
+        id,
+        recipientUserId: userId,
+        status,
+        now: new Date(),
+        ...(status === 'accepted'
+          ? {
+              notification: {
+                id: randomUUID(),
+                userId: current.requestedByUserId,
+                type: 'social.connection_accepted' as const,
+                actorUserId: userId,
+                targetType: 'connection' as const,
+                targetId: id,
+                readAt: null,
+              },
+            }
+          : {}),
+      }),
+    );
 
     if (!updated) {
       throw new ConflictException({
@@ -292,6 +302,19 @@ export class SocialService {
       });
     }
     return actor;
+  }
+
+  private async withActiveParticipants<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof SocialParticipantInactiveError) {
+        this.profileNotFound();
+      }
+      throw error;
+    }
   }
 
   private async resolveTarget(profileId: string): Promise<string> {
