@@ -341,6 +341,9 @@ export function validateProductionResilienceEvidence(raw) {
   if (rollback.previousReleaseSha === releaseSha) {
     fail('rollback.previousReleaseSha must differ from releaseSha');
   }
+  if (rollback.currentImageDigest === rollback.rollbackImageDigest) {
+    fail('rollback image digest must differ from current image digest');
+  }
   if (
     !['application-only', 'recovery-required'].includes(
       rollback.dataRollbackMode,
