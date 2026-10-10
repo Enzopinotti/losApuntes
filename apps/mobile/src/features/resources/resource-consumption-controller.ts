@@ -37,6 +37,7 @@ export type MobileResourceDetailSnapshot =
       saved: boolean | null;
       busy: "access" | "save" | "unsave" | null;
       failure: ResourceConsumptionFailure | null;
+      notice: "saved" | "unsaved" | null;
     };
 
 type DetailListener = (snapshot: MobileResourceDetailSnapshot) => void;
@@ -81,6 +82,7 @@ export class MobileResourceDetailController {
       saved: initialSaved,
       busy: null,
       failure: null,
+      notice: null,
     });
   }
 
@@ -114,7 +116,14 @@ export class MobileResourceDetailController {
       await this.api.save(resourceId, operation.controller.signal);
       if (!this.isCurrent(operation)) return;
       const current = this.current(authorityKey, resourceId);
-      if (current) this.publish({ ...current, saved: true, failure: null });
+      if (current) {
+        this.publish({
+          ...current,
+          saved: true,
+          failure: null,
+          notice: "saved",
+        });
+      }
     } catch (error) {
       if (this.isCurrent(operation)) this.fail(operation, error);
     } finally {
@@ -130,7 +139,14 @@ export class MobileResourceDetailController {
       await this.api.unsave(resourceId, operation.controller.signal);
       if (!this.isCurrent(operation)) return;
       const current = this.current(authorityKey, resourceId);
-      if (current) this.publish({ ...current, saved: false, failure: null });
+      if (current) {
+        this.publish({
+          ...current,
+          saved: false,
+          failure: null,
+          notice: "unsaved",
+        });
+      }
     } catch (error) {
       if (this.isCurrent(operation)) this.fail(operation, error);
     } finally {
@@ -148,7 +164,7 @@ export class MobileResourceDetailController {
 
     const current = this.snapshot;
     this.cancel();
-    this.publish({ ...current, busy: null });
+    this.publish({ ...current, busy: null, notice: null });
   }
 
   invalidate(authorityKey?: string): void {
@@ -180,7 +196,7 @@ export class MobileResourceDetailController {
       controller: new AbortController(),
     };
     this.active = operation;
-    this.publish({ ...current, busy, failure: null });
+    this.publish({ ...current, busy, failure: null, notice: null });
     return operation;
   }
 

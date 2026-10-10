@@ -94,6 +94,7 @@ test("resource detail keeps save state scoped to the current resource authority"
     saved: true,
     busy: null,
     failure: null,
+    notice: "saved",
   });
 
   await controller.unsave("session-a:resource-1", "resource-1");
@@ -101,6 +102,65 @@ test("resource detail keeps save state scoped to the current resource authority"
   assert.deepEqual(calls, ["save:resource-1", "unsave:resource-1"]);
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind === "ready" ? snapshot.saved : null, false);
+  assert.equal(snapshot.kind === "ready" ? snapshot.notice : null, "unsaved");
+});
+
+test("failed removal preserves saved state without a success notice", async () => {
+  const controller = new MobileResourceDetailController(
+    apiStub({
+      unsave: async () => {
+        throw new ApiRequestError(
+          "offline",
+          null,
+          "NETWORK_UNAVAILABLE",
+          "offline",
+        );
+      },
+    }),
+  );
+
+  controller.setScope("session-a:resource-1", "resource-1", true);
+  await controller.unsave("session-a:resource-1", "resource-1");
+
+  assert.deepEqual(controller.getSnapshot(), {
+    kind: "ready",
+    authorityKey: "session-a:resource-1",
+    resourceId: "resource-1",
+    saved: true,
+    busy: null,
+    failure: "offline",
+    notice: null,
+  });
+});
+
+test("discards a save notice when resource authority changes in flight", async () => {
+  const pending = deferred<{ saved: true }>();
+  let signal: AbortSignal | undefined;
+  const controller = new MobileResourceDetailController(
+    apiStub({
+      save: async (_id, nextSignal) => {
+        signal = nextSignal;
+        return pending.promise;
+      },
+    }),
+  );
+
+  controller.setScope("session-a:resource-1", "resource-1", false);
+  const save = controller.save("session-a:resource-1", "resource-1");
+  controller.setScope("session-b:resource-2", "resource-2");
+  pending.resolve({ saved: true });
+  await save;
+
+  assert.equal(signal?.aborted, true);
+  assert.deepEqual(controller.getSnapshot(), {
+    kind: "ready",
+    authorityKey: "session-b:resource-2",
+    resourceId: "resource-2",
+    saved: null,
+    busy: null,
+    failure: null,
+    notice: null,
+  });
 });
 
 test("resource detail preserves server-confirmed saved state across suspension", async () => {
@@ -117,6 +177,7 @@ test("resource detail preserves server-confirmed saved state across suspension",
   if (snapshot.kind === "ready") {
     assert.equal(snapshot.saved, false);
     assert.equal(snapshot.busy, null);
+    assert.equal(snapshot.notice, null);
   }
 });
 
@@ -147,6 +208,7 @@ test("resource access result is discarded when authority changes in flight", asy
     saved: null,
     busy: null,
     failure: null,
+    notice: null,
   });
 });
 

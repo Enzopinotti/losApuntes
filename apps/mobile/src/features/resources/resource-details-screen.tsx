@@ -1,6 +1,7 @@
 import type { ResourceView } from "@losapuntes/contracts";
 import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   AppState,
   Linking,
@@ -13,6 +14,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -148,6 +150,7 @@ export function MobileResourceDetailsScreen({
     controller.getSnapshot(),
   );
   const [handoffError, setHandoffError] = useState<string | null>(null);
+  const announcedNotice = useRef<"saved" | "unsaved" | null>(null);
   const sessionAuthority =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
@@ -169,6 +172,34 @@ export function MobileResourceDetailsScreen({
   const { snapshot, retry } = useFencedDetail(authorityKey, load);
 
   useEffect(() => controller.subscribe(setAction), [controller]);
+
+  useEffect(() => {
+    if (
+      !authorityKey ||
+      !isFocused ||
+      appState !== "active" ||
+      action.kind !== "ready" ||
+      action.authorityKey !== authorityKey ||
+      action.resourceId !== resourceId
+    ) {
+      announcedNotice.current = null;
+      return;
+    }
+
+    if (!action.notice) {
+      announcedNotice.current = null;
+      return;
+    }
+
+    if (announcedNotice.current === action.notice) return;
+
+    AccessibilityInfo.announceForAccessibility(
+      action.notice === "saved"
+        ? "Guardado en tu biblioteca."
+        : "Quitado de tus guardados.",
+    );
+    announcedNotice.current = action.notice;
+  }, [action, appState, authorityKey, isFocused, resourceId]);
 
   useEffect(() => {
     if (!scopeKey) {
@@ -320,10 +351,10 @@ export function MobileResourceDetailsScreen({
                 </Text>
               </Pressable>
 
-              {currentAction?.saved === true ? (
-                <Text accessibilityLiveRegion="polite" style={styles.success}>
-                  Guardado en tu biblioteca.
-                </Text>
+              {currentAction?.notice === "unsaved" ? (
+                <Text style={styles.success}>Quitado de tus guardados.</Text>
+              ) : currentAction?.saved === true ? (
+                <Text style={styles.success}>Guardado en tu biblioteca.</Text>
               ) : null}
 
               {currentAction?.failure ? (
