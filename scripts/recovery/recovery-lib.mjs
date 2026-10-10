@@ -76,7 +76,7 @@ export function assertNonProductionTarget(value) {
   // restore-prod, live-1 and spelling/case variants, before destructive restore.
   if (
     normalized.includes('production') ||
-    /(?:^|[._-])(?:prod|prd|live|public)\d*(?=$|[._-])/u.test(normalized)
+    /(?:^|[._-])(?:prod|prd|live|public)[a-z0-9]*(?=$|[._-])/u.test(normalized)
   ) {
     throw new Error('restore target must not be production');
   }
