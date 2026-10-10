@@ -36,6 +36,8 @@ It deliberately does **not** record Mongo DSNs, passwords, storage credentials o
 
 The backup directory must be an absolute path outside the Git repository. A symlink-resolved path is checked again before any artifact is created.
 
+Recovery verification also requires real files for `manifest.json`, `mongo.archive.gz`, and `files.inventory.jsonl`, plus a real `files/` directory. Symlinks at these bundle entrypoints are rejected before restoring: matching checksums alone are not sufficient if a backup-set entrypoint can point outside the set.
+
 ## 2. Consistency requirement
 
 The current v1 strategy is **application quiescence**.
