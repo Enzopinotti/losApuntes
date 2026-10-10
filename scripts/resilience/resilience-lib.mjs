@@ -85,15 +85,15 @@ function isoTimestamp(value, path) {
   // Date.parse alone accepts missing offsets and normalizes invalid dates.
   const match =
     typeof value === 'string'
-      ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u.exec(value)
+      ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u.exec(
+          value,
+        )
       : null;
   if (!match || !Number.isFinite(Date.parse(value))) {
     fail(`${path} must be an ISO timestamp with an explicit timezone`);
   }
 
-  const [year, month, day, hour, minute, second] = match
-    .slice(1)
-    .map(Number);
+  const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
   // Construct independently of the parsed timezone, then compare calendar
   // fields so overflowing days (e.g. February 31) cannot be normalized.
   const calendar = new Date(0);
