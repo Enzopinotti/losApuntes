@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   mkdir,
   mkdtemp,
+  lstat,
   readFile,
   readdir,
   realpath,
@@ -353,12 +354,30 @@ export async function readInventory(filename) {
 
 export async function verifyBackupSet(setDirectory) {
   const manifestPath = path.join(setDirectory, 'manifest.json');
+  // Entry-point symlinks can lead outside the declared recovery set even when
+  // their current bytes happen to match the manifest checksums.
+  const manifestMetadata = await lstat(manifestPath);
+  if (!manifestMetadata.isFile()) {
+    throw new Error('backup manifest must be a regular file');
+  }
   const manifest = validateManifestShape(await readJson(manifestPath));
   const mongoPath = path.join(setDirectory, manifest.mongo.archive);
   const filesPath = path.join(setDirectory, manifest.files.directory);
   const inventoryPath = path.join(setDirectory, manifest.files.inventory);
 
-  const mongoMetadata = await stat(mongoPath);
+  const [mongoMetadata, filesMetadata, inventoryMetadata] = await Promise.all([
+    lstat(mongoPath),
+    lstat(filesPath),
+    lstat(inventoryPath),
+  ]);
+  if (
+    !mongoMetadata.isFile() ||
+    !filesMetadata.isDirectory() ||
+    !inventoryMetadata.isFile()
+  ) {
+    throw new Error('backup set entrypoints must be regular files/directories');
+  }
+
   if (
     mongoMetadata.size !== manifest.mongo.byteSize ||
     (await sha256File(mongoPath)) !== manifest.mongo.sha256
