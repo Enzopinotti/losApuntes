@@ -229,13 +229,46 @@ function expireSyntheticSession(sessionId) {
   const script = [
     "const result = db.auth_sessions.updateOne(",
     `  { sessionId: ${JSON.stringify(sessionId)} },`,
-    "  { $set: { expiresAt: new Date(0) } },",
+    "  { $set: { expiresAt: new Date(Date.now() - 1000) } },",
     ");",
     "if (result.matchedCount !== 1) {",
     "  printjson(result);",
     "  quit(2);",
     "}",
   ].join("\n");
+
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      "compose.local.yml",
+      "exec",
+      "-T",
+      "mongo",
+      "mongosh",
+      "--quiet",
+      "losapuntes_local",
+      "--eval",
+      script,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+}
+
+function assertExpiredSyntheticSessionStillPresent(sessionId) {
+  // A missing session also returns 401. Verify Mongo's TTL monitor has not
+  // removed the fixture, so this test proves the application expiry predicate.
+  const script = [
+    `const session = db.auth_sessions.findOne({ sessionId: ${JSON.stringify(sessionId)} });`,
+    "if (!session || !(session.expiresAt instanceof Date) || session.expiresAt.getTime() >= Date.now()) {",
+    '  throw new Error("Synthetic Auth session must still exist and be expired");',
+    "}",
+  ].join("\\n");
 
   execFileSync(
     "docker",
@@ -1011,6 +1044,7 @@ async function run() {
     );
 
     expireSyntheticSession(expiringSessionId);
+    assertExpiredSyntheticSessionStillPresent(expiringSessionId);
 
     const expiredBootstrapResponsePromise = page.waitForResponse((response) => {
       const request = response.request();
@@ -1032,6 +1066,7 @@ async function run() {
       "AUTHENTICATION_REQUIRED",
       "expired Web session should preserve the stable anonymous Auth code",
     );
+    assertExpiredSyntheticSessionStillPresent(expiringSessionId);
     await page.waitForURL((url) => url.pathname === "/login");
     await page
       .getByRole("heading", { name: "Inicia sesión en tu cuenta", exact: true })
