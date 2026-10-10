@@ -171,6 +171,20 @@ test("request methods retain the bearer credential and server cursor contract", 
         args: [credential, profileId, signal],
       });
     },
+    reportQuestion: async (credential, id, input, signal) => {
+      calls.push({
+        method: "reportQuestion",
+        args: [credential, id, input, signal],
+      });
+      return { report: {} as never };
+    },
+    reportAnswer: async (credential, id, input, signal) => {
+      calls.push({
+        method: "reportAnswer",
+        args: [credential, id, input, signal],
+      });
+      return { report: {} as never };
+    },
   };
   const api = new MobileCommunityApi(harness.session, transport);
   const signal = new AbortController().signal;
@@ -196,6 +210,12 @@ test("request methods retain the bearer credential and server cursor contract", 
   await api.following({ limit: 30, cursor: "follow-cursor" }, signal);
   await api.followProfile("profile-a", signal);
   await api.unfollowProfile("profile-a", signal);
+  await api.reportQuestion("question-a", { reason: "spam" }, signal);
+  await api.reportAnswer(
+    "answer-a",
+    { reason: "other", details: "detalle" },
+    signal,
+  );
 
   assert.deepEqual(calls[0], {
     method: "questions",
@@ -261,6 +281,19 @@ test("request methods retain the bearer credential and server cursor contract", 
     method: "unfollowProfile",
     args: ["secret-session-token", "profile-a", signal],
   });
+  assert.deepEqual(calls[12], {
+    method: "reportQuestion",
+    args: ["secret-session-token", "question-a", { reason: "spam" }, signal],
+  });
+  assert.deepEqual(calls[13], {
+    method: "reportAnswer",
+    args: [
+      "secret-session-token",
+      "answer-a",
+      { reason: "other", details: "detalle" },
+      signal,
+    ],
+  });
 });
 
 test("connection transport uses the authenticated paginated Social endpoints", async () => {
@@ -309,6 +342,18 @@ test("connection transport uses the authenticated paginated Social endpoints", a
   );
   await transport.followProfile("secret-session-token", "profile/a", signal);
   await transport.unfollowProfile("secret-session-token", "profile/a", signal);
+  await transport.reportQuestion(
+    "secret-session-token",
+    "question/a",
+    { reason: "spam" },
+    signal,
+  );
+  await transport.reportAnswer(
+    "secret-session-token",
+    "answer/a",
+    { reason: "harassment", details: "detalle" },
+    signal,
+  );
 
   assert.deepEqual(calls, [
     {
@@ -338,6 +383,24 @@ test("connection transport uses the authenticated paginated Social endpoints", a
     {
       path: "/social/profiles/profile%2Fa/follow",
       init: { method: "DELETE", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/questions/question%2Fa/reports",
+      init: {
+        method: "POST",
+        credential: "secret-session-token",
+        body: { reason: "spam" },
+        signal,
+      },
+    },
+    {
+      path: "/answers/answer%2Fa/reports",
+      init: {
+        method: "POST",
+        credential: "secret-session-token",
+        body: { reason: "harassment", details: "detalle" },
+        signal,
+      },
     },
   ]);
 });
@@ -371,6 +434,8 @@ test("requires the current session and never silently downgrades to anonymous", 
     following: async () => ({ items: [], nextCursor: null }),
     followProfile: async () => ({ following: true }),
     unfollowProfile: async () => undefined,
+    reportQuestion: async () => ({ report: {} as never }),
+    reportAnswer: async () => ({ report: {} as never }),
   };
 
   await assert.rejects(
@@ -411,6 +476,8 @@ test("fences successful responses when the session generation changed", async ()
     following: async () => ({ items: [], nextCursor: null }),
     followProfile: async () => ({ following: true }),
     unfollowProfile: async () => undefined,
+    reportQuestion: async () => ({ report: {} as never }),
+    reportAnswer: async () => ({ report: {} as never }),
   };
   const request = new MobileCommunityApi(harness.session, transport).questions({
     limit: 25,

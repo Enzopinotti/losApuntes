@@ -30,6 +30,7 @@ import {
   type CommunityQuestionFeedSnapshot,
 } from "./community-controller";
 import { mobileCommunityApi } from "./community-runtime";
+import { QaReportAction } from "./qa-report-action";
 import {
   useCommunityAuthority,
   type CommunityAuthorityGate,
@@ -571,6 +572,13 @@ function QuestionDetailContent({
           Por {question.author?.displayName ?? "Persona de la comunidad"}
         </Text>
         <Text style={styles.body}>{question.body}</Text>
+        {question.viewer.canReport ? (
+          <QaReportAction
+            authorityKey={snapshot.authorityKey}
+            targetType="question"
+            targetId={question.id}
+          />
+        ) : null}
       </View>
 
       <View style={styles.card}>
@@ -589,6 +597,13 @@ function QuestionDetailContent({
                 {answer.author?.displayName ?? "Persona de la comunidad"}
               </Text>
               <Text style={styles.body}>{answer.body}</Text>
+              {answer.viewer.canReport ? (
+                <QaReportAction
+                  authorityKey={snapshot.authorityKey}
+                  targetType="answer"
+                  targetId={answer.id}
+                />
+              ) : null}
             </View>
           ))
         )}

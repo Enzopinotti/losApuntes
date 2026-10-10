@@ -5,10 +5,7 @@ export interface CommunityPerson {
 }
 
 export type ConnectionStatus =
-  | "pending"
-  | "accepted"
-  | "declined"
-  | "disconnected";
+  "pending" | "accepted" | "declined" | "disconnected";
 
 export interface FollowingItem {
   followedAt: string;
@@ -91,4 +88,34 @@ export interface CreateQuestionInput {
 
 export interface CreateAnswerInput {
   body: string;
+}
+
+export type QaReportReason =
+  | "spam"
+  | "plagiarism"
+  | "harassment"
+  | "misinformation"
+  | "inappropriate"
+  | "other";
+
+export type QaReportStatus = "pending" | "resolved" | "dismissed";
+
+export type QaReportTargetType = "question" | "answer";
+
+export interface CreateQaReportInput {
+  reason: QaReportReason;
+  details?: string;
+}
+
+export interface QaReportView {
+  id: string;
+  targetType: QaReportTargetType;
+  targetId: string;
+  reason: QaReportReason;
+  status: QaReportStatus;
+  createdAt: string;
+}
+
+export interface CreateQaReportResponse {
+  report: QaReportView;
 }

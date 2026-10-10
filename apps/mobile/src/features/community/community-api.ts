@@ -5,6 +5,8 @@ import type {
   ConnectionStatus,
   ConnectionView,
   CreateAnswerInput,
+  CreateQaReportInput,
+  CreateQaReportResponse,
   CreateQuestionInput,
   FollowingItem,
   QuestionDetailResponse,
@@ -101,6 +103,19 @@ export interface SocialFollowingApi {
   unfollowProfile(profileId: string, signal?: AbortSignal): Promise<void>;
 }
 
+export interface CommunityQaReportsApi {
+  reportQuestion(
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
+  reportAnswer(
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
+}
+
 export interface CommunityTransport {
   questions(
     credential: string,
@@ -180,6 +195,18 @@ export interface CommunityTransport {
     profileId: string,
     signal?: AbortSignal,
   ): Promise<void>;
+  reportQuestion(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
+  reportAnswer(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
 }
 
 export interface CommunityNotificationsApi {
@@ -421,6 +448,40 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
       { method: "DELETE", credential, ...(signal ? { signal } : {}) },
     );
   }
+
+  reportQuestion(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<CreateQaReportResponse>(
+      `/questions/${encodeURIComponent(id)}/reports`,
+      {
+        method: "POST",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  reportAnswer(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<CreateQaReportResponse>(
+      `/answers/${encodeURIComponent(id)}/reports`,
+      {
+        method: "POST",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 }
 
 export class MobileCommunityApi
@@ -428,7 +489,8 @@ export class MobileCommunityApi
     CommunityApi,
     CommunityNotificationsApi,
     SocialConnectionsApi,
-    SocialFollowingApi
+    SocialFollowingApi,
+    CommunityQaReportsApi
 {
   constructor(
     private readonly session: SessionController,
@@ -535,6 +597,18 @@ export class MobileCommunityApi
   unfollowProfile(profileId: string, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.unfollowProfile(credential, profileId, signal),
+    );
+  }
+
+  reportQuestion(id: string, input: CreateQaReportInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.reportQuestion(credential, id, input, signal),
+    );
+  }
+
+  reportAnswer(id: string, input: CreateQaReportInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.reportAnswer(credential, id, input, signal),
     );
   }
 
