@@ -268,7 +268,7 @@ function assertExpiredSyntheticSessionStillPresent(sessionId) {
     "if (!session || !(session.expiresAt instanceof Date) || session.expiresAt.getTime() >= Date.now()) {",
     '  throw new Error("Synthetic Auth session must still exist and be expired");',
     "}",
-  ].join("\\n");
+  ].join("\n");
 
   execFileSync(
     "docker",
