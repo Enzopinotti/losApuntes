@@ -261,6 +261,45 @@ test('rejects non-integer HTTP max-age syntax for immutable assets', async () =>
   }
 });
 
+test('rejects repeated cache-control directives instead of trusting their last value', async () => {
+  for (const assetCache of [
+    'public, max-age=0, max-age=31536000, immutable',
+    'public, MAX-AGE=0, max-age=31536000, immutable',
+    'public, max-age=31536000, immutable, immutable',
+  ]) {
+    await expectReason('WEB_ASSET_CACHE_INVALID', () =>
+      qualifyLiveRelease({
+        webOrigin: WEB_ORIGIN,
+        apiOrigin: API_ORIGIN,
+        expectedSourceSha: SHA,
+        fetcher: fixtures({ assetCache }),
+      }),
+    );
+  }
+
+  await expectReason('WEB_SHELL_CACHE_INVALID', () =>
+    qualifyLiveRelease({
+      webOrigin: WEB_ORIGIN,
+      apiOrigin: API_ORIGIN,
+      expectedSourceSha: SHA,
+      fetcher: fixtures({
+        shellCache: 'max-age=3600, max-age=0, must-revalidate',
+      }),
+    }),
+  );
+
+  await expectReason('API_RELEASE_CACHE_INVALID', () =>
+    qualifyLiveRelease({
+      webOrigin: WEB_ORIGIN,
+      apiOrigin: API_ORIGIN,
+      expectedSourceSha: SHA,
+      fetcher: fixtures({
+        apiReleaseCache: 'no-store, No-Store',
+      }),
+    }),
+  );
+});
+
 test('does not accept a shell without a hashed JavaScript entry asset', () => {
   assert.throws(
     () =>
