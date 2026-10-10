@@ -68,19 +68,30 @@ export function assertEnvironmentLabel(value, name) {
 }
 
 export function assertNonProductionTarget(value) {
-  const normalized = value.trim().toLowerCase();
-  const forbidden = new Set([
-    'prod',
-    'production',
-    'prd',
-    'live',
-    'public',
-    'public-prod',
-  ]);
-  if (forbidden.has(normalized) || normalized.includes('production')) {
+  const validated = assertEnvironmentLabel(value, 'RESTORE_TARGET_ENV');
+  const normalized = validated.toLowerCase();
+
+  // A descriptive label is not proof of what the supplied credentials target.
+  // Still reject production aliases anywhere in a label, including prod-eu,
+  // restore-prod, live-1 and spelling/case variants, before destructive restore.
+  if (
+    normalized.includes('production') ||
+    /(?:^|[._-])(?:prod|prd|live|public)\\d*(?=$|[._-])/u.test(normalized)
+  ) {
     throw new Error('restore target must not be production');
   }
-  return assertEnvironmentLabel(value, 'RESTORE_TARGET_ENV');
+
+  // Require a positive nonproduction designation rather than trying to
+  // enumerate every possible alias for a real production environment.
+  if (
+    !/^(?:restore|drill|dev|development|test|testing|qa|stage|staging|sandbox|local|preview)(?:$|[._-])/u.test(
+      normalized,
+    )
+  ) {
+    throw new Error('restore target must use an explicit non-production label');
+  }
+
+  return validated;
 }
 
 export function assertRootEndpoint(value, name) {
