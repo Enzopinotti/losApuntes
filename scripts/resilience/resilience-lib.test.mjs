@@ -197,6 +197,30 @@ test('forward-only releases require data recovery semantics', () => {
   );
 });
 
+test('rollback proof rejects current and previous releases with the same image digest', () => {
+  const value = evidence();
+  value.rollback.rollbackImageDigest = CURRENT_IMAGE;
+
+  assert.throws(
+    () => validateProductionResilienceEvidence(value),
+    /rollback image digest must differ from current image digest/u,
+  );
+});
+
+test('duplicate protected-image entries cannot mask an identical rollback image', () => {
+  const value = evidence();
+  value.rollback.rollbackImageDigest = CURRENT_IMAGE;
+  value.releaseRetention.protectedImageDigests = [
+    CURRENT_IMAGE,
+    CURRENT_IMAGE,
+  ];
+
+  assert.throws(
+    () => validateProductionResilienceEvidence(value),
+    /rollback image digest must differ from current image digest/u,
+  );
+});
+
 test('retention protects current and rollback image digests', () => {
   const value = evidence();
   value.releaseRetention.protectedImageDigests = [CURRENT_IMAGE];
