@@ -38,6 +38,13 @@ import {
   MobileHomeController,
   type MobileHomeSnapshot,
 } from "./home-controller";
+import {
+  hasActionableHomeContent,
+  homeFeedItemAction,
+  homeFirstValueActions,
+  type HomeFeedItemAction,
+  type HomeFirstValueAction,
+} from "./home-first-value";
 import { useAcademicContext } from "../academic/academic-context-provider";
 
 const itemKindLabel = (item: FeedItem): string => {
@@ -51,12 +58,65 @@ const sourceLabel = (item: FeedItem): string =>
     ? item.source.organization.name
     : item.author.displayName;
 
+function FeedItemRow({
+  item,
+  onOpen,
+}: {
+  item: FeedItem;
+  onOpen: (action: HomeFeedItemAction) => void;
+}) {
+  const action = homeFeedItemAction(item);
+  const content = (
+    <>
+      <Text style={styles.itemKind}>{itemKindLabel(item)}</Text>
+      <Text style={styles.itemTitle}>{item.title}</Text>
+      {item.academic.subject ? (
+        <Text style={styles.itemMeta}>
+          {item.academic.subject.name} · {sourceLabel(item)}
+        </Text>
+      ) : (
+        <Text style={styles.itemMeta}>{sourceLabel(item)}</Text>
+      )}
+      {item.summary ? (
+        <Text numberOfLines={3} style={styles.copy}>
+          {item.summary}
+        </Text>
+      ) : null}
+      {action ? (
+        <Text style={styles.actionLabel}>
+          {item.type === "resource" ? "Abrir apunte" : "Abrir pregunta"}
+        </Text>
+      ) : null}
+    </>
+  );
+
+  if (!action) return <View style={styles.feedItem}>{content}</View>;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={action.accessibilityLabel}
+      accessibilityHint={action.accessibilityHint}
+      onPress={() => onOpen(action)}
+      style={({ pressed }) => [
+        styles.feedItem,
+        styles.feedItemAction,
+        pressed && styles.feedItemPressed,
+      ]}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
 function FeedSection({
   title,
   feed,
+  onOpen,
 }: {
   title: string;
   feed: FeedPageResponse;
+  onOpen: (action: HomeFeedItemAction) => void;
 }) {
   return (
     <View style={styles.card}>
@@ -65,26 +125,15 @@ function FeedSection({
       </Text>
       {feed.items.length === 0 ? (
         <Text style={styles.copy}>
-          Todavía no hay contenido útil para esta tanda.
+          Todavía no hay resultados en esta tanda.
         </Text>
       ) : (
         feed.items.map((item) => (
-          <View key={`${item.type}:${item.id}`} style={styles.feedItem}>
-            <Text style={styles.itemKind}>{itemKindLabel(item)}</Text>
-            <Text style={styles.itemTitle}>{item.title}</Text>
-            {item.academic.subject ? (
-              <Text style={styles.itemMeta}>
-                {item.academic.subject.name} · {sourceLabel(item)}
-              </Text>
-            ) : (
-              <Text style={styles.itemMeta}>{sourceLabel(item)}</Text>
-            )}
-            {item.summary ? (
-              <Text numberOfLines={3} style={styles.copy}>
-                {item.summary}
-              </Text>
-            ) : null}
-          </View>
+          <FeedItemRow
+            key={`${item.type}:${item.id}`}
+            item={item}
+            onOpen={onOpen}
+          />
         ))
       )}
       {feed.nextCursor ? (
@@ -97,6 +146,48 @@ function FeedSection({
           El servidor terminó esta tanda en una pausa natural.
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+function FirstValueCard({
+  hasCurrentSubject,
+  onNavigate,
+}: {
+  hasCurrentSubject: boolean;
+  onNavigate: (action: HomeFirstValueAction) => void;
+}) {
+  const actions = homeFirstValueActions(hasCurrentSubject);
+
+  return (
+    <View style={styles.firstValueCard}>
+      <Text accessibilityRole="header" style={styles.title}>
+        {hasCurrentSubject
+          ? "No encontraste recursos o preguntas en estas tandas"
+          : "Elegí una materia actual o empezá por Buscar"}
+      </Text>
+      <Text style={styles.copy}>
+        {hasCurrentSubject
+          ? "Buscá otros apuntes o iniciá una pregunta sobre tu materia. Cuando abras un recurso, vas a poder guardarlo desde su detalle."
+          : "Podés buscar apuntes ahora. Si el servidor ya reconoce una participación académica válida, elegí una materia actual en Contexto académico para ver contenido asociado y habilitar preguntas."}
+      </Text>
+      <View style={styles.firstValueActions}>
+        {actions.map((action) => (
+          <Pressable
+            key={action.id}
+            accessibilityRole="button"
+            accessibilityLabel={action.accessibilityLabel}
+            accessibilityHint={action.accessibilityHint}
+            onPress={() => onNavigate(action)}
+            style={({ pressed }) => [
+              styles.firstValueAction,
+              pressed && styles.firstValueActionPressed,
+            ]}
+          >
+            <Text style={styles.firstValueActionLabel}>{action.label}</Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -162,6 +253,21 @@ export function HomeScreen() {
   const [appState, setAppState] = useState(AppState.currentState);
   const [refreshPending, setRefreshPending] = useState(false);
   const reconciledAuthority = useRef<string | null>(null);
+
+  const openFeedItem = useCallback(
+    (action: HomeFeedItemAction) => router.push(action.href),
+    [router],
+  );
+  const navigateFirstValueAction = useCallback(
+    (action: HomeFirstValueAction) => {
+      if (action.navigation === "navigate") {
+        router.navigate(action.href);
+        return;
+      }
+      router.push(action.href);
+    },
+    [router],
+  );
 
   useEffect(() => controller.subscribe(setHome), [controller]);
 
@@ -334,16 +440,11 @@ export function HomeScreen() {
   return renderSurface(
     <View style={styles.content}>
       {currentHome?.kind === "loading" ? <LoadingCard refreshing /> : null}
-      {data.academic.currentSubjectIds.length === 0 &&
-      data.homeFeed.kind === "subjects" ? (
-        <View style={styles.card}>
-          <Text style={styles.title}>Todavía no hay materias actuales</Text>
-          <Text style={styles.copy}>
-            El inicio no inventa un contexto: cuando haya participaciones
-            académicas válidas, el servidor podrá priorizar esos recursos y
-            preguntas.
-          </Text>
-        </View>
+      {!hasActionableHomeContent(data.homeFeed, data.forYou) ? (
+        <FirstValueCard
+          hasCurrentSubject={data.academic.currentSubjectIds.length > 0}
+          onNavigate={navigateFirstValueAction}
+        />
       ) : null}
       <Pressable
         accessibilityRole="button"
@@ -373,8 +474,9 @@ export function HomeScreen() {
             : "Mis materias"
         }
         feed={data.homeFeed}
+        onOpen={openFeedItem}
       />
-      <FeedSection title="Para vos" feed={data.forYou} />
+      <FeedSection title="Para vos" feed={data.forYou} onOpen={openFeedItem} />
       {data.forYou.effectiveSignals.relationWindowTruncated ? (
         <Text style={styles.moreCopy}>
           La selección de personas usa una muestra acotada de tu red.
@@ -393,6 +495,37 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
     backgroundColor: "#ffffff",
+  },
+  firstValueCard: {
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#ded8ed",
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor: "#ffffff",
+  },
+  firstValueActions: {
+    gap: 8,
+  },
+  firstValueAction: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#b8b1cb",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#f8f6fc",
+  },
+  firstValueActionPressed: {
+    backgroundColor: "#ebe6f4",
+  },
+  firstValueActionLabel: {
+    color: "#342b4d",
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
   },
   notificationsCard: {
     flexDirection: "row",
@@ -462,6 +595,12 @@ const styles = StyleSheet.create({
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
   },
+  feedItemAction: {
+    minHeight: 48,
+  },
+  feedItemPressed: {
+    backgroundColor: "#f8f6fc",
+  },
   itemKind: {
     fontSize: 12,
     fontWeight: "700",
@@ -478,6 +617,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: "#5b5b66",
+  },
+  actionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#43366a",
   },
   moreCopy: {
     fontSize: 13,
