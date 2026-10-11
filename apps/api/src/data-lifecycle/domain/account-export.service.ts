@@ -86,13 +86,28 @@ export class AccountExportService {
 
   async claimNext(): Promise<AccountExportJobRecord | null> {
     const now = new Date();
-    return this.store.claimNext({
+    const job = await this.store.claimNext({
       now,
       claimId: randomUUID(),
       leaseExpiresAt: new Date(
         now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
       ),
     });
+
+    if (!job) return null;
+    if (await this.users.hasActiveAccount(job.userId)) return job;
+    if (!job.claimId) {
+      throw new Error('Account export inactive claim is invalid');
+    }
+
+    await this.reschedule({
+      id: job.id,
+      claimId: job.claimId,
+      state: 'failed',
+      nextAttemptAt: now,
+      failureCode: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
+    });
+    return null;
   }
 
   async renewLease(input: { id: string; claimId: string }): Promise<boolean> {

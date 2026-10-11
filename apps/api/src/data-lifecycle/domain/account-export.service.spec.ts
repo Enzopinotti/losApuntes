@@ -235,9 +235,65 @@ describe('AccountExportService', () => {
           },
         ],
       ]);
+      expect(f.users.hasActiveAccount.mock.calls).toEqual([[claimed?.userId]]);
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('fails a claimed job for an inactive owner before handing it to a worker', async () => {
+    const f = fixture();
+    jest.useFakeTimers().setSystemTime(now);
+    f.users.hasActiveAccount.mockResolvedValue(false);
+    f.store.claimNext.mockResolvedValue(
+      job({
+        state: 'processing',
+        claimId: 'claim-1',
+        leaseExpiresAt: new Date(
+          now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+        ),
+      }),
+    );
+    f.store.reschedule.mockResolvedValue(true);
+
+    try {
+      await expect(f.service.claimNext()).resolves.toBeNull();
+      expect(f.users.hasActiveAccount.mock.calls).toEqual([['user-1']]);
+      expect(f.store.reschedule.mock.calls).toEqual([
+        [
+          {
+            id: 'export-1',
+            claimId: 'claim-1',
+            state: 'failed',
+            nextAttemptAt: now,
+            failureCode: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
+            now,
+          },
+        ],
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not hand off or reschedule a claim when account-state lookup fails', async () => {
+    const f = fixture();
+    const readError = new Error('account state unavailable');
+    f.store.claimNext.mockResolvedValue(
+      job({ state: 'processing', claimId: 'claim-1' }),
+    );
+    f.users.hasActiveAccount.mockRejectedValue(readError);
+
+    await expect(f.service.claimNext()).rejects.toBe(readError);
+    expect(f.store.reschedule.mock.calls).toHaveLength(0);
+  });
+
+  it('does not read account state when no job was claimed', async () => {
+    const f = fixture();
+    f.store.claimNext.mockResolvedValue(null);
+
+    await expect(f.service.claimNext()).resolves.toBeNull();
+    expect(f.users.hasActiveAccount.mock.calls).toHaveLength(0);
   });
 
   it('renews only the supplied claim with a service-generated bounded lease', async () => {
