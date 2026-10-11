@@ -29,6 +29,8 @@ const [
   academicService,
   academicStore,
   academicSchemas,
+  exportLifecyclePolicyText,
+  exportLifecycleOps,
 ] = await Promise.all([
   readFile(new URL('../apps/api/src/data-lifecycle/account-lifecycle.controller.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-lifecycle.service.ts', import.meta.url), 'utf8'),
@@ -57,7 +59,17 @@ const [
   readFile(new URL('../apps/api/src/academic/domain/academic.service.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/academic/mongo/mongo-academic.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/academic/mongo/academic.mongo-schemas.ts', import.meta.url), 'utf8'),
+  readFile(
+    new URL('../infra/storage/account-export-lifecycle.json', import.meta.url),
+    'utf8',
+  ),
+  readFile(
+    new URL('../docs/operations/account-export-artifacts.md', import.meta.url),
+    'utf8',
+  ),
 ]);
+
+const exportLifecyclePolicy = JSON.parse(exportLifecyclePolicyText);
 
 assert.match(controller, /@Get\('closure\/preflight'\)/u);
 assert.match(controller, /@Post\('closure'\)/u);
@@ -112,6 +124,32 @@ assert.match(exportDocs, /POST \/account\/exports/u);
 assert.match(exportDocs, /GET \/account\/exports\/\{exportId\}\/download/u);
 assert.match(exportDocs, /exactly seven days after `completedAt`/u);
 assert.match(exportDocs, /Bucket lifecycle defense in depth/u);
+assert.match(exportDocs, /infra\/storage\/account-export-lifecycle\.json/u);
+assert.deepEqual(exportLifecyclePolicy, {
+  Rules: [
+    {
+      ID: 'account-export-abort-incomplete-multipart-after-7-days',
+      Status: 'Enabled',
+      Filter: { Prefix: 'exports/' },
+      AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 },
+    },
+    {
+      ID: 'account-export-expire-after-8-days',
+      Status: 'Enabled',
+      Filter: { Prefix: 'exports/' },
+      Expiration: { Days: 8 },
+    },
+  ],
+});
+assert.match(
+  exportLifecycleOps,
+  /PutBucketLifecycleConfiguration.*replaces/isu,
+);
+assert.match(
+  exportLifecycleOps,
+  /not evidence that any remote provider is configured/u,
+);
+assert.match(exportLifecycleOps, /version history, backups, replicas/u);
 assert.match(exportHttp, /POST \/account\/exports/u);
 assert.match(exportHttp, /GET \/account\/exports\/\{exportId\}\/download/u);
 assert.match(exportHttp, /404 for a missing or foreign job id/u);

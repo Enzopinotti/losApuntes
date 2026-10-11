@@ -682,9 +682,12 @@ incomplete multipart uploads after seven days and expire `exports/` objects
 after eight days. The application enforces the exact seven-day download cutoff
 and performs normal cleanup; lifecycle is a recovery path for multipart or
 completed object orphans after a process crash. Configure and verify these rules
-for each production S3-compatible provider before production enablement. Bucket
-versioning, object lock and backup/recovery deletion remain separate operational
-decisions and are not implied by the seven-day API window.
+for each production S3-compatible provider before production enablement. The
+reviewable policy is in `infra/storage/account-export-lifecycle.json`, with
+apply/readback steps and provider limitations in
+`docs/operations/account-export-artifacts.md`. Bucket versioning, object lock
+and backup/recovery deletion remain separate operational decisions and are not
+implied by the seven-day API window.
 
 ## Security and privacy exclusions
 
