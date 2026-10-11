@@ -135,8 +135,7 @@ function FeedSection({
   pageStatus: HomePageStatus | undefined;
   refreshing: boolean;
 }) {
-  const limitReached =
-    Boolean(feed.nextCursor) && !canLoadMoreHomeFeed(feed);
+  const limitReached = Boolean(feed.nextCursor) && !canLoadMoreHomeFeed(feed);
   const exploreAction = homeFeedExploreAction(
     surface,
     Boolean(feed.nextCursor),
