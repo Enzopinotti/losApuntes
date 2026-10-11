@@ -89,9 +89,9 @@ function observedAfterAmbiguousMutation(
   const updated = after.answers.find((item) => item.id === action.answerId);
   return Boolean(
     original &&
-      updated &&
-      updated.revision > original.revision &&
-      updated.body === action.body.trim(),
+    updated &&
+    updated.revision > original.revision &&
+    updated.body === action.body.trim(),
   );
 }
 
