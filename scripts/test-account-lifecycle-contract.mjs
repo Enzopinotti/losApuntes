@@ -196,6 +196,14 @@ assert.match(exportController, /@Get\(':id\/download'\)/u);
 assert.match(exportProcessor, /LEASE_RENEWAL_INTERVAL_MS/u);
 assert.match(exportProcessor, /MAX_ATTEMPTS = 5/u);
 assert.match(exportArtifactStorage, /exports\/\$\{jobId\}\/\$\{generation\}\.json/u);
+assert.match(
+  exportArtifactStorage,
+  /export type AccountExportArtifactObjectStorage = Pick<[\s\S]*?'createMultipartWriter' \| 'readObjectChunks' \| 'deleteObject'/u,
+);
+assert.match(
+  exportArtifactStorage,
+  /constructor\(private readonly storage: AccountExportArtifactObjectStorage\)/u,
+);
 assert.match(exportArtifactStorage, /createMultipartWriter/u);
 assert.match(exportArtifactStorage, /this\.storage\.readObjectChunks/u);
 assert.match(exportArtifactStorage, /this\.storage\.deleteObject/u);

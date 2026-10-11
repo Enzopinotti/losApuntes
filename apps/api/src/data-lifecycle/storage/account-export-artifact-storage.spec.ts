@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import type { S3ObjectStorage } from '../../files/storage/s3-object-storage';
 import type { AccountExportAssemblyResult } from '../domain/account-export.types';
-import { S3AccountExportArtifactStorage } from './account-export-artifact-storage';
+import {
+  S3AccountExportArtifactStorage,
+  type AccountExportArtifactObjectStorage,
+} from './account-export-artifact-storage';
 
 const jobId = '123e4567-e89b-42d3-a456-426614174000';
 const generation = '123e4567-e89b-42d3-a456-426614174001';
@@ -14,11 +16,11 @@ describe('S3AccountExportArtifactStorage', () => {
       complete: jest.fn().mockResolvedValue(undefined),
       abort: jest.fn().mockResolvedValue(undefined),
     };
-    const storage = {
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
-      readObjectChunks: jest.fn(),
+      readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
       deleteObject: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<S3ObjectStorage>;
+    };
     const artifacts = new S3AccountExportArtifactStorage(storage);
     const sink = artifacts.createSink(jobId, generation);
     const content = '{"format":"los-apuntes-account-export"}';
@@ -53,9 +55,12 @@ describe('S3AccountExportArtifactStorage', () => {
       complete: jest.fn().mockResolvedValue(undefined),
       abort: jest.fn().mockResolvedValue(undefined),
     };
-    const artifacts = new S3AccountExportArtifactStorage({
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
-    } as unknown as S3ObjectStorage);
+      readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+    };
+    const artifacts = new S3AccountExportArtifactStorage(storage);
     const sink = artifacts.createSink(jobId, generation);
     await sink.write('{"safe":true}');
 
@@ -77,10 +82,16 @@ describe('S3AccountExportArtifactStorage', () => {
       .fn()
       .mockReturnValue((async function* () {})());
     const deleteObject = jest.fn().mockResolvedValue(undefined);
-    const artifacts = new S3AccountExportArtifactStorage({
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn().mockReturnValue({
+        write: jest.fn().mockResolvedValue(undefined),
+        complete: jest.fn().mockResolvedValue(undefined),
+        abort: jest.fn().mockResolvedValue(undefined),
+      }),
       readObjectChunks,
       deleteObject,
-    } as unknown as S3ObjectStorage);
+    };
+    const artifacts = new S3AccountExportArtifactStorage(storage);
 
     artifacts.readObjectChunks(jobId, generation);
     await artifacts.deleteArtifact(jobId, generation);

@@ -4,6 +4,11 @@ import type { AccountExportArtifactSink } from '../domain/account-export-assembl
 import type { AccountExportAssemblyResult } from '../domain/account-export.types';
 import type { S3ObjectStorage } from '../../files/storage/s3-object-storage';
 
+export type AccountExportArtifactObjectStorage = Pick<
+  S3ObjectStorage,
+  'createMultipartWriter' | 'readObjectChunks' | 'deleteObject'
+>;
+
 export const ACCOUNT_EXPORT_ARTIFACT_STORAGE = Symbol(
   'ACCOUNT_EXPORT_ARTIFACT_STORAGE',
 );
@@ -27,7 +32,7 @@ function objectKey(jobId: string, generation: string): string {
 }
 
 export class S3AccountExportArtifactStorage implements AccountExportArtifactStorage {
-  constructor(private readonly storage: S3ObjectStorage) {}
+  constructor(private readonly storage: AccountExportArtifactObjectStorage) {}
 
   createSink(jobId: string, generation: string): AccountExportArtifactSink {
     const key = objectKey(jobId, generation);
