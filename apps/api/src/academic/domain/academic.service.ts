@@ -41,6 +41,7 @@ import {
   ACADEMIC_PARENT_KINDS,
   type AcademicAffiliationRecord,
   type AcademicCatalogNodeRecord,
+  type AcademicCatalogProposalExportRow,
   type AcademicCatalogProposalRecord,
   type AcademicNodeKind,
   type AcademicProposalStatus,
@@ -1186,6 +1187,30 @@ export class AcademicService {
         targetKind: row.targetKind,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor: nextAcademicExportCursor(page.items, page.hasMore),
+    };
+  }
+
+  async listAccountExportProposals(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    const page = await this.store.listAcademicProposalsForExport({
+      userId,
+      limit: input.limit,
+      afterId: decodeAcademicExportCursor(input.cursor),
+    });
+
+    return {
+      items: page.items.map((row: AcademicCatalogProposalExportRow) => ({
+        id: row.id,
+        kind: row.kind,
+        proposedName: row.proposedName,
+        parentIds: [...row.parentIds],
+        evidenceUrl: row.evidenceUrl ?? null,
+        notes: row.notes ?? null,
+        createdAt: row.createdAt.toISOString(),
       })),
       nextCursor: nextAcademicExportCursor(page.items, page.hasMore),
     };

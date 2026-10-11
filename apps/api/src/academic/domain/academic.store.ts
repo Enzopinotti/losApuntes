@@ -3,6 +3,7 @@ import type {
   AcademicAffiliationRecord,
   AcademicAuditEventRecord,
   AcademicCatalogNodeRecord,
+  AcademicCatalogProposalExportRow,
   AcademicCatalogProposalRecord,
   AcademicCurrentContextRecord,
   AcademicFollowRecord,
@@ -212,6 +213,11 @@ export interface AcademicStore {
     status: AcademicProposalStatus | undefined,
     limit: number,
   ): Promise<AcademicCatalogProposalRecord[]>;
+  listAcademicProposalsForExport(input: {
+    userId: string;
+    limit: number;
+    afterId?: string;
+  }): Promise<BoundedAcademicPage<AcademicCatalogProposalExportRow>>;
   reviewProposal(
     id: string,
     reviewerUserId: string,

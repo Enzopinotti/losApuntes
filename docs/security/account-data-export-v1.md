@@ -151,6 +151,7 @@ Academic now contributes four user-state sections:
 - `academic.currentContext` — the effective current Academic context after a
   read-only Academic-domain validation of stale references;
 - `academic.follows` — the user's institution/program follow relationships.
+- `academic.proposals` — the user's own submitted Academic catalog proposals.
 
 Affiliations, subject participations and follows use dedicated export reads
 ordered by immutable `id ASC`. Their opaque cursor contains only the last
@@ -169,8 +170,17 @@ revision `1` in memory without rewriting the row or its timestamps.
 
 Academic export contains relationship references and user-owned lifecycle state,
 not the global Academic catalog. It does not export catalog source provenance,
-admin audit events, internal context guard revisions, or catalog proposals in
-this carrier.
+admin audit events or internal context guard revisions.
+
+`academic.proposals` filters on the exact proposal `userId` and selects only
+the stable proposal id, kind, proposed name, parent ids, optional owner-entered
+evidence URL/notes and creation time. Parent ids remain opaque references;
+export does not resolve catalog nodes or alter canonicalization. The read uses
+immutable `id ASC`, `limit + 1`, a maximum page size of 100 and the
+`{ userId: 1, id: 1 }` index. Missing optional evidence/notes are serialized
+as `null`. Proposal status, update time, reviewer identity/time/reason,
+canonical target, audit records and catalog source provenance are excluded;
+this is a snapshot of the user's submission, not a moderation outcome.
 
 ### Q&A authored sections — candidate for #183
 
@@ -372,7 +382,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -448,10 +458,12 @@ answers, Social Following/Connection history, the owner's Notification inbox,
 current Organization follows and owner-authored Organization Posts/Events are
 also partial contributor sections. The owner's current Organization manager
 roles and submitted reports are separate partial sections; management/member
-history, report moderation outcomes and Alumni-specific data remain outside
-the current contributor set.
-User-authored Academic catalog proposals are also outside the currently
-implemented v1 Academic carrier pending a separate inclusion decision. The
+history and report moderation outcomes remain outside the current contributor
+set. Academic affiliation lifecycle state, including its alumni status/roles,
+is carried by `academic.affiliations`; any additional Alumni-specific source
+data remains outside this contributor set. User-authored Academic catalog
+proposals now appear as the separate partial `academic.proposals` section;
+moderation outcomes and catalog source provenance remain excluded. The
 presence of core, Academic and partial Resource sections does not make the
 overall export product complete or ready for public HTTP delivery.
 

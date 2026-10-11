@@ -23,6 +23,7 @@ import {
   AcademicFollowsExportContributor,
   AcademicSubjectParticipationsExportContributor,
 } from './contributors/account-export-academic.contributors';
+import { AcademicProposalsExportContributor } from './contributors/account-export-academic-proposals.contributors';
 import {
   AccountIdentityExportContributor,
   ProfileActivitiesExportContributor,
@@ -103,6 +104,7 @@ import {
     AcademicSubjectParticipationsExportContributor,
     AcademicCurrentContextExportContributor,
     AcademicFollowsExportContributor,
+    AcademicProposalsExportContributor,
     AuthoredResourcesExportContributor,
     SavedResourcesExportContributor,
     SharedResourceGrantsExportContributor,
@@ -126,6 +128,7 @@ import {
         academicParticipations: AcademicSubjectParticipationsExportContributor,
         academicContext: AcademicCurrentContextExportContributor,
         academicFollows: AcademicFollowsExportContributor,
+        academicProposals: AcademicProposalsExportContributor,
         authoredResources: AuthoredResourcesExportContributor,
         savedResources: SavedResourcesExportContributor,
         sharedResourceGrants: SharedResourceGrantsExportContributor,
@@ -147,6 +150,7 @@ import {
         academicParticipations,
         academicContext,
         academicFollows,
+        academicProposals,
         authoredResources,
         savedResources,
         sharedResourceGrants,
@@ -169,6 +173,7 @@ import {
         AcademicSubjectParticipationsExportContributor,
         AcademicCurrentContextExportContributor,
         AcademicFollowsExportContributor,
+        AcademicProposalsExportContributor,
         AuthoredResourcesExportContributor,
         SavedResourcesExportContributor,
         SharedResourceGrantsExportContributor,

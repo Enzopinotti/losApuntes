@@ -7,6 +7,7 @@ import type {
   AcademicAffiliationRecord,
   AcademicAuditEventRecord,
   AcademicCatalogNodeRecord,
+  AcademicCatalogProposalExportRow,
   AcademicCatalogProposalRecord,
   AcademicCurrentContextRecord,
   AcademicFollowRecord,
@@ -691,6 +692,37 @@ export class MongoAcademicStore implements AcademicStore {
       .limit(limit)
       .lean<AcademicCatalogProposalRecord[]>()
       .exec();
+  }
+
+  async listAcademicProposalsForExport(
+    input: Parameters<AcademicStore['listAcademicProposalsForExport']>[0],
+  ): ReturnType<AcademicStore['listAcademicProposalsForExport']> {
+    const filter: FilterQuery<AcademicCatalogProposal> = {
+      userId: input.userId,
+    };
+    if (input.afterId) filter.id = { $gt: input.afterId };
+
+    const rows = await this.proposals
+      .find(filter)
+      .select({
+        _id: 0,
+        id: 1,
+        kind: 1,
+        proposedName: 1,
+        parentIds: 1,
+        evidenceUrl: 1,
+        notes: 1,
+        createdAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<AcademicCatalogProposalExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async reviewProposal(

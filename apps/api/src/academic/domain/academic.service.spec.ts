@@ -22,6 +22,7 @@ import {
 import type {
   AcademicAffiliationRecord,
   AcademicCatalogNodeRecord,
+  AcademicCatalogProposalExportRow,
   SubjectParticipationRecord,
 } from './academic.types';
 
@@ -194,6 +195,8 @@ function createStore() {
     listAcademicFollows: mockFn<AcademicStore['listAcademicFollows']>(),
     listAcademicFollowsForExport:
       mockFn<AcademicStore['listAcademicFollowsForExport']>(),
+    listAcademicProposalsForExport:
+      mockFn<AcademicStore['listAcademicProposalsForExport']>(),
     removeAcademicFollows: mockFn<AcademicStore['removeAcademicFollows']>(),
     createProposal: mockFn<AcademicStore['createProposal']>(),
     findProposalById: mockFn<AcademicStore['findProposalById']>(),
@@ -339,6 +342,110 @@ describe('AcademicService', () => {
           targetKind: 'institution',
           createdAt: now.toISOString(),
           updatedAt: now.toISOString(),
+        },
+      ],
+      nextCursor: null,
+    });
+  });
+
+  it('pages only owner-submitted proposal fields and omits review outcomes', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const proposal = {
+      id: 'proposal-001',
+      kind: 'program' as const,
+      proposedName: 'Programa propuesto',
+      parentIds: ['institution-ref'],
+      evidenceUrl: 'https://example.test/program',
+      notes: 'Owner-authored context',
+      createdAt: now,
+      status: 'accepted',
+      updatedAt: new Date('2026-09-23T20:00:00.000Z'),
+      reviewedByUserId: 'reviewer-user',
+      reviewedAt: new Date('2026-09-24T20:00:00.000Z'),
+      reviewReason: 'Internal decision',
+      canonicalTargetId: 'canonical-node',
+    } as AcademicCatalogProposalExportRow;
+    store.listAcademicProposalsForExport
+      .mockResolvedValueOnce(page([proposal], true))
+      .mockResolvedValueOnce(page([]));
+
+    const first = await service.listAccountExportProposals('user-1', {
+      limit: 1,
+      cursor: null,
+    });
+
+    expect(first.items).toEqual([
+      {
+        id: 'proposal-001',
+        kind: 'program',
+        proposedName: 'Programa propuesto',
+        parentIds: ['institution-ref'],
+        evidenceUrl: 'https://example.test/program',
+        notes: 'Owner-authored context',
+        createdAt: now.toISOString(),
+      },
+    ]);
+    for (const key of [
+      'userId',
+      'status',
+      'updatedAt',
+      'reviewedByUserId',
+      'reviewedAt',
+      'reviewReason',
+      'canonicalTargetId',
+    ]) {
+      expect(first.items[0]).not.toHaveProperty(key);
+    }
+    expect(first.nextCursor).toBe(
+      Buffer.from(JSON.stringify({ id: 'proposal-001' }), 'utf8').toString(
+        'base64url',
+      ),
+    );
+    expect(store.listAcademicProposalsForExport.mock.calls[0]).toEqual([
+      { userId: 'user-1', limit: 1, afterId: undefined },
+    ]);
+    expect(store.findCatalogNodeById).not.toHaveBeenCalled();
+    expect(store.findCatalogNodesByIds).not.toHaveBeenCalled();
+
+    await expect(
+      service.listAccountExportProposals('user-1', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(store.listAcademicProposalsForExport.mock.calls[1]).toEqual([
+      { userId: 'user-1', limit: 1, afterId: 'proposal-001' },
+    ]);
+  });
+
+  it('normalizes absent optional proposal fields for export', async () => {
+    const store = createStore();
+    const service = new AcademicService(store);
+    const proposal = {
+      id: 'proposal-002',
+      kind: 'subject' as const,
+      proposedName: 'Materia propuesta',
+      parentIds: ['program-ref'],
+      createdAt: now,
+    } as AcademicCatalogProposalExportRow;
+    store.listAcademicProposalsForExport.mockResolvedValue(page([proposal]));
+
+    await expect(
+      service.listAccountExportProposals('user-1', {
+        limit: 100,
+        cursor: null,
+      }),
+    ).resolves.toEqual({
+      items: [
+        {
+          id: 'proposal-002',
+          kind: 'subject',
+          proposedName: 'Materia propuesta',
+          parentIds: ['program-ref'],
+          evidenceUrl: null,
+          notes: null,
+          createdAt: now.toISOString(),
         },
       ],
       nextCursor: null,
