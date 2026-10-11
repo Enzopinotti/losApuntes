@@ -107,6 +107,27 @@ test("request methods retain the bearer credential and server cursor contract", 
       });
       return { answer: {} as never };
     },
+    updateQuestion: async (credential, id, input, signal) => {
+      calls.push({
+        method: "updateQuestion",
+        args: [credential, id, input, signal],
+      });
+      return { question: {} as never };
+    },
+    updateAnswer: async (credential, id, input, signal) => {
+      calls.push({
+        method: "updateAnswer",
+        args: [credential, id, input, signal],
+      });
+      return { answer: {} as never };
+    },
+    acceptAnswer: async (credential, id, answerId, revision, signal) => {
+      calls.push({
+        method: "acceptAnswer",
+        args: [credential, id, answerId, revision, signal],
+      });
+      return { question: {} as never };
+    },
     notifications: async (credential, input, signal) => {
       calls.push({
         method: "notifications",
@@ -424,6 +445,12 @@ test("requires the current session and never silently downgrades to anonymous", 
     createAnswer: async () => {
       throw new Error("unexpected");
     },
+    updateQuestion: async () => ({ question: {} as never }),
+    updateAnswer: async () => ({ answer: {} as never }),
+    acceptAnswer: async () => ({ question: {} as never }),
+    updateQuestion: async () => ({ question: {} as never }),
+    updateAnswer: async () => ({ answer: {} as never }),
+    acceptAnswer: async () => ({ question: {} as never }),
     notifications: async () => emptyNotifications,
     markNotificationRead: async () => ({ read: true }),
     markAllNotificationsRead: async () => ({ updated: 0 }),
@@ -553,4 +580,77 @@ test("encodes public question API paths and includes only server-supported pagin
     method: "POST",
     credential: "token",
   });
+});
+
+
+test("Q&A mutation transport sends exact revision payloads to existing authenticated routes", async () => {
+  const calls: Array<{ path: string; options: Record<string, unknown> }> = [];
+  const client = {
+    request: async <T>(path: string, options: Record<string, unknown>) => {
+      calls.push({ path, options });
+      return {} as T;
+    },
+  } as unknown as MobileApiClient;
+  const transport = new MobileCommunityHttpTransport(client);
+  const signal = new AbortController().signal;
+  const credential = "secret-session-token";
+
+  await transport.updateQuestion(
+    credential,
+    "question/a",
+    { expectedRevision: 4, title: "Una pregunta nueva" },
+    signal,
+  );
+  await transport.updateQuestion(
+    credential,
+    "question/a",
+    { expectedRevision: 5, status: "closed" },
+    signal,
+  );
+  await transport.updateAnswer(
+    credential,
+    "answer/a",
+    { expectedRevision: 2, body: "Una respuesta corregida" },
+    signal,
+  );
+  await transport.acceptAnswer(credential, "question/a", "answer/a", 6, signal);
+
+  assert.deepEqual(calls, [
+    {
+      path: "/questions/question%2Fa",
+      options: {
+        method: "PATCH",
+        credential,
+        body: { expectedRevision: 4, title: "Una pregunta nueva" },
+        signal,
+      },
+    },
+    {
+      path: "/questions/question%2Fa",
+      options: {
+        method: "PATCH",
+        credential,
+        body: { expectedRevision: 5, status: "closed" },
+        signal,
+      },
+    },
+    {
+      path: "/answers/answer%2Fa",
+      options: {
+        method: "PATCH",
+        credential,
+        body: { expectedRevision: 2, body: "Una respuesta corregida" },
+        signal,
+      },
+    },
+    {
+      path: "/questions/question%2Fa/answers/answer%2Fa/accept",
+      options: {
+        method: "POST",
+        credential,
+        body: { expectedRevision: 6 },
+        signal,
+      },
+    },
+  ]);
 });
