@@ -57,6 +57,28 @@ export interface FeedFeedbackRecord {
   updatedAt: Date;
 }
 
+export type FeedPreferencesExportRecord = Pick<
+  FeedPreferencesRecord,
+  | 'useAcademic'
+  | 'useSocial'
+  | 'useInterests'
+  | 'mutedSubjectIds'
+  | 'mutedProfileIds'
+  | 'prioritizedSubjectIds'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+export type FeedFeedbackExportRecord = Pick<
+  FeedFeedbackRecord,
+  'targetType' | 'targetId' | 'signal' | 'createdAt' | 'updatedAt'
+>;
+
+export type FeedFeedbackExportCursor = Pick<
+  FeedFeedbackRecord,
+  'targetType' | 'targetId'
+>;
+
 export interface FeedCursor {
   anchorAt: Date;
   revision: number;

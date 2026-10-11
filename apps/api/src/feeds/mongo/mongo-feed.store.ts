@@ -7,8 +7,11 @@ import {
   type UpdateFeedPreferencesRecord,
 } from '../domain/feed.store';
 import type {
+  FeedFeedbackExportCursor,
+  FeedFeedbackExportRecord,
   FeedFeedbackRecord,
   FeedFeedbackSignal,
+  FeedPreferencesExportRecord,
   FeedPreferencesRecord,
   FeedTargetType,
 } from '../domain/feed.types';
@@ -54,6 +57,26 @@ export class MongoFeedStore implements FeedStore {
     return row;
   }
 
+  async findPreferencesForExport(
+    userId: string,
+  ): Promise<FeedPreferencesExportRecord | null> {
+    return this.preferences
+      .findOne({ userId })
+      .select({
+        _id: 0,
+        useAcademic: 1,
+        useSocial: 1,
+        useInterests: 1,
+        mutedSubjectIds: 1,
+        mutedProfileIds: 1,
+        prioritizedSubjectIds: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .lean<FeedPreferencesExportRecord>()
+      .exec();
+  }
+
   async updatePreferences(
     userId: string,
     expectedRevision: number,
@@ -93,6 +116,35 @@ export class MongoFeedStore implements FeedStore {
     return this.feedback
       .find({ userId, $or: filters })
       .lean<FeedFeedbackRecord[]>()
+      .exec();
+  }
+
+  async listFeedbackForExport(
+    userId: string,
+    after: FeedFeedbackExportCursor | null,
+    limit: number,
+  ): Promise<FeedFeedbackExportRecord[]> {
+    const query: Record<string, unknown> = { userId };
+    if (after) {
+      query.$or = [
+        { targetType: { $gt: after.targetType } },
+        { targetType: after.targetType, targetId: { $gt: after.targetId } },
+      ];
+    }
+
+    return this.feedback
+      .find(query)
+      .select({
+        _id: 0,
+        targetType: 1,
+        targetId: 1,
+        signal: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ targetType: 1, targetId: 1 })
+      .limit(limit)
+      .lean<FeedFeedbackExportRecord[]>()
       .exec();
   }
 

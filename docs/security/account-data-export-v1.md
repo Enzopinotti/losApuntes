@@ -398,12 +398,37 @@ Resource content, FileAsset metadata and file bytes are excluded. The Resource
 reference is not resolved and grants no access. These sections remain partial
 contributors and do not make a complete downloadable account export.
 
+### Implemented Feed preference and feedback sections
+
+Feed contributes `feeds.preferences` and `feeds.feedback`. Preferences include
+only a row that already exists for the exact owner: the three user-controlled
+switches, muted Subject/Profile references, prioritized Subject references,
+and creation/update timestamps. These arrays retain the existing write
+limits (100 muted references and 50 prioritized Subjects). The export path
+uses a read-only query; it never calls `getOrCreatePreferences`, performs an
+upsert, or synthesizes defaults. An account without a stored row gets an empty section. The internal
+preference `revision` is excluded.
+
+Feedback exports each current owner row as `targetType`, opaque `targetId`,
+`signal`, `createdAt` and `updatedAt`. It reads no target, author, or linked
+content, and the portable record contains no internal user id. The bounded
+keyset order is `{ targetType: 1, targetId: 1 }`; it uses `limit + 1`, a
+maximum requested size of 100, and the existing unique
+`{ userId: 1, targetType: 1, targetId: 1 }` index. This stable identity order
+does not change when `updatedAt` changes after a feedback edit. The section is
+current explicit feedback, not an event or ranking history.
+Neither section changes Feed behavior or grants authority over a referenced
+Subject, Profile, Resource, Question, or Organization Post.
+
+These remain partial contributors; they do not add a public endpoint or make
+the account export complete or downloadable.
+
 ## Implemented internal streaming artifact assembly
 
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -491,9 +516,12 @@ outcomes and target content. Academic affiliation lifecycle state, including
 its alumni status/roles, is carried by `academic.affiliations`. The API has no
 separate Alumni data authority or contributor. User-authored Academic catalog
 proposals now appear as the separate partial `academic.proposals` section;
-moderation outcomes and catalog source provenance remain excluded. The
-presence of core, Academic, Q&A, Resource and other partial sections does not
-make the overall export product complete or ready for public HTTP delivery.
+moderation outcomes and catalog source provenance remain excluded. Persisted
+Feed preferences and current explicit feedback now appear as partial
+`feeds.preferences` and `feeds.feedback` sections without target lookups or
+synthesized defaults. The presence of core, Academic, Feed, Q&A, Resource and
+other partial sections does not make the overall export product complete or
+ready for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 

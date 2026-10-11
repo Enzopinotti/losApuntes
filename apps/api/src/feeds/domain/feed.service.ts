@@ -32,16 +32,22 @@ import {
 import { FEED_STORE, type FeedStore } from './feed.store';
 import type {
   FeedCursor,
+  FeedFeedbackExportCursor,
+  FeedFeedbackExportRecord,
   FeedFeedbackSignal,
   FeedMode,
   FeedOrder,
+  FeedPreferencesExportRecord,
   FeedPreferencesRecord,
   FeedReasonCode,
   FeedTargetType,
 } from './feed.types';
+import { FEED_FEEDBACK_SIGNALS, FEED_TARGET_TYPES } from './feed.types';
 
 const CANDIDATE_LIMIT = 150;
 const MAX_PAGES = 3;
+const ACCOUNT_EXPORT_FEEDBACK_LIMIT = 100;
+const ACCOUNT_EXPORT_FEEDBACK_CURSOR_SECTION = 'feeds.feedback';
 
 type FeedKind = 'academic' | 'for_you';
 
@@ -52,6 +58,96 @@ type CandidateWithProjection = RankedFeedCandidate & {
     avatarUrl: string | null;
   };
 };
+
+function encodeAccountExportFeedbackCursor(
+  cursor: FeedFeedbackExportCursor,
+): string {
+  return Buffer.from(
+    JSON.stringify({
+      section: ACCOUNT_EXPORT_FEEDBACK_CURSOR_SECTION,
+      targetType: cursor.targetType,
+      targetId: cursor.targetId,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAccountExportFeedbackCursor(
+  raw: string | null,
+): FeedFeedbackExportCursor | null {
+  if (raw === null) return null;
+
+  try {
+    if (raw.length > 2048 || !/^[A-Za-z0-9_-]+$/u.test(raw)) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const parsed = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+    if (
+      parsed.section !== ACCOUNT_EXPORT_FEEDBACK_CURSOR_SECTION ||
+      typeof parsed.targetType !== 'string' ||
+      !FEED_TARGET_TYPES.includes(parsed.targetType as FeedTargetType) ||
+      typeof parsed.targetId !== 'string' ||
+      parsed.targetId.length === 0 ||
+      parsed.targetId.length > 512
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    const cursor = {
+      targetType: parsed.targetType as FeedTargetType,
+      targetId: parsed.targetId,
+    };
+    if (encodeAccountExportFeedbackCursor(cursor) !== raw) {
+      throw new Error('non-canonical cursor');
+    }
+    return cursor;
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'FEED_EXPORT_CURSOR_INVALID',
+      message: 'Feed export cursor is invalid',
+    });
+  }
+}
+
+function isDate(value: Date): boolean {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+function isPreferencesExportRecordValid(
+  row: FeedPreferencesExportRecord,
+): boolean {
+  return (
+    typeof row.useAcademic === 'boolean' &&
+    typeof row.useSocial === 'boolean' &&
+    typeof row.useInterests === 'boolean' &&
+    Array.isArray(row.mutedSubjectIds) &&
+    row.mutedSubjectIds.length <= 100 &&
+    row.mutedSubjectIds.every((value) => typeof value === 'string') &&
+    Array.isArray(row.mutedProfileIds) &&
+    row.mutedProfileIds.length <= 100 &&
+    row.mutedProfileIds.every((value) => typeof value === 'string') &&
+    Array.isArray(row.prioritizedSubjectIds) &&
+    row.prioritizedSubjectIds.length <= 50 &&
+    row.prioritizedSubjectIds.every((value) => typeof value === 'string') &&
+    isDate(row.createdAt) &&
+    isDate(row.updatedAt)
+  );
+}
+
+function isFeedbackExportRecordValid(row: FeedFeedbackExportRecord): boolean {
+  return (
+    FEED_TARGET_TYPES.includes(row.targetType) &&
+    typeof row.targetId === 'string' &&
+    row.targetId.length > 0 &&
+    row.targetId.length <= 512 &&
+    FEED_FEEDBACK_SIGNALS.includes(row.signal) &&
+    isDate(row.createdAt) &&
+    isDate(row.updatedAt)
+  );
+}
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
@@ -176,6 +272,59 @@ export class FeedService {
       preferences,
       signals?.recommendationSignals,
     );
+  }
+
+  async findAccountExportPreferences(
+    userId: string,
+  ): Promise<FeedPreferencesExportRecord | null> {
+    const row = await this.store.findPreferencesForExport(userId);
+    if (row && !isPreferencesExportRecordValid(row)) {
+      throw new Error('Feed preferences export row is invalid');
+    }
+    return row;
+  }
+
+  async listAccountExportFeedback(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: FeedFeedbackExportRecord[];
+    nextCursor: string | null;
+  }> {
+    if (
+      !Number.isSafeInteger(input.limit) ||
+      input.limit < 1 ||
+      input.limit > ACCOUNT_EXPORT_FEEDBACK_LIMIT
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'FEED_EXPORT_LIMIT_INVALID',
+        message: 'Feed export page limit is invalid',
+      });
+    }
+
+    const after = decodeAccountExportFeedbackCursor(input.cursor);
+    const rows = await this.store.listFeedbackForExport(
+      userId,
+      after,
+      input.limit + 1,
+    );
+    if (rows.some((row) => !isFeedbackExportRecordValid(row))) {
+      throw new Error('Feed feedback export row is invalid');
+    }
+
+    const hasMore = rows.length > input.limit;
+    const items = rows.slice(0, input.limit);
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor:
+        hasMore && last
+          ? encodeAccountExportFeedbackCursor({
+              targetType: last.targetType,
+              targetId: last.targetId,
+            })
+          : null,
+    };
   }
 
   async updatePreferences(userId: string, dto: UpdateFeedPreferencesDto) {

@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
+import { FeedsModule } from '../feeds/feeds.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import {
@@ -24,6 +25,10 @@ import {
   AcademicSubjectParticipationsExportContributor,
 } from './contributors/account-export-academic.contributors';
 import { AcademicProposalsExportContributor } from './contributors/account-export-academic-proposals.contributors';
+import {
+  FeedFeedbackExportContributor,
+  FeedPreferencesExportContributor,
+} from './contributors/account-export-feed.contributors';
 import {
   AccountIdentityExportContributor,
   ProfileActivitiesExportContributor,
@@ -80,6 +85,7 @@ import {
   imports: [
     AcademicModule,
     AuthModule,
+    FeedsModule,
     NotificationsModule,
     OrganizationsModule,
     UsersModule,
@@ -109,6 +115,8 @@ import {
     AcademicCurrentContextExportContributor,
     AcademicFollowsExportContributor,
     AcademicProposalsExportContributor,
+    FeedPreferencesExportContributor,
+    FeedFeedbackExportContributor,
     AuthoredResourcesExportContributor,
     SavedResourcesExportContributor,
     SharedResourceGrantsExportContributor,
@@ -135,6 +143,8 @@ import {
         academicContext: AcademicCurrentContextExportContributor,
         academicFollows: AcademicFollowsExportContributor,
         academicProposals: AcademicProposalsExportContributor,
+        feedPreferences: FeedPreferencesExportContributor,
+        feedFeedback: FeedFeedbackExportContributor,
         authoredResources: AuthoredResourcesExportContributor,
         savedResources: SavedResourcesExportContributor,
         sharedResourceGrants: SharedResourceGrantsExportContributor,
@@ -159,6 +169,8 @@ import {
         academicContext,
         academicFollows,
         academicProposals,
+        feedPreferences,
+        feedFeedback,
         authoredResources,
         savedResources,
         sharedResourceGrants,
@@ -184,6 +196,8 @@ import {
         AcademicCurrentContextExportContributor,
         AcademicFollowsExportContributor,
         AcademicProposalsExportContributor,
+        FeedPreferencesExportContributor,
+        FeedFeedbackExportContributor,
         AuthoredResourcesExportContributor,
         SavedResourcesExportContributor,
         SharedResourceGrantsExportContributor,

@@ -1,6 +1,9 @@
 import type {
   FeedFeedbackRecord,
+  FeedFeedbackExportCursor,
+  FeedFeedbackExportRecord,
   FeedFeedbackSignal,
+  FeedPreferencesExportRecord,
   FeedPreferencesRecord,
   FeedTargetType,
 } from './feed.types';
@@ -21,6 +24,9 @@ export type UpdateFeedPreferencesRecord = Partial<
 
 export interface FeedStore {
   getOrCreatePreferences(userId: string): Promise<FeedPreferencesRecord>;
+  findPreferencesForExport(
+    userId: string,
+  ): Promise<FeedPreferencesExportRecord | null>;
   updatePreferences(
     userId: string,
     expectedRevision: number,
@@ -31,6 +37,11 @@ export interface FeedStore {
     userId: string,
     targets: Array<{ targetType: FeedTargetType; targetId: string }>,
   ): Promise<FeedFeedbackRecord[]>;
+  listFeedbackForExport(
+    userId: string,
+    after: FeedFeedbackExportCursor | null,
+    limit: number,
+  ): Promise<FeedFeedbackExportRecord[]>;
 
   setFeedback(input: {
     userId: string;
