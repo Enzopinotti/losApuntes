@@ -38,6 +38,11 @@ export type GoogleExternalIdentityRecord = {
   linkedAt: Date;
 };
 
+export type GoogleExternalIdentityAccountExportRecord = Pick<
+  GoogleExternalIdentityRecord,
+  'provider' | 'providerSubject' | 'emailAtLink' | 'linkedAt'
+>;
+
 export type GoogleIdentityLinkResult =
   | { kind: 'linked'; identity: GoogleExternalIdentityRecord }
   | { kind: 'already_linked'; identity: GoogleExternalIdentityRecord }
@@ -49,6 +54,9 @@ export interface GoogleExternalIdentityStore {
     providerSubject: string,
   ): Promise<GoogleExternalIdentityRecord | null>;
   findForUser(userId: string): Promise<GoogleExternalIdentityRecord | null>;
+  findForAccountExport(
+    userId: string,
+  ): Promise<GoogleExternalIdentityAccountExportRecord | null>;
   link(input: {
     providerSubject: string;
     userId: string;

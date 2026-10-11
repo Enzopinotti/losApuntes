@@ -140,6 +140,22 @@ only the fields needed by the portable account record; password hashes,
 credential/lifecycle authority revisions and platform permissions are not read
 and therefore cannot leak through later serialization.
 
+### Implemented Auth external identity section
+
+`auth.externalIdentities` contains the current Google identity link for the
+exact export owner, if one exists. Its portable record contains `provider`,
+the owner's stable `providerSubject`, `emailAtLink` and `linkedAt`.
+`providerSubject` identifies the owner's linked Google account; it is not an
+OAuth credential or proof and does not authorize login. The email is the value
+recorded when linking, not a live provider lookup.
+
+The singleton read filters by `provider: "google"` and the exact `userId`,
+uses the existing unique `{ provider: 1, userId: 1 }` index, and selects only
+the portable fields. An unlinked owner receives an empty section. Mongo
+`_id`, internal `userId`, OAuth attempts/codes/state/nonce/verifier,
+provider tokens, sessions, cookies and link/unlink history are excluded. The
+projection does not call Google or change the current identity link.
+
 ### Implemented Academic sections
 
 Academic now contributes five user-state sections:
@@ -449,7 +465,7 @@ the account export complete or downloadable.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredLinks":[...],"organizations.authoredPosts":[...],"organizations.featuredResources":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"auth.externalIdentities":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredLinks":[...],"organizations.authoredPosts":[...],"organizations.featuredResources":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -540,9 +556,11 @@ proposals now appear as the separate partial `academic.proposals` section;
 moderation outcomes and catalog source provenance remain excluded. Persisted
 Feed preferences and current explicit feedback now appear as partial
 `feeds.preferences` and `feeds.feedback` sections without target lookups or
-synthesized defaults. The presence of core, Academic, Feed, Q&A, Resource and
-other partial sections does not make the overall export product complete or
-ready for public HTTP delivery.
+synthesized defaults. The current Google identity link appears as the partial
+`auth.externalIdentities` section; it contains no provider credentials or
+proofs. The presence of core, Auth, Academic, Feed, Q&A, Resource and other
+partial sections does not make the overall export product complete or ready
+for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 

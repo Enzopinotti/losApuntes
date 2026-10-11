@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import type {
+  GoogleExternalIdentityAccountExportRecord,
   GoogleExternalIdentityRecord,
   GoogleExternalIdentityStore,
   GoogleIdentityLinkResult,
@@ -65,6 +66,25 @@ export class MongoGoogleExternalIdentityStore implements GoogleExternalIdentityS
       .exec();
 
     return document ? toRecord(document) : null;
+  }
+
+  async findForAccountExport(
+    userId: string,
+  ): Promise<GoogleExternalIdentityAccountExportRecord | null> {
+    return this.model
+      .findOne({
+        provider: 'google',
+        userId,
+      })
+      .select({
+        _id: 0,
+        provider: 1,
+        providerSubject: 1,
+        emailAtLink: 1,
+        linkedAt: 1,
+      })
+      .lean<GoogleExternalIdentityAccountExportRecord>()
+      .exec();
   }
 
   async link(input: {

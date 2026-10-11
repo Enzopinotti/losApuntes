@@ -44,6 +44,7 @@ import {
   AuthoredQuestionsExportContributor,
 } from './contributors/account-export-qa.contributors';
 import { NotificationInboxExportContributor } from './contributors/account-export-notifications.contributors';
+import { GoogleExternalIdentitiesExportContributor } from './contributors/account-export-google-identities.contributors';
 import {
   OrganizationAuthoredEventsExportContributor,
   OrganizationAuthoredPostsExportContributor,
@@ -127,6 +128,7 @@ import {
     AuthoredQuestionsExportContributor,
     AuthoredAnswersExportContributor,
     NotificationInboxExportContributor,
+    GoogleExternalIdentitiesExportContributor,
     OrganizationAuthoredEventsExportContributor,
     OrganizationAuthoredPostsExportContributor,
     OrganizationAuthoredLinksExportContributor,
@@ -157,6 +159,7 @@ import {
         authoredQuestions: AuthoredQuestionsExportContributor,
         authoredAnswers: AuthoredAnswersExportContributor,
         notificationInbox: NotificationInboxExportContributor,
+        googleExternalIdentities: GoogleExternalIdentitiesExportContributor,
         organizationAuthoredEvents: OrganizationAuthoredEventsExportContributor,
         organizationAuthoredPosts: OrganizationAuthoredPostsExportContributor,
         organizationAuthoredLinks: OrganizationAuthoredLinksExportContributor,
@@ -185,6 +188,7 @@ import {
         authoredQuestions,
         authoredAnswers,
         notificationInbox,
+        googleExternalIdentities,
         organizationAuthoredEvents,
         organizationAuthoredPosts,
         organizationAuthoredLinks,
@@ -214,6 +218,7 @@ import {
         AuthoredQuestionsExportContributor,
         AuthoredAnswersExportContributor,
         NotificationInboxExportContributor,
+        GoogleExternalIdentitiesExportContributor,
         OrganizationAuthoredEventsExportContributor,
         OrganizationAuthoredPostsExportContributor,
         OrganizationAuthoredLinksExportContributor,
