@@ -6,10 +6,13 @@ import type {
   OrganizationEventAccountExportRow,
   OrganizationPostAccountExportRow,
   OrganizationFeaturedResourceRecord,
+  OrganizationFeaturedResourceAccountExportCursor,
+  OrganizationFeaturedResourceAccountExportRow,
   OrganizationFollowRecord,
   OrganizationFollowAccountExportCursor,
   OrganizationFollowAccountExportRow,
   OrganizationLinkRecord,
+  OrganizationLinkAccountExportRow,
   OrganizationManagerAccountExportCursor,
   OrganizationManagerAccountExportRow,
   OrganizationManagerRecord,
@@ -278,6 +281,24 @@ export interface OrganizationStore {
     after?: { id: string };
   }): Promise<{
     items: OrganizationEventAccountExportRow[];
+    hasMore: boolean;
+  }>;
+
+  listAuthoredLinksForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: { id: string };
+  }): Promise<{
+    items: OrganizationLinkAccountExportRow[];
+    hasMore: boolean;
+  }>;
+
+  listFeaturedResourcesForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: OrganizationFeaturedResourceAccountExportCursor;
+  }): Promise<{
+    items: OrganizationFeaturedResourceAccountExportRow[];
     hasMore: boolean;
   }>;
 

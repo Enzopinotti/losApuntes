@@ -52,6 +52,10 @@ import { OrganizationFollowingExportContributor } from './contributors/account-e
 import { OrganizationManagementExportContributor } from './contributors/account-export-organization-management.contributors';
 import { OrganizationSubmittedReportsExportContributor } from './contributors/account-export-organization-reports.contributors';
 import {
+  OrganizationAuthoredLinksExportContributor,
+  OrganizationFeaturedResourcesExportContributor,
+} from './contributors/account-export-organization-curation.contributors';
+import {
   QaSubmittedReportsExportContributor,
   ResourceSubmittedReportsExportContributor,
 } from './contributors/account-export-submitted-reports.contributors';
@@ -125,6 +129,8 @@ import {
     NotificationInboxExportContributor,
     OrganizationAuthoredEventsExportContributor,
     OrganizationAuthoredPostsExportContributor,
+    OrganizationAuthoredLinksExportContributor,
+    OrganizationFeaturedResourcesExportContributor,
     OrganizationFollowingExportContributor,
     OrganizationManagementExportContributor,
     OrganizationSubmittedReportsExportContributor,
@@ -153,6 +159,8 @@ import {
         notificationInbox: NotificationInboxExportContributor,
         organizationAuthoredEvents: OrganizationAuthoredEventsExportContributor,
         organizationAuthoredPosts: OrganizationAuthoredPostsExportContributor,
+        organizationAuthoredLinks: OrganizationAuthoredLinksExportContributor,
+        organizationFeaturedResources: OrganizationFeaturedResourcesExportContributor,
         organizationFollowing: OrganizationFollowingExportContributor,
         organizationManagement: OrganizationManagementExportContributor,
         organizationSubmittedReports: OrganizationSubmittedReportsExportContributor,
@@ -179,6 +187,8 @@ import {
         notificationInbox,
         organizationAuthoredEvents,
         organizationAuthoredPosts,
+        organizationAuthoredLinks,
+        organizationFeaturedResources,
         organizationFollowing,
         organizationManagement,
         organizationSubmittedReports,
@@ -206,6 +216,8 @@ import {
         NotificationInboxExportContributor,
         OrganizationAuthoredEventsExportContributor,
         OrganizationAuthoredPostsExportContributor,
+        OrganizationAuthoredLinksExportContributor,
+        OrganizationFeaturedResourcesExportContributor,
         OrganizationFollowingExportContributor,
         OrganizationManagementExportContributor,
         OrganizationSubmittedReportsExportContributor,

@@ -297,6 +297,7 @@ export class OrganizationLink {
 
 export const OrganizationLinkSchema =
   SchemaFactory.createForClass(OrganizationLink);
+OrganizationLinkSchema.index({ createdByUserId: 1, id: 1 });
 
 @Schema({ collection: 'organization_featured_resources', timestamps: true })
 export class OrganizationFeaturedResource {
@@ -320,6 +321,11 @@ OrganizationFeaturedResourceSchema.index(
   { organizationId: 1, resourceId: 1 },
   { unique: true },
 );
+OrganizationFeaturedResourceSchema.index({
+  createdByUserId: 1,
+  organizationId: 1,
+  resourceId: 1,
+});
 
 @Schema({ collection: 'organization_reports', timestamps: true })
 export class OrganizationReport {

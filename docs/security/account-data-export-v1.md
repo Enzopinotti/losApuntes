@@ -348,6 +348,27 @@ The Organization reference does not resolve Organization metadata or provide
 access to its shared content. This is current authored content, not a deleted
 Post/Event history or a moderation audit log.
 
+### Implemented Organization curation sections
+
+The partial owner-scoped section `organizations.authoredLinks` contains
+current `OrganizationLink` rows whose `createdByUserId` exactly matches the
+export owner. Each record contains the stable link id, opaque
+`organizationId`, owner-entered label and HTTPS URL, and creation/update
+timestamps. It uses `id ASC`, a section-bound cursor, `limit + 1`, a maximum
+page size of 100, and the `{ createdByUserId: 1, id: 1 }` index.
+
+The partial owner-scoped section `organizations.featuredResources` contains
+current featured-resource relations whose `createdByUserId` exactly matches
+the export owner. Records contain only opaque `organizationId` and
+`resourceId` references plus relation timestamps. The tuple order is
+`organizationId ASC, resourceId ASC`; its cursor is section-bound, pages read
+`limit + 1`, the maximum page size is 100, and the
+`{ createdByUserId: 1, organizationId: 1, resourceId: 1 }` index supports the
+query. Neither section resolves Organizations or Resources. Featured
+references do not include Resource content, transfer ownership, make private
+Resources readable, or grant management authority. Removed curation and
+historical changes are outside these current-state snapshots.
+
 ### Implemented Resource history sections
 
 Resources contributes four owner-scoped sections:
@@ -428,7 +449,7 @@ the account export complete or downloadable.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredLinks":[...],"organizations.authoredPosts":[...],"organizations.featuredResources":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
