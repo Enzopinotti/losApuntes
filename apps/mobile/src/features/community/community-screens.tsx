@@ -32,6 +32,10 @@ import {
 import { mobileCommunityApi } from "./community-runtime";
 import { QaReportAction } from "./qa-report-action";
 import {
+  ACADEMIC_CONTEXT_HOME_ROUTE,
+  communityQuestionNextStep,
+} from "./community-context-next-step";
+import {
   MobileQaMutationsController,
   type QaMutation,
   type QaMutationSnapshot,
@@ -289,6 +293,10 @@ export function CommunityNetworkScreen() {
       void controller.loadMore(authority.authorityKey);
   }, [authority.authorityKey, controller]);
 
+  const nextStep = communityQuestionNextStep(
+    authority.gate,
+    authority.scope.kind,
+  );
   const visibleFeed =
     "authorityKey" in feed && feed.authorityKey === authority.authorityKey
       ? feed
@@ -327,9 +335,9 @@ export function CommunityNetworkScreen() {
         />
       </View>
 
-      {authority.gate !== "ready" ? (
+      {nextStep === "gated" ? (
         <GateCard gate={authority.gate} onRetry={retry} />
-      ) : authority.scope.kind === "unresolved" ? (
+      ) : nextStep === "revalidate" ? (
         <View style={styles.card}>
           <Text accessibilityRole="alert" style={styles.copy}>
             No pudimos confirmar la materia actual dentro de la lista del
@@ -346,17 +354,23 @@ export function CommunityNetworkScreen() {
                 ? "Mostrando preguntas para tu materia actual."
                 : "Mostrando preguntas disponibles de todas las materias."}
             </Text>
-            {authority.scope.kind === "subject" ? (
+            {nextStep === "compose" ? (
               <ActionButton
                 label="Hacer una pregunta"
                 onPress={() => router.push("/questions/new")}
               />
-            ) : (
-              <Text style={styles.note}>
-                Para publicar, elegí una materia actual en tu contexto
-                académico.
-              </Text>
-            )}
+            ) : nextStep === "configure" ? (
+              <View style={styles.list}>
+                <Text style={styles.note}>
+                  Para publicar, elegí una materia actual en tu contexto
+                  académico.
+                </Text>
+                <ActionButton
+                  label="Configurar contexto académico"
+                  onPress={() => router.navigate(ACADEMIC_CONTEXT_HOME_ROUTE)}
+                />
+              </View>
+            ) : null}
           </View>
 
           {!visibleFeed || visibleFeed.kind === "loading" ? (
@@ -861,6 +875,10 @@ export function CommunityQuestionComposerScreen() {
 
   const participation =
     authority.scope.kind === "subject" ? authority.scope.participation : null;
+  const nextStep = communityQuestionNextStep(
+    authority.gate,
+    authority.scope.kind,
+  );
   const authorityKey = authority.authorityKey;
   const authorityKeyRef = useRef(authorityKey);
   const activeOperation = useRef<AbortController | null>(null);
@@ -1088,21 +1106,35 @@ export function CommunityQuestionComposerScreen() {
       description="La pregunta se publica en tu materia actual y el servidor confirma si tu cuenta puede participar."
     >
       <ActionButton label="Volver a la Red" onPress={() => router.back()} />
-      {authority.gate !== "ready" ? (
+      {nextStep === "gated" ? (
         <GateCard
           gate={authority.gate}
           onRetry={() => void authority.retry()}
         />
-      ) : !participation ? (
+      ) : nextStep === "revalidate" ? (
+        <View style={styles.card}>
+          <Text accessibilityRole="alert" style={styles.copy}>
+            La materia actual ya no coincide con las participaciones validadas
+            por el servidor. Revalidá antes de publicar.
+          </Text>
+          <ActionButton
+            label="Revalidar contexto"
+            onPress={() => void authority.retry()}
+          />
+        </View>
+      ) : nextStep === "configure" ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Elegí una materia actual</Text>
           <Text style={styles.copy}>
-            Para publicar, el contexto académico necesita una materia
-            seleccionada. La Red no elige ni infiere una materia por su cuenta.
+            Para publicar, elegí tu materia desde Contexto académico en Inicio.
+            La Red no elige ni infiere una materia por su cuenta.
           </Text>
-          <ActionButton label="Volver a la Red" onPress={() => router.back()} />
+          <ActionButton
+            label="Configurar contexto académico"
+            onPress={() => router.navigate(ACADEMIC_CONTEXT_HOME_ROUTE)}
+          />
         </View>
-      ) : (
+      ) : participation ? (
         <View style={styles.card}>
           <Text style={styles.note}>Materia actual</Text>
           <Text style={styles.copy}>
@@ -1156,7 +1188,7 @@ export function CommunityQuestionComposerScreen() {
             onPress={() => void submit()}
           />
         </View>
-      )}
+      ) : null}
     </ProductSurface>
   );
 }
