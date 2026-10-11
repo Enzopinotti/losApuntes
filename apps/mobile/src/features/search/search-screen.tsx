@@ -8,6 +8,7 @@ import type {
 import { useIsFocused, useRouter } from "expo-router";
 import {
   ActivityIndicator,
+  AccessibilityInfo,
   AppState,
   Pressable,
   StyleSheet,
@@ -42,6 +43,7 @@ import {
   initialSearchInputState,
   searchInputReducer,
 } from "./search-input-state";
+import { searchResultSummary } from "./search-results-copy";
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
 
@@ -294,6 +296,7 @@ export function SearchScreen() {
   const appStateRef = useRef(AppState.currentState);
   const awaitingAcademicRestore = useRef(false);
   const sawAcademicLoading = useRef(false);
+  const announcedSearchResult = useRef<string | null>(null);
 
   const sessionAuthority =
     session.kind === "authenticated"
@@ -476,13 +479,38 @@ export function SearchScreen() {
     search.kind !== "idle" && search.authorityKey === authorityKey
       ? search
       : null;
+  useEffect(() => {
+    const ready = currentSearch?.kind === "ready" ? currentSearch : null;
+    if (!ready || !authorityKey || appState !== "active" || !isFocused) {
+      announcedSearchResult.current = null;
+      return;
+    }
+
+    const announcementKey = `${ready.authorityKey}:${ready.scope}:${ready.query}`;
+    if (announcedSearchResult.current === announcementKey) return;
+
+    AccessibilityInfo.announceForAccessibility(
+      searchResultSummary(
+        {
+          resources: ready.data.results.resources.length,
+          subjects: ready.data.results.subjects.length,
+          people: ready.data.results.people.length,
+        },
+        ready.scope,
+      ),
+    );
+    announcedSearchResult.current = announcementKey;
+  }, [appState, authorityKey, currentSearch, isFocused]);
   const academicFailure =
     academic.kind === "offline" ||
     academic.kind === "timeout" ||
     academic.kind === "server_unavailable" ||
     academic.kind === "error";
 
-  const renderSearchResults = (data: SearchResponse) => (
+  const renderSearchResults = (
+    data: SearchResponse,
+    resultScope: SearchScope,
+  ) => (
     <View style={styles.resultGroups}>
       {data.query ? (
         <Text style={styles.copy}>
@@ -491,17 +519,27 @@ export function SearchScreen() {
       ) : (
         <Text style={styles.copy}>Recursos de la materia seleccionada</Text>
       )}
-      {(scope === "all" || scope === "resources") && (
+      <Text style={styles.copy}>
+        {searchResultSummary(
+          {
+            resources: data.results.resources.length,
+            subjects: data.results.subjects.length,
+            people: data.results.people.length,
+          },
+          resultScope,
+        )}
+      </Text>
+      {(resultScope === "all" || resultScope === "resources") && (
         <ResourceGroup
           title="Apuntes y recursos"
           resources={data.results.resources}
           onOpen={openResource}
         />
       )}
-      {(scope === "all" || scope === "subjects") && (
+      {(resultScope === "all" || resultScope === "subjects") && (
         <SubjectGroup subjects={data.results.subjects} onOpen={openSubject} />
       )}
-      {(scope === "all" || scope === "people") && (
+      {(resultScope === "all" || resultScope === "people") && (
         <PeopleGroup result={data} onOpen={openPerson} />
       )}
       <Text style={styles.meta}>
@@ -634,7 +672,7 @@ export function SearchScreen() {
             </View>
           </View>
         ) : currentSearch?.kind === "ready" ? (
-          renderSearchResults(currentSearch.data)
+          renderSearchResults(currentSearch.data, currentSearch.scope)
         ) : currentSearch ? (
           <View style={styles.card}>
             <Text accessibilityRole="alert" style={styles.error}>
