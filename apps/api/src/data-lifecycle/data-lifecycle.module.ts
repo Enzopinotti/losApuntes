@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
 import { FeedsModule } from '../feeds/feeds.module';
+import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
@@ -27,6 +28,7 @@ import {
 } from './contributors/account-export-academic.contributors';
 import { AcademicProposalsExportContributor } from './contributors/account-export-academic-proposals.contributors';
 import { PilotActivityExportContributor } from './contributors/account-export-pilot-activity.contributors';
+import { FileUploadsExportContributor } from './contributors/account-export-file.contributors';
 import {
   FeedFeedbackExportContributor,
   FeedPreferencesExportContributor,
@@ -93,6 +95,7 @@ import {
     AcademicModule,
     AuthModule,
     FeedsModule,
+    FilesModule,
     NotificationsModule,
     PilotTelemetryModule,
     OrganizationsModule,
@@ -125,6 +128,7 @@ import {
     AcademicProposalsExportContributor,
     FeedPreferencesExportContributor,
     FeedFeedbackExportContributor,
+    FileUploadsExportContributor,
     AuthoredResourcesExportContributor,
     SavedResourcesExportContributor,
     SharedResourceGrantsExportContributor,
@@ -157,6 +161,7 @@ import {
         academicProposals: AcademicProposalsExportContributor,
         feedPreferences: FeedPreferencesExportContributor,
         feedFeedback: FeedFeedbackExportContributor,
+        fileUploads: FileUploadsExportContributor,
         authoredResources: AuthoredResourcesExportContributor,
         savedResources: SavedResourcesExportContributor,
         sharedResourceGrants: SharedResourceGrantsExportContributor,
@@ -187,6 +192,7 @@ import {
         academicProposals,
         feedPreferences,
         feedFeedback,
+        fileUploads,
         authoredResources,
         savedResources,
         sharedResourceGrants,
@@ -218,6 +224,7 @@ import {
         AcademicProposalsExportContributor,
         FeedPreferencesExportContributor,
         FeedFeedbackExportContributor,
+        FileUploadsExportContributor,
         AuthoredResourcesExportContributor,
         SavedResourcesExportContributor,
         SharedResourceGrantsExportContributor,

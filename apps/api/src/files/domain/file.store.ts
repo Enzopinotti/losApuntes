@@ -1,4 +1,9 @@
-import type { FileAssetRecord, FileAssetState } from './file.types';
+import type {
+  FileAssetAccountExportCursor,
+  FileAssetAccountExportRecord,
+  FileAssetRecord,
+  FileAssetState,
+} from './file.types';
 
 export const FILE_ASSET_STORE = Symbol('FILE_ASSET_STORE');
 
@@ -13,6 +18,11 @@ export type CreateUploadFileAssetRecord = CreateFileAssetRecord & {
 };
 
 export interface FileAssetStore {
+  listForAccountExport(input: {
+    creatorUserId: string;
+    limit: number;
+    after?: FileAssetAccountExportCursor;
+  }): Promise<{ items: FileAssetAccountExportRecord[]; hasMore: boolean }>;
   createOrReplayUpload(
     input: CreateUploadFileAssetRecord,
   ): Promise<FileAssetRecord>;

@@ -468,6 +468,28 @@ Subject, Profile, Resource, Question, or Organization Post.
 These remain partial contributors; they do not add a public endpoint or make
 the account export complete or downloadable.
 
+### Implemented File upload metadata section
+
+Files contributes the partial owner-scoped section `files.uploads` for
+persisted `FileAsset` rows whose `creatorUserId` exactly matches the export
+owner. Each record contains the stable asset id, original filename, declared
+MIME type, nullable verified MIME type, expected byte size, nullable actual
+byte size and creation time. This is upload metadata only; it does not assert
+that the bytes remain available or provide a download path.
+
+Pages use immutable `id ASC` keyset order, a section-bound opaque cursor,
+`limit + 1`, and a maximum page size of 100. The
+`{ creatorUserId: 1, id: 1 }` index supports the exact creator filter and
+continuation. The Mongo query selects only portable metadata fields. FileAsset
+creator provenance is not Resource ownership, byte deletion authority or
+download authority; export does not resolve a Resource or emit its `claimRef`.
+
+`creatorUserId`, Mongo `_id`, provider, `objectKey`, etag, upload operation
+keys/fingerprints, lifecycle state, failure codes, scan/reclamation claims and
+timestamps, signed URLs and bytes are excluded. The partial inventory does
+not change File lifecycle or retention and does not make the overall account
+export complete or downloadable.
+
 ### Implemented Pilot activity section
 
 Pilot contributes the partial owner-scoped section `pilot.activity` from its
@@ -495,7 +517,7 @@ does not make the overall account export complete or downloadable.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"auth.externalIdentities":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredLinks":[...],"organizations.authoredPosts":[...],"organizations.featuredResources":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"pilot.activity":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"auth.externalIdentities":[...],"feeds.feedback":[...],"feeds.preferences":[...],"files.uploads":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredLinks":[...],"organizations.authoredPosts":[...],"organizations.featuredResources":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"pilot.activity":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -591,11 +613,13 @@ Feed preferences and current explicit feedback now appear as partial
 `feeds.preferences` and `feeds.feedback` sections without target lookups or
 synthesized defaults. The current Google identity link appears as the partial
 `auth.externalIdentities` section; it contains no provider credentials or
-proofs. Pilot event history now appears as the partial `pilot.activity`
-section; it contains only authenticated owner-attributed events and bounded
-dimensions. The presence of core, Auth, Academic, Feed, Pilot, Q&A, Resource
-and other partial sections does not make the overall export product complete
-or ready for public HTTP delivery.
+proofs. File upload metadata now appears as the partial `files.uploads` section,
+without storage keys, scan internals, bytes or download authority. Pilot event
+history appears as the partial `pilot.activity` section; it contains only
+authenticated owner-attributed events and bounded dimensions. The presence of
+core, Auth, Academic, Feed, Files, Pilot, Q&A, Resource and other partial
+sections does not make the overall export product complete or ready for public
+HTTP delivery.
 
 ## Merge acceptance for this foundation
 
