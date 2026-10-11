@@ -501,8 +501,7 @@ test("Home refresh aborts an in-flight page and rejects its delayed result", asy
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind === "ready") {
-    assert.deepEqual(snapshot.data.homeFeed.items.map((row) => row.id), [
-      "fresh-2",
-    ]);
+    assert.equal(snapshot.data.homeFeed.items.length, 1);
+    assert.equal(snapshot.data.homeFeed.items[0]?.id, "fresh-2");
   }
 });
