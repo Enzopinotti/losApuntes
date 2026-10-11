@@ -142,7 +142,7 @@ and therefore cannot leak through later serialization.
 
 ### Implemented Academic sections
 
-Academic now contributes four user-state sections:
+Academic now contributes five user-state sections:
 
 - `academic.affiliations` — the user's affiliation relationships and lifecycle
   state;
@@ -182,7 +182,7 @@ as `null`. Proposal status, update time, reviewer identity/time/reason,
 canonical target, audit records and catalog source provenance are excluded;
 this is a snapshot of the user's submission, not a moderation outcome.
 
-### Q&A authored sections — candidate for #183
+### Implemented Q&A authored sections
 
 Q&A contributes two owner-scoped sections:
 
@@ -199,7 +199,7 @@ search text, answer counts, accepted-answer pointers, internal revisions and
 author user ids. An answer references its Question by id only; the export
 does not resolve or include another author's Question content.
 
-### Social relationship sections — candidate for #183
+### Implemented social relationship sections
 
 Social contributes two owner-scoped relationship sections:
 
@@ -234,7 +234,7 @@ relationship record, not an event log of every request/reopen transition.
 These relationship projections do not grant access to counterpart data and
 do not make the full account export complete.
 
-### Notification inbox section — candidate for #183
+### Implemented notification inbox section
 
 Notifications contributes `notifications.inbox`, containing all notification
 records addressed to the export owner. Each portable row contains the owner's
@@ -256,7 +256,7 @@ Profile content behind a target reference. The target reference is not access
 authority. These inbox records remain a partial contributor and do not make
 the overall account export complete.
 
-### Organization following section — candidate for #183
+### Implemented Organization following section
 
 Organizations contributes the partial owner-scoped section
 `organizations.following`. It is a snapshot of the owner's current
@@ -277,7 +277,7 @@ Unfollowed edges are not available as a revocation history. A follow reference
 does not transfer Organization ownership, management authority or access to
 the target.
 
-### Organization management section — candidate for #183
+### Implemented Organization management section
 
 The partial owner-scoped section `organizations.management` is a snapshot of
 current `OrganizationManager` rows whose `userId` exactly matches the export
@@ -297,7 +297,7 @@ informational account data; they do not grant or transfer management
 authority. This partial section is not a management audit log or a completeness
 claim.
 
-### Organization submitted reports section — candidate for #183
+### Implemented Organization submitted reports section
 
 The partial owner-scoped section `organizations.submittedReports` contains
 only `OrganizationReport` rows whose `reporterUserId` exactly matches the
@@ -314,7 +314,7 @@ action are excluded, along with target content and reports submitted by other
 users. This is the owner's submission data, not a moderation outcome, audit
 history or access grant.
 
-### Organization authored Posts and Events — candidate for #183
+### Implemented Organization-authored Posts and Events
 
 The owner-authored sections `organizations.authoredPosts` and
 `organizations.authoredEvents` preserve current Organization content whose
@@ -335,7 +335,7 @@ The Organization reference does not resolve Organization metadata or provide
 access to its shared content. This is current authored content, not a deleted
 Post/Event history or a moderation audit log.
 
-### Resource history sections — candidate for #183
+### Implemented Resource history sections
 
 Resources contributes three owner-scoped sections:
 
