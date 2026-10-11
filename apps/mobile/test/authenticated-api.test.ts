@@ -408,16 +408,22 @@ test("feed pages preserve exact cursor/mode and credential authority", async () 
       academicFeed: async (credential, cursor) => {
         calls.push(`academic:${credential}:${cursor}`);
         return {
-          items: [], nextCursor: null, stopReason: "end",
+          items: [],
+          nextCursor: null,
+          stopReason: "end",
           context: { subjectIds: [] },
         };
       },
       forYouFeed: async (credential, cursor, mode) => {
         calls.push(`for-you:${credential}:${cursor}:${mode}`);
         return {
-          items: [], nextCursor: null, stopReason: "end",
+          items: [],
+          nextCursor: null,
+          stopReason: "end",
           effectiveSignals: {
-            academic: true, social: true, interests: false,
+            academic: true,
+            social: true,
+            interests: false,
             relationWindowTruncated: false,
           },
         };
@@ -439,19 +445,28 @@ test("late paginated feed results cannot reattach to a new session", async () =>
   const token = { value: "a".repeat(43) };
   const session = new SessionController(sessionApi(token), new Store());
   await session.login({ email: "test@example.edu", password: "password" });
-  let resolveOld!: (value: Awaited<ReturnType<AuthenticatedApiTransport["academicFeed"]>>) => void;
-  const old = new Promise<Awaited<ReturnType<AuthenticatedApiTransport["academicFeed"]>>>((resolve) => {
+  let resolveOld!: (
+    value: Awaited<ReturnType<AuthenticatedApiTransport["academicFeed"]>>,
+  ) => void;
+  const old = new Promise<
+    Awaited<ReturnType<AuthenticatedApiTransport["academicFeed"]>>
+  >((resolve) => {
     resolveOld = resolve;
   });
-  const api = new AuthenticatedMobileApi(session, transport({
-    academicFeed: async () => old,
-  }));
+  const api = new AuthenticatedMobileApi(
+    session,
+    transport({
+      academicFeed: async () => old,
+    }),
+  );
   const pending = api.academicFeed("cursor");
   await Promise.resolve();
   token.value = "b".repeat(43);
   await session.login({ email: "new@example.edu", password: "password" });
   resolveOld({
-    items: [], nextCursor: null, stopReason: "end",
+    items: [],
+    nextCursor: null,
+    stopReason: "end",
     context: { subjectIds: [] },
   });
   await assert.rejects(
