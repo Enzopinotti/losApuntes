@@ -104,6 +104,12 @@ The `reclaiming` claim happens before object deletion. Resource creation only cl
 
 Durable ready assets already claimed by Resources are never reclaimed as abandoned uploads.
 
+### Claimed bytes and product lifecycle authority (`DELETE-01`)
+
+For the current v1 topology, Resource owns the product lifecycle of its claimed FileAsset. `FileAsset.creatorUserId` records upload provenance only; closing or anonymizing that account does not release claimed bytes. Organization featured-resource links are references, not byte ownership, so Organization archive or purge cannot release a Resource's asset.
+
+The persistence model is one Resource to one claimed FileAsset: `Resource.assetId` is unique and a claimed asset's unique `claimRef` identifies `resource:<resource UUID>`. The abandoned-upload worker may transition/delete only expired assets whose `claimRef` is null, and the claim-for-reclamation compare-and-set repeats that condition. Claimed bytes require a future explicit Resource lifecycle/release policy before reclamation. Do not infer byte deletion from creator or Organization lifecycle, add a speculative refcount, or promise complete erasure while backup/recovery retention remains governed by #100 and #48.
+
 ## Search
 
 V1 search is a bounded transactional read model over Resource metadata and academic context. It does not claim OCR/full-text extraction, vector search or a dedicated search engine.

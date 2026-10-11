@@ -6,7 +6,10 @@ import {
 
 import type { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
-import type { SocialStore } from './social.store';
+import {
+  SocialParticipantInactiveError,
+  type SocialStore,
+} from './social.store';
 import { SocialService } from './social.service';
 import type { ConnectionRecord, FollowRecord } from './social.types';
 
@@ -646,5 +649,59 @@ describe('SocialService', () => {
     expect(result.followingUserIds).toEqual(['user-b', 'user-c']);
     expect(result.connectionUserIds).toEqual(['user-d']);
     expect(result.truncated).toBe(true);
+  });
+
+  it('hides an inactive account when creating a Follow', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    profiles.getAttributionForUser.mockResolvedValue({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      displayName: 'A',
+      avatarUrl: null,
+    });
+    profiles.resolveUserIdByProfileId.mockResolvedValue('user-b');
+    socialStore.follow.mockRejectedValue(new SocialParticipantInactiveError());
+
+    await expect(
+      service(socialStore, profiles).follow(
+        'user-a',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('hides an inactive account when creating a Connection request', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    profiles.getAttributionForUser.mockResolvedValue({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      displayName: 'A',
+      avatarUrl: null,
+    });
+    profiles.resolveUserIdByProfileId.mockResolvedValue('user-b');
+    socialStore.requestConnection.mockRejectedValue(
+      new SocialParticipantInactiveError(),
+    );
+
+    await expect(
+      service(socialStore, profiles).requestConnection(
+        'user-a',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('hides an inactive participant when accepting a pending Connection', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const pending = connection();
+    socialStore.findConnectionById.mockResolvedValue(pending);
+    socialStore.respondConnection.mockRejectedValue(
+      new SocialParticipantInactiveError(),
+    );
+
+    await expect(
+      service(socialStore, profiles).respond('user-b', pending.id, 'accepted'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

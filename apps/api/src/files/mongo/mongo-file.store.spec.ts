@@ -1,4 +1,5 @@
 import { MongoFileAssetStore } from './mongo-file.store';
+import { FileAssetSchema } from './file.mongo-schema';
 
 describe('MongoFileAssetStore quarantine migration', () => {
   function query(rows: unknown[] = []) {
@@ -86,6 +87,74 @@ describe('MongoFileAssetStore quarantine migration', () => {
         },
       },
       { new: true },
+    );
+  });
+
+  it('lists only unclaimed expired assets for abandoned-upload reclamation', async () => {
+    const chain = query([]);
+    const find = jest.fn().mockReturnValue(chain);
+    const store = new MongoFileAssetStore({ find } as never);
+    const now = new Date('2026-10-01T12:00:00.000Z');
+
+    await store.listReclaimable(now, 20);
+
+    expect(find).toHaveBeenCalledWith({
+      expiresAt: { $lte: now },
+      claimRef: null,
+      $or: [
+        {
+          state: {
+            $in: [
+              'pending',
+              'scan_pending',
+              'ready',
+              'rejected',
+              'failed',
+              'reclaiming',
+            ],
+          },
+        },
+        {
+          state: 'scanning',
+          scanLeaseExpiresAt: { $lte: now },
+        },
+      ],
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ expiresAt: 1, id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(20);
+  });
+
+  it('repeats the unclaimed predicate in the reclamation compare-and-set', async () => {
+    const exec = jest.fn().mockResolvedValue(null);
+    const lean = jest.fn().mockReturnValue({ exec });
+    const findOneAndUpdate = jest.fn().mockReturnValue({ lean });
+    const store = new MongoFileAssetStore({ findOneAndUpdate } as never);
+    const now = new Date('2026-10-01T12:00:00.000Z');
+
+    await store.claimForReclamation('asset-1', 'ready', now);
+
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        id: 'asset-1',
+        state: 'ready',
+        claimRef: null,
+        expiresAt: { $lte: now },
+      },
+      expect.objectContaining({ $set: { state: 'reclaiming' } }),
+      { new: true },
+    );
+  });
+
+  it('keeps claimRef unique for the one-Resource-per-asset v1 relation', () => {
+    const claimIndex = FileAssetSchema.indexes().find(
+      ([keys]) => 'claimRef' in keys,
+    );
+
+    expect(claimIndex?.[1]).toEqual(
+      expect.objectContaining({
+        unique: true,
+        partialFilterExpression: { claimRef: { $type: 'string' } },
+      }),
     );
   });
 });

@@ -8,6 +8,7 @@ import {
 } from '../notifications/mongo/notification.mongo-schema';
 import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { ProfileModule } from '../profile/profile.module';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { SocialService } from './domain/social.service';
 import { SOCIAL_STORE } from './domain/social.store';
@@ -30,6 +31,7 @@ import { SocialController } from './social.controller';
       { name: SocialFollow.name, schema: SocialFollowSchema },
       { name: SocialConnection.name, schema: SocialConnectionSchema },
       { name: Notification.name, schema: NotificationSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   providers: [

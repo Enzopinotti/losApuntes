@@ -11,6 +11,8 @@ A closed account cannot authenticate or use an existing session. Its credential 
 
 The stable Profile id is retained for referential meaning, while public identity becomes a generic tombstone.
 
+New Social relationship state requires both participants to remain active at commit. Follow creation, new/reopened Connection requests and acceptance of a pending Connection fence each participant's User document in the same transaction as the relationship and notification writes, sharing the User-document write boundary with closure. This prevents a stale Profile UUID or a concurrent close from creating post-closure relationship state. Existing relationships remain historical; declining a pending request and removing an existing Follow or accepted Connection remain available for cleanup.
+
 No legal retention horizon is invented here.
 
 ## Self-service preconditions
@@ -50,6 +52,7 @@ This carrier does not delete Resources, Questions, Answers, organization posts/e
 The existing background worker processes durable offboarding jobs independently from file scanning.
 
 Cleanup revokes:
+
 - all AuthSession rows;
 - all email-verification tokens;
 - all password-recovery tokens.
