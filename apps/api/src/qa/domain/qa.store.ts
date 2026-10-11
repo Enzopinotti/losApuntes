@@ -1,10 +1,12 @@
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import type {
+  AnswerAccountExportRow,
   AnswerCursor,
   AnswerRecord,
   QaReportReason,
   QaReportRecord,
   QuestionCursor,
+  QuestionAccountExportRow,
   QuestionRecord,
   QuestionState,
 } from './qa.types';
@@ -19,6 +21,16 @@ export type CreateQuestionRecord = Omit<
 export type CreateAnswerRecord = Omit<AnswerRecord, 'createdAt' | 'updatedAt'>;
 
 export interface QaStore {
+  listAuthoredQuestionsForExport: (input: {
+    authorUserId: string;
+    limit: number;
+    afterId?: string;
+  }) => Promise<{ items: QuestionAccountExportRow[]; hasMore: boolean }>;
+  listAuthoredAnswersForExport: (input: {
+    authorUserId: string;
+    limit: number;
+    afterId?: string;
+  }) => Promise<{ items: AnswerAccountExportRow[]; hasMore: boolean }>;
   createQuestion: (input: CreateQuestionRecord) => Promise<QuestionRecord>;
   findQuestion: (id: string) => Promise<QuestionRecord | null>;
   searchQuestions: (input: {

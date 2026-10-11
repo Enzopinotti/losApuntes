@@ -45,6 +45,23 @@ export interface AnswerRecord {
   updatedAt: Date;
 }
 
+export type QuestionAccountExportRow = Pick<
+  QuestionRecord,
+  | 'id'
+  | 'subjectId'
+  | 'courseOfferingId'
+  | 'title'
+  | 'body'
+  | 'state'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+export type AnswerAccountExportRow = Pick<
+  AnswerRecord,
+  'id' | 'questionId' | 'body' | 'createdAt' | 'updatedAt'
+>;
+
 export interface QaReportRecord {
   id: string;
   targetType: 'question' | 'answer';

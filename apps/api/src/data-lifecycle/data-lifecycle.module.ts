@@ -8,6 +8,7 @@ import {
   OrganizationManagerSchema,
 } from '../organizations/mongo/organization.mongo-schemas';
 import { ProfileModule } from '../profile/profile.module';
+import { QaModule } from '../qa/qa.module';
 import { ResourcesModule } from '../resources/resources.module';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -29,6 +30,10 @@ import {
   SavedResourcesExportContributor,
   SharedResourceGrantsExportContributor,
 } from './contributors/account-export-resource.contributors';
+import {
+  AuthoredAnswersExportContributor,
+  AuthoredQuestionsExportContributor,
+} from './contributors/account-export-qa.contributors';
 import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
@@ -57,6 +62,7 @@ import {
     AuthModule,
     UsersModule,
     ProfileModule,
+    QaModule,
     ResourcesModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
@@ -82,6 +88,8 @@ import {
     AuthoredResourcesExportContributor,
     SavedResourcesExportContributor,
     SharedResourceGrantsExportContributor,
+    AuthoredQuestionsExportContributor,
+    AuthoredAnswersExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -95,6 +103,8 @@ import {
         authoredResources: AuthoredResourcesExportContributor,
         savedResources: SavedResourcesExportContributor,
         sharedResourceGrants: SharedResourceGrantsExportContributor,
+        authoredQuestions: AuthoredQuestionsExportContributor,
+        authoredAnswers: AuthoredAnswersExportContributor,
       ) => [
         account,
         profile,
@@ -106,6 +116,8 @@ import {
         authoredResources,
         savedResources,
         sharedResourceGrants,
+        authoredQuestions,
+        authoredAnswers,
       ],
       inject: [
         AccountIdentityExportContributor,
@@ -118,6 +130,8 @@ import {
         AuthoredResourcesExportContributor,
         SavedResourcesExportContributor,
         SharedResourceGrantsExportContributor,
+        AuthoredQuestionsExportContributor,
+        AuthoredAnswersExportContributor,
       ],
     },
     AccountExportContributorRegistry,

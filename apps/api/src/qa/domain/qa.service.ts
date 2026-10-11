@@ -20,13 +20,59 @@ import type {
 import { QA_STORE, type QaStore } from './qa.store';
 import type {
   AnswerCursor,
+  AnswerAccountExportRow,
   AnswerRecord,
+  QuestionAccountExportRow,
   QuestionCursor,
   QuestionRecord,
 } from './qa.types';
 
 export const QA_ANSWER_DEFAULT_LIMIT = 25;
 export const QA_ANSWER_MAX_LIMIT = 50;
+const QA_ACCOUNT_EXPORT_MAX_LIMIT = 100;
+
+function assertAccountExportLimit(limit: number): void {
+  if (
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > QA_ACCOUNT_EXPORT_MAX_LIMIT
+  ) {
+    throw new UnprocessableEntityException({
+      code: 'QA_ACCOUNT_EXPORT_LIMIT_INVALID',
+      message: 'Q&A account export limit is invalid',
+    });
+  }
+}
+
+function encodeAccountExportCursor(id: string): string {
+  return Buffer.from(JSON.stringify({ id }), 'utf8').toString('base64url');
+}
+
+function decodeAccountExportCursor(value: string | null): string | undefined {
+  if (value === null) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+    const keys = Object.keys(parsed);
+    if (
+      keys.length !== 1 ||
+      keys[0] !== 'id' ||
+      typeof parsed.id !== 'string' ||
+      parsed.id.length === 0
+    ) {
+      throw new Error('Invalid Q&A account export cursor');
+    }
+
+    return parsed.id;
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'QA_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'Q&A account export cursor is invalid',
+    });
+  }
+}
 
 function encodeAnswerCursor(cursor: AnswerCursor): string {
   return Buffer.from(
@@ -115,6 +161,83 @@ export class QaService {
     private readonly profiles: ProfileService,
     private readonly events: PilotEventService,
   ) {}
+
+  async listAccountExportQuestions(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<
+      Pick<
+        QuestionAccountExportRow,
+        'id' | 'subjectId' | 'courseOfferingId' | 'title' | 'body' | 'state'
+      > & { createdAt: string; updatedAt: string }
+    >;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listAuthoredQuestionsForExport({
+      authorUserId: userId,
+      limit: input.limit,
+      afterId: decodeAccountExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => this.questionAccountExportProjection(row)),
+      nextCursor:
+        page.hasMore && last ? encodeAccountExportCursor(last.id) : null,
+    };
+  }
+
+  async listAccountExportAnswers(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<
+      Pick<AnswerAccountExportRow, 'id' | 'questionId' | 'body'> & {
+        createdAt: string;
+        updatedAt: string;
+      }
+    >;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listAuthoredAnswersForExport({
+      authorUserId: userId,
+      limit: input.limit,
+      afterId: decodeAccountExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => this.answerAccountExportProjection(row)),
+      nextCursor:
+        page.hasMore && last ? encodeAccountExportCursor(last.id) : null,
+    };
+  }
+
+  private questionAccountExportProjection(row: QuestionAccountExportRow) {
+    return {
+      id: row.id,
+      subjectId: row.subjectId,
+      courseOfferingId: row.courseOfferingId,
+      title: row.title,
+      body: row.body,
+      state: row.state,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private answerAccountExportProjection(row: AnswerAccountExportRow) {
+    return {
+      id: row.id,
+      questionId: row.questionId,
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
 
   async search(dto: QuestionSearchDto, viewerUserId?: string) {
     const subjectId = dto.subjectId
