@@ -2,8 +2,13 @@ import type {
   AnswerPageResponse,
   AnswerView,
   CommunityPerson,
+  ConnectionStatus,
+  ConnectionView,
   CreateAnswerInput,
+  CreateQaReportInput,
+  CreateQaReportResponse,
   CreateQuestionInput,
+  FollowingItem,
   QuestionDetailResponse,
   QuestionSearchResponse,
 } from "@losapuntes/contracts/social-qa";
@@ -48,6 +53,69 @@ export type NotificationPageInput = {
   limit?: number;
 };
 
+export type ConnectionsPageInput = {
+  status?: ConnectionStatus;
+  cursor?: string;
+  limit?: number;
+};
+
+export type ConnectionsPageResponse = {
+  items: ConnectionView[];
+  nextCursor: string | null;
+};
+
+export type FollowingPageInput = {
+  cursor?: string;
+  limit?: number;
+};
+
+export type FollowingPageResponse = {
+  items: FollowingItem[];
+  nextCursor: string | null;
+};
+
+export interface SocialConnectionsApi {
+  connections(
+    input: ConnectionsPageInput,
+    signal?: AbortSignal,
+  ): Promise<ConnectionsPageResponse>;
+  respondConnection(
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
+  disconnectConnection(id: string, signal?: AbortSignal): Promise<void>;
+  requestConnection(
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
+}
+
+export interface SocialFollowingApi {
+  following(
+    input: FollowingPageInput,
+    signal?: AbortSignal,
+  ): Promise<FollowingPageResponse>;
+  followProfile(
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ following: true }>;
+  unfollowProfile(profileId: string, signal?: AbortSignal): Promise<void>;
+}
+
+export interface CommunityQaReportsApi {
+  reportQuestion(
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
+  reportAnswer(
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
+}
+
 export interface CommunityTransport {
   questions(
     credential: string,
@@ -91,6 +159,54 @@ export interface CommunityTransport {
     credential: string,
     signal?: AbortSignal,
   ): Promise<{ updated: number }>;
+  connections(
+    credential: string,
+    input: ConnectionsPageInput,
+    signal?: AbortSignal,
+  ): Promise<ConnectionsPageResponse>;
+  respondConnection(
+    credential: string,
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
+  disconnectConnection(
+    credential: string,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  requestConnection(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ connection: ConnectionView }>;
+  following(
+    credential: string,
+    input: FollowingPageInput,
+    signal?: AbortSignal,
+  ): Promise<FollowingPageResponse>;
+  followProfile(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ following: true }>;
+  unfollowProfile(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  reportQuestion(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
+  reportAnswer(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ): Promise<CreateQaReportResponse>;
 }
 
 export interface CommunityNotificationsApi {
@@ -239,10 +355,142 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
       ...(signal ? { signal } : {}),
     });
   }
+
+  connections(
+    credential: string,
+    input: ConnectionsPageInput,
+    signal?: AbortSignal,
+  ) {
+    const requestedLimit = Number.isFinite(input.limit)
+      ? Math.trunc(input.limit!)
+      : 25;
+    const limit = Math.min(100, Math.max(1, requestedLimit));
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (input.status) query.set("status", input.status);
+    if (input.cursor) query.set("cursor", input.cursor);
+
+    return this.client.request<ConnectionsPageResponse>(
+      `/social/me/connections?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  respondConnection(
+    credential: string,
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ connection: ConnectionView }>(
+      `/social/connections/${encodeURIComponent(id)}/${action}`,
+      {
+        method: "POST",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  disconnectConnection(credential: string, id: string, signal?: AbortSignal) {
+    return this.client.request<void>(
+      `/social/connections/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  requestConnection(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ connection: ConnectionView }>(
+      `/social/profiles/${encodeURIComponent(profileId)}/connections`,
+      {
+        method: "POST",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  following(
+    credential: string,
+    input: FollowingPageInput,
+    signal?: AbortSignal,
+  ) {
+    const requestedLimit = Number.isFinite(input.limit)
+      ? Math.trunc(input.limit!)
+      : 25;
+    const limit = Math.min(100, Math.max(1, requestedLimit));
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (input.cursor) query.set("cursor", input.cursor);
+
+    return this.client.request<FollowingPageResponse>(
+      `/social/me/following?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  followProfile(credential: string, profileId: string, signal?: AbortSignal) {
+    return this.client.request<{ following: true }>(
+      `/social/profiles/${encodeURIComponent(profileId)}/follow`,
+      { method: "PUT", credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  unfollowProfile(credential: string, profileId: string, signal?: AbortSignal) {
+    return this.client.request<void>(
+      `/social/profiles/${encodeURIComponent(profileId)}/follow`,
+      { method: "DELETE", credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  reportQuestion(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<CreateQaReportResponse>(
+      `/questions/${encodeURIComponent(id)}/reports`,
+      {
+        method: "POST",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  reportAnswer(
+    credential: string,
+    id: string,
+    input: CreateQaReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<CreateQaReportResponse>(
+      `/answers/${encodeURIComponent(id)}/reports`,
+      {
+        method: "POST",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 }
 
 export class MobileCommunityApi
-  implements CommunityApi, CommunityNotificationsApi
+  implements
+    CommunityApi,
+    CommunityNotificationsApi,
+    SocialConnectionsApi,
+    SocialFollowingApi,
+    CommunityQaReportsApi
 {
   constructor(
     private readonly session: SessionController,
@@ -303,6 +551,64 @@ export class MobileCommunityApi
   markAllNotificationsRead(signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.markAllNotificationsRead(credential, signal),
+    );
+  }
+
+  connections(input: ConnectionsPageInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.connections(credential, input, signal),
+    );
+  }
+
+  respondConnection(
+    id: string,
+    action: "accept" | "decline",
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.respondConnection(credential, id, action, signal),
+    );
+  }
+
+  disconnectConnection(id: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.disconnectConnection(credential, id, signal),
+    );
+  }
+
+  requestConnection(profileId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.requestConnection(credential, profileId, signal),
+    );
+  }
+
+  following(input: FollowingPageInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.following(credential, input, signal),
+    );
+  }
+
+  followProfile(profileId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.followProfile(credential, profileId, signal),
+    );
+  }
+
+  unfollowProfile(profileId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.unfollowProfile(credential, profileId, signal),
+    );
+  }
+
+  reportQuestion(id: string, input: CreateQaReportInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.reportQuestion(credential, id, input, signal),
+    );
+  }
+
+  reportAnswer(id: string, input: CreateQaReportInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.reportAnswer(credential, id, input, signal),
     );
   }
 
