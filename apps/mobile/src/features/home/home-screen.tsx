@@ -130,7 +130,7 @@ function FeedSection({
   onOpen: (action: HomeFeedItemAction) => void;
   onExplore: (action: HomeFeedExploreAction) => void;
   onLoadMore: () => void;
-  pageStatus?: HomePageStatus;
+  pageStatus: HomePageStatus | undefined;
   refreshing: boolean;
 }) {
   const limitReached = feed.items.length >= MAX_HOME_FEED_ITEMS;
