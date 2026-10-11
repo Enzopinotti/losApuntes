@@ -415,11 +415,16 @@ cycle detection retains only a constant-size checkpoint per section.
 
 The sink is attempt-scoped. Any contributor, serialization or sink failure
 aborts the partial output; a caller must not publish or persist completion
-metadata for an aborted attempt. The assembler is an internal building block,
-not a downloadable export: durable artifact storage, worker orchestration,
-owner-reauthorized request/status/delivery and the public HTTP surface remain
-open. No generated output may be presented as complete to an account owner
-until the complete artifact path is implemented and verified.
+metadata for an aborted attempt. On success, the internal assembly result also
+returns the exact envelope's UTF-8 byte length and SHA-256 hex digest. Both are
+calculated incrementally after each awaited sink write, so the assembler does
+not retain artifact bytes to compute integrity metadata. These values are
+internal attempt metadata and must not be logged or exposed as public download
+authority. The assembler is not a downloadable export: durable artifact
+storage, worker orchestration, owner-reauthorized request/status/delivery and
+the public HTTP surface remain open. No generated output may be presented as
+complete to an account owner until the complete artifact path is implemented
+and verified.
 
 ## Security and privacy exclusions
 

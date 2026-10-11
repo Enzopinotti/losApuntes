@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { AccountExportAssembler } from './account-export-assembler';
 import { AccountExportContributorRegistry } from './account-export-contributor.registry';
 import { AccountExportService } from './account-export.service';
@@ -53,15 +55,41 @@ describe('AccountExportAssembler', () => {
       ),
     ]);
 
-    await expect(assembler.writeJsonV1('user-1', output)).resolves.toEqual({
+    const result = await assembler.writeJsonV1('user-1', output);
+    const artifact = output.chunks.join('');
+
+    expect(result).toEqual({
       format: 'los-apuntes-account-export',
       formatVersion: 1,
       sectionCount: 2,
       recordCount: 2,
+      byteLength: Buffer.byteLength(artifact, 'utf8'),
+      sha256: createHash('sha256').update(artifact, 'utf8').digest('hex'),
     });
 
-    expect(output.chunks.join('')).toBe(
+    expect(artifact).toBe(
       '{"format":"los-apuntes-account-export","version":1,"sections":{"account":[{"id":"user-1"}],"profile":[{"displayName":"Ada"}]}}',
+    );
+  });
+
+  it('measures UTF-8 bytes and hashes the exact streamed envelope', async () => {
+    const output = sinkFixture();
+    const assembler = assemblerFor([
+      contributor('profile', () =>
+        Promise.resolve({
+          records: [{ displayName: 'Ada 🎓' }],
+          nextCursor: null,
+        }),
+      ),
+    ]);
+
+    const result = await assembler.writeJsonV1('user-1', output);
+    const artifact = output.chunks.join('');
+
+    expect(result.byteLength).toBe(Buffer.byteLength(artifact, 'utf8'));
+    expect(result.byteLength).toBeGreaterThan(artifact.length);
+    expect(result.sha256).toBe(
+      createHash('sha256').update(artifact, 'utf8').digest('hex'),
     );
   });
 
