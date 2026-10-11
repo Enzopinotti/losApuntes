@@ -30,6 +30,7 @@ const [
   academicStore,
   academicSchemas,
   exportLifecyclePolicyText,
+  exportRuntimePolicyText,
   exportLifecycleOps,
 ] = await Promise.all([
   readFile(new URL('../apps/api/src/data-lifecycle/account-lifecycle.controller.ts', import.meta.url), 'utf8'),
@@ -64,12 +65,20 @@ const [
     'utf8',
   ),
   readFile(
+    new URL(
+      '../infra/storage/account-export-runtime-policy.template.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+  readFile(
     new URL('../docs/operations/account-export-artifacts.md', import.meta.url),
     'utf8',
   ),
 ]);
 
 const exportLifecyclePolicy = JSON.parse(exportLifecyclePolicyText);
+const exportRuntimePolicy = JSON.parse(exportRuntimePolicyText);
 
 assert.match(controller, /@Get\('closure\/preflight'\)/u);
 assert.match(controller, /@Post\('closure'\)/u);
@@ -141,10 +150,36 @@ assert.deepEqual(exportLifecyclePolicy, {
     },
   ],
 });
+assert.deepEqual(exportRuntimePolicy, {
+  Version: '2012-10-17',
+  Statement: [
+    {
+      Sid: 'AccountExportArtifactsOnly',
+      Effect: 'Allow',
+      Action: [
+        's3:AbortMultipartUpload',
+        's3:DeleteObject',
+        's3:GetObject',
+        's3:PutObject',
+      ],
+      Resource: 'arn:aws:s3:::REPLACE_WITH_ACCOUNT_EXPORT_BUCKET/exports/*',
+    },
+  ],
+});
 assert.match(
   exportLifecycleOps,
   /PutBucketLifecycleConfiguration.*replaces/isu,
 );
+assert.match(
+  exportLifecycleOps,
+  /account-export-runtime-policy\.template\.json/u,
+);
+assert.match(
+  exportLifecycleOps,
+  /cannot list the bucket,\s*access\s*Files/u,
+);
+assert.match(exportLifecycleOps, /separate administrative identity/u);
+assert.match(exportLifecycleOps, /does\s+not configure bucket privacy/u);
 assert.match(
   exportLifecycleOps,
   /not evidence that any remote provider is configured/u,
@@ -161,6 +196,14 @@ assert.match(exportController, /@Get\(':id\/download'\)/u);
 assert.match(exportProcessor, /LEASE_RENEWAL_INTERVAL_MS/u);
 assert.match(exportProcessor, /MAX_ATTEMPTS = 5/u);
 assert.match(exportArtifactStorage, /exports\/\$\{jobId\}\/\$\{generation\}\.json/u);
+assert.match(exportArtifactStorage, /createMultipartWriter/u);
+assert.match(exportArtifactStorage, /this\.storage\.readObjectChunks/u);
+assert.match(exportArtifactStorage, /this\.storage\.deleteObject/u);
+assert.doesNotMatch(
+  exportArtifactStorage,
+  /createUploadIntent|createDownloadIntent/u,
+  'account export runtime permissions must not include Files delivery operations',
+);
 assert.match(exportWorker, /processor\.runIteration/u);
 assert.match(exportRuntimeEnvironment, /ACCOUNT_EXPORT_S3_BUCKET/u);
 assert.match(
