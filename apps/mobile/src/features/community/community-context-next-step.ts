@@ -1,6 +1,8 @@
 import type { QuestionScope } from "./community-controller";
 import type { CommunityAuthorityGate } from "./use-community-authority";
-import { ACADEMIC_CONTEXT_HOME_ROUTE } from "../search/search-contextual-discovery-copy";
+import {
+  ACADEMIC_CONTEXT_HOME_ROUTE,
+} from "../search/search-contextual-discovery-copy";
 
 export { ACADEMIC_CONTEXT_HOME_ROUTE };
 
