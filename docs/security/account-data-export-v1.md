@@ -172,9 +172,26 @@ not the global Academic catalog. It does not export catalog source provenance,
 admin audit events, internal context guard revisions, or catalog proposals in
 this carrier.
 
+### Q&A authored sections — candidate for #183
+
+Q&A contributes two owner-scoped sections:
+
+- `qa.authoredQuestions` — the account owner's question id, academic context
+  references, title, body, open/closed state and timestamps;
+- `qa.authoredAnswers` — the account owner's answer id, its Question id
+  reference, body and timestamps.
+
+Both sections read only rows authored by the owner through explicit Mongo field
+allowlists and stable `id ASC` cursors. The page limit is capped at 100 and the
+queries use `{ authorUserId: 1, id: 1 }` indexes. Hidden authored content is
+included for the owner, but the export omits moderation metadata and reports,
+search text, answer counts, accepted-answer pointers, internal revisions and
+author user ids. An answer references its Question by id only; the export
+does not resolve or include another author's Question content.
+
 ### Resource history sections — candidate for #183
 
-Resources contributes two owner-scoped sections:
+Resources contributes three owner-scoped sections:
 
 - `resources.authored` — the user's own Resource metadata, including private
   and hidden authored history, current visibility/moderation state, academic
@@ -219,7 +236,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -289,8 +306,9 @@ Those remain #82/#48 or later #183 slices.
 
 Resource authored metadata, saved references and current explicit share grants
 are implemented as an incomplete contributor candidate; Resource file bytes
-and a historical revocation log remain outside it. Social/Q&A, Organizations,
-Notifications and Alumni are still unimplemented export domains.
+and a historical revocation log remain outside it. Q&A authored questions and
+answers are also partial contributor sections; Social relationships,
+Organizations, Notifications and Alumni are still unimplemented export domains.
 User-authored Academic catalog proposals are also outside the currently
 implemented v1 Academic carrier pending a separate inclusion decision. The
 presence of core, Academic and partial Resource sections does not make the

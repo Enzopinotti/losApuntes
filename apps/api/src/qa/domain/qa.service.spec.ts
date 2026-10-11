@@ -24,6 +24,8 @@ type ProfileApi = Pick<ProfileService, 'getAttributionForUser'>;
 
 function store(): jest.Mocked<QaStore> {
   return {
+    listAuthoredQuestionsForExport: jest.fn(),
+    listAuthoredAnswersForExport: jest.fn(),
     createQuestion: jest.fn(),
     findQuestion: jest.fn(),
     searchQuestions: jest.fn(),
@@ -141,6 +143,135 @@ function configureProjection(
 }
 
 describe('QaService', () => {
+  it('exports bounded owner-authored questions without internal fields', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    qaStore.listAuthoredQuestionsForExport.mockResolvedValue({
+      items: [
+        {
+          id: questionId,
+          subjectId,
+          courseOfferingId: null,
+          title: 'Normalization',
+          body: 'How do I remove transitive dependencies?',
+          state: 'open',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      hasMore: true,
+    });
+
+    const page = await service(
+      qaStore,
+      academicApi,
+      profileApi,
+    ).listAccountExportQuestions('owner-1', { limit: 1, cursor: null });
+
+    expect(qaStore.listAuthoredQuestionsForExport).toHaveBeenCalledWith({
+      authorUserId: 'owner-1',
+      limit: 1,
+      afterId: undefined,
+    });
+    expect(page).toEqual({
+      items: [
+        {
+          id: questionId,
+          subjectId,
+          courseOfferingId: null,
+          title: 'Normalization',
+          body: 'How do I remove transitive dependencies?',
+          state: 'open',
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        },
+      ],
+      nextCursor: Buffer.from(JSON.stringify({ id: questionId })).toString(
+        'base64url',
+      ),
+    });
+  });
+
+  it('exports owner-authored answers using a stable id cursor', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    const cursor = Buffer.from(
+      JSON.stringify({ id: 'answer-before' }),
+    ).toString('base64url');
+    qaStore.listAuthoredAnswersForExport.mockResolvedValue({
+      items: [
+        {
+          id: answerId,
+          questionId,
+          body: 'Use a lossless decomposition.',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      hasMore: false,
+    });
+
+    const page = await service(
+      qaStore,
+      academicApi,
+      profileApi,
+    ).listAccountExportAnswers('owner-1', { limit: 10, cursor });
+
+    expect(qaStore.listAuthoredAnswersForExport).toHaveBeenCalledWith({
+      authorUserId: 'owner-1',
+      limit: 10,
+      afterId: 'answer-before',
+    });
+    expect(page).toEqual({
+      items: [
+        {
+          id: answerId,
+          questionId,
+          body: 'Use a lossless decomposition.',
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        },
+      ],
+      nextCursor: null,
+    });
+  });
+
+  it.each([0, 1.5, 101])(
+    'rejects an invalid account export page limit %s',
+    async (limit) => {
+      const qaStore = store();
+      const academicApi = academic();
+      const profileApi = profiles();
+
+      await expect(
+        service(qaStore, academicApi, profileApi).listAccountExportQuestions(
+          'owner-1',
+          { limit, cursor: null },
+        ),
+      ).rejects.toThrow('Q&A account export limit is invalid');
+      expect(qaStore.listAuthoredQuestionsForExport).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a cursor carrying internal identity fields before persistence reads', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    const cursor = Buffer.from(
+      JSON.stringify({ id: 'question-before', userId: 'internal-user' }),
+    ).toString('base64url');
+
+    await expect(
+      service(qaStore, academicApi, profileApi).listAccountExportAnswers(
+        'owner-1',
+        { limit: 10, cursor },
+      ),
+    ).rejects.toThrow('Q&A account export cursor is invalid');
+    expect(qaStore.listAuthoredAnswersForExport).not.toHaveBeenCalled();
+  });
+
   it('canonicalizes academic context before creating a Question', async () => {
     const qaStore = store();
     const academicApi = academic();

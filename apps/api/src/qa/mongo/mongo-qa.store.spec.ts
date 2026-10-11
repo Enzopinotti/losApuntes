@@ -2,11 +2,13 @@ import { MongoQaStore } from './mongo-qa.store';
 
 function query<T>(rows: T[]) {
   const chain = {
+    select: jest.fn(),
     sort: jest.fn(),
     limit: jest.fn(),
     lean: jest.fn(),
     exec: jest.fn().mockResolvedValue(rows),
   };
+  chain.select.mockReturnValue(chain);
   chain.sort.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.lean.mockReturnValue(chain);
@@ -14,6 +16,116 @@ function query<T>(rows: T[]) {
 }
 
 describe('MongoQaStore Answer pagination', () => {
+  it('projects bounded owner-authored Questions in stable id order', async () => {
+    const rows = [
+      {
+        id: 'question-1',
+        subjectId: 'subject-1',
+        courseOfferingId: null,
+        title: 'Question 1',
+        body: 'Body 1',
+        state: 'open',
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-10-01T00:00:00.000Z'),
+      },
+      {
+        id: 'question-2',
+        subjectId: 'subject-1',
+        courseOfferingId: 'offering-1',
+        title: 'Question 2',
+        body: 'Body 2',
+        state: 'closed',
+        createdAt: new Date('2026-10-02T00:00:00.000Z'),
+        updatedAt: new Date('2026-10-02T00:00:00.000Z'),
+      },
+      {
+        id: 'question-3',
+        subjectId: 'subject-1',
+        courseOfferingId: null,
+        title: 'Question 3',
+        body: 'Body 3',
+        state: 'open',
+        createdAt: new Date('2026-10-03T00:00:00.000Z'),
+        updatedAt: new Date('2026-10-03T00:00:00.000Z'),
+      },
+    ];
+    const chain = query(rows);
+    const questions = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoQaStore(
+      {} as never,
+      questions as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.listAuthoredQuestionsForExport({
+        authorUserId: 'owner-1',
+        limit: 2,
+        afterId: 'question-before',
+      }),
+    ).resolves.toEqual({ items: rows.slice(0, 2), hasMore: true });
+
+    expect(questions.find).toHaveBeenCalledWith({
+      authorUserId: 'owner-1',
+      id: { $gt: 'question-before' },
+    });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      subjectId: 1,
+      courseOfferingId: 1,
+      title: 1,
+      body: 1,
+      state: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+  });
+
+  it('projects owner-authored Answers without adding moderation or author data', async () => {
+    const rows = [
+      {
+        id: 'answer-1',
+        questionId: 'question-by-another-author',
+        body: 'Answer body',
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-10-02T00:00:00.000Z'),
+      },
+    ];
+    const chain = query(rows);
+    const answers = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoQaStore(
+      {} as never,
+      {} as never,
+      answers as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      store.listAuthoredAnswersForExport({
+        authorUserId: 'owner-1',
+        limit: 1,
+      }),
+    ).resolves.toEqual({ items: rows, hasMore: false });
+
+    expect(answers.find).toHaveBeenCalledWith({ authorUserId: 'owner-1' });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      questionId: 1,
+      body: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(2);
+  });
+
   it('uses limit+1 and returns honest overflow metadata', async () => {
     const rows = Array.from({ length: 4 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
