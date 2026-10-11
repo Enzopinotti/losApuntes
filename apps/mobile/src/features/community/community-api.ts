@@ -11,6 +11,8 @@ import type {
   FollowingItem,
   QuestionDetailResponse,
   QuestionSearchResponse,
+  QuestionState,
+  QuestionView,
 } from "@losapuntes/contracts/social-qa";
 
 import type { SessionController } from "@/features/session/session-controller";
@@ -145,6 +147,30 @@ export interface CommunityTransport {
     input: CreateAnswerInput,
     signal?: AbortSignal,
   ): Promise<{ answer: AnswerView }>;
+  updateQuestion(
+    credential: string,
+    id: string,
+    input: {
+      expectedRevision: number;
+      title?: string;
+      body?: string;
+      status?: QuestionState;
+    },
+    signal?: AbortSignal,
+  ): Promise<{ question: QuestionView }>;
+  updateAnswer(
+    credential: string,
+    id: string,
+    input: { expectedRevision: number; body: string },
+    signal?: AbortSignal,
+  ): Promise<{ answer: AnswerView }>;
+  acceptAnswer(
+    credential: string,
+    questionId: string,
+    answerId: string,
+    expectedRevision: number,
+    signal?: AbortSignal,
+  ): Promise<{ question: QuestionView }>;
   notifications(
     credential: string,
     input: NotificationPageInput,
@@ -244,6 +270,31 @@ export interface CommunityApi {
   ): Promise<{ answer: AnswerView }>;
 }
 
+export interface CommunityQaMutationsApi {
+  question(id: string, signal?: AbortSignal): Promise<QuestionDetailResponse>;
+  updateQuestion(
+    id: string,
+    input: {
+      expectedRevision: number;
+      title?: string;
+      body?: string;
+      status?: QuestionState;
+    },
+    signal?: AbortSignal,
+  ): Promise<{ question: QuestionView }>;
+  updateAnswer(
+    id: string,
+    input: { expectedRevision: number; body: string },
+    signal?: AbortSignal,
+  ): Promise<{ answer: AnswerView }>;
+  acceptAnswer(
+    questionId: string,
+    answerId: string,
+    expectedRevision: number,
+    signal?: AbortSignal,
+  ): Promise<{ question: QuestionView }>;
+}
+
 export class MobileCommunityHttpTransport implements CommunityTransport {
   constructor(private readonly client: MobileApiClient) {}
 
@@ -311,6 +362,67 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
         method: "POST",
         credential,
         body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  updateQuestion(
+    credential: string,
+    id: string,
+    input: {
+      expectedRevision: number;
+      title?: string;
+      body?: string;
+      status?: QuestionState;
+    },
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ question: QuestionView }>(
+      "/questions/" + encodeURIComponent(id),
+      {
+        method: "PATCH",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  updateAnswer(
+    credential: string,
+    id: string,
+    input: { expectedRevision: number; body: string },
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ answer: AnswerView }>(
+      "/answers/" + encodeURIComponent(id),
+      {
+        method: "PATCH",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  acceptAnswer(
+    credential: string,
+    questionId: string,
+    answerId: string,
+    expectedRevision: number,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ question: QuestionView }>(
+      "/questions/" +
+        encodeURIComponent(questionId) +
+        "/answers/" +
+        encodeURIComponent(answerId) +
+        "/accept",
+      {
+        method: "POST",
+        credential,
+        body: { expectedRevision },
         ...(signal ? { signal } : {}),
       },
     );
@@ -490,7 +602,8 @@ export class MobileCommunityApi
     CommunityNotificationsApi,
     SocialConnectionsApi,
     SocialFollowingApi,
-    CommunityQaReportsApi
+    CommunityQaReportsApi,
+    CommunityQaMutationsApi
 {
   constructor(
     private readonly session: SessionController,
@@ -533,6 +646,48 @@ export class MobileCommunityApi
   ) {
     return this.authorized((credential) =>
       this.transport.createAnswer(credential, questionId, input, signal),
+    );
+  }
+
+  updateQuestion(
+    id: string,
+    input: {
+      expectedRevision: number;
+      title?: string;
+      body?: string;
+      status?: QuestionState;
+    },
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.updateQuestion(credential, id, input, signal),
+    );
+  }
+
+  updateAnswer(
+    id: string,
+    input: { expectedRevision: number; body: string },
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.updateAnswer(credential, id, input, signal),
+    );
+  }
+
+  acceptAnswer(
+    questionId: string,
+    answerId: string,
+    expectedRevision: number,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.acceptAnswer(
+        credential,
+        questionId,
+        answerId,
+        expectedRevision,
+        signal,
+      ),
     );
   }
 
