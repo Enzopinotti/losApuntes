@@ -17,6 +17,8 @@ import type {
   LoginMethodsResponse,
   MobileAuthenticatedSessionResponse,
   PilotHomeResponse,
+  AcademicFeedResponse,
+  ForYouFeedResponse,
   PasswordChangeInput,
   PasswordLoginInput,
   PasswordRecoveryCompleteInput,
@@ -473,6 +475,36 @@ export class MobileApiClient {
       credential,
       ...(signal ? { signal } : {}),
     });
+  }
+
+  academicFeed(
+    credential: string,
+    cursor: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicFeedResponse> {
+    const query = new URLSearchParams({ limit: "6", cursor });
+    return this.request<AcademicFeedResponse>(
+      `/feeds/academic?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  forYouFeed(
+    credential: string,
+    cursor: string,
+    mode: "balanced" | "community",
+    signal?: AbortSignal,
+  ): Promise<ForYouFeedResponse> {
+    const query = new URLSearchParams({
+      limit: "6",
+      cursor,
+      mode,
+      order: "ranked",
+    });
+    return this.request<ForYouFeedResponse>(
+      `/feeds/for-you?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
   }
 
   search(
