@@ -43,7 +43,7 @@ import type {
   OrganizationEventCursor,
   OrganizationEventRecord,
   OrganizationEventAccountExportRow,
-  OrganizationContentAccountExportCursor,
+  OrganizationIdAccountExportCursor,
   OrganizationFollowAccountExportCursor,
   OrganizationManagerAccountExportCursor,
   OrganizationManagerAccountExportRow,
@@ -52,6 +52,7 @@ import type {
   OrganizationPostCursor,
   OrganizationPostRecord,
   OrganizationPostAccountExportRow,
+  OrganizationReportAccountExportRow,
   OrganizationRecord,
 } from './organization.types';
 
@@ -141,8 +142,8 @@ function decodeAccountExportFollowCursor(
   }
 }
 
-function encodeAccountExportContentCursor(
-  cursor: OrganizationContentAccountExportCursor,
+function encodeAccountExportIdCursor(
+  cursor: OrganizationIdAccountExportCursor,
 ): string {
   return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
 }
@@ -207,10 +208,10 @@ function decodeAccountExportManagementCursor(
   }
 }
 
-function decodeAccountExportContentCursor(
+function decodeAccountExportIdCursor(
   value: string | null,
-  expectedSection: OrganizationContentAccountExportCursor['section'],
-): OrganizationContentAccountExportCursor | undefined {
+  expectedSection: OrganizationIdAccountExportCursor['section'],
+): OrganizationIdAccountExportCursor | undefined {
   if (value === null) return undefined;
 
   try {
@@ -884,6 +885,51 @@ export class OrganizationService {
     };
   }
 
+  async listAccountExportSubmittedReports(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      targetType: OrganizationReportAccountExportRow['targetType'];
+      targetId: string;
+      reason: OrganizationReportAccountExportRow['reason'];
+      details: string | null;
+      createdAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const cursor = decodeAccountExportIdCursor(
+      input.cursor,
+      'organizations.submittedReports',
+    );
+    const page = await this.store.listForAccountExportSubmittedReports({
+      userId,
+      limit: input.limit,
+      after: cursor ? { id: cursor.id } : undefined,
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row: OrganizationReportAccountExportRow) => ({
+        id: row.id,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        reason: row.reason,
+        details: row.details,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportIdCursor({
+              section: 'organizations.submittedReports',
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
   async listAccountExportAuthoredPosts(
     userId: string,
     input: { limit: number; cursor: string | null },
@@ -901,7 +947,7 @@ export class OrganizationService {
     nextCursor: string | null;
   }> {
     assertAccountExportLimit(input.limit);
-    const cursor = decodeAccountExportContentCursor(
+    const cursor = decodeAccountExportIdCursor(
       input.cursor,
       'organizations.authoredPosts',
     );
@@ -925,7 +971,7 @@ export class OrganizationService {
       })),
       nextCursor:
         page.hasMore && last
-          ? encodeAccountExportContentCursor({
+          ? encodeAccountExportIdCursor({
               section: 'organizations.authoredPosts',
               id: last.id,
             })
@@ -953,7 +999,7 @@ export class OrganizationService {
     nextCursor: string | null;
   }> {
     assertAccountExportLimit(input.limit);
-    const cursor = decodeAccountExportContentCursor(
+    const cursor = decodeAccountExportIdCursor(
       input.cursor,
       'organizations.authoredEvents',
     );
@@ -980,7 +1026,7 @@ export class OrganizationService {
       })),
       nextCursor:
         page.hasMore && last
-          ? encodeAccountExportContentCursor({
+          ? encodeAccountExportIdCursor({
               section: 'organizations.authoredEvents',
               id: last.id,
             })

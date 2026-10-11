@@ -287,6 +287,23 @@ informational account data; they do not grant or transfer management
 authority. This partial section is not a management audit log or a completeness
 claim.
 
+### Organization submitted reports section — candidate for #183
+
+The partial owner-scoped section `organizations.submittedReports` contains
+only `OrganizationReport` rows whose `reporterUserId` exactly matches the
+export owner. Each portable record contains the stable report `id`,
+`targetType`, `targetId` as an opaque reference, the owner's `reason` and
+`details`, and `createdAt`. A missing or moderated target remains a reference;
+the export does not look it up.
+
+Pages use `id ASC`, a section-bound opaque cursor, `limit + 1`, and a maximum
+page size of 100. The `{ reporterUserId: 1, id: 1 }` index supports the owner
+filter and stable order. The query selects only the portable fields.
+`status`, `updatedAt`, reviewer identity, review time, review reason and review
+action are excluded, along with target content and reports submitted by other
+users. This is the owner's submission data, not a moderation outcome, audit
+history or access grant.
+
 ### Organization authored Posts and Events — candidate for #183
 
 The owner-authored sections `organizations.authoredPosts` and
@@ -355,7 +372,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -406,8 +423,9 @@ Examples:
   canonical shared Resource remains in place;
 - a save/share/follow is exported as the user's relationship, not as authority
   over the target;
-- Organization management/history, Q&A attribution and Academic/Alumni history
-  remain governed by their own domain contracts.
+- Organization management audit/member history, report review outcomes, Q&A
+  attribution and Academic/Alumni history remain governed by their own domain
+  contracts.
 
 ## Explicit non-goals
 
@@ -428,8 +446,10 @@ are implemented as an incomplete contributor candidate; Resource file bytes
 and a historical revocation log remain outside it. Q&A authored questions and
 answers, Social Following/Connection history, the owner's Notification inbox,
 current Organization follows and owner-authored Organization Posts/Events are
-also partial contributor sections. Organization management/member history and
-Alumni-specific data remain outside the current contributor set.
+also partial contributor sections. The owner's current Organization manager
+roles and submitted reports are separate partial sections; management/member
+history, report moderation outcomes and Alumni-specific data remain outside
+the current contributor set.
 User-authored Academic catalog proposals are also outside the currently
 implemented v1 Academic carrier pending a separate inclusion decision. The
 presence of core, Academic and partial Resource sections does not make the

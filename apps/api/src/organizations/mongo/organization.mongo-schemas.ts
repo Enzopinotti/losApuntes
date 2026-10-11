@@ -376,3 +376,4 @@ OrganizationReportSchema.index(
   { unique: true },
 );
 OrganizationReportSchema.index({ status: 1, createdAt: 1, id: 1 });
+OrganizationReportSchema.index({ reporterUserId: 1, id: 1 });

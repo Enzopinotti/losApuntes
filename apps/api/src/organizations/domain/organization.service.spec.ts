@@ -14,6 +14,7 @@ import type {
   OrganizationEventRecord,
   OrganizationManagerRecord,
   OrganizationPostRecord,
+  OrganizationReportAccountExportRow,
   OrganizationRecord,
 } from './organization.types';
 
@@ -121,6 +122,7 @@ function store(): jest.Mocked<OrganizationStore> {
     listFollowedOrganizationIds: jest.fn(),
     listForAccountExportFollowing: jest.fn(),
     listForAccountExportManagement: jest.fn(),
+    listForAccountExportSubmittedReports: jest.fn(),
     findPostById: jest.fn(),
     findPostByGlobalId: jest.fn(),
     listPosts: jest.fn(),
@@ -576,6 +578,82 @@ describe('OrganizationService', () => {
     ]);
   });
 
+  it('exports only submitted report details with a section-bound stable cursor', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const reportRow = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      targetType: 'organization_post' as const,
+      targetId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      reason: 'other' as const,
+      details: 'Owner-authored explanation',
+      createdAt: now,
+      status: 'resolved',
+      reviewedByUserId: 'reviewer-user',
+      reviewReason: 'Private moderation note',
+      reviewAction: 'hide',
+    } as OrganizationReportAccountExportRow;
+    organizationStore.listForAccountExportSubmittedReports
+      .mockResolvedValueOnce({ items: [reportRow], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    const instance = service(organizationStore, dependencies);
+
+    const first = await instance.listAccountExportSubmittedReports(
+      'owner-user',
+      { limit: 1, cursor: null },
+    );
+
+    expect(first.items).toEqual([
+      {
+        id: reportRow.id,
+        targetType: 'organization_post',
+        targetId: reportRow.targetId,
+        reason: 'other',
+        details: 'Owner-authored explanation',
+        createdAt: now.toISOString(),
+      },
+    ]);
+    for (const key of [
+      'reporterUserId',
+      'status',
+      'updatedAt',
+      'reviewedByUserId',
+      'reviewedAt',
+      'reviewReason',
+      'reviewAction',
+    ]) {
+      expect(first.items[0]).not.toHaveProperty(key);
+    }
+    expect(first.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.submittedReports',
+          id: reportRow.id,
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    expect(
+      organizationStore.listForAccountExportSubmittedReports.mock.calls[0],
+    ).toEqual([{ userId: 'owner-user', limit: 1, after: undefined }]);
+
+    await expect(
+      instance.listAccountExportSubmittedReports('owner-user', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listForAccountExportSubmittedReports.mock.calls[1],
+    ).toEqual([
+      {
+        userId: 'owner-user',
+        limit: 1,
+        after: { id: reportRow.id },
+      },
+    ]);
+  });
+
   it('rejects out-of-range limits and noncanonical or malformed export cursors', async () => {
     const organizationStore = store();
     const dependencies = deps();
@@ -632,6 +710,24 @@ describe('OrganizationService', () => {
       instance.listAccountExportAuthoredPosts('owner-user', {
         limit: 100,
         cursor: crossSectionCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+    await expectCode(
+      instance.listAccountExportSubmittedReports('owner-user', {
+        limit: 100,
+        cursor: crossSectionCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+    const crossReportCursor = Buffer.from(
+      JSON.stringify({ section: 'organizations.submittedReports', id: orgId }),
+      'utf8',
+    ).toString('base64url');
+    await expectCode(
+      instance.listAccountExportAuthoredPosts('owner-user', {
+        limit: 100,
+        cursor: crossReportCursor,
       }),
       'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
     );
@@ -697,6 +793,9 @@ describe('OrganizationService', () => {
     ).toHaveLength(0);
     expect(
       organizationStore.listForAccountExportManagement.mock.calls,
+    ).toHaveLength(0);
+    expect(
+      organizationStore.listForAccountExportSubmittedReports.mock.calls,
     ).toHaveLength(0);
   });
 
