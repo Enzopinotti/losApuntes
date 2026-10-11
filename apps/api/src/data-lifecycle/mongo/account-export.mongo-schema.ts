@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 import {
+  ACCOUNT_EXPORT_FAILURE_CODES,
   ACCOUNT_EXPORT_JOB_STATES,
   type AccountExportJobState,
 } from '../domain/account-export.types';
@@ -38,7 +39,11 @@ export class AccountExportJob {
   @Prop({ type: Date, default: null, index: true })
   leaseExpiresAt!: Date | null;
 
-  @Prop({ type: String, default: null })
+  @Prop({
+    type: String,
+    enum: [...ACCOUNT_EXPORT_FAILURE_CODES, null],
+    default: null,
+  })
   failureCode!: string | null;
 
   @Prop({ type: Date, default: null })

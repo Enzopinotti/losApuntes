@@ -211,6 +211,23 @@ describe('MongoAccountExportStore', () => {
     ).resolves.toBe(false);
   });
 
+  it('rejects an unknown failure code before the Mongo update', async () => {
+    const f = fixture();
+
+    await expect(
+      f.store.reschedule({
+        id: 'export-1',
+        claimId: 'claim-1',
+        state: 'failed',
+        nextAttemptAt: now,
+        failureCode: 'private-user@example.com' as never,
+        now,
+      }),
+    ).rejects.toThrow('failure code is invalid');
+
+    expect(f.jobs.updateOne.mock.calls).toHaveLength(0);
+  });
+
   it('releases retryable claims but makes terminal failures inactive', async () => {
     const f = fixture();
 

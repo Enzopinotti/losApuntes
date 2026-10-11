@@ -580,9 +580,10 @@ artifact store, expiration policy, endpoint or delivery route.
 ### Safe failure codes
 
 Retry transitions accept only the closed failure codes already defined by the
-domain. Arbitrary exception text and export values cannot be persisted into
-the job's status field. Unknown historical values are sanitized to `null` in
-the public status projection.
+domain. Both the service and Mongo adapter reject unknown values before a job
+write, and the schema declares the same enum. Arbitrary exception text and
+export values cannot be persisted into the job's status field. Unknown
+historical values are sanitized to `null` in the public status projection.
 
 This does not choose retry timing, attempt limits or error classification.
 

@@ -19,6 +19,15 @@ export type AccountExportJobState = (typeof ACCOUNT_EXPORT_JOB_STATES)[number];
 export type AccountExportFailureCode =
   (typeof ACCOUNT_EXPORT_FAILURE_CODES)[number];
 
+export function isAccountExportFailureCode(
+  value: unknown,
+): value is AccountExportFailureCode {
+  return (
+    typeof value === 'string' &&
+    (ACCOUNT_EXPORT_FAILURE_CODES as readonly string[]).includes(value)
+  );
+}
+
 export type AccountExportJsonScalar = string | number | boolean | null;
 export type AccountExportJsonValue =
   | AccountExportJsonScalar

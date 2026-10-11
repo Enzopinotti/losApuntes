@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 
 import type { AccountExportStore } from '../domain/account-export.store';
-import type { AccountExportJobRecord } from '../domain/account-export.types';
+import {
+  isAccountExportFailureCode,
+  type AccountExportJobRecord,
+} from '../domain/account-export.types';
 import { AccountExportJob } from './account-export.mongo-schema';
 
 function isDuplicateKey(error: unknown): boolean {
@@ -137,6 +140,10 @@ export class MongoAccountExportStore implements AccountExportStore {
   async reschedule(
     input: Parameters<AccountExportStore['reschedule']>[0],
   ): ReturnType<AccountExportStore['reschedule']> {
+    if (!isAccountExportFailureCode(input.failureCode)) {
+      throw new Error('Account export failure code is invalid');
+    }
+
     const result = await this.jobs
       .updateOne(
         {

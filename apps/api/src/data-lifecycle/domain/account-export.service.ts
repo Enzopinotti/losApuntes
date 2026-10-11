@@ -9,9 +9,9 @@ import {
 import {
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
-  ACCOUNT_EXPORT_FAILURE_CODES,
   ACCOUNT_EXPORT_LEASE_DURATION_MS,
   ACCOUNT_EXPORT_PAGE_LIMIT,
+  isAccountExportFailureCode,
   type AccountExportAssemblyResult,
   type AccountExportContributor,
   type AccountExportFailureCode,
@@ -26,15 +26,6 @@ export type AccountExportStatus = {
   requestedAt: string;
   failureCode: AccountExportFailureCode | null;
 };
-
-function isAccountExportFailureCode(
-  value: unknown,
-): value is AccountExportFailureCode {
-  return (
-    typeof value === 'string' &&
-    (ACCOUNT_EXPORT_FAILURE_CODES as readonly string[]).includes(value)
-  );
-}
 
 function assertCompletionResult(
   result: AccountExportAssemblyResult,
