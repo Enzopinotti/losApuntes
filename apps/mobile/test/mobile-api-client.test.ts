@@ -314,3 +314,55 @@ test("successful empty responses do not become false offline failures", async ()
     globalThis.fetch = previousFetch;
   }
 });
+
+test("Home cursor transports preserve mode, page size, opaque cursor and bearer", async () => {
+  const previousFetch = globalThis.fetch;
+  const requests: Array<{ url: URL; init: RequestInit | undefined }> = [];
+  globalThis.fetch = async (input, init) => {
+    requests.push({ url: new URL(String(input)), init });
+    return new Response(
+      JSON.stringify({ items: [], nextCursor: null, stopReason: "end" }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  try {
+    const api = new MobileApiClient("https://api.example.test");
+    const cursor = "opaque/+?=cursor==";
+    await api.academicFeed("owner-session", cursor);
+    await api.forYouFeed("owner-session", cursor, "balanced");
+    await api.forYouFeed("owner-session", cursor, "community");
+
+    assert.equal(requests.length, 3);
+    const [academic, forYou, community] = requests;
+    assert.equal(academic?.url.pathname, "/feeds/academic");
+    assert.equal(forYou?.url.pathname, "/feeds/for-you");
+    assert.equal(community?.url.pathname, "/feeds/for-you");
+    assert.deepEqual(
+      requests.map(({ url }) => url.searchParams.get("limit")),
+      ["6", "6", "6"],
+    );
+    assert.deepEqual(
+      requests.map(({ url }) => url.searchParams.get("cursor")),
+      [cursor, cursor, cursor],
+    );
+    assert.deepEqual(
+      requests.map(({ url }) => url.searchParams.get("mode")),
+      [null, "balanced", "community"],
+    );
+    assert.deepEqual(
+      requests.map(({ url }) => url.searchParams.get("order")),
+      [null, "ranked", "ranked"],
+    );
+    assert.ok(
+      requests.every(
+        ({ init }) =>
+          init?.method === "GET" &&
+          (init?.headers as Record<string, string>).Authorization ===
+            "Bearer owner-session",
+      ),
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
