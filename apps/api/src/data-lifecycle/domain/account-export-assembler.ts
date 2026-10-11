@@ -10,6 +10,7 @@ import {
 
 export interface AccountExportArtifactSink {
   write(chunk: string): Promise<void>;
+  commit(result: AccountExportAssemblyResult): Promise<void>;
   abort(): Promise<void>;
 }
 
@@ -122,7 +123,7 @@ export class AccountExportAssembler {
       }
 
       await writeChunk('}}');
-      return {
+      const result: AccountExportAssemblyResult = {
         format: ACCOUNT_EXPORT_FORMAT,
         formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
         sectionCount: contributors.length,
@@ -130,6 +131,8 @@ export class AccountExportAssembler {
         byteLength,
         sha256: sha256.digest('hex'),
       };
+      await sink.commit(result);
+      return result;
     } catch (error) {
       try {
         await sink.abort();

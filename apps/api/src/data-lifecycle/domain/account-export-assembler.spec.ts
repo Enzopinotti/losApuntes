@@ -9,6 +9,7 @@ import type { AccountExportContributor } from './account-export.types';
 type SinkFixture = AccountExportArtifactSink & {
   chunks: string[];
   write: jest.Mock;
+  commit: jest.Mock;
   abort: jest.Mock;
 };
 
@@ -19,6 +20,7 @@ function sinkFixture(): SinkFixture {
       output.chunks.push(chunk);
       return Promise.resolve();
     }),
+    commit: jest.fn().mockResolvedValue(undefined),
     abort: jest.fn().mockResolvedValue(undefined),
   };
   return output;
@@ -40,6 +42,10 @@ function assemblerFor(contributors: AccountExportContributor[]) {
 describe('AccountExportAssembler', () => {
   it('writes deterministic versioned JSON in registry order', async () => {
     const output = sinkFixture();
+    output.commit.mockImplementation(() => {
+      expect(output.chunks.join('').endsWith('}}')).toBe(true);
+      return Promise.resolve();
+    });
     const assembler = assemblerFor([
       contributor('profile', () =>
         Promise.resolve({
@@ -70,6 +76,8 @@ describe('AccountExportAssembler', () => {
     expect(artifact).toBe(
       '{"format":"los-apuntes-account-export","version":1,"sections":{"account":[{"id":"user-1"}],"profile":[{"displayName":"Ada"}]}}',
     );
+    expect(artifact.endsWith('}}')).toBe(true);
+    expect(output.commit.mock.calls).toEqual([[result]]);
   });
 
   it('measures UTF-8 bytes and hashes the exact streamed envelope', async () => {
@@ -234,6 +242,24 @@ describe('AccountExportAssembler', () => {
     ]);
 
     await expect(assembler.writeJsonV1('user-1', output)).rejects.toBe(failure);
+    expect(output.abort.mock.calls).toEqual([[]]);
+    expect(output.commit.mock.calls).toHaveLength(0);
+  });
+
+  it('aborts and preserves the failure when the complete artifact cannot be committed', async () => {
+    const output = sinkFixture();
+    const failure = new Error('artifact commit failed');
+    output.commit.mockRejectedValue(failure);
+    const assembler = assemblerFor([
+      contributor('account', () =>
+        Promise.resolve({ records: [{ id: 'user-1' }], nextCursor: null }),
+      ),
+    ]);
+
+    await expect(assembler.writeJsonV1('user-1', output)).rejects.toBe(failure);
+
+    expect(output.chunks.join('').endsWith('}}')).toBe(true);
+    expect(output.commit.mock.calls).toHaveLength(1);
     expect(output.abort.mock.calls).toEqual([[]]);
   });
 });
