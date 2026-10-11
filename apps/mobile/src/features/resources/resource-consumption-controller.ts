@@ -37,6 +37,7 @@ export type MobileResourceDetailSnapshot =
       saved: boolean | null;
       busy: "access" | "save" | "unsave" | null;
       failure: ResourceConsumptionFailure | null;
+      notice: "saved" | "unsaved" | null;
     };
 
 type DetailListener = (snapshot: MobileResourceDetailSnapshot) => void;
@@ -81,6 +82,7 @@ export class MobileResourceDetailController {
       saved: initialSaved,
       busy: null,
       failure: null,
+      notice: null,
     });
   }
 
@@ -114,7 +116,14 @@ export class MobileResourceDetailController {
       await this.api.save(resourceId, operation.controller.signal);
       if (!this.isCurrent(operation)) return;
       const current = this.current(authorityKey, resourceId);
-      if (current) this.publish({ ...current, saved: true, failure: null });
+      if (current) {
+        this.publish({
+          ...current,
+          saved: true,
+          failure: null,
+          notice: "saved",
+        });
+      }
     } catch (error) {
       if (this.isCurrent(operation)) this.fail(operation, error);
     } finally {
@@ -130,7 +139,14 @@ export class MobileResourceDetailController {
       await this.api.unsave(resourceId, operation.controller.signal);
       if (!this.isCurrent(operation)) return;
       const current = this.current(authorityKey, resourceId);
-      if (current) this.publish({ ...current, saved: false, failure: null });
+      if (current) {
+        this.publish({
+          ...current,
+          saved: false,
+          failure: null,
+          notice: "unsaved",
+        });
+      }
     } catch (error) {
       if (this.isCurrent(operation)) this.fail(operation, error);
     } finally {
@@ -148,7 +164,7 @@ export class MobileResourceDetailController {
 
     const current = this.snapshot;
     this.cancel();
-    this.publish({ ...current, busy: null });
+    this.publish({ ...current, busy: null, notice: null });
   }
 
   invalidate(authorityKey?: string): void {
@@ -180,7 +196,7 @@ export class MobileResourceDetailController {
       controller: new AbortController(),
     };
     this.active = operation;
-    this.publish({ ...current, busy, failure: null });
+    this.publish({ ...current, busy, failure: null, notice: null });
     return operation;
   }
 
@@ -246,6 +262,16 @@ export type MobileSavedResourcesSnapshot =
       data: ResourceSavedPage;
       loadingMore: boolean;
       failure: ResourceConsumptionFailure | null;
+      removingResourceId: string | null;
+      removalFailure: {
+        resourceId: string;
+        failure: ResourceConsumptionFailure;
+      } | null;
+      notice: {
+        operationId: number;
+        resourceId: string;
+        resourceTitle: string;
+      } | null;
     };
 
 type SavedListener = (snapshot: MobileSavedResourcesSnapshot) => void;
@@ -254,6 +280,7 @@ type SavedOperation = {
   authorityKey: string;
   generation: number;
   controller: AbortController;
+  kind: "load" | "loadMore" | "remove";
 };
 
 function appendUniqueResources(
@@ -284,8 +311,15 @@ export class MobileSavedResourcesController {
   }
 
   async load(authorityKey: string): Promise<void> {
+    if (
+      this.active?.kind === "remove" &&
+      this.active.authorityKey === authorityKey
+    ) {
+      return;
+    }
+
     this.authorityKey = authorityKey;
-    const operation = this.begin(authorityKey);
+    const operation = this.begin(authorityKey, "load");
     this.publish({ kind: "loading", authorityKey });
 
     try {
@@ -297,6 +331,9 @@ export class MobileSavedResourcesController {
         data,
         loadingMore: false,
         failure: null,
+        removingResourceId: null,
+        removalFailure: null,
+        notice: null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
@@ -320,7 +357,7 @@ export class MobileSavedResourcesController {
     )
       return;
 
-    const operation = this.begin(authorityKey);
+    const operation = this.begin(authorityKey, "loadMore");
     this.publish({ ...current, loadingMore: true, failure: null });
 
     try {
@@ -355,6 +392,65 @@ export class MobileSavedResourcesController {
     }
   }
 
+  async removeSaved(authorityKey: string, resourceId: string): Promise<void> {
+    const current = this.currentReady(authorityKey);
+    if (
+      !current ||
+      current.removingResourceId ||
+      this.active ||
+      !current.data.items.some((item) => item.id === resourceId)
+    ) {
+      return;
+    }
+
+    const operation = this.begin(authorityKey, "remove");
+    this.publish({
+      ...current,
+      removingResourceId: resourceId,
+      removalFailure: null,
+      notice: null,
+    });
+
+    try {
+      await this.api.unsave(resourceId, operation.controller.signal);
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+      const removed = latest.data.items.find((item) => item.id === resourceId);
+      if (!removed) return;
+
+      this.publish({
+        ...latest,
+        data: {
+          ...latest.data,
+          items: latest.data.items.filter((item) => item.id !== resourceId),
+        },
+        removingResourceId: null,
+        removalFailure: null,
+        notice: {
+          operationId: operation.generation,
+          resourceId,
+          resourceTitle: removed.title,
+        },
+      });
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+      this.publish({
+        ...latest,
+        removingResourceId: null,
+        removalFailure: {
+          resourceId,
+          failure: resourceConsumptionFailure(error),
+        },
+        notice: null,
+      });
+    } finally {
+      this.finish(operation);
+    }
+  }
+
   invalidate(authorityKey?: string): void {
     if (authorityKey && authorityKey !== this.authorityKey) return;
 
@@ -374,19 +470,29 @@ export class MobileSavedResourcesController {
 
     const current = this.currentReady(authorityKey);
     if (current) {
-      this.publish({ ...current, loadingMore: false });
+      this.publish({
+        ...current,
+        loadingMore: false,
+        removingResourceId: null,
+        removalFailure: null,
+        notice: null,
+      });
     } else {
       this.publish({ kind: "idle" });
     }
   }
 
-  private begin(authorityKey: string): SavedOperation {
+  private begin(
+    authorityKey: string,
+    kind: SavedOperation["kind"],
+  ): SavedOperation {
     this.generation += 1;
     this.active?.controller.abort();
     const operation = {
       authorityKey,
       generation: this.generation,
       controller: new AbortController(),
+      kind,
     };
     this.active = operation;
     return operation;
