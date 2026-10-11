@@ -29,6 +29,7 @@ import {
 } from './resource-export.store';
 import type {
   ResourceAccountExportShareCursor,
+  ResourceReportAccountExportRow,
   ResourceRecord,
   ResourceSearchCursor,
 } from './resource.types';
@@ -591,6 +592,41 @@ export class ResourceService {
       nextCursor: page.nextCursor
         ? encodeResourceShareExportCursor(page.nextCursor)
         : null,
+    };
+  }
+
+  async listAccountExportSubmittedReports(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<
+      Pick<
+        ResourceReportAccountExportRow,
+        'id' | 'resourceId' | 'reason' | 'details'
+      > & {
+        createdAt: string;
+      }
+    >;
+    nextCursor: string | null;
+  }> {
+    assertResourceExportLimit(input.limit);
+    const page = await this.exportStore.listSubmittedReportsForExport({
+      reporterUserId: userId,
+      limit: input.limit,
+      afterId: decodeResourceExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => ({
+        id: row.id,
+        resourceId: row.resourceId,
+        reason: row.reason,
+        details: row.details ?? null,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last ? encodeResourceExportCursor(last.id) : null,
     };
   }
 

@@ -47,6 +47,10 @@ import { OrganizationFollowingExportContributor } from './contributors/account-e
 import { OrganizationManagementExportContributor } from './contributors/account-export-organization-management.contributors';
 import { OrganizationSubmittedReportsExportContributor } from './contributors/account-export-organization-reports.contributors';
 import {
+  QaSubmittedReportsExportContributor,
+  ResourceSubmittedReportsExportContributor,
+} from './contributors/account-export-submitted-reports.contributors';
+import {
   SocialConnectionsExportContributor,
   SocialFollowingExportContributor,
 } from './contributors/account-export-social.contributors';
@@ -116,6 +120,8 @@ import {
     OrganizationFollowingExportContributor,
     OrganizationManagementExportContributor,
     OrganizationSubmittedReportsExportContributor,
+    QaSubmittedReportsExportContributor,
+    ResourceSubmittedReportsExportContributor,
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
     {
@@ -140,6 +146,8 @@ import {
         organizationFollowing: OrganizationFollowingExportContributor,
         organizationManagement: OrganizationManagementExportContributor,
         organizationSubmittedReports: OrganizationSubmittedReportsExportContributor,
+        qaSubmittedReports: QaSubmittedReportsExportContributor,
+        resourceSubmittedReports: ResourceSubmittedReportsExportContributor,
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
       ) => [
@@ -162,6 +170,8 @@ import {
         organizationFollowing,
         organizationManagement,
         organizationSubmittedReports,
+        qaSubmittedReports,
+        resourceSubmittedReports,
         socialFollowing,
         socialConnections,
       ],
@@ -185,6 +195,8 @@ import {
         OrganizationFollowingExportContributor,
         OrganizationManagementExportContributor,
         OrganizationSubmittedReportsExportContributor,
+        QaSubmittedReportsExportContributor,
+        ResourceSubmittedReportsExportContributor,
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
       ],

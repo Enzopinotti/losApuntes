@@ -7,8 +7,13 @@ import type {
   ResourceAccountExportRecord,
   ResourceAccountExportShareCursor,
   ResourceAccountExportShareGrantRecord,
+  ResourceReportAccountExportRow,
 } from '../domain/resource.types';
-import { Resource, ResourceShare } from './resource.mongo-schemas';
+import {
+  Resource,
+  ResourceReport,
+  ResourceShare,
+} from './resource.mongo-schemas';
 
 @Injectable()
 export class MongoResourceExportStore implements ResourceExportStore {
@@ -17,6 +22,8 @@ export class MongoResourceExportStore implements ResourceExportStore {
     private readonly resources: Model<Resource>,
     @InjectModel(ResourceShare.name)
     private readonly shares: Model<ResourceShare>,
+    @InjectModel(ResourceReport.name)
+    private readonly reports: Model<ResourceReport>,
   ) {}
 
   async listAuthoredResourcesForExport(
@@ -44,6 +51,33 @@ export class MongoResourceExportStore implements ResourceExportStore {
       .sort({ id: 1 })
       .limit(input.limit + 1)
       .lean<ResourceAccountExportRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listSubmittedReportsForExport(
+    input: Parameters<ResourceExportStore['listSubmittedReportsForExport']>[0],
+  ): ReturnType<ResourceExportStore['listSubmittedReportsForExport']> {
+    const rows = await this.reports
+      .find({
+        reporterUserId: input.reporterUserId,
+        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
+      })
+      .select({
+        _id: 0,
+        id: 1,
+        resourceId: 1,
+        reason: 1,
+        details: 1,
+        createdAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<ResourceReportAccountExportRow[]>()
       .exec();
 
     return {

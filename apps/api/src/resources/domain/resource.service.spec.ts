@@ -94,6 +94,7 @@ function dependencies() {
   const exportStore: jest.Mocked<ResourceExportStore> = {
     listAuthoredResourcesForExport: jest.fn(),
     listAuthoredResourceShareGrantsForExport: jest.fn(),
+    listSubmittedReportsForExport: jest.fn(),
   };
   const files: jest.Mocked<FileApi> = {
     getReadyAssetForResource: jest.fn(),
@@ -460,6 +461,100 @@ describe('ResourceService', () => {
     });
     expect(
       deps.exportStore.listAuthoredResourceShareGrantsForExport.mock.calls,
+    ).toHaveLength(0);
+  });
+
+  it('exports only the owner submitted Resource report without review outcomes or target lookup', async () => {
+    const deps = dependencies();
+    const cursor = Buffer.from(
+      JSON.stringify({ id: 'report-before' }),
+    ).toString('base64url');
+    deps.exportStore.listSubmittedReportsForExport.mockResolvedValue({
+      items: [
+        {
+          id: 'resource-report-1',
+          resourceId: 'moderated-resource-ref',
+          reason: 'copyright',
+          details: 'I submitted this report.',
+          createdAt: now,
+          status: 'resolved',
+          updatedAt: new Date('2026-09-24T12:00:00.000Z'),
+          reviewedByUserId: 'moderator-user',
+          reviewedAt: new Date('2026-09-24T13:00:00.000Z'),
+          reviewReason: 'Internal decision',
+          reviewAction: 'hide',
+        } as never,
+      ],
+      hasMore: true,
+    });
+
+    const result = await service(
+      store(),
+      deps,
+    ).listAccountExportSubmittedReports('owner-1', { limit: 1, cursor });
+
+    expect(deps.exportStore.listSubmittedReportsForExport.mock.calls).toEqual([
+      [
+        {
+          reporterUserId: 'owner-1',
+          limit: 1,
+          afterId: 'report-before',
+        },
+      ],
+    ]);
+    expect(result).toEqual({
+      items: [
+        {
+          id: 'resource-report-1',
+          resourceId: 'moderated-resource-ref',
+          reason: 'copyright',
+          details: 'I submitted this report.',
+          createdAt: now.toISOString(),
+        },
+      ],
+      nextCursor: Buffer.from(
+        JSON.stringify({ id: 'resource-report-1' }),
+      ).toString('base64url'),
+    });
+    for (const key of [
+      'reporterUserId',
+      'status',
+      'updatedAt',
+      'reviewedByUserId',
+      'reviewedAt',
+      'reviewReason',
+      'reviewAction',
+    ]) {
+      expect(result.items[0]).not.toHaveProperty(key);
+    }
+    expect(deps.files.getReadyAssetForResource).not.toHaveBeenCalled();
+    expect(deps.profiles.getProfileIdsForAccountExport).not.toHaveBeenCalled();
+  });
+
+  it('validates Resource report export cursor and page size before querying', async () => {
+    const deps = dependencies();
+    const api = service(store(), deps);
+
+    await expect(
+      api.listAccountExportSubmittedReports('owner-1', {
+        limit: 100,
+        cursor: Buffer.from(
+          JSON.stringify({ id: 'report-1', reporterUserId: 'internal-user' }),
+        ).toString('base64url'),
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_EXPORT_CURSOR_INVALID' },
+    });
+    await expect(
+      api.listAccountExportSubmittedReports('owner-1', {
+        limit: 101,
+        cursor: null,
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_EXPORT_PAGE_LIMIT_INVALID' },
+    });
+    expect(
+      deps.exportStore.listSubmittedReportsForExport.mock.calls,
     ).toHaveLength(0);
   });
 

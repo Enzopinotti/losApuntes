@@ -194,10 +194,23 @@ Q&A contributes two owner-scoped sections:
 Both sections read only rows authored by the owner through explicit Mongo field
 allowlists and stable `id ASC` cursors. The page limit is capped at 100 and the
 queries use `{ authorUserId: 1, id: 1 }` indexes. Hidden authored content is
-included for the owner, but the export omits moderation metadata and reports,
+included for the owner, but the authored-content sections omit moderation metadata,
 search text, answer counts, accepted-answer pointers, internal revisions and
 author user ids. An answer references its Question by id only; the export
 does not resolve or include another author's Question content.
+
+### Implemented Q&A submitted reports section
+
+`qa.submittedReports` contains only `QaReport` rows whose `reporterUserId`
+exactly matches the export owner. Each portable record contains the stable
+report `id`, `targetType`, `targetId` as an opaque reference, the owner's
+`reason` and `details`, and `createdAt`. A missing or moderated target remains
+an opaque reference; export does not resolve the Question or Answer.
+
+Pages use immutable `id ASC`, `limit + 1`, a maximum page size of 100 and the
+`{ reporterUserId: 1, id: 1 }` index. The query-time projection excludes report
+status, update time, reviewer identity/time/reason/action and all target
+content. This is the owner's submission, not moderation history.
 
 ### Implemented social relationship sections
 
@@ -337,7 +350,7 @@ Post/Event history or a moderation audit log.
 
 ### Implemented Resource history sections
 
-Resources contributes three owner-scoped sections:
+Resources contributes four owner-scoped sections:
 
 - `resources.authored` — the user's own Resource metadata, including private
   and hidden authored history, current visibility/moderation state, academic
@@ -345,7 +358,9 @@ Resources contributes three owner-scoped sections:
 - `resources.saved` — the user's saved Resource references and save time;
 - `resources.sharedGrants` — the user's currently active explicit sharing
   grants over Resources they authored, including each recipient's stable
-  Profile id and the grant creation time.
+  Profile id and the grant creation time;
+- `resources.submittedReports` — the user's own Resource report submissions,
+  with an opaque Resource reference and the report text they supplied.
 
 Authored Resources use a query-time field allowlist and immutable `id ASC`
 pagination with a `{ authorUserId: 1, id: 1 }` index. The caller's page limit
@@ -374,15 +389,21 @@ the owner's Resources or grants at once.
 
 The Resource/FileAsset lifecycle contract remains independent: creator
 provenance and a Resource reference do not authorize deletion or byte access.
-These Resource sections are still a partial contributor slice and are not
-enough to expose a complete downloadable account export.
+Submitted report rows use the exact `reporterUserId` owner filter, an explicit
+projection, `id ASC`, `limit + 1`, a maximum page size of 100 and the
+`{ reporterUserId: 1, id: 1 }` index. Their portable fields are `id`,
+`resourceId`, `reason`, `details` and `createdAt`; absent details normalize to
+`null`. Report status, update time, reviewer identity/time/reason/action,
+Resource content, FileAsset metadata and file bytes are excluded. The Resource
+reference is not resolved and grants no access. These sections remain partial
+contributors and do not make a complete downloadable account export.
 
 ## Implemented internal streaming artifact assembly
 
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -451,21 +472,23 @@ This foundation does not decide:
 
 Those remain #82/#48 or later #183 slices.
 
-Resource authored metadata, saved references and current explicit share grants
-are implemented partial contributors; Resource file bytes and a historical
-revocation log remain outside them. Q&A authored questions and answers, Social
+Resource authored metadata, saved references, current explicit share grants
+and submitted report metadata are implemented partial contributors; Resource
+file bytes and a historical revocation log remain outside them. Q&A authored
+questions/answers and the owner's submitted reports, Social
 Following/Connection history, the owner's Notification inbox, current
 Organization follows and owner-authored Organization Posts/Events are also
 implemented partial contributors. The owner's current Organization manager
 roles and submitted reports are separate implemented partial contributors;
 management/member history and report moderation outcomes remain outside the
-current contributor set. Academic affiliation lifecycle state, including its
-alumni status/roles, is carried by `academic.affiliations`. The API has no
+current contributor set. Resource and Q&A reports also exclude moderation
+outcomes and target content. Academic affiliation lifecycle state, including
+its alumni status/roles, is carried by `academic.affiliations`. The API has no
 separate Alumni data authority or contributor. User-authored Academic catalog
 proposals now appear as the separate partial `academic.proposals` section;
 moderation outcomes and catalog source provenance remain excluded. The
-presence of core, Academic and partial Resource sections does not make the
-overall export product complete or ready for public HTTP delivery.
+presence of core, Academic, Q&A, Resource and other partial sections does not
+make the overall export product complete or ready for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 
