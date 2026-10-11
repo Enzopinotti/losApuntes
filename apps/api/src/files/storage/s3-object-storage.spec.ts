@@ -233,6 +233,35 @@ describe('S3ObjectStorage', () => {
     );
   });
 
+  it('cancels the provider response when a downstream stream stops early', async () => {
+    let cancelled = false;
+    let sent = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent) return;
+        controller.enqueue(Buffer.from('first chunk'));
+        sent = true;
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(body, { status: 200 }));
+    const reader = storage()
+      .readObjectChunks('cancel-me', 1024)
+      [Symbol.asyncIterator]();
+
+    await expect(reader.next()).resolves.toMatchObject({
+      done: false,
+      value: Buffer.from('first chunk'),
+    });
+    await reader.return?.();
+
+    expect(cancelled).toBe(true);
+  });
+
   it('treats delete 404 as idempotent and surfaces provider failures', async () => {
     jest
       .spyOn(global, 'fetch')

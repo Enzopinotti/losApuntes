@@ -694,11 +694,15 @@ export function createS3ObjectStorage(
       if (!response.body) throw new Error('S3 GET object returned no body');
 
       const reader = response.body.getReader();
+      let streamEnded = false;
 
       try {
         while (true) {
           const result = await reader.read();
-          if (result.done) return;
+          if (result.done) {
+            streamEnded = true;
+            return;
+          }
 
           for (
             let offset = 0;
@@ -712,6 +716,9 @@ export function createS3ObjectStorage(
           }
         }
       } finally {
+        if (!streamEnded) {
+          await reader.cancel().catch(() => undefined);
+        }
         reader.releaseLock();
       }
     },
