@@ -43,6 +43,7 @@ import {
   OrganizationAuthoredPostsExportContributor,
 } from './contributors/account-export-organization-content.contributors';
 import { OrganizationFollowingExportContributor } from './contributors/account-export-organization-following.contributors';
+import { OrganizationManagementExportContributor } from './contributors/account-export-organization-management.contributors';
 import {
   SocialConnectionsExportContributor,
   SocialFollowingExportContributor,
@@ -110,6 +111,7 @@ import {
     OrganizationAuthoredEventsExportContributor,
     OrganizationAuthoredPostsExportContributor,
     OrganizationFollowingExportContributor,
+    OrganizationManagementExportContributor,
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
     {
@@ -131,6 +133,7 @@ import {
         organizationAuthoredEvents: OrganizationAuthoredEventsExportContributor,
         organizationAuthoredPosts: OrganizationAuthoredPostsExportContributor,
         organizationFollowing: OrganizationFollowingExportContributor,
+        organizationManagement: OrganizationManagementExportContributor,
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
       ) => [
@@ -150,6 +153,7 @@ import {
         organizationAuthoredEvents,
         organizationAuthoredPosts,
         organizationFollowing,
+        organizationManagement,
         socialFollowing,
         socialConnections,
       ],
@@ -170,6 +174,7 @@ import {
         OrganizationAuthoredEventsExportContributor,
         OrganizationAuthoredPostsExportContributor,
         OrganizationFollowingExportContributor,
+        OrganizationManagementExportContributor,
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
       ],

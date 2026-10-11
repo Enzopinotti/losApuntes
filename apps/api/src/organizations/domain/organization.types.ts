@@ -67,6 +67,15 @@ export interface OrganizationManagerRecord {
   updatedAt: Date;
 }
 
+export type OrganizationManagerAccountExportRow = Pick<
+  OrganizationManagerRecord,
+  'organizationId' | 'role' | 'createdAt' | 'updatedAt'
+>;
+
+export interface OrganizationManagerAccountExportCursor {
+  organizationId: string;
+}
+
 export const ORGANIZATION_AUDIT_EVENTS = [
   'organization.created',
   'organization.updated',

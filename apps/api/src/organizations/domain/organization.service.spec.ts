@@ -120,6 +120,7 @@ function store(): jest.Mocked<OrganizationStore> {
     countFollowers: jest.fn(),
     listFollowedOrganizationIds: jest.fn(),
     listForAccountExportFollowing: jest.fn(),
+    listForAccountExportManagement: jest.fn(),
     findPostById: jest.fn(),
     findPostByGlobalId: jest.fn(),
     listPosts: jest.fn(),
@@ -516,6 +517,65 @@ describe('OrganizationService', () => {
     ]);
   });
 
+  it('exports only the owner current organization management roles in stable pages', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const managerRow = {
+      organizationId: orgId,
+      role: 'admin' as const,
+      createdAt: now,
+      updatedAt: new Date('2026-09-25T04:00:00.000Z'),
+    };
+    organizationStore.listForAccountExportManagement
+      .mockResolvedValueOnce({ items: [managerRow], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    const instance = service(organizationStore, dependencies);
+
+    const first = await instance.listAccountExportManagement('owner-user', {
+      limit: 1,
+      cursor: null,
+    });
+
+    expect(first.items).toEqual([
+      {
+        organizationId: orgId,
+        role: 'admin',
+        createdAt: now.toISOString(),
+        updatedAt: '2026-09-25T04:00:00.000Z',
+      },
+    ]);
+    expect(first.items[0]).not.toHaveProperty('userId');
+    expect(first.items[0]).not.toHaveProperty('name');
+    expect(first.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: orgId,
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    expect(
+      organizationStore.listForAccountExportManagement.mock.calls[0],
+    ).toEqual([{ userId: 'owner-user', limit: 1, after: undefined }]);
+
+    await expect(
+      instance.listAccountExportManagement('owner-user', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listForAccountExportManagement.mock.calls[1],
+    ).toEqual([
+      {
+        userId: 'owner-user',
+        limit: 1,
+        after: { organizationId: orgId },
+      },
+    ]);
+  });
+
   it('rejects out-of-range limits and noncanonical or malformed export cursors', async () => {
     const organizationStore = store();
     const dependencies = deps();
@@ -576,11 +636,67 @@ describe('OrganizationService', () => {
       'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
     );
 
+    const invalidManagementCursors = [
+      '!',
+      'a'.repeat(257),
+      Buffer.from('{', 'utf8').toString('base64url'),
+      Buffer.from('null', 'utf8').toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.authoredPosts',
+          organizationId: orgId,
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: '',
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: 'x'.repeat(129),
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: 42,
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: orgId,
+          userId: 'other-user',
+        }),
+        'utf8',
+      ).toString('base64url'),
+    ];
+
+    for (const cursor of invalidManagementCursors) {
+      await expectCode(
+        instance.listAccountExportManagement('owner-user', {
+          limit: 100,
+          cursor,
+        }),
+        'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      );
+    }
+
     expect(
       organizationStore.listForAccountExportFollowing.mock.calls,
     ).toHaveLength(0);
     expect(
       organizationStore.listAuthoredPostsForAccountExport.mock.calls,
+    ).toHaveLength(0);
+    expect(
+      organizationStore.listForAccountExportManagement.mock.calls,
     ).toHaveLength(0);
   });
 

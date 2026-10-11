@@ -957,6 +957,53 @@ describe('MongoOrganizationStore account export following', () => {
   });
 });
 
+describe('MongoOrganizationStore account export management', () => {
+  it('reads only the owner manager rows with an explicit projection and stable limit+1 page', async () => {
+    const first = {
+      organizationId,
+      role: 'admin',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const fixture = models({ managerRows: [first, { ...first }] });
+
+    const firstPage = await fixture.store.listForAccountExportManagement({
+      userId: actorUserId,
+      limit: 1,
+    });
+    const result = await fixture.store.listForAccountExportManagement({
+      userId: actorUserId,
+      limit: 1,
+      after: { organizationId: '00000000-0000-4000-8000-000000000000' },
+    });
+
+    expect(fixture.managers.find).toHaveBeenNthCalledWith(1, {
+      $and: [{ userId: actorUserId }],
+    });
+    expect(fixture.managers.find).toHaveBeenNthCalledWith(2, {
+      $and: [
+        { userId: actorUserId },
+        { organizationId: { $gt: '00000000-0000-4000-8000-000000000000' } },
+      ],
+    });
+    expect(fixture.managerListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      organizationId: 1,
+      role: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.managerListQuery.sort).toHaveBeenCalledWith({
+      organizationId: 1,
+    });
+    expect(fixture.managerListQuery.limit).toHaveBeenNthCalledWith(1, 2);
+    expect(fixture.managerListQuery.limit).toHaveBeenNthCalledWith(2, 2);
+    expect(firstPage).toEqual({ items: [first], hasMore: true });
+    expect(result).toEqual({ items: [first], hasMore: true });
+    expect(fixture.organizations.findOne).not.toHaveBeenCalled();
+  });
+});
+
 describe('MongoOrganizationStore account export authored content', () => {
   it('reads only the owner Posts with an explicit projection and stable id page', async () => {
     const first = {

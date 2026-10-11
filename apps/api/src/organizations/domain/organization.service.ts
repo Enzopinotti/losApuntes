@@ -45,6 +45,8 @@ import type {
   OrganizationEventAccountExportRow,
   OrganizationContentAccountExportCursor,
   OrganizationFollowAccountExportCursor,
+  OrganizationManagerAccountExportCursor,
+  OrganizationManagerAccountExportRow,
   OrganizationManagerRecord,
   OrganizationManagerRole,
   OrganizationPostCursor,
@@ -143,6 +145,66 @@ function encodeAccountExportContentCursor(
   cursor: OrganizationContentAccountExportCursor,
 ): string {
   return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function encodeAccountExportManagementCursor(
+  cursor: OrganizationManagerAccountExportCursor,
+): string {
+  return Buffer.from(
+    JSON.stringify({
+      section: 'organizations.management',
+      organizationId: cursor.organizationId,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAccountExportManagementCursor(
+  value: string | null,
+): OrganizationManagerAccountExportCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    if (
+      value.length === 0 ||
+      value.length > 256 ||
+      !/^[A-Za-z0-9_-]+$/u.test(value)
+    ) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) {
+      throw new Error('noncanonical cursor encoding');
+    }
+
+    const parsed: unknown = JSON.parse(decoded.toString('utf8'));
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('invalid cursor payload');
+    }
+
+    const cursor = parsed as Record<string, unknown>;
+    if (
+      Object.keys(cursor).length !== 2 ||
+      cursor.section !== 'organizations.management' ||
+      typeof cursor.organizationId !== 'string' ||
+      cursor.organizationId.length === 0 ||
+      cursor.organizationId.length > 128
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    return { organizationId: cursor.organizationId };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'Organization account export cursor is invalid',
+    });
+  }
 }
 
 function decodeAccountExportContentCursor(
@@ -780,6 +842,42 @@ export class OrganizationService {
         page.hasMore && last
           ? encodeAccountExportFollowCursor({
               createdAt: last.createdAt,
+              organizationId: last.organizationId,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportManagement(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      organizationId: string;
+      role: OrganizationManagerAccountExportRow['role'];
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listForAccountExportManagement({
+      userId,
+      limit: input.limit,
+      after: decodeAccountExportManagementCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row: OrganizationManagerAccountExportRow) => ({
+        organizationId: row.organizationId,
+        role: row.role,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportManagementCursor({
               organizationId: last.organizationId,
             })
           : null,
