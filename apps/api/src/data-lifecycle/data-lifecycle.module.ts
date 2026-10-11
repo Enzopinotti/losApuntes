@@ -10,6 +10,7 @@ import {
 import { ProfileModule } from '../profile/profile.module';
 import { QaModule } from '../qa/qa.module';
 import { ResourcesModule } from '../resources/resources.module';
+import { SocialModule } from '../social/social.module';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -34,6 +35,10 @@ import {
   AuthoredAnswersExportContributor,
   AuthoredQuestionsExportContributor,
 } from './contributors/account-export-qa.contributors';
+import {
+  SocialConnectionsExportContributor,
+  SocialFollowingExportContributor,
+} from './contributors/account-export-social.contributors';
 import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
@@ -64,6 +69,7 @@ import {
     ProfileModule,
     QaModule,
     ResourcesModule,
+    SocialModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
@@ -90,6 +96,8 @@ import {
     SharedResourceGrantsExportContributor,
     AuthoredQuestionsExportContributor,
     AuthoredAnswersExportContributor,
+    SocialFollowingExportContributor,
+    SocialConnectionsExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -105,6 +113,8 @@ import {
         sharedResourceGrants: SharedResourceGrantsExportContributor,
         authoredQuestions: AuthoredQuestionsExportContributor,
         authoredAnswers: AuthoredAnswersExportContributor,
+        socialFollowing: SocialFollowingExportContributor,
+        socialConnections: SocialConnectionsExportContributor,
       ) => [
         account,
         profile,
@@ -118,6 +128,8 @@ import {
         sharedResourceGrants,
         authoredQuestions,
         authoredAnswers,
+        socialFollowing,
+        socialConnections,
       ],
       inject: [
         AccountIdentityExportContributor,
@@ -132,6 +144,8 @@ import {
         SharedResourceGrantsExportContributor,
         AuthoredQuestionsExportContributor,
         AuthoredAnswersExportContributor,
+        SocialFollowingExportContributor,
+        SocialConnectionsExportContributor,
       ],
     },
     AccountExportContributorRegistry,

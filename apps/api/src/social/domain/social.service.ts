@@ -14,7 +14,89 @@ import {
   SocialParticipantInactiveError,
   type SocialStore,
 } from './social.store';
-import type { ConnectionRecord, SocialCursor } from './social.types';
+import type {
+  ConnectionAccountExportRow,
+  ConnectionRecord,
+  SocialCursor,
+} from './social.types';
+
+const SOCIAL_ACCOUNT_EXPORT_MAX_LIMIT = 100;
+
+function assertAccountExportLimit(limit: number): void {
+  if (
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > SOCIAL_ACCOUNT_EXPORT_MAX_LIMIT
+  ) {
+    throw new UnprocessableEntityException({
+      code: 'SOCIAL_ACCOUNT_EXPORT_LIMIT_INVALID',
+      message: 'Social account export limit is invalid',
+    });
+  }
+}
+
+function encodeAccountExportCursor(cursor: SocialCursor): string {
+  return Buffer.from(
+    JSON.stringify({ at: cursor.at.toISOString(), id: cursor.id }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAccountExportCursor(
+  value: string | null,
+): SocialCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    if (
+      value.length === 0 ||
+      value.length > 512 ||
+      !/^[A-Za-z0-9_-]+$/u.test(value)
+    ) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) {
+      throw new Error('noncanonical cursor encoding');
+    }
+
+    const parsed: unknown = JSON.parse(decoded.toString('utf8'));
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('invalid cursor payload');
+    }
+
+    const cursor = parsed as Record<string, unknown>;
+    const keys = Object.keys(cursor);
+    if (
+      keys.length !== 2 ||
+      !keys.includes('at') ||
+      !keys.includes('id') ||
+      typeof cursor.at !== 'string' ||
+      typeof cursor.id !== 'string' ||
+      cursor.id.length === 0 ||
+      cursor.id.length > 128
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    const at = new Date(cursor.at);
+    if (Number.isNaN(at.getTime()) || at.toISOString() !== cursor.at) {
+      throw new Error('invalid cursor timestamp');
+    }
+
+    return { at, id: cursor.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'SOCIAL_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'Social account export cursor is invalid',
+    });
+  }
+}
 
 function encodeCursor(cursor: SocialCursor): string {
   return Buffer.from(
@@ -182,6 +264,87 @@ export class SocialService {
       nextCursor:
         hasMore && last
           ? encodeCursor({ at: last.updatedAt, id: last.id })
+          : null,
+    };
+  }
+
+  async listAccountExportFollowing(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{ followeeProfileId: string; followedAt: string }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listFollowingForAccountExport(
+      userId,
+      input.limit,
+      decodeAccountExportCursor(input.cursor),
+    );
+    const profileIds = await this.profiles.getProfileIdsForAccountExport(
+      page.items.map((row) => row.followeeUserId),
+    );
+    const items = page.items.map((row) => ({
+      followeeProfileId: this.requireExportProfileId(
+        profileIds,
+        row.followeeUserId,
+      ),
+      followedAt: row.createdAt.toISOString(),
+    }));
+    const last = page.items.at(-1);
+
+    return {
+      items,
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportCursor({ at: last.createdAt, id: last.id })
+          : null,
+    };
+  }
+
+  async listAccountExportConnections(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      counterpartProfileId: string;
+      status: ConnectionAccountExportRow['status'];
+      requestedByOwner: boolean;
+      createdAt: string;
+      respondedAt: string | null;
+      updatedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listConnectionsForAccountExport(
+      userId,
+      input.limit,
+      decodeAccountExportCursor(input.cursor),
+    );
+    const counterpartUserIds = page.items.map((row) =>
+      this.requireConnectionCounterpart(row, userId),
+    );
+    const profileIds =
+      await this.profiles.getProfileIdsForAccountExport(counterpartUserIds);
+    const items = page.items.map((row, index) => ({
+      counterpartProfileId: this.requireExportProfileId(
+        profileIds,
+        counterpartUserIds[index],
+      ),
+      status: row.status,
+      requestedByOwner: row.requestedByUserId === userId,
+      createdAt: row.createdAt.toISOString(),
+      respondedAt: row.respondedAt?.toISOString() ?? null,
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+    const last = page.items.at(-1);
+
+    return {
+      items,
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportCursor({ at: last.updatedAt, id: last.id })
           : null,
     };
   }
@@ -357,6 +520,31 @@ export class SocialService {
       createdAt: connection.createdAt.toISOString(),
       updatedAt: connection.updatedAt.toISOString(),
     };
+  }
+
+  private requireExportProfileId(
+    profileIds: ReadonlyMap<string, string>,
+    userId: string,
+  ): string {
+    const profileId = profileIds.get(userId);
+    if (!profileId) this.profileNotFound();
+    return profileId;
+  }
+
+  private requireConnectionCounterpart(
+    connection: ConnectionAccountExportRow,
+    ownerUserId: string,
+  ): string {
+    const ownerIsLow = connection.userLowId === ownerUserId;
+    const ownerIsHigh = connection.userHighId === ownerUserId;
+    const requesterIsParticipant =
+      connection.requestedByUserId === connection.userLowId ||
+      connection.requestedByUserId === connection.userHighId;
+    if (ownerIsLow === ownerIsHigh || !requesterIsParticipant) {
+      throw new Error('Account export Connection participant is invalid');
+    }
+
+    return ownerIsLow ? connection.userHighId : connection.userLowId;
   }
 
   private selfRelation(): never {

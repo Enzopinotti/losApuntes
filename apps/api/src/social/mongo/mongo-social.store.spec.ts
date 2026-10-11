@@ -4,7 +4,11 @@ import { Notification } from '../../notifications/mongo/notification.mongo-schem
 import { User } from '../../users/schemas/user.schema';
 import { SocialParticipantInactiveError } from '../domain/social.store';
 import type { ConnectionRecord, FollowRecord } from '../domain/social.types';
-import { SocialConnection, SocialFollow } from './social.mongo-schemas';
+import {
+  SocialConnection,
+  SocialConnectionSchema,
+  SocialFollow,
+} from './social.mongo-schemas';
 import { MongoSocialStore } from './mongo-social.store';
 
 const now = new Date('2026-10-10T12:00:00.000Z');
@@ -16,6 +20,21 @@ function query(value: unknown) {
     exec: jest.fn().mockResolvedValue(value),
   };
   chain.session.mockReturnValue(chain);
+  chain.lean.mockReturnValue(chain);
+  return chain;
+}
+
+function listQuery(value: unknown) {
+  const chain = {
+    select: jest.fn(),
+    sort: jest.fn(),
+    limit: jest.fn(),
+    lean: jest.fn(),
+    exec: jest.fn().mockResolvedValue(value),
+  };
+  chain.select.mockReturnValue(chain);
+  chain.sort.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
   chain.lean.mockReturnValue(chain);
   return chain;
 }
@@ -50,6 +69,8 @@ function fixture(
     inactiveUserIds?: string[];
     followRows?: unknown[];
     connectionRows?: unknown[];
+    exportFollowingRows?: unknown[];
+    exportConnectionRows?: unknown[];
   } = {},
 ) {
   const session = {
@@ -63,14 +84,18 @@ function fixture(
   };
   const followRows = [...(input.followRows ?? [])];
   const connectionRows = [...(input.connectionRows ?? [])];
+  const followExportQuery = listQuery(input.exportFollowingRows ?? []);
+  const connectionExportQuery = listQuery(input.exportConnectionRows ?? []);
   const follows = {
     findOne: jest.fn(() => query(followRows.shift() ?? null)),
+    find: jest.fn(() => followExportQuery),
     updateOne: jest.fn(() => ({
       exec: jest.fn().mockResolvedValue({ upsertedCount: 1 }),
     })),
   };
   const connections = {
     findOne: jest.fn(() => query(connectionRows.shift() ?? null)),
+    find: jest.fn(() => connectionExportQuery),
     findOneAndUpdate: jest.fn(() => query(connection('pending'))),
     create: jest.fn().mockImplementation((rows: Array<{ id: string }>) =>
       Promise.resolve([
@@ -110,6 +135,8 @@ function fixture(
     connections,
     notifications,
     users,
+    followExportQuery,
+    connectionExportQuery,
   };
 }
 
@@ -345,5 +372,95 @@ describe('MongoSocialStore active target fence', () => {
     ).resolves.toEqual(declined);
     expect(f.users.findOneAndUpdate).not.toHaveBeenCalled();
     expect(f.notifications.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('MongoSocialStore account export reads', () => {
+  it('reads only outgoing Follow fields with stable createdAt/id pagination', async () => {
+    const first = {
+      id: 'follow-1',
+      followeeUserId: 'target-a',
+      createdAt: now,
+    };
+    const second = {
+      id: 'follow-2',
+      followeeUserId: 'target-b',
+      createdAt: new Date('2026-10-09T12:00:00.000Z'),
+    };
+    const f = fixture({ exportFollowingRows: [first, second] });
+
+    await expect(
+      f.store.listFollowingForAccountExport('owner', 1, {
+        at: now,
+        id: 'follow-0',
+      }),
+    ).resolves.toEqual({ items: [first], hasMore: true });
+
+    expect(f.follows.find).toHaveBeenCalledWith({
+      $and: [
+        { followerUserId: 'owner' },
+        {
+          $or: [
+            { createdAt: { $lt: now } },
+            { createdAt: now, id: { $gt: 'follow-0' } },
+          ],
+        },
+      ],
+    });
+    expect(f.followExportQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      followeeUserId: 1,
+      createdAt: 1,
+    });
+    expect(f.followExportQuery.sort).toHaveBeenCalledWith({
+      createdAt: -1,
+      id: 1,
+    });
+    expect(f.followExportQuery.limit).toHaveBeenCalledWith(2);
+  });
+
+  it('reads only owner-participating Connection fields and bounds the ordered page', async () => {
+    const row = connection('accepted');
+    const f = fixture({ exportConnectionRows: [row] });
+
+    await expect(
+      f.store.listConnectionsForAccountExport('user-a', 100),
+    ).resolves.toEqual({ items: [row], hasMore: false });
+
+    expect(f.connections.find).toHaveBeenCalledWith({
+      $and: [{ $or: [{ userLowId: 'user-a' }, { userHighId: 'user-a' }] }],
+    });
+    expect(f.connectionExportQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      userLowId: 1,
+      userHighId: 1,
+      requestedByUserId: 1,
+      status: 1,
+      respondedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(f.connectionExportQuery.sort).toHaveBeenCalledWith({
+      updatedAt: -1,
+      id: 1,
+    });
+    expect(f.connectionExportQuery.limit).toHaveBeenCalledWith(101);
+  });
+
+  it('has separate participant-plus-cursor indexes for bounded Connection export order', () => {
+    const indexKeys = SocialConnectionSchema.indexes().map(([keys]) => keys);
+
+    expect(indexKeys).toContainEqual({
+      userLowId: 1,
+      updatedAt: -1,
+      id: 1,
+    });
+    expect(indexKeys).toContainEqual({
+      userHighId: 1,
+      updatedAt: -1,
+      id: 1,
+    });
   });
 });

@@ -11,8 +11,10 @@ import {
   type SocialStore,
 } from '../domain/social.store';
 import type {
+  ConnectionAccountExportRow,
   ConnectionRecord,
   ConnectionStatus,
+  FollowAccountExportRow,
   FollowRecord,
   SocialCursor,
 } from '../domain/social.types';
@@ -197,6 +199,36 @@ export class MongoSocialStore implements SocialStore {
       .exec();
   }
 
+  async listFollowingForAccountExport(
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ): Promise<{ items: FollowAccountExportRow[]; hasMore: boolean }> {
+    const filters: FilterQuery<SocialFollow>[] = [{ followerUserId: userId }];
+
+    if (after) {
+      filters.push({
+        $or: [
+          { createdAt: { $lt: after.at } },
+          { createdAt: after.at, id: { $gt: after.id } },
+        ],
+      });
+    }
+
+    const rows = await this.follows
+      .find({ $and: filters })
+      .select({ _id: 0, id: 1, followeeUserId: 1, createdAt: 1 })
+      .sort({ createdAt: -1, id: 1 })
+      .limit(limit + 1)
+      .lean<FollowAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
+  }
+
   async requestConnection(input: {
     id: string;
     requesterUserId: string;
@@ -350,6 +382,48 @@ export class MongoSocialStore implements SocialStore {
       .limit(limit)
       .lean<ConnectionRecord[]>()
       .exec();
+  }
+
+  async listConnectionsForAccountExport(
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ): Promise<{ items: ConnectionAccountExportRow[]; hasMore: boolean }> {
+    const filters: FilterQuery<SocialConnection>[] = [
+      { $or: [{ userLowId: userId }, { userHighId: userId }] },
+    ];
+
+    if (after) {
+      filters.push({
+        $or: [
+          { updatedAt: { $lt: after.at } },
+          { updatedAt: after.at, id: { $gt: after.id } },
+        ],
+      });
+    }
+
+    const rows = await this.connections
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        id: 1,
+        userLowId: 1,
+        userHighId: 1,
+        requestedByUserId: 1,
+        status: 1,
+        respondedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ updatedAt: -1, id: 1 })
+      .limit(limit + 1)
+      .lean<ConnectionAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
   }
 
   async respondConnection(input: {
