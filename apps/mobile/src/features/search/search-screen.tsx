@@ -298,7 +298,8 @@ export function SearchScreen() {
     searchInputReducer,
     initialSearchInputState,
   );
-  const { query, scope, subjectId } = searchInputState;
+  const { query, scope, selectedSubject } = searchInputState;
+  const subjectId = selectedSubject?.id ?? null;
   const [appState, setAppState] = useState(AppState.currentState);
   const [foregroundContextFresh, setForegroundContextFresh] = useState(
     AppState.currentState === "active",
@@ -466,7 +467,10 @@ export function SearchScreen() {
         return;
       }
       clearSearch();
-      dispatchSearchInput({ type: "subjectSelected", subjectId: subject.id });
+      dispatchSearchInput({
+        type: "subjectSelected",
+        subject: { id: subject.id, name: subject.name },
+      });
     },
     [clearSearch, query.length, scope, subjectId],
   );
@@ -611,14 +615,14 @@ export function SearchScreen() {
             </Pressable>
           ))}
         </View>
-        {subjectId ? (
+        {selectedSubject ? (
           <View style={styles.filterNotice}>
             <Text style={styles.meta}>
-              Filtrando por la materia que elegiste.
+              Filtrando por {selectedSubject.name}.
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Quitar filtro de materia"
+              accessibilityLabel={`Quitar filtro de materia ${selectedSubject.name}`}
               onPress={clearSubjectFilter}
               style={styles.searchActionButton}
             >

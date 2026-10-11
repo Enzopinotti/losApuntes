@@ -3,19 +3,22 @@ import type { SearchScope } from "@losapuntes/contracts";
 export type SearchInputState = {
   query: string;
   scope: SearchScope;
-  subjectId: string | null;
+  selectedSubject: { id: string; name: string } | null;
 };
 
 export type SearchInputAction =
   | { type: "queryChanged"; query: string }
   | { type: "scopeChanged"; scope: SearchScope }
-  | { type: "subjectSelected"; subjectId: string }
+  | {
+      type: "subjectSelected";
+      subject: { id: string; name: string };
+    }
   | { type: "subjectFilterCleared" };
 
 export const initialSearchInputState: SearchInputState = {
   query: "",
   scope: "all",
-  subjectId: null,
+  selectedSubject: null,
 };
 
 export function searchInputReducer(
@@ -27,15 +30,15 @@ export function searchInputReducer(
       return {
         ...state,
         query: action.query.slice(0, 120),
-        subjectId: null,
+        selectedSubject: null,
       };
     case "scopeChanged":
-      return { ...state, scope: action.scope, subjectId: null };
+      return { ...state, scope: action.scope, selectedSubject: null };
     case "subjectSelected":
       return {
         query: "",
         scope: "resources",
-        subjectId: action.subjectId,
+        selectedSubject: action.subject,
       };
     case "subjectFilterCleared":
       return initialSearchInputState;
