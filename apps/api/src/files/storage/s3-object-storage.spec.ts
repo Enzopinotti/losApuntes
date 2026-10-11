@@ -271,4 +271,125 @@ describe('S3ObjectStorage', () => {
       new URL(result.url).searchParams.get('response-content-disposition'),
     ).toContain('filename="download"');
   });
+
+  it('uses a single private PUT for artifacts smaller than the multipart part size', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/generation.json',
+      contentType: 'application/json; charset=utf-8',
+    });
+
+    await writer.write(Buffer.from('{"ready":true}', 'utf8'));
+    await writer.complete();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe('PUT');
+    expect(new URL(fetchSpy.mock.calls[0]?.[0] as string).search).toBe('');
+    expect(
+      Buffer.from(fetchSpy.mock.calls[0]?.[1]?.body as Uint8Array).toString(),
+    ).toBe('{"ready":true}');
+    const headers = new Headers(fetchSpy.mock.calls[0]?.[1]?.headers);
+    expect(headers.get('authorization')).toContain('SignedHeaders=');
+    expect(headers.get('x-amz-content-sha256')).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  it('uploads large artifacts in bounded parts and completes the exact S3 generation', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          '<InitiateMultipartUploadResult><UploadId>upload-1</UploadId></InitiateMultipartUploadResult>',
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { etag: '"abcdef0123456789"' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { etag: '"fedcba9876543210"' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('<CompleteMultipartUploadResult/>', { status: 200 }),
+      );
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/generation.json',
+      contentType: 'application/json; charset=utf-8',
+    });
+
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await writer.write(Buffer.from('tail', 'utf8'));
+    await writer.complete();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual([
+      'POST',
+      'PUT',
+      'PUT',
+      'POST',
+    ]);
+    expect(
+      new URL(fetchSpy.mock.calls[0]?.[0] as string).searchParams.has(
+        'uploads',
+      ),
+    ).toBe(true);
+    const partUrl = new URL(fetchSpy.mock.calls[1]?.[0] as string);
+    expect(partUrl.searchParams.get('partNumber')).toBe('1');
+    expect(partUrl.searchParams.get('uploadId')).toBe('upload-1');
+    expect((fetchSpy.mock.calls[1]?.[1]?.body as Buffer).byteLength).toBe(
+      5 * 1024 * 1024,
+    );
+    const completion = Buffer.from(
+      fetchSpy.mock.calls[3]?.[1]?.body as Uint8Array,
+    ).toString('utf8');
+    expect(completion).toContain('<ETag>"abcdef0123456789"</ETag>');
+    expect(completion).toContain('<PartNumber>2</PartNumber>');
+  });
+
+  it('aborts partial multipart data and deletes any generation object idempotently', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          '<InitiateMultipartUploadResult><UploadId>upload-1</UploadId></InitiateMultipartUploadResult>',
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { etag: '"abcdef0123456789"' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/generation.json',
+      contentType: 'application/json; charset=utf-8',
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+
+    await writer.abort();
+    await expect(writer.write(Buffer.from('late'))).rejects.toThrow(
+      'S3 multipart writer is no longer writable',
+    );
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual([
+      'POST',
+      'PUT',
+      'DELETE',
+      'DELETE',
+    ]);
+    expect(
+      new URL(fetchSpy.mock.calls[2]?.[0] as string).searchParams.get(
+        'uploadId',
+      ),
+    ).toBe('upload-1');
+  });
 });

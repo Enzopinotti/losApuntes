@@ -27,13 +27,21 @@ export class AccountExportAssembler {
   async writeJsonV1(
     userId: string,
     sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
   ): Promise<AccountExportAssemblyResult> {
     const contributors = this.registry.list();
     let recordCount = 0;
     let byteLength = 0;
     const sha256 = createHash('sha256');
 
+    const assertClaim = async () => {
+      if (canContinue && !(await canContinue())) {
+        throw new Error('Account export worker claim is no longer active');
+      }
+    };
+
     const writeChunk = async (chunk: string) => {
+      await assertClaim();
       const chunkByteLength = Buffer.byteLength(chunk, 'utf8');
       if (byteLength + chunkByteLength > Number.MAX_SAFE_INTEGER) {
         throw new Error(
@@ -62,6 +70,7 @@ export class AccountExportAssembler {
         let cursorsSinceCheckpoint = 0;
 
         while (true) {
+          await assertClaim();
           const page = await this.exports.readContributorPage(
             contributor,
             userId,
@@ -126,6 +135,7 @@ export class AccountExportAssembler {
         sha256: sha256.digest('hex'),
       };
       await this.exports.assertActiveAccount(userId);
+      await assertClaim();
       await sink.commit(result);
       return result;
     } catch (error) {

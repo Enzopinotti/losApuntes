@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AcademicModule } from '../academic/academic.module';
@@ -20,6 +21,7 @@ import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { AccountLifecycleController } from './account-lifecycle.controller';
+import { AccountExportController } from './account-export.controller';
 import {
   AcademicAffiliationsExportContributor,
   AcademicCurrentContextExportContributor,
@@ -74,7 +76,14 @@ import {
   AccountExportContributorRegistry,
 } from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
+import { AccountExportProcessor } from './domain/account-export-processor';
 import { ACCOUNT_EXPORT_STORE } from './domain/account-export.store';
+import {
+  ACCOUNT_EXPORT_ARTIFACT_STORAGE,
+  S3AccountExportArtifactStorage,
+} from './storage/account-export-artifact-storage';
+import { createS3ObjectStorage } from '../files/storage/s3-object-storage';
+import { requireConfigString } from '../config/required-config';
 import { AccountLifecycleService } from './domain/account-lifecycle.service';
 import { ACCOUNT_LIFECYCLE_STORE } from './domain/account-lifecycle.store';
 import {
@@ -113,11 +122,12 @@ import {
       { name: SecurityAudit.name, schema: SecurityAuditSchema },
     ]),
   ],
-  controllers: [AccountLifecycleController],
+  controllers: [AccountLifecycleController, AccountExportController],
   providers: [
     AccountLifecycleService,
     AccountExportService,
     AccountExportAssembler,
+    AccountExportProcessor,
     AccountIdentityExportContributor,
     ProfileExportContributor,
     ProfileActivitiesExportContributor,
@@ -257,12 +267,35 @@ import {
       provide: ACCOUNT_EXPORT_STORE,
       useExisting: MongoAccountExportStore,
     },
+    {
+      provide: ACCOUNT_EXPORT_ARTIFACT_STORAGE,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        new S3AccountExportArtifactStorage(
+          createS3ObjectStorage({
+            endpoint: requireConfigString(config, 'FILES_S3_ENDPOINT'),
+            region: requireConfigString(config, 'FILES_S3_REGION'),
+            bucket: requireConfigString(config, 'ACCOUNT_EXPORT_S3_BUCKET'),
+            accessKeyId: requireConfigString(
+              config,
+              'ACCOUNT_EXPORT_S3_ACCESS_KEY_ID',
+            ),
+            secretAccessKey: requireConfigString(
+              config,
+              'ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY',
+            ),
+            providerId: 's3',
+            configurationPrefix: 'ACCOUNT_EXPORT_S3',
+          }),
+        ),
+    },
   ],
   exports: [
     AccountLifecycleService,
     AccountExportService,
     AccountExportAssembler,
     AccountExportContributorRegistry,
+    ACCOUNT_EXPORT_ARTIFACT_STORAGE,
   ],
 })
 export class DataLifecycleModule {}

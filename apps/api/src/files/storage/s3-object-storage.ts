@@ -21,6 +21,20 @@ export interface S3ObjectStorageOptions {
   publicEndpoint?: string;
   providerId?: string;
   now?: () => Date;
+  configurationPrefix?: string;
+}
+
+export interface S3MultipartObjectWriter {
+  write(chunk: Uint8Array): Promise<void>;
+  complete(): Promise<void>;
+  abort(): Promise<void>;
+}
+
+export interface S3ObjectStorage extends ObjectStorage {
+  createMultipartWriter(input: {
+    objectKey: string;
+    contentType: string;
+  }): S3MultipartObjectWriter;
 }
 
 function sha256Hex(value: string): string {
@@ -260,22 +274,299 @@ async function signedRequest(input: {
   );
 }
 
+async function signedBodyRequest(input: {
+  method: 'POST' | 'PUT' | 'DELETE';
+  endpoint: URL;
+  bucket: string;
+  objectKey: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  query?: ReadonlyArray<readonly [string, string]>;
+  headers?: Readonly<Record<string, string>>;
+  body?: Uint8Array;
+  timeoutMs?: number;
+  now?: Date;
+}): Promise<Response> {
+  const now = input.now ?? new Date();
+  const { amzDate, dateStamp } = awsDate(now);
+  const scope = `${dateStamp}/${input.region}/${SERVICE}/aws4_request`;
+  const body = input.body ?? new Uint8Array();
+  const payloadHash = createHash('sha256').update(body).digest('hex');
+  const headers = new Map<string, string>([
+    ['host', input.endpoint.host],
+    ['x-amz-content-sha256', payloadHash],
+    ['x-amz-date', amzDate],
+    ...Object.entries(input.headers ?? {}).map(
+      ([key, value]) =>
+        [key.toLowerCase(), normalizeHeaderValue(value)] as const,
+    ),
+  ]);
+  const signedHeaders = [...headers.keys()].sort().join(';');
+  const canonicalHeaders = [...headers.entries()]
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([key, value]) => `${key}:${normalizeHeaderValue(value)}\n`)
+    .join('');
+  const query = canonicalQuery(input.query ?? []);
+  const canonical = [
+    input.method,
+    canonicalUri(input.bucket, input.objectKey),
+    query,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\n');
+  const stringToSign = [ALGORITHM, amzDate, scope, sha256Hex(canonical)].join(
+    '\n',
+  );
+  const signature = hmac(
+    signingKey(input.secretAccessKey, dateStamp, input.region),
+    stringToSign,
+    'hex',
+  ) as string;
+  const authorization =
+    `${ALGORITHM} Credential=${input.accessKeyId}/${scope}, ` +
+    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const url = `${input.endpoint.origin}${canonicalUri(
+    input.bucket,
+    input.objectKey,
+  )}${query ? `?${query}` : ''}`;
+
+  return fetch(url, {
+    method: input.method,
+    headers: {
+      ...Object.fromEntries(headers),
+      authorization,
+    },
+    ...(body.byteLength > 0 ? { body: Buffer.from(body) } : {}),
+    signal: AbortSignal.timeout(input.timeoutMs ?? REQUEST_TIMEOUT_MS),
+  });
+}
+
 function storageError(operation: string, status: number): Error {
   return new Error(`S3 ${operation} failed with HTTP ${status}`);
 }
 
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+    .replace(/"/gu, '&quot;')
+    .replace(/'/gu, '&apos;');
+}
+
+function hasControlCharacters(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== undefined && (codePoint < 0x20 || codePoint === 0x7f);
+  });
+}
+
 export function createS3ObjectStorage(
   options: S3ObjectStorageOptions,
-): ObjectStorage {
-  const endpoint = endpointOrigin(options.endpoint, 'FILES_S3_ENDPOINT');
+): S3ObjectStorage {
+  const configurationPrefix = options.configurationPrefix ?? 'FILES_S3';
+  const endpoint = endpointOrigin(
+    options.endpoint,
+    `${configurationPrefix}_ENDPOINT`,
+  );
   const publicEndpoint = endpointOrigin(
     options.publicEndpoint ?? options.endpoint,
-    'FILES_S3_PUBLIC_ENDPOINT',
+    `${configurationPrefix}_PUBLIC_ENDPOINT`,
   );
   const providerId = options.providerId ?? 's3';
+  const deleteObject = async (objectKey: string): Promise<void> => {
+    const response = await signedRequest({
+      method: 'DELETE',
+      endpoint,
+      bucket: options.bucket,
+      objectKey,
+      region: options.region,
+      accessKeyId: options.accessKeyId,
+      secretAccessKey: options.secretAccessKey,
+      now: options.now?.(),
+    });
+
+    if (response.status === 404) return;
+    if (!response.ok) throw storageError('DELETE', response.status);
+  };
 
   return Object.freeze({
     providerId,
+
+    createMultipartWriter(input: {
+      objectKey: string;
+      contentType: string;
+    }): S3MultipartObjectWriter {
+      const minimumPartBytes = 5 * 1024 * 1024;
+      const maximumPartCount = 10_000;
+      const pending: Buffer[] = [];
+      const parts: Array<{ partNumber: number; etag: string }> = [];
+      let pendingBytes = 0;
+      let uploadId: string | null = null;
+      let completed = false;
+      let aborted = false;
+
+      const request = (
+        method: 'POST' | 'PUT' | 'DELETE',
+        query?: ReadonlyArray<readonly [string, string]>,
+        body?: Uint8Array,
+        contentType?: string,
+      ) =>
+        signedBodyRequest({
+          method,
+          endpoint,
+          bucket: options.bucket,
+          objectKey: input.objectKey,
+          region: options.region,
+          accessKeyId: options.accessKeyId,
+          secretAccessKey: options.secretAccessKey,
+          query,
+          headers: contentType ? { 'content-type': contentType } : undefined,
+          body,
+          now: options.now?.(),
+        });
+
+      const start = async () => {
+        const response = await request(
+          'POST',
+          [['uploads', '']],
+          undefined,
+          input.contentType,
+        );
+        if (!response.ok)
+          throw storageError('Create multipart upload', response.status);
+        const xml = await response.text();
+        const rawUploadId = /<UploadId>([^<]+)<\/UploadId>/u.exec(xml)?.[1];
+        if (!rawUploadId) throw new Error('S3 multipart upload id is missing');
+        uploadId = rawUploadId
+          .replace(/&lt;/gu, '<')
+          .replace(/&gt;/gu, '>')
+          .replace(/&quot;/gu, '"')
+          .replace(/&apos;/gu, "'")
+          .replace(/&amp;/gu, '&');
+      };
+
+      const uploadPart = async (bytes: Buffer) => {
+        if (!uploadId) await start();
+        const currentUploadId = uploadId;
+        if (!currentUploadId) throw new Error('S3 multipart upload is missing');
+        const partNumber = parts.length + 1;
+        if (partNumber > maximumPartCount) {
+          throw new Error('S3 multipart upload exceeds the maximum part count');
+        }
+        const response = await request(
+          'PUT',
+          [
+            ['partNumber', String(partNumber)],
+            ['uploadId', currentUploadId],
+          ],
+          bytes,
+          'application/octet-stream',
+        );
+        if (!response.ok)
+          throw storageError('Upload multipart part', response.status);
+        const rawEtag = response.headers.get('etag')?.trim();
+        const etag = rawEtag?.replace(/^"|"$/gu, '');
+        if (!etag || hasControlCharacters(etag)) {
+          throw new Error('S3 multipart part returned an invalid ETag');
+        }
+        parts.push({
+          partNumber,
+          etag: `"${xmlEscape(etag)}"`,
+        });
+      };
+
+      const flushPending = async () => {
+        if (pendingBytes === 0) return;
+        const bytes = Buffer.concat(pending, pendingBytes);
+        pending.length = 0;
+        pendingBytes = 0;
+        await uploadPart(bytes);
+      };
+
+      return {
+        async write(chunk: Uint8Array): Promise<void> {
+          if (completed || aborted) {
+            throw new Error('S3 multipart writer is no longer writable');
+          }
+          let offset = 0;
+          while (offset < chunk.byteLength) {
+            const take = Math.min(
+              minimumPartBytes - pendingBytes,
+              chunk.byteLength - offset,
+            );
+            pending.push(Buffer.from(chunk.subarray(offset, offset + take)));
+            pendingBytes += take;
+            offset += take;
+            if (pendingBytes === minimumPartBytes) await flushPending();
+          }
+        },
+
+        async complete(): Promise<void> {
+          if (aborted) throw new Error('S3 multipart writer was aborted');
+          if (completed) return;
+
+          if (!uploadId) {
+            const bytes = Buffer.concat(pending, pendingBytes);
+            const response = await request(
+              'PUT',
+              undefined,
+              bytes,
+              input.contentType,
+            );
+            if (!response.ok) throw storageError('PUT object', response.status);
+            completed = true;
+            return;
+          }
+
+          await flushPending();
+          if (parts.length === 0) {
+            throw new Error('S3 multipart upload has no parts');
+          }
+          const currentUploadId = uploadId;
+          const body = Buffer.from(
+            `<CompleteMultipartUpload>${parts
+              .map(
+                ({ partNumber, etag }) =>
+                  `<Part><PartNumber>${partNumber}</PartNumber><ETag>${etag}</ETag></Part>`,
+              )
+              .join('')}</CompleteMultipartUpload>`,
+            'utf8',
+          );
+          const response = await request(
+            'POST',
+            [['uploadId', currentUploadId]],
+            body,
+            'application/xml',
+          );
+          const xml = await response.text();
+          if (!response.ok || /<Error(?:\s|>)/u.test(xml)) {
+            throw storageError('Complete multipart upload', response.status);
+          }
+          uploadId = null;
+          completed = true;
+        },
+
+        async abort(): Promise<void> {
+          if (aborted) return;
+          const currentUploadId = uploadId;
+          if (currentUploadId) {
+            const response = await request('DELETE', [
+              ['uploadId', currentUploadId],
+            ]);
+            if (!response.ok && response.status !== 404) {
+              throw storageError('Abort multipart upload', response.status);
+            }
+          }
+          await deleteObject(input.objectKey);
+          aborted = true;
+          uploadId = null;
+          completed = false;
+        },
+      };
+    },
 
     createUploadIntent(
       input: Parameters<ObjectStorage['createUploadIntent']>[0],
@@ -455,20 +746,6 @@ export function createS3ObjectStorage(
       });
     },
 
-    async deleteObject(objectKey: string): Promise<void> {
-      const response = await signedRequest({
-        method: 'DELETE',
-        endpoint,
-        bucket: options.bucket,
-        objectKey,
-        region: options.region,
-        accessKeyId: options.accessKeyId,
-        secretAccessKey: options.secretAccessKey,
-        now: options.now?.(),
-      });
-
-      if (response.status === 404) return;
-      if (!response.ok) throw storageError('DELETE', response.status);
-    },
+    deleteObject,
   });
 }

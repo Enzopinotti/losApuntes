@@ -50,6 +50,8 @@ export class MongoAccountExportStore implements AccountExportStore {
               artifactRecordCount: null,
               artifactByteLength: null,
               artifactSha256: null,
+              artifactGeneration: null,
+              artifactExpiresAt: null,
             },
           },
           { upsert: true, new: true },
@@ -165,6 +167,8 @@ export class MongoAccountExportStore implements AccountExportStore {
             artifactRecordCount: null,
             artifactByteLength: null,
             artifactSha256: null,
+            artifactGeneration: null,
+            artifactExpiresAt: null,
             claimId: null,
             leaseExpiresAt: null,
           },
@@ -201,8 +205,59 @@ export class MongoAccountExportStore implements AccountExportStore {
             artifactRecordCount: input.result.recordCount,
             artifactByteLength: input.result.byteLength,
             artifactSha256: input.result.sha256,
+            artifactGeneration: input.artifactGeneration,
+            artifactExpiresAt: input.artifactExpiresAt,
           },
         },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
+  }
+
+  async findExpiredArtifacts(
+    input: Parameters<AccountExportStore['findExpiredArtifacts']>[0],
+  ): ReturnType<AccountExportStore['findExpiredArtifacts']> {
+    const jobs = await this.jobs
+      .find({
+        state: 'completed',
+        artifactGeneration: { $type: 'string' },
+        artifactExpiresAt: { $lte: input.now },
+      })
+      .sort({ artifactExpiresAt: 1, id: 1 })
+      .limit(input.limit)
+      .select({ id: 1, artifactGeneration: 1, artifactExpiresAt: 1 })
+      .lean<
+        Array<{
+          id: string;
+          artifactGeneration: string;
+          artifactExpiresAt: Date;
+        }>
+      >()
+      .exec();
+
+    return jobs.map((job) => ({
+      id: job.id,
+      generation: job.artifactGeneration,
+      expiresAt: job.artifactExpiresAt,
+    }));
+  }
+
+  async clearExpiredArtifact(
+    input: Parameters<AccountExportStore['clearExpiredArtifact']>[0],
+  ): ReturnType<AccountExportStore['clearExpiredArtifact']> {
+    const result = await this.jobs
+      .updateOne(
+        {
+          id: input.id,
+          state: 'completed',
+          artifactGeneration: input.generation,
+          artifactExpiresAt: {
+            $eq: input.expiresAt,
+            $lte: input.now,
+          },
+        },
+        { $set: { artifactGeneration: null } },
       )
       .exec();
 

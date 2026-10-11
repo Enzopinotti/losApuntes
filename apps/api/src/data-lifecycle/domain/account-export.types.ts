@@ -2,6 +2,7 @@ export const ACCOUNT_EXPORT_FORMAT = 'los-apuntes-account-export' as const;
 export const ACCOUNT_EXPORT_FORMAT_VERSION = 1;
 export const ACCOUNT_EXPORT_PAGE_LIMIT = 100;
 export const ACCOUNT_EXPORT_LEASE_DURATION_MS = 2 * 60 * 1000;
+export const ACCOUNT_EXPORT_ARTIFACT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const ACCOUNT_EXPORT_JOB_STATES = [
   'pending',
@@ -58,6 +59,8 @@ export interface AccountExportJobRecord {
   artifactRecordCount?: number | null;
   artifactByteLength?: number | null;
   artifactSha256?: string | null;
+  artifactGeneration?: string | null;
+  artifactExpiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -69,6 +72,12 @@ export interface AccountExportAssemblyResult {
   recordCount: number;
   byteLength: number;
   sha256: string;
+}
+
+export interface ExpiredAccountExportArtifact {
+  id: string;
+  generation: string;
+  expiresAt: Date;
 }
 
 export type AccountExportSectionPage = {

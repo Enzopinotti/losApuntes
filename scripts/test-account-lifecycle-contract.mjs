@@ -13,6 +13,11 @@ const [
   exportService,
   exportStore,
   exportSchema,
+  exportController,
+  exportProcessor,
+  exportArtifactStorage,
+  exportWorker,
+  exportRuntimeEnvironment,
   exportDocs,
   dataLifecycleModule,
   exportContributors,
@@ -35,6 +40,11 @@ const [
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export.service.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/mongo/mongo-account-export.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/mongo/account-export.mongo-schema.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/account-export.controller.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export-processor.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/storage/account-export-artifact-storage.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/account-export.worker.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/config/runtime-environment.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/security/account-data-export-v1.md', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/data-lifecycle.module.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/contributors/account-export-core.contributors.ts', import.meta.url), 'utf8'),
@@ -90,7 +100,28 @@ assert.match(exportStore, /active: true/u);
 assert.match(exportStore, /leaseExpiresAt: \{ \$lte: input\.now \}/u);
 assert.match(exportStore, /error.*code.*11000/su);
 assert.match(exportSchema, /partialFilterExpression: \{ active: true \}/u);
-assert.match(exportDocs, /does \*\*not\*\* expose a public request/iu);
+assert.doesNotMatch(
+  exportDocs,
+  /deliberately does \*\*not\*\* expose a public request/iu,
+  'current export contract must not describe the delivery routes as unimplemented',
+);
+assert.match(exportDocs, /private artifact, a lease-fenced worker/u);
+assert.match(exportDocs, /POST \/account\/exports/u);
+assert.match(exportDocs, /GET \/account\/exports\/\{exportId\}\/download/u);
+assert.match(exportDocs, /exactly seven days after `completedAt`/u);
+assert.match(exportDocs, /Bucket lifecycle defense in depth/u);
+assert.match(exportController, /@Controller\('account\/exports'\)/u);
+assert.match(exportController, /@UseGuards\(AuthSessionGuard\)/u);
+assert.match(exportController, /@Get\(':id\/download'\)/u);
+assert.match(exportProcessor, /LEASE_RENEWAL_INTERVAL_MS/u);
+assert.match(exportProcessor, /MAX_ATTEMPTS = 5/u);
+assert.match(exportArtifactStorage, /exports\/\$\{jobId\}\/\$\{generation\}\.json/u);
+assert.match(exportWorker, /processor\.runIteration/u);
+assert.match(exportRuntimeEnvironment, /ACCOUNT_EXPORT_S3_BUCKET/u);
+assert.match(
+  exportRuntimeEnvironment,
+  /Account export storage credentials must be separate from Files credentials/u,
+);
 assert.match(exportDocs, /los-apuntes-account-export/u);
 assert.match(dataLifecycleModule, /AccountExportService/u);
 assert.match(dataLifecycleModule, /ACCOUNT_EXPORT_STORE/u);

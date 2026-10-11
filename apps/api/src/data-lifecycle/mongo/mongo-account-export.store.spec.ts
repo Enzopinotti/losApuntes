@@ -7,6 +7,9 @@ const now = new Date('2026-10-04T23:55:00.000Z');
 function query<T>(value: T) {
   return {
     lean: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
     exec: jest.fn().mockResolvedValue(value),
   };
 }
@@ -14,6 +17,7 @@ function query<T>(value: T) {
 function fixture(input: { active?: unknown } = {}) {
   const upsertQuery = query(input.active ?? null);
   const findQuery = query(input.active ?? null);
+  const expiredQuery = query([]);
   const claimQuery = query(input.active ?? null);
   const updateQuery = query({ matchedCount: 1, modifiedCount: 1 });
   const jobs = {
@@ -22,6 +26,7 @@ function fixture(input: { active?: unknown } = {}) {
       .mockReturnValueOnce(upsertQuery)
       .mockReturnValue(claimQuery),
     findOne: jest.fn(() => findQuery),
+    find: jest.fn(() => expiredQuery),
     updateOne: jest.fn(() => updateQuery),
     exists: jest.fn().mockResolvedValue(null),
   };
@@ -32,6 +37,7 @@ function fixture(input: { active?: unknown } = {}) {
     jobs,
     upsertQuery,
     findQuery,
+    expiredQuery,
     claimQuery,
     updateQuery,
   };
@@ -55,6 +61,8 @@ function record(overrides: Record<string, unknown> = {}) {
     artifactRecordCount: null,
     artifactByteLength: null,
     artifactSha256: null,
+    artifactGeneration: null,
+    artifactExpiresAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -95,6 +103,8 @@ describe('MongoAccountExportStore', () => {
           artifactRecordCount: null,
           artifactByteLength: null,
           artifactSha256: null,
+          artifactGeneration: null,
+          artifactExpiresAt: null,
         },
       },
       { upsert: true, new: true },
@@ -262,6 +272,8 @@ describe('MongoAccountExportStore', () => {
           artifactRecordCount: null,
           artifactByteLength: null,
           artifactSha256: null,
+          artifactGeneration: null,
+          artifactExpiresAt: null,
           claimId: null,
           leaseExpiresAt: null,
         },
@@ -297,6 +309,8 @@ describe('MongoAccountExportStore', () => {
           artifactRecordCount: null,
           artifactByteLength: null,
           artifactSha256: null,
+          artifactGeneration: null,
+          artifactExpiresAt: null,
           claimId: null,
           leaseExpiresAt: null,
         },
@@ -346,7 +360,9 @@ describe('MongoAccountExportStore', () => {
       f.store.complete({
         id: 'export-1',
         claimId: 'claim-1',
+        artifactGeneration: 'claim-1',
         completedAt: now,
+        artifactExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
         result,
       }),
     ).resolves.toBe(true);
@@ -373,6 +389,8 @@ describe('MongoAccountExportStore', () => {
           artifactRecordCount: 7,
           artifactByteLength: 512,
           artifactSha256: 'a'.repeat(64),
+          artifactGeneration: 'claim-1',
+          artifactExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
         },
       },
     );
@@ -386,7 +404,9 @@ describe('MongoAccountExportStore', () => {
       f.store.complete({
         id: 'export-1',
         claimId: 'stale-claim',
+        artifactGeneration: 'stale-claim',
         completedAt: now,
+        artifactExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
         result: {
           format: 'los-apuntes-account-export',
           formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
@@ -410,8 +430,66 @@ describe('MongoAccountExportStore', () => {
     expect(AccountExportJobSchema.path('artifactRecordCount')).toBeDefined();
     expect(AccountExportJobSchema.path('artifactByteLength')).toBeDefined();
     expect(AccountExportJobSchema.path('artifactSha256')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactGeneration')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactExpiresAt')).toBeDefined();
     expect(AccountExportJobSchema.path('objectKey')).toBeUndefined();
     expect(AccountExportJobSchema.path('downloadUrl')).toBeUndefined();
+  });
+
+  it('selects only due completed artifacts in bounded expiry order', async () => {
+    const expiresAt = new Date(now.getTime() - 1);
+    const f = fixture();
+    f.expiredQuery.exec.mockResolvedValueOnce([
+      {
+        id: 'export-1',
+        artifactGeneration: 'generation-1',
+        artifactExpiresAt: expiresAt,
+      },
+    ]);
+
+    await expect(
+      f.store.findExpiredArtifacts({ now, limit: 12 }),
+    ).resolves.toEqual([
+      { id: 'export-1', generation: 'generation-1', expiresAt },
+    ]);
+    expect(f.jobs.find).toHaveBeenCalledWith({
+      state: 'completed',
+      artifactGeneration: { $type: 'string' },
+      artifactExpiresAt: { $lte: now },
+    });
+    expect(f.expiredQuery.sort).toHaveBeenCalledWith({
+      artifactExpiresAt: 1,
+      id: 1,
+    });
+    expect(f.expiredQuery.limit).toHaveBeenCalledWith(12);
+    expect(f.expiredQuery.select).toHaveBeenCalledWith({
+      id: 1,
+      artifactGeneration: 1,
+      artifactExpiresAt: 1,
+    });
+  });
+
+  it('clears only the exact expired generation after object deletion', async () => {
+    const expiresAt = new Date(now.getTime() - 1);
+    const f = fixture();
+
+    await expect(
+      f.store.clearExpiredArtifact({
+        id: 'export-1',
+        generation: 'generation-1',
+        expiresAt,
+        now,
+      }),
+    ).resolves.toBe(true);
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        state: 'completed',
+        artifactGeneration: 'generation-1',
+        artifactExpiresAt: { $eq: expiresAt, $lte: now },
+      },
+      { $set: { artifactGeneration: null } },
+    );
   });
 
   it('keeps status reads owner-scoped and terminal failures observable', async () => {

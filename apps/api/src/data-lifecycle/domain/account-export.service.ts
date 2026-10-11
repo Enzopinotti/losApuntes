@@ -9,6 +9,7 @@ import {
 import {
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
+  ACCOUNT_EXPORT_ARTIFACT_TTL_MS,
   ACCOUNT_EXPORT_LEASE_DURATION_MS,
   ACCOUNT_EXPORT_PAGE_LIMIT,
   isAccountExportFailureCode,
@@ -25,7 +26,15 @@ export type AccountExportStatus = {
   state: AccountExportJobRecord['state'];
   requestedAt: string;
   failureCode: AccountExportFailureCode | null;
+  downloadExpiresAt: string | null;
+  downloadable: boolean;
 };
+
+export type AccountExportDownload =
+  | { kind: 'not_found' }
+  | { kind: 'not_ready' }
+  | { kind: 'expired' }
+  | { kind: 'available'; generation: string; byteLength: number };
 
 function assertCompletionResult(
   result: AccountExportAssemblyResult,
@@ -71,17 +80,49 @@ export class AccountExportService {
 
     return {
       created: result.created,
-      export: this.publicStatus(result.job),
+      export: this.publicStatus(result.job, now),
     };
   }
 
   async status(
     userId: string,
     id: string,
+    now = new Date(),
   ): Promise<AccountExportStatus | null> {
     await this.assertActiveAccount(userId);
     const job = await this.store.findOwned(id, userId);
-    return job ? this.publicStatus(job) : null;
+    return job ? this.publicStatus(job, now) : null;
+  }
+
+  async download(
+    userId: string,
+    id: string,
+    now = new Date(),
+  ): Promise<AccountExportDownload> {
+    await this.assertActiveAccount(userId);
+    const job = await this.store.findOwned(id, userId);
+    if (!job) return { kind: 'not_found' };
+    if (job.state !== 'completed') return { kind: 'not_ready' };
+    if (
+      !job.artifactGeneration ||
+      !(job.artifactExpiresAt instanceof Date) ||
+      job.artifactExpiresAt.getTime() <= now.getTime()
+    ) {
+      return { kind: 'expired' };
+    }
+    if (
+      typeof job.artifactByteLength !== 'number' ||
+      !Number.isSafeInteger(job.artifactByteLength) ||
+      job.artifactByteLength < 1
+    ) {
+      throw new Error('Account export artifact metadata is invalid');
+    }
+
+    return {
+      kind: 'available',
+      generation: job.artifactGeneration,
+      byteLength: job.artifactByteLength,
+    };
   }
 
   async claimNext(): Promise<AccountExportJobRecord | null> {
@@ -148,7 +189,14 @@ export class AccountExportService {
 
     const completedAt = new Date();
     assertCompletionResult(input.result, completedAt);
-    return this.store.complete({ ...input, completedAt });
+    return this.store.complete({
+      ...input,
+      artifactGeneration: input.claimId,
+      completedAt,
+      artifactExpiresAt: new Date(
+        completedAt.getTime() + ACCOUNT_EXPORT_ARTIFACT_TTL_MS,
+      ),
+    });
   }
 
   async reschedule(input: {
@@ -196,7 +244,17 @@ export class AccountExportService {
     return page;
   }
 
-  private publicStatus(job: AccountExportJobRecord): AccountExportStatus {
+  private publicStatus(
+    job: AccountExportJobRecord,
+    now: Date,
+  ): AccountExportStatus {
+    const downloadExpiresAt =
+      job.state === 'completed' &&
+      job.artifactExpiresAt instanceof Date &&
+      Number.isFinite(job.artifactExpiresAt.getTime())
+        ? job.artifactExpiresAt.toISOString()
+        : null;
+
     return {
       id: job.id,
       format: ACCOUNT_EXPORT_FORMAT,
@@ -206,6 +264,11 @@ export class AccountExportService {
       failureCode: isAccountExportFailureCode(job.failureCode)
         ? job.failureCode
         : null,
+      downloadExpiresAt,
+      downloadable:
+        downloadExpiresAt !== null &&
+        job.artifactExpiresAt!.getTime() > now.getTime() &&
+        Boolean(job.artifactGeneration),
     };
   }
 

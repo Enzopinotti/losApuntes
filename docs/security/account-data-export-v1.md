@@ -1,4 +1,4 @@
-# Account data export v1 — foundation contract
+# Account data export v1 — durable artifact and delivery contract
 
 **Parent:** #82  
 **Implementation issue:** #183  
@@ -6,15 +6,15 @@
 
 ## Boundary of this carrier
 
-This carrier establishes the durable and bounded foundation for self-service
-account data export. It deliberately does **not** expose a public request,
-status or download endpoint yet.
-
-An export surface is user-complete only when the repository can assemble every
-section included by the functional contract into a real artifact and
-reauthorize delivery. Returning `202 Accepted` for a job that has no complete
-assembler would create false product behavior, so HTTP exposure is deferred to
-the carrier that adds the first complete artifact path.
+The durable-job foundation now connects the bounded v1 contributors to a
+private artifact, a lease-fenced worker, and authenticated request, status and
+download routes. The worker marks a job `completed` only after every registered
+contributor has finished and the artifact sink verifies and commits the full
+versioned envelope. The current contributor inventory is a defined owner
+snapshot; it is not a complete event log, a transfer of shared ownership, or
+authority to read linked content. This implementation candidate does not by
+itself close #183 or enable production delivery; residual content, provider
+lifecycle and exact-head release gates still apply.
 
 This is infrastructure for export, not deletion, anonymization or retention.
 
@@ -284,8 +284,9 @@ ids, notifications and counterpart Profile content are not exported. Following
 is a snapshot of current outgoing edges: an unfollowed edge is no longer stored
 and is not a revocation history. A Connection row is the domain's current
 relationship record, not an event log of every request/reopen transition.
-These relationship projections do not grant access to counterpart data and
-do not make the full account export complete.
+These relationship projections do not grant access to counterpart data. They
+are included in the versioned artifact alongside the other registered
+contributors.
 
 ### Implemented notification inbox section
 
@@ -306,8 +307,8 @@ actor stays null.
 The export contains no actor names, emails, avatars or internal user ids; no
 notification provider/delivery data; and no Question, Answer, Connection or
 Profile content behind a target reference. The target reference is not access
-authority. These inbox records remain a partial contributor and do not make
-the overall account export complete.
+authority. These inbox records remain a partial contributor and are included
+only as the owner's current notification snapshot.
 
 ### Implemented Organization following section
 
@@ -457,7 +458,8 @@ projection, `id ASC`, `limit + 1`, a maximum page size of 100 and the
 `null`. Report status, update time, reviewer identity/time/reason/action,
 Resource content, FileAsset metadata and file bytes are excluded. The Resource
 reference is not resolved and grants no access. These sections remain partial
-contributors and do not make a complete downloadable account export.
+contributors; the worker assembles them with every registered section before
+it makes the generated artifact downloadable.
 
 ### Implemented Feed preference and feedback sections
 
@@ -481,8 +483,10 @@ current explicit feedback, not an event or ranking history.
 Neither section changes Feed behavior or grants authority over a referenced
 Subject, Profile, Resource, Question, or Organization Post.
 
-These remain partial contributors; they do not add a public endpoint or make
-the account export complete or downloadable.
+These remain partial contributors and do not resolve linked targets. The
+authenticated delivery routes below expose only the fully assembled artifact;
+they do not grant access to any referenced Subject, Profile, Resource,
+Question or Organization Post.
 
 ### Implemented File upload metadata section
 
@@ -503,8 +507,7 @@ download authority; export does not resolve a Resource or emit its `claimRef`.
 `creatorUserId`, Mongo `_id`, provider, `objectKey`, etag, upload operation
 keys/fingerprints, lifecycle state, failure codes, scan/reclamation claims and
 timestamps, signed URLs and bytes are excluded. The partial inventory does
-not change File lifecycle or retention and does not make the overall account
-export complete or downloadable.
+not change File lifecycle or retention and does not provide File byte access.
 
 ### Implemented Pilot activity section
 
@@ -526,7 +529,7 @@ This is a best-effort activity history, not a complete event ledger or audit
 trail. Aggregate metrics, other users' events, query text, content, IP address,
 user agent, moderation/audit data, target lookups and behavior changes are
 excluded. A Subject reference remains opaque and grants no access. The section
-does not make the overall account export complete or downloadable.
+is included as a partial owner-attributed activity snapshot.
 
 ## Implemented internal streaming artifact assembly
 
@@ -553,11 +556,11 @@ the internal assembly result also returns the exact envelope's UTF-8 byte
 length and SHA-256 hex digest. Both are calculated incrementally after each
 awaited sink write, so the assembler does not retain artifact bytes to compute
 integrity metadata. These values are internal attempt metadata and must not be
-logged or exposed as public download authority. The assembler is not a
-downloadable export: durable artifact storage, worker orchestration,
-owner-reauthorized request/status/delivery and the public HTTP surface remain
-open. No generated output may be presented as complete to an account owner
-until the complete artifact path is implemented and verified.
+logged or exposed as public download authority. The assembler itself does not
+provide download authority. The implementation below connects its stream to a
+durable sink, a lease-fenced worker and owner-reauthorized HTTP routes. The
+exact-head tests and provider lifecycle configuration remain required before
+production enablement.
 
 ### Durable completion boundary
 
@@ -571,10 +574,10 @@ it clears claim/lease state and releases the active processing slot.
 
 These fields are internal job metadata, not a public status or download
 capability. Provider ids, object keys and signed URLs are not persisted in the
-job. This transition does not add a concrete artifact store, worker, expiration
-policy, endpoint or delivery route, and does not assert that a downloadable
-artifact currently exists. Legal retention horizons and backup purge
-guarantees remain separate decisions.
+job. The original foundation did not include an artifact store, worker,
+expiration policy, endpoint or delivery route; the current implementation is
+specified in the following sections. Legal retention horizons and backup
+purge guarantees remain separate decisions.
 
 ### Lease-fenced retry transitions
 
@@ -586,8 +589,8 @@ Successful retries return the job to `pending` while retaining its active slot;
 terminal failures become inactive. Both paths clear claim/lease and any old
 completion metadata.
 
-This does not set retry backoff or attempt limits, and does not add a worker,
-artifact store, expiration policy, endpoint or delivery route.
+The current retry backoff and attempt limit are defined below. This foundation
+clause continues to define only the fenced persistence transitions.
 
 ### Safe failure codes
 
@@ -597,7 +600,7 @@ write, and the schema declares the same enum. Arbitrary exception text and
 export values cannot be persisted into the job's status field. Unknown
 historical values are sanitized to `null` in the public status projection.
 
-This does not choose retry timing, attempt limits or error classification.
+The worker applies the retry timing and classification defined below.
 
 ### Service-owned worker leases
 
@@ -607,8 +610,72 @@ current active processing claim while its lease remains unexpired. Renewal
 extends monotonically, so a concurrent later extension is never shortened;
 expired or replaced claims return false. Callers cannot supply lease timestamps.
 
-This is a lease primitive for a future worker. It does not add a worker loop,
-artifact sink/provider, retry schedule, retention policy or public endpoint.
+The worker below uses this lease primitive to fence long-running assembly.
+
+### Private artifact storage and commit boundary
+
+Completed v1 artifacts use a dedicated private S3-compatible bucket named by
+`ACCOUNT_EXPORT_S3_BUCKET`, separate from the Files bucket. The API uses the
+private `FILES_S3_ENDPOINT` and region with `ACCOUNT_EXPORT_S3_ACCESS_KEY_ID`
+and `ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY`; production rejects reusing the Files
+credentials. Local RustFS may use its single local credential. The export
+adapter never uses the public Files endpoint or issues a presigned URL.
+
+The object key is derived internally as `exports/{jobId}/{claimId}.json`; both
+components are canonical UUIDs. Mongo stores only the generation id, never the
+bucket, object key or URL. Each attempt writes its own multipart generation
+with a bounded 5 MiB part buffer. The sink checks the exact UTF-8 byte length,
+SHA-256, format and version before completing the S3 object. Mongo then records
+`completed`, the generation, digest metadata and `artifactExpiresAt` in a CAS
+guarded by the same active claim and unexpired lease. A stale completion is
+deleted and cannot become a download capability.
+
+### Account export worker and retry
+
+`pnpm --filter @losapuntes/api account-export:worker` runs a dedicated worker
+process. It claims a bounded batch, renews each two-minute lease every 40
+seconds, and asks the assembler to stop on the next page/write boundary after
+lease loss. It revalidates active account ownership immediately before the
+artifact sink commits. Transient assembly failures retry at most five claims
+with delays of 30, 60, 120 and 240 seconds; the fifth failure is terminal and
+releases the active job slot. An inactive owner fails terminally with the
+existing stable code. Logs contain event names, counts and exception classes,
+never export rows, storage keys, credentials or exception messages.
+
+The same worker deletes at most 100 expired artifacts per iteration. It deletes
+the S3 generation first and then clears that exact generation from Mongo. The
+operation is idempotent; if deletion or metadata clearing fails, the due row
+remains queryable for the next iteration. Downloads are denied by timestamp
+even while the cleanup retry is pending.
+
+### HTTP status and delivery
+
+- `POST /account/exports` creates or replays the active job and responds 202.
+- `GET /account/exports/{exportId}` returns owner-scoped stable status.
+- `GET /account/exports/{exportId}/download` streams the completed JSON as a
+  fixed-name attachment with `Cache-Control: private, no-store`.
+
+Every route requires `AuthSessionGuard`; request, status and download also
+recheck current active account status. Missing and foreign ids return the same 404. A pending/processing/failed download returns 409; an expired download
+returns 410. Public status adds only `downloadExpiresAt` and `downloadable`;
+claim/generation, provider, keys, signed URLs, bytes and digest remain private.
+
+The artifact expires exactly seven days after `completedAt`. Status checks and
+downloads do not extend the window. At `expiresAt`, the API stops issuing the
+stream and the worker begins bounded deletion retries. This operational window
+governs export artifact availability only; it does not set legal retention or
+promise deletion from backups, replicas or recovery media.
+
+### Bucket lifecycle defense in depth
+
+The dedicated bucket must have S3-compatible lifecycle rules that abort
+incomplete multipart uploads after seven days and expire `exports/` objects
+after eight days. The application enforces the exact seven-day download cutoff
+and performs normal cleanup; lifecycle is a recovery path for multipart or
+completed object orphans after a process crash. Configure and verify these rules
+for each production S3-compatible provider before production enablement. Bucket
+versioning, object lock and backup/recovery deletion remain separate operational
+decisions and are not implied by the seven-day API window.
 
 ## Security and privacy exclusions
 
@@ -685,12 +752,14 @@ without storage keys, scan internals, bytes or download authority. Pilot event
 history appears as the partial `pilot.activity` section; it contains only
 authenticated owner-attributed events and bounded dimensions. The presence of
 core, Auth, Academic, Feed, Files, Pilot, Q&A, Resource and other partial
-sections does not make the overall export product complete or ready for public
-HTTP delivery.
+sections does not close the export product. Authenticated HTTP routes now
+deliver the successfully assembled registered sections; the issue remains
+open for residual content and operational acceptance work in #183 and the
+production gates in #48.
 
-## Merge acceptance for this foundation
+## Historical merge acceptance for the durable-job foundation
 
-Before this foundation can merge:
+The following conditions applied before the durable-job foundation merged:
 
 - job creation/replay is concurrency-safe;
 - owner-scoped lookup exists at the store/service boundary;
@@ -699,6 +768,7 @@ Before this foundation can merge:
 - terminal failures release the active slot;
 - contributor page limits are executable in code and tests;
 - module wiring is real;
-- no public export endpoint or fake `ready` state is advertised;
+- no public export endpoint or fake `ready` state was advertised by that
+  foundation;
 - exact-head quality/coverage/runtime evidence is recorded under the normal
   repository gate, with #141 treated only as the separately tracked advisory.

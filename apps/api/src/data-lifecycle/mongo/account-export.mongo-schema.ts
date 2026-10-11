@@ -64,6 +64,12 @@ export class AccountExportJob {
   @Prop({ type: String, match: /^[a-f0-9]{64}$/u, default: null })
   artifactSha256!: string | null;
 
+  @Prop({ type: String, default: null })
+  artifactGeneration!: string | null;
+
+  @Prop({ type: Date, default: null, index: true })
+  artifactExpiresAt!: Date | null;
+
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -86,4 +92,10 @@ AccountExportJobSchema.index({
   leaseExpiresAt: 1,
   createdAt: 1,
   userId: 1,
+});
+
+AccountExportJobSchema.index({
+  state: 1,
+  artifactExpiresAt: 1,
+  artifactGeneration: 1,
 });

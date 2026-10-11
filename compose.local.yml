@@ -58,7 +58,8 @@ services:
       - >
         /usr/bin/rc alias set local http://rustfs:9000 "$$RUSTFS_ACCESS_KEY"
         "$$RUSTFS_SECRET_KEY" >/dev/null &&
-        /usr/bin/rc mb --ignore-existing local/losapuntes-files >/dev/null
+        /usr/bin/rc mb --ignore-existing local/losapuntes-files >/dev/null &&
+        /usr/bin/rc mb --ignore-existing local/losapuntes-account-exports >/dev/null
     depends_on:
       rustfs:
         condition: service_healthy
@@ -90,6 +91,9 @@ services:
       FILES_S3_BUCKET: losapuntes-files
       FILES_S3_ACCESS_KEY_ID: losapuntes-local
       FILES_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
+      ACCOUNT_EXPORT_S3_BUCKET: losapuntes-account-exports
+      ACCOUNT_EXPORT_S3_ACCESS_KEY_ID: losapuntes-local
+      ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
       FILES_DOWNLOAD_URL_TTL_SECONDS: "2"
     ports:
       - "4000:4000"
@@ -140,7 +144,50 @@ services:
       FILES_S3_BUCKET: losapuntes-files
       FILES_S3_ACCESS_KEY_ID: losapuntes-local
       FILES_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
+      ACCOUNT_EXPORT_S3_BUCKET: losapuntes-account-exports
+      ACCOUNT_EXPORT_S3_ACCESS_KEY_ID: losapuntes-local
+      ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
       FILES_CLEANUP_INTERVAL_MS: "1000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
+
+  account-export-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: "no"
+    command: ["node", "dist/data-lifecycle/account-export.worker.js"]
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_PROFILE: local
+      MONGO_URI: mongodb://mongo:27017/losapuntes_local?replicaSet=rs0&directConnection=true
+      WEB_ORIGIN: http://localhost:5173
+      SWAGGER_ENABLED: "false"
+      AUTH_EMAIL_DELIVERY_MODE: smtp
+      AUTH_ABUSE_KEY_SECRET: losapuntes-local-auth-abuse-secret-2026
+      AUTH_ACTION_BASE_URL: http://localhost:5173
+      AUTH_EMAIL_FROM: Los Apuntes <no-reply@losapuntes.local>
+      AUTH_SMTP_HOST: mailpit
+      AUTH_SMTP_PORT: 1025
+      AUTH_SMTP_SECURE: "false"
+      FILES_STORAGE_PROVIDER: s3
+      FILES_SAFETY_SCANNER: deterministic
+      FILES_S3_ENDPOINT: http://rustfs:9000
+      FILES_S3_PUBLIC_ENDPOINT: http://localhost:9000
+      FILES_S3_REGION: us-east-1
+      FILES_S3_BUCKET: losapuntes-files
+      FILES_S3_ACCESS_KEY_ID: losapuntes-local
+      FILES_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
+      ACCOUNT_EXPORT_S3_BUCKET: losapuntes-account-exports
+      ACCOUNT_EXPORT_S3_ACCESS_KEY_ID: losapuntes-local
+      ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY: losapuntes-local-files-secret
+      FILES_DOWNLOAD_URL_TTL_SECONDS: "2"
+      ACCOUNT_EXPORT_WORKER_INTERVAL_MS: "1000"
     depends_on:
       mongo:
         condition: service_healthy

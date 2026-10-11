@@ -78,6 +78,8 @@ describe('AccountExportService', () => {
       state: 'pending',
       requestedAt: now.toISOString(),
       failureCode: null,
+      downloadExpiresAt: null,
+      downloadable: false,
     });
     expect(f.store.requestActive.mock.calls).toEqual([
       [
@@ -166,6 +168,8 @@ describe('AccountExportService', () => {
         state: 'pending',
         requestedAt: now.toISOString(),
         failureCode: null,
+        downloadExpiresAt: null,
+        downloadable: false,
       },
     });
   });
@@ -357,7 +361,11 @@ describe('AccountExportService', () => {
           {
             id: 'export-1',
             claimId: 'claim-1',
+            artifactGeneration: 'claim-1',
             completedAt: now,
+            artifactExpiresAt: new Date(
+              now.getTime() + 7 * 24 * 60 * 60 * 1000,
+            ),
             result,
           },
         ],
@@ -471,15 +479,66 @@ describe('AccountExportService', () => {
         artifactRecordCount: 7,
         artifactByteLength: 512,
         artifactSha256: 'a'.repeat(64),
+        artifactGeneration: 'generation-1',
+        artifactExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       }),
     );
 
-    const status = await f.service.status('user-1', 'export-1');
+    const status = await f.service.status('user-1', 'export-1', now);
 
     expect(status?.state).toBe('completed');
+    expect(status?.downloadable).toBe(true);
+    expect(status?.downloadExpiresAt).toBe(
+      new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    );
     expect(status).not.toHaveProperty('completedAt');
     expect(status).not.toHaveProperty('artifactByteLength');
     expect(status).not.toHaveProperty('artifactSha256');
+    expect(status).not.toHaveProperty('artifactGeneration');
+  });
+
+  it('reauthorizes every download and rejects expired or incomplete artifacts', async () => {
+    const f = fixture();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    f.store.findOwned
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(job({ state: 'processing', claimId: 'claim-1' }))
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          artifactGeneration: 'generation-1',
+          artifactExpiresAt: expiresAt,
+          artifactByteLength: 512,
+        }),
+      )
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          artifactGeneration: 'generation-1',
+          artifactExpiresAt: now,
+          artifactByteLength: 512,
+        }),
+      );
+
+    await expect(f.service.download('user-1', 'missing', now)).resolves.toEqual(
+      { kind: 'not_found' },
+    );
+    await expect(
+      f.service.download('user-1', 'export-1', now),
+    ).resolves.toEqual({ kind: 'not_ready' });
+    await expect(
+      f.service.download('user-1', 'export-1', now),
+    ).resolves.toEqual({
+      kind: 'available',
+      generation: 'generation-1',
+      byteLength: 512,
+    });
+    await expect(
+      f.service.download('user-1', 'export-1', now),
+    ).resolves.toEqual({ kind: 'expired' });
+    expect(f.users.hasActiveAccount.mock.calls).toHaveLength(4);
   });
 
   it('forces contributors through the bounded page budget', async () => {

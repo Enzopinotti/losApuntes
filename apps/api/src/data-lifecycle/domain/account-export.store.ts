@@ -41,8 +41,22 @@ export interface AccountExportStore {
   complete(input: {
     id: string;
     claimId: string;
+    artifactGeneration: string;
     completedAt: Date;
+    artifactExpiresAt: Date;
     result: AccountExportAssemblyResult;
+  }): Promise<boolean>;
+
+  findExpiredArtifacts(input: {
+    now: Date;
+    limit: number;
+  }): Promise<import('./account-export.types').ExpiredAccountExportArtifact[]>;
+
+  clearExpiredArtifact(input: {
+    id: string;
+    generation: string;
+    expiresAt: Date;
+    now: Date;
   }): Promise<boolean>;
 
   hasFailed(): Promise<boolean>;
