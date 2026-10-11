@@ -157,6 +157,6 @@ describe('PilotEventService', () => {
     ).rejects.toMatchObject({
       response: { code: 'PILOT_EVENT_ACCOUNT_EXPORT_LIMIT_INVALID' },
     });
-    expect(store.listForAccountExport.mock).not.toHaveBeenCalled();
+    expect(store.listForAccountExport.mock.calls).toHaveLength(0);
   });
 });
