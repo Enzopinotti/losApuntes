@@ -32,6 +32,11 @@ import {
 import { mobileCommunityApi } from "./community-runtime";
 import { QaReportAction } from "./qa-report-action";
 import {
+  MobileQaMutationsController,
+  type QaMutation,
+  type QaMutationSnapshot,
+} from "./qa-mutations-controller";
+import {
   useCommunityAuthority,
   type CommunityAuthorityGate,
 } from "./use-community-authority";
@@ -79,6 +84,12 @@ function failureMessage(
   }
   if (code === "QUESTION_CLOSED") {
     return "Esta pregunta ya no acepta respuestas.";
+  }
+  if (
+    code === "QUESTION_REVISION_CONFLICT" ||
+    code === "ANSWER_REVISION_CONFLICT"
+  ) {
+    return "El contenido cambió. Actualizá la conversación antes de editar.";
   }
   if (code === "QUESTION_NOT_FOUND") {
     return "La pregunta ya no está disponible.";
@@ -553,6 +564,41 @@ function QuestionDetailContent({
 }) {
   const { detail } = snapshot;
   const { question, answers } = detail;
+  const mutations = useMemo(
+    () => new MobileQaMutationsController(mobileCommunityApi),
+    [],
+  );
+  const [mutation, setMutation] = useState<QaMutationSnapshot>(
+    mutations.getSnapshot(),
+  );
+  const [editingQuestion, setEditingQuestion] = useState(false);
+  const [questionTitleDraft, setQuestionTitleDraft] = useState("");
+  const [questionBodyDraft, setQuestionBodyDraft] = useState("");
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
+  const [answerDraft, setAnswerDraft] = useState("");
+
+  useEffect(() => mutations.subscribe(setMutation), [mutations]);
+  useEffect(
+    () => () => mutations.invalidate(),
+    [mutations, snapshot.authorityKey, question.id],
+  );
+
+  const mutationLocked =
+    mutation.kind === "busy" ||
+    mutation.kind === "failure" ||
+    mutation.kind === "uncertain" ||
+    snapshot.submittingAnswer ||
+    snapshot.loadingMoreAnswers;
+
+  const applyMutation = (action: QaMutation) => {
+    if (mutationLocked) return;
+    void mutations
+      .apply(snapshot.authorityKey, detail, action)
+      .then((committed) => {
+        if (committed) onRefresh();
+      });
+  };
+
   return (
     <View style={styles.list}>
       <View style={styles.card}>
@@ -572,6 +618,76 @@ function QuestionDetailContent({
           Por {question.author?.displayName ?? "Persona de la comunidad"}
         </Text>
         <Text style={styles.body}>{question.body}</Text>
+        {question.viewer.canEdit ? (
+          <View style={styles.list}>
+            {editingQuestion ? (
+              <View style={styles.list}>
+                <TextInput
+                  accessibilityLabel="Editar título de la pregunta"
+                  maxLength={180}
+                  onChangeText={setQuestionTitleDraft}
+                  style={styles.input}
+                  value={questionTitleDraft}
+                />
+                <TextInput
+                  accessibilityLabel="Editar detalle de la pregunta"
+                  multiline
+                  maxLength={5000}
+                  onChangeText={setQuestionBodyDraft}
+                  style={[styles.input, styles.multiline]}
+                  textAlignVertical="top"
+                  value={questionBodyDraft}
+                />
+                <ActionButton
+                  label={
+                    mutation.kind === "busy" ? "Guardando…" : "Guardar pregunta"
+                  }
+                  disabled={
+                    mutationLocked ||
+                    questionTitleDraft.trim().length < 5 ||
+                    questionBodyDraft.trim().length < 10
+                  }
+                  onPress={() =>
+                    applyMutation({
+                      kind: "edit-question",
+                      title: questionTitleDraft,
+                      body: questionBodyDraft,
+                    })
+                  }
+                />
+                <ActionButton
+                  label="Cancelar edición"
+                  disabled={mutationLocked}
+                  onPress={() => setEditingQuestion(false)}
+                />
+              </View>
+            ) : (
+              <ActionButton
+                label="Editar pregunta"
+                disabled={mutationLocked}
+                onPress={() => {
+                  setQuestionTitleDraft(question.title);
+                  setQuestionBodyDraft(question.body);
+                  setEditingQuestion(true);
+                }}
+              />
+            )}
+            <ActionButton
+              label={
+                question.state === "open"
+                  ? "Cerrar pregunta"
+                  : "Reabrir pregunta"
+              }
+              disabled={mutationLocked}
+              onPress={() =>
+                applyMutation({
+                  kind: "set-question-state",
+                  state: question.state === "open" ? "closed" : "open",
+                })
+              }
+            />
+          </View>
+        ) : null}
         {question.viewer.canReport ? (
           <QaReportAction
             authorityKey={snapshot.authorityKey}
@@ -597,6 +713,59 @@ function QuestionDetailContent({
                 {answer.author?.displayName ?? "Persona de la comunidad"}
               </Text>
               <Text style={styles.body}>{answer.body}</Text>
+              {answer.viewer.canEdit ? (
+                editingAnswerId === answer.id ? (
+                  <View style={styles.list}>
+                    <TextInput
+                      accessibilityLabel="Editar respuesta"
+                      multiline
+                      maxLength={5000}
+                      onChangeText={setAnswerDraft}
+                      style={[styles.input, styles.multiline]}
+                      textAlignVertical="top"
+                      value={answerDraft}
+                    />
+                    <ActionButton
+                      label="Guardar respuesta"
+                      disabled={mutationLocked || answerDraft.trim().length < 2}
+                      onPress={() =>
+                        applyMutation({
+                          kind: "edit-answer",
+                          answerId: answer.id,
+                          body: answerDraft,
+                        })
+                      }
+                    />
+                    <ActionButton
+                      label="Cancelar edición de respuesta"
+                      disabled={mutationLocked}
+                      onPress={() => setEditingAnswerId(null)}
+                    />
+                  </View>
+                ) : (
+                  <ActionButton
+                    label="Editar mi respuesta"
+                    disabled={mutationLocked}
+                    onPress={() => {
+                      setEditingAnswerId(answer.id);
+                      setAnswerDraft(answer.body);
+                    }}
+                  />
+                )
+              ) : null}
+              {question.viewer.canAcceptAnswers &&
+              question.acceptedAnswerId !== answer.id ? (
+                <ActionButton
+                  label="Aceptar esta respuesta"
+                  disabled={mutationLocked}
+                  onPress={() =>
+                    applyMutation({
+                      kind: "accept-answer",
+                      answerId: answer.id,
+                    })
+                  }
+                />
+              ) : null}
               {answer.viewer.canReport ? (
                 <QaReportAction
                   authorityKey={snapshot.authorityKey}
@@ -621,6 +790,16 @@ function QuestionDetailContent({
         ) : null}
       </View>
 
+      {mutation.kind === "failure" || mutation.kind === "uncertain" ? (
+        <View style={styles.card}>
+          <Text accessibilityRole="alert" style={styles.error}>
+            {mutation.kind === "uncertain"
+              ? "No pudimos confirmar el cambio. Actualizá la conversación antes de volver a intentar."
+              : failureMessage(mutation.failure, mutation.failure.code)}
+          </Text>
+          <ActionButton label="Actualizar conversación" onPress={onRefresh} />
+        </View>
+      ) : null}
       {snapshot.notice ? (
         <Text accessibilityRole="alert" style={styles.success}>
           {snapshot.notice}
@@ -658,6 +837,7 @@ function QuestionDetailContent({
             disabled={
               snapshot.submittingAnswer ||
               snapshot.loadingMoreAnswers ||
+              mutationLocked ||
               snapshot.answerRetryBlocked ||
               answerBody.trim().length < 2
             }
