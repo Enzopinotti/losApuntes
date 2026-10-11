@@ -20,6 +20,11 @@ export interface FollowRecord {
   updatedAt: Date;
 }
 
+export type FollowAccountExportRow = Pick<
+  FollowRecord,
+  'id' | 'followeeUserId' | 'createdAt'
+>;
+
 export interface ConnectionRecord {
   id: string;
   userLowId: string;
@@ -30,3 +35,15 @@ export interface ConnectionRecord {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type ConnectionAccountExportRow = Pick<
+  ConnectionRecord,
+  | 'id'
+  | 'userLowId'
+  | 'userHighId'
+  | 'requestedByUserId'
+  | 'status'
+  | 'respondedAt'
+  | 'createdAt'
+  | 'updatedAt'
+>;

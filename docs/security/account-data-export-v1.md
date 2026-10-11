@@ -189,6 +189,41 @@ search text, answer counts, accepted-answer pointers, internal revisions and
 author user ids. An answer references its Question by id only; the export
 does not resolve or include another author's Question content.
 
+### Social relationship sections — candidate for #183
+
+Social contributes two owner-scoped relationship sections:
+
+- `social.following` — the account's current outgoing Follow relations, each
+  represented by the followed Profile id and the Follow creation time;
+- `social.connections` — the stored Connection row for each direct relation in
+  which the account participates, including its current status, whether the
+  owner requested it, and creation, response and update timestamps.
+
+Following is ordered by `createdAt DESC, id ASC`; Connections are ordered by
+`updatedAt DESC, id ASC`. Each query uses an owner/participant filter, an
+explicit Mongo field allowlist and `limit + 1` to determine continuation. The
+export page limit is capped at 100. Following uses the existing
+`{ followerUserId: 1, createdAt: -1, id: 1 }` index. Connections use separate
+`{ userLowId: 1, updatedAt: -1, id: 1 }` and
+`{ userHighId: 1, updatedAt: -1, id: 1 }` indexes so either participant arm
+can seek in export order.
+
+The portable Follow record contains only `followeeProfileId` and `followedAt`.
+The portable Connection record contains only `counterpartProfileId`, `status`,
+`requestedByOwner`, `createdAt`, `respondedAt` and `updatedAt`. Counterpart
+Profile ids are resolved in a separately bounded allowlist read; a missing
+Profile identity or a corrupt row that does not contain the owner aborts the
+page instead of emitting an incomplete or misattributed record. Closed Profile
+tombstones remain resolvable through their stable Profile id.
+
+Incoming follower lists, counterpart names, emails, avatars, internal user
+ids, notifications and counterpart Profile content are not exported. Following
+is a snapshot of current outgoing edges: an unfollowed edge is no longer stored
+and is not a revocation history. A Connection row is the domain's current
+relationship record, not an event log of every request/reopen transition.
+These relationship projections do not grant access to counterpart data and
+do not make the full account export complete.
+
 ### Resource history sections — candidate for #183
 
 Resources contributes three owner-scoped sections:
@@ -236,7 +271,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -307,8 +342,9 @@ Those remain #82/#48 or later #183 slices.
 Resource authored metadata, saved references and current explicit share grants
 are implemented as an incomplete contributor candidate; Resource file bytes
 and a historical revocation log remain outside it. Q&A authored questions and
-answers are also partial contributor sections; Social relationships,
-Organizations, Notifications and Alumni are still unimplemented export domains.
+answers and Social Following/Connection history are also partial contributor
+sections; Organizations, Notifications and Alumni are still unimplemented
+export domains.
 User-authored Academic catalog proposals are also outside the currently
 implemented v1 Academic carrier pending a separate inclusion decision. The
 presence of core, Academic and partial Resource sections does not make the

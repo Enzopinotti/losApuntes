@@ -56,3 +56,5 @@ export const SocialConnectionSchema =
 SocialConnectionSchema.index({ userLowId: 1, userHighId: 1 }, { unique: true });
 SocialConnectionSchema.index({ userLowId: 1, status: 1, updatedAt: -1 });
 SocialConnectionSchema.index({ userHighId: 1, status: 1, updatedAt: -1 });
+SocialConnectionSchema.index({ userLowId: 1, updatedAt: -1, id: 1 });
+SocialConnectionSchema.index({ userHighId: 1, updatedAt: -1, id: 1 });
