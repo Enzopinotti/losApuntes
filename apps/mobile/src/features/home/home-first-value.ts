@@ -46,6 +46,29 @@ export function hasActionableHomeContent(
   );
 }
 
+export interface HomeFeedExploreAction {
+  href: Href;
+  label: string;
+  accessibilityLabel: string;
+  accessibilityHint: string;
+}
+
+export function homeFeedExploreAction(
+  surface: "subjects" | "community" | "for_you",
+  hasMore: boolean,
+): HomeFeedExploreAction | null {
+  if (!hasMore) return null;
+
+  const destination = surface === "community" ? "Red" : "Buscar";
+  return {
+    href: surface === "community" ? "/(tabs)/network" : "/(tabs)/search",
+    label: `Explorar en ${destination}`,
+    accessibilityLabel: `Explorar más contenido en ${destination}`,
+    accessibilityHint:
+      "Abre otra sección para descubrir contenido. No continúa la misma tanda del inicio.",
+  };
+}
+
 export interface HomeFirstValueAction {
   id: "search" | "question";
   label: string;
