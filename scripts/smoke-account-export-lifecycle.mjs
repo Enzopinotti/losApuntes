@@ -201,6 +201,12 @@ assert.equal(typeof login.body.sessionToken, "string");
 assert.ok(login.body.sessionToken.length > 0);
 const authorization = `Bearer ${login.body.sessionToken}`;
 
+const unauthenticatedRequest = await requestJson("/account/exports", {
+  method: "POST",
+});
+assert.equal(unauthenticatedRequest.response.status, 401);
+assert.equal(unauthenticatedRequest.body.code, "AUTHENTICATION_REQUIRED");
+
 const request = await requestJson("/account/exports", {
   method: "POST",
   headers: { authorization },
@@ -218,6 +224,24 @@ assert.match(
   initialExportId ?? "",
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
 );
+
+const unauthenticatedStatus = await requestJson(
+  `/account/exports/${initialExportId}`,
+);
+assert.equal(unauthenticatedStatus.response.status, 401);
+assert.equal(unauthenticatedStatus.body.code, "AUTHENTICATION_REQUIRED");
+assert.equal("export" in unauthenticatedStatus.body, false);
+assertNoCredentialOrStorageFields(unauthenticatedStatus.body);
+
+const unauthenticatedDownload = await fetch(
+  new URL(`/account/exports/${initialExportId}/download`, baseUrl),
+  { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+);
+assert.equal(unauthenticatedDownload.status, 401);
+assert.equal(unauthenticatedDownload.headers.get("location"), null);
+const unauthenticatedDownloadBody = await unauthenticatedDownload.json();
+assert.equal(unauthenticatedDownloadBody.code, "AUTHENTICATION_REQUIRED");
+assertNoCredentialOrStorageFields(unauthenticatedDownloadBody);
 
 const replay = await requestJson("/account/exports", {
   method: "POST",
