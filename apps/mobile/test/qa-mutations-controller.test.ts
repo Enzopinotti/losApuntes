@@ -72,7 +72,10 @@ function stubApi(
       answer: answer({ revision: input.expectedRevision + 1 }),
     }),
     acceptAnswer: async (_id, answerId, revision) => ({
-      question: question({ revision: revision + 1, acceptedAnswerId: answerId }),
+      question: question({
+        revision: revision + 1,
+        acceptedAnswerId: answerId,
+      }),
     }),
     ...changes,
   };
@@ -167,7 +170,10 @@ test("closing and reopening carry the latest server revision", async () => {
       updateQuestion: async (_id, input) => {
         seen.push(input.expectedRevision);
         return {
-          question: question({ state: input.status ?? "open", revision: input.expectedRevision + 1 }),
+          question: question({
+            state: input.status ?? "open",
+            revision: input.expectedRevision + 1,
+          }),
         };
       },
     }),
@@ -200,7 +206,9 @@ test("editing an answer and accepting it use their respective revisions", async 
       },
       acceptAnswer: async (id, answerId, revision) => {
         seen.push({ id, answerId, revision });
-        return { question: question({ acceptedAnswerId: answerId, revision: 5 }) };
+        return {
+          question: question({ acceptedAnswerId: answerId, revision: 5 }),
+        };
       },
     }),
   );
