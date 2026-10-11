@@ -246,6 +246,25 @@ Profile content behind a target reference. The target reference is not access
 authority. These inbox records remain a partial contributor and do not make
 the overall account export complete.
 
+### Organization following section — candidate for #183
+
+Organizations contributes the partial owner-scoped section
+`organizations.following`. It is a snapshot of the owner's current
+OrganizationFollow edges. Each portable record contains only the stable
+`organizationId` reference and `followedAt` timestamp. The read filters by the
+owner and selects only those two fields; it does not resolve the Organization.
+
+Pages use `createdAt DESC, organizationId ASC`, an opaque cursor,
+`limit + 1`, and a maximum page size of 100. The
+`{ userId: 1, createdAt: -1, organizationId: 1 }` index supports this order.
+An archived or missing target does not erase the owner's stored follow row;
+the export preserves the edge as stored without inferring target lifecycle.
+
+Organization names, metadata, managers, members, posts, events, Resources and
+other linked content are not included. Unfollowed edges are not available as a
+revocation history. This partial section does not transfer Organization
+ownership, management authority or access to the target.
+
 ### Resource history sections — candidate for #183
 
 Resources contributes three owner-scoped sections:
@@ -293,7 +312,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.following":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -364,9 +383,10 @@ Those remain #82/#48 or later #183 slices.
 Resource authored metadata, saved references and current explicit share grants
 are implemented as an incomplete contributor candidate; Resource file bytes
 and a historical revocation log remain outside it. Q&A authored questions and
-answers, Social Following/Connection history and the owner's Notification
-inbox are also partial contributor sections; Organizations and Alumni are
-still unimplemented export domains.
+answers, Social Following/Connection history, the owner's Notification inbox
+and current Organization follows are also partial contributor sections.
+Organization management/member and authoring history, and Alumni data, remain
+outside the current contributor set.
 User-authored Academic catalog proposals are also outside the currently
 implemented v1 Academic carrier pending a separate inclusion decision. The
 presence of core, Academic and partial Resource sections does not make the

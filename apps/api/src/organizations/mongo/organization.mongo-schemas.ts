@@ -164,7 +164,11 @@ OrganizationFollowSchema.index(
   { organizationId: 1, userId: 1 },
   { unique: true },
 );
-OrganizationFollowSchema.index({ userId: 1, createdAt: -1 });
+OrganizationFollowSchema.index({
+  userId: 1,
+  createdAt: -1,
+  organizationId: 1,
+});
 
 @Schema({ collection: 'organization_posts', timestamps: true })
 export class OrganizationPost {
