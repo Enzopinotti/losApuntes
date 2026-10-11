@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   hasActionableHomeContent,
+  homeFeedExploreAction,
   homeFeedItemAction,
   homeFirstValueActions,
 } from "../src/features/home/home-first-value";
@@ -88,4 +89,27 @@ test("Home shows next-step actions only when no resource or question can be open
     hasActionableHomeContent({ items: [] }, { items: [{ type: "question" }] }),
     true,
   );
+});
+
+test("Home browse actions never pretend to resume the bounded cursor", () => {
+  assert.equal(homeFeedExploreAction("subjects", false), null);
+  assert.equal(homeFeedExploreAction("community", false), null);
+  assert.equal(homeFeedExploreAction("for_you", false), null);
+
+  const subjects = homeFeedExploreAction("subjects", true);
+  assert.deepEqual(
+    [subjects?.href, subjects?.label],
+    ["/(tabs)/search", "Explorar en Buscar"],
+  );
+  assert.match(subjects?.accessibilityHint ?? "", /No continúa la misma tanda/);
+
+  const community = homeFeedExploreAction("community", true);
+  assert.deepEqual(
+    [community?.href, community?.label],
+    ["/(tabs)/network", "Explorar en Red"],
+  );
+
+  const forYou = homeFeedExploreAction("for_you", true);
+  assert.equal(forYou?.href, "/(tabs)/search");
+  assert.equal(forYou?.accessibilityLabel, "Explorar más contenido en Buscar");
 });
