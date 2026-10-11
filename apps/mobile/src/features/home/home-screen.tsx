@@ -121,6 +121,7 @@ function FeedSection({
   onOpen,
   onExplore,
   onLoadMore,
+  onRefresh,
   pageStatus,
   refreshing,
 }: {
@@ -130,6 +131,7 @@ function FeedSection({
   onOpen: (action: HomeFeedItemAction) => void;
   onExplore: (action: HomeFeedExploreAction) => void;
   onLoadMore: () => void;
+  onRefresh: () => void;
   pageStatus: HomePageStatus | undefined;
   refreshing: boolean;
 }) {
@@ -160,16 +162,24 @@ function FeedSection({
       {canLoadMoreHomeFeed(feed) ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Cargar más elementos de ${title}`}
+          accessibilityLabel={
+            pageStatus?.requiresRefresh
+              ? `Actualizar Inicio para volver a cargar ${title}`
+              : `Cargar más elementos de ${title}`
+          }
           disabled={pageStatus?.loading || refreshing}
-          onPress={onLoadMore}
+          onPress={pageStatus?.requiresRefresh ? onRefresh : onLoadMore}
           style={({ pressed }) => [
             styles.firstValueAction,
             pressed && styles.firstValueActionPressed,
           ]}
         >
           <Text style={styles.firstValueActionLabel}>
-            {pageStatus?.loading ? "Cargando más…" : "Cargar más"}
+            {pageStatus?.loading
+              ? "Cargando más…"
+              : pageStatus?.requiresRefresh
+                ? "Actualizar Inicio"
+                : "Cargar más"}
           </Text>
         </Pressable>
       ) : null}
@@ -182,7 +192,7 @@ function FeedSection({
         <View style={styles.feedExplore}>
           <Text style={styles.moreCopy}>
             {limitReached
-              ? "Llegaste al límite de elementos en Inicio. Podés seguir explorando en otra sección."
+              ? "En Inicio ya no entra otra tanda completa. Podés seguir explorando en otra sección."
               : "También podés explorar contenido en otra sección sin continuar esta tanda."}
           </Text>
           <Pressable
@@ -550,6 +560,7 @@ export function HomeScreen() {
         onOpen={openFeedItem}
         onExplore={navigateFeedExplore}
         onLoadMore={() => loadMoreFeed("home")}
+        onRefresh={refresh}
         pageStatus={
           currentHome?.kind === "ready"
             ? currentHome.pagination?.home
@@ -564,6 +575,7 @@ export function HomeScreen() {
         onOpen={openFeedItem}
         onExplore={navigateFeedExplore}
         onLoadMore={() => loadMoreFeed("for_you")}
+        onRefresh={refresh}
         pageStatus={
           currentHome?.kind === "ready"
             ? currentHome.pagination?.for_you
