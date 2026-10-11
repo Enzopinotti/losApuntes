@@ -318,6 +318,7 @@ export class MobileHomeController {
 
   private start(authorityKey: string, snapshot: MobileHomeSnapshot): number {
     this.operationGeneration += 1;
+    this.abortMore();
     this.activeOperation?.abort();
     this.activeOperation = new AbortController();
     this.authorityKey = authorityKey;
