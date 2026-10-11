@@ -10,7 +10,14 @@ export const ACCOUNT_EXPORT_JOB_STATES = [
   'completed',
 ] as const;
 
+export const ACCOUNT_EXPORT_FAILURE_CODES = [
+  'EXPORT_ASSEMBLY_RETRY',
+  'EXPORT_RETRY_EXHAUSTED',
+] as const;
+
 export type AccountExportJobState = (typeof ACCOUNT_EXPORT_JOB_STATES)[number];
+export type AccountExportFailureCode =
+  (typeof ACCOUNT_EXPORT_FAILURE_CODES)[number];
 
 export type AccountExportJsonScalar = string | number | boolean | null;
 export type AccountExportJsonValue =
@@ -34,7 +41,7 @@ export interface AccountExportJobRecord {
   nextAttemptAt: Date;
   claimId: string | null;
   leaseExpiresAt: Date | null;
-  failureCode: string | null;
+  failureCode: AccountExportFailureCode | null;
   failedAt: Date | null;
   completedAt?: Date | null;
   artifactSectionCount?: number | null;

@@ -9,10 +9,12 @@ import {
 import {
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
+  ACCOUNT_EXPORT_FAILURE_CODES,
   ACCOUNT_EXPORT_LEASE_DURATION_MS,
   ACCOUNT_EXPORT_PAGE_LIMIT,
   type AccountExportAssemblyResult,
   type AccountExportContributor,
+  type AccountExportFailureCode,
   type AccountExportJobRecord,
 } from './account-export.types';
 
@@ -22,8 +24,17 @@ export type AccountExportStatus = {
   formatVersion: number;
   state: AccountExportJobRecord['state'];
   requestedAt: string;
-  failureCode: string | null;
+  failureCode: AccountExportFailureCode | null;
 };
+
+function isAccountExportFailureCode(
+  value: unknown,
+): value is AccountExportFailureCode {
+  return (
+    typeof value === 'string' &&
+    (ACCOUNT_EXPORT_FAILURE_CODES as readonly string[]).includes(value)
+  );
+}
 
 function assertCompletionResult(
   result: AccountExportAssemblyResult,
@@ -143,7 +154,7 @@ export class AccountExportService {
     claimId: string;
     state: 'pending' | 'failed';
     nextAttemptAt: Date;
-    failureCode: string;
+    failureCode: AccountExportFailureCode;
   }): Promise<boolean> {
     if (
       typeof input.id !== 'string' ||
@@ -153,8 +164,7 @@ export class AccountExportService {
       (input.state !== 'pending' && input.state !== 'failed') ||
       !(input.nextAttemptAt instanceof Date) ||
       !Number.isFinite(input.nextAttemptAt.getTime()) ||
-      typeof input.failureCode !== 'string' ||
-      input.failureCode.length === 0
+      !isAccountExportFailureCode(input.failureCode)
     ) {
       throw new Error('Account export reschedule claim is invalid');
     }
@@ -191,7 +201,9 @@ export class AccountExportService {
       formatVersion: job.formatVersion,
       state: job.state,
       requestedAt: job.createdAt.toISOString(),
-      failureCode: job.failureCode,
+      failureCode: isAccountExportFailureCode(job.failureCode)
+        ? job.failureCode
+        : null,
     };
   }
 }

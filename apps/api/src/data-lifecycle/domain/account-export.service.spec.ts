@@ -4,6 +4,7 @@ import type { AccountExportStore } from './account-export.store';
 import {
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
+  type AccountExportFailureCode,
   ACCOUNT_EXPORT_LEASE_DURATION_MS,
   ACCOUNT_EXPORT_PAGE_LIMIT,
   type AccountExportContributor,
@@ -159,6 +160,19 @@ describe('AccountExportService', () => {
     ).resolves.toBeNull();
   });
 
+  it('does not reflect an unknown historical failure code in status', async () => {
+    const f = fixture();
+    const legacyJob = {
+      ...job({ state: 'failed', active: false }),
+      failureCode: 'private-user@example.com',
+    } as unknown as AccountExportJobRecord;
+    f.store.findOwned.mockResolvedValue(legacyJob);
+
+    await expect(f.service.status('user-1', 'export-1')).resolves.toMatchObject(
+      { state: 'failed', failureCode: null },
+    );
+  });
+
   it('creates processing claims with a service-generated id and bounded lease', async () => {
     const f = fixture();
     jest.useFakeTimers().setSystemTime(now);
@@ -307,6 +321,21 @@ describe('AccountExportService', () => {
         state: 'completed' as never,
         nextAttemptAt: now,
         failureCode: 'EXPORT_ASSEMBLY_RETRY',
+      }),
+    ).rejects.toThrow('reschedule claim is invalid');
+    expect(f.store.reschedule.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects a non-contract failure code before persistence', async () => {
+    const f = fixture();
+
+    await expect(
+      f.service.reschedule({
+        id: 'export-1',
+        claimId: 'claim-1',
+        state: 'failed',
+        nextAttemptAt: now,
+        failureCode: 'private-user@example.com' as AccountExportFailureCode,
       }),
     ).rejects.toThrow('reschedule claim is invalid');
     expect(f.store.reschedule.mock.calls).toHaveLength(0);

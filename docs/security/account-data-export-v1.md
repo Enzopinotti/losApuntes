@@ -78,6 +78,10 @@ Only the holder of the current claim id may reschedule that processing job.
 Retry returns it to `pending`; terminal exhaustion moves it to `failed`,
 sets `active=false`, and records a stable failure code.
 
+Failure codes are a closed domain allowlist. They are stable identifiers, never
+exception messages, user input or export content. The service rejects unknown
+codes before persistence and omits unknown legacy values from public status.
+
 The foundation does not yet choose retry timings for assembly because no
 assembler runs in this carrier. The future processor owns that policy and must
 keep it bounded.
@@ -572,6 +576,15 @@ completion metadata.
 
 This does not set retry backoff or attempt limits, and does not add a worker,
 artifact store, expiration policy, endpoint or delivery route.
+
+### Safe failure codes
+
+Retry transitions accept only the closed failure codes already defined by the
+domain. Arbitrary exception text and export values cannot be persisted into
+the job's status field. Unknown historical values are sanitized to `null` in
+the public status projection.
+
+This does not choose retry timing, attempt limits or error classification.
 
 ### Service-owned worker leases
 

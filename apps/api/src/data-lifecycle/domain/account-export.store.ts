@@ -1,5 +1,6 @@
 import type {
   AccountExportAssemblyResult,
+  AccountExportFailureCode,
   AccountExportJobRecord,
 } from './account-export.types';
 
@@ -33,7 +34,7 @@ export interface AccountExportStore {
     claimId: string;
     state: 'pending' | 'failed';
     nextAttemptAt: Date;
-    failureCode: string;
+    failureCode: AccountExportFailureCode;
     now: Date;
   }): Promise<boolean>;
 
