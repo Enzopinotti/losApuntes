@@ -178,15 +178,17 @@ describe('MongoAccountExportStore', () => {
         state: 'pending',
         nextAttemptAt: now,
         failureCode: 'EXPORT_ASSEMBLY_RETRY',
-        failedAt: null,
+        now,
       }),
     ).resolves.toBe(true);
 
     expect(f.jobs.updateOne).toHaveBeenLastCalledWith(
       {
         id: 'export-1',
+        active: true,
         state: 'processing',
         claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
       },
       {
         $set: {
@@ -212,14 +214,16 @@ describe('MongoAccountExportStore', () => {
       state: 'failed',
       nextAttemptAt: now,
       failureCode: 'EXPORT_RETRY_EXHAUSTED',
-      failedAt: now,
+      now,
     });
 
     expect(f.jobs.updateOne).toHaveBeenLastCalledWith(
       {
         id: 'export-1',
+        active: true,
         state: 'processing',
         claimId: 'claim-2',
+        leaseExpiresAt: { $gt: now },
       },
       {
         $set: {
@@ -237,6 +241,33 @@ describe('MongoAccountExportStore', () => {
           leaseExpiresAt: null,
         },
       },
+    );
+  });
+
+  it('leaves an expired lease untouched during retry scheduling', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({ modifiedCount: 0 });
+
+    await expect(
+      f.store.reschedule({
+        id: 'export-1',
+        claimId: 'claim-1',
+        state: 'pending',
+        nextAttemptAt: now,
+        failureCode: 'EXPORT_ASSEMBLY_RETRY',
+        now,
+      }),
+    ).resolves.toBe(false);
+
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        active: true,
+        state: 'processing',
+        claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
+      },
+      expect.any(Object),
     );
   });
 

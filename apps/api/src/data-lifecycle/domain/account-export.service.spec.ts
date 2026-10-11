@@ -193,6 +193,54 @@ describe('AccountExportService', () => {
     }
   });
 
+  it('fences rescheduling with a service-owned current timestamp', async () => {
+    const f = fixture();
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      f.store.reschedule.mockResolvedValue(true);
+
+      await expect(
+        f.service.reschedule({
+          id: 'export-1',
+          claimId: 'claim-1',
+          state: 'pending',
+          nextAttemptAt: now,
+          failureCode: 'EXPORT_ASSEMBLY_RETRY',
+        }),
+      ).resolves.toBe(true);
+
+      expect(f.store.reschedule.mock.calls).toEqual([
+        [
+          {
+            id: 'export-1',
+            claimId: 'claim-1',
+            state: 'pending',
+            nextAttemptAt: now,
+            failureCode: 'EXPORT_ASSEMBLY_RETRY',
+            now,
+          },
+        ],
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('rejects malformed reschedule claims before persistence', async () => {
+    const f = fixture();
+
+    await expect(
+      f.service.reschedule({
+        id: 'export-1',
+        claimId: 'claim-1',
+        state: 'completed' as never,
+        nextAttemptAt: now,
+        failureCode: 'EXPORT_ASSEMBLY_RETRY',
+      }),
+    ).rejects.toThrow('reschedule claim is invalid');
+    expect(f.store.reschedule.mock.calls).toHaveLength(0);
+  });
+
   it.each([
     { sha256: 'not-a-digest' },
     { sectionCount: -1 },

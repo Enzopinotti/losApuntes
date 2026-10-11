@@ -560,6 +560,19 @@ policy, endpoint or delivery route, and does not assert that a downloadable
 artifact currently exists. Legal retention horizons and backup purge
 guarantees remain separate decisions.
 
+### Lease-fenced retry transitions
+
+Retryable and terminal failure transitions use the same job id, active slot,
+`processing` state, exact claim id and unexpired lease fence as completion. The
+service supplies the current transition time; callers cannot backdate it. A
+stale claim or expired lease returns no success and does not change the job.
+Successful retries return the job to `pending` while retaining its active slot;
+terminal failures become inactive. Both paths clear claim/lease and any old
+completion metadata.
+
+This does not set retry backoff or attempt limits, and does not add a worker,
+artifact store, expiration policy, endpoint or delivery route.
+
 ## Security and privacy exclusions
 
 Export output must never contain:

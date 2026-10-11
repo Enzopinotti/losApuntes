@@ -106,6 +106,30 @@ export class AccountExportService {
     return this.store.complete({ ...input, completedAt });
   }
 
+  async reschedule(input: {
+    id: string;
+    claimId: string;
+    state: 'pending' | 'failed';
+    nextAttemptAt: Date;
+    failureCode: string;
+  }): Promise<boolean> {
+    if (
+      typeof input.id !== 'string' ||
+      input.id.length === 0 ||
+      typeof input.claimId !== 'string' ||
+      input.claimId.length === 0 ||
+      (input.state !== 'pending' && input.state !== 'failed') ||
+      !(input.nextAttemptAt instanceof Date) ||
+      !Number.isFinite(input.nextAttemptAt.getTime()) ||
+      typeof input.failureCode !== 'string' ||
+      input.failureCode.length === 0
+    ) {
+      throw new Error('Account export reschedule claim is invalid');
+    }
+
+    return this.store.reschedule({ ...input, now: new Date() });
+  }
+
   async readContributorPage(
     contributor: AccountExportContributor,
     userId: string,

@@ -27,7 +27,7 @@ export interface AccountExportStore {
     state: 'pending' | 'failed';
     nextAttemptAt: Date;
     failureCode: string;
-    failedAt: Date | null;
+    now: Date;
   }): Promise<boolean>;
 
   complete(input: {

@@ -120,8 +120,10 @@ export class MongoAccountExportStore implements AccountExportStore {
       .updateOne(
         {
           id: input.id,
+          active: true,
           state: 'processing',
           claimId: input.claimId,
+          leaseExpiresAt: { $gt: input.now },
         },
         {
           $set: {
@@ -129,7 +131,7 @@ export class MongoAccountExportStore implements AccountExportStore {
             active: input.state === 'pending',
             nextAttemptAt: input.nextAttemptAt,
             failureCode: input.failureCode,
-            failedAt: input.failedAt,
+            failedAt: input.state === 'failed' ? input.now : null,
             completedAt: null,
             artifactSectionCount: null,
             artifactRecordCount: null,
