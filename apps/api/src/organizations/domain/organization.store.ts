@@ -3,6 +3,8 @@ import type {
   OrganizationCursor,
   OrganizationEventCursor,
   OrganizationEventRecord,
+  OrganizationEventAccountExportRow,
+  OrganizationPostAccountExportRow,
   OrganizationFeaturedResourceRecord,
   OrganizationFollowRecord,
   OrganizationFollowAccountExportCursor,
@@ -221,6 +223,14 @@ export interface OrganizationStore {
     before?: Date;
     after?: OrganizationPostCursor;
   }): Promise<{ items: OrganizationPostRecord[]; hasMore: boolean }>;
+  listAuthoredPostsForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: { id: string };
+  }): Promise<{
+    items: OrganizationPostAccountExportRow[];
+    hasMore: boolean;
+  }>;
   listFeedPosts(input: {
     organizationIds: string[];
     anchorAt: Date;
@@ -242,6 +252,14 @@ export interface OrganizationStore {
     from?: Date;
     after?: OrganizationEventCursor;
   }): Promise<{ items: OrganizationEventRecord[]; hasMore: boolean }>;
+  listAuthoredEventsForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: { id: string };
+  }): Promise<{
+    items: OrganizationEventAccountExportRow[];
+    hasMore: boolean;
+  }>;
 
   listLinks(organizationId: string): Promise<OrganizationLinkRecord[]>;
 

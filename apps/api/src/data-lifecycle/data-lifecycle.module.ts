@@ -38,6 +38,10 @@ import {
   AuthoredQuestionsExportContributor,
 } from './contributors/account-export-qa.contributors';
 import { NotificationInboxExportContributor } from './contributors/account-export-notifications.contributors';
+import {
+  OrganizationAuthoredEventsExportContributor,
+  OrganizationAuthoredPostsExportContributor,
+} from './contributors/account-export-organization-content.contributors';
 import { OrganizationFollowingExportContributor } from './contributors/account-export-organization-following.contributors';
 import {
   SocialConnectionsExportContributor,
@@ -103,6 +107,8 @@ import {
     AuthoredQuestionsExportContributor,
     AuthoredAnswersExportContributor,
     NotificationInboxExportContributor,
+    OrganizationAuthoredEventsExportContributor,
+    OrganizationAuthoredPostsExportContributor,
     OrganizationFollowingExportContributor,
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
@@ -122,6 +128,8 @@ import {
         authoredQuestions: AuthoredQuestionsExportContributor,
         authoredAnswers: AuthoredAnswersExportContributor,
         notificationInbox: NotificationInboxExportContributor,
+        organizationAuthoredEvents: OrganizationAuthoredEventsExportContributor,
+        organizationAuthoredPosts: OrganizationAuthoredPostsExportContributor,
         organizationFollowing: OrganizationFollowingExportContributor,
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
@@ -139,6 +147,8 @@ import {
         authoredQuestions,
         authoredAnswers,
         notificationInbox,
+        organizationAuthoredEvents,
+        organizationAuthoredPosts,
         organizationFollowing,
         socialFollowing,
         socialConnections,
@@ -157,6 +167,8 @@ import {
         AuthoredQuestionsExportContributor,
         AuthoredAnswersExportContributor,
         NotificationInboxExportContributor,
+        OrganizationAuthoredEventsExportContributor,
+        OrganizationAuthoredPostsExportContributor,
         OrganizationFollowingExportContributor,
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
