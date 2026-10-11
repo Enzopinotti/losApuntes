@@ -468,12 +468,34 @@ Subject, Profile, Resource, Question, or Organization Post.
 These remain partial contributors; they do not add a public endpoint or make
 the account export complete or downloadable.
 
+### Implemented Pilot activity section
+
+Pilot contributes the partial owner-scoped section `pilot.activity` from its
+existing `pilot_events` telemetry rows. It includes only records whose
+`userId` exactly matches the export owner. Each portable row contains the
+stable event id, allowlisted event name, optional opaque `subjectId`, optional
+numeric `resultCount`, and `createdAt`; absent optional dimensions are
+serialized as `null`.
+
+Pages use ascending `{ createdAt: 1, id: 1 }` keyset order, read `limit + 1`,
+and are capped at 100. The `{ userId: 1, createdAt: 1, id: 1 }` index supports
+the owner filter and continuation. The query selects only portable fields and
+does not include the internal owner id or Mongo `_id` in the artifact. The
+section preserves only telemetry already written; events without an
+authenticated `userId` do not appear, and export does not backfill attribution.
+
+This is a best-effort activity history, not a complete event ledger or audit
+trail. Aggregate metrics, other users' events, query text, content, IP address,
+user agent, moderation/audit data, target lookups and behavior changes are
+excluded. A Subject reference remains opaque and grants no access. The section
+does not make the overall account export complete or downloadable.
+
 ## Implemented internal streaming artifact assembly
 
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"auth.externalIdentities":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredLinks":[...],"organizations.authoredPosts":[...],"organizations.featuredResources":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.proposals":[...],"academic.subjectParticipations":[...],"account":[...],"auth.externalIdentities":[...],"feeds.feedback":[...],"feeds.preferences":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredLinks":[...],"organizations.authoredPosts":[...],"organizations.featuredResources":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"pilot.activity":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"qa.submittedReports":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"resources.submittedReports":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -569,9 +591,11 @@ Feed preferences and current explicit feedback now appear as partial
 `feeds.preferences` and `feeds.feedback` sections without target lookups or
 synthesized defaults. The current Google identity link appears as the partial
 `auth.externalIdentities` section; it contains no provider credentials or
-proofs. The presence of core, Auth, Academic, Feed, Q&A, Resource and other
-partial sections does not make the overall export product complete or ready
-for public HTTP delivery.
+proofs. Pilot event history now appears as the partial `pilot.activity`
+section; it contains only authenticated owner-attributed events and bounded
+dimensions. The presence of core, Auth, Academic, Feed, Pilot, Q&A, Resource
+and other partial sections does not make the overall export product complete
+or ready for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 

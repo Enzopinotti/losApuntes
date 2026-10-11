@@ -26,6 +26,7 @@ export class PilotEvent {
 export const PilotEventSchema = SchemaFactory.createForClass(PilotEvent);
 PilotEventSchema.index({ event: 1, createdAt: -1 });
 PilotEventSchema.index({ userId: 1, createdAt: -1 });
+PilotEventSchema.index({ userId: 1, createdAt: 1, id: 1 });
 PilotEventSchema.index({ createdAt: -1, userId: 1 });
 PilotEventSchema.index({ subjectId: 1, createdAt: -1 });
 PilotEventSchema.index({ event: 1, createdAt: -1, subjectId: 1 });

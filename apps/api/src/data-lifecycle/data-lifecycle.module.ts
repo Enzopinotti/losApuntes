@@ -5,6 +5,7 @@ import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
 import { FeedsModule } from '../feeds/feeds.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import {
   OrganizationManager,
@@ -25,6 +26,7 @@ import {
   AcademicSubjectParticipationsExportContributor,
 } from './contributors/account-export-academic.contributors';
 import { AcademicProposalsExportContributor } from './contributors/account-export-academic-proposals.contributors';
+import { PilotActivityExportContributor } from './contributors/account-export-pilot-activity.contributors';
 import {
   FeedFeedbackExportContributor,
   FeedPreferencesExportContributor,
@@ -92,6 +94,7 @@ import {
     AuthModule,
     FeedsModule,
     NotificationsModule,
+    PilotTelemetryModule,
     OrganizationsModule,
     UsersModule,
     ProfileModule,
@@ -140,6 +143,7 @@ import {
     ResourceSubmittedReportsExportContributor,
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
+    PilotActivityExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -171,6 +175,7 @@ import {
         resourceSubmittedReports: ResourceSubmittedReportsExportContributor,
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
+        pilotActivity: PilotActivityExportContributor,
       ) => [
         account,
         profile,
@@ -200,6 +205,7 @@ import {
         resourceSubmittedReports,
         socialFollowing,
         socialConnections,
+        pilotActivity,
       ],
       inject: [
         AccountIdentityExportContributor,
@@ -230,6 +236,7 @@ import {
         ResourceSubmittedReportsExportContributor,
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
+        PilotActivityExportContributor,
       ],
     },
     AccountExportContributorRegistry,
