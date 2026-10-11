@@ -31,6 +31,7 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 import {
   resourceFileSizeLabel,
   resourceFileTypeLabel,
+  resourceRowAccessibilityLabel,
 } from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
 
@@ -72,7 +73,16 @@ function ResourceResult({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Abrir ${resource.title}`}
+      accessibilityLabel={resourceRowAccessibilityLabel(
+        {
+          title: resource.title,
+          subjectName: resource.academic.subject.name,
+          authorName: resource.author?.displayName ?? null,
+          mimeType: resource.file.mimeType,
+          byteSize: resource.file.byteSize,
+        },
+        "Abrir recurso",
+      )}
       onPress={onPress}
       style={styles.resultRow}
     >

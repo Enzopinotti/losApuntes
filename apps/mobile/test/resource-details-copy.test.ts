@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   resourceFileSizeLabel,
   resourceFileTypeLabel,
+  resourceRowAccessibilityLabel,
   resourceVisibilityLabel,
 } from "../src/features/resources/resource-details-copy";
 
@@ -37,4 +38,36 @@ test("file sizes share readable byte, KB, and localized MB labels", () => {
   assert.equal(resourceFileSizeLabel(1536), "2 KB");
   assert.equal(resourceFileSizeLabel(1024 * 1024), "1,0 MB");
   assert.equal(resourceFileSizeLabel(1572864), "1,5 MB");
+});
+
+test("resource row labels expose the visible subject, author, type, and size", () => {
+  assert.equal(
+    resourceRowAccessibilityLabel(
+      {
+        title: "Base de datos I",
+        subjectName: "Sistemas de Información",
+        authorName: "Ana Pérez",
+        mimeType: "application/pdf",
+        byteSize: 1572864,
+      },
+      "Abrir recurso",
+    ),
+    "Abrir recurso: Base de datos I. Materia: Sistemas de Información. Autor: Ana Pérez. Formato: PDF. Tamaño: 1,5 MB.",
+  );
+});
+
+test("resource row labels keep neutral copy for missing authors and unknown MIME", () => {
+  assert.equal(
+    resourceRowAccessibilityLabel(
+      {
+        title: "Apunte sin autor",
+        subjectName: "Historia",
+        authorName: null,
+        mimeType: "application/zip",
+        byteSize: 1024,
+      },
+      "Abrir recurso guardado",
+    ),
+    "Abrir recurso guardado: Apunte sin autor. Materia: Historia. Autor: no disponible. Formato: Formato no identificado. Tamaño: 1 KB.",
+  );
 });

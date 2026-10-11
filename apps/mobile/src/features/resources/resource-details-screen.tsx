@@ -36,6 +36,7 @@ import {
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
 import {
+  resourceFileSizeLabel,
   resourceFileTypeLabel,
   resourceVisibilityLabel,
 } from "./resource-details-copy";
@@ -302,6 +303,9 @@ export function MobileResourceDetailsScreen({
               <Text style={styles.meta}>Archivo: {resource.file.filename}</Text>
               <Text style={styles.meta}>
                 Formato: {resourceFileTypeLabel(resource.file.mimeType)}
+              </Text>
+              <Text style={styles.meta}>
+                Tamaño: {resourceFileSizeLabel(resource.file.byteSize)}
               </Text>
               <Text style={styles.meta}>
                 Visibilidad: {resourceVisibilityLabel(resource.visibility)}
