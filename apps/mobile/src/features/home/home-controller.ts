@@ -10,7 +10,10 @@ import { ApiRequestError } from "@/services/api/client";
 
 export interface PilotHomeApi {
   pilotHome(signal?: AbortSignal): Promise<PilotHomeResponse>;
-  academicFeed(cursor: string, signal?: AbortSignal): Promise<AcademicFeedResponse>;
+  academicFeed(
+    cursor: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicFeedResponse>;
   forYouFeed(
     cursor: string,
     mode: "balanced" | "community",
