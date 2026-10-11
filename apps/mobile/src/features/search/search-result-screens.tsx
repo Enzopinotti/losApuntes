@@ -12,7 +12,10 @@ import {
   View,
 } from "react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { FencedDetailSnapshot } from "./use-fenced-detail";
+import type {
+  DetailFailureKind,
+  FencedDetailSnapshot,
+} from "./use-fenced-detail";
 
 import {
   activeNavigationAuthorityKey,
@@ -28,10 +31,12 @@ import {
 import { mobileSearchApi } from "./search-runtime";
 import { useFencedDetail } from "./use-fenced-detail";
 
-const errorCopy: Record<string, string> = {
+const errorCopy: Record<DetailFailureKind, string> = {
   offline: "No hay conexión. Volvé a intentarlo cuando estés en línea.",
   timeout: "El servidor tardó demasiado en responder.",
   server_unavailable: "Este contenido no está disponible ahora.",
+  forbidden: "Ya no tenés permiso para acceder a este contenido.",
+  not_found: "Este contenido ya no está disponible o dejó de ser visible.",
   restricted: "La cuenta no puede acceder a este contenido.",
   error: "No pudimos cargar este contenido.",
 };
@@ -103,7 +108,7 @@ function DetailState<T>({
   return (
     <View style={styles.card}>
       <Text accessibilityRole="alert" style={styles.error}>
-        {errorCopy[snapshot.kind]}
+        {errorCopy[current.kind]}
       </Text>
       <Pressable
         accessibilityRole="button"

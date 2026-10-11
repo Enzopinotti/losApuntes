@@ -27,6 +27,7 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
 import {
   useFencedDetail,
+  type DetailFailureKind,
   type FencedDetailSnapshot,
 } from "@/features/search/use-fenced-detail";
 
@@ -42,10 +43,12 @@ import {
 } from "./resource-details-copy";
 import { mobileResourceConsumptionApi } from "./resource-runtime";
 
-const detailFailureCopy: Record<string, string> = {
+const detailFailureCopy: Record<DetailFailureKind, string> = {
   offline: "No hay conexión. Volvé a intentarlo cuando estés en línea.",
   timeout: "El servidor tardó demasiado en responder.",
   server_unavailable: "Este recurso no está disponible ahora.",
+  forbidden: "Ya no tenés permiso para acceder a este recurso.",
+  not_found: "Este recurso ya no está disponible.",
   restricted: "La cuenta no puede acceder a este recurso.",
   error: "No pudimos cargar este recurso.",
 };
@@ -124,7 +127,7 @@ function DetailState({
   return (
     <View style={styles.card}>
       <Text accessibilityRole="alert" style={styles.error}>
-        {detailFailureCopy[current.kind] ?? detailFailureCopy.error}
+        {detailFailureCopy[current.kind]}
       </Text>
       <Pressable
         accessibilityRole="button"
