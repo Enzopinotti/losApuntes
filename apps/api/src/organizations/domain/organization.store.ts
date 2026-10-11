@@ -5,6 +5,8 @@ import type {
   OrganizationEventRecord,
   OrganizationFeaturedResourceRecord,
   OrganizationFollowRecord,
+  OrganizationFollowAccountExportCursor,
+  OrganizationFollowAccountExportRow,
   OrganizationLinkRecord,
   OrganizationManagerRecord,
   OrganizationManagerRole,
@@ -199,6 +201,14 @@ export interface OrganizationStore {
     userId: string,
     limit: number,
   ): Promise<{ ids: string[]; truncated: boolean }>;
+  listForAccountExportFollowing(input: {
+    userId: string;
+    limit: number;
+    after?: OrganizationFollowAccountExportCursor;
+  }): Promise<{
+    items: OrganizationFollowAccountExportRow[];
+    hasMore: boolean;
+  }>;
 
   findPostById(
     organizationId: string,

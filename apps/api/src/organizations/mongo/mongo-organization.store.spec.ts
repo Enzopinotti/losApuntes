@@ -19,6 +19,7 @@ function query<T>(value: T) {
 
 function listQuery<T>(value: T) {
   return {
+    select: jest.fn().mockReturnThis(),
     sort: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     lean: jest.fn().mockReturnThis(),
@@ -46,6 +47,7 @@ function models(input: {
   managerRows?: unknown[];
   linkRows?: unknown[];
   featuredRows?: unknown[];
+  followRows?: unknown[];
 }) {
   const activeSession = session();
   const connection = {
@@ -75,6 +77,7 @@ function models(input: {
   const managerListQuery = listQuery(input.managerRows ?? []);
   const linkListQuery = listQuery(input.linkRows ?? []);
   const featuredListQuery = listQuery(input.featuredRows ?? []);
+  const followListQuery = listQuery(input.followRows ?? []);
   const managers = {
     find: jest.fn(() => managerListQuery),
     findOne: jest.fn(() => query(input.manager ?? null)),
@@ -88,6 +91,9 @@ function models(input: {
   };
   const audits = {
     create: jest.fn(),
+  };
+  const follows = {
+    find: jest.fn(() => followListQuery),
   };
   const posts = {
     create: jest.fn(),
@@ -118,7 +124,7 @@ function models(input: {
     organizations as never,
     managers as never,
     audits as never,
-    {} as never,
+    follows as never,
     posts as never,
     {} as never,
     links as never,
@@ -137,9 +143,11 @@ function models(input: {
     posts,
     links,
     featuredResources,
+    follows,
     managerListQuery,
     linkListQuery,
     featuredListQuery,
+    followListQuery,
   };
 }
 
@@ -888,5 +896,52 @@ describe('MongoOrganizationStore commit authority', () => {
       session: fixture.activeSession,
     });
     expect(fixture.activeSession.withTransaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MongoOrganizationStore account export following', () => {
+  it('uses the owner filter, explicit fields, stable cursor and limit+1 read', async () => {
+    const first = {
+      organizationId,
+      createdAt: now,
+    };
+    const fixture = models({ followRows: [first, { ...first }] });
+    const after = {
+      createdAt: now,
+      organizationId: '00000000-0000-4000-8000-000000000000',
+    };
+
+    const result = await fixture.store.listForAccountExportFollowing({
+      userId: actorUserId,
+      limit: 1,
+      after,
+    });
+
+    expect(fixture.follows.find).toHaveBeenCalledWith({
+      $and: [
+        { userId: actorUserId },
+        {
+          $or: [
+            { createdAt: { $lt: now } },
+            {
+              createdAt: now,
+              organizationId: { $gt: after.organizationId },
+            },
+          ],
+        },
+      ],
+    });
+    expect(fixture.followListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      organizationId: 1,
+      createdAt: 1,
+    });
+    expect(fixture.followListQuery.sort).toHaveBeenCalledWith({
+      createdAt: -1,
+      organizationId: 1,
+    });
+    expect(fixture.followListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [first], hasMore: true });
+    expect(fixture.organizations.findOne).not.toHaveBeenCalled();
   });
 });

@@ -119,6 +119,7 @@ function store(): jest.Mocked<OrganizationStore> {
     isFollowing: jest.fn(),
     countFollowers: jest.fn(),
     listFollowedOrganizationIds: jest.fn(),
+    listForAccountExportFollowing: jest.fn(),
     findPostById: jest.fn(),
     findPostByGlobalId: jest.fn(),
     listPosts: jest.fn(),
@@ -343,6 +344,93 @@ async function expectCode(
 }
 
 describe('OrganizationService', () => {
+  it('exports current organization follows in stable bounded pages', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const followed = { organizationId: orgId, createdAt: now };
+    organizationStore.listForAccountExportFollowing
+      .mockResolvedValueOnce({ items: [followed], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+
+    const instance = service(organizationStore, dependencies);
+    const first = await instance.listAccountExportFollowing('owner-user', {
+      limit: 1,
+      cursor: null,
+    });
+
+    expect(first.items).toEqual([
+      { organizationId: orgId, followedAt: now.toISOString() },
+    ]);
+    expect(first.items[0]).not.toHaveProperty('userId');
+    expect(first.items[0]).not.toHaveProperty('name');
+    expect(first.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          createdAt: now.toISOString(),
+          organizationId: orgId,
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    expect(
+      organizationStore.listForAccountExportFollowing.mock.calls[0],
+    ).toEqual([{ userId: 'owner-user', limit: 1, after: undefined }]);
+
+    await expect(
+      instance.listAccountExportFollowing('owner-user', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listForAccountExportFollowing.mock.calls[1],
+    ).toEqual([
+      {
+        userId: 'owner-user',
+        limit: 1,
+        after: { createdAt: now, organizationId: orgId },
+      },
+    ]);
+  });
+
+  it('rejects out-of-range limits and noncanonical or malformed export cursors', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const instance = service(organizationStore, dependencies);
+
+    for (const limit of [0, 1.5, 101]) {
+      await expectCode(
+        instance.listAccountExportFollowing('owner-user', {
+          limit,
+          cursor: null,
+        }),
+        'ORGANIZATION_ACCOUNT_EXPORT_LIMIT_INVALID',
+      );
+    }
+
+    const malformed = Buffer.from(
+      JSON.stringify({
+        createdAt: now.toISOString(),
+        organizationId: orgId,
+        extra: true,
+      }),
+      'utf8',
+    ).toString('base64url');
+    for (const cursor of [`${malformed}=`, malformed]) {
+      await expectCode(
+        instance.listAccountExportFollowing('owner-user', {
+          limit: 100,
+          cursor,
+        }),
+        'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      );
+    }
+
+    expect(
+      organizationStore.listForAccountExportFollowing.mock.calls,
+    ).toHaveLength(0);
+  });
+
   it('requires a Profile before organization creation', async () => {
     const organizationStore = store();
     const dependencies = deps();

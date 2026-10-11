@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import {
   OrganizationManager,
   OrganizationManagerSchema,
@@ -37,6 +38,7 @@ import {
   AuthoredQuestionsExportContributor,
 } from './contributors/account-export-qa.contributors';
 import { NotificationInboxExportContributor } from './contributors/account-export-notifications.contributors';
+import { OrganizationFollowingExportContributor } from './contributors/account-export-organization-following.contributors';
 import {
   SocialConnectionsExportContributor,
   SocialFollowingExportContributor,
@@ -68,6 +70,7 @@ import {
     AcademicModule,
     AuthModule,
     NotificationsModule,
+    OrganizationsModule,
     UsersModule,
     ProfileModule,
     QaModule,
@@ -100,6 +103,7 @@ import {
     AuthoredQuestionsExportContributor,
     AuthoredAnswersExportContributor,
     NotificationInboxExportContributor,
+    OrganizationFollowingExportContributor,
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
     {
@@ -118,6 +122,7 @@ import {
         authoredQuestions: AuthoredQuestionsExportContributor,
         authoredAnswers: AuthoredAnswersExportContributor,
         notificationInbox: NotificationInboxExportContributor,
+        organizationFollowing: OrganizationFollowingExportContributor,
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
       ) => [
@@ -134,6 +139,7 @@ import {
         authoredQuestions,
         authoredAnswers,
         notificationInbox,
+        organizationFollowing,
         socialFollowing,
         socialConnections,
       ],
@@ -151,6 +157,7 @@ import {
         AuthoredQuestionsExportContributor,
         AuthoredAnswersExportContributor,
         NotificationInboxExportContributor,
+        OrganizationFollowingExportContributor,
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
       ],

@@ -107,6 +107,16 @@ export interface OrganizationFollowRecord {
   updatedAt: Date;
 }
 
+export type OrganizationFollowAccountExportRow = Pick<
+  OrganizationFollowRecord,
+  'organizationId' | 'createdAt'
+>;
+
+export interface OrganizationFollowAccountExportCursor {
+  createdAt: Date;
+  organizationId: string;
+}
+
 export interface OrganizationPostRecord {
   id: string;
   organizationId: string;
