@@ -258,10 +258,11 @@ const artifactBytes = await consumeBoundedBody(download, contentLength);
 const artifact = JSON.parse(artifactBytes.toString("utf8"));
 assert.equal(artifact.format, "los-apuntes-account-export");
 assert.equal(artifact.version, 1);
-assert.equal(
-  Object.keys(artifact.sections ?? {}).length,
-  EXPECTED_SECTION_COUNT,
-);
+const sectionEntries = Object.entries(artifact.sections ?? {});
+assert.equal(sectionEntries.length, EXPECTED_SECTION_COUNT);
+for (const [sectionId, records] of sectionEntries) {
+  assert.ok(Array.isArray(records), `section ${sectionId} must be an array`);
+}
 for (const sectionId of [
   "account",
   "profile",
@@ -276,10 +277,11 @@ for (const sectionId of [
 }
 assertNoCredentialOrStorageFields(artifact);
 
-const recordCount = Object.values(artifact.sections).reduce(
-  (sum, records) => sum + records.length,
+const recordCount = sectionEntries.reduce(
+  (sum, [, records]) => sum + records.length,
   0,
 );
+assert.ok(Number.isSafeInteger(recordCount) && recordCount >= 0);
 console.log(
   JSON.stringify({
     event: "account_export.runtime.smoke.ok",
