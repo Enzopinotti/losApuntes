@@ -172,9 +172,9 @@ assert.equal(
   "account export request must be accepted",
 );
 assert.equal(typeof request.body.created, "boolean");
-const exportId = request.body.export?.id;
+const initialExportId = request.body.export?.id;
 assert.match(
-  exportId ?? "",
+  initialExportId ?? "",
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
 );
 
@@ -183,8 +183,30 @@ const replay = await requestJson("/account/exports", {
   headers: { authorization },
 });
 assert.equal(replay.response.status, 202);
-assert.equal(replay.body.created, false);
-assert.equal(replay.body.export?.id, exportId);
+let exportId = initialExportId;
+let requestReplayOutcome;
+if (replay.body.created === false) {
+  assert.equal(replay.body.export?.id, initialExportId);
+  requestReplayOutcome = "active_job_replayed";
+} else {
+  assert.equal(replay.body.created, true);
+  const priorStatus = await requestJson(`/account/exports/${initialExportId}`, {
+    headers: { authorization },
+  });
+  assert.equal(priorStatus.response.status, 200);
+  assert.equal(
+    priorStatus.body.state,
+    "completed",
+    "a new job after the first request is valid only if that export already completed",
+  );
+  exportId = replay.body.export?.id;
+  assert.match(
+    exportId ?? "",
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
+  );
+  assert.notEqual(exportId, initialExportId);
+  requestReplayOutcome = "prior_job_completed_before_replay";
+}
 
 const status = await waitForCompletion(exportId, authorization);
 assert.equal(status.format, "los-apuntes-account-export");
@@ -262,6 +284,7 @@ console.log(
   JSON.stringify({
     event: "account_export.runtime.smoke.ok",
     state: status.state,
+    requestReplayOutcome,
     sectionCount: EXPECTED_SECTION_COUNT,
     recordCount,
     byteLength: artifactBytes.byteLength,
