@@ -246,7 +246,12 @@ export class MobileHomeController {
       if (!stillCurrent()) return;
 
       if (page.nextCursor === cursor) {
-        throw new Error("Home feed repeated the same page cursor");
+        throw new ApiRequestError(
+          "conflict",
+          409,
+          "HOME_FEED_CURSOR_REPEATED",
+          "Home feed did not advance its cursor",
+        );
       }
 
       const current = this.snapshot;
