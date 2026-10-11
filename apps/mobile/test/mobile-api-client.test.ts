@@ -72,6 +72,108 @@ test("pilot Home uses the authenticated server-owned endpoint", async () => {
   }
 });
 
+test("Academic onboarding uses public canonical search and authenticated affiliation creation", async () => {
+  const previousFetch = globalThis.fetch;
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const affiliation = {
+    id: "aff-created",
+    institutionId: "institution-1",
+    status: "active",
+    roles: ["student"],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  };
+  globalThis.fetch = async (input, init) => {
+    requests.push({ url: String(input), ...(init ? { init } : {}) });
+    return new Response(
+      JSON.stringify(
+        new URL(String(input)).pathname === "/academic/catalog/search"
+          ? { items: [], nextCursor: null }
+          : new URL(String(input)).pathname.startsWith("/academic/me/subjects/")
+            ? {
+                participation: {
+                  id: "part-created",
+                  subjectId: "subject-1",
+                  subjectName: "Álgebra",
+                  state: "current",
+                  createdAt: "2026-10-01T00:00:00.000Z",
+                  updatedAt: "2026-10-01T00:00:00.000Z",
+                },
+              }
+            : { affiliation },
+      ),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  };
+
+  try {
+    const client = new MobileApiClient("https://api.example.test");
+    await client.academicCatalogSearch({
+      kind: "program",
+      q: "Medicina",
+      limit: 25,
+      parentId: "institution-1",
+      cursor: "opaque-cursor",
+    });
+    await client.createAcademicAffiliation("opaque-session", {
+      institutionId: "institution-1",
+      programId: "program-1",
+      status: "active",
+    });
+    await client.upsertAcademicSubjectParticipation(
+      "opaque-session",
+      "subject-1",
+      { state: "current" },
+    );
+
+    const search = requests[0]!;
+    const searchUrl = new URL(search.url);
+    assert.equal(searchUrl.pathname, "/academic/catalog/search");
+    assert.equal(searchUrl.searchParams.get("kind"), "program");
+    assert.equal(searchUrl.searchParams.get("q"), "Medicina");
+    assert.equal(searchUrl.searchParams.get("limit"), "25");
+    assert.equal(searchUrl.searchParams.get("cursor"), "opaque-cursor");
+    assert.equal(searchUrl.searchParams.get("parentId"), "institution-1");
+    assert.equal(search.init?.method, "GET");
+    assert.equal(
+      (search.init?.headers as Record<string, string> | undefined)
+        ?.Authorization,
+      undefined,
+    );
+
+    const create = requests[1]!;
+    assert.equal(new URL(create.url).pathname, "/academic/me/affiliations");
+    assert.equal(create.init?.method, "POST");
+    assert.equal(
+      (create.init?.headers as Record<string, string>).Authorization,
+      "Bearer opaque-session",
+    );
+    assert.deepEqual(JSON.parse(String(create.init?.body)), {
+      institutionId: "institution-1",
+      programId: "program-1",
+      status: "active",
+    });
+    const upsert = requests[2]!;
+    assert.equal(
+      new URL(upsert.url).pathname,
+      "/academic/me/subjects/subject-1",
+    );
+    assert.equal(upsert.init?.method, "PUT");
+    assert.equal(
+      (upsert.init?.headers as Record<string, string>).Authorization,
+      "Bearer opaque-session",
+    );
+    assert.deepEqual(JSON.parse(String(upsert.init?.body)), {
+      state: "current",
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("Search and result destinations use the existing authenticated routes", async () => {
   const previousFetch = globalThis.fetch;
   const requests: Array<{ url: string; init?: RequestInit }> = [];
