@@ -260,7 +260,10 @@ test("Home continues academic cursor 6 with deduplication and no fabricated item
   if (snapshot.kind !== "ready") return;
   assert.equal(calls, 1);
   assert.equal(receivedSignal?.aborted, false);
-  assert.deepEqual(snapshot.data.homeFeed.items.map((row) => row.id), ["a", "b", "c"]);
+  assert.deepEqual(
+    snapshot.data.homeFeed.items.map((row) => row.id),
+    ["a", "b", "c"],
+  );
   assert.equal(snapshot.data.homeFeed.nextCursor, "academic-page-3");
   assert.deepEqual(snapshot.pagination?.home, { loading: false, error: null });
 });
@@ -273,11 +276,17 @@ test("Home alumni community cursor uses for-you community/ranked, not academic",
   const controller = new MobileHomeController({
     ...defaultPages,
     pilotHome: async () => initial,
-    academicFeed: async () => { throw new Error("wrong API"); },
+    academicFeed: async () => {
+      throw new Error("wrong API");
+    },
     forYouFeed: async (cursor, mode) => {
       assert.equal(cursor, "community-page-2");
       modes.push(mode);
-      return { ...initial.forYou, items: [item("community-post","organization_post")], nextCursor: null };
+      return {
+        ...initial.forYou,
+        items: [item("community-post", "organization_post")],
+        nextCursor: null,
+      };
     },
   });
   await controller.load("authority-a", context());
@@ -318,7 +327,10 @@ test("Home for-you feed paginates independently using balanced/ranked and type:i
   if (snapshot.kind === "ready") {
     assert.deepEqual(
       snapshot.data.forYou.items.map((row) => [row.type, row.id]),
-      [["resource", "same"], ["question", "same"]],
+      [
+        ["resource", "same"],
+        ["question", "same"],
+      ],
     );
     assert.equal(snapshot.data.homeFeed.nextCursor, "next-page");
   }
@@ -336,19 +348,28 @@ test("Home prevents duplicate same-feed page requests and preserves data on fail
     academicFeed: async () => {
       calls += 1;
       if (shouldFail) return pending.promise;
-      return { ...initial.academicFeed, items: [item("new")], nextCursor: null };
+      return {
+        ...initial.academicFeed,
+        items: [item("new")],
+        nextCursor: null,
+      };
     },
   });
   await controller.load("authority-a", context());
   const first = controller.loadMore("authority-a", "home");
   await controller.loadMore("authority-a", "home");
   assert.equal(calls, 1);
-  pending.reject(new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "offline"));
+  pending.reject(
+    new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "offline"),
+  );
   await first;
   let state = controller.getSnapshot();
   assert.equal(state.kind, "ready");
   if (state.kind !== "ready") return;
-  assert.deepEqual(state.data.homeFeed.items.map((row) => row.id), ["old"]);
+  assert.deepEqual(
+    state.data.homeFeed.items.map((row) => row.id),
+    ["old"],
+  );
   assert.match(state.pagination?.home?.error ?? "", /reintentar/);
   shouldFail = false;
   await controller.loadMore("authority-a", "home");
@@ -356,7 +377,10 @@ test("Home prevents duplicate same-feed page requests and preserves data on fail
   assert.equal(state.kind, "ready");
   if (state.kind === "ready") {
     assert.equal(calls, 2);
-    assert.deepEqual(state.data.homeFeed.items.map((row) => row.id), ["old", "new"]);
+    assert.deepEqual(
+      state.data.homeFeed.items.map((row) => row.id),
+      ["old", "new"],
+    );
     assert.equal(state.pagination?.home?.error, null);
   }
 });
@@ -375,7 +399,11 @@ test("Home aborts stale page reads across sign-out/context invalidation", async 
   await controller.load("authority-a", context());
   const fetching = controller.loadMore("authority-a", "home");
   controller.invalidate("authority-a");
-  pending.resolve({ ...home().academicFeed, items: [item("stale")], nextCursor: null });
+  pending.resolve({
+    ...home().academicFeed,
+    items: [item("stale")],
+    nextCursor: null,
+  });
   await fetching;
   assert.equal(signal?.aborted, true);
   assert.deepEqual(controller.getSnapshot(), { kind: "idle" });
