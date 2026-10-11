@@ -9,8 +9,10 @@ import type {
 
 import {
   academicContextBelongsToSession,
+  canLoadMoreHomeFeed,
   MobileHomeController,
   MAX_HOME_FEED_ITEMS,
+  HOME_FEED_PAGE_SIZE,
   type PilotHomeApi,
 } from "../src/features/home/home-controller";
 import { ApiRequestError } from "../src/services/api/client";
@@ -445,20 +447,27 @@ test("Home refuses academic scope shifts, unchanged cursors and stale-authority 
   }
 });
 
-test("Home caps loaded feed rows at a fixed memory budget", async () => {
+test("Home only reads whole cursor pages that fit the bounded memory budget", async () => {
   const initial = home();
   initial.homeFeed.items = Array.from(
-    { length: MAX_HOME_FEED_ITEMS - 1 },
+    { length: MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE },
     (_, index) => item(`row-${index}`),
   );
+  let calls = 0;
   const controller = new MobileHomeController({
     ...defaultPages,
     pilotHome: async () => initial,
-    academicFeed: async () => ({
-      ...initial.academicFeed,
-      items: Array.from({ length: 6 }, (_, index) => item(`new-${index}`)),
-      nextCursor: "more-pages",
-    }),
+    academicFeed: async () => {
+      calls += 1;
+      return {
+        ...initial.academicFeed,
+        items: Array.from(
+          { length: HOME_FEED_PAGE_SIZE },
+          (_, index) => item(`new-${index}`),
+        ),
+        nextCursor: "more-pages",
+      };
+    },
   });
   await controller.load("authority-a", context());
   await controller.loadMore("authority-a", "home");
@@ -467,8 +476,45 @@ test("Home caps loaded feed rows at a fixed memory budget", async () => {
   assert.equal(state.kind, "ready");
   if (state.kind === "ready") {
     assert.equal(state.data.homeFeed.items.length, MAX_HOME_FEED_ITEMS);
+    assert.equal(state.data.homeFeed.items.at(-1)?.id, "new-5");
     assert.equal(state.data.homeFeed.nextCursor, "more-pages");
+    assert.equal(canLoadMoreHomeFeed(state.data.homeFeed), false);
   }
+  assert.equal(calls, 1);
+});
+
+test("Home never truncates a cursor page when fewer than six slots remain", async () => {
+  const initial = home();
+  initial.homeFeed.items = Array.from(
+    { length: MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE + 1 },
+    (_, index) => item(`row-${index}`),
+  );
+  let calls = 0;
+  const controller = new MobileHomeController({
+    ...defaultPages,
+    pilotHome: async () => initial,
+    academicFeed: async () => {
+      calls += 1;
+      return {
+        ...initial.academicFeed,
+        items: Array.from(
+          { length: HOME_FEED_PAGE_SIZE },
+          (_, index) => item(`new-${index}`),
+        ),
+        nextCursor: "more-pages",
+      };
+    },
+  });
+  await controller.load("authority-a", context());
+  await controller.loadMore("authority-a", "home");
+  const state = controller.getSnapshot();
+  assert.equal(state.kind, "ready");
+  if (state.kind === "ready") {
+    assert.equal(state.data.homeFeed.items.length, MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE + 1);
+    assert.equal(state.data.homeFeed.nextCursor, "next-page");
+    assert.equal(canLoadMoreHomeFeed(state.data.homeFeed), false);
+  }
+  assert.equal(calls, 0);
 });
 
 test("Home refresh aborts an in-flight page and rejects its delayed result", async () => {
