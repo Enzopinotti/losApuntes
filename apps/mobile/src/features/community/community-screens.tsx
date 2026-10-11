@@ -85,8 +85,11 @@ function failureMessage(
   if (code === "QUESTION_CLOSED") {
     return "Esta pregunta ya no acepta respuestas.";
   }
-  if (code === "QUESTION_REVISION_CONFLICT" || code === "ANSWER_REVISION_CONFLICT") {
-    return "El contenido cambió. Actualizá la conversación antes de editar."; 
+  if (
+    code === "QUESTION_REVISION_CONFLICT" ||
+    code === "ANSWER_REVISION_CONFLICT"
+  ) {
+    return "El contenido cambió. Actualizá la conversación antes de editar.";
   }
   if (code === "QUESTION_NOT_FOUND") {
     return "La pregunta ya no está disponible.";
@@ -636,7 +639,9 @@ function QuestionDetailContent({
                   value={questionBodyDraft}
                 />
                 <ActionButton
-                  label={mutation.kind === "busy" ? "Guardando…" : "Guardar pregunta"}
+                  label={
+                    mutation.kind === "busy" ? "Guardando…" : "Guardar pregunta"
+                  }
                   disabled={
                     mutationLocked ||
                     questionTitleDraft.trim().length < 5 ||
@@ -668,7 +673,11 @@ function QuestionDetailContent({
               />
             )}
             <ActionButton
-              label={question.state === "open" ? "Cerrar pregunta" : "Reabrir pregunta"}
+              label={
+                question.state === "open"
+                  ? "Cerrar pregunta"
+                  : "Reabrir pregunta"
+              }
               disabled={mutationLocked}
               onPress={() =>
                 applyMutation({
@@ -750,7 +759,10 @@ function QuestionDetailContent({
                   label="Aceptar esta respuesta"
                   disabled={mutationLocked}
                   onPress={() =>
-                    applyMutation({ kind: "accept-answer", answerId: answer.id })
+                    applyMutation({
+                      kind: "accept-answer",
+                      answerId: answer.id,
+                    })
                   }
                 />
               ) : null}
