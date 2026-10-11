@@ -44,6 +44,21 @@ export class AccountExportJob {
   @Prop({ type: Date, default: null })
   failedAt!: Date | null;
 
+  @Prop({ type: Date, default: null })
+  completedAt!: Date | null;
+
+  @Prop({ type: Number, min: 0, default: null })
+  artifactSectionCount!: number | null;
+
+  @Prop({ type: Number, min: 0, default: null })
+  artifactRecordCount!: number | null;
+
+  @Prop({ type: Number, min: 1, default: null })
+  artifactByteLength!: number | null;
+
+  @Prop({ type: String, match: /^[a-f0-9]{64}$/u, default: null })
+  artifactSha256!: string | null;
+
   createdAt!: Date;
   updatedAt!: Date;
 }

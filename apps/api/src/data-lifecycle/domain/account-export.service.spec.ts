@@ -40,6 +40,7 @@ function fixture() {
     findOwned: jest.fn(),
     claimNext: jest.fn(),
     reschedule: jest.fn(),
+    complete: jest.fn(),
     hasFailed: jest.fn(),
   } as unknown as jest.Mocked<AccountExportStore>;
   const users = {
@@ -154,6 +155,94 @@ describe('AccountExportService', () => {
     await expect(
       f.service.status('other-user', 'export-1'),
     ).resolves.toBeNull();
+  });
+
+  it('records only a valid committed assembly result through the store', async () => {
+    const f = fixture();
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      const result = {
+        format: ACCOUNT_EXPORT_FORMAT,
+        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        sectionCount: 3,
+        recordCount: 7,
+        byteLength: 512,
+        sha256: 'a'.repeat(64),
+      } as const;
+      f.store.complete.mockResolvedValue(true);
+
+      await expect(
+        f.service.complete({
+          id: 'export-1',
+          claimId: 'claim-1',
+          result,
+        }),
+      ).resolves.toBe(true);
+      expect(f.store.complete.mock.calls).toEqual([
+        [
+          {
+            id: 'export-1',
+            claimId: 'claim-1',
+            completedAt: now,
+            result,
+          },
+        ],
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each([
+    { sha256: 'not-a-digest' },
+    { sectionCount: -1 },
+    { recordCount: Number.MAX_SAFE_INTEGER + 1 },
+    { byteLength: 0 },
+  ])(
+    'rejects malformed completion metadata before persistence',
+    async (change) => {
+      const f = fixture();
+      const result = {
+        format: ACCOUNT_EXPORT_FORMAT,
+        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        sectionCount: 3,
+        recordCount: 7,
+        byteLength: 512,
+        sha256: 'a'.repeat(64),
+        ...change,
+      };
+
+      await expect(
+        f.service.complete({
+          id: 'export-1',
+          claimId: 'claim-1',
+          result: result as never,
+        }),
+      ).rejects.toThrow('completion metadata is invalid');
+      expect(f.store.complete.mock.calls).toHaveLength(0);
+    },
+  );
+
+  it('keeps completion integrity metadata out of owner status', async () => {
+    const f = fixture();
+    f.store.findOwned.mockResolvedValue(
+      job({
+        state: 'completed',
+        active: false,
+        completedAt: now,
+        artifactSectionCount: 3,
+        artifactRecordCount: 7,
+        artifactByteLength: 512,
+        artifactSha256: 'a'.repeat(64),
+      }),
+    );
+
+    const status = await f.service.status('user-1', 'export-1');
+
+    expect(status?.state).toBe('completed');
+    expect(status).not.toHaveProperty('completedAt');
+    expect(status).not.toHaveProperty('artifactByteLength');
+    expect(status).not.toHaveProperty('artifactSha256');
   });
 
   it('forces contributors through the bounded page budget', async () => {

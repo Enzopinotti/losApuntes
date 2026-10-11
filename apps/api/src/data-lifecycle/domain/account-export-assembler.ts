@@ -4,24 +4,18 @@ import { createHash } from 'node:crypto';
 import { AccountExportContributorRegistry } from './account-export-contributor.registry';
 import { AccountExportService } from './account-export.service';
 import {
+  type AccountExportAssemblyResult,
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
 } from './account-export.types';
+
+export type { AccountExportAssemblyResult } from './account-export.types';
 
 export interface AccountExportArtifactSink {
   write(chunk: string): Promise<void>;
   commit(result: AccountExportAssemblyResult): Promise<void>;
   abort(): Promise<void>;
 }
-
-export type AccountExportAssemblyResult = {
-  format: typeof ACCOUNT_EXPORT_FORMAT;
-  formatVersion: typeof ACCOUNT_EXPORT_FORMAT_VERSION;
-  sectionCount: number;
-  recordCount: number;
-  byteLength: number;
-  sha256: string;
-};
 
 @Injectable()
 export class AccountExportAssembler {

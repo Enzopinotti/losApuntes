@@ -10,6 +10,7 @@ import {
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
   ACCOUNT_EXPORT_PAGE_LIMIT,
+  type AccountExportAssemblyResult,
   type AccountExportContributor,
   type AccountExportJobRecord,
 } from './account-export.types';
@@ -22,6 +23,27 @@ export type AccountExportStatus = {
   requestedAt: string;
   failureCode: string | null;
 };
+
+function assertCompletionResult(
+  result: AccountExportAssemblyResult,
+  completedAt: Date,
+): void {
+  if (
+    result.format !== ACCOUNT_EXPORT_FORMAT ||
+    result.formatVersion !== ACCOUNT_EXPORT_FORMAT_VERSION ||
+    !Number.isSafeInteger(result.sectionCount) ||
+    result.sectionCount < 0 ||
+    !Number.isSafeInteger(result.recordCount) ||
+    result.recordCount < 0 ||
+    !Number.isSafeInteger(result.byteLength) ||
+    result.byteLength < 1 ||
+    !/^[a-f0-9]{64}$/u.test(result.sha256) ||
+    !(completedAt instanceof Date) ||
+    !Number.isFinite(completedAt.getTime())
+  ) {
+    throw new Error('Account export completion metadata is invalid');
+  }
+}
 
 @Injectable()
 export class AccountExportService {
@@ -61,6 +83,27 @@ export class AccountExportService {
   ): Promise<AccountExportStatus | null> {
     const job = await this.store.findOwned(id, userId);
     return job ? this.publicStatus(job) : null;
+  }
+
+  async complete(input: {
+    id: string;
+    claimId: string;
+    result: AccountExportAssemblyResult;
+  }): Promise<boolean> {
+    if (
+      typeof input.id !== 'string' ||
+      input.id.length === 0 ||
+      typeof input.claimId !== 'string' ||
+      input.claimId.length === 0 ||
+      typeof input.result !== 'object' ||
+      input.result === null
+    ) {
+      throw new Error('Account export completion claim is invalid');
+    }
+
+    const completedAt = new Date();
+    assertCompletionResult(input.result, completedAt);
+    return this.store.complete({ ...input, completedAt });
   }
 
   async readContributorPage(

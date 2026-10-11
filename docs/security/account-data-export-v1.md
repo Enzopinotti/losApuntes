@@ -543,6 +543,23 @@ owner-reauthorized request/status/delivery and the public HTTP surface remain
 open. No generated output may be presented as complete to an account owner
 until the complete artifact path is implemented and verified.
 
+### Durable completion boundary
+
+The durable job model has a terminal `completed` transition for a worker to
+record only after the artifact sink has committed the complete envelope. The
+store uses a compare-and-set on job id, `processing`, the active slot, exact
+claim id and an unexpired lease. A stale or expired claim returns no success
+and writes no completion metadata. Successful completion records the format
+version, completion time, section and record counts, byte length and SHA-256;
+it clears claim/lease state and releases the active processing slot.
+
+These fields are internal job metadata, not a public status or download
+capability. Provider ids, object keys and signed URLs are not persisted in the
+job. This transition does not add a concrete artifact store, worker, expiration
+policy, endpoint or delivery route, and does not assert that a downloadable
+artifact currently exists. Legal retention horizons and backup purge
+guarantees remain separate decisions.
+
 ## Security and privacy exclusions
 
 Export output must never contain:

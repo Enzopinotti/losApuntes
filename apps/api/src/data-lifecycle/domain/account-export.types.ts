@@ -6,6 +6,7 @@ export const ACCOUNT_EXPORT_JOB_STATES = [
   'pending',
   'processing',
   'failed',
+  'completed',
 ] as const;
 
 export type AccountExportJobState = (typeof ACCOUNT_EXPORT_JOB_STATES)[number];
@@ -34,8 +35,22 @@ export interface AccountExportJobRecord {
   leaseExpiresAt: Date | null;
   failureCode: string | null;
   failedAt: Date | null;
+  completedAt?: Date | null;
+  artifactSectionCount?: number | null;
+  artifactRecordCount?: number | null;
+  artifactByteLength?: number | null;
+  artifactSha256?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AccountExportAssemblyResult {
+  format: typeof ACCOUNT_EXPORT_FORMAT;
+  formatVersion: typeof ACCOUNT_EXPORT_FORMAT_VERSION;
+  sectionCount: number;
+  recordCount: number;
+  byteLength: number;
+  sha256: string;
 }
 
 export type AccountExportSectionPage = {

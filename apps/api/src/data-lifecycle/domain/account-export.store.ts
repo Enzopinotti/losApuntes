@@ -1,4 +1,7 @@
-import type { AccountExportJobRecord } from './account-export.types';
+import type {
+  AccountExportAssemblyResult,
+  AccountExportJobRecord,
+} from './account-export.types';
 
 export const ACCOUNT_EXPORT_STORE = Symbol('ACCOUNT_EXPORT_STORE');
 
@@ -25,6 +28,13 @@ export interface AccountExportStore {
     nextAttemptAt: Date;
     failureCode: string;
     failedAt: Date | null;
+  }): Promise<boolean>;
+
+  complete(input: {
+    id: string;
+    claimId: string;
+    completedAt: Date;
+    result: AccountExportAssemblyResult;
   }): Promise<boolean>;
 
   hasFailed(): Promise<boolean>;

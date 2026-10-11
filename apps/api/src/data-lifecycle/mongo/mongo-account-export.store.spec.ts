@@ -1,4 +1,5 @@
 import { ACCOUNT_EXPORT_FORMAT_VERSION } from '../domain/account-export.types';
+import { AccountExportJobSchema } from './account-export.mongo-schema';
 import { MongoAccountExportStore } from './mongo-account-export.store';
 
 const now = new Date('2026-10-04T23:55:00.000Z');
@@ -49,6 +50,11 @@ function record(overrides: Record<string, unknown> = {}) {
     leaseExpiresAt: null,
     failureCode: null,
     failedAt: null,
+    completedAt: null,
+    artifactSectionCount: null,
+    artifactRecordCount: null,
+    artifactByteLength: null,
+    artifactSha256: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -84,6 +90,11 @@ describe('MongoAccountExportStore', () => {
           leaseExpiresAt: null,
           failureCode: null,
           failedAt: null,
+          completedAt: null,
+          artifactSectionCount: null,
+          artifactRecordCount: null,
+          artifactByteLength: null,
+          artifactSha256: null,
         },
       },
       { upsert: true, new: true },
@@ -184,6 +195,11 @@ describe('MongoAccountExportStore', () => {
           nextAttemptAt: now,
           failureCode: 'EXPORT_ASSEMBLY_RETRY',
           failedAt: null,
+          completedAt: null,
+          artifactSectionCount: null,
+          artifactRecordCount: null,
+          artifactByteLength: null,
+          artifactSha256: null,
           claimId: null,
           leaseExpiresAt: null,
         },
@@ -212,11 +228,99 @@ describe('MongoAccountExportStore', () => {
           nextAttemptAt: now,
           failureCode: 'EXPORT_RETRY_EXHAUSTED',
           failedAt: now,
+          completedAt: null,
+          artifactSectionCount: null,
+          artifactRecordCount: null,
+          artifactByteLength: null,
+          artifactSha256: null,
           claimId: null,
           leaseExpiresAt: null,
         },
       },
     );
+  });
+
+  it('completes through the current claim while its lease is still valid', async () => {
+    const f = fixture();
+    const result = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+      sectionCount: 3,
+      recordCount: 7,
+      byteLength: 512,
+      sha256: 'a'.repeat(64),
+    } as const;
+
+    await expect(
+      f.store.complete({
+        id: 'export-1',
+        claimId: 'claim-1',
+        completedAt: now,
+        result,
+      }),
+    ).resolves.toBe(true);
+
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        active: true,
+        state: 'processing',
+        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
+      },
+      {
+        $set: {
+          state: 'completed',
+          active: false,
+          claimId: null,
+          leaseExpiresAt: null,
+          failureCode: null,
+          failedAt: null,
+          completedAt: now,
+          artifactSectionCount: 3,
+          artifactRecordCount: 7,
+          artifactByteLength: 512,
+          artifactSha256: 'a'.repeat(64),
+        },
+      },
+    );
+  });
+
+  it('returns false for a stale claim without reporting completion', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({ modifiedCount: 0 });
+
+    await expect(
+      f.store.complete({
+        id: 'export-1',
+        claimId: 'stale-claim',
+        completedAt: now,
+        result: {
+          format: 'los-apuntes-account-export',
+          formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+          sectionCount: 0,
+          recordCount: 0,
+          byteLength: 16,
+          sha256: 'b'.repeat(64),
+        },
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('stores only the internal completion summary on the job schema', () => {
+    const state = AccountExportJobSchema.path('state') as unknown as {
+      enumValues: string[];
+    };
+
+    expect(state.enumValues).toContain('completed');
+    expect(AccountExportJobSchema.path('completedAt')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactSectionCount')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactRecordCount')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactByteLength')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactSha256')).toBeDefined();
+    expect(AccountExportJobSchema.path('objectKey')).toBeUndefined();
+    expect(AccountExportJobSchema.path('downloadUrl')).toBeUndefined();
   });
 
   it('keeps status reads owner-scoped and terminal failures observable', async () => {

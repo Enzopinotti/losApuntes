@@ -42,6 +42,11 @@ export class MongoAccountExportStore implements AccountExportStore {
               leaseExpiresAt: null,
               failureCode: null,
               failedAt: null,
+              completedAt: null,
+              artifactSectionCount: null,
+              artifactRecordCount: null,
+              artifactByteLength: null,
+              artifactSha256: null,
             },
           },
           { upsert: true, new: true },
@@ -125,8 +130,47 @@ export class MongoAccountExportStore implements AccountExportStore {
             nextAttemptAt: input.nextAttemptAt,
             failureCode: input.failureCode,
             failedAt: input.failedAt,
+            completedAt: null,
+            artifactSectionCount: null,
+            artifactRecordCount: null,
+            artifactByteLength: null,
+            artifactSha256: null,
             claimId: null,
             leaseExpiresAt: null,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
+  }
+
+  async complete(
+    input: Parameters<AccountExportStore['complete']>[0],
+  ): ReturnType<AccountExportStore['complete']> {
+    const result = await this.jobs
+      .updateOne(
+        {
+          id: input.id,
+          active: true,
+          state: 'processing',
+          formatVersion: input.result.formatVersion,
+          claimId: input.claimId,
+          leaseExpiresAt: { $gt: input.completedAt },
+        },
+        {
+          $set: {
+            state: 'completed',
+            active: false,
+            claimId: null,
+            leaseExpiresAt: null,
+            failureCode: null,
+            failedAt: null,
+            completedAt: input.completedAt,
+            artifactSectionCount: input.result.sectionCount,
+            artifactRecordCount: input.result.recordCount,
+            artifactByteLength: input.result.byteLength,
+            artifactSha256: input.result.sha256,
           },
         },
       )
