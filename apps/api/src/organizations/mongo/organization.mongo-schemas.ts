@@ -210,6 +210,7 @@ export class OrganizationPost {
 
 export const OrganizationPostSchema =
   SchemaFactory.createForClass(OrganizationPost);
+OrganizationPostSchema.index({ createdByUserId: 1, id: 1 });
 OrganizationPostSchema.index({
   organizationId: 1,
   moderationState: 1,
@@ -266,6 +267,7 @@ export class OrganizationEvent {
 
 export const OrganizationEventSchema =
   SchemaFactory.createForClass(OrganizationEvent);
+OrganizationEventSchema.index({ createdByUserId: 1, id: 1 });
 OrganizationEventSchema.index({
   organizationId: 1,
   startsAt: 1,

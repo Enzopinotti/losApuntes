@@ -19,6 +19,7 @@ import type {
   OrganizationAuditRecord,
   OrganizationCursor,
   OrganizationEventRecord,
+  OrganizationEventAccountExportRow,
   OrganizationFeaturedResourceRecord,
   OrganizationFollowRecord,
   OrganizationFollowAccountExportCursor,
@@ -27,6 +28,7 @@ import type {
   OrganizationManagerRecord,
   OrganizationManagerRole,
   OrganizationPostRecord,
+  OrganizationPostAccountExportRow,
   OrganizationRecord,
   OrganizationReportRecord,
   OrganizationType,
@@ -1075,6 +1077,44 @@ export class MongoOrganizationStore implements OrganizationStore {
     };
   }
 
+  async listAuthoredPostsForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: { id: string };
+  }): Promise<{
+    items: OrganizationPostAccountExportRow[];
+    hasMore: boolean;
+  }> {
+    const filters: FilterQuery<OrganizationPost>[] = [
+      { createdByUserId: input.userId },
+    ];
+
+    if (input.after) filters.push({ id: { $gt: input.after.id } });
+
+    const rows = await this.posts
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        id: 1,
+        organizationId: 1,
+        title: 1,
+        body: 1,
+        subjectId: 1,
+        publishedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<OrganizationPostAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
   async listFeedPosts(input: {
     organizationIds: string[];
     anchorAt: Date;
@@ -1202,6 +1242,47 @@ export class MongoOrganizationStore implements OrganizationStore {
       .sort({ startsAt: 1, id: 1 })
       .limit(input.limit + 1)
       .lean<OrganizationEventRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listAuthoredEventsForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: { id: string };
+  }): Promise<{
+    items: OrganizationEventAccountExportRow[];
+    hasMore: boolean;
+  }> {
+    const filters: FilterQuery<OrganizationEvent>[] = [
+      { createdByUserId: input.userId },
+    ];
+
+    if (input.after) filters.push({ id: { $gt: input.after.id } });
+
+    const rows = await this.events
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        id: 1,
+        organizationId: 1,
+        title: 1,
+        description: 1,
+        startsAt: 1,
+        endsAt: 1,
+        locationLabel: 1,
+        externalUrl: 1,
+        state: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<OrganizationEventAccountExportRow[]>()
       .exec();
 
     return {

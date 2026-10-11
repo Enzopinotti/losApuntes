@@ -48,6 +48,8 @@ function models(input: {
   linkRows?: unknown[];
   featuredRows?: unknown[];
   followRows?: unknown[];
+  authoredPostRows?: unknown[];
+  authoredEventRows?: unknown[];
 }) {
   const activeSession = session();
   const connection = {
@@ -78,6 +80,8 @@ function models(input: {
   const linkListQuery = listQuery(input.linkRows ?? []);
   const featuredListQuery = listQuery(input.featuredRows ?? []);
   const followListQuery = listQuery(input.followRows ?? []);
+  const authoredPostListQuery = listQuery(input.authoredPostRows ?? []);
+  const authoredEventListQuery = listQuery(input.authoredEventRows ?? []);
   const managers = {
     find: jest.fn(() => managerListQuery),
     findOne: jest.fn(() => query(input.manager ?? null)),
@@ -96,7 +100,11 @@ function models(input: {
     find: jest.fn(() => followListQuery),
   };
   const posts = {
+    find: jest.fn(() => authoredPostListQuery),
     create: jest.fn(),
+  };
+  const events = {
+    find: jest.fn(() => authoredEventListQuery),
   };
   const links = {
     find: jest.fn(() => linkListQuery),
@@ -126,7 +134,7 @@ function models(input: {
     audits as never,
     follows as never,
     posts as never,
-    {} as never,
+    events as never,
     links as never,
     featuredResources as never,
     {} as never,
@@ -141,6 +149,7 @@ function models(input: {
     managers,
     audits,
     posts,
+    events,
     links,
     featuredResources,
     follows,
@@ -148,6 +157,8 @@ function models(input: {
     linkListQuery,
     featuredListQuery,
     followListQuery,
+    authoredPostListQuery,
+    authoredEventListQuery,
   };
 }
 
@@ -943,5 +954,91 @@ describe('MongoOrganizationStore account export following', () => {
     expect(fixture.followListQuery.limit).toHaveBeenCalledWith(2);
     expect(result).toEqual({ items: [first], hasMore: true });
     expect(fixture.organizations.findOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('MongoOrganizationStore account export authored content', () => {
+  it('reads only the owner Posts with an explicit projection and stable id page', async () => {
+    const first = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      organizationId,
+      title: 'Owner Post',
+      body: 'Owner body',
+      subjectId: 'subject-id',
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const fixture = models({ authoredPostRows: [first, { ...first }] });
+
+    const result = await fixture.store.listAuthoredPostsForAccountExport({
+      userId: actorUserId,
+      limit: 1,
+      after: { id: '00000000-0000-4000-8000-000000000000' },
+    });
+
+    expect(fixture.posts.find).toHaveBeenCalledWith({
+      $and: [
+        { createdByUserId: actorUserId },
+        { id: { $gt: '00000000-0000-4000-8000-000000000000' } },
+      ],
+    });
+    expect(fixture.authoredPostListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      organizationId: 1,
+      title: 1,
+      body: 1,
+      subjectId: 1,
+      publishedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.authoredPostListQuery.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(fixture.authoredPostListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [first], hasMore: true });
+  });
+
+  it('reads only the owner Events and omits moderation fields from the allowlist', async () => {
+    const first = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      organizationId,
+      title: 'Owner Event',
+      description: null,
+      startsAt: now,
+      endsAt: null,
+      locationLabel: null,
+      externalUrl: 'https://events.example.test/ticket',
+      state: 'cancelled',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const fixture = models({ authoredEventRows: [first] });
+
+    const result = await fixture.store.listAuthoredEventsForAccountExport({
+      userId: actorUserId,
+      limit: 100,
+    });
+
+    expect(fixture.events.find).toHaveBeenCalledWith({
+      $and: [{ createdByUserId: actorUserId }],
+    });
+    expect(fixture.authoredEventListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      organizationId: 1,
+      title: 1,
+      description: 1,
+      startsAt: 1,
+      endsAt: 1,
+      locationLabel: 1,
+      externalUrl: 1,
+      state: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.authoredEventListQuery.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(fixture.authoredEventListQuery.limit).toHaveBeenCalledWith(101);
+    expect(result).toEqual({ items: [first], hasMore: false });
   });
 });

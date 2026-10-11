@@ -131,6 +131,18 @@ export interface OrganizationPostRecord {
   updatedAt: Date;
 }
 
+export type OrganizationPostAccountExportRow = Pick<
+  OrganizationPostRecord,
+  | 'id'
+  | 'organizationId'
+  | 'title'
+  | 'body'
+  | 'subjectId'
+  | 'publishedAt'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
 export interface OrganizationEventRecord {
   id: string;
   organizationId: string;
@@ -146,6 +158,26 @@ export interface OrganizationEventRecord {
   revision: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type OrganizationEventAccountExportRow = Pick<
+  OrganizationEventRecord,
+  | 'id'
+  | 'organizationId'
+  | 'title'
+  | 'description'
+  | 'startsAt'
+  | 'endsAt'
+  | 'locationLabel'
+  | 'externalUrl'
+  | 'state'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+export interface OrganizationContentAccountExportCursor {
+  section: 'organizations.authoredPosts' | 'organizations.authoredEvents';
+  id: string;
 }
 
 export interface OrganizationLinkRecord {

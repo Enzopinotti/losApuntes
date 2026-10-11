@@ -265,6 +265,27 @@ other linked content are not included. Unfollowed edges are not available as a
 revocation history. This partial section does not transfer Organization
 ownership, management authority or access to the target.
 
+### Organization authored Posts and Events — candidate for #183
+
+The owner-authored sections `organizations.authoredPosts` and
+`organizations.authoredEvents` preserve current Organization content whose
+`createdByUserId` exactly matches the export owner. Post rows contain their
+stable id, Organization and Subject references, title/body and publication
+and record timestamps. Event rows contain their stable id, Organization
+reference, owner-entered event details, current scheduled/cancelled state,
+external URL and timestamps.
+
+Both collections use an author-only filter, a query-time allowlist, immutable
+`id ASC` pagination, `limit + 1` and a maximum page size of 100. The
+`{ createdByUserId: 1, id: 1 }` indexes support their export order. Hidden
+authored content remains included so moderation does not erase the author's
+own saved contribution, but moderation state, internal revision counters,
+reports, reviewer identity/actions and other authors' records are excluded.
+
+The Organization reference does not resolve Organization metadata or provide
+access to its shared content. This is current authored content, not a deleted
+Post/Event history or a moderation audit log.
+
 ### Resource history sections — candidate for #183
 
 Resources contributes three owner-scoped sections:
@@ -312,7 +333,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.following":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -383,10 +404,10 @@ Those remain #82/#48 or later #183 slices.
 Resource authored metadata, saved references and current explicit share grants
 are implemented as an incomplete contributor candidate; Resource file bytes
 and a historical revocation log remain outside it. Q&A authored questions and
-answers, Social Following/Connection history, the owner's Notification inbox
-and current Organization follows are also partial contributor sections.
-Organization management/member and authoring history, and Alumni data, remain
-outside the current contributor set.
+answers, Social Following/Connection history, the owner's Notification inbox,
+current Organization follows and owner-authored Organization Posts/Events are
+also partial contributor sections. Organization management/member history and
+Alumni-specific data remain outside the current contributor set.
 User-authored Academic catalog proposals are also outside the currently
 implemented v1 Academic carrier pending a separate inclusion decision. The
 presence of core, Academic and partial Resource sections does not make the
