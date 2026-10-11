@@ -178,6 +178,14 @@ assert.match(
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
 );
 
+const replay = await requestJson("/account/exports", {
+  method: "POST",
+  headers: { authorization },
+});
+assert.equal(replay.response.status, 202);
+assert.equal(replay.body.created, false);
+assert.equal(replay.body.export?.id, exportId);
+
 const status = await waitForCompletion(exportId, authorization);
 assert.equal(status.format, "los-apuntes-account-export");
 assert.equal(status.formatVersion, 1);

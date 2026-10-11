@@ -189,6 +189,8 @@ assert.match(exportLifecycleOps, /does\s+not configure bucket privacy/u);
 assert.match(exportLifecycleOps, /smoke-account-export-lifecycle\.mjs/u);
 assert.match(exportRuntimeSmoke, /runtime-smoke@example\.test/u);
 assert.match(exportRuntimeSmoke, /poll|waitForCompletion/u);
+assert.match(exportRuntimeSmoke, /assert\.equal\(replay\.body\.created, false\)/u);
+assert.match(exportRuntimeSmoke, /replay\.body\.export\?\.id, exportId/u);
 assert.match(exportRuntimeSmoke, /MAX_SMOKE_EXPORT_BYTES/u);
 assert.match(exportRuntimeSmoke, /Object\.keys\(artifact\.sections/u);
 assert.match(exportRuntimeSmoke, /assertNoCredentialOrStorageFields/u);
