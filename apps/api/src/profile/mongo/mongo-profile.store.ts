@@ -8,6 +8,7 @@ import {
   ProfileAccountInactiveError,
   type CreateProfileActivityRecord,
   type CreateProfileRecord,
+  type ProfileIdForAccountExport,
   type ProfileStore,
   type UpdateProfileActivityRecord,
   type UpdateProfileRecord,
@@ -71,6 +72,18 @@ export class MongoProfileStore implements ProfileStore {
     return this.profiles
       .find({ userId: { $in: userIds } })
       .lean<ProfileRecord[]>()
+      .exec();
+  }
+
+  async findProfileIdsByUserIds(
+    userIds: string[],
+  ): Promise<ProfileIdForAccountExport[]> {
+    if (userIds.length === 0) return [];
+
+    return this.profiles
+      .find({ userId: { $in: userIds } })
+      .select({ _id: 0, id: 1, userId: 1 })
+      .lean<ProfileIdForAccountExport[]>()
       .exec();
   }
 

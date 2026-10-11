@@ -109,6 +109,7 @@ function store(): jest.Mocked<ProfileStore> {
     findProfileByUserId: jest.fn(),
     findProfileById: jest.fn(),
     findProfilesByUserIds: jest.fn(),
+    findProfileIdsByUserIds: jest.fn(),
     searchPublicProfiles: jest.fn(),
     createProfile: jest.fn(),
     updateProfile: jest.fn(),
@@ -160,6 +161,39 @@ function configureAcademic(
 }
 
 describe('ProfileService', () => {
+  it('resolves only stable Profile ids for a bounded export page', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileIdsByUserIds.mockResolvedValue([
+      {
+        id: 'profile-grantee-1',
+        userId: 'grantee-1',
+      },
+    ]);
+
+    const result = await service(
+      profileStore,
+      academicService,
+    ).getProfileIdsForAccountExport(['grantee-1', 'grantee-1']);
+
+    expect([...result.entries()]).toEqual([['grantee-1', 'profile-grantee-1']]);
+    expect(profileStore.findProfileIdsByUserIds.mock.calls).toEqual([
+      [['grantee-1']],
+    ]);
+  });
+
+  it('rejects an oversized Profile id lookup before persistence reads', async () => {
+    const profileStore = store();
+    const academicService = academic();
+
+    await expect(
+      service(profileStore, academicService).getProfileIdsForAccountExport(
+        Array.from({ length: 101 }, (_, index) => `grantee-${index}`),
+      ),
+    ).rejects.toThrow('Account export Profile id lookup exceeded its limit');
+    expect(profileStore.findProfileIdsByUserIds.mock.calls).toHaveLength(0);
+  });
+
   it('keeps an account valid before profile onboarding', async () => {
     const profileStore = store();
     const academicService = academic();

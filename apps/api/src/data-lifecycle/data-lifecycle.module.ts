@@ -27,6 +27,7 @@ import {
 import {
   AuthoredResourcesExportContributor,
   SavedResourcesExportContributor,
+  SharedResourceGrantsExportContributor,
 } from './contributors/account-export-resource.contributors';
 import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
@@ -80,6 +81,7 @@ import {
     AcademicFollowsExportContributor,
     AuthoredResourcesExportContributor,
     SavedResourcesExportContributor,
+    SharedResourceGrantsExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -92,6 +94,7 @@ import {
         academicFollows: AcademicFollowsExportContributor,
         authoredResources: AuthoredResourcesExportContributor,
         savedResources: SavedResourcesExportContributor,
+        sharedResourceGrants: SharedResourceGrantsExportContributor,
       ) => [
         account,
         profile,
@@ -102,6 +105,7 @@ import {
         academicFollows,
         authoredResources,
         savedResources,
+        sharedResourceGrants,
       ],
       inject: [
         AccountIdentityExportContributor,
@@ -113,6 +117,7 @@ import {
         AcademicFollowsExportContributor,
         AuthoredResourcesExportContributor,
         SavedResourcesExportContributor,
+        SharedResourceGrantsExportContributor,
       ],
     },
     AccountExportContributorRegistry,

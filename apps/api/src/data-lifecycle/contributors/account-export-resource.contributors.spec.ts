@@ -2,6 +2,7 @@ import type { ResourceService } from '../../resources/domain/resource.service';
 import {
   AuthoredResourcesExportContributor,
   SavedResourcesExportContributor,
+  SharedResourceGrantsExportContributor,
 } from './account-export-resource.contributors';
 
 describe('Resource account export contributors', () => {
@@ -90,6 +91,43 @@ describe('Resource account export contributors', () => {
     expect(listAccountExportSaves).toHaveBeenCalledWith('owner-1', {
       limit: 100,
       cursor: null,
+    });
+  });
+
+  it('exports active share grants with portable recipient identity only', async () => {
+    const listAccountExportShareGrants = jest.fn().mockResolvedValue({
+      items: [
+        {
+          resourceId: 'resource-1',
+          granteeProfileId: 'profile-grantee-1',
+          grantedAt: '2026-10-01T00:00:00.000Z',
+        },
+      ],
+      nextCursor: 'share-cursor',
+    });
+    const resources = {
+      listAccountExportShareGrants,
+    } as unknown as jest.Mocked<ResourceService>;
+
+    await expect(
+      new SharedResourceGrantsExportContributor(resources).readPage({
+        userId: 'owner-1',
+        cursor: 'after-share',
+        limit: 100,
+      }),
+    ).resolves.toEqual({
+      records: [
+        {
+          resourceId: 'resource-1',
+          granteeProfileId: 'profile-grantee-1',
+          grantedAt: '2026-10-01T00:00:00.000Z',
+        },
+      ],
+      nextCursor: 'share-cursor',
+    });
+    expect(listAccountExportShareGrants).toHaveBeenCalledWith('owner-1', {
+      limit: 100,
+      cursor: 'after-share',
     });
   });
 });
