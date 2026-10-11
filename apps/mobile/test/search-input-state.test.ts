@@ -66,6 +66,23 @@ test("changing scope clears the subject filter", () => {
   );
 });
 
+test("broadening a scoped search keeps its query and clears subject context", () => {
+  const scoped = {
+    query: "integrales",
+    scope: "resources" as const,
+    selectedSubject: null,
+  };
+
+  assert.deepEqual(
+    searchInputReducer(scoped, { type: "scopeChanged", scope: "all" }),
+    {
+      query: "integrales",
+      scope: "all",
+      selectedSubject: null,
+    },
+  );
+});
+
 test("caps the query at the text field's 120-character limit", () => {
   const longQuery = "a".repeat(130);
   const next = searchInputReducer(initialSearchInputState, {
