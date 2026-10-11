@@ -122,6 +122,34 @@ describe('AccountExportService', () => {
     expect(f.store.requestActive.mock.calls).toEqual([]);
   });
 
+  it.each(['missing', 'restricted', 'closed'])(
+    'rejects %s account status before querying the export store',
+    async () => {
+      const f = fixture();
+      f.users.hasActiveAccount.mockResolvedValue(false);
+
+      await expect(
+        f.service.status('user-1', 'export-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE' },
+      });
+
+      expect(f.users.hasActiveAccount.mock.calls).toEqual([['user-1']]);
+      expect(f.store.findOwned.mock.calls).toHaveLength(0);
+    },
+  );
+
+  it('propagates status account-state read errors before the export lookup', async () => {
+    const f = fixture();
+    const readError = new Error('account state unavailable');
+    f.users.hasActiveAccount.mockRejectedValue(readError);
+
+    await expect(f.service.status('user-1', 'export-1')).rejects.toBe(
+      readError,
+    );
+    expect(f.store.findOwned.mock.calls).toHaveLength(0);
+  });
+
   it('replays the existing active export instead of manufacturing another job', async () => {
     const f = fixture();
     f.store.requestActive.mockResolvedValue({
@@ -153,11 +181,16 @@ describe('AccountExportService', () => {
       },
     );
     expect(f.store.findOwned.mock.calls).toEqual([['export-1', 'user-1']]);
+    expect(f.users.hasActiveAccount.mock.calls).toEqual([['user-1']]);
 
     f.store.findOwned.mockResolvedValue(null);
     await expect(
       f.service.status('other-user', 'export-1'),
     ).resolves.toBeNull();
+    expect(f.users.hasActiveAccount.mock.calls).toEqual([
+      ['user-1'],
+      ['other-user'],
+    ]);
   });
 
   it('does not reflect an unknown historical failure code in status', async () => {

@@ -60,12 +60,7 @@ export class AccountExportService {
     userId: string,
     now = new Date(),
   ): Promise<{ created: boolean; export: AccountExportStatus }> {
-    if (!(await this.users.hasActiveAccount(userId))) {
-      throw new ForbiddenException({
-        code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
-        message: 'An active account is required to request an export',
-      });
-    }
+    await this.assertActiveAccount(userId);
 
     const result = await this.store.requestActive({
       id: randomUUID(),
@@ -84,6 +79,7 @@ export class AccountExportService {
     userId: string,
     id: string,
   ): Promise<AccountExportStatus | null> {
+    await this.assertActiveAccount(userId);
     const job = await this.store.findOwned(id, userId);
     return job ? this.publicStatus(job) : null;
   }
@@ -196,5 +192,14 @@ export class AccountExportService {
         ? job.failureCode
         : null,
     };
+  }
+
+  private async assertActiveAccount(userId: string): Promise<void> {
+    if (await this.users.hasActiveAccount(userId)) return;
+
+    throw new ForbiddenException({
+      code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
+      message: 'An active account is required for account export',
+    });
   }
 }
