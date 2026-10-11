@@ -19,6 +19,7 @@ const [
   exportWorker,
   exportRuntimeEnvironment,
   exportDocs,
+  exportHttp,
   dataLifecycleModule,
   exportContributors,
   exportRegistry,
@@ -46,6 +47,7 @@ const [
   readFile(new URL('../apps/api/src/data-lifecycle/account-export.worker.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/config/runtime-environment.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/security/account-data-export-v1.md', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/contracts/account-export-http-v1.md', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/data-lifecycle.module.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/contributors/account-export-core.contributors.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts', import.meta.url), 'utf8'),
@@ -110,6 +112,11 @@ assert.match(exportDocs, /POST \/account\/exports/u);
 assert.match(exportDocs, /GET \/account\/exports\/\{exportId\}\/download/u);
 assert.match(exportDocs, /exactly seven days after `completedAt`/u);
 assert.match(exportDocs, /Bucket lifecycle defense in depth/u);
+assert.match(exportHttp, /POST \/account\/exports/u);
+assert.match(exportHttp, /GET \/account\/exports\/\{exportId\}\/download/u);
+assert.match(exportHttp, /404 for a missing or foreign job id/u);
+assert.match(exportHttp, /410 `ACCOUNT_EXPORT_EXPIRED`/u);
+assert.match(exportHttp, /Cache-Control: private, no-store/u);
 assert.match(exportController, /@Controller\('account\/exports'\)/u);
 assert.match(exportController, /@UseGuards\(AuthSessionGuard\)/u);
 assert.match(exportController, /@Get\(':id\/download'\)/u);
