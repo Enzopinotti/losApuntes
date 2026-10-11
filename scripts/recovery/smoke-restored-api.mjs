@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 
+import { assertNonProductionTarget } from './recovery-lib.mjs';
+
 const REQUEST_TIMEOUT_MS = 15_000;
 
 function required(name, maximumLength = 4096) {
@@ -7,18 +9,6 @@ function required(name, maximumLength = 4096) {
   if (!value) throw new Error(`${name} is required`);
   if (value.length > maximumLength) {
     throw new Error(`${name} exceeds its maximum accepted length`);
-  }
-  return value;
-}
-
-function nonProductionTarget() {
-  const value = required('RESTORE_API_TARGET_ENV', 64);
-  const normalized = value.toLowerCase();
-  if (
-    ['prod', 'production', 'prd', 'live', 'public'].includes(normalized) ||
-    normalized.includes('production')
-  ) {
-    throw new Error('restore API smoke refuses production targets');
   }
   return value;
 }
@@ -58,7 +48,9 @@ async function requestJson(origin, pathname, bearer, init = {}) {
 }
 
 async function main() {
-  const targetEnvironment = nonProductionTarget();
+  const targetEnvironment = assertNonProductionTarget(
+    required('RESTORE_API_TARGET_ENV', 64),
+  );
   const origin = apiOrigin();
   const bearer = required('RESTORE_API_BEARER');
   const resourceId = required('RESTORE_SAMPLE_RESOURCE_ID', 64);

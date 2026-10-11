@@ -4,9 +4,10 @@ import { readFile } from 'node:fs/promises';
 const read = (relativePath) =>
   readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8');
 
-const [backup, restore, gate, library, verifier, docs] = await Promise.all([
+const [backup, restore, smoke, gate, library, verifier, docs] = await Promise.all([
   read('scripts/recovery/backup-set.mjs'),
   read('scripts/recovery/restore-set.mjs'),
+  read('scripts/recovery/smoke-restored-api.mjs'),
   read('scripts/recovery/check-recovery-point.mjs'),
   read('scripts/recovery/recovery-lib.mjs'),
   read('apps/api/src/ops/recovery-verify.cli.ts'),
@@ -33,6 +34,12 @@ assert.match(restore, /--stopOnError/u);
 assert.match(restore, /--delete/u);
 assert.match(restore, /withMongoConfig/u);
 assert.doesNotMatch(restore, /--uri=/u);
+
+// The restored HTTP smoke must enforce the exact same safety policy as
+// destructive restore; drift to a weaker local label check is not acceptable.
+assert.match(smoke, /import \{ assertNonProductionTarget \} from '\.\/recovery-lib\.mjs'/u);
+assert.match(smoke, /assertNonProductionTarget\(/u);
+assert.doesNotMatch(smoke, /function nonProductionTarget\(/u);
 
 assert.match(gate, /RECOVERY_EXPECTED_SOURCE_SHA/u);
 assert.match(gate, /RECOVERY_MAX_AGE_HOURS/u);
