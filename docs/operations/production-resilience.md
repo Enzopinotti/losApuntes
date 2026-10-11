@@ -22,7 +22,7 @@ The generated env file contains only resource/log limits. It contains no provide
 
 ## 2. Required measurements
 
-Evidence version 1 records host capacity plus measurements for `api` and `files-worker`:
+Evidence version 1 records host capacity plus measurements for `api` and `files-worker`. Its `measuredAt` must be a full ISO date/time with an explicit `Z` or numeric timezone offset and a valid calendar date (including leap-year handling); local timestamps without an offset and silently normalized dates are rejected. This only validates the timestamp format, not the authenticity or recency of the underlying measurements:
 
 - measurement window and sample count;
 - peak CPU cores;
