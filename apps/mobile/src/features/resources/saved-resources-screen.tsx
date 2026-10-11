@@ -16,6 +16,7 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 import {
   resourceFileSizeLabel,
   resourceFileTypeLabel,
+  resourceRowAccessibilityLabel,
 } from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
 
@@ -70,7 +71,16 @@ function SavedResourceRow({
     <View style={styles.row}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Abrir recurso guardado ${resource.title}`}
+        accessibilityLabel={resourceRowAccessibilityLabel(
+          {
+            title: resource.title,
+            subjectName: resource.academic.subject.name,
+            authorName: resource.author?.displayName ?? null,
+            mimeType: resource.file.mimeType,
+            byteSize: resource.file.byteSize,
+          },
+          "Abrir recurso guardado",
+        )}
         onPress={onOpen}
         style={styles.openButton}
       >

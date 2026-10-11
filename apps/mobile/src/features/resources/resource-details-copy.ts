@@ -16,6 +16,14 @@ const visibilityLabels: Record<ResourceVisibility, string> = {
   public: "Público",
 };
 
+export type ResourceRowAccessibilityDetails = {
+  title: string;
+  subjectName: string;
+  authorName: string | null;
+  mimeType: string;
+  byteSize: number;
+};
+
 export function resourceFileTypeLabel(mimeType: string): string {
   const normalized = mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
   return (
@@ -30,6 +38,13 @@ export function resourceFileSizeLabel(byteSize: number): string {
     return `${Math.round(byteSize / 1024)} KB`;
   }
   return `${(byteSize / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+}
+
+export function resourceRowAccessibilityLabel(
+  resource: ResourceRowAccessibilityDetails,
+  action: "Abrir recurso" | "Abrir recurso guardado",
+): string {
+  return `${action}: ${resource.title}. Materia: ${resource.subjectName}. Autor: ${resource.authorName ?? "no disponible"}. Formato: ${resourceFileTypeLabel(resource.mimeType)}. Tamaño: ${resourceFileSizeLabel(resource.byteSize)}.`;
 }
 
 export function resourceVisibilityLabel(
