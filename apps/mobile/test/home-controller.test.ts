@@ -470,3 +470,39 @@ test("Home caps loaded feed rows at a fixed memory budget", async () => {
     assert.equal(state.data.homeFeed.nextCursor, "more-pages");
   }
 });
+
+test("Home refresh aborts an in-flight page and rejects its delayed result", async () => {
+  const pending = deferred<ReturnType<typeof home>["academicFeed"]>();
+  let pageSignal: AbortSignal | undefined;
+  let snapshots = 0;
+  const controller = new MobileHomeController({
+    ...defaultPages,
+    pilotHome: async () => {
+      snapshots += 1;
+      const response = home();
+      response.homeFeed.items = [item(`fresh-${snapshots}`)];
+      return response;
+    },
+    academicFeed: async (_cursor, signal) => {
+      pageSignal = signal;
+      return pending.promise;
+    },
+  });
+  await controller.load("authority-a", context());
+  const oldPage = controller.loadMore("authority-a", "home");
+  await controller.load("authority-a", context());
+  pending.resolve({
+    ...home().academicFeed,
+    nextCursor: null,
+    items: [item("stale-page")],
+  });
+  await oldPage;
+  assert.equal(pageSignal?.aborted, true);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(snapshot.data.homeFeed.items.map((row) => row.id), [
+      "fresh-2",
+    ]);
+  }
+});
