@@ -67,3 +67,33 @@ export class SavedResourcesExportContributor implements AccountExportContributor
     };
   }
 }
+
+@Injectable()
+export class SharedResourceGrantsExportContributor implements AccountExportContributor {
+  readonly sectionId = 'resources.sharedGrants';
+
+  constructor(private readonly resources: ResourceService) {}
+
+  async readPage(input: {
+    userId: string;
+    cursor: string | null;
+    limit: number;
+  }): Promise<AccountExportSectionPage> {
+    const page = await this.resources.listAccountExportShareGrants(
+      input.userId,
+      {
+        limit: input.limit,
+        cursor: input.cursor,
+      },
+    );
+
+    return {
+      records: page.items.map((row): AccountExportRecord => ({
+        resourceId: row.resourceId,
+        granteeProfileId: row.granteeProfileId,
+        grantedAt: row.grantedAt,
+      })),
+      nextCursor: page.nextCursor,
+    };
+  }
+}

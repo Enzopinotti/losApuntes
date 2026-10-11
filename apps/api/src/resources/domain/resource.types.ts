@@ -54,6 +54,17 @@ export type ResourceAccountExportRecord = Pick<
   | 'updatedAt'
 >;
 
+export interface ResourceAccountExportShareGrantRecord {
+  resourceId: string;
+  granteeUserId: string;
+  grantedAt: Date;
+}
+
+export type ResourceAccountExportShareCursor = {
+  resourceId: string;
+  granteeUserId?: string;
+};
+
 export interface ResourceShareRecord {
   resourceId: string;
   userId: string;

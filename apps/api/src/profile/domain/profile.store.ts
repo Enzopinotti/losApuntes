@@ -49,6 +49,11 @@ export type ProfileActivityCursor = {
   id: string;
 };
 
+export type ProfileIdForAccountExport = {
+  id: string;
+  userId: string;
+};
+
 export type ProfileActivityPage = {
   items: ProfileActivityRecord[];
   hasMore: boolean;
@@ -65,6 +70,9 @@ export interface ProfileStore {
   findProfileByUserId(userId: string): Promise<ProfileRecord | null>;
   findProfileById(id: string): Promise<ProfileRecord | null>;
   findProfilesByUserIds(userIds: string[]): Promise<ProfileRecord[]>;
+  findProfileIdsByUserIds(
+    userIds: string[],
+  ): Promise<ProfileIdForAccountExport[]>;
   searchPublicProfiles(query: string, limit: number): Promise<ProfileRecord[]>;
   createProfile(input: CreateProfileRecord): Promise<ProfileRecord>;
   updateProfile(

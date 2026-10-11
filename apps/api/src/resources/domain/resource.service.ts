@@ -27,7 +27,11 @@ import {
   RESOURCE_EXPORT_STORE,
   type ResourceExportStore,
 } from './resource-export.store';
-import type { ResourceRecord, ResourceSearchCursor } from './resource.types';
+import type {
+  ResourceAccountExportShareCursor,
+  ResourceRecord,
+  ResourceSearchCursor,
+} from './resource.types';
 
 const RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT = 100;
 
@@ -185,6 +189,53 @@ function assertResourceExportLimit(limit: number): void {
     throw new UnprocessableEntityException({
       code: 'RESOURCE_EXPORT_PAGE_LIMIT_INVALID',
       message: 'Resource export page limit is invalid',
+    });
+  }
+}
+
+function encodeResourceShareExportCursor(
+  cursor: ResourceAccountExportShareCursor,
+): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function decodeResourceShareExportCursor(
+  value: string | null,
+): ResourceAccountExportShareCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+    const keys = Object.keys(parsed);
+    const hasGranteeUserId = Object.prototype.hasOwnProperty.call(
+      parsed,
+      'granteeUserId',
+    );
+
+    if (
+      keys.length !== (hasGranteeUserId ? 2 : 1) ||
+      keys.some((key) => key !== 'resourceId' && key !== 'granteeUserId') ||
+      typeof parsed.resourceId !== 'string' ||
+      parsed.resourceId.length === 0 ||
+      (hasGranteeUserId &&
+        (typeof parsed.granteeUserId !== 'string' ||
+          parsed.granteeUserId.length === 0))
+    ) {
+      throw new Error('Invalid Resource share export cursor shape');
+    }
+
+    return {
+      resourceId: parsed.resourceId,
+      ...(hasGranteeUserId
+        ? { granteeUserId: parsed.granteeUserId as string }
+        : {}),
+    };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_SHARE_EXPORT_CURSOR_INVALID',
+      message: 'Resource share export cursor is invalid',
     });
   }
 }
@@ -502,6 +553,44 @@ export class ResourceService {
               resourceId: last.resourceId,
             })
           : null,
+    };
+  }
+
+  async listAccountExportShareGrants(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    assertResourceExportLimit(input.limit);
+    const page =
+      await this.exportStore.listAuthoredResourceShareGrantsForExport({
+        authorUserId: userId,
+        limit: input.limit,
+        after: decodeResourceShareExportCursor(input.cursor),
+      });
+    const profileIds = await this.profiles.getProfileIdsForAccountExport(
+      page.items.map((row) => row.granteeUserId),
+    );
+
+    const items = page.items.map((row) => {
+      const granteeProfileId = profileIds.get(row.granteeUserId);
+      if (!granteeProfileId) {
+        throw new Error(
+          'Resource share export references a missing recipient Profile',
+        );
+      }
+
+      return {
+        resourceId: row.resourceId,
+        granteeProfileId,
+        grantedAt: row.grantedAt.toISOString(),
+      };
+    });
+
+    return {
+      items,
+      nextCursor: page.nextCursor
+        ? encodeResourceShareExportCursor(page.nextCursor)
+        : null,
     };
   }
 

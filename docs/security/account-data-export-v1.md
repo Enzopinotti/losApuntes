@@ -179,7 +179,10 @@ Resources contributes two owner-scoped sections:
 - `resources.authored` — the user's own Resource metadata, including private
   and hidden authored history, current visibility/moderation state, academic
   references and timestamps;
-- `resources.saved` — the user's saved Resource references and save time.
+- `resources.saved` — the user's saved Resource references and save time;
+- `resources.sharedGrants` — the user's currently active explicit sharing
+  grants over Resources they authored, including each recipient's stable
+  Profile id and the grant creation time.
 
 Authored Resources use a query-time field allowlist and immutable `id ASC`
 pagination with a `{ authorUserId: 1, id: 1 }` index. The caller's page limit
@@ -190,18 +193,33 @@ the target is no longer readable; it never resolves target content or grants
 access to it.
 
 These metadata sections do not include FileAsset ids, object keys, filenames,
-signed URLs or file bytes. They do not yet export explicit share-grant history.
+signed URLs or file bytes. `resources.sharedGrants` is a snapshot of current
+grants, not a revocation log. Its portable record contains only `resourceId`,
+`granteeProfileId` and `grantedAt`; recipient names, emails, internal user ids
+and Profile contents are not included. Profile ids are resolved through a
+query-time allowlist that reads only the stable Profile id and its owning user
+id. Closed Profile tombstones remain resolvable; a missing recipient Profile
+fails the page so the assembler aborts rather than publishing an incomplete
+projection.
+
+Share export pages seek through the owner's ordered Resource ids and read
+grants in `{ resourceId: 1, userId: 1 }` order with `limit + 1`. The cursor can
+resume within one Resource or advance beyond a bounded batch of authored
+Resources that contain no grants. The existing author/id and unique
+resource/user indexes bound both reads; the adapter never materializes all of
+the owner's Resources or grants at once.
+
 The Resource/FileAsset lifecycle contract remains independent: creator
 provenance and a Resource reference do not authorize deletion or byte access.
-This is a partial contributor slice and is not enough to expose a complete
-downloadable account export.
+These Resource sections are still a partial contributor slice and are not
+enough to expose a complete downloadable account export.
 
 ## Streaming artifact assembly — candidate for #183
 
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"resources.authored":[...],"resources.saved":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -269,14 +287,14 @@ This foundation does not decide:
 
 Those remain #82/#48 or later #183 slices.
 
-Resource authored metadata and saved references are implemented as an
-incomplete contributor candidate; Resource file bytes and explicit share-grant
-history remain outside it. Social/Q&A, Organizations, Notifications and Alumni
-are still unimplemented export domains. User-authored Academic catalog
-proposals are also outside the currently implemented v1 Academic carrier
-pending a separate inclusion decision. The presence of core, Academic and
-partial Resource sections does not make the overall export product complete
-or ready for public HTTP delivery.
+Resource authored metadata, saved references and current explicit share grants
+are implemented as an incomplete contributor candidate; Resource file bytes
+and a historical revocation log remain outside it. Social/Q&A, Organizations,
+Notifications and Alumni are still unimplemented export domains.
+User-authored Academic catalog proposals are also outside the currently
+implemented v1 Academic carrier pending a separate inclusion decision. The
+presence of core, Academic and partial Resource sections does not make the
+overall export product complete or ready for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 

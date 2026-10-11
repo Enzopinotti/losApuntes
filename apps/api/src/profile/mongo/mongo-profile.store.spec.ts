@@ -6,11 +6,13 @@ import { MongoProfileStore } from './mongo-profile.store';
 
 function query<T>(rows: T[]) {
   const chain = {
+    select: jest.fn(),
     sort: jest.fn(),
     limit: jest.fn(),
     lean: jest.fn(),
     exec: jest.fn().mockResolvedValue(rows),
   };
+  chain.select.mockReturnValue(chain);
   chain.sort.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.lean.mockReturnValue(chain);
@@ -56,6 +58,40 @@ function createFixture(user: unknown = { _id: 'user-1' }) {
 
   return { store, profiles, users, session, created };
 }
+
+describe('MongoProfileStore account export identity projection', () => {
+  it('queries only the stable Profile and owner ids, including tombstones', async () => {
+    const chain = query([
+      {
+        id: 'profile-1',
+        userId: 'grantee-1',
+      },
+    ]);
+    const profiles = { find: jest.fn().mockReturnValue(chain) };
+    const store = storeForReads(profiles, {});
+
+    await expect(store.findProfileIdsByUserIds(['grantee-1'])).resolves.toEqual(
+      [{ id: 'profile-1', userId: 'grantee-1' }],
+    );
+
+    expect(profiles.find).toHaveBeenCalledWith({
+      userId: { $in: ['grantee-1'] },
+    });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      userId: 1,
+    });
+  });
+
+  it('skips persistence for an empty Profile id lookup', async () => {
+    const profiles = { find: jest.fn() };
+    const store = storeForReads(profiles, {});
+
+    await expect(store.findProfileIdsByUserIds([])).resolves.toEqual([]);
+    expect(profiles.find).not.toHaveBeenCalled();
+  });
+});
 
 describe('MongoProfileStore activity pagination', () => {
   it('uses limit+1 and returns an honest max+1 sentinel', async () => {

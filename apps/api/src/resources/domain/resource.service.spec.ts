@@ -85,12 +85,15 @@ type AcademicApi = Pick<
 >;
 type ProfileApi = Pick<
   ProfileService,
-  'getAttributionForUser' | 'resolveUserIdByProfileId'
+  | 'getAttributionForUser'
+  | 'resolveUserIdByProfileId'
+  | 'getProfileIdsForAccountExport'
 >;
 
 function dependencies() {
   const exportStore: jest.Mocked<ResourceExportStore> = {
     listAuthoredResourcesForExport: jest.fn(),
+    listAuthoredResourceShareGrantsForExport: jest.fn(),
   };
   const files: jest.Mocked<FileApi> = {
     getReadyAssetForResource: jest.fn(),
@@ -103,6 +106,7 @@ function dependencies() {
   const profiles: jest.Mocked<ProfileApi> = {
     getAttributionForUser: jest.fn(),
     resolveUserIdByProfileId: jest.fn(),
+    getProfileIdsForAccountExport: jest.fn(),
   };
   const events = {
     recordBestEffort: jest.fn().mockResolvedValue(undefined),
@@ -276,6 +280,187 @@ describe('ResourceService', () => {
     expect(resourceStore.findManyByIds.mock.calls).toHaveLength(0);
     expect(resourceStore.hasShare.mock.calls).toHaveLength(0);
     expect(deps.files.getReadyAssetForResource.mock.calls).toHaveLength(0);
+  });
+
+  it('exports only explicit grant metadata and stable recipient Profile ids', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const cursor = Buffer.from(
+      JSON.stringify({
+        resourceId: 'resource-owned',
+        granteeUserId: 'grantee-user-before',
+      }),
+    ).toString('base64url');
+    deps.exportStore.listAuthoredResourceShareGrantsForExport.mockResolvedValue(
+      {
+        items: [
+          {
+            resourceId: 'resource-owned',
+            granteeUserId: 'grantee-user-internal',
+            grantedAt: now,
+          },
+        ],
+        nextCursor: {
+          resourceId: 'resource-owned',
+          granteeUserId: 'grantee-user-internal',
+        },
+      },
+    );
+    deps.profiles.getProfileIdsForAccountExport.mockResolvedValue(
+      new Map([['grantee-user-internal', 'grantee-profile-public-id']]),
+    );
+
+    const result = await service(
+      resourceStore,
+      deps,
+    ).listAccountExportShareGrants('owner-1', { limit: 25, cursor });
+
+    expect(
+      deps.exportStore.listAuthoredResourceShareGrantsForExport.mock.calls,
+    ).toEqual([
+      [
+        {
+          authorUserId: 'owner-1',
+          limit: 25,
+          after: {
+            resourceId: 'resource-owned',
+            granteeUserId: 'grantee-user-before',
+          },
+        },
+      ],
+    ]);
+    expect(deps.profiles.getProfileIdsForAccountExport.mock.calls).toEqual([
+      [['grantee-user-internal']],
+    ]);
+    expect(result.items).toEqual([
+      {
+        resourceId: 'resource-owned',
+        granteeProfileId: 'grantee-profile-public-id',
+        grantedAt: now.toISOString(),
+      },
+    ]);
+    expect(result.items[0]).not.toHaveProperty('granteeUserId');
+    expect(result.items[0]).not.toHaveProperty('displayName');
+    expect(
+      JSON.parse(Buffer.from(result.nextCursor!, 'base64url').toString()),
+    ).toEqual({
+      resourceId: 'resource-owned',
+      granteeUserId: 'grantee-user-internal',
+    });
+    expect(deps.files.getReadyAssetForResource).not.toHaveBeenCalled();
+  });
+
+  it('advances an empty share page with a resource-only cursor', async () => {
+    const deps = dependencies();
+    const nextCursor = { resourceId: 'resource-scan-boundary' };
+    deps.exportStore.listAuthoredResourceShareGrantsForExport.mockResolvedValue(
+      {
+        items: [],
+        nextCursor,
+      },
+    );
+    deps.profiles.getProfileIdsForAccountExport.mockResolvedValue(new Map());
+    const inputCursor = Buffer.from(
+      JSON.stringify({ resourceId: 'resource-previous-boundary' }),
+    ).toString('base64url');
+
+    const result = await service(store(), deps).listAccountExportShareGrants(
+      'owner-1',
+      {
+        limit: 25,
+        cursor: inputCursor,
+      },
+    );
+
+    expect(
+      deps.exportStore.listAuthoredResourceShareGrantsForExport.mock.calls,
+    ).toEqual([
+      [
+        {
+          authorUserId: 'owner-1',
+          limit: 25,
+          after: { resourceId: 'resource-previous-boundary' },
+        },
+      ],
+    ]);
+    expect(deps.profiles.getProfileIdsForAccountExport.mock.calls).toEqual([
+      [[]],
+    ]);
+    expect(result.items).toEqual([]);
+    expect(
+      JSON.parse(Buffer.from(result.nextCursor!, 'base64url').toString()),
+    ).toEqual(nextCursor);
+  });
+
+  it('finishes an empty share section without a continuation cursor', async () => {
+    const deps = dependencies();
+    deps.exportStore.listAuthoredResourceShareGrantsForExport.mockResolvedValue(
+      {
+        items: [],
+        nextCursor: null,
+      },
+    );
+    deps.profiles.getProfileIdsForAccountExport.mockResolvedValue(new Map());
+
+    await expect(
+      service(store(), deps).listAccountExportShareGrants('owner-1', {
+        limit: 25,
+        cursor: null,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(deps.profiles.getProfileIdsForAccountExport.mock.calls).toEqual([
+      [[]],
+    ]);
+  });
+
+  it('aborts a share export page when a grant has no stable recipient Profile', async () => {
+    const deps = dependencies();
+    deps.exportStore.listAuthoredResourceShareGrantsForExport.mockResolvedValue(
+      {
+        items: [
+          {
+            resourceId: 'resource-owned',
+            granteeUserId: 'missing-profile-user',
+            grantedAt: now,
+          },
+        ],
+        nextCursor: null,
+      },
+    );
+    deps.profiles.getProfileIdsForAccountExport.mockResolvedValue(new Map());
+
+    await expect(
+      service(store(), deps).listAccountExportShareGrants('owner-1', {
+        limit: 25,
+        cursor: null,
+      }),
+    ).rejects.toThrow(
+      'Resource share export references a missing recipient Profile',
+    );
+  });
+
+  it('rejects malformed share cursors and page sizes before querying', async () => {
+    const deps = dependencies();
+    const api = service(store(), deps);
+
+    await expect(
+      api.listAccountExportShareGrants('owner-1', {
+        limit: 100,
+        cursor: Buffer.from(
+          JSON.stringify({ resourceId: 'resource-1', userId: 'internal-id' }),
+        ).toString('base64url'),
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_SHARE_EXPORT_CURSOR_INVALID' },
+    });
+    await expect(
+      api.listAccountExportShareGrants('owner-1', { limit: 101, cursor: null }),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_EXPORT_PAGE_LIMIT_INVALID' },
+    });
+    expect(
+      deps.exportStore.listAuthoredResourceShareGrantsForExport.mock.calls,
+    ).toHaveLength(0);
   });
 
   it('creates a normalized resource by atomically claiming a ready asset', async () => {

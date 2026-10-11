@@ -1,5 +1,20 @@
 import { MongoResourceExportStore } from './mongo-resource-export.store';
 
+function query<T>(rows: T[]) {
+  const chain = {
+    select: jest.fn(),
+    sort: jest.fn(),
+    limit: jest.fn(),
+    lean: jest.fn(),
+    exec: jest.fn().mockResolvedValue(rows),
+  };
+  chain.select.mockReturnValue(chain);
+  chain.sort.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+  chain.lean.mockReturnValue(chain);
+  return chain;
+}
+
 describe('MongoResourceExportStore', () => {
   it('selects only exportable Resource metadata and reads a bounded id-ordered page', async () => {
     const rows = [
@@ -55,7 +70,7 @@ describe('MongoResourceExportStore', () => {
     chain.limit.mockReturnValue(chain);
     chain.lean.mockReturnValue(chain);
     const resources = { find: jest.fn().mockReturnValue(chain) };
-    const store = new MongoResourceExportStore(resources as never);
+    const store = new MongoResourceExportStore(resources as never, {} as never);
 
     await expect(
       store.listAuthoredResourcesForExport({
@@ -100,7 +115,7 @@ describe('MongoResourceExportStore', () => {
     chain.limit.mockReturnValue(chain);
     chain.lean.mockReturnValue(chain);
     const resources = { find: jest.fn().mockReturnValue(chain) };
-    const store = new MongoResourceExportStore(resources as never);
+    const store = new MongoResourceExportStore(resources as never, {} as never);
 
     await expect(
       store.listAuthoredResourcesForExport({
@@ -110,5 +125,114 @@ describe('MongoResourceExportStore', () => {
     ).resolves.toEqual({ items: [], hasMore: false });
     expect(resources.find).toHaveBeenCalledWith({ authorUserId: 'owner-1' });
     expect(chain.limit).toHaveBeenCalledWith(101);
+  });
+
+  it('advances past a bounded Resource batch when it contains no explicit grants', async () => {
+    const resourceChain = query([
+      { id: 'resource-a' },
+      { id: 'resource-b' },
+      { id: 'resource-c' },
+    ]);
+    const shareChain = query([]);
+    const resources = { find: jest.fn().mockReturnValue(resourceChain) };
+    const shares = { find: jest.fn().mockReturnValue(shareChain) };
+    const store = new MongoResourceExportStore(
+      resources as never,
+      shares as never,
+    );
+
+    await expect(
+      store.listAuthoredResourceShareGrantsForExport({
+        authorUserId: 'owner-1',
+        limit: 2,
+      }),
+    ).resolves.toEqual({
+      items: [],
+      nextCursor: { resourceId: 'resource-b' },
+    });
+
+    expect(resources.find).toHaveBeenCalledWith({ authorUserId: 'owner-1' });
+    expect(resourceChain.select).toHaveBeenCalledWith({ _id: 0, id: 1 });
+    expect(resourceChain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(resourceChain.limit).toHaveBeenCalledWith(3);
+    expect(shares.find).toHaveBeenCalledWith({
+      resourceId: { $in: ['resource-a', 'resource-b'] },
+    });
+    expect(shareChain.select).toHaveBeenCalledWith({
+      _id: 0,
+      resourceId: 1,
+      userId: 1,
+      createdAt: 1,
+    });
+    expect(shareChain.sort).toHaveBeenCalledWith({ resourceId: 1, userId: 1 });
+    expect(shareChain.limit).toHaveBeenCalledWith(3);
+  });
+
+  it('continues within a Resource then orders later grants by recipient id', async () => {
+    const resourceChain = query([
+      { id: 'resource-a' },
+      { id: 'resource-b' },
+      { id: 'resource-c' },
+    ]);
+    const shareChain = query([
+      {
+        resourceId: 'resource-a',
+        userId: 'grantee-b',
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      },
+      {
+        resourceId: 'resource-b',
+        userId: 'grantee-c',
+        createdAt: new Date('2026-10-02T00:00:00.000Z'),
+      },
+      {
+        resourceId: 'resource-b',
+        userId: 'grantee-d',
+        createdAt: new Date('2026-10-03T00:00:00.000Z'),
+      },
+    ]);
+    const resources = { find: jest.fn().mockReturnValue(resourceChain) };
+    const shares = { find: jest.fn().mockReturnValue(shareChain) };
+    const store = new MongoResourceExportStore(
+      resources as never,
+      shares as never,
+    );
+
+    await expect(
+      store.listAuthoredResourceShareGrantsForExport({
+        authorUserId: 'owner-1',
+        limit: 2,
+        after: { resourceId: 'resource-a', granteeUserId: 'grantee-a' },
+      }),
+    ).resolves.toEqual({
+      items: [
+        {
+          resourceId: 'resource-a',
+          granteeUserId: 'grantee-b',
+          grantedAt: new Date('2026-10-01T00:00:00.000Z'),
+        },
+        {
+          resourceId: 'resource-b',
+          granteeUserId: 'grantee-c',
+          grantedAt: new Date('2026-10-02T00:00:00.000Z'),
+        },
+      ],
+      nextCursor: { resourceId: 'resource-b', granteeUserId: 'grantee-c' },
+    });
+
+    expect(resources.find).toHaveBeenCalledWith({
+      authorUserId: 'owner-1',
+      id: { $gte: 'resource-a' },
+    });
+    expect(shares.find).toHaveBeenCalledWith({
+      resourceId: { $in: ['resource-a', 'resource-b'] },
+      $or: [
+        {
+          resourceId: 'resource-a',
+          userId: { $gt: 'grantee-a' },
+        },
+        { resourceId: { $gt: 'resource-a' } },
+      ],
+    });
   });
 });
