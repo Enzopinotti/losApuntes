@@ -27,6 +27,7 @@ export type HomeFeedSection = "home" | "for_you";
 export interface HomePageStatus {
   loading: boolean;
   error: string | null;
+  requiresRefresh: boolean;
 }
 
 export const MAX_HOME_FEED_ITEMS = 48;
@@ -55,6 +56,16 @@ function dedupeFeedItems(
     result.push(item);
   }
   return result;
+}
+
+function needsHomeRefresh(error: unknown): boolean {
+  return (
+    error instanceof ApiRequestError &&
+    (error.kind === "conflict" ||
+      error.kind === "gone" ||
+      error.kind === "unauthorized" ||
+      error.kind === "forbidden")
+  );
 }
 
 function moreFailureMessage(error: unknown): string {
@@ -214,7 +225,7 @@ export class MobileHomeController {
       ...initial,
       pagination: {
         ...initial.pagination,
-        [section]: { loading: true, error: null },
+        [section]: { loading: true, error: null, requiresRefresh: false },
       },
     });
 
@@ -291,7 +302,7 @@ export class MobileHomeController {
         data: updatedData,
         pagination: {
           ...current.pagination,
-          [section]: { loading: false, error: null },
+          [section]: { loading: false, error: null, requiresRefresh: false },
         },
       });
     } catch (error) {
@@ -302,7 +313,11 @@ export class MobileHomeController {
         ...current,
         pagination: {
           ...current.pagination,
-          [section]: { loading: false, error: moreFailureMessage(error) },
+          [section]: {
+            loading: false,
+            error: moreFailureMessage(error),
+            requiresRefresh: needsHomeRefresh(error),
+          },
         },
       });
     } finally {
