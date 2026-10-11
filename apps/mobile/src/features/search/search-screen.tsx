@@ -47,6 +47,10 @@ import {
 import { searchResultSummary } from "./search-results-copy";
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
+import {
+  ACADEMIC_CONTEXT_HOME_ROUTE,
+  contextualDiscoveryEmptyCopy,
+} from "./search-contextual-discovery-copy";
 
 const SEARCH_SCOPES: Array<{ value: SearchScope; label: string }> = [
   { value: "all", label: "Todo" },
@@ -209,17 +213,20 @@ function ContextualDiscovery({
   noContext,
   onRetry,
   onOpen,
+  onConfigureContext,
 }: {
   snapshot: ContextualDiscoverySnapshot;
   authorityKey: string | null;
   noContext: boolean;
   onRetry: () => void;
   onOpen: (resource: ResourceView) => void;
+  onConfigureContext: () => void;
 }) {
   const current =
     snapshot.kind !== "idle" && snapshot.authorityKey === authorityKey
       ? snapshot
       : null;
+  const emptyCopy = contextualDiscoveryEmptyCopy(noContext);
 
   return (
     <View style={styles.card}>
@@ -233,11 +240,21 @@ function ContextualDiscovery({
         </View>
       ) : current.kind === "ready" ? (
         current.data.subjects.length === 0 ? (
-          <Text style={styles.copy}>
-            {noContext
-              ? "Todavía no seleccionaste una materia actual. El descubrimiento contextual aparecerá cuando el servidor confirme ese contexto."
-              : "No encontramos recursos visibles para tus materias actuales."}
-          </Text>
+          <View style={styles.emptyDiscovery}>
+            <Text style={styles.copy}>{emptyCopy.message}</Text>
+            {emptyCopy.configureContextLabel ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Configurar contexto académico desde Inicio"
+                onPress={onConfigureContext}
+                style={styles.searchActionButton}
+              >
+                <Text style={styles.searchActionLabel}>
+                  {emptyCopy.configureContextLabel}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : (
           current.data.subjects.map((bucket) => (
             <View key={bucket.subject.id} style={styles.contextBucket}>
@@ -717,6 +734,7 @@ export function SearchScreen() {
           noContext={academic.kind === "no_context"}
           onRetry={() => void controller.loadContextual(authorityKey)}
           onOpen={openResource}
+          onConfigureContext={() => router.push(ACADEMIC_CONTEXT_HOME_ROUTE)}
         />
       ) : null}
     </ProductSurface>
@@ -805,6 +823,9 @@ const styles = StyleSheet.create({
   },
   contextBucket: {
     gap: 8,
+  },
+  emptyDiscovery: {
+    gap: 12,
   },
   resultTitle: {
     fontSize: 16,
