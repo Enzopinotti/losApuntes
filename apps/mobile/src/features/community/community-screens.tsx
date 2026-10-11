@@ -30,6 +30,7 @@ import {
   type CommunityQuestionFeedSnapshot,
 } from "./community-controller";
 import { mobileCommunityApi } from "./community-runtime";
+import { QaReportAction } from "./qa-report-action";
 import {
   useCommunityAuthority,
   type CommunityAuthorityGate,
@@ -291,6 +292,18 @@ export function CommunityNetworkScreen() {
       onRefresh={authority.gate === "ready" ? retry : undefined}
       refreshing={refreshing}
     >
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Solicitudes y conexiones</Text>
+        <Text style={styles.copy}>
+          Revisá quién quiere conectar con vos y administrá las relaciones
+          aceptadas.
+        </Text>
+        <ActionButton
+          label="Abrir mi red"
+          onPress={() => router.push("/social-connections")}
+        />
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Organizaciones</Text>
         <Text style={styles.copy}>
@@ -559,6 +572,13 @@ function QuestionDetailContent({
           Por {question.author?.displayName ?? "Persona de la comunidad"}
         </Text>
         <Text style={styles.body}>{question.body}</Text>
+        {question.viewer.canReport ? (
+          <QaReportAction
+            authorityKey={snapshot.authorityKey}
+            targetType="question"
+            targetId={question.id}
+          />
+        ) : null}
       </View>
 
       <View style={styles.card}>
@@ -577,6 +597,13 @@ function QuestionDetailContent({
                 {answer.author?.displayName ?? "Persona de la comunidad"}
               </Text>
               <Text style={styles.body}>{answer.body}</Text>
+              {answer.viewer.canReport ? (
+                <QaReportAction
+                  authorityKey={snapshot.authorityKey}
+                  targetType="answer"
+                  targetId={answer.id}
+                />
+              ) : null}
             </View>
           ))
         )}

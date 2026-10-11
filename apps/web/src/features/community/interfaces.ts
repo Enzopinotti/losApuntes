@@ -4,30 +4,14 @@ export type {
   AnswerPageResponse,
   AnswerView,
   CommunityPerson,
+  ConnectionStatus,
+  ConnectionView,
+  FollowingItem,
   QuestionDetailResponse,
   QuestionSearchResponse,
   QuestionState,
   QuestionView,
 } from "@losapuntes/contracts/social-qa";
-
-export type FollowingItem = {
-  followedAt: string;
-  profile: CommunityPerson;
-};
-
-export type ConnectionStatus =
-  "pending" | "accepted" | "declined" | "disconnected";
-
-export type ConnectionView = {
-  id: string;
-  status: ConnectionStatus;
-  other: CommunityPerson;
-  requestedByMe: boolean;
-  incoming: boolean;
-  respondedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
 
 export type NotificationType =
   | "social.followed"
