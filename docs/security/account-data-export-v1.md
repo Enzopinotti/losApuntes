@@ -85,9 +85,9 @@ The initial format version is `1`.
 Changing the meaning of an existing field without compatibility is not allowed.
 A materially incompatible export shape requires a new format version.
 
-The final artifact should be streamable rather than constructed as one giant
-in-memory JSON object. The precise container/framing belongs to the assembler
-carrier; this foundation does not pretend that an artifact already exists.
+The artifact is streamed as a versioned JSON envelope rather than constructed
+as one giant in-memory object. Durable artifact storage and owner-reauthorized
+delivery are separate from this internal assembly contract.
 
 ## Domain contributor contract
 
@@ -377,7 +377,7 @@ provenance and a Resource reference do not authorize deletion or byte access.
 These Resource sections are still a partial contributor slice and are not
 enough to expose a complete downloadable account export.
 
-## Streaming artifact assembly — candidate for #183
+## Implemented internal streaming artifact assembly
 
 The internal v1 artifact is a compact JSON envelope:
 
@@ -394,11 +394,11 @@ cycle detection retains only a constant-size checkpoint per section.
 
 The sink is attempt-scoped. Any contributor, serialization or sink failure
 aborts the partial output; a caller must not publish or persist completion
-metadata for an aborted attempt. This assembler is an internal building block,
-not evidence of a complete v1 export: remaining domain inclusion decisions,
-contributors, durable artifact storage, owner-reauthorized delivery and the
-public HTTP surface remain open. No generated partial export may be presented
-as complete to an account owner.
+metadata for an aborted attempt. The assembler is an internal building block,
+not a downloadable export: durable artifact storage, worker orchestration,
+owner-reauthorized request/status/delivery and the public HTTP surface remain
+open. No generated output may be presented as complete to an account owner
+until the complete artifact path is implemented and verified.
 
 ## Security and privacy exclusions
 
@@ -452,16 +452,16 @@ This foundation does not decide:
 Those remain #82/#48 or later #183 slices.
 
 Resource authored metadata, saved references and current explicit share grants
-are implemented as an incomplete contributor candidate; Resource file bytes
-and a historical revocation log remain outside it. Q&A authored questions and
-answers, Social Following/Connection history, the owner's Notification inbox,
-current Organization follows and owner-authored Organization Posts/Events are
-also partial contributor sections. The owner's current Organization manager
-roles and submitted reports are separate partial sections; management/member
-history and report moderation outcomes remain outside the current contributor
-set. Academic affiliation lifecycle state, including its alumni status/roles,
-is carried by `academic.affiliations`; any additional Alumni-specific source
-data remains outside this contributor set. User-authored Academic catalog
+are implemented partial contributors; Resource file bytes and a historical
+revocation log remain outside them. Q&A authored questions and answers, Social
+Following/Connection history, the owner's Notification inbox, current
+Organization follows and owner-authored Organization Posts/Events are also
+implemented partial contributors. The owner's current Organization manager
+roles and submitted reports are separate implemented partial contributors;
+management/member history and report moderation outcomes remain outside the
+current contributor set. Academic affiliation lifecycle state, including its
+alumni status/roles, is carried by `academic.affiliations`. The API has no
+separate Alumni data authority or contributor. User-authored Academic catalog
 proposals now appear as the separate partial `academic.proposals` section;
 moderation outcomes and catalog source provenance remain excluded. The
 presence of core, Academic and partial Resource sections does not make the
