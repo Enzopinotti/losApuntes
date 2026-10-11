@@ -1,7 +1,7 @@
 # Production dependency audit remediation — #207
 
-**Reviewed:** 2026-10-10  
-**Base:** `main@948448fef72e013acdd38f5f4a3ff03fb84ac546`
+**Reviewed:** 2026-10-11
+**Base:** `main@b58f7211efffe11c78ea62d1b6911ed74f0b8fd1`
 
 ## Findings and dependency paths
 
