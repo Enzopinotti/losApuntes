@@ -449,7 +449,8 @@ test("Home refuses academic scope shifts, unchanged cursors and stale-authority 
   const repeatedState = repeated.getSnapshot();
   assert.equal(repeatedState.kind, "ready");
   if (repeatedState.kind === "ready") {
-    assert.match(repeatedState.pagination?.home?.error ?? "", /reintentar/);
+    assert.match(repeatedState.pagination?.home?.error ?? "", /Actualizá Inicio/);
+    assert.equal(repeatedState.pagination?.home?.requiresRefresh, true);
   }
 });
 
@@ -516,7 +517,10 @@ test("Home never truncates a cursor page when fewer than six slots remain", asyn
   const state = controller.getSnapshot();
   assert.equal(state.kind, "ready");
   if (state.kind === "ready") {
-    assert.equal(state.data.homeFeed.items.length, MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE + 1);
+    assert.equal(
+      state.data.homeFeed.items.length,
+      MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE + 1,
+    );
     assert.equal(state.data.homeFeed.nextCursor, "next-page");
     assert.equal(canLoadMoreHomeFeed(state.data.homeFeed), false);
   }
