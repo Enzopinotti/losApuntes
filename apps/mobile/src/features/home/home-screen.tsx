@@ -35,8 +35,8 @@ import { useSession } from "@/features/session/session-provider";
 import {
   academicContextBelongsToSession,
   academicContextSignature,
+  canLoadMoreHomeFeed,
   MobileHomeController,
-  MAX_HOME_FEED_ITEMS,
   type HomeFeedSection,
   type HomePageStatus,
   type MobileHomeSnapshot,
@@ -133,7 +133,8 @@ function FeedSection({
   pageStatus: HomePageStatus | undefined;
   refreshing: boolean;
 }) {
-  const limitReached = feed.items.length >= MAX_HOME_FEED_ITEMS;
+  const limitReached =
+    Boolean(feed.nextCursor) && !canLoadMoreHomeFeed(feed);
   const exploreAction = homeFeedExploreAction(
     surface,
     Boolean(feed.nextCursor),
@@ -156,7 +157,7 @@ function FeedSection({
           />
         ))
       )}
-      {feed.nextCursor && !limitReached ? (
+      {canLoadMoreHomeFeed(feed) ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Cargar más elementos de ${title}`}
