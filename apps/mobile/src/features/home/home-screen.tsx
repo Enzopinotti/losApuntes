@@ -36,6 +36,9 @@ import {
   academicContextBelongsToSession,
   academicContextSignature,
   MobileHomeController,
+  MAX_HOME_FEED_ITEMS,
+  type HomeFeedSection,
+  type HomePageStatus,
   type MobileHomeSnapshot,
 } from "./home-controller";
 import {
@@ -117,13 +120,20 @@ function FeedSection({
   surface,
   onOpen,
   onExplore,
+  onLoadMore,
+  pageStatus,
+  refreshing,
 }: {
   title: string;
   feed: FeedPageResponse;
   surface: "subjects" | "community" | "for_you";
   onOpen: (action: HomeFeedItemAction) => void;
   onExplore: (action: HomeFeedExploreAction) => void;
+  onLoadMore: () => void;
+  pageStatus?: HomePageStatus;
+  refreshing: boolean;
 }) {
+  const limitReached = feed.items.length >= MAX_HOME_FEED_ITEMS;
   const exploreAction = homeFeedExploreAction(
     surface,
     Boolean(feed.nextCursor),
@@ -146,11 +156,33 @@ function FeedSection({
           />
         ))
       )}
+      {feed.nextCursor && !limitReached ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Cargar más elementos de ${title}`}
+          disabled={pageStatus?.loading || refreshing}
+          onPress={onLoadMore}
+          style={({ pressed }) => [
+            styles.firstValueAction,
+            pressed && styles.firstValueActionPressed,
+          ]}
+        >
+          <Text style={styles.firstValueActionLabel}>
+            {pageStatus?.loading ? "Cargando más…" : "Cargar más"}
+          </Text>
+        </Pressable>
+      ) : null}
+      {pageStatus?.error ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {pageStatus.error}
+        </Text>
+      ) : null}
       {exploreAction ? (
         <View style={styles.feedExplore}>
           <Text style={styles.moreCopy}>
-            Esta es una tanda breve. Podés seguir explorando contenido en otra
-            sección.
+            {limitReached
+              ? "Llegaste al límite de elementos en Inicio. Podés seguir explorando en otra sección."
+              : "También podés explorar contenido en otra sección sin continuar esta tanda."}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -298,6 +330,13 @@ export function HomeScreen() {
   const navigateFeedExplore = useCallback(
     (action: HomeFeedExploreAction) => router.navigate(action.href),
     [router],
+  );
+  const loadMoreFeed = useCallback(
+    (section: HomeFeedSection) => {
+      if (!activeHomeAuthority) return;
+      void controller.loadMore(activeHomeAuthority, section);
+    },
+    [activeHomeAuthority, controller],
   );
 
   useEffect(() => controller.subscribe(setHome), [controller]);
@@ -508,6 +547,13 @@ export function HomeScreen() {
         surface={data.homeFeed.kind}
         onOpen={openFeedItem}
         onExplore={navigateFeedExplore}
+        onLoadMore={() => loadMoreFeed("home")}
+        pageStatus={
+          currentHome?.kind === "ready"
+            ? currentHome.pagination?.home
+            : undefined
+        }
+        refreshing={refreshing}
       />
       <FeedSection
         title="Para vos"
@@ -515,6 +561,13 @@ export function HomeScreen() {
         surface="for_you"
         onOpen={openFeedItem}
         onExplore={navigateFeedExplore}
+        onLoadMore={() => loadMoreFeed("for_you")}
+        pageStatus={
+          currentHome?.kind === "ready"
+            ? currentHome.pagination?.for_you
+            : undefined
+        }
+        refreshing={refreshing}
       />
       {data.forYou.effectiveSignals.relationWindowTruncated ? (
         <Text style={styles.moreCopy}>
