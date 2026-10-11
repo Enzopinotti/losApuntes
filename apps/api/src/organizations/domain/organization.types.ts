@@ -184,8 +184,11 @@ export type OrganizationEventAccountExportRow = Pick<
   | 'updatedAt'
 >;
 
-export interface OrganizationContentAccountExportCursor {
-  section: 'organizations.authoredPosts' | 'organizations.authoredEvents';
+export interface OrganizationIdAccountExportCursor {
+  section:
+    | 'organizations.authoredPosts'
+    | 'organizations.authoredEvents'
+    | 'organizations.submittedReports';
   id: string;
 }
 
@@ -213,6 +216,15 @@ export interface OrganizationReportRecord {
   reviewAction?: 'hide' | 'restore' | 'dismiss';
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type OrganizationReportAccountExportRow = Pick<
+  OrganizationReportRecord,
+  'id' | 'targetType' | 'targetId' | 'reason' | 'details' | 'createdAt'
+>;
+
+export interface OrganizationReportAccountExportCursor {
+  id: string;
 }
 
 export interface OrganizationFeaturedResourceRecord {

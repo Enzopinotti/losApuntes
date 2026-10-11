@@ -14,6 +14,8 @@ import type {
   OrganizationManagerAccountExportRow,
   OrganizationManagerRecord,
   OrganizationManagerRole,
+  OrganizationReportAccountExportCursor,
+  OrganizationReportAccountExportRow,
   OrganizationPostCursor,
   OrganizationPostRecord,
   OrganizationRecord,
@@ -219,6 +221,14 @@ export interface OrganizationStore {
     after?: OrganizationManagerAccountExportCursor;
   }): Promise<{
     items: OrganizationManagerAccountExportRow[];
+    hasMore: boolean;
+  }>;
+  listForAccountExportSubmittedReports(input: {
+    userId: string;
+    limit: number;
+    after?: OrganizationReportAccountExportCursor;
+  }): Promise<{
+    items: OrganizationReportAccountExportRow[];
     hasMore: boolean;
   }>;
 
