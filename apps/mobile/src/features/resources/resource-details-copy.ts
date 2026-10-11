@@ -24,6 +24,14 @@ export function resourceFileTypeLabel(mimeType: string): string {
   );
 }
 
+export function resourceFileSizeLabel(byteSize: number): string {
+  if (byteSize < 1024) return byteSize === 1 ? "1 byte" : `${byteSize} bytes`;
+  if (byteSize < 1024 * 1024) {
+    return `${Math.round(byteSize / 1024)} KB`;
+  }
+  return `${(byteSize / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+}
+
 export function resourceVisibilityLabel(
   visibility: ResourceVisibility,
 ): string {

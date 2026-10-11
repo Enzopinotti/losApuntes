@@ -13,6 +13,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import {
+  resourceFileSizeLabel,
+  resourceFileTypeLabel,
+} from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -75,6 +79,10 @@ function SavedResourceRow({
         {resource.author ? (
           <Text style={styles.meta}>Por {resource.author.displayName}</Text>
         ) : null}
+        <Text style={styles.meta}>
+          {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
+          {resourceFileSizeLabel(resource.file.byteSize)}
+        </Text>
         <Text style={styles.actionLabel}>Abrir recurso</Text>
       </Pressable>
 

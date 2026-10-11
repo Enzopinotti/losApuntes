@@ -27,7 +27,10 @@ import {
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
-import { resourceFileTypeLabel } from "@/features/resources/resource-details-copy";
+import {
+  resourceFileSizeLabel,
+  resourceFileTypeLabel,
+} from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -57,14 +60,6 @@ const failureCopy: Record<string, string> = {
   error: "No pudimos completar la búsqueda.",
 };
 
-const bytesLabel = (byteSize: number): string => {
-  if (byteSize < 1024) return byteSize === 1 ? "1 byte" : `${byteSize} bytes`;
-  if (byteSize < 1024 * 1024) {
-    return `${Math.round(byteSize / 1024)} KB`;
-  }
-  return `${(byteSize / (1024 * 1024)).toFixed(1)} MB`;
-};
-
 function ResourceResult({
   resource,
   onPress,
@@ -91,7 +86,7 @@ function ResourceResult({
       ) : null}
       <Text style={styles.meta}>
         {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
-        {bytesLabel(resource.file.byteSize)}
+        {resourceFileSizeLabel(resource.file.byteSize)}
       </Text>
       <Text style={styles.actionLabel}>Ver recurso</Text>
     </Pressable>

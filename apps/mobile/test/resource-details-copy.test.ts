@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  resourceFileSizeLabel,
   resourceFileTypeLabel,
   resourceVisibilityLabel,
 } from "../src/features/resources/resource-details-copy";
@@ -26,4 +27,14 @@ test("file MIME labels normalize case and parameters without guessing", () => {
     "Formato no identificado",
   );
   assert.equal(resourceFileTypeLabel(""), "Formato no identificado");
+});
+
+test("file sizes share readable byte, KB, and localized MB labels", () => {
+  assert.equal(resourceFileSizeLabel(0), "0 bytes");
+  assert.equal(resourceFileSizeLabel(1), "1 byte");
+  assert.equal(resourceFileSizeLabel(1023), "1023 bytes");
+  assert.equal(resourceFileSizeLabel(1024), "1 KB");
+  assert.equal(resourceFileSizeLabel(1536), "2 KB");
+  assert.equal(resourceFileSizeLabel(1024 * 1024), "1,0 MB");
+  assert.equal(resourceFileSizeLabel(1572864), "1,5 MB");
 });
