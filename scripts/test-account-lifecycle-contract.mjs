@@ -32,6 +32,9 @@ const [
   exportLifecyclePolicyText,
   exportRuntimePolicyText,
   exportLifecycleOps,
+  exportRuntimeSmoke,
+  runtimePackage,
+  runtimeWorkflow,
 ] = await Promise.all([
   readFile(new URL('../apps/api/src/data-lifecycle/account-lifecycle.controller.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-lifecycle.service.ts', import.meta.url), 'utf8'),
@@ -75,6 +78,9 @@ const [
     new URL('../docs/operations/account-export-artifacts.md', import.meta.url),
     'utf8',
   ),
+  readFile(new URL('../scripts/smoke-account-export-lifecycle.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'),
 ]);
 
 const exportLifecyclePolicy = JSON.parse(exportLifecyclePolicyText);
@@ -180,6 +186,14 @@ assert.match(
 );
 assert.match(exportLifecycleOps, /separate administrative identity/u);
 assert.match(exportLifecycleOps, /does\s+not configure bucket privacy/u);
+assert.match(exportLifecycleOps, /smoke-account-export-lifecycle\.mjs/u);
+assert.match(exportRuntimeSmoke, /runtime-smoke@example\.test/u);
+assert.match(exportRuntimeSmoke, /poll|waitForCompletion/u);
+assert.match(exportRuntimeSmoke, /MAX_SMOKE_EXPORT_BYTES/u);
+assert.match(exportRuntimeSmoke, /Object\.keys\(artifact\.sections/u);
+assert.match(exportRuntimeSmoke, /assertNoCredentialOrStorageFields/u);
+assert.match(runtimePackage, /"runtime:smoke"[\s\S]*smoke-account-export-lifecycle\.mjs/u);
+assert.match(runtimeWorkflow, /node scripts\/smoke-account-export-lifecycle\.mjs/u);
 assert.match(
   exportLifecycleOps,
   /not evidence that any remote provider is configured/u,

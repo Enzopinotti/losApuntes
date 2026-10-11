@@ -96,6 +96,20 @@ bucket, endpoint identity, change reference, readback time and operator in the
 deployment evidence. A successful local contract test only validates the
 checked-in policy; it is not evidence that any remote provider is configured.
 
+## Local runtime smoke
+
+`scripts/smoke-account-export-lifecycle.mjs` runs after the synthetic Auth and
+domain smokes. It authenticates the existing runtime fixture, requests an
+export, waits for the separate worker to complete it, and downloads the JSON
+through the owner-authorized API from the local private RustFS bucket. The
+probe checks the v1 envelope, section count, bounded streaming response,
+download headers, expiry window and absence of credential/storage fields. Its
+32 MiB cap applies only to the small synthetic smoke fixture.
+
+Container runtime smoke therefore covers the local Mongo/worker/object-store
+path end to end. It does not verify production-provider IAM, lifecycle
+readback, private-access configuration or physical deletion.
+
 ## Retention limits
 
 Lifecycle processing can be delayed. In a versioned bucket, expiring the
