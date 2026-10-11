@@ -331,13 +331,6 @@ export function HomeScreen() {
     (action: HomeFeedExploreAction) => router.navigate(action.href),
     [router],
   );
-  const loadMoreFeed = useCallback(
-    (section: HomeFeedSection) => {
-      if (!activeHomeAuthority) return;
-      void controller.loadMore(activeHomeAuthority, section);
-    },
-    [activeHomeAuthority, controller],
-  );
 
   useEffect(() => controller.subscribe(setHome), [controller]);
 
@@ -368,6 +361,14 @@ export function HomeScreen() {
     isFocused,
     appState,
   );
+  const loadMoreFeed = useCallback(
+    (section: HomeFeedSection) => {
+      if (!activeHomeAuthority) return;
+      void controller.loadMore(activeHomeAuthority, section);
+    },
+    [activeHomeAuthority, controller],
+  );
+
   const expectedContext: AcademicCurrentContext | null =
     academicData?.context ?? null;
   const contextSignature = academicContextSignature(expectedContext);
