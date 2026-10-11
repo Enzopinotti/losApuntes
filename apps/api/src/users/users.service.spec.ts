@@ -8,6 +8,7 @@ describe('UsersService', () => {
   let service: UsersService;
 
   const exec = jest.fn();
+  const existsExec = jest.fn();
   const exportExec = jest.fn();
   const updateExec = jest.fn();
   const exportQuery = {
@@ -22,6 +23,7 @@ describe('UsersService', () => {
     create: jest.fn(),
     findOne: jest.fn(() => ({ exec })),
     findById: jest.fn(() => ({ exec })),
+    exists: jest.fn(() => ({ exec: existsExec })),
     updateOne: jest.fn(() => ({ exec: updateExec })),
   };
 
@@ -64,6 +66,27 @@ describe('UsersService', () => {
     await expect(service.findById('user-1')).resolves.toBe(user);
     expect(userModel.findById).toHaveBeenCalledWith('user-1');
     expect(exec).toHaveBeenCalledTimes(1);
+  });
+
+  it('checks active account state with an exact id-only existence query', async () => {
+    existsExec.mockResolvedValueOnce({ _id: 'user-1' });
+
+    await expect(service.hasActiveAccount('user-1')).resolves.toBe(true);
+    expect(userModel.exists).toHaveBeenCalledWith({
+      _id: 'user-1',
+      $or: [
+        { account_status: 'active' },
+        { account_status: { $exists: false } },
+      ],
+    });
+    expect(existsExec).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats closed, restricted, or missing account state as not active', async () => {
+    existsExec.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+
+    await expect(service.hasActiveAccount('user-1')).resolves.toBe(false);
+    await expect(service.hasActiveAccount('missing-user')).resolves.toBe(false);
   });
 
   it('exports account identity from an explicit secret-free allowlist', async () => {

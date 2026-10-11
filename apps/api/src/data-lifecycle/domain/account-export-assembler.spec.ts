@@ -35,7 +35,7 @@ function contributor(
 
 function assemblerFor(contributors: AccountExportContributor[]) {
   const registry = new AccountExportContributorRegistry(contributors);
-  const service = new AccountExportService({} as never);
+  const service = new AccountExportService({} as never, {} as never);
   return new AccountExportAssembler(registry, service);
 }
 

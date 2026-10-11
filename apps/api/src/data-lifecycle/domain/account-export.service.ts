@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
+import { UsersService } from '../../users/users.service';
 import {
   ACCOUNT_EXPORT_STORE,
   type AccountExportStore,
@@ -27,12 +28,20 @@ export class AccountExportService {
   constructor(
     @Inject(ACCOUNT_EXPORT_STORE)
     private readonly store: AccountExportStore,
+    private readonly users: UsersService,
   ) {}
 
   async request(
     userId: string,
     now = new Date(),
   ): Promise<{ created: boolean; export: AccountExportStatus }> {
+    if (!(await this.users.hasActiveAccount(userId))) {
+      throw new ForbiddenException({
+        code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
+        message: 'An active account is required to request an export',
+      });
+    }
+
     const result = await this.store.requestActive({
       id: randomUUID(),
       userId,

@@ -32,6 +32,14 @@ A partial unique index on `userId + active=true` prevents two concurrent
 requests from creating two active exports. A request that loses the concurrent
 upsert replays the winning active job instead.
 
+Before either creating or replaying a job, `AccountExportService` checks that
+the exact user row still exists and is active through the Users authority. The
+query reads only existence, admits `account_status: "active"` and legacy rows
+where `account_status` is absent, and rejects missing, restricted or closed
+accounts before touching the job store. This service-layer check complements
+`AuthSessionGuard`; it does not replace authentication on a future HTTP route.
+An account-state read error propagates and creates or replays no job.
+
 Failed history is retained. Because a failed job becomes inactive, a later
 request can create a new active job without rewriting the earlier failure as if
 it never happened.

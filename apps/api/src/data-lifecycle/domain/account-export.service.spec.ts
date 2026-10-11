@@ -1,3 +1,5 @@
+import { ForbiddenException } from '@nestjs/common';
+
 import type { AccountExportStore } from './account-export.store';
 import {
   ACCOUNT_EXPORT_FORMAT,
@@ -7,6 +9,7 @@ import {
   type AccountExportJobRecord,
 } from './account-export.types';
 import { AccountExportService } from './account-export.service';
+import type { UsersService } from '../../users/users.service';
 
 const now = new Date('2026-10-04T23:55:00.000Z');
 
@@ -39,10 +42,14 @@ function fixture() {
     reschedule: jest.fn(),
     hasFailed: jest.fn(),
   } as unknown as jest.Mocked<AccountExportStore>;
+  const users = {
+    hasActiveAccount: jest.fn().mockResolvedValue(true),
+  } as unknown as jest.Mocked<UsersService>;
 
   return {
     store,
-    service: new AccountExportService(store),
+    users,
+    service: new AccountExportService(store, users),
   };
 }
 
@@ -78,8 +85,37 @@ describe('AccountExportService', () => {
         },
       ],
     ]);
+    expect(f.users.hasActiveAccount.mock.calls).toEqual([['user-1']]);
     expect(result.export).not.toHaveProperty('claimId');
     expect(result.export).not.toHaveProperty('leaseExpiresAt');
+  });
+
+  it.each(['missing', 'restricted', 'closed'])(
+    'rejects a %s account before creating or replaying an export job',
+    async () => {
+      const f = fixture();
+      f.users.hasActiveAccount.mockResolvedValue(false);
+
+      const request = f.service.request('user-1', now);
+      await expect(request).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(request).rejects.toMatchObject({
+        response: {
+          code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
+        },
+      });
+
+      expect(f.users.hasActiveAccount.mock.calls).toEqual([['user-1']]);
+      expect(f.store.requestActive.mock.calls).toEqual([]);
+    },
+  );
+
+  it('propagates account-state read errors without touching the export store', async () => {
+    const f = fixture();
+    const readError = new Error('account state unavailable');
+    f.users.hasActiveAccount.mockRejectedValue(readError);
+
+    await expect(f.service.request('user-1', now)).rejects.toBe(readError);
+    expect(f.store.requestActive.mock.calls).toEqual([]);
   });
 
   it('replays the existing active export instead of manufacturing another job', async () => {
