@@ -260,10 +260,32 @@ Pages use `createdAt DESC, organizationId ASC`, an opaque cursor,
 An archived or missing target does not erase the owner's stored follow row;
 the export preserves the edge as stored without inferring target lifecycle.
 
-Organization names, metadata, managers, members, posts, events, Resources and
-other linked content are not included. Unfollowed edges are not available as a
-revocation history. This partial section does not transfer Organization
-ownership, management authority or access to the target.
+The following section does not resolve or include Organization names,
+metadata, management roles, members or linked content. The owner's own current
+management assignments, when present, use the separate section below.
+Unfollowed edges are not available as a revocation history. A follow reference
+does not transfer Organization ownership, management authority or access to
+the target.
+
+### Organization management section — candidate for #183
+
+The partial owner-scoped section `organizations.management` is a snapshot of
+current `OrganizationManager` rows whose `userId` exactly matches the export
+owner. Each portable record contains only the stable `organizationId`, current
+`role`, `createdAt` and `updatedAt` timestamps. The query does not resolve or
+include Organization data.
+
+Pages use `organizationId ASC`, a section-bound opaque cursor, `limit + 1`,
+and a maximum page size of 100. The existing
+`{ userId: 1, organizationId: 1 }` index supports the owner filter and stable
+order. A missing or archived target does not erase the owner's stored manager
+row; it remains a reference snapshot without inferring target lifecycle.
+
+Other managers and members, Organization audit events, revoked-role history,
+invitations and linked content are excluded. The role and timestamps are
+informational account data; they do not grant or transfer management
+authority. This partial section is not a management audit log or a completeness
+claim.
 
 ### Organization authored Posts and Events — candidate for #183
 
@@ -333,7 +355,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.

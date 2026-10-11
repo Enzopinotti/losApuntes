@@ -25,6 +25,8 @@ import type {
   OrganizationFollowAccountExportCursor,
   OrganizationFollowAccountExportRow,
   OrganizationLinkRecord,
+  OrganizationManagerAccountExportCursor,
+  OrganizationManagerAccountExportRow,
   OrganizationManagerRecord,
   OrganizationManagerRole,
   OrganizationPostRecord,
@@ -1011,6 +1013,42 @@ export class MongoOrganizationStore implements OrganizationStore {
       .sort({ createdAt: -1, organizationId: 1 })
       .limit(input.limit + 1)
       .lean<OrganizationFollowAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listForAccountExportManagement(input: {
+    userId: string;
+    limit: number;
+    after?: OrganizationManagerAccountExportCursor;
+  }): Promise<{
+    items: OrganizationManagerAccountExportRow[];
+    hasMore: boolean;
+  }> {
+    const filters: FilterQuery<OrganizationManager>[] = [
+      { userId: input.userId },
+    ];
+
+    if (input.after) {
+      filters.push({ organizationId: { $gt: input.after.organizationId } });
+    }
+
+    const rows = await this.managers
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        organizationId: 1,
+        role: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ organizationId: 1 })
+      .limit(input.limit + 1)
+      .lean<OrganizationManagerAccountExportRow[]>()
       .exec();
 
     return {
