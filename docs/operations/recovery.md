@@ -34,7 +34,9 @@ The manifest records:
 
 It deliberately does **not** record Mongo DSNs, passwords, storage credentials or signed URLs.
 
-The backup directory must be an absolute path outside the Git repository. A symlink-resolved path is checked again before any artifact is created.
+The backup directory must be an absolute path outside the Git repository. Before creating directories, the guard resolves the nearest existing physical ancestor (including symlinks), then checks the canonical destination against the real Git repository root. Paths that resolve inside the repo, alias a filesystem root, or contain dangling symlinks fail closed. This also covers a *not-yet-created* backup directory nested beneath an existing symlink. The scripts retain a second post-creation check. The check protects the local artifact path, not the identity of external Mongo or object-storage credentials.
+
+Recovery verification requires the **backup-set directory itself** to have no symlink alias (including in an ancestor) and real files for `manifest.json`, `mongo.archive.gz`, and `files.inventory.jsonl`, plus a real `files/` directory. Symlinks at the bundle path or entrypoints are rejected before treating the set as reusable or restorable: matching checksums alone are not sufficient if a backup-set path points outside its declared directory.
 
 ## 2. Consistency requirement
 
@@ -133,7 +135,7 @@ export RECOVERY_EVIDENCE_ROOT="/srv/losapuntes-recovery-evidence"
 pnpm recovery:restore
 ```
 
-The script refuses common production labels. The explicit non-production ACK is still required because no program can infer deployment ownership safely from a hostname alone.
+The script now requires an explicit non-production target label prefix such as `restore-`, `drill-`, `dev-`, `test-`, `qa-`, `stage-`, `staging-`, `sandbox-`, `local-` or `preview-` (or the exact unsuffixed label). It refuses production-like tokens anywhere in the label, including `prod-eu`, `live-1`, `restore-prod` and `qa-Prod`; unknown labels fail closed. This is only a label guard, **not verification of the target URI, bucket, credentials or deployment identity**. Before setting `RESTORE_NONPRODUCTION_ACK`, the operator must independently verify that both the Mongo URI and Files endpoint/bucket point to isolated non-production infrastructure. The explicit ACK and exact backup-set/delete confirmations remain mandatory, because hostnames alone cannot prove ownership.
 
 Restore performs:
 
