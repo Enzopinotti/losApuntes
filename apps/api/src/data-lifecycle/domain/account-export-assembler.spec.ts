@@ -33,9 +33,15 @@ function contributor(
   return { sectionId, readPage };
 }
 
-function assemblerFor(contributors: AccountExportContributor[]) {
+function assemblerFor(
+  contributors: AccountExportContributor[],
+  hasActiveAccount = jest.fn().mockResolvedValue(true),
+) {
   const registry = new AccountExportContributorRegistry(contributors);
-  const service = new AccountExportService({} as never, {} as never);
+  const service = new AccountExportService(
+    {} as never,
+    { hasActiveAccount } as never,
+  );
   return new AccountExportAssembler(registry, service);
 }
 
@@ -99,6 +105,53 @@ describe('AccountExportAssembler', () => {
     expect(result.sha256).toBe(
       createHash('sha256').update(artifact, 'utf8').digest('hex'),
     );
+  });
+
+  it('aborts staged output when the owner becomes inactive before commit', async () => {
+    const output = sinkFixture();
+    const hasActiveAccount = jest.fn().mockResolvedValue(false);
+    const assembler = assemblerFor(
+      [
+        contributor('profile', () =>
+          Promise.resolve({
+            records: [{ displayName: 'Ada' }],
+            nextCursor: null,
+          }),
+        ),
+      ],
+      hasActiveAccount,
+    );
+
+    await expect(assembler.writeJsonV1('user-1', output)).rejects.toMatchObject(
+      { response: { code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE' } },
+    );
+
+    expect(output.chunks.join('').endsWith('}}')).toBe(true);
+    expect(hasActiveAccount.mock.calls).toEqual([['user-1']]);
+    expect(output.commit.mock.calls).toHaveLength(0);
+    expect(output.abort.mock.calls).toEqual([[]]);
+  });
+
+  it('aborts staged output and preserves account-state read failures before commit', async () => {
+    const output = sinkFixture();
+    const readError = new Error('account state unavailable');
+    const hasActiveAccount = jest.fn().mockRejectedValue(readError);
+    const assembler = assemblerFor(
+      [
+        contributor('profile', () =>
+          Promise.resolve({ records: [], nextCursor: null }),
+        ),
+      ],
+      hasActiveAccount,
+    );
+
+    await expect(assembler.writeJsonV1('user-1', output)).rejects.toBe(
+      readError,
+    );
+
+    expect(hasActiveAccount.mock.calls).toEqual([['user-1']]);
+    expect(output.commit.mock.calls).toHaveLength(0);
+    expect(output.abort.mock.calls).toEqual([[]]);
   });
 
   it('streams every bounded page before asking the contributor for the next', async () => {

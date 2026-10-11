@@ -125,6 +125,7 @@ export class AccountExportAssembler {
         byteLength,
         sha256: sha256.digest('hex'),
       };
+      await this.exports.assertActiveAccount(userId);
       await sink.commit(result);
       return result;
     } catch (error) {

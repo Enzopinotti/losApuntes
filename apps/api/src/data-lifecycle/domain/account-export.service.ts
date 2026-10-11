@@ -209,7 +209,7 @@ export class AccountExportService {
     };
   }
 
-  private async assertActiveAccount(userId: string): Promise<void> {
+  async assertActiveAccount(userId: string): Promise<void> {
     if (await this.users.hasActiveAccount(userId)) return;
 
     throw new ForbiddenException({

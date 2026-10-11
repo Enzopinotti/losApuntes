@@ -35,15 +35,20 @@ upsert replays the winning active job instead.
 Before creating/replaying a job or looking up its status, `AccountExportService`
 checks that the exact user row still exists and is active through the Users
 authority. The same active-account check runs after a claim and before a job is
-returned to a processor. The query reads only existence, admits
+returned to a processor, and again immediately before the assembler commits a
+complete artifact. The query reads only existence, admits
 `account_status: "active"` and legacy rows where `account_status` is absent,
 and rejects missing, restricted or closed accounts before touching the job
 store. If the owner becomes inactive after a job is claimed, that exact claim
 is terminally failed with `ACCOUNT_EXPORT_ACCOUNT_INACTIVE` and is not handed
 off. Account-state read errors propagate without touching request/status data
 or handing a claim to the processor; the finite lease allows that unhanded
-claim to be recovered. This service-layer check complements `AuthSessionGuard`;
-it does not replace authentication on a future HTTP route.
+claim to be recovered. If the owner becomes inactive or the account-state read
+fails during assembly, the assembler aborts private staging, does not commit an
+artifact or report completion, and preserves the error for the claim owner to
+record. Delivery still requires a separate owner and active-account check at
+download time. This service-layer check complements `AuthSessionGuard`; it does
+not replace authentication on a future HTTP route.
 
 Failed history is retained. Because a failed job becomes inactive, a later
 request can create a new active job without rewriting the earlier failure as if
