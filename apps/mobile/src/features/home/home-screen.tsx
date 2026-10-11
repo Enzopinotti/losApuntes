@@ -41,8 +41,10 @@ import {
 import {
   hasActionableHomeContent,
   homeFeedItemAction,
+  homeFeedExploreAction,
   homeFirstValueActions,
   type HomeFeedItemAction,
+  type HomeFeedExploreAction,
   type HomeFirstValueAction,
 } from "./home-first-value";
 import { useAcademicContext } from "../academic/academic-context-provider";
@@ -112,12 +114,20 @@ function FeedItemRow({
 function FeedSection({
   title,
   feed,
+  surface,
   onOpen,
+  onExplore,
 }: {
   title: string;
   feed: FeedPageResponse;
+  surface: "subjects" | "community" | "for_you";
   onOpen: (action: HomeFeedItemAction) => void;
+  onExplore: (action: HomeFeedExploreAction) => void;
 }) {
+  const exploreAction = homeFeedExploreAction(
+    surface,
+    Boolean(feed.nextCursor),
+  );
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.title}>
@@ -136,10 +146,27 @@ function FeedSection({
           />
         ))
       )}
-      {feed.nextCursor ? (
-        <Text style={styles.moreCopy}>
-          Esta es una tanda breve; hay más contenido disponible.
-        </Text>
+      {exploreAction ? (
+        <View style={styles.feedExplore}>
+          <Text style={styles.moreCopy}>
+            Esta es una tanda breve. Podés seguir explorando contenido en otra
+            sección.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={exploreAction.accessibilityLabel}
+            accessibilityHint={exploreAction.accessibilityHint}
+            onPress={() => onExplore(exploreAction)}
+            style={({ pressed }) => [
+              styles.firstValueAction,
+              pressed && styles.firstValueActionPressed,
+            ]}
+          >
+            <Text style={styles.firstValueActionLabel}>
+              {exploreAction.label}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
       {feed.stopReason === "natural_break" ? (
         <Text style={styles.moreCopy}>
@@ -266,6 +293,10 @@ export function HomeScreen() {
       }
       router.push(action.href);
     },
+    [router],
+  );
+  const navigateFeedExplore = useCallback(
+    (action: HomeFeedExploreAction) => router.navigate(action.href),
     [router],
   );
 
@@ -474,9 +505,17 @@ export function HomeScreen() {
             : "Mis materias"
         }
         feed={data.homeFeed}
+        surface={data.homeFeed.kind}
         onOpen={openFeedItem}
+        onExplore={navigateFeedExplore}
       />
-      <FeedSection title="Para vos" feed={data.forYou} onOpen={openFeedItem} />
+      <FeedSection
+        title="Para vos"
+        feed={data.forYou}
+        surface="for_you"
+        onOpen={openFeedItem}
+        onExplore={navigateFeedExplore}
+      />
       {data.forYou.effectiveSignals.relationWindowTruncated ? (
         <Text style={styles.moreCopy}>
           La selección de personas usa una muestra acotada de tu red.
@@ -505,6 +544,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   firstValueActions: {
+    gap: 8,
+  },
+  feedExplore: {
     gap: 8,
   },
   firstValueAction: {
