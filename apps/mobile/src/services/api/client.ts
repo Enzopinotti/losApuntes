@@ -1,6 +1,8 @@
 import type {
   AcceptedResponse,
   ActionTokenInput,
+  AcademicCatalogSearchResponse,
+  AcademicCatalogSearchInput,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
@@ -20,11 +22,15 @@ import type {
   PasswordRecoveryCompleteInput,
   RegisterInput,
   ContextualDiscoveryResponse,
+  CreateAcademicAffiliationInput,
+  CreateAcademicAffiliationResponse,
   PublicProfileResponse,
   ResourceView,
   SearchResponse,
   SearchScope,
   SetAcademicContextInput,
+  UpsertAcademicSubjectParticipationInput,
+  UpsertAcademicSubjectParticipationResponse,
 } from "@losapuntes/contracts";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -383,6 +389,40 @@ export class MobileApiClient {
     );
   }
 
+  academicCatalogSearch(
+    input: AcademicCatalogSearchInput,
+    signal?: AbortSignal,
+  ) {
+    const query = new URLSearchParams({
+      kind: input.kind,
+      q: input.q,
+      limit: String(input.limit),
+    });
+    if (input.cursor) query.set("cursor", input.cursor);
+    if (input.parentId) query.set("parentId", input.parentId);
+
+    return this.request<AcademicCatalogSearchResponse>(
+      `/academic/catalog/search?${query.toString()}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  createAcademicAffiliation(
+    credential: string,
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<CreateAcademicAffiliationResponse>(
+      "/academic/me/affiliations",
+      {
+        method: "POST",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
   academicSubjects(
     credential: string,
     affiliationId?: string,
@@ -406,6 +446,23 @@ export class MobileApiClient {
       "/academic/me/context",
       {
         credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  upsertAcademicSubjectParticipation(
+    credential: string,
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<UpsertAcademicSubjectParticipationResponse>(
+      `/academic/me/subjects/${encodeURIComponent(subjectId)}`,
+      {
+        method: "PUT",
+        credential,
+        body: input,
         ...(signal ? { signal } : {}),
       },
     );

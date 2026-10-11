@@ -1,6 +1,7 @@
 import type { ResourceView } from "@losapuntes/contracts";
 import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   AppState,
   Pressable,
@@ -8,10 +9,14 @@ import {
   Text,
   View,
 } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import {
+  resourceFileSizeLabel,
+  resourceFileTypeLabel,
+} from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -32,27 +37,78 @@ const failureCopy: Record<ResourceConsumptionFailure, string> = {
   error: "No pudimos cargar tus guardados.",
 };
 
+const removalFailureCopy: Record<ResourceConsumptionFailure, string> = {
+  offline:
+    "No hay conexión. El recurso sigue en la lista; volvé a intentarlo cuando estés en línea.",
+  timeout:
+    "No pudimos confirmar si se quitó. El recurso sigue en la lista; podés reintentar.",
+  server_unavailable:
+    "El servidor no pudo quitarlo. El recurso sigue en la lista; podés reintentar.",
+  forbidden: "La sesión ya no puede quitar este recurso de tus guardados.",
+  not_found:
+    "El recurso ya no está disponible. Actualizá tus guardados para sincronizar la lista.",
+  restricted: "La cuenta no puede modificar tus guardados.",
+  error: "No pudimos quitar el recurso. Sigue en la lista y podés reintentar.",
+};
+
 function SavedResourceRow({
   resource,
   onOpen,
+  onRemove,
+  removing,
+  removalPending,
+  removalFailure,
 }: {
   resource: ResourceView;
   onOpen: () => void;
+  onRemove: () => void;
+  removing: boolean;
+  removalPending: boolean;
+  removalFailure: ResourceConsumptionFailure | null;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Abrir recurso guardado ${resource.title}`}
-      onPress={onOpen}
-      style={styles.row}
-    >
-      <Text style={styles.rowTitle}>{resource.title}</Text>
-      <Text style={styles.meta}>{resource.academic.subject.name}</Text>
-      {resource.author ? (
-        <Text style={styles.meta}>Por {resource.author.displayName}</Text>
+    <View style={styles.row}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir recurso guardado ${resource.title}`}
+        onPress={onOpen}
+        style={styles.openButton}
+      >
+        <Text style={styles.rowTitle}>{resource.title}</Text>
+        <Text style={styles.meta}>{resource.academic.subject.name}</Text>
+        {resource.author ? (
+          <Text style={styles.meta}>Por {resource.author.displayName}</Text>
+        ) : null}
+        <Text style={styles.meta}>
+          {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
+          {resourceFileSizeLabel(resource.file.byteSize)}
+        </Text>
+        <Text style={styles.actionLabel}>Abrir recurso</Text>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${removalFailure ? "Reintentar quitar" : "Quitar"} ${resource.title} de guardados`}
+        accessibilityState={{ disabled: removalPending }}
+        disabled={removalPending}
+        onPress={onRemove}
+        style={[styles.removeButton, removalPending && styles.disabledButton]}
+      >
+        {removing ? (
+          <ActivityIndicator accessibilityLabel="Quitando de guardados" />
+        ) : (
+          <Text style={styles.removeButtonText}>
+            {removalFailure ? "Reintentar quitar" : "Quitar de guardados"}
+          </Text>
+        )}
+      </Pressable>
+
+      {removalFailure ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {removalFailureCopy[removalFailure]}
+        </Text>
       ) : null}
-      <Text style={styles.actionLabel}>Abrir recurso</Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -68,6 +124,7 @@ export function SavedResourcesScreen() {
     controller.getSnapshot(),
   );
   const [appState, setAppState] = useState(AppState.currentState);
+  const announcedRemoval = useRef<number | null>(null);
   const authorityKey =
     isFocused && appState === "active" && session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
@@ -79,6 +136,27 @@ export function SavedResourcesScreen() {
     const subscription = AppState.addEventListener("change", setAppState);
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    if (
+      !authorityKey ||
+      !isFocused ||
+      appState !== "active" ||
+      snapshot.kind !== "ready" ||
+      snapshot.authorityKey !== authorityKey ||
+      !snapshot.notice
+    ) {
+      announcedRemoval.current = null;
+      return;
+    }
+
+    if (announcedRemoval.current === snapshot.notice.operationId) return;
+
+    AccessibilityInfo.announceForAccessibility(
+      `Se quitó ${snapshot.notice.resourceTitle} de tus guardados.`,
+    );
+    announcedRemoval.current = snapshot.notice.operationId;
+  }, [appState, authorityKey, isFocused, snapshot]);
 
   useEffect(() => {
     if (!authorityKey) {
@@ -105,7 +183,12 @@ export function SavedResourcesScreen() {
     <ProductSurface
       title="Guardados"
       description="Recursos que decidiste conservar. El servidor vuelve a autorizar cada recurso antes de mostrarlo o abrirlo."
-      onRefresh={authorityKey ? refresh : undefined}
+      onRefresh={
+        authorityKey &&
+        !(current?.kind === "ready" && current.removingResourceId)
+          ? refresh
+          : undefined
+      }
       refreshing={current?.kind === "loading"}
     >
       <Pressable
@@ -144,25 +227,59 @@ export function SavedResourcesScreen() {
               Tu biblioteca
             </Text>
             {current.data.items.length === 0 ? (
-              <Text style={styles.copy}>
-                Todavía no guardaste recursos. Podés hacerlo desde cualquier
-                detalle de recurso.
-              </Text>
+              <>
+                <Text style={styles.copy}>
+                  {current.data.nextCursor
+                    ? "No quedan recursos en esta página. Cargá más para seguir viendo tus guardados."
+                    : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
+                </Text>
+                {!current.data.nextCursor ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Buscar recursos"
+                    onPress={() => router.push("/(tabs)/search")}
+                    style={styles.searchButton}
+                  >
+                    <Text style={styles.searchButtonText}>Buscar recursos</Text>
+                  </Pressable>
+                ) : null}
+              </>
             ) : (
               current.data.items.map((resource) => (
                 <SavedResourceRow
                   key={resource.id}
                   resource={resource}
+                  removing={current.removingResourceId === resource.id}
+                  removalPending={
+                    current.removingResourceId !== null || current.loadingMore
+                  }
+                  removalFailure={
+                    current.removalFailure?.resourceId === resource.id
+                      ? current.removalFailure.failure
+                      : null
+                  }
                   onOpen={() =>
                     router.push({
                       pathname: "/resources/[id]",
                       params: { id: resource.id, saved: "1" },
                     })
                   }
+                  onRemove={() =>
+                    void controller.removeSaved(
+                      current.authorityKey,
+                      resource.id,
+                    )
+                  }
                 />
               ))
             )}
           </View>
+
+          {current.notice ? (
+            <Text style={styles.success}>
+              Se quitó {current.notice.resourceTitle} de tus guardados.
+            </Text>
+          ) : null}
 
           {current.failure ? (
             <Text accessibilityRole="alert" style={styles.error}>
@@ -224,6 +341,11 @@ const styles = StyleSheet.create({
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
   },
+  openButton: {
+    minHeight: 44,
+    gap: 5,
+    justifyContent: "center",
+  },
   rowTitle: {
     fontSize: 16,
     lineHeight: 22,
@@ -245,6 +367,32 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "#43366a",
     fontWeight: "700",
+  },
+  removeButton: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+  },
+  removeButtonText: {
+    color: "#43366a",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  searchButton: {
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#3446a2",
+  },
+  searchButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
   },
   loadingRow: {
     minHeight: 42,
@@ -270,6 +418,11 @@ const styles = StyleSheet.create({
   },
   error: {
     color: "#9f1d1d",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  success: {
+    color: "#17643a",
     fontSize: 14,
     lineHeight: 20,
   },

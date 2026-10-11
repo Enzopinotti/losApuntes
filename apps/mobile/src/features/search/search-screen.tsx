@@ -8,6 +8,7 @@ import type {
 import { useIsFocused, useRouter } from "expo-router";
 import {
   ActivityIndicator,
+  AccessibilityInfo,
   AppState,
   Pressable,
   StyleSheet,
@@ -15,11 +16,22 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import {
+  resourceFileSizeLabel,
+  resourceFileTypeLabel,
+} from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -27,6 +39,11 @@ import {
   type ContextualDiscoverySnapshot,
   type MobileSearchSnapshot,
 } from "./search-controller";
+import {
+  initialSearchInputState,
+  searchInputReducer,
+} from "./search-input-state";
+import { searchResultSummary } from "./search-results-copy";
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
 
@@ -43,14 +60,6 @@ const failureCopy: Record<string, string> = {
   server_unavailable: "El servicio de búsqueda no está disponible ahora.",
   restricted: "La cuenta no puede acceder a esta búsqueda.",
   error: "No pudimos completar la búsqueda.",
-};
-
-const bytesLabel = (byteSize: number): string => {
-  if (byteSize < 1024) return byteSize === 1 ? "1 byte" : `${byteSize} bytes`;
-  if (byteSize < 1024 * 1024) {
-    return `${Math.round(byteSize / 1024)} KB`;
-  }
-  return `${(byteSize / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 function ResourceResult({
@@ -78,7 +87,8 @@ function ResourceResult({
         </Text>
       ) : null}
       <Text style={styles.meta}>
-        {resource.file.mimeType} · {bytesLabel(resource.file.byteSize)}
+        {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
+        {resourceFileSizeLabel(resource.file.byteSize)}
       </Text>
       <Text style={styles.actionLabel}>Ver recurso</Text>
     </Pressable>
@@ -274,9 +284,11 @@ export function SearchScreen() {
   const [contextual, setContextual] = useState<ContextualDiscoverySnapshot>(
     controller.getContextualSnapshot(),
   );
-  const [query, setQuery] = useState("");
-  const [scope, setScope] = useState<SearchScope>("all");
-  const [subjectId, setSubjectId] = useState<string | undefined>();
+  const [searchInputState, dispatchSearchInput] = useReducer(
+    searchInputReducer,
+    initialSearchInputState,
+  );
+  const { query, scope, subjectId } = searchInputState;
   const [appState, setAppState] = useState(AppState.currentState);
   const [foregroundContextFresh, setForegroundContextFresh] = useState(
     AppState.currentState === "active",
@@ -284,6 +296,7 @@ export function SearchScreen() {
   const appStateRef = useRef(AppState.currentState);
   const awaitingAcademicRestore = useRef(false);
   const sawAcademicLoading = useRef(false);
+  const announcedSearchResult = useRef<string | null>(null);
 
   const sessionAuthority =
     session.kind === "authenticated"
@@ -413,11 +426,15 @@ export function SearchScreen() {
   const setQueryText = useCallback(
     (value: string) => {
       clearSearch();
-      setSubjectId(undefined);
-      setQuery(value.slice(0, 120));
+      dispatchSearchInput({ type: "queryChanged", query: value });
     },
     [clearSearch],
   );
+
+  const clearSubjectFilter = useCallback(() => {
+    clearSearch();
+    dispatchSearchInput({ type: "subjectFilterCleared" });
+  }, [clearSearch]);
 
   const openResource = useCallback(
     (resource: ResourceView) => {
@@ -439,9 +456,7 @@ export function SearchScreen() {
         return;
       }
       clearSearch();
-      setQuery("");
-      setScope("resources");
-      setSubjectId(subject.id);
+      dispatchSearchInput({ type: "subjectSelected", subjectId: subject.id });
     },
     [clearSearch, query.length, scope, subjectId],
   );
@@ -464,13 +479,38 @@ export function SearchScreen() {
     search.kind !== "idle" && search.authorityKey === authorityKey
       ? search
       : null;
+  useEffect(() => {
+    const ready = currentSearch?.kind === "ready" ? currentSearch : null;
+    if (!ready || !authorityKey || appState !== "active" || !isFocused) {
+      announcedSearchResult.current = null;
+      return;
+    }
+
+    const announcementKey = `${ready.authorityKey}:${ready.scope}:${ready.query}`;
+    if (announcedSearchResult.current === announcementKey) return;
+
+    AccessibilityInfo.announceForAccessibility(
+      searchResultSummary(
+        {
+          resources: ready.data.results.resources.length,
+          subjects: ready.data.results.subjects.length,
+          people: ready.data.results.people.length,
+        },
+        ready.scope,
+      ),
+    );
+    announcedSearchResult.current = announcementKey;
+  }, [appState, authorityKey, currentSearch, isFocused]);
   const academicFailure =
     academic.kind === "offline" ||
     academic.kind === "timeout" ||
     academic.kind === "server_unavailable" ||
     academic.kind === "error";
 
-  const renderSearchResults = (data: SearchResponse) => (
+  const renderSearchResults = (
+    data: SearchResponse,
+    resultScope: SearchScope,
+  ) => (
     <View style={styles.resultGroups}>
       {data.query ? (
         <Text style={styles.copy}>
@@ -479,17 +519,27 @@ export function SearchScreen() {
       ) : (
         <Text style={styles.copy}>Recursos de la materia seleccionada</Text>
       )}
-      {(scope === "all" || scope === "resources") && (
+      <Text style={styles.copy}>
+        {searchResultSummary(
+          {
+            resources: data.results.resources.length,
+            subjects: data.results.subjects.length,
+            people: data.results.people.length,
+          },
+          resultScope,
+        )}
+      </Text>
+      {(resultScope === "all" || resultScope === "resources") && (
         <ResourceGroup
           title="Apuntes y recursos"
           resources={data.results.resources}
           onOpen={openResource}
         />
       )}
-      {(scope === "all" || scope === "subjects") && (
+      {(resultScope === "all" || resultScope === "subjects") && (
         <SubjectGroup subjects={data.results.subjects} onOpen={openSubject} />
       )}
-      {(scope === "all" || scope === "people") && (
+      {(resultScope === "all" || resultScope === "people") && (
         <PeopleGroup result={data} onOpen={openPerson} />
       )}
       <Text style={styles.meta}>
@@ -530,8 +580,10 @@ export function SearchScreen() {
               onPress={() => {
                 if (scope === option.value) return;
                 clearSearch();
-                setScope(option.value);
-                setSubjectId(undefined);
+                dispatchSearchInput({
+                  type: "scopeChanged",
+                  scope: option.value,
+                });
               }}
               style={[
                 styles.scopeButton,
@@ -550,9 +602,31 @@ export function SearchScreen() {
           ))}
         </View>
         {subjectId ? (
-          <Text style={styles.meta}>
-            Filtrando por la materia que elegiste.
-          </Text>
+          <View style={styles.filterNotice}>
+            <Text style={styles.meta}>
+              Filtrando por la materia que elegiste.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Quitar filtro de materia"
+              onPress={clearSubjectFilter}
+              style={styles.searchActionButton}
+            >
+              <Text style={styles.searchActionLabel}>
+                Quitar filtro de materia
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {query.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Limpiar texto de búsqueda"
+            onPress={() => setQueryText("")}
+            style={styles.searchActionButton}
+          >
+            <Text style={styles.searchActionLabel}>Limpiar búsqueda</Text>
+          </Pressable>
         ) : null}
       </View>
 
@@ -598,7 +672,7 @@ export function SearchScreen() {
             </View>
           </View>
         ) : currentSearch?.kind === "ready" ? (
-          renderSearchResults(currentSearch.data)
+          renderSearchResults(currentSearch.data, currentSearch.scope)
         ) : currentSearch ? (
           <View style={styles.card}>
             <Text accessibilityRole="alert" style={styles.error}>
@@ -656,6 +730,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#17171c",
     backgroundColor: "#ffffff",
+  },
+  filterNotice: {
+    gap: 4,
+    alignItems: "flex-start",
+  },
+  searchActionButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#c8c8d2",
+    borderRadius: 10,
+  },
+  searchActionLabel: {
+    color: "#43366a",
+    fontSize: 14,
+    fontWeight: "700",
   },
   scopeList: {
     flexDirection: "row",

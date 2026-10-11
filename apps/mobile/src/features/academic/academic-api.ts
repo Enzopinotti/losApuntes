@@ -1,18 +1,33 @@
 import type {
+  AcademicCatalogSearchResponse,
+  AcademicCatalogSearchInput,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
+  CreateAcademicAffiliationInput,
+  CreateAcademicAffiliationResponse,
   SetAcademicContextInput,
+  UpsertAcademicSubjectParticipationInput,
+  UpsertAcademicSubjectParticipationResponse,
 } from "@losapuntes/contracts";
 
 import type { SessionController } from "@/features/session/session-controller";
 import { ApiRequestError } from "@/services/api/client";
 
 export interface AcademicContextTransport {
+  academicCatalogSearch(
+    input: AcademicCatalogSearchInput,
+    signal?: AbortSignal,
+  ): Promise<AcademicCatalogSearchResponse>;
   academicAffiliations(
     credential: string,
     signal?: AbortSignal,
   ): Promise<AcademicAffiliationListResponse>;
+  createAcademicAffiliation(
+    credential: string,
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ): Promise<CreateAcademicAffiliationResponse>;
   academicSubjects(
     credential: string,
     affiliationId?: string,
@@ -27,10 +42,24 @@ export interface AcademicContextTransport {
     input: SetAcademicContextInput,
     signal?: AbortSignal,
   ): Promise<AcademicCurrentContextResponse>;
+  upsertAcademicSubjectParticipation(
+    credential: string,
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ): Promise<UpsertAcademicSubjectParticipationResponse>;
 }
 
 export interface AcademicContextApi {
+  catalogSearch(
+    input: AcademicCatalogSearchInput,
+    signal?: AbortSignal,
+  ): Promise<AcademicCatalogSearchResponse>;
   affiliations(signal?: AbortSignal): Promise<AcademicAffiliationListResponse>;
+  createAffiliation(
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ): Promise<CreateAcademicAffiliationResponse>;
   subjects(
     affiliationId?: string,
     signal?: AbortSignal,
@@ -40,6 +69,11 @@ export interface AcademicContextApi {
     input: SetAcademicContextInput,
     signal?: AbortSignal,
   ): Promise<AcademicCurrentContextResponse>;
+  upsertSubjectParticipation(
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ): Promise<UpsertAcademicSubjectParticipationResponse>;
 }
 
 export class AcademicMobileApi implements AcademicContextApi {
@@ -48,9 +82,22 @@ export class AcademicMobileApi implements AcademicContextApi {
     private readonly transport: AcademicContextTransport,
   ) {}
 
+  catalogSearch(input: AcademicCatalogSearchInput, signal?: AbortSignal) {
+    return this.transport.academicCatalogSearch(input, signal);
+  }
+
   affiliations(signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.academicAffiliations(credential, signal),
+    );
+  }
+
+  createAffiliation(
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.createAcademicAffiliation(credential, input, signal),
     );
   }
 
@@ -69,6 +116,21 @@ export class AcademicMobileApi implements AcademicContextApi {
   setContext(input: SetAcademicContextInput, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.setAcademicContext(credential, input, signal),
+    );
+  }
+
+  upsertSubjectParticipation(
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.upsertAcademicSubjectParticipation(
+        credential,
+        subjectId,
+        input,
+        signal,
+      ),
     );
   }
 
