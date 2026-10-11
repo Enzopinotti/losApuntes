@@ -2,12 +2,13 @@ import { ForbiddenException } from '@nestjs/common';
 
 import type { AccountExportArtifactSink } from './account-export-assembler';
 import type { AccountExportAssembler } from './account-export-assembler';
-import type { AccountExportService } from './account-export.service';
+import { AccountExportService } from './account-export.service';
 import type { AccountExportStore } from './account-export.store';
 import type {
   AccountExportAssemblyResult,
   AccountExportJobRecord,
 } from './account-export.types';
+import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from './account-export.types';
 import type { AccountExportArtifactStorage } from '../storage/account-export-artifact-storage';
 import { AccountExportProcessor } from './account-export-processor';
 
@@ -112,6 +113,119 @@ describe('AccountExportProcessor', () => {
       [{ id: claim().id, claimId: claim().claimId, result }],
     ]);
     expect(f.exports.reschedule.mock.calls).toHaveLength(0);
+  });
+
+  it('recovers an abandoned claim after a worker restarts', async () => {
+    jest.useFakeTimers().setSystemTime(now);
+    let persisted = claim({
+      state: 'pending',
+      attempts: 0,
+      claimId: null,
+      leaseExpiresAt: null,
+    });
+    const store = {
+      findExpiredArtifacts: jest.fn().mockResolvedValue([]),
+      clearExpiredArtifact: jest.fn().mockResolvedValue(true),
+      claimNext: jest.fn(
+        (input: { now: Date; claimId: string; leaseExpiresAt: Date }) => {
+          const duePending =
+            persisted.state === 'pending' &&
+            persisted.nextAttemptAt.getTime() <= input.now.getTime();
+          const abandonedClaim =
+            persisted.state === 'processing' &&
+            (persisted.leaseExpiresAt?.getTime() ?? Infinity) <=
+              input.now.getTime();
+          if (!persisted.active || (!duePending && !abandonedClaim))
+            return Promise.resolve(null);
+
+          persisted = {
+            ...persisted,
+            state: 'processing',
+            attempts: persisted.attempts + 1,
+            claimId: input.claimId,
+            leaseExpiresAt: input.leaseExpiresAt,
+            failureCode: null,
+            failedAt: null,
+          };
+          return Promise.resolve({ ...persisted });
+        },
+      ),
+      complete: jest.fn(
+        (input: {
+          id: string;
+          claimId: string;
+          completedAt: Date;
+          artifactGeneration: string;
+          artifactExpiresAt: Date;
+          result: AccountExportAssemblyResult;
+        }) => {
+          if (
+            persisted.id !== input.id ||
+            !persisted.active ||
+            persisted.state !== 'processing' ||
+            persisted.claimId !== input.claimId ||
+            (persisted.leaseExpiresAt?.getTime() ?? -Infinity) <=
+              input.completedAt.getTime()
+          ) {
+            return Promise.resolve(false);
+          }
+          persisted = {
+            ...persisted,
+            state: 'completed',
+            active: false,
+            claimId: null,
+            leaseExpiresAt: null,
+            completedAt: input.completedAt,
+            artifactGeneration: input.artifactGeneration,
+            artifactExpiresAt: input.artifactExpiresAt,
+            artifactSectionCount: input.result.sectionCount,
+            artifactRecordCount: input.result.recordCount,
+            artifactByteLength: input.result.byteLength,
+            artifactSha256: input.result.sha256,
+          };
+          return Promise.resolve(true);
+        },
+      ),
+    } as unknown as jest.Mocked<AccountExportStore>;
+    const users = { hasActiveAccount: jest.fn().mockResolvedValue(true) };
+    const firstService = new AccountExportService(store, users as never);
+
+    // Simulate process exit immediately after the database claim is persisted.
+    const abandoned = await firstService.claimNext();
+    expect(abandoned).toMatchObject({ attempts: 1, state: 'processing' });
+    expect(abandoned?.claimId).toBeTruthy();
+    expect(abandoned?.leaseExpiresAt).toEqual(
+      new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    );
+
+    jest.setSystemTime(abandoned!.leaseExpiresAt!);
+    const f = fixture({ job: null });
+    const restartedService = new AccountExportService(store, users as never);
+    const restartedProcessor = new AccountExportProcessor(
+      restartedService,
+      f.assembler,
+      store,
+      f.artifacts,
+    );
+
+    await expect(restartedProcessor.runIteration()).resolves.toMatchObject({
+      claimed: 1,
+      completed: 1,
+      retryScheduled: 0,
+      stale: 0,
+    });
+
+    expect(store.claimNext.mock.calls).toHaveLength(2);
+    expect(persisted).toMatchObject({
+      state: 'completed',
+      active: false,
+      attempts: 2,
+      claimId: null,
+      leaseExpiresAt: null,
+      artifactGeneration: f.artifacts.createSink.mock.calls[0]?.[1],
+      artifactSha256: result.sha256,
+    });
+    expect(persisted.artifactGeneration).not.toBe(abandoned?.claimId);
   });
 
   it('schedules transient failures with bounded backoff and aborts staging', async () => {

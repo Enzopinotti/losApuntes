@@ -22,11 +22,13 @@ This is infrastructure for export, not deletion, anonymization or retention.
 
 `account_export_jobs` records one active export job per user.
 
-The foundation states are:
+The current job states are:
 
 - `pending` — available for an assembler to claim;
 - `processing` — owned by one lease-bound worker claim;
-- `failed` — terminal for that job and no longer occupies the active slot.
+- `failed` — terminal for that job and no longer occupies the active slot;
+- `completed` — the private artifact was committed and its fenced completion
+  metadata was persisted; availability still ends at the recorded expiry.
 
 A partial unique index on `userId + active=true` prevents two concurrent
 requests from creating two active exports. A request that loses the concurrent
@@ -48,7 +50,7 @@ fails during assembly, the assembler aborts private staging, does not commit an
 artifact or report completion, and preserves the error for the claim owner to
 record. Delivery still requires a separate owner and active-account check at
 download time. This service-layer check complements `AuthSessionGuard`; it does
-not replace authentication on a future HTTP route.
+not replace authentication on the request, status or download route.
 
 Failed history is retained. Because a failed job becomes inactive, a later
 request can create a new active job without rewriting the earlier failure as if
@@ -84,17 +86,20 @@ A claim:
 - increments attempts;
 - clears the previous failure marker.
 
-Only the holder of the current claim id may reschedule that processing job.
-Retry returns it to `pending`; terminal exhaustion moves it to `failed`,
-sets `active=false`, and records a stable failure code.
+Only the holder of the current, unexpired claim id may renew, complete or
+reschedule a processing job. Retry returns it to `pending`; terminal
+exhaustion moves it to `failed`, sets `active=false`, and records a stable
+failure code. Successful completion moves it to `completed` and releases the
+active slot only after the attempt-scoped artifact sink commits.
 
 Failure codes are a closed domain allowlist. They are stable identifiers, never
 exception messages, user input or export content. The service rejects unknown
 codes before persistence and omits unknown legacy values from public status.
 
-The foundation does not yet choose retry timings for assembly because no
-assembler runs in this carrier. The future processor owns that policy and must
-keep it bounded.
+The worker retries transient failures at most five times, with delays of 30,
+60, 120 and 240 seconds before the fifth claim becomes terminal. Inactive
+accounts fail terminally. See the worker section below for lease renewal,
+stale-claim cleanup and artifact expiry behavior.
 
 ## Export format contract
 
@@ -107,9 +112,13 @@ The initial format version is `1`.
 Changing the meaning of an existing field without compatibility is not allowed.
 A materially incompatible export shape requires a new format version.
 
-The artifact is streamed as a versioned JSON envelope rather than constructed
-as one giant in-memory object. Durable artifact storage and owner-reauthorized
-delivery are separate from this internal assembly contract.
+The assembler streams a versioned JSON envelope rather than constructing one
+giant in-memory object. The worker connects that stream to a private,
+attempt-scoped durable artifact sink and owner-reauthorized API delivery; the
+sink must commit before the worker persists completion metadata. The tests
+exercise 10,000 records through 100-row pages with a sink that consumes and
+discards each chunk, and a fresh processor reclaiming a job after its previous
+claim lease expires.
 
 ## Domain contributor contract
 

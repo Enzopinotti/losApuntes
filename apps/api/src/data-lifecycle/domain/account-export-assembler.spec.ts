@@ -195,6 +195,98 @@ describe('AccountExportAssembler', () => {
     );
   });
 
+  it('streams 10,000 records through bounded pages and a discarding sink', async () => {
+    const recordCount = 10_000;
+    const pageLimit = 100;
+    const expectedDigest = createHash('sha256');
+    let expectedByteLength = 0;
+    const addExpectedChunk = (chunk: string) => {
+      expectedDigest.update(chunk, 'utf8');
+      expectedByteLength += Buffer.byteLength(chunk, 'utf8');
+    };
+    const prefix =
+      '{"format":"los-apuntes-account-export","version":1,"sections":{"profile.activities":[';
+    addExpectedChunk(prefix);
+    const makeRecord = (id: number) => ({
+      id: `row-${String(id).padStart(5, '0')}`,
+      label: 'x'.repeat(48),
+    });
+    for (let index = 0; index < recordCount; index += 1) {
+      if (index > 0) addExpectedChunk(',');
+      addExpectedChunk(JSON.stringify(makeRecord(index)));
+    }
+    addExpectedChunk(']}}');
+
+    const streamedDigest = createHash('sha256');
+    let streamedByteLength = 0;
+    let writesInFlight = 0;
+    let maxWritesInFlight = 0;
+    let maxChunkBytes = 0;
+    let maxPageRecords = 0;
+    const pagesRead: Array<{ cursor: string | null; limit: number }> = [];
+    const commit = jest.fn().mockResolvedValue(undefined);
+    const abort = jest.fn().mockResolvedValue(undefined);
+    const sink: AccountExportArtifactSink = {
+      write: async (chunk) => {
+        writesInFlight += 1;
+        maxWritesInFlight = Math.max(maxWritesInFlight, writesInFlight);
+        const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+        maxChunkBytes = Math.max(maxChunkBytes, chunkBytes);
+        streamedDigest.update(chunk, 'utf8');
+        streamedByteLength += chunkBytes;
+        await Promise.resolve();
+        writesInFlight -= 1;
+      },
+      commit,
+      abort,
+    };
+    const readPage: AccountExportContributor['readPage'] = ({
+      cursor,
+      limit,
+    }) => {
+      pagesRead.push({ cursor, limit });
+      const pageIndex = cursor === null ? 0 : Number(cursor.slice(5));
+      const start = pageIndex * pageLimit;
+      const length = Math.min(limit, recordCount - start);
+      const records = Array.from({ length }, (_, offset) =>
+        makeRecord(start + offset),
+      );
+      maxPageRecords = Math.max(maxPageRecords, records.length);
+      return Promise.resolve({
+        records,
+        nextCursor:
+          start + length < recordCount ? `page-${pageIndex + 1}` : null,
+      });
+    };
+
+    const assembler = assemblerFor([
+      contributor('profile.activities', readPage),
+    ]);
+    const result = await assembler.writeJsonV1('user-1', sink);
+
+    expect(result).toEqual({
+      format: 'los-apuntes-account-export',
+      formatVersion: 1,
+      sectionCount: 1,
+      recordCount,
+      byteLength: expectedByteLength,
+      sha256: expectedDigest.digest('hex'),
+    });
+    expect(streamedByteLength).toBe(expectedByteLength);
+    expect(streamedDigest.digest('hex')).toBe(result.sha256);
+    expect(pagesRead).toHaveLength(recordCount / pageLimit);
+    expect(pagesRead[0]).toEqual({ cursor: null, limit: pageLimit });
+    expect(pagesRead.at(-1)).toEqual({
+      cursor: `page-${recordCount / pageLimit - 1}`,
+      limit: pageLimit,
+    });
+    expect(maxPageRecords).toBe(pageLimit);
+    expect(maxWritesInFlight).toBe(1);
+    expect(maxChunkBytes).toBeLessThan(256);
+    expect(commit.mock.calls).toEqual([[result]]);
+    expect(abort.mock.calls).toEqual([]);
+  });
+
   it('waits for sink backpressure before reading any contributor page', async () => {
     let releaseFirstWrite!: () => void;
     const firstWrite = new Promise<void>((resolve) => {
