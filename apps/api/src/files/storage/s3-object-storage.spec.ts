@@ -262,6 +262,39 @@ describe('S3ObjectStorage', () => {
     expect(cancelled).toBe(true);
   });
 
+  it('cancels a pending provider read when the download signal aborts', async () => {
+    let cancelled = false;
+    let sent = false;
+    const controller = new AbortController();
+    const body = new ReadableStream<Uint8Array>({
+      pull(streamController) {
+        if (sent) return;
+        streamController.enqueue(Buffer.from('first chunk'));
+        sent = true;
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(body, { status: 200 }));
+    const reader = storage()
+      .readObjectChunks('abort-pending-read', 1024, controller.signal)
+      [Symbol.asyncIterator]();
+
+    await expect(reader.next()).resolves.toMatchObject({
+      done: false,
+      value: Buffer.from('first chunk'),
+    });
+    const pendingRead = reader.next();
+    controller.abort();
+
+    await expect(pendingRead).resolves.toMatchObject({ done: true });
+    expect(cancelled).toBe(true);
+    expect(fetchSpy.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
   it('treats delete 404 as idempotent and surfaces provider failures', async () => {
     jest
       .spyOn(global, 'fetch')

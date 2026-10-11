@@ -664,6 +664,11 @@ even while the cleanup retry is pending.
 - `GET /account/exports/{exportId}/download` streams the completed JSON as a
   fixed-name attachment with `Cache-Control: private, no-store`.
 
+If the HTTP response closes before finishing, its abort signal cancels the
+private S3 GET and any pending provider-body read. A normal `finish` followed by
+connection close does not abort the completed stream; the existing provider
+request timeout remains at 30 seconds.
+
 Every route requires `AuthSessionGuard`; request, status and download also
 recheck current active account status. Missing and foreign ids return the same 404. A pending/processing/failed download returns 409; an expired download
 returns 410. Public status adds only `downloadExpiresAt` and `downloadable`;

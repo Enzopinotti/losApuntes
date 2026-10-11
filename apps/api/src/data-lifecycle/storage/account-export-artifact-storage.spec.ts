@@ -92,12 +92,15 @@ describe('S3AccountExportArtifactStorage', () => {
       deleteObject,
     };
     const artifacts = new S3AccountExportArtifactStorage(storage);
+    const signal = new AbortController().signal;
 
     artifacts.readObjectChunks(jobId, generation);
+    artifacts.readObjectChunks(jobId, generation, signal);
     await artifacts.deleteArtifact(jobId, generation);
-    expect(readObjectChunks).toHaveBeenCalledWith(
-      `exports/${jobId}/${generation}.json`,
-    );
+    expect(readObjectChunks.mock.calls).toEqual([
+      [`exports/${jobId}/${generation}.json`],
+      [`exports/${jobId}/${generation}.json`, undefined, signal],
+    ]);
     expect(deleteObject).toHaveBeenCalledWith(
       `exports/${jobId}/${generation}.json`,
     );

@@ -31,6 +31,11 @@ export interface S3MultipartObjectWriter {
 }
 
 export interface S3ObjectStorage extends ObjectStorage {
+  readObjectChunks(
+    objectKey: string,
+    maximumChunkBytes?: number,
+    signal?: AbortSignal,
+  ): AsyncIterable<Uint8Array>;
   createMultipartWriter(input: {
     objectKey: string;
     contentType: string;
@@ -223,6 +228,7 @@ async function signedRequest(input: {
   secretAccessKey: string;
   headers?: Readonly<Record<string, string>>;
   timeoutMs?: number;
+  signal?: AbortSignal;
   now?: Date;
 }): Promise<Response> {
   const now = input.now ?? new Date();
@@ -269,7 +275,12 @@ async function signedRequest(input: {
         authorization,
         ...(input.headers ?? {}),
       },
-      signal: AbortSignal.timeout(input.timeoutMs ?? REQUEST_TIMEOUT_MS),
+      signal: input.signal
+        ? AbortSignal.any([
+            AbortSignal.timeout(input.timeoutMs ?? REQUEST_TIMEOUT_MS),
+            input.signal,
+          ])
+        : AbortSignal.timeout(input.timeoutMs ?? REQUEST_TIMEOUT_MS),
     },
   );
 }
@@ -668,6 +679,7 @@ export function createS3ObjectStorage(
     async *readObjectChunks(
       objectKey: string,
       maximumChunkBytes = 64 * 1024,
+      signal?: AbortSignal,
     ): AsyncIterable<Uint8Array> {
       if (
         !Number.isSafeInteger(maximumChunkBytes) ||
@@ -687,6 +699,7 @@ export function createS3ObjectStorage(
         region: options.region,
         accessKeyId: options.accessKeyId,
         secretAccessKey: options.secretAccessKey,
+        signal,
         now: options.now?.(),
       });
 
@@ -695,6 +708,15 @@ export function createS3ObjectStorage(
 
       const reader = response.body.getReader();
       let streamEnded = false;
+      let cancellation: Promise<void> | null = null;
+      const cancelReader = () => {
+        cancellation ??= reader.cancel().then(
+          () => undefined,
+          () => undefined,
+        );
+      };
+      signal?.addEventListener('abort', cancelReader, { once: true });
+      if (signal?.aborted) cancelReader();
 
       try {
         while (true) {
@@ -716,9 +738,9 @@ export function createS3ObjectStorage(
           }
         }
       } finally {
-        if (!streamEnded) {
-          await reader.cancel().catch(() => undefined);
-        }
+        signal?.removeEventListener('abort', cancelReader);
+        if (!streamEnded) cancelReader();
+        await Promise.resolve(cancellation);
         reader.releaseLock();
       }
     },

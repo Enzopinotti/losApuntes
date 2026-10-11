@@ -3,6 +3,7 @@ import {
   GoneException,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
@@ -64,7 +65,9 @@ describe('AccountExportController', () => {
         yield content.subarray(8);
       })(),
     );
+    const raw = Object.assign(new EventEmitter(), { writableFinished: true });
     const reply = {
+      raw,
       header: jest
         .fn<unknown, [name: string, value: string | number]>()
         .mockReturnThis(),
@@ -72,6 +75,7 @@ describe('AccountExportController', () => {
     };
 
     await f.controller.download(f.request, exportId, reply as never);
+    raw.emit('finish');
 
     expect(f.exports.download.mock.calls).toEqual([['owner-1', exportId]]);
     expect(reply.header).toHaveBeenCalledWith(
@@ -101,6 +105,87 @@ describe('AccountExportController', () => {
       received.push(Buffer.from(chunk));
     }
     expect(Buffer.concat(received)).toEqual(content);
+  });
+
+  it('aborts the provider read when the response closes before finishing', async () => {
+    const f = fixture();
+    f.exports.download.mockResolvedValueOnce({
+      kind: 'available',
+      generation: '123e4567-e89b-42d3-a456-426614174001',
+      byteLength: 64,
+    });
+    let signal: AbortSignal | undefined;
+    let finishRead!: () => void;
+    const readFinished = new Promise<void>((resolve) => {
+      finishRead = resolve;
+    });
+    f.artifacts.readObjectChunks.mockImplementationOnce(
+      (_jobId, _generation, readSignal) => {
+        signal = readSignal;
+        return (async function* () {
+          try {
+            yield Buffer.from('first chunk');
+            await new Promise<void>((resolve) =>
+              readSignal?.addEventListener('abort', () => resolve(), {
+                once: true,
+              }),
+            );
+          } finally {
+            finishRead();
+          }
+        })();
+      },
+    );
+    const raw = Object.assign(new EventEmitter(), { writableFinished: false });
+    const reply = {
+      raw,
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest
+        .fn<unknown, [payload: unknown]>()
+        .mockImplementation((payload) => payload),
+    };
+
+    await f.controller.download(f.request, exportId, reply as never);
+    const stream = reply.send.mock.calls[0]?.[0] as Readable;
+    const streamReader = stream[Symbol.asyncIterator]();
+    await expect(streamReader.next()).resolves.toMatchObject({ done: false });
+    raw.emit('close');
+
+    expect(signal?.aborted).toBe(true);
+    await expect(readFinished).resolves.toBeUndefined();
+    stream.destroy();
+  });
+
+  it('does not abort a completed response when its connection closes', async () => {
+    const f = fixture();
+    f.exports.download.mockResolvedValueOnce({
+      kind: 'available',
+      generation: '123e4567-e89b-42d3-a456-426614174001',
+      byteLength: 1,
+    });
+    f.artifacts.readObjectChunks.mockReturnValueOnce(
+      (async function* () {
+        await Promise.resolve();
+        yield Buffer.from('x');
+      })(),
+    );
+    const raw = Object.assign(new EventEmitter(), { writableFinished: true });
+    const reply = {
+      raw,
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
+    };
+
+    await f.controller.download(f.request, exportId, reply as never);
+    const signal = f.artifacts.readObjectChunks.mock.calls[0]?.[2];
+    raw.emit('finish');
+    raw.emit('close');
+
+    expect(signal?.aborted).toBe(false);
   });
 
   it('uses stable errors for unavailable and expired artifacts', async () => {

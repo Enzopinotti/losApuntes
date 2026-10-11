@@ -111,6 +111,11 @@ download probes must return `AUTHENTICATION_REQUIRED` before exposing export
 metadata or bytes. Its 32 MiB cap applies only to the small synthetic smoke
 fixture.
 
+If a download response closes before it finishes, the API aborts the private S3
+GET and cancels any pending body read. A normal completed response does not
+cancel the provider stream early; the existing S3 request timeout remains at
+30 seconds.
+
 Container runtime smoke therefore covers the local Mongo/worker/object-store
 path end to end. It does not verify production-provider IAM, lifecycle
 readback, private-access configuration or physical deletion.

@@ -18,6 +18,7 @@ export interface AccountExportArtifactStorage {
   readObjectChunks(
     jobId: string,
     generation: string,
+    signal?: AbortSignal,
   ): AsyncIterable<Uint8Array>;
   deleteArtifact(jobId: string, generation: string): Promise<void>;
 }
@@ -83,8 +84,12 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
   readObjectChunks(
     jobId: string,
     generation: string,
+    signal?: AbortSignal,
   ): AsyncIterable<Uint8Array> {
-    return this.storage.readObjectChunks(objectKey(jobId, generation));
+    const key = objectKey(jobId, generation);
+    return signal
+      ? this.storage.readObjectChunks(key, undefined, signal)
+      : this.storage.readObjectChunks(key);
   }
 
   deleteArtifact(jobId: string, generation: string): Promise<void> {

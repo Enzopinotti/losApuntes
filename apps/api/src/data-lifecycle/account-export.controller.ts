@@ -85,8 +85,27 @@ export class AccountExportController {
       .header('x-content-type-options', 'nosniff')
       .header('content-length', artifact.byteLength);
 
+    const abort = new AbortController();
+    const cleanup = () => {
+      reply.raw.off('close', onClose);
+      reply.raw.off('finish', cleanup);
+    };
+    const onClose = () => {
+      cleanup();
+      if (!reply.raw.writableFinished) abort.abort();
+    };
+
+    if (reply.raw.destroyed) {
+      abort.abort();
+    } else {
+      reply.raw.once('close', onClose);
+      reply.raw.once('finish', cleanup);
+    }
+
     return reply.send(
-      Readable.from(this.artifacts.readObjectChunks(id, artifact.generation)),
+      Readable.from(
+        this.artifacts.readObjectChunks(id, artifact.generation, abort.signal),
+      ),
     );
   }
 }
