@@ -6,6 +6,8 @@ import type {
   LoginMethodsResponse,
   PasswordChangeInput,
   PilotHomeResponse,
+  AcademicFeedResponse,
+  ForYouFeedResponse,
 } from "@losapuntes/contracts";
 
 import { ApiRequestError } from "@/services/api/client";
@@ -18,6 +20,17 @@ export interface AuthenticatedApiTransport {
     credential: string,
     signal?: AbortSignal,
   ): Promise<PilotHomeResponse>;
+  academicFeed(
+    credential: string,
+    cursor: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicFeedResponse>;
+  forYouFeed(
+    credential: string,
+    cursor: string,
+    mode: "balanced" | "community",
+    signal?: AbortSignal,
+  ): Promise<ForYouFeedResponse>;
   listSessions(
     credential: string,
     signal?: AbortSignal,
@@ -67,6 +80,29 @@ export class AuthenticatedMobileApi {
   async pilotHome(signal?: AbortSignal): Promise<PilotHomeResponse> {
     return (
       await this.execute((credential) => this.api.pilotHome(credential, signal))
+    ).value;
+  }
+
+  async academicFeed(
+    cursor: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicFeedResponse> {
+    return (
+      await this.execute((credential) =>
+        this.api.academicFeed(credential, cursor, signal),
+      )
+    ).value;
+  }
+
+  async forYouFeed(
+    cursor: string,
+    mode: "balanced" | "community",
+    signal?: AbortSignal,
+  ): Promise<ForYouFeedResponse> {
+    return (
+      await this.execute((credential) =>
+        this.api.forYouFeed(credential, cursor, mode, signal),
+      )
     ).value;
   }
 
