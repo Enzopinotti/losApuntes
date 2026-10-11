@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import {
   OrganizationManager,
   OrganizationManagerSchema,
@@ -35,6 +36,7 @@ import {
   AuthoredAnswersExportContributor,
   AuthoredQuestionsExportContributor,
 } from './contributors/account-export-qa.contributors';
+import { NotificationInboxExportContributor } from './contributors/account-export-notifications.contributors';
 import {
   SocialConnectionsExportContributor,
   SocialFollowingExportContributor,
@@ -65,6 +67,7 @@ import {
   imports: [
     AcademicModule,
     AuthModule,
+    NotificationsModule,
     UsersModule,
     ProfileModule,
     QaModule,
@@ -96,6 +99,7 @@ import {
     SharedResourceGrantsExportContributor,
     AuthoredQuestionsExportContributor,
     AuthoredAnswersExportContributor,
+    NotificationInboxExportContributor,
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
     {
@@ -113,6 +117,7 @@ import {
         sharedResourceGrants: SharedResourceGrantsExportContributor,
         authoredQuestions: AuthoredQuestionsExportContributor,
         authoredAnswers: AuthoredAnswersExportContributor,
+        notificationInbox: NotificationInboxExportContributor,
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
       ) => [
@@ -128,6 +133,7 @@ import {
         sharedResourceGrants,
         authoredQuestions,
         authoredAnswers,
+        notificationInbox,
         socialFollowing,
         socialConnections,
       ],
@@ -144,6 +150,7 @@ import {
         SharedResourceGrantsExportContributor,
         AuthoredQuestionsExportContributor,
         AuthoredAnswersExportContributor,
+        NotificationInboxExportContributor,
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
       ],

@@ -1,5 +1,6 @@
 import type {
   CreateNotificationRecord,
+  NotificationAccountExportRow,
   NotificationCursor,
   NotificationRecord,
 } from './notification.types';
@@ -14,6 +15,11 @@ export interface NotificationStore {
     limit: number;
     after?: NotificationCursor;
   }) => Promise<{ items: NotificationRecord[]; hasMore: boolean }>;
+  listForAccountExport: (input: {
+    userId: string;
+    limit: number;
+    after?: NotificationCursor;
+  }) => Promise<{ items: NotificationAccountExportRow[]; hasMore: boolean }>;
   markRead: (
     userId: string,
     id: string,

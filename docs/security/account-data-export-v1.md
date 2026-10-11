@@ -224,6 +224,28 @@ relationship record, not an event log of every request/reopen transition.
 These relationship projections do not grant access to counterpart data and
 do not make the full account export complete.
 
+### Notification inbox section — candidate for #183
+
+Notifications contributes `notifications.inbox`, containing all notification
+records addressed to the export owner. Each portable row contains the owner's
+notification id and type, nullable `actorProfileId`, target type/id as a
+reference, `readAt` and `createdAt`. It preserves both read and unread inbox
+state; it does not resolve or include target content.
+
+The store filters by owner and uses an explicit field allowlist. Pages are
+ordered by `createdAt DESC, id ASC`, use `limit + 1`, and are capped at 100.
+The existing `{ userId: 1, createdAt: -1, id: 1 }` index supports this export
+order. The query does not read notification `updatedAt` or the owner's user id
+into the portable row. Non-null actor user ids are resolved in a separately
+capped Profile-id projection; a missing actor Profile aborts the page. A null
+actor stays null.
+
+The export contains no actor names, emails, avatars or internal user ids; no
+notification provider/delivery data; and no Question, Answer, Connection or
+Profile content behind a target reference. The target reference is not access
+authority. These inbox records remain a partial contributor and do not make
+the overall account export complete.
+
 ### Resource history sections — candidate for #183
 
 Resources contributes three owner-scoped sections:
@@ -271,7 +293,7 @@ enough to expose a complete downloadable account export.
 The internal v1 artifact is a compact JSON envelope:
 
 ```json
-{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
 ```
 
 Section keys follow the contributor registry's stable lexicographic order.
@@ -342,9 +364,9 @@ Those remain #82/#48 or later #183 slices.
 Resource authored metadata, saved references and current explicit share grants
 are implemented as an incomplete contributor candidate; Resource file bytes
 and a historical revocation log remain outside it. Q&A authored questions and
-answers and Social Following/Connection history are also partial contributor
-sections; Organizations, Notifications and Alumni are still unimplemented
-export domains.
+answers, Social Following/Connection history and the owner's Notification
+inbox are also partial contributor sections; Organizations and Alumni are
+still unimplemented export domains.
 User-authored Academic catalog proposals are also outside the currently
 implemented v1 Academic carrier pending a separate inclusion decision. The
 presence of core, Academic and partial Resource sections does not make the

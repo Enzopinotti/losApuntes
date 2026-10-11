@@ -29,6 +29,17 @@ export interface NotificationRecord {
   updatedAt: Date;
 }
 
+export type NotificationAccountExportRow = Pick<
+  NotificationRecord,
+  | 'id'
+  | 'type'
+  | 'actorUserId'
+  | 'targetType'
+  | 'targetId'
+  | 'readAt'
+  | 'createdAt'
+>;
+
 export type CreateNotificationRecord = Omit<
   NotificationRecord,
   'createdAt' | 'updatedAt'
