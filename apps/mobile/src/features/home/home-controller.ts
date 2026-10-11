@@ -3,6 +3,7 @@ import type {
   AcademicFeedResponse,
   ForYouFeedResponse,
   FeedItem,
+  FeedPageResponse,
   PilotHomeResponse,
 } from "@losapuntes/contracts";
 
@@ -29,6 +30,16 @@ export interface HomePageStatus {
 }
 
 export const MAX_HOME_FEED_ITEMS = 48;
+export const HOME_FEED_PAGE_SIZE = 6;
+
+export function canLoadMoreHomeFeed(
+  feed: Pick<FeedPageResponse, "items" | "nextCursor">,
+): boolean {
+  return Boolean(
+    feed.nextCursor &&
+      feed.items.length <= MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE,
+  );
+}
 
 function dedupeFeedItems(
   existing: FeedItem[],
@@ -194,7 +205,7 @@ export class MobileHomeController {
     const initialFeed =
       section === "home" ? initial.data.homeFeed : initial.data.forYou;
     const cursor = initialFeed.nextCursor;
-    if (!cursor || initialFeed.items.length >= MAX_HOME_FEED_ITEMS) return;
+    if (!cursor || !canLoadMoreHomeFeed(initialFeed)) return;
 
     const generation = this.operationGeneration;
     const operation = new AbortController();
@@ -248,6 +259,9 @@ export class MobileHomeController {
         section === "home" ? current.data.homeFeed : current.data.forYou;
       if (currentFeed.nextCursor !== cursor) return;
 
+      if (page.items.length > HOME_FEED_PAGE_SIZE) {
+        throw new Error("Home feed page exceeds the server page limit");
+      }
       const items = dedupeFeedItems(currentFeed.items, page.items);
       const updatedData: PilotHomeResponse =
         section === "home"
