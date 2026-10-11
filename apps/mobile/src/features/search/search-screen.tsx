@@ -44,7 +44,10 @@ import {
   initialSearchInputState,
   searchInputReducer,
 } from "./search-input-state";
-import { searchResultSummary } from "./search-results-copy";
+import {
+  searchResultSummary,
+  searchScopeRecoveryCopy,
+} from "./search-results-copy";
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
 import {
@@ -541,43 +544,67 @@ export function SearchScreen() {
   const renderSearchResults = (
     data: SearchResponse,
     resultScope: SearchScope,
-  ) => (
-    <View style={styles.resultGroups}>
-      {data.query ? (
-        <Text style={styles.copy}>
-          Resultados para <Text style={styles.resultTitle}>{data.query}</Text>
-        </Text>
-      ) : (
-        <Text style={styles.copy}>Recursos de la materia seleccionada</Text>
-      )}
-      <Text style={styles.copy}>
-        {searchResultSummary(
-          {
-            resources: data.results.resources.length,
-            subjects: data.results.subjects.length,
-            people: data.results.people.length,
-          },
-          resultScope,
+  ) => {
+    const counts = {
+      resources: data.results.resources.length,
+      subjects: data.results.subjects.length,
+      people: data.results.people.length,
+    };
+    const recoveryCopy = searchScopeRecoveryCopy(
+      counts,
+      resultScope,
+      data.query,
+    );
+
+    return (
+      <View style={styles.resultGroups}>
+        {data.query ? (
+          <Text style={styles.copy}>
+            Resultados para <Text style={styles.resultTitle}>{data.query}</Text>
+          </Text>
+        ) : (
+          <Text style={styles.copy}>Recursos de la materia seleccionada</Text>
         )}
-      </Text>
-      {(resultScope === "all" || resultScope === "resources") && (
-        <ResourceGroup
-          title="Apuntes y recursos"
-          resources={data.results.resources}
-          onOpen={openResource}
-        />
-      )}
-      {(resultScope === "all" || resultScope === "subjects") && (
-        <SubjectGroup subjects={data.results.subjects} onOpen={openSubject} />
-      )}
-      {(resultScope === "all" || resultScope === "people") && (
-        <PeopleGroup result={data} onOpen={openPerson} />
-      )}
-      <Text style={styles.meta}>
-        Mostramos hasta ocho resultados de cada tipo.
-      </Text>
-    </View>
-  );
+        <Text style={styles.copy}>
+          {searchResultSummary(counts, resultScope)}
+        </Text>
+        {recoveryCopy ? (
+          <View style={styles.emptyRecovery}>
+            <Text style={styles.copy}>{recoveryCopy.message}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${recoveryCopy.actionLabel} para ${data.query}`}
+              onPress={() => {
+                clearSearch();
+                dispatchSearchInput({ type: "scopeChanged", scope: "all" });
+              }}
+              style={styles.searchActionButton}
+            >
+              <Text style={styles.searchActionLabel}>
+                {recoveryCopy.actionLabel}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {(resultScope === "all" || resultScope === "resources") && (
+          <ResourceGroup
+            title="Apuntes y recursos"
+            resources={data.results.resources}
+            onOpen={openResource}
+          />
+        )}
+        {(resultScope === "all" || resultScope === "subjects") && (
+          <SubjectGroup subjects={data.results.subjects} onOpen={openSubject} />
+        )}
+        {(resultScope === "all" || resultScope === "people") && (
+          <PeopleGroup result={data} onOpen={openPerson} />
+        )}
+        <Text style={styles.meta}>
+          Mostramos hasta ocho resultados de cada tipo.
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <ProductSurface
@@ -808,6 +835,13 @@ const styles = StyleSheet.create({
   },
   resultGroups: {
     gap: 14,
+  },
+  emptyRecovery: {
+    gap: 8,
+    alignItems: "flex-start",
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: "#f4f3fa",
   },
   cardTitle: {
     fontSize: 18,
