@@ -541,6 +541,18 @@ describe('AccountExportService', () => {
     expect(f.users.hasActiveAccount.mock.calls).toHaveLength(4);
   });
 
+  it('does not find a completed export when another active account requests it', async () => {
+    const f = fixture();
+    f.store.findOwned.mockResolvedValue(null);
+
+    await expect(
+      f.service.download('other-user', 'export-1', now),
+    ).resolves.toEqual({ kind: 'not_found' });
+
+    expect(f.users.hasActiveAccount.mock.calls).toEqual([['other-user']]);
+    expect(f.store.findOwned.mock.calls).toEqual([['export-1', 'other-user']]);
+  });
+
   it('forces contributors through the bounded page budget', async () => {
     const f = fixture();
     const readPage = jest.fn().mockResolvedValue({

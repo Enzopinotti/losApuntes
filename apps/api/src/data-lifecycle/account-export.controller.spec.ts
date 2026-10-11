@@ -50,6 +50,29 @@ describe('AccountExportController', () => {
     expect(f.exports.status.mock.calls).toEqual([['owner-1', exportId]]);
   });
 
+  it('hides a foreign artifact download behind 404 before reading storage', async () => {
+    const f = fixture();
+    const foreignRequest = {
+      user: { id: 'other-user' },
+    } as AuthenticatedRequest;
+    const reply = {
+      raw: new EventEmitter(),
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
+    };
+    f.exports.download.mockResolvedValueOnce({ kind: 'not_found' });
+
+    await expect(
+      f.controller.download(foreignRequest, exportId, reply as never),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(f.exports.download.mock.calls).toEqual([['other-user', exportId]]);
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
+    expect(reply.send.mock.calls).toHaveLength(0);
+  });
+
   it('streams an owner-authorized artifact with private no-store headers', async () => {
     const f = fixture();
     const content = Buffer.from('{"portable":true}', 'utf8');
