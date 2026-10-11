@@ -172,6 +172,52 @@ not the global Academic catalog. It does not export catalog source provenance,
 admin audit events, internal context guard revisions, or catalog proposals in
 this carrier.
 
+### Resource history sections — candidate for #183
+
+Resources contributes two owner-scoped sections:
+
+- `resources.authored` — the user's own Resource metadata, including private
+  and hidden authored history, current visibility/moderation state, academic
+  references and timestamps;
+- `resources.saved` — the user's saved Resource references and save time.
+
+Authored Resources use a query-time field allowlist and immutable `id ASC`
+pagination with a `{ authorUserId: 1, id: 1 }` index. The caller's page limit
+is validated at no more than 100 and Mongo reads `limit + 1` to determine
+continuation. `resources.saved` reuses the existing bounded save relation
+ordering and cursor. It intentionally exports the owner's save record even if
+the target is no longer readable; it never resolves target content or grants
+access to it.
+
+These metadata sections do not include FileAsset ids, object keys, filenames,
+signed URLs or file bytes. They do not yet export explicit share-grant history.
+The Resource/FileAsset lifecycle contract remains independent: creator
+provenance and a Resource reference do not authorize deletion or byte access.
+This is a partial contributor slice and is not enough to expose a complete
+downloadable account export.
+
+## Streaming artifact assembly — candidate for #183
+
+The internal v1 artifact is a compact JSON envelope:
+
+```json
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"profile":[...],"profile.activities":[...],"resources.authored":[...],"resources.saved":[...]}}
+```
+
+Section keys follow the contributor registry's stable lexicographic order.
+Records preserve each contributor's cursor order. The assembler writes the
+envelope and each serialized record as separate awaited sink chunks, and it
+reads at most the existing 100-record contributor page budget at a time. It
+does not collect an entire section or export into an in-memory array. Cursor
+cycle detection retains only a constant-size checkpoint per section.
+
+The sink is attempt-scoped. Any contributor, serialization or sink failure
+aborts the partial output; a caller must not publish or persist completion
+metadata for an aborted attempt. This assembler is an internal building block,
+not evidence of a complete v1 export: remaining domain inclusion decisions,
+contributors, durable artifact storage, owner-reauthorized delivery and the
+public HTTP surface remain open. No generated partial export may be presented
+as complete to an account owner.
 
 ## Security and privacy exclusions
 
@@ -223,11 +269,14 @@ This foundation does not decide:
 
 Those remain #82/#48 or later #183 slices.
 
-Resources/Files, Social/Q&A, Organizations, Notifications and Alumni are still
-unimplemented export domains. User-authored Academic catalog proposals are also
-outside the currently implemented v1 Academic carrier pending a separate
-inclusion decision. The presence of the core and Academic sections does not make
-the overall export product complete or ready for public HTTP delivery.
+Resource authored metadata and saved references are implemented as an
+incomplete contributor candidate; Resource file bytes and explicit share-grant
+history remain outside it. Social/Q&A, Organizations, Notifications and Alumni
+are still unimplemented export domains. User-authored Academic catalog
+proposals are also outside the currently implemented v1 Academic carrier
+pending a separate inclusion decision. The presence of core, Academic and
+partial Resource sections does not make the overall export product complete
+or ready for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 

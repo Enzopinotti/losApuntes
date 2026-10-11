@@ -9,7 +9,9 @@ import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module'
 import { ProfileModule } from '../profile/profile.module';
 import { UsersModule } from '../users/users.module';
 import { ResourceService } from './domain/resource.service';
+import { RESOURCE_EXPORT_STORE } from './domain/resource-export.store';
 import { RESOURCE_STORE } from './domain/resource.store';
+import { MongoResourceExportStore } from './mongo/mongo-resource-export.store';
 import { MongoResourceStore } from './mongo/mongo-resource.store';
 import {
   Resource,
@@ -41,7 +43,12 @@ import { ResourcesController } from './resources.controller';
   ],
   providers: [
     ResourceService,
+    MongoResourceExportStore,
     MongoResourceStore,
+    {
+      provide: RESOURCE_EXPORT_STORE,
+      useExisting: MongoResourceExportStore,
+    },
     {
       provide: RESOURCE_STORE,
       useExisting: MongoResourceStore,

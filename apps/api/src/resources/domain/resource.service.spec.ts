@@ -12,6 +12,7 @@ import type { PilotEventService } from '../../pilot/telemetry/pilot-event.servic
 import type { ProfileService } from '../../profile/domain/profile.service';
 import type { ResourceStore } from './resource.store';
 import { ResourceAssetUnavailableError } from './resource.store';
+import type { ResourceExportStore } from './resource-export.store';
 import { ResourceService } from './resource.service';
 import type { ResourceRecord } from './resource.types';
 
@@ -88,6 +89,9 @@ type ProfileApi = Pick<
 >;
 
 function dependencies() {
+  const exportStore: jest.Mocked<ResourceExportStore> = {
+    listAuthoredResourcesForExport: jest.fn(),
+  };
   const files: jest.Mocked<FileApi> = {
     getReadyAssetForResource: jest.fn(),
     createAuthorizedDownloadIntent: jest.fn(),
@@ -104,7 +108,7 @@ function dependencies() {
     recordBestEffort: jest.fn().mockResolvedValue(undefined),
   };
 
-  return { files, academic, profiles, events };
+  return { exportStore, files, academic, profiles, events };
 }
 
 function service(
@@ -113,6 +117,7 @@ function service(
 ) {
   return new ResourceService(
     resourceStore,
+    deps.exportStore,
     deps.files as unknown as FileService,
     deps.academic as unknown as AcademicService,
     deps.profiles as unknown as ProfileService,
@@ -148,6 +153,131 @@ function projectionDeps(deps: ReturnType<typeof dependencies>) {
 }
 
 describe('ResourceService', () => {
+  it('exports only bounded owner-authored metadata, including private and hidden history', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    deps.exportStore.listAuthoredResourcesForExport.mockResolvedValue({
+      items: [
+        {
+          ...resource({
+            id: 'resource-a',
+            visibility: 'private',
+            moderationState: 'hidden',
+          }),
+        },
+        {
+          ...resource({ id: 'resource-b', visibility: 'shared' }),
+        },
+      ],
+      hasMore: true,
+    });
+    const api = service(resourceStore, deps);
+    const cursor = Buffer.from(JSON.stringify({ id: 'resource-0' })).toString(
+      'base64url',
+    );
+
+    const result = await api.listAccountExportResources('owner-1', {
+      limit: 2,
+      cursor,
+    });
+
+    expect(deps.exportStore.listAuthoredResourcesForExport.mock.calls).toEqual([
+      [
+        {
+          authorUserId: 'owner-1',
+          limit: 2,
+          afterId: 'resource-0',
+        },
+      ],
+    ]);
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]).toMatchObject({
+      id: 'resource-a',
+      visibility: 'private',
+      moderationState: 'hidden',
+    });
+    expect(result.items[0]).not.toHaveProperty('authorUserId');
+    expect(result.items[0]).not.toHaveProperty('assetId');
+    expect(result.items[0]).not.toHaveProperty('searchText');
+    expect(result.nextCursor).toBe(
+      Buffer.from(JSON.stringify({ id: 'resource-b' })).toString('base64url'),
+    );
+    expect(deps.files.getReadyAssetForResource.mock.calls).toHaveLength(0);
+    expect(deps.academic.getCatalogNode.mock.calls).toHaveLength(0);
+    expect(deps.profiles.getAttributionForUser.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects invalid Resource export cursors and unbounded page sizes', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const api = service(resourceStore, deps);
+
+    await expect(
+      api.listAccountExportResources('owner-1', {
+        limit: 100,
+        cursor: 'invalid',
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_EXPORT_CURSOR_INVALID' },
+    });
+    await expect(
+      api.listAccountExportResources('owner-1', {
+        limit: 101,
+        cursor: null,
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_EXPORT_PAGE_LIMIT_INVALID' },
+    });
+    expect(
+      deps.exportStore.listAuthoredResourcesForExport.mock.calls,
+    ).toHaveLength(0);
+  });
+
+  it('exports saved references without filtering current target readability', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    resourceStore.listSavedResources.mockResolvedValue({
+      items: [
+        {
+          resourceId: 'resource-no-longer-readable',
+          createdAt: now,
+        },
+      ],
+      hasMore: true,
+    });
+    const api = service(resourceStore, deps);
+
+    const result = await api.listAccountExportSaves('owner-1', {
+      limit: 10,
+      cursor: null,
+    });
+
+    expect(resourceStore.listSavedResources.mock.calls).toEqual([
+      [
+        {
+          userId: 'owner-1',
+          limit: 10,
+          after: undefined,
+        },
+      ],
+    ]);
+    expect(result.items).toEqual([
+      {
+        resourceId: 'resource-no-longer-readable',
+        savedAt: now.toISOString(),
+      },
+    ]);
+    expect(
+      JSON.parse(Buffer.from(result.nextCursor!, 'base64url').toString()),
+    ).toEqual({
+      createdAt: now.toISOString(),
+      resourceId: 'resource-no-longer-readable',
+    });
+    expect(resourceStore.findManyByIds.mock.calls).toHaveLength(0);
+    expect(resourceStore.hasShare.mock.calls).toHaveLength(0);
+    expect(deps.files.getReadyAssetForResource.mock.calls).toHaveLength(0);
+  });
+
   it('creates a normalized resource by atomically claiming a ready asset', async () => {
     const resourceStore = store();
     const deps = dependencies();
