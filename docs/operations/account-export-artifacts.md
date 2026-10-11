@@ -102,9 +102,12 @@ checked-in policy; it is not evidence that any remote provider is configured.
 domain smokes. It authenticates the existing runtime fixture, requests an
 export, waits for the separate worker to complete it, and downloads the JSON
 through the owner-authorized API from the local private RustFS bucket. The
-probe checks the v1 envelope, section count, bounded streaming response,
-download headers, expiry window and absence of credential/storage fields. Its
-32 MiB cap applies only to the small synthetic smoke fixture.
+probe checks the v1 envelope, all 30 array-valued sections, bounded streaming
+response, download headers, expiry window and absence of credential/storage
+fields. Request and status metadata must match the public `AccountExportStatus`
+allowlist, stable job states and failure codes; persistence and artifact
+generation fields must not escape the API. Its 32 MiB cap applies only to the
+small synthetic smoke fixture.
 
 Container runtime smoke therefore covers the local Mongo/worker/object-store
 path end to end. It does not verify production-provider IAM, lifecycle

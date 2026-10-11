@@ -9,6 +9,27 @@ const EXPORT_POLL_INTERVAL_MS = 750;
 const MAX_SMOKE_EXPORT_BYTES = 32 * 1024 * 1024;
 const ARTIFACT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const EXPECTED_SECTION_COUNT = 30;
+const PUBLIC_STATUS_FIELDS = [
+  "downloadExpiresAt",
+  "downloadable",
+  "failureCode",
+  "format",
+  "formatVersion",
+  "id",
+  "requestedAt",
+  "state",
+];
+const EXPORT_JOB_STATES = new Set([
+  "pending",
+  "processing",
+  "failed",
+  "completed",
+]);
+const EXPORT_FAILURE_CODES = new Set([
+  "ACCOUNT_EXPORT_ACCOUNT_INACTIVE",
+  "EXPORT_ASSEMBLY_RETRY",
+  "EXPORT_RETRY_EXHAUSTED",
+]);
 const CREDENTIAL_OR_STORAGE_FIELDS = new Set([
   "password",
   "passwordhash",
@@ -78,6 +99,28 @@ function assertNoCredentialOrStorageFields(value) {
   }
 }
 
+function assertPublicStatus(status) {
+  assert.ok(status && typeof status === "object" && !Array.isArray(status));
+  assert.deepEqual(Object.keys(status).sort(), PUBLIC_STATUS_FIELDS);
+  assert.match(
+    status.id ?? "",
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
+  );
+  assert.equal(status.format, "los-apuntes-account-export");
+  assert.equal(status.formatVersion, 1);
+  assert.ok(EXPORT_JOB_STATES.has(status.state));
+  assert.ok(
+    status.failureCode === null || EXPORT_FAILURE_CODES.has(status.failureCode),
+  );
+  assert.ok(Number.isFinite(Date.parse(status.requestedAt)));
+  assert.ok(
+    status.downloadExpiresAt === null ||
+      Number.isFinite(Date.parse(status.downloadExpiresAt)),
+  );
+  assert.equal(typeof status.downloadable, "boolean");
+  assertNoCredentialOrStorageFields(status);
+}
+
 async function waitForCompletion(exportId, authorization) {
   const deadline = Date.now() + EXPORT_TIMEOUT_MS;
   let status;
@@ -87,12 +130,8 @@ async function waitForCompletion(exportId, authorization) {
       headers: { authorization },
     });
     assert.equal(current.response.status, 200, "owner status must be readable");
+    assertPublicStatus(current.body);
     assert.equal(current.body.id, exportId);
-    assert.ok(
-      ["pending", "processing", "completed", "failed"].includes(
-        current.body.state,
-      ),
-    );
 
     if (current.body.state === "failed") {
       throw new Error(
@@ -172,6 +211,8 @@ assert.equal(
   "account export request must be accepted",
 );
 assert.equal(typeof request.body.created, "boolean");
+assertPublicStatus(request.body.export);
+assertNoCredentialOrStorageFields(request.body);
 const initialExportId = request.body.export?.id;
 assert.match(
   initialExportId ?? "",
@@ -183,6 +224,8 @@ const replay = await requestJson("/account/exports", {
   headers: { authorization },
 });
 assert.equal(replay.response.status, 202);
+assertPublicStatus(replay.body.export);
+assertNoCredentialOrStorageFields(replay.body);
 let exportId = initialExportId;
 let requestReplayOutcome;
 if (replay.body.created === false) {

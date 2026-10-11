@@ -11,6 +11,7 @@ const [
   profileStore,
   authSmoke,
   exportService,
+  exportTypes,
   exportStore,
   exportSchema,
   exportController,
@@ -45,6 +46,7 @@ const [
   readFile(new URL('../apps/api/src/profile/mongo/mongo-profile.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('./smoke-auth-lifecycle.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export.service.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export.types.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/mongo/mongo-account-export.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/mongo/account-export.mongo-schema.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/account-export.controller.ts', import.meta.url), 'utf8'),
@@ -85,6 +87,44 @@ const [
 
 const exportLifecyclePolicy = JSON.parse(exportLifecyclePolicyText);
 const exportRuntimePolicy = JSON.parse(exportRuntimePolicyText);
+const publicStatusTypeBody = exportService.match(
+  /export type AccountExportStatus = \{([\s\S]*?)^\};/mu,
+)?.[1];
+const runtimeStatusFieldsBody = exportRuntimeSmoke.match(
+  /const PUBLIC_STATUS_FIELDS = \[([\s\S]*?)\];/u,
+)?.[1];
+const sourceJobStatesBody = exportTypes.match(
+  /export const ACCOUNT_EXPORT_JOB_STATES = \[([\s\S]*?)\] as const;/u,
+)?.[1];
+const runtimeJobStatesBody = exportRuntimeSmoke.match(
+  /const EXPORT_JOB_STATES = new Set\(\[([\s\S]*?)\]\);/u,
+)?.[1];
+const sourceFailureCodesBody = exportTypes.match(
+  /export const ACCOUNT_EXPORT_FAILURE_CODES = \[([\s\S]*?)\] as const;/u,
+)?.[1];
+const runtimeFailureCodesBody = exportRuntimeSmoke.match(
+  /const EXPORT_FAILURE_CODES = new Set\(\[([\s\S]*?)\]\);/u,
+)?.[1];
+const quotedValues = (value) =>
+  [...(value ?? '').matchAll(/['"]([^'"]+)['"]/gu)].map((match) => match[1]);
+assert.ok(publicStatusTypeBody);
+assert.ok(runtimeStatusFieldsBody);
+assert.ok(sourceJobStatesBody);
+assert.ok(runtimeJobStatesBody);
+assert.ok(sourceFailureCodesBody);
+assert.ok(runtimeFailureCodesBody);
+assert.deepEqual(
+  [...publicStatusTypeBody.matchAll(/^\s*(\w+):/gmu)].map((match) => match[1]).sort(),
+  quotedValues(runtimeStatusFieldsBody).sort(),
+);
+assert.deepEqual(
+  quotedValues(sourceJobStatesBody).sort(),
+  quotedValues(runtimeJobStatesBody).sort(),
+);
+assert.deepEqual(
+  quotedValues(sourceFailureCodesBody).sort(),
+  quotedValues(runtimeFailureCodesBody).sort(),
+);
 
 assert.match(controller, /@Get\('closure\/preflight'\)/u);
 assert.match(controller, /@Post\('closure'\)/u);
@@ -192,6 +232,8 @@ assert.match(exportRuntimeSmoke, /poll|waitForCompletion/u);
 assert.match(exportRuntimeSmoke, /replay\.body\.created === false/u);
 assert.match(exportRuntimeSmoke, /active_job_replayed/u);
 assert.match(exportRuntimeSmoke, /prior_job_completed_before_replay/u);
+assert.match(exportRuntimeSmoke, /assertPublicStatus/u);
+assert.match(exportRuntimeSmoke, /Object\.keys\(status\)\.sort\(\)/u);
 assert.match(exportRuntimeSmoke, /MAX_SMOKE_EXPORT_BYTES/u);
 assert.match(exportRuntimeSmoke, /Object\.entries\(artifact\.sections/u);
 assert.match(exportRuntimeSmoke, /sectionEntries\.length/u);
