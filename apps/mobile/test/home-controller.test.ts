@@ -267,7 +267,11 @@ test("Home continues academic cursor 6 with deduplication and no fabricated item
     ["a", "b", "c"],
   );
   assert.equal(snapshot.data.homeFeed.nextCursor, "academic-page-3");
-  assert.deepEqual(snapshot.pagination?.home, { loading: false, error: null });
+  assert.deepEqual(snapshot.pagination?.home, {
+    loading: false,
+    error: null,
+    requiresRefresh: false,
+  });
 });
 
 test("Home alumni community cursor uses for-you community/ranked, not academic", async () => {
@@ -373,6 +377,7 @@ test("Home prevents duplicate same-feed page requests and preserves data on fail
     ["old"],
   );
   assert.match(state.pagination?.home?.error ?? "", /reintentar/);
+  assert.equal(state.pagination?.home?.requiresRefresh, false);
   shouldFail = false;
   await controller.loadMore("authority-a", "home");
   state = controller.getSnapshot();
@@ -429,6 +434,7 @@ test("Home refuses academic scope shifts, unchanged cursors and stale-authority 
   if (state.kind === "ready") {
     assert.equal(state.data.homeFeed.nextCursor, "next-page");
     assert.match(state.pagination?.home?.error ?? "", /Actualizá Inicio/);
+    assert.equal(state.pagination?.home?.requiresRefresh, true);
   }
   const repeated = new MobileHomeController({
     ...defaultPages,
@@ -549,5 +555,29 @@ test("Home refresh aborts an in-flight page and rejects its delayed result", asy
   if (snapshot.kind === "ready") {
     assert.equal(snapshot.data.homeFeed.items.length, 1);
     assert.equal(snapshot.data.homeFeed.items[0]?.id, "fresh-2");
+  }
+});
+
+test("Home rejects oversized server pages without consuming the cursor", async () => {
+  const controller = new MobileHomeController({
+    ...defaultPages,
+    pilotHome: async () => home(),
+    academicFeed: async () => ({
+      ...home().academicFeed,
+      items: Array.from(
+        { length: HOME_FEED_PAGE_SIZE + 1 },
+        (_, index) => item(`unexpected-${index}`),
+      ),
+      nextCursor: "later",
+    }),
+  });
+  await controller.load("authority-a", context());
+  await controller.loadMore("authority-a", "home");
+  const state = controller.getSnapshot();
+  assert.equal(state.kind, "ready");
+  if (state.kind === "ready") {
+    assert.equal(state.data.homeFeed.nextCursor, "next-page");
+    assert.equal(state.data.homeFeed.items.length, 0);
+    assert.match(state.pagination?.home?.error ?? "", /reintentar/);
   }
 });
