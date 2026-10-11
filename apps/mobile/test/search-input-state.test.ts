@@ -9,13 +9,13 @@ import {
 test("clearing a selected subject returns Search to its general state", () => {
   const scoped = searchInputReducer(initialSearchInputState, {
     type: "subjectSelected",
-    subjectId: "subject-a",
+    subject: { id: "subject-a", name: "Álgebra" },
   });
 
   assert.deepEqual(scoped, {
     query: "",
     scope: "resources",
-    subjectId: "subject-a",
+    selectedSubject: { id: "subject-a", name: "Álgebra" },
   });
 
   const cleared = searchInputReducer(scoped, {
@@ -28,32 +28,32 @@ test("clearing a selected subject returns Search to its general state", () => {
 test("typing clears the subject filter while preserving the selected scope", () => {
   const scoped = searchInputReducer(initialSearchInputState, {
     type: "subjectSelected",
-    subjectId: "subject-a",
+    subject: { id: "subject-a", name: "Álgebra" },
   });
 
   assert.deepEqual(
     searchInputReducer(scoped, { type: "queryChanged", query: "álgebra" }),
-    { query: "álgebra", scope: "resources", subjectId: null },
+    { query: "álgebra", scope: "resources", selectedSubject: null },
   );
 });
 
 test("clearing a text query keeps its scope and returns to contextual discovery", () => {
   const withQuery = searchInputReducer(
-    { query: "álgebra", scope: "resources", subjectId: null },
+    { query: "álgebra", scope: "resources", selectedSubject: null },
     { type: "queryChanged", query: "" },
   );
 
   assert.deepEqual(withQuery, {
     query: "",
     scope: "resources",
-    subjectId: null,
+    selectedSubject: null,
   });
 });
 
 test("changing scope clears the subject filter", () => {
   const scoped = searchInputReducer(initialSearchInputState, {
     type: "subjectSelected",
-    subjectId: "subject-a",
+    subject: { id: "subject-a", name: "Álgebra" },
   });
 
   assert.deepEqual(
@@ -61,7 +61,7 @@ test("changing scope clears the subject filter", () => {
     {
       query: "",
       scope: "all",
-      subjectId: null,
+      selectedSubject: null,
     },
   );
 });
