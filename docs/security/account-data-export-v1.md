@@ -157,6 +157,8 @@ blank, padded/noncanonical, or duplicate ids during dependency wiring. This
 prevents two domains from silently claiming the same export section or exposing
 an id that differs from its registry key.
 
+The DataLifecycle module wiring contract instantiates its actual contributor factory and asserts the exact current 30-section set. A dropped or misaligned `inject`/`useFactory` entry therefore fails the contract before it can silently omit a v1 section.
+
 The `account` projection is allowlisted at query time. The Mongo read selects
 only the fields needed by the portable account record; password hashes,
 credential/lifecycle authority revisions and platform permissions are not read
