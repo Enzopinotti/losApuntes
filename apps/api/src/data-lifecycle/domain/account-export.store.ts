@@ -21,6 +21,13 @@ export interface AccountExportStore {
     leaseExpiresAt: Date;
   }): Promise<AccountExportJobRecord | null>;
 
+  renewLease(input: {
+    id: string;
+    claimId: string;
+    now: Date;
+    leaseExpiresAt: Date;
+  }): Promise<boolean>;
+
   reschedule(input: {
     id: string;
     claimId: string;

@@ -4,6 +4,7 @@ import type { AccountExportStore } from './account-export.store';
 import {
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
+  ACCOUNT_EXPORT_LEASE_DURATION_MS,
   ACCOUNT_EXPORT_PAGE_LIMIT,
   type AccountExportContributor,
   type AccountExportJobRecord,
@@ -39,6 +40,7 @@ function fixture() {
     requestActive: jest.fn(),
     findOwned: jest.fn(),
     claimNext: jest.fn(),
+    renewLease: jest.fn(),
     reschedule: jest.fn(),
     complete: jest.fn(),
     hasFailed: jest.fn(),
@@ -155,6 +157,75 @@ describe('AccountExportService', () => {
     await expect(
       f.service.status('other-user', 'export-1'),
     ).resolves.toBeNull();
+  });
+
+  it('creates processing claims with a service-generated id and bounded lease', async () => {
+    const f = fixture();
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      f.store.claimNext.mockImplementation((input) =>
+        Promise.resolve(
+          job({
+            state: 'processing',
+            claimId: input.claimId,
+            leaseExpiresAt: input.leaseExpiresAt,
+          }),
+        ),
+      );
+
+      const claimed = await f.service.claimNext();
+
+      expect(claimed?.state).toBe('processing');
+      expect(claimed?.claimId).toMatch(/^[0-9a-f-]{36}$/u);
+      expect(f.store.claimNext.mock.calls).toEqual([
+        [
+          {
+            now,
+            claimId: claimed?.claimId,
+            leaseExpiresAt: new Date(
+              now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+            ),
+          },
+        ],
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('renews only the supplied claim with a service-generated bounded lease', async () => {
+    const f = fixture();
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      f.store.renewLease.mockResolvedValue(true);
+
+      await expect(
+        f.service.renewLease({ id: 'export-1', claimId: 'claim-1' }),
+      ).resolves.toBe(true);
+      expect(f.store.renewLease.mock.calls).toEqual([
+        [
+          {
+            id: 'export-1',
+            claimId: 'claim-1',
+            now,
+            leaseExpiresAt: new Date(
+              now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+            ),
+          },
+        ],
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('rejects invalid renewal claims before persistence', async () => {
+    const f = fixture();
+
+    await expect(
+      f.service.renewLease({ id: 'export-1', claimId: '' }),
+    ).rejects.toThrow('lease claim is invalid');
+    expect(f.store.renewLease.mock.calls).toHaveLength(0);
   });
 
   it('records only a valid committed assembly result through the store', async () => {

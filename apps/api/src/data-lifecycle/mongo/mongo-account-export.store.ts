@@ -113,6 +113,27 @@ export class MongoAccountExportStore implements AccountExportStore {
       .exec();
   }
 
+  async renewLease(
+    input: Parameters<AccountExportStore['renewLease']>[0],
+  ): ReturnType<AccountExportStore['renewLease']> {
+    const result = await this.jobs
+      .updateOne(
+        {
+          id: input.id,
+          active: true,
+          state: 'processing',
+          claimId: input.claimId,
+          leaseExpiresAt: { $gt: input.now },
+        },
+        {
+          $max: { leaseExpiresAt: input.leaseExpiresAt },
+        },
+      )
+      .exec();
+
+    return result.matchedCount === 1;
+  }
+
   async reschedule(
     input: Parameters<AccountExportStore['reschedule']>[0],
   ): ReturnType<AccountExportStore['reschedule']> {

@@ -9,6 +9,7 @@ import {
 import {
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
+  ACCOUNT_EXPORT_LEASE_DURATION_MS,
   ACCOUNT_EXPORT_PAGE_LIMIT,
   type AccountExportAssemblyResult,
   type AccountExportContributor,
@@ -83,6 +84,37 @@ export class AccountExportService {
   ): Promise<AccountExportStatus | null> {
     const job = await this.store.findOwned(id, userId);
     return job ? this.publicStatus(job) : null;
+  }
+
+  async claimNext(): Promise<AccountExportJobRecord | null> {
+    const now = new Date();
+    return this.store.claimNext({
+      now,
+      claimId: randomUUID(),
+      leaseExpiresAt: new Date(
+        now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+      ),
+    });
+  }
+
+  async renewLease(input: { id: string; claimId: string }): Promise<boolean> {
+    if (
+      typeof input.id !== 'string' ||
+      input.id.length === 0 ||
+      typeof input.claimId !== 'string' ||
+      input.claimId.length === 0
+    ) {
+      throw new Error('Account export lease claim is invalid');
+    }
+
+    const now = new Date();
+    return this.store.renewLease({
+      ...input,
+      now,
+      leaseExpiresAt: new Date(
+        now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+      ),
+    });
   }
 
   async complete(input: {

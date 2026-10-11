@@ -1,6 +1,7 @@
 export const ACCOUNT_EXPORT_FORMAT = 'los-apuntes-account-export' as const;
 export const ACCOUNT_EXPORT_FORMAT_VERSION = 1;
 export const ACCOUNT_EXPORT_PAGE_LIMIT = 100;
+export const ACCOUNT_EXPORT_LEASE_DURATION_MS = 2 * 60 * 1000;
 
 export const ACCOUNT_EXPORT_JOB_STATES = [
   'pending',

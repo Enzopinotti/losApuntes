@@ -15,7 +15,7 @@ function fixture(input: { active?: unknown } = {}) {
   const upsertQuery = query(input.active ?? null);
   const findQuery = query(input.active ?? null);
   const claimQuery = query(input.active ?? null);
-  const updateQuery = query({ modifiedCount: 1 });
+  const updateQuery = query({ matchedCount: 1, modifiedCount: 1 });
   const jobs = {
     findOneAndUpdate: jest
       .fn()
@@ -166,6 +166,49 @@ describe('MongoAccountExportStore', () => {
         sort: { nextAttemptAt: 1, createdAt: 1, userId: 1 },
       },
     ]);
+  });
+
+  it('renews only a current active claim and never shortens its lease', async () => {
+    const f = fixture();
+
+    await expect(
+      f.store.renewLease({
+        id: 'export-1',
+        claimId: 'claim-1',
+        now,
+        leaseExpiresAt: new Date(now.getTime() + 120_000),
+      }),
+    ).resolves.toBe(true);
+
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        active: true,
+        state: 'processing',
+        claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
+      },
+      {
+        $max: { leaseExpiresAt: new Date(now.getTime() + 120_000) },
+      },
+    );
+  });
+
+  it('rejects a renewal after the claim expires or changes', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({
+      matchedCount: 0,
+      modifiedCount: 0,
+    });
+
+    await expect(
+      f.store.renewLease({
+        id: 'export-1',
+        claimId: 'stale-claim',
+        now,
+        leaseExpiresAt: new Date(now.getTime() + 120_000),
+      }),
+    ).resolves.toBe(false);
   });
 
   it('releases retryable claims but makes terminal failures inactive', async () => {

@@ -573,6 +573,17 @@ completion metadata.
 This does not set retry backoff or attempt limits, and does not add a worker,
 artifact store, expiration policy, endpoint or delivery route.
 
+### Service-owned worker leases
+
+The service creates the claim id and initial bounded lease when it claims a
+pending or expired job. A long-running assembly can renew only through the
+current active processing claim while its lease remains unexpired. Renewal
+extends monotonically, so a concurrent later extension is never shortened;
+expired or replaced claims return false. Callers cannot supply lease timestamps.
+
+This is a lease primitive for a future worker. It does not add a worker loop,
+artifact sink/provider, retry schedule, retention policy or public endpoint.
+
 ## Security and privacy exclusions
 
 Export output must never contain:
