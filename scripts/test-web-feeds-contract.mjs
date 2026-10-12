@@ -9,6 +9,7 @@ import {
 } from "../apps/web/src/features/feeds/feed-pagination.mjs";
 import { presentFeedItem } from "../apps/web/src/features/feeds/feed-item-presentation.mjs";
 import {
+  feedReturnHref,
   feedSelectionFromSearchParams,
   homeFeedHref,
 } from "../apps/web/src/features/feeds/feed-navigation.mjs";
@@ -142,6 +143,28 @@ assert.deepEqual(
   ),
   { view: "academic", mode: "balanced", order: "ranked" },
 );
+assert.equal(feedReturnHref({ feedReturnTo: "/" }), "/");
+assert.equal(feedReturnHref({ feedReturnTo: "/feeds" }), "/feeds");
+assert.equal(
+  feedReturnHref({
+    feedReturnTo: "/feeds?view=for-you&mode=community&order=ranked",
+  }),
+  "/feeds?view=for-you&mode=community&order=ranked",
+);
+for (const locationState of [
+  null,
+  undefined,
+  "feed state",
+  {},
+  { feedReturnTo: "https://example.test/" },
+  { feedReturnTo: "//example.test/" },
+  { feedReturnTo: "/resources" },
+  { feedReturnTo: "/feeds/other" },
+  { feedReturnTo: "/feeds#fragment" },
+  { feedReturnTo: "/feeds?view=academic\\\\@example.test" },
+]) {
+  assert.equal(feedReturnHref(locationState), null);
+}
 assert.equal(homeFeedHref("contextual", "subjects"), "/feeds?view=academic");
 assert.equal(
   homeFeedHref("contextual", "community"),

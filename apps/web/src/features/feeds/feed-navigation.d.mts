@@ -8,6 +8,8 @@ export interface FeedSelection {
   order: FeedOrder;
 }
 
+export declare function feedReturnHref(locationState: unknown): string | null;
+
 export declare function feedSelectionFromSearchParams(searchParams: {
   get(name: string): string | null;
 }): FeedSelection;
