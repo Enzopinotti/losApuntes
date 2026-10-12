@@ -72,7 +72,6 @@ const Layout = () => {
             Los Apuntes
           </NavLink>
 
-
           <div className="layout-header-actions">
             {authenticated ? (
               <NavLink
@@ -138,9 +137,7 @@ const Layout = () => {
                       ref={moreButtonRef}
                       aria-expanded={moreOpen}
                       aria-controls={moreId}
-                      onClick={() =>
-                        setMoreOpenedAt(moreOpen ? null : scope)
-                      }
+                      onClick={() => setMoreOpenedAt(moreOpen ? null : scope)}
                     >
                       Más <span aria-hidden="true">▾</span>
                     </button>
@@ -159,7 +156,10 @@ const Layout = () => {
                     </div>
                   </div>
                   <div className="layout-session-actions">
-                    <span className="layout-account-email" aria-label="Cuenta actual">
+                    <span
+                      className="layout-account-email"
+                      aria-label="Cuenta actual"
+                    >
                       {user?.email}
                     </span>
                     <LogoutButton />
