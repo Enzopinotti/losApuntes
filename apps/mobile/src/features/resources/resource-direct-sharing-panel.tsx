@@ -31,11 +31,13 @@ export function ResourceDirectSharingPanel({
   resource,
   snapshot,
   controller,
+  onRefresh,
 }: {
   authorityKey: string | null;
   resource: ResourceView;
   snapshot: ResourceDirectSharingSnapshot;
   controller: MobileResourceDirectSharingController;
+  onRefresh: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [confirmRevoke, setConfirmRevoke] = useState(false);
@@ -52,6 +54,7 @@ export function ResourceDirectSharingPanel({
   const canSearch =
     Boolean(authorityKey && current) &&
     !busy &&
+    current?.outcome !== "visibility_changed" &&
     validSharePeopleQuery(query);
 
   useEffect(() => {
@@ -106,6 +109,7 @@ export function ResourceDirectSharingPanel({
             accessibilityHint="Escribí entre 2 y 120 caracteres y ejecutá la búsqueda."
             autoCapitalize="words"
             autoCorrect={false}
+            editable={current?.outcome !== "visibility_changed" && !busy}
             maxLength={RESOURCE_SHARE_PEOPLE_QUERY_MAX}
             onChangeText={changeQuery}
             onSubmitEditing={search}
@@ -262,10 +266,20 @@ export function ResourceDirectSharingPanel({
               </Pressable>
             </View>
           ) : current?.outcome === "visibility_changed" ? (
-            <Text accessibilityRole="alert" style={styles.error}>
-              Cambió la visibilidad o la versión del apunte.
-              Actualizá el detalle y elegí nuevamente a la persona.
-            </Text>
+            <>
+              <Text accessibilityRole="alert" style={styles.error}>
+                Cambió la visibilidad o la versión del apunte.
+                Actualizá el detalle y elegí nuevamente a la persona.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Actualizar apunte antes de administrar permisos"
+                onPress={onRefresh}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.buttonLabel}>Actualizar apunte</Text>
+              </Pressable>
+            </>
           ) : null}
         </>
       )}
