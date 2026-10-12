@@ -7,6 +7,10 @@ import {
   FeedItemOpenLink,
 } from "../features/feeds/components/FeedItemContext";
 import { homeFeedHref } from "../features/feeds/feed-navigation.mjs";
+import {
+  homeFeedEmptyGuidance,
+  type HomeFeedEmptyGuidance,
+} from "../features/feeds/home-feed-empty-guidance.mjs";
 import type { PilotHomeResponse } from "../features/pilot/interfaces";
 import {
   isPilotApiError,
@@ -19,10 +23,12 @@ function FeedPreview({
   title,
   items,
   moreTo,
+  emptyGuidance,
 }: {
   title: string;
   items: FeedItem[];
   moreTo: string;
+  emptyGuidance: HomeFeedEmptyGuidance;
 }) {
   return (
     <section className="pilot-card">
@@ -31,9 +37,12 @@ function FeedPreview({
         <Link to={moreTo}>Ver feed completo</Link>
       </header>
       {items.length === 0 ? (
-        <p className="pilot-muted">
-          Todavía no hay contenido útil para esta tanda.
-        </p>
+        <div className="pilot-feed-empty" role="status">
+          <p>{emptyGuidance.message}</p>
+          <Link className="pilot-secondary-link" to={emptyGuidance.href}>
+            {emptyGuidance.actionLabel}
+          </Link>
+        </div>
       ) : (
         <ul className="pilot-feed-preview">
           {items.map((item) => {
@@ -300,6 +309,10 @@ const Home = () => {
                   : snapshot.forYou.items
               }
               moreTo={homeFeedHref(activeHomeFeed, snapshot.homeFeed.kind)}
+              emptyGuidance={homeFeedEmptyGuidance(
+                activeHomeFeed,
+                snapshot.homeFeed.kind,
+              )}
             />
           </div>
 

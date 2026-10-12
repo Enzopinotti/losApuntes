@@ -12,6 +12,7 @@ import {
   feedSelectionFromSearchParams,
   homeFeedHref,
 } from "../apps/web/src/features/feeds/feed-navigation.mjs";
+import { homeFeedEmptyGuidance } from "../apps/web/src/features/feeds/home-feed-empty-guidance.mjs";
 
 const root = process.cwd();
 
@@ -77,6 +78,9 @@ assert.match(page, /FeedItemOpenLink item=\{item\}/u);
 assert.match(homePage, /FeedItemContext item=\{item\} reasonLimit=\{2\}/u);
 assert.match(homePage, /FeedItemOpenLink item=\{item\}/u);
 assert.match(homePage, /item\.summary/u);
+assert.match(homePage, /homeFeedEmptyGuidance\(/u);
+assert.match(homePage, /emptyGuidance\.href/u);
+assert.match(homePage, /emptyGuidance\.actionLabel/u);
 assert.match(homePage, /to="\/questions">\s*Hacer una pregunta/u);
 assert.match(homePage, /to="\/resources">\s*Subir un apunte/u);
 const createEntryStart = homePage.indexOf("pilot-create-entry");
@@ -139,6 +143,21 @@ assert.equal(
 assert.equal(
   homeFeedHref("for-you", "subjects"),
   "/feeds?view=for-you&mode=balanced&order=ranked",
+);
+assert.deepEqual(homeFeedEmptyGuidance("contextual", "community"), {
+  message: "Todavía no hay publicaciones de tu comunidad en esta vista.",
+  href: "/network",
+  actionLabel: "Explorar mi red",
+});
+assert.deepEqual(homeFeedEmptyGuidance("contextual", "subjects"), {
+  message: "Todavía no hay publicaciones para esta vista por ahora.",
+  href: "/search",
+  actionLabel: "Buscar contenido",
+});
+assert.equal(
+  homeFeedEmptyGuidance("for-you", "community").href,
+  "/search",
+  "The community destination applies only to the contextual community feed",
 );
 assert.equal(canAutomaticallyLoadWebFeed(continuationState), true);
 assert.equal(
