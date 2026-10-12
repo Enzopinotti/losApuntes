@@ -234,7 +234,7 @@ const PublicProfile = () => {
             viewerScopeKey={viewerScopeKey}
           />
         )}
-        {profile.about?.displayName && status === "unauthenticated" && (
+        {profile.about?.displayName && status === "anonymous" && (
           <Link className="public-profile-signin" to="/login">
             Ingresá para seguir o conectar
           </Link>
