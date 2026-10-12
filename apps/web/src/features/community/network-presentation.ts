@@ -28,9 +28,7 @@ export function networkConnectionStatusLabel(
 ): string {
   switch (connection.status) {
     case "pending":
-      return connection.incoming
-        ? "Solicitud recibida"
-        : "Solicitud enviada";
+      return connection.incoming ? "Solicitud recibida" : "Solicitud enviada";
     case "accepted":
       return "Conexión aceptada";
     case "declined":
