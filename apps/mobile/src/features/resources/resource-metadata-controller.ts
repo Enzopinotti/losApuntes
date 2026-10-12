@@ -225,7 +225,7 @@ export class MobileResourceMetadataController {
         this.setResult(
           operation,
           baseline,
-          confirmedConflict ? "conflict" : "uncertain",
+          "uncertain",
           resourceConsumptionFailure(error),
         );
       }
