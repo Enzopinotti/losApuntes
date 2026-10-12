@@ -284,7 +284,7 @@ export class MongoResourceStore implements ResourceStore {
             pipeline: [
               {
                 $match: {
-                  $expr: { $eq: ['$resourceId', '$resourceId'] },
+                  $expr: { $eq: ['$resourceId', '$$resourceId'] },
                 },
               },
               { $count: 'count' },
@@ -301,8 +301,8 @@ export class MongoResourceStore implements ResourceStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$resourceId', '$resourceId'] },
-                      { $eq: ['$visibility', 'shared'] },
+                      { $eq: ['$resourceId', '$$resourceId'] },
+                      { $eq: ['$$visibility', 'shared'] },
                     ],
                   },
                 },
