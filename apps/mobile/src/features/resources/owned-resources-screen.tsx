@@ -193,7 +193,7 @@ export function OwnedResourcesScreen() {
       });
     }
   };
-  const normalizedDraft = draftQuery.normalize("NFKC").trim().replace(/\s+/gu, " ");
+  const normalizedDraft = draftQuery.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("es-AR");
   const canSearch = normalizedDraft.length === 0 ||
     (normalizedDraft.length >= 2 && normalizedDraft.length <= 120);
   const subjectResults =
