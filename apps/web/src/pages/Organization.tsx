@@ -6,6 +6,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import {
   feedReturnHref,
   feedReturnRestoreState,
@@ -432,7 +433,12 @@ const Organization = () => {
           <ul className="organization-compact-list">
             {organization.managers.map((manager, index) => (
               <li key={manager.profile.profileId ?? `${manager.role}:${index}`}>
-                <strong>{manager.profile.displayName}</strong>
+                <strong>
+                  <AuthorProfileLink
+                    profileId={manager.profile.profileId}
+                    displayName={manager.profile.displayName}
+                  />
+                </strong>
                 <span>{manager.role}</span>
               </li>
             ))}

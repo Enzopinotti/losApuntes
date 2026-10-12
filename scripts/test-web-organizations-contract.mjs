@@ -62,10 +62,22 @@ assert.match(publicPage, /to=\{feedReturnTo\}[\s\S]*replace/u);
 assert.match(publicPage, /to="\/organizations">\s*Volver al directorio/u);
 assert.match(publicPage, /className="organization-feed-return"/u);
 assert.match(
+  publicPage,
+  /import \{ AuthorProfileLink \} from "\.\.\/features\/profile\/AuthorProfileLink"/u,
+);
+assert.match(
+  publicPage,
+  /<AuthorProfileLink\s+profileId=\{manager\.profile\.profileId\}\s+displayName=\{manager\.profile\.displayName\}\s*\/>/u,
+);
+assert.match(
   publicPageStyles,
   /\.organization-feed-return\s*\{[^}]*min-height:\s*44px/su,
 );
 assert.match(publicPageStyles, /\.organization-feed-return:focus-visible/u);
+assert.match(
+  publicPageStyles,
+  /\.organization-compact-list \.author-profile-link\s*\{[^}]*min-height:\s*44px/su,
+);
 assert.match(publicPage, /useAsyncAuthorityFence/u);
 assert.equal((publicPage.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
 assert.match(publicPage, /organizationScopeKey/u);
