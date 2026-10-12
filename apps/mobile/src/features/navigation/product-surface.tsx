@@ -1,6 +1,10 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   RefreshControl,
+  type ScrollView as ScrollViewInstance,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +18,11 @@ interface ProductSurfaceProps {
   children?: ReactNode;
   onRefresh?: (() => void) | undefined;
   refreshing?: boolean;
+  scrollViewRef?: RefObject<ScrollViewInstance | null> | undefined;
+  onScroll?:
+    ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | undefined;
+  onScrollLayout?: ((event: LayoutChangeEvent) => void) | undefined;
+  onContentSizeChange?: ((width: number, height: number) => void) | undefined;
 }
 
 export function ProductSurface({
@@ -22,10 +31,19 @@ export function ProductSurface({
   children,
   onRefresh,
   refreshing = false,
+  scrollViewRef,
+  onScroll,
+  onScrollLayout,
+  onContentSizeChange,
 }: ProductSurfaceProps) {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
       <ScrollView
+        ref={scrollViewRef}
+        onScroll={onScroll}
+        onLayout={onScrollLayout}
+        onContentSizeChange={onContentSizeChange}
+        scrollEventThrottle={16}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"

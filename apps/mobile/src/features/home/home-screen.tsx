@@ -2,6 +2,10 @@ import {
   ActivityIndicator,
   AppState,
   Pressable,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -36,7 +40,9 @@ import {
   academicContextBelongsToSession,
   academicContextSignature,
   canLoadMoreHomeFeed,
+  shouldAutomaticallyLoadHomeFeed,
   MobileHomeController,
+  type HomeFeedScrollMetrics,
   type HomeFeedSection,
   type HomePageStatus,
   type MobileHomeSnapshot,
@@ -63,6 +69,13 @@ const sourceLabel = (item: FeedItem): string =>
     ? item.source.organization.name
     : item.author.displayName;
 
+const publishedDateLabel = (createdAt: string): string => {
+  const date = new Date(createdAt);
+  return Number.isNaN(date.getTime())
+    ? "Fecha no disponible"
+    : date.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+};
+
 function FeedItemRow({
   item,
   onOpen,
@@ -71,17 +84,28 @@ function FeedItemRow({
   onOpen: (action: HomeFeedItemAction) => void;
 }) {
   const action = homeFeedItemAction(item);
+  const author = sourceLabel(item);
   const content = (
     <>
-      <Text style={styles.itemKind}>{itemKindLabel(item)}</Text>
+      <View style={styles.itemHeader}>
+        <View accessible={false} style={styles.avatarPlaceholder}>
+          <Text style={styles.avatarInitial}>
+            {author.trim().slice(0, 1).toLocaleUpperCase("es-AR") || "·"}
+          </Text>
+        </View>
+        <View style={styles.itemAuthor}>
+          <Text numberOfLines={1} style={styles.itemAuthorName}>
+            {author}
+          </Text>
+          <Text style={styles.itemKind}>
+            {itemKindLabel(item)} · {publishedDateLabel(item.createdAt)}
+          </Text>
+        </View>
+      </View>
       <Text style={styles.itemTitle}>{item.title}</Text>
       {item.academic.subject ? (
-        <Text style={styles.itemMeta}>
-          {item.academic.subject.name} · {sourceLabel(item)}
-        </Text>
-      ) : (
-        <Text style={styles.itemMeta}>{sourceLabel(item)}</Text>
-      )}
+        <Text style={styles.itemMeta}>{item.academic.subject.name}</Text>
+      ) : null}
       {item.summary ? (
         <Text numberOfLines={3} style={styles.copy}>
           {item.summary}
@@ -120,7 +144,7 @@ function FeedSection({
   surface,
   onOpen,
   onExplore,
-  onLoadMore,
+  onRetryMore,
   onRefresh,
   pageStatus,
   refreshing,
@@ -130,7 +154,7 @@ function FeedSection({
   surface: "subjects" | "community" | "for_you";
   onOpen: (action: HomeFeedItemAction) => void;
   onExplore: (action: HomeFeedExploreAction) => void;
-  onLoadMore: () => void;
+  onRetryMore: () => void;
   onRefresh: () => void;
   pageStatus: HomePageStatus | undefined;
   refreshing: boolean;
@@ -158,34 +182,36 @@ function FeedSection({
           />
         ))
       )}
-      {canLoadMoreHomeFeed(feed) ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            pageStatus?.requiresRefresh
-              ? `Actualizar Inicio para volver a cargar ${title}`
-              : `Cargar más elementos de ${title}`
-          }
-          disabled={pageStatus?.loading || refreshing}
-          onPress={pageStatus?.requiresRefresh ? onRefresh : onLoadMore}
-          style={({ pressed }) => [
-            styles.firstValueAction,
-            pressed && styles.firstValueActionPressed,
-          ]}
-        >
-          <Text style={styles.firstValueActionLabel}>
-            {pageStatus?.loading
-              ? "Cargando más…"
-              : pageStatus?.requiresRefresh
-                ? "Actualizar Inicio"
-                : "Cargar más"}
-          </Text>
-        </Pressable>
+      {pageStatus?.loading ? (
+        <View style={styles.inline}>
+          <ActivityIndicator accessibilityLabel={`Cargando ${title}`} />
+          <Text style={styles.copy}>Buscando más contenido…</Text>
+        </View>
       ) : null}
       {pageStatus?.error ? (
-        <Text accessibilityRole="alert" style={styles.error}>
-          {pageStatus.error}
-        </Text>
+        <View style={styles.pageError}>
+          <Text accessibilityRole="alert" style={styles.error}>
+            {pageStatus.error}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              pageStatus.requiresRefresh
+                ? `Actualizar Inicio para continuar ${title}`
+                : `Reintentar carga de ${title}`
+            }
+            disabled={refreshing}
+            onPress={pageStatus.requiresRefresh ? onRefresh : onRetryMore}
+            style={({ pressed }) => [
+              styles.firstValueAction,
+              pressed && styles.firstValueActionPressed,
+            ]}
+          >
+            <Text style={styles.firstValueActionLabel}>
+              {pageStatus.requiresRefresh ? "Actualizar Inicio" : "Reintentar"}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
       {exploreAction ? (
         <View style={styles.feedExplore}>
@@ -319,9 +345,35 @@ export function HomeScreen() {
   const [home, setHome] = useState<MobileHomeSnapshot>(
     controller.getSnapshot(),
   );
+  const [activeFeed, setActiveFeed] = useState<HomeFeedSection>("home");
   const [appState, setAppState] = useState(AppState.currentState);
   const [refreshPending, setRefreshPending] = useState(false);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const scrollOffsets = useRef<Record<HomeFeedSection, number>>({
+    home: 0,
+    for_you: 0,
+  });
+  const scrollMetrics = useRef<Record<HomeFeedSection, HomeFeedScrollMetrics>>({
+    home: { offsetY: 0, viewportHeight: 0, contentHeight: 0 },
+    for_you: { offsetY: 0, viewportHeight: 0, contentHeight: 0 },
+  });
+  const scrollMetricsFeedVersion = useRef<
+    Record<HomeFeedSection, string | null>
+  >({ home: null, for_you: null });
+  const scrollAuthority = useRef<string | null>(null);
   const reconciledAuthority = useRef<string | null>(null);
+  const resetHomeFeedSession = useCallback(() => {
+    scrollOffsets.current = { home: 0, for_you: 0 };
+    scrollMetrics.current = {
+      home: { offsetY: 0, viewportHeight: 0, contentHeight: 0 },
+      for_you: { offsetY: 0, viewportHeight: 0, contentHeight: 0 },
+    };
+    scrollMetricsFeedVersion.current = { home: null, for_you: null };
+    setActiveFeed("home");
+    requestAnimationFrame(() =>
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false }),
+    );
+  }, []);
 
   const openFeedItem = useCallback(
     (action: HomeFeedItemAction) => router.push(action.href),
@@ -366,6 +418,11 @@ export function HomeScreen() {
     sessionAuthority && academicData && academicBelongsToSession
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
+  useEffect(() => {
+    if (scrollAuthority.current === homeAuthority) return;
+    scrollAuthority.current = homeAuthority;
+    resetHomeFeedSession();
+  }, [homeAuthority, resetHomeFeedSession]);
   const activeHomeAuthority = activeNavigationAuthorityKey(
     homeAuthority,
     isFocused,
@@ -386,6 +443,109 @@ export function HomeScreen() {
     Boolean(activeHomeAuthority) &&
     Boolean(academicData) &&
     (academic.kind === "ready" || academic.kind === "no_context");
+  const readyHome =
+    home.kind === "ready" && home.authorityKey === activeHomeAuthority
+      ? home
+      : null;
+  const activeFeedData = readyHome
+    ? activeFeed === "home"
+      ? readyHome.data.homeFeed
+      : readyHome.data.forYou
+    : null;
+  const activeFeedMetricsVersion = activeFeedData
+    ? JSON.stringify([
+        activeHomeAuthority,
+        activeFeed,
+        activeFeedData.items.length,
+        activeFeedData.items.at(-1)?.type,
+        activeFeedData.items.at(-1)?.id,
+        activeFeedData.nextCursor,
+        activeFeedData.stopReason,
+      ])
+    : null;
+  const maybeLoadMoreActiveFeed = useCallback(() => {
+    if (
+      !readyHome ||
+      !activeHomeAuthority ||
+      !activeFeedMetricsVersion ||
+      scrollMetricsFeedVersion.current[activeFeed] !== activeFeedMetricsVersion
+    ) {
+      return;
+    }
+    const feed =
+      activeFeed === "home" ? readyHome.data.homeFeed : readyHome.data.forYou;
+    const pageStatus = readyHome.pagination?.[activeFeed];
+    if (
+      shouldAutomaticallyLoadHomeFeed(
+        feed,
+        scrollMetrics.current[activeFeed],
+        pageStatus,
+      )
+    ) {
+      void controller.loadMore(activeHomeAuthority, activeFeed);
+    }
+  }, [
+    activeFeed,
+    activeFeedMetricsVersion,
+    activeHomeAuthority,
+    controller,
+    readyHome,
+  ]);
+  const onHomeScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } =
+        event.nativeEvent;
+      const offsetY = Math.max(0, contentOffset.y);
+      scrollOffsets.current[activeFeed] = offsetY;
+      scrollMetricsFeedVersion.current[activeFeed] = activeFeedMetricsVersion;
+      scrollMetrics.current[activeFeed] = {
+        offsetY,
+        viewportHeight: layoutMeasurement.height,
+        contentHeight: contentSize.height,
+      };
+      maybeLoadMoreActiveFeed();
+    },
+    [activeFeed, activeFeedMetricsVersion, maybeLoadMoreActiveFeed],
+  );
+  const onHomeScrollLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      scrollMetrics.current[activeFeed] = {
+        ...scrollMetrics.current[activeFeed],
+        viewportHeight: event.nativeEvent.layout.height,
+      };
+      maybeLoadMoreActiveFeed();
+    },
+    [activeFeed, maybeLoadMoreActiveFeed],
+  );
+  const onHomeContentSizeChange = useCallback(
+    (_width: number, height: number) => {
+      scrollMetrics.current[activeFeed] = {
+        ...scrollMetrics.current[activeFeed],
+        offsetY: scrollOffsets.current[activeFeed],
+        contentHeight: height,
+      };
+      scrollMetricsFeedVersion.current[activeFeed] = activeFeedMetricsVersion;
+      maybeLoadMoreActiveFeed();
+    },
+    [activeFeed, activeFeedMetricsVersion, maybeLoadMoreActiveFeed],
+  );
+  const selectFeed = useCallback(
+    (section: HomeFeedSection) => {
+      if (section === activeFeed) return;
+      setActiveFeed(section);
+      const offsetY = scrollOffsets.current[section];
+      requestAnimationFrame(() => {
+        if (scrollAuthority.current === homeAuthority) {
+          scrollViewRef.current?.scrollTo({ y: offsetY, animated: false });
+        }
+      });
+    },
+    [activeFeed, homeAuthority],
+  );
+
+  useEffect(() => {
+    maybeLoadMoreActiveFeed();
+  }, [maybeLoadMoreActiveFeed]);
 
   useEffect(() => {
     if (!canLoad || !activeHomeAuthority) {
@@ -453,9 +613,13 @@ export function HomeScreen() {
   const renderSurface = (content: ReactNode) => (
     <ProductSurface
       title="Inicio"
-      description="Tu punto de entrada a Los Apuntes, con el contexto académico revalidado por el servidor antes de alimentar las superficies de producto."
+      description="Contenido académico y comunidad, según tu contexto."
       onRefresh={refreshControlEnabled ? refresh : undefined}
       refreshing={refreshing}
+      scrollViewRef={scrollViewRef}
+      onScroll={onHomeScroll}
+      onScrollLayout={onHomeScrollLayout}
+      onContentSizeChange={onHomeContentSizeChange}
     >
       {safeToRenderAcademic ? <AcademicContextCard /> : null}
       {content}
@@ -518,6 +682,13 @@ export function HomeScreen() {
 
   if (!data) return renderSurface(<LoadingCard />);
 
+  const homeFeedTitle =
+    data.homeFeed.kind === "community" ? "Comunidad" : "Mis materias";
+  const activeFeedPageStatus =
+    currentHome?.kind === "ready"
+      ? currentHome.pagination?.[activeFeed]
+      : undefined;
+
   return renderSurface(
     <View style={styles.content}>
       {currentHome?.kind === "loading" ? <LoadingCard refreshing /> : null}
@@ -548,41 +719,73 @@ export function HomeScreen() {
           {data.notifications.unreadCount}
         </Text>
       </Pressable>
-      <FeedSection
-        title={
-          data.homeFeed.kind === "community"
-            ? "Universidad y comunidad"
-            : "Mis materias"
-        }
-        feed={data.homeFeed}
-        surface={data.homeFeed.kind}
-        onOpen={openFeedItem}
-        onExplore={navigateFeedExplore}
-        onLoadMore={() => loadMoreFeed("home")}
-        onRefresh={refresh}
-        pageStatus={
-          currentHome?.kind === "ready"
-            ? currentHome.pagination?.home
-            : undefined
-        }
-        refreshing={refreshing}
-      />
-      <FeedSection
-        title="Para vos"
-        feed={data.forYou}
-        surface="for_you"
-        onOpen={openFeedItem}
-        onExplore={navigateFeedExplore}
-        onLoadMore={() => loadMoreFeed("for_you")}
-        onRefresh={refresh}
-        pageStatus={
-          currentHome?.kind === "ready"
-            ? currentHome.pagination?.for_you
-            : undefined
-        }
-        refreshing={refreshing}
-      />
-      {data.forYou.effectiveSignals.relationWindowTruncated ? (
+      <View style={styles.feedSelector}>
+        <Text style={styles.feedSelectorLabel}>Tu feed</Text>
+        <View style={styles.feedOptions}>
+          {(
+            [
+              { section: "home", label: homeFeedTitle },
+              { section: "for_you", label: "Para vos" },
+            ] as const
+          ).map(({ section, label }) => {
+            const selected = activeFeed === section;
+            return (
+              <Pressable
+                key={section}
+                accessibilityRole="button"
+                accessibilityLabel={`Mostrar feed ${label}`}
+                accessibilityState={{ selected }}
+                onPress={() => selectFeed(section)}
+                style={({ pressed }) => [
+                  styles.feedOption,
+                  selected && styles.feedOptionSelected,
+                  pressed && styles.feedOptionPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.feedOptionLabel,
+                    selected && styles.feedOptionLabelSelected,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      {activeFeed === "home" ? (
+        <FeedSection
+          title={
+            data.homeFeed.kind === "community"
+              ? "Universidad y comunidad"
+              : "Mis materias"
+          }
+          feed={data.homeFeed}
+          surface={data.homeFeed.kind}
+          onOpen={openFeedItem}
+          onExplore={navigateFeedExplore}
+          onRetryMore={() => loadMoreFeed("home")}
+          onRefresh={refresh}
+          pageStatus={activeFeedPageStatus}
+          refreshing={refreshing}
+        />
+      ) : (
+        <FeedSection
+          title="Para vos"
+          feed={data.forYou}
+          surface="for_you"
+          onOpen={openFeedItem}
+          onExplore={navigateFeedExplore}
+          onRetryMore={() => loadMoreFeed("for_you")}
+          onRefresh={refresh}
+          pageStatus={activeFeedPageStatus}
+          refreshing={refreshing}
+        />
+      )}
+      {activeFeed === "for_you" &&
+      data.forYou.effectiveSignals.relationWindowTruncated ? (
         <Text style={styles.moreCopy}>
           La selección de personas usa una muestra acotada de tu red.
         </Text>
@@ -615,6 +818,48 @@ const styles = StyleSheet.create({
   feedExplore: {
     gap: 8,
   },
+  pageError: {
+    gap: 8,
+  },
+  feedSelector: {
+    gap: 8,
+  },
+  feedSelectorLabel: {
+    color: "#55555f",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  feedOptions: {
+    flexDirection: "row",
+    gap: 8,
+    padding: 4,
+    borderRadius: 14,
+    backgroundColor: "#eeedf3",
+  },
+  feedOption: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    paddingHorizontal: 10,
+  },
+  feedOptionSelected: {
+    backgroundColor: "#ffffff",
+  },
+  feedOptionPressed: {
+    opacity: 0.75,
+  },
+  feedOptionLabel: {
+    color: "#55555f",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  feedOptionLabelSelected: {
+    color: "#342b4d",
+    fontWeight: "800",
+  },
   firstValueAction: {
     minHeight: 48,
     alignItems: "center",
@@ -641,7 +886,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
     borderRadius: 18,
-    padding: 18,
+    padding: 14,
     backgroundColor: "#ffffff",
   },
   notificationsPressed: {
@@ -698,7 +943,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   feedItem: {
-    gap: 4,
+    gap: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
@@ -713,7 +958,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#6c5b91",
-    textTransform: "uppercase",
+  },
+  itemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  avatarPlaceholder: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 19,
+    backgroundColor: "#eeeaf8",
+  },
+  avatarInitial: {
+    color: "#43376a",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  itemAuthor: {
+    flex: 1,
+    gap: 2,
+  },
+  itemAuthorName: {
+    color: "#20202a",
+    fontSize: 14,
+    fontWeight: "700",
   },
   itemTitle: {
     fontSize: 16,

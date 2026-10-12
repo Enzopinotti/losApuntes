@@ -10,6 +10,7 @@ import type {
 import {
   academicContextBelongsToSession,
   canLoadMoreHomeFeed,
+  shouldAutomaticallyLoadHomeFeed,
   MobileHomeController,
   MAX_HOME_FEED_ITEMS,
   HOME_FEED_PAGE_SIZE,
@@ -92,6 +93,87 @@ const defaultPages: Pick<PilotHomeApi, "academicFeed" | "forYouFeed"> = {
   academicFeed: async () => home().academicFeed,
   forYouFeed: async () => home().forYou,
 };
+
+test("Home automatically prefetches near the end but respects feed stops", () => {
+  const feed = { ...home().homeFeed, items: [item("first")] };
+  const farFromEnd = {
+    offsetY: 0,
+    viewportHeight: 500,
+    contentHeight: 1_100,
+  };
+  const nearEnd = { ...farFromEnd, contentHeight: 900 };
+
+  assert.equal(shouldAutomaticallyLoadHomeFeed(feed, farFromEnd), false);
+  assert.equal(shouldAutomaticallyLoadHomeFeed(feed, nearEnd), true);
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed(feed, nearEnd, {
+      loading: true,
+      error: null,
+      requiresRefresh: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed(feed, nearEnd, {
+      loading: false,
+      error: "network unavailable",
+      requiresRefresh: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed(
+      { ...feed, stopReason: "natural_break" },
+      nearEnd,
+    ),
+    false,
+  );
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed({ ...feed, nextCursor: null }, nearEnd),
+    false,
+  );
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed(feed, {
+      ...nearEnd,
+      viewportHeight: 0,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed(feed, nearEnd, {
+      loading: false,
+      error: null,
+      requiresRefresh: true,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed(
+      {
+        ...feed,
+        items: Array.from(
+          { length: MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE },
+          (_, index) => item(`at-cap-${index}`),
+        ),
+      },
+      nearEnd,
+    ),
+    true,
+  );
+  assert.equal(
+    shouldAutomaticallyLoadHomeFeed(
+      {
+        ...feed,
+        items: Array.from(
+          { length: MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE + 1 },
+          (_, index) => item(`past-cap-${index}`),
+        ),
+      },
+      nearEnd,
+    ),
+    false,
+  );
+});
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -216,6 +298,7 @@ test("surfaces offline, timeout and service outages as distinct states", async (
   for (const [failureKind, expectedKind] of cases) {
     await t.test(failureKind, async () => {
       const controller = new MobileHomeController({
+        ...defaultPages,
         pilotHome: async () => {
           throw new ApiRequestError(
             failureKind,
@@ -449,7 +532,10 @@ test("Home refuses academic scope shifts, unchanged cursors and stale-authority 
   const repeatedState = repeated.getSnapshot();
   assert.equal(repeatedState.kind, "ready");
   if (repeatedState.kind === "ready") {
-    assert.match(repeatedState.pagination?.home?.error ?? "", /Actualizá Inicio/);
+    assert.match(
+      repeatedState.pagination?.home?.error ?? "",
+      /Actualizá Inicio/,
+    );
     assert.equal(repeatedState.pagination?.home?.requiresRefresh, true);
   }
 });
@@ -468,9 +554,8 @@ test("Home only reads whole cursor pages that fit the bounded memory budget", as
       calls += 1;
       return {
         ...initial.academicFeed,
-        items: Array.from(
-          { length: HOME_FEED_PAGE_SIZE },
-          (_, index) => item(`new-${index}`),
+        items: Array.from({ length: HOME_FEED_PAGE_SIZE }, (_, index) =>
+          item(`new-${index}`),
         ),
         nextCursor: "more-pages",
       };
@@ -504,9 +589,8 @@ test("Home never truncates a cursor page when fewer than six slots remain", asyn
       calls += 1;
       return {
         ...initial.academicFeed,
-        items: Array.from(
-          { length: HOME_FEED_PAGE_SIZE },
-          (_, index) => item(`new-${index}`),
+        items: Array.from({ length: HOME_FEED_PAGE_SIZE }, (_, index) =>
+          item(`new-${index}`),
         ),
         nextCursor: "more-pages",
       };
@@ -568,9 +652,8 @@ test("Home rejects oversized server pages without consuming the cursor", async (
     pilotHome: async () => home(),
     academicFeed: async () => ({
       ...home().academicFeed,
-      items: Array.from(
-        { length: HOME_FEED_PAGE_SIZE + 1 },
-        (_, index) => item(`unexpected-${index}`),
+      items: Array.from({ length: HOME_FEED_PAGE_SIZE + 1 }, (_, index) =>
+        item(`unexpected-${index}`),
       ),
       nextCursor: "later",
     }),

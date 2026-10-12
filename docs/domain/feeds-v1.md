@@ -163,6 +163,8 @@ One feed session permits at most **3 pages** and at most **25 items per page**. 
 
 This is intentional product behavior, not an API limitation to bypass with an alternate endpoint.
 
+Clients may automatically continue loading pages while the user approaches the end of the current feed, provided they use only its existing cursor and remain inside the same bounded session. This presentation behavior must stop at `natural_break` or a null cursor and must never create a cursor or session on the user's behalf. Starting another batch requires an explicit user action, such as pull-to-refresh. Automatic continuation within the existing three-page session does not change the finite-feed rule or authorize infinite scroll.
+
 ## Determinism and freshness
 
 Candidates are bounded to `createdAt <= anchorAt`.

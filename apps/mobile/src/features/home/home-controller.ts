@@ -32,14 +32,47 @@ export interface HomePageStatus {
 
 export const MAX_HOME_FEED_ITEMS = 48;
 export const HOME_FEED_PAGE_SIZE = 6;
+export const HOME_FEED_PREFETCH_DISTANCE = 480;
+
+export interface HomeFeedScrollMetrics {
+  offsetY: number;
+  viewportHeight: number;
+  contentHeight: number;
+}
 
 export function canLoadMoreHomeFeed(
   feed: Pick<FeedPageResponse, "items" | "nextCursor">,
 ): boolean {
   return Boolean(
     feed.nextCursor &&
-      feed.items.length <= MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE,
+    feed.items.length <= MAX_HOME_FEED_ITEMS - HOME_FEED_PAGE_SIZE,
   );
+}
+
+export function shouldAutomaticallyLoadHomeFeed(
+  feed: Pick<FeedPageResponse, "items" | "nextCursor" | "stopReason">,
+  scroll: HomeFeedScrollMetrics,
+  status?: HomePageStatus,
+): boolean {
+  if (
+    !canLoadMoreHomeFeed(feed) ||
+    feed.stopReason === "natural_break" ||
+    status?.loading ||
+    status?.error ||
+    status?.requiresRefresh ||
+    !Number.isFinite(scroll.offsetY) ||
+    !Number.isFinite(scroll.viewportHeight) ||
+    !Number.isFinite(scroll.contentHeight) ||
+    scroll.offsetY < 0 ||
+    scroll.viewportHeight <= 0 ||
+    scroll.contentHeight <= 0
+  ) {
+    return false;
+  }
+
+  const distanceFromEnd =
+    scroll.contentHeight - scroll.offsetY - scroll.viewportHeight;
+  return distanceFromEnd <= HOME_FEED_PREFETCH_DISTANCE;
 }
 
 function dedupeFeedItems(
