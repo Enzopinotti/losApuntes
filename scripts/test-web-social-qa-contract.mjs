@@ -141,6 +141,19 @@ assert.match(questions, /Cargar más respuestas/u);
 assert.doesNotMatch(questions, /localStorage|sessionStorage/u);
 
 const notifications = await read('apps/web/src/pages/Notifications.tsx');
+assert.match(notifications, /useLayoutEffect/u);
+assert.match(
+  notifications,
+  /previousAuthorityScopeRef\.current === authorityScope/u,
+);
+assert.match(notifications, /setItems\(\[\]\);[\s\S]*setNextCursor\(null\)/u);
+assert.match(notifications, /setUnreadOnly\(false\)/u);
+assert.match(
+  notifications,
+  /setLoadingMore\(false\);[\s\S]*setActionBusy\(false\)/u,
+);
+assert.match(notifications, /setOpeningState\(null\);[\s\S]*setError\(null\)/u);
+assert.match(notifications, /window\.scrollTo\(0, 0\)/u);
 const notificationReconciliation = {
   authenticated: true,
   firstPagePending: false,
@@ -234,10 +247,6 @@ assert.match(notifications, /setActionBusy\(false\)/u);
 assert.match(notifications, /consumedReconcileTickRef/u);
 assert.match(notifications, /firstPagePendingRef/u);
 assert.match(notifications, /shouldReconcileNotificationTick/u);
-assert.match(
-  notifications,
-  /setActionBusy\(false\);\s*setLoadingMore\(false\);\s*setOpeningState\(null\);\s*\}, \[authorityScope\]/u,
-);
 assert.doesNotMatch(
   notifications,
   /await\s+load\(undefined,\s*false,\s*true\)/u,

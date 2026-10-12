@@ -148,6 +148,12 @@ token/email workflows rather than authenticated principal snapshots; they are
 classified separately and are not treated as substitutes for the session/view
 fence above.
 
+Async fencing prevents an old response from committing after an authority
+change; it does not hide data already held in component state. Private snapshot
+surfaces must clear or scope their rendered data, cursors, preferences and busy
+state when the principal/session changes. Feed, Home and Notifications also
+reset the document scroll before the next authority's content is shown.
+
 ## New feature checklist
 
 Before adding a new async private Web flow, answer:
