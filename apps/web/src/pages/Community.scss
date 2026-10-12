@@ -235,3 +235,61 @@
     justify-content: flex-start;
   }
 }
+
+/* Network-only hierarchy: requests requiring an answer precede other relations. */
+.network-relationships .network-section-description {
+  margin: 0.4rem 0 1rem;
+  color: #556179;
+  line-height: 1.5;
+}
+
+.network-relationships h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.4rem;
+  font-size: 1.05rem;
+}
+
+.network-requests {
+  margin: 1rem 0 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #b9cae8;
+  border-radius: 12px;
+  background: #f4f8ff;
+}
+
+.network-requests .community-list,
+.network-requests .community-list li,
+.network-requests .community-list li > div {
+  background: transparent;
+}
+
+.network-request-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  background: #315c9b;
+  color: white;
+  font-size: 0.8rem;
+}
+
+.community-list .network-person-name {
+  color: #172e57;
+  font-weight: 700;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.community-list .network-person-name:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
+.network-relationships .community-list > li:last-child {
+  border-bottom: 0;
+}
