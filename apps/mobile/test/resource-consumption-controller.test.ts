@@ -57,6 +57,17 @@ const apiStub = (
     items: [],
     nextCursor: null,
   }),
+  update: async (resourceId, input) => ({
+    resource: {
+      ...resource(resourceId),
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.description !== undefined
+        ? { description: input.description }
+        : {}),
+      ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      revision: input.expectedRevision + 1,
+    },
+  }),
   ...overrides,
 });
 
