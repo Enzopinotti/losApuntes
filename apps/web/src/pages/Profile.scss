@@ -182,3 +182,70 @@
     white-space: normal;
   }
 }
+
+/* Public profile social intent: show only server-confirmed relationship state. */
+.public-profile .profile-hero > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.public-profile-headline {
+  margin: 0.45rem 0 0.65rem;
+  color: #385783;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.public-profile-social {
+  display: grid;
+  gap: 0.65rem;
+  width: min(100%, 370px);
+}
+
+.public-profile-social-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.public-profile-social-actions button {
+  min-height: 44px;
+}
+
+.public-profile-social-actions a,
+.public-profile-signin {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #274f94;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.public-profile-social .profile-success,
+.public-profile-social .profile-error {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.public-profile-social-help {
+  margin: 0;
+  color: #596477;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.public-profile-social-actions button:focus-visible,
+.public-profile-social-actions a:focus-visible,
+.public-profile-signin:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .public-profile-social {
+    width: 100%;
+  }
+}
