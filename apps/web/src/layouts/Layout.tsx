@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import LogoutButton from "../shared/components/LogoutButton";
@@ -40,6 +40,8 @@ const Layout = () => {
   const location = useLocation();
   const menuId = useId();
   const moreId = useId();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [mobileOpenedAt, setMobileOpenedAt] = useState<string | null>(null);
   const [moreOpenedAt, setMoreOpenedAt] = useState<string | null>(null);
   const scope = `${location.key}:${status}:${user?.id ?? "guest"}`;
@@ -70,10 +72,48 @@ const Layout = () => {
             Los Apuntes
           </NavLink>
 
+
+          <div className="layout-header-actions">
+            {authenticated ? (
+              <NavLink
+                to="/notifications"
+                className="layout-notifications-link"
+                aria-label="Ir a notificaciones"
+                onClick={closeNavigation}
+              >
+                Notificaciones
+              </NavLink>
+            ) : null}
+            <button
+              type="button"
+              className="layout-menu-toggle"
+              ref={menuButtonRef}
+              aria-expanded={mobileOpen}
+              aria-controls={menuId}
+              onClick={() => {
+                setMobileOpenedAt(mobileOpen ? null : scope);
+                setMoreOpenedAt(null);
+              }}
+            >
+              <span aria-hidden="true">{mobileOpen ? "✕" : "☰"}</span>
+              <span>{mobileOpen ? "Cerrar" : "Menú"}</span>
+            </button>
+          </div>
+
           <nav
             id={menuId}
             className={`layout-nav${mobileOpen ? " layout-nav-open" : ""}`}
             aria-label="Navegación principal"
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              if (moreOpen) {
+                setMoreOpenedAt(null);
+                moreButtonRef.current?.focus();
+              } else if (mobileOpen) {
+                setMobileOpenedAt(null);
+                menuButtonRef.current?.focus();
+              }
+            }}
           >
             <div className="layout-primary-links">
               {destinations.map(({ to, label }) => (
@@ -95,6 +135,7 @@ const Layout = () => {
                     <button
                       type="button"
                       className="layout-more-toggle"
+                      ref={moreButtonRef}
                       aria-expanded={moreOpen}
                       aria-controls={moreId}
                       onClick={() =>
@@ -107,6 +148,7 @@ const Layout = () => {
                       <div
                         id={moreId}
                         className="layout-more-links"
+                        role="group"
                         aria-label="Otras secciones"
                       >
                         {memberMoreNavigation.map(({ to, label }) => (
@@ -144,32 +186,6 @@ const Layout = () => {
               )}
             </div>
           </nav>
-
-          <div className="layout-header-actions">
-            {authenticated ? (
-              <NavLink
-                to="/notifications"
-                className="layout-notifications-link"
-                aria-label="Ir a notificaciones"
-                onClick={closeNavigation}
-              >
-                Notificaciones
-              </NavLink>
-            ) : null}
-            <button
-              type="button"
-              className="layout-menu-toggle"
-              aria-expanded={mobileOpen}
-              aria-controls={menuId}
-              onClick={() => {
-                setMobileOpenedAt(mobileOpen ? null : scope);
-                setMoreOpenedAt(null);
-              }}
-            >
-              <span aria-hidden="true">{mobileOpen ? "✕" : "☰"}</span>
-              <span>{mobileOpen ? "Cerrar" : "Menú"}</span>
-            </button>
-          </div>
         </div>
       </header>
 
