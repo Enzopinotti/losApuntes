@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   FeedFeedbackSignal,
@@ -27,6 +27,7 @@ import {
   feedSelectionFromSearchParams,
   type FeedSelection,
 } from "../features/feeds/feed-navigation.mjs";
+import { fullFeedEmptyGuidance } from "../features/feeds/full-feed-empty-guidance.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Feeds.scss";
 
@@ -263,6 +264,7 @@ const Feeds = () => {
     busy,
     hasError: Boolean(error),
   });
+  const emptyGuidance = fullFeedEmptyGuidance(view, mode);
 
   useEffect(() => {
     const sentinel = continuationRef.current;
@@ -544,10 +546,10 @@ const Feeds = () => {
       ) : items.length === 0 ? (
         <section className="feeds-empty">
           <h2>No hay contenido para esta tanda</h2>
-          <p>
-            Podés revisar tus materias, cambiar señales o volver a buscar más
-            tarde. No rellenamos el feed con contenido irrelevante.
-          </p>
+          <p>{emptyGuidance.message}</p>
+          <Link className="feed-item-open-link" to={emptyGuidance.href}>
+            {emptyGuidance.actionLabel}
+          </Link>
         </section>
       ) : (
         <div className="feeds-list">

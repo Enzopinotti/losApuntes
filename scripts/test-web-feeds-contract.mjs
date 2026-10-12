@@ -13,6 +13,7 @@ import {
   homeFeedHref,
 } from "../apps/web/src/features/feeds/feed-navigation.mjs";
 import { homeFeedEmptyGuidance } from "../apps/web/src/features/feeds/home-feed-empty-guidance.mjs";
+import { fullFeedEmptyGuidance } from "../apps/web/src/features/feeds/full-feed-empty-guidance.mjs";
 
 const root = process.cwd();
 
@@ -44,6 +45,8 @@ const sourceAttribution = await read(
 );
 assert.match(page, /feedsApi\.academic/u);
 assert.match(page, /feedsApi\.forYou/u);
+assert.match(page, /fullFeedEmptyGuidance\(view, mode\)/u);
+assert.match(page, /emptyGuidance\.href/u);
 assert.match(page, /useSearchParams/u);
 assert.match(page, /feedSelectionFromSearchParams\(searchParams\)/u);
 assert.match(page, /aria-pressed=\{view === "academic"\}/u);
@@ -159,6 +162,17 @@ assert.equal(
   "/search",
   "The community destination applies only to the contextual community feed",
 );
+assert.deepEqual(fullFeedEmptyGuidance("academic", "balanced"), {
+  message: "Podés buscar apuntes, preguntas y materias en Los Apuntes.",
+  href: "/search",
+  actionLabel: "Buscar contenido",
+});
+assert.deepEqual(fullFeedEmptyGuidance("for-you", "community"), {
+  message: "Podés explorar las personas y relaciones de tu red.",
+  href: "/network",
+  actionLabel: "Explorar mi red",
+});
+assert.equal(fullFeedEmptyGuidance("for-you", "study").href, "/search");
 assert.equal(canAutomaticallyLoadWebFeed(continuationState), true);
 assert.equal(
   canAutomaticallyLoadWebFeed({ ...continuationState, nextCursor: null }),
