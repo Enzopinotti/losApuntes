@@ -64,7 +64,10 @@ test("production Dockerfile enforces the check after the filtered install", () =
   );
 
   assert.notEqual(install, -1, "filtered production install missing");
-  assert.ok(verify > install, "runtime dependency boundary must run after install");
+  assert.ok(
+    verify > install,
+    "runtime dependency boundary must run after install",
+  );
   assert.match(
     dockerfile,
     /COPY scripts\/security\/check-api-runtime-dependency-boundary\.mjs scripts\/security\/check-api-runtime-dependency-boundary\.mjs/u,

@@ -32,6 +32,7 @@ The assertion is checked under `pnpm test:resilience-contract` with positive, ne
 `pnpm audit:prod` must continue to run and **must continue to report the open high-severity `braces` finding**. No `braces` waiver, fork or override is introduced. The `node-forge` exception remains governed independently by `security/audit-exceptions.json`, its exact package/CVE/parents and hard expiry.
 
 For each release candidate, record:
+
 - exact source SHA, image digest and successful API image-build evidence;
 - this assertion's bounded event or a build failure;
 - unmodified full production audit outcome with issues #141 and #133;
