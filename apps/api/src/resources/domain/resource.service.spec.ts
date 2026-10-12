@@ -69,6 +69,7 @@ function store(): jest.Mocked<ResourceStore> {
     removeShare: jest.fn(),
     upsertSave: jest.fn(),
     removeSave: jest.fn(),
+    listOwnedResources: jest.fn(),
     listSavedResources: jest.fn(),
     searchAuthorized: jest.fn(),
     listFeedCandidates: jest.fn(),
@@ -160,6 +161,104 @@ function projectionDeps(deps: ReturnType<typeof dependencies>) {
 }
 
 describe('ResourceService', () => {
+  describe('owner publications library', () => {
+    it('queries only the authenticated author and includes private resources', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      projectionDeps(deps);
+      const owned = resource({
+        visibility: 'private',
+        authorUserId: 'author-1',
+      });
+      resourceStore.listOwnedResources.mockResolvedValue({
+        items: [owned],
+        hasMore: false,
+      });
+
+      const response = await service(resourceStore, deps).listOwned(
+        'author-1',
+        { limit: 25 },
+      );
+
+      expect(resourceStore.listOwnedResources).toHaveBeenCalledWith({
+        authorUserId: 'author-1',
+        limit: 25,
+      });
+      expect(response.items).toHaveLength(1);
+      expect(response.items[0]).toMatchObject({
+        id: owned.id,
+        visibility: 'private',
+        capabilities: { edit: true, manageShares: true },
+      });
+      expect(response.nextCursor).toBeNull();
+      expect(JSON.stringify(response)).not.toContain('authorUserId');
+    });
+
+    it('continues using the same server-side visibility filter', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      projectionDeps(deps);
+      const item = resource({ visibility: 'shared' });
+      resourceStore.listOwnedResources.mockResolvedValue({
+        items: [item],
+        hasMore: true,
+      });
+      const api = service(resourceStore, deps);
+      const first = await api.listOwned('author-1', {
+        limit: 1,
+        visibility: 'shared',
+      });
+      expect(first.nextCursor).toEqual(expect.any(String));
+      const second = await api.listOwned('author-1', {
+        limit: 1,
+        visibility: 'shared',
+        cursor: first.nextCursor!,
+      });
+      expect(resourceStore.listOwnedResources).toHaveBeenNthCalledWith(2, {
+        authorUserId: 'author-1',
+        visibility: 'shared',
+        limit: 1,
+        after: { createdAt: item.createdAt, id: item.id },
+      });
+      expect(second.items).toHaveLength(1);
+    });
+
+    it('refuses cross-filter cursors before querying data', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      const token = Buffer.from(JSON.stringify({
+        v: 1,
+        id: resource().id,
+        createdAt: now.toISOString(),
+        visibility: 'public',
+      })).toString('base64url');
+
+      await expect(
+        service(resourceStore, deps).listOwned('author-1', {
+          limit: 25,
+          visibility: 'private',
+          cursor: token,
+        }),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(resourceStore.listOwnedResources).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty page without projecting other authors', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.listOwnedResources.mockResolvedValue({
+        items: [],
+        hasMore: false,
+      });
+      const response = await service(resourceStore, deps).listOwned(
+        'author-1',
+        { limit: 25, visibility: 'public' },
+      );
+      expect(response).toEqual({ items: [], nextCursor: null });
+      expect(deps.profiles.getAttributionForUser).not.toHaveBeenCalled();
+    });
+  });
+
   describe('owner-only share grants listing', () => {
     const resourceId = resource().id;
 

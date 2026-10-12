@@ -26,6 +26,7 @@ import {
   CreateResourceReportDto,
   ResourceAccessDto,
   ResourceSavedListDto,
+  ResourceOwnedListDto,
   ResourceSearchDto,
   ResourceShareListDto,
   UpdateResourceDto,
@@ -43,6 +44,20 @@ export class ResourcesController {
     @Query() query: ResourceSearchDto,
   ) {
     return this.resources.search(request.user?.id, query);
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get('mine')
+  @Header('Cache-Control', 'private, no-store')
+  mine(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: ResourceOwnedListDto,
+  ) {
+    return this.resources.listOwned(request.user.id, {
+      limit: query.limit,
+      ...(query.visibility ? { visibility: query.visibility } : {}),
+      ...(query.cursor ? { cursor: query.cursor } : {}),
+    });
   }
 
   @UseGuards(AuthSessionGuard)

@@ -254,6 +254,37 @@ export class MongoResourceStore implements ResourceStore {
     await this.saves.deleteOne({ resourceId, userId }).exec();
   }
 
+  async listOwnedResources(
+    input: Parameters<ResourceStore['listOwnedResources']>[0],
+  ): ReturnType<ResourceStore['listOwnedResources']> {
+    const rows = await this.resources
+      .find({
+        authorUserId: input.authorUserId,
+        moderationState: 'available',
+        ...(input.visibility ? { visibility: input.visibility } : {}),
+        ...(input.after
+          ? {
+              $or: [
+                { createdAt: { $lt: input.after.createdAt } },
+                {
+                  createdAt: input.after.createdAt,
+                  id: { $gt: input.after.id },
+                },
+              ],
+            }
+          : {}),
+      })
+      .sort({ createdAt: -1, id: 1 })
+      .limit(input.limit + 1)
+      .lean<ResourceRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
   async listSavedResources(
     input: Parameters<ResourceStore['listSavedResources']>[0],
   ): ReturnType<ResourceStore['listSavedResources']> {

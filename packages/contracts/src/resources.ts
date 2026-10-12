@@ -27,6 +27,11 @@ export type ResourceShareGrantsPage = {
   resourceRevision: number;
 };
 
+export type OwnedResourcesPage = {
+  items: ResourceView[];
+  nextCursor: string | null;
+};
+
 export type ResourceView = {
   id: string;
   title: string;

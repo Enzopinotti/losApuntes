@@ -113,6 +113,24 @@ export class ResourceAccessDto {
   disposition: 'inline' | 'attachment' = 'inline';
 }
 
+export class ResourceOwnedListDto {
+  @IsOptional()
+  @IsIn(RESOURCE_VISIBILITIES)
+  visibility?: ResourceVisibility;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 25;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
+}
+
 export class ResourceSavedListDto {
   @IsOptional()
   @Type(() => Number)

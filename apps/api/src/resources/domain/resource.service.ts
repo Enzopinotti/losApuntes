@@ -36,6 +36,10 @@ import {
   decodeShareGrantCursor,
   encodeShareGrantCursor,
 } from './resource-shares-cursor';
+import {
+  decodeOwnedResourceCursor,
+  encodeOwnedResourceCursor,
+} from './resource-owned-cursor';
 
 const RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT = 100;
 
@@ -522,6 +526,42 @@ export class ResourceService {
 
   async unsave(userId: string, id: string): Promise<void> {
     await this.store.removeSave(id, userId);
+  }
+
+  async listOwned(
+    userId: string,
+    input: {
+      limit: number;
+      visibility?: ResourceRecord['visibility'];
+      cursor?: string;
+    },
+  ) {
+    const page = await this.store.listOwnedResources({
+      authorUserId: userId,
+      limit: input.limit,
+      ...(input.visibility ? { visibility: input.visibility } : {}),
+      ...(input.cursor
+        ? {
+            after: decodeOwnedResourceCursor(
+              input.cursor,
+              input.visibility,
+            ),
+          }
+        : {}),
+    });
+    const last = page.items.at(-1);
+    return {
+      items: await Promise.all(
+        page.items.map((row) => this.projection(row, userId)),
+      ),
+      nextCursor:
+        page.hasMore && last
+          ? encodeOwnedResourceCursor(
+              { createdAt: last.createdAt, id: last.id },
+              input.visibility,
+            )
+          : null,
+    };
   }
 
   async listSaved(userId: string, limit: number, cursor?: string) {
