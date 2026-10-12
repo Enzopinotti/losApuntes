@@ -1,6 +1,7 @@
 # API production dependency boundary — focused runtime assertion
 
-**Status:** build-time security control, not a production audit waiver  
+**Status:** build-time security control, not a production audit waiver.
+
 **Tracking:** [#141](https://github.com/Enzopinotti/losApuntes/issues/141) (`braces`), [#133](https://github.com/Enzopinotti/losApuntes/issues/133) (`node-forge`)
 
 ## Why this exists
