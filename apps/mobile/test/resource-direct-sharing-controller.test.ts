@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ResourceView, SearchPersonResult } from "@losapuntes/contracts";
+import type {
+  ResourceShareGrantsPage,
+  ResourceView,
+  SearchPersonResult,
+} from "@losapuntes/contracts";
 
 import { ApiRequestError } from "../src/services/api/client";
 import {
@@ -66,6 +70,11 @@ function apiStub(
 ): ResourceDirectSharingApi {
   return {
     searchPeople: async () => [ana, lucia],
+    listGrants: async () => ({
+      items: [],
+      nextCursor: null,
+      resourceRevision: 2,
+    }),
     resource: async () => ({ resource: resource() }),
     grant: async () => ({ shared: true }),
     revoke: async () => undefined,
@@ -288,6 +297,10 @@ test("timeout never masquerades as a granted permission or retries automatically
     assert.equal(snapshot.outcome, "uncertain");
     assert.equal(snapshot.failure, "timeout");
   }
+  assert.equal(
+    await controller.mutate("session-a", "resource-a", "grant"),
+    false,
+  );
   assert.equal(calls, 1);
 });
 
@@ -420,4 +433,189 @@ test("GET preflight failure never invokes PUT and remains a definite error", asy
   if (snapshot.kind !== "ready") return;
   assert.equal(snapshot.outcome, "error");
   assert.equal(snapshot.failure, "offline");
+});
+
+test("owner receives real paginated grants and can load the next page", async () => {
+  const calls: Array<string | undefined> = [];
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async (_resourceId, cursor) => {
+      calls.push(cursor);
+      return cursor
+        ? {
+            items: [
+              { ...lucia, grantedAt: "2026-10-02T12:00:00.000Z" },
+            ],
+            nextCursor: null,
+            resourceRevision: 2,
+          }
+        : {
+            items: [
+              { ...ana, grantedAt: "2026-10-01T12:00:00.000Z" },
+            ],
+            nextCursor: "next-page",
+            resourceRevision: 2,
+          };
+    },
+  }));
+  controller.setScope("session-a", resource());
+
+  await controller.loadGrants("session-a", "resource-a");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.grantsState, "ready");
+  assert.equal(snapshot.grantsNextCursor, "next-page");
+  assert.deepEqual(snapshot.grants.map((row) => row.profileId), ["profile-a"]);
+
+  await controller.loadGrants("session-a", "resource-a", true);
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(
+    snapshot.grants.map((row) => row.profileId),
+    ["profile-a", "profile-b"],
+  );
+  assert.equal(snapshot.grantsNextCursor, null);
+  assert.deepEqual(calls, [undefined, "next-page"]);
+});
+
+test("only a profile returned by the owner grants endpoint can be selected", async () => {
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async () => ({
+      items: [{ ...ana, grantedAt: "2026-10-01T12:00:00.000Z" }],
+      nextCursor: null,
+      resourceRevision: 2,
+    }),
+  }));
+  controller.setScope("session-a", resource());
+  assert.equal(controller.selectGrant("session-a", "resource-a", "profile-a"), false);
+  await controller.loadGrants("session-a", "resource-a");
+  assert.equal(controller.selectGrant("session-a", "resource-a", "forged"), false);
+  assert.equal(controller.selectGrant("session-a", "resource-a", "profile-a"), true);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind === "ready" ? snapshot.selected?.displayName : null, "Ana");
+});
+
+test("revoke from loaded grants uses the existing owner-only preflight and DELETE", async () => {
+  const calls: string[] = [];
+  let hasGrant = true;
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async () => ({
+      items: hasGrant
+        ? [{ ...ana, grantedAt: "2026-10-01T12:00:00.000Z" }]
+        : [],
+      nextCursor: null,
+      resourceRevision: 2,
+    }),
+    resource: async () => {
+      calls.push("GET resource");
+      return { resource: resource() };
+    },
+    revoke: async (resourceId, profileId) => {
+      calls.push(`DELETE ${resourceId} ${profileId}`);
+      hasGrant = false;
+    },
+  }));
+  controller.setScope("session-a", resource());
+  await controller.loadGrants("session-a", "resource-a");
+  assert.equal(controller.selectGrant("session-a", "resource-a", "profile-a"), true);
+  assert.equal(await controller.mutate("session-a", "resource-a", "revoke"), true);
+  assert.deepEqual(calls, ["GET resource", "DELETE resource-a profile-a"]);
+
+  await controller.loadGrants("session-a", "resource-a");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(snapshot.grants, []);
+  assert.equal(snapshot.outcome, "revoked");
+});
+
+test("private resources and missing manageShares never query the recipients list", async () => {
+  let requests = 0;
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async () => {
+      requests += 1;
+      return { items: [], nextCursor: null, resourceRevision: 2 };
+    },
+  }));
+  controller.setScope("session-a", resource({ visibility: "private" }));
+  await controller.loadGrants("session-a", "resource-a");
+  controller.setScope("session-a", resource({
+    capabilities: { edit: false, manageShares: false },
+  }));
+  await controller.loadGrants("session-a", "resource-a");
+  assert.equal(requests, 0);
+});
+
+test("a mismatched grants revision blocks stale operations", async () => {
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async () => ({
+      items: [{ ...ana, grantedAt: "2026-10-01T12:00:00.000Z" }],
+      nextCursor: null,
+      resourceRevision: 3,
+    }),
+  }));
+  controller.setScope("session-a", resource());
+  await controller.loadGrants("session-a", "resource-a");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.outcome, "visibility_changed");
+  assert.deepEqual(snapshot.grants, []);
+  assert.equal(controller.selectGrant("session-a", "resource-a", "profile-a"), false);
+});
+
+test("a previous account's delayed page never reaches the new account", async () => {
+  const delayed = deferred<ResourceShareGrantsPage>();
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async () => delayed.promise,
+  }));
+  controller.setScope("session-a", resource());
+  const pending = controller.loadGrants("session-a", "resource-a");
+  controller.setScope("session-b", resource({ id: "resource-b" }));
+  delayed.resolve({
+    items: [{ ...ana, grantedAt: "2026-10-01T12:00:00.000Z" }],
+    nextCursor: null,
+    resourceRevision: 2,
+  });
+  await pending;
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.authorityKey, "session-b");
+  assert.equal(snapshot.resourceId, "resource-b");
+  assert.deepEqual(snapshot.grants, []);
+});
+
+test("stale cursor response requires refreshing the authoritative resource", async () => {
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async () => {
+      throw new ApiRequestError(
+        "conflict",
+        409,
+        "RESOURCE_SHARES_CURSOR_STALE",
+        "Reload grants",
+      );
+    },
+  }));
+  controller.setScope("session-a", resource());
+  await controller.loadGrants("session-a", "resource-a");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind === "ready" ? snapshot.outcome : null, "visibility_changed");
+});
+
+test("failed listing reports error without fabricating granted recipients", async () => {
+  const controller = new MobileResourceDirectSharingController(apiStub({
+    listGrants: async () => {
+      throw new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "Offline");
+    },
+  }));
+  controller.setScope("session-a", resource());
+  await controller.loadGrants("session-a", "resource-a");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.grantsState, "error");
+  assert.equal(snapshot.grantsFailure, "offline");
+  assert.deepEqual(snapshot.grants, []);
 });

@@ -2,6 +2,89 @@ import { MongoResourceStore } from './mongo-resource.store';
 import { ResourceSchema } from './resource.mongo-schemas';
 import { ResourceAssetUnavailableError } from '../domain/resource.store';
 
+describe('MongoResourceStore owner share listing', () => {
+  function shareQuery(rows: Array<{
+    _id: { toHexString(): string };
+    userId: string;
+    createdAt: Date;
+  }>) {
+    const chain = {
+      select: jest.fn(),
+      sort: jest.fn(),
+      limit: jest.fn(),
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(rows),
+    };
+    chain.select.mockReturnValue(chain);
+    chain.sort.mockReturnValue(chain);
+    chain.limit.mockReturnValue(chain);
+    chain.lean.mockReturnValue(chain);
+    return chain;
+  }
+
+  it('reads a bounded resource-scoped page sorted by share document ID', async () => {
+    const rows = Array.from({ length: 3 }, (_, i) => ({
+      _id: { toHexString: () => `507f1f77bcf86cd79943901${i}` },
+      userId: `private-user-${i}`,
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+    }));
+    const chain = shareQuery(rows);
+    const shares = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoResourceStore(
+      {} as never,
+      {} as never,
+      shares as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const page = await store.listShareGrants({
+      resourceId: 'resource-a',
+      limit: 2,
+    });
+    expect(shares.find).toHaveBeenCalledWith({ resourceId: 'resource-a' });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 1,
+      userId: 1,
+      createdAt: 1,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ _id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(page).toEqual({
+      items: [
+        { shareId: '507f1f77bcf86cd799439010', userId: 'private-user-0', createdAt: rows[0]!.createdAt },
+        { shareId: '507f1f77bcf86cd799439011', userId: 'private-user-1', createdAt: rows[1]!.createdAt },
+      ],
+      hasMore: true,
+    });
+  });
+
+  it('continues exclusively after the prior share ID', async () => {
+    const chain = shareQuery([]);
+    const shares = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoResourceStore(
+      {} as never,
+      {} as never,
+      shares as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await store.listShareGrants({
+      resourceId: 'resource-b',
+      limit: 20,
+      after: { shareId: '507f1f77bcf86cd799439011' },
+    });
+    expect(shares.find).toHaveBeenCalledWith({
+      resourceId: 'resource-b',
+      _id: { $gt: expect.anything() },
+    });
+    expect(chain.limit).toHaveBeenCalledWith(21);
+  });
+});
+
 describe('MongoResourceStore saved-resource pagination', () => {
   function savedQuery(rows: Array<{ resourceId: string; createdAt: Date }>) {
     const chain = {

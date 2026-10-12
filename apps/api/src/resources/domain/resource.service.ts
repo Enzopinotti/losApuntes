@@ -32,6 +32,10 @@ import type {
   ResourceRecord,
   ResourceSearchCursor,
 } from './resource.types';
+import {
+  decodeShareGrantCursor,
+  encodeShareGrantCursor,
+} from './resource-shares-cursor';
 
 const RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT = 100;
 
@@ -423,6 +427,60 @@ export class ResourceService {
     }
 
     return { resource: await this.projection(updated, userId) };
+  }
+
+  async listShareGrants(
+    userId: string,
+    resourceId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    const resource = await this.requireOwned(resourceId, userId);
+    if (resource.visibility !== 'shared') {
+      throw new ConflictException({
+        code: 'RESOURCE_SHARE_VISIBILITY_REQUIRED',
+        message: 'Resource must be shared to list explicit access',
+      });
+    }
+
+    const decoded = decodeShareGrantCursor(
+      cursor,
+      resourceId,
+      resource.revision,
+    );
+    const page = await this.store.listShareGrants({
+      resourceId,
+      limit,
+      ...(decoded ? { after: { shareId: decoded.shareId } } : {}),
+    });
+
+    const attributions = await this.profiles.getAttributionsForUsers(
+      page.items.map((item) => item.userId),
+    );
+    const items = page.items.flatMap((grant) => {
+      const profile = attributions.get(grant.userId);
+      if (!profile) return [];
+      return [{
+        profileId: profile.profileId,
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+        grantedAt: grant.createdAt.toISOString(),
+      }];
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items,
+      nextCursor:
+        page.hasMore && last
+          ? encodeShareGrantCursor({
+              resourceId,
+              resourceRevision: resource.revision,
+              shareId: last.shareId,
+            })
+          : null,
+      resourceRevision: resource.revision,
+    };
   }
 
   async grantShare(userId: string, id: string, profileId: string) {

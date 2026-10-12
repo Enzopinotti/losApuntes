@@ -127,6 +127,20 @@ export class ResourceSavedListDto {
   cursor?: string;
 }
 
+export class ResourceShareListDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 20;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
+}
+
 export class CreateResourceReportDto {
   @IsIn(RESOURCE_REPORT_REASONS)
   reason!: ResourceReportReason;

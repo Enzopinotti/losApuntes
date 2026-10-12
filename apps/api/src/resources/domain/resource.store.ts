@@ -28,6 +28,19 @@ export type UpdateResourceRecord = Partial<
   >
 >;
 
+export type ResourceShareGrantCursor = {
+  shareId: string;
+};
+
+export type ResourceShareGrantPage = {
+  items: Array<{
+    shareId: string;
+    userId: string;
+    createdAt: Date;
+  }>;
+  hasMore: boolean;
+};
+
 export type SavedResourceCursor = {
   createdAt: Date;
   resourceId: string;
@@ -52,6 +65,11 @@ export interface ResourceStore {
     expectedRevision: number,
     patch: UpdateResourceRecord,
   ): Promise<ResourceRecord | null>; // Clears explicit shares atomically when visibility leaves shared.
+  listShareGrants(input: {
+    resourceId: string;
+    limit: number;
+    after?: ResourceShareGrantCursor;
+  }): Promise<ResourceShareGrantPage>;
   hasShare(resourceId: string, userId: string): Promise<boolean>;
   upsertShare(resourceId: string, userId: string): Promise<void>;
   removeShare(resourceId: string, userId: string): Promise<void>;

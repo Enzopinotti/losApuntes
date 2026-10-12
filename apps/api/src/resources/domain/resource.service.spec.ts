@@ -63,6 +63,7 @@ function store(): jest.Mocked<ResourceStore> {
     findById: jest.fn(),
     findManyByIds: jest.fn(),
     updateOwned: jest.fn(),
+    listShareGrants: jest.fn(),
     hasShare: jest.fn(),
     upsertShare: jest.fn(),
     removeShare: jest.fn(),
@@ -86,6 +87,7 @@ type AcademicApi = Pick<
 type ProfileApi = Pick<
   ProfileService,
   | 'getAttributionForUser'
+  | 'getAttributionsForUsers'
   | 'resolveUserIdByProfileId'
   | 'getProfileIdsForAccountExport'
 >;
@@ -105,6 +107,7 @@ function dependencies() {
   };
   const profiles: jest.Mocked<ProfileApi> = {
     getAttributionForUser: jest.fn(),
+    getAttributionsForUsers: jest.fn(),
     resolveUserIdByProfileId: jest.fn(),
     getProfileIdsForAccountExport: jest.fn(),
   };
@@ -157,6 +160,146 @@ function projectionDeps(deps: ReturnType<typeof dependencies>) {
 }
 
 describe('ResourceService', () => {
+  describe('owner-only share grants listing', () => {
+    const resourceId = resource().id;
+
+    it('rejects another user before querying or revealing recipients', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.findById.mockResolvedValue(resource({
+        visibility: 'shared',
+      }));
+
+      await expect(
+        service(resourceStore, deps).listShareGrants('intruder', resourceId, 20),
+      ).rejects.toThrow(NotFoundException);
+      expect(resourceStore.listShareGrants).not.toHaveBeenCalled();
+      expect(deps.profiles.getAttributionsForUsers).not.toHaveBeenCalled();
+    });
+
+    it('blocks listing when resource is no longer shared', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.findById.mockResolvedValue(resource({
+        visibility: 'private',
+      }));
+
+      await expect(
+        service(resourceStore, deps).listShareGrants('author-1', resourceId, 20),
+      ).rejects.toThrow(ConflictException);
+      expect(resourceStore.listShareGrants).not.toHaveBeenCalled();
+    });
+
+    it('returns public profile data only and hides internal user identifiers', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.findById.mockResolvedValue(resource({
+        visibility: 'shared',
+        revision: 7,
+      }));
+      resourceStore.listShareGrants.mockResolvedValue({
+        items: [
+          {
+            shareId: '507f1f77bcf86cd799439011',
+            userId: 'internal-user-1',
+            createdAt: now,
+          },
+          {
+            shareId: '507f1f77bcf86cd799439012',
+            userId: 'internal-user-2',
+            createdAt: now,
+          },
+        ],
+        hasMore: true,
+      });
+      deps.profiles.getAttributionsForUsers.mockResolvedValue(new Map([
+        [
+          'internal-user-1',
+          {
+            profileId: 'public-profile-1',
+            displayName: 'Lucía',
+            avatarUrl: null,
+          },
+        ],
+        [
+          'internal-user-2',
+          {
+            profileId: 'public-profile-2',
+            displayName: 'Usuario de Los Apuntes',
+            avatarUrl: null,
+          },
+        ],
+      ]));
+
+      const result = await service(resourceStore, deps).listShareGrants(
+        'author-1',
+        resourceId,
+        2,
+      );
+      expect(result.items).toEqual([
+        {
+          profileId: 'public-profile-1',
+          displayName: 'Lucía',
+          avatarUrl: null,
+          grantedAt: now.toISOString(),
+        },
+        {
+          profileId: 'public-profile-2',
+          displayName: 'Usuario de Los Apuntes',
+          avatarUrl: null,
+          grantedAt: now.toISOString(),
+        },
+      ]);
+      expect(result.resourceRevision).toBe(7);
+      expect(result.nextCursor).toEqual(expect.any(String));
+      expect(JSON.stringify(result)).not.toContain('internal-user');
+      expect(resourceStore.listShareGrants).toHaveBeenCalledWith({
+        resourceId,
+        limit: 2,
+      });
+      expect(deps.profiles.getAttributionsForUsers)
+        .toHaveBeenCalledWith(['internal-user-1', 'internal-user-2']);
+    });
+
+    it('resumes pagination by share document, not user identity', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.findById.mockResolvedValue(resource({
+        visibility: 'shared',
+        revision: 2,
+      }));
+      resourceStore.listShareGrants.mockResolvedValue({
+        items: [{
+          shareId: '507f1f77bcf86cd799439013',
+          userId: 'internal-user-3',
+          createdAt: now,
+        }],
+        hasMore: false,
+      });
+      deps.profiles.getAttributionsForUsers.mockResolvedValue(new Map());
+      const cursor = Buffer.from(JSON.stringify({
+        v: 1,
+        resourceId,
+        resourceRevision: 2,
+        shareId: '507f1f77bcf86cd799439011',
+      }), 'utf8').toString('base64url');
+
+      const result = await service(resourceStore, deps).listShareGrants(
+        'author-1',
+        resourceId,
+        10,
+        cursor,
+      );
+      expect(resourceStore.listShareGrants).toHaveBeenCalledWith({
+        resourceId,
+        limit: 10,
+        after: { shareId: '507f1f77bcf86cd799439011' },
+      });
+      expect(result.items).toEqual([]);
+      expect(result.nextCursor).toBeNull();
+    });
+  });
+
   it('exports only bounded owner-authored metadata, including private and hidden history', async () => {
     const resourceStore = store();
     const deps = dependencies();

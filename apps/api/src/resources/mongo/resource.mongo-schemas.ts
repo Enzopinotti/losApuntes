@@ -89,6 +89,7 @@ export class ResourceShare {
 
 export const ResourceShareSchema = SchemaFactory.createForClass(ResourceShare);
 ResourceShareSchema.index({ resourceId: 1, userId: 1 }, { unique: true });
+ResourceShareSchema.index({ resourceId: 1, _id: 1 });
 ResourceShareSchema.index({ userId: 1, createdAt: -1 });
 
 @Schema({ collection: 'resource_saves', timestamps: true })

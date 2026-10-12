@@ -27,6 +27,18 @@ function setup(options: { authorized?: boolean; sessionChanged?: boolean } = {})
     request: async (path: string, requestOptions: Record<string, unknown>) => {
       calls.push({ path, options: requestOptions });
       if (requestOptions.method === "PUT") return { shared: true };
+      if (requestOptions.method === undefined) {
+        return {
+          items: [{
+            profileId: "recipient-profile",
+            displayName: "Ana",
+            avatarUrl: null,
+            grantedAt: "2026-10-12T00:00:00.000Z",
+          }],
+          nextCursor: null,
+          resourceRevision: 4,
+        };
+      }
       return undefined;
     },
   } as unknown as MobileApiClient;
@@ -120,4 +132,41 @@ test("a changed credential rejects a late acknowledgement", async () => {
     error.code === "STALE_SESSION_AUTHORITY",
   );
   assert.equal(invalidations(), 1);
+});
+
+test("owner grants listing uses authenticated paginated GET with an opaque cursor", async () => {
+  const { api, calls } = setup();
+  const page = await api.listGrants("resource-a", "cursor-value");
+  assert.equal(page.items[0]?.profileId, "recipient-profile");
+  assert.equal(page.resourceRevision, 4);
+  assert.deepEqual(calls, [{
+    path: "/resources/resource-a/shares?limit=20&cursor=cursor-value",
+    options: { credential: "secret-token" },
+  }]);
+});
+
+test("grants listing forwards abort signal and never requests without a session", async () => {
+  const enabled = setup();
+  const signal = new AbortController().signal;
+  await enabled.api.listGrants("resource-a", undefined, signal);
+  assert.equal(enabled.calls[0]?.options.signal, signal);
+
+  const denied = setup({ authorized: false });
+  await assert.rejects(
+    () => denied.api.listGrants("resource-a"),
+    (error: unknown) =>
+      error instanceof ApiRequestError &&
+      error.code === "AUTHENTICATION_REQUIRED",
+  );
+  assert.deepEqual(denied.calls, []);
+});
+
+test("list response from a previous credential is rejected", async () => {
+  const { api } = setup({ sessionChanged: true });
+  await assert.rejects(
+    () => api.listGrants("resource-a"),
+    (error: unknown) =>
+      error instanceof ApiRequestError &&
+      error.code === "STALE_SESSION_AUTHORITY",
+  );
 });

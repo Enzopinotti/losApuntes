@@ -27,6 +27,7 @@ import {
   ResourceAccessDto,
   ResourceSavedListDto,
   ResourceSearchDto,
+  ResourceShareListDto,
   UpdateResourceDto,
 } from './dto/resource.dto';
 import { ResourceService } from './domain/resource.service';
@@ -90,6 +91,22 @@ export class ResourcesController {
       request.user.id,
       id,
       dto.disposition,
+    );
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get(':id/shares')
+  @Header('Cache-Control', 'private, no-store')
+  shares(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Query() query: ResourceShareListDto,
+  ) {
+    return this.resources.listShareGrants(
+      request.user.id,
+      id,
+      query.limit,
+      query.cursor,
     );
   }
 

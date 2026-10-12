@@ -56,6 +56,32 @@ export function ResourceDirectSharingPanel({
     !busy &&
     current?.outcome !== "visibility_changed" &&
     validSharePeopleQuery(query);
+  const selectedHasAccess = Boolean(
+    selected &&
+      current?.grants.some((grant) => grant.profileId === selected.profileId),
+  );
+
+  useEffect(() => {
+    if (
+      authorityKey &&
+      current &&
+      resource.visibility === "shared" &&
+      current.grantsState === "idle" &&
+      current.outcome !== "visibility_changed" &&
+      !current.busy
+    ) {
+      void controller.loadGrants(authorityKey, resource.id);
+    }
+  }, [
+    authorityKey,
+    controller,
+    current?.busy,
+    current?.grantsState,
+    current?.outcome,
+    resource.id,
+    resource.visibility,
+    resource.revision,
+  ]);
 
   useEffect(() => {
     setQuery("");
@@ -99,10 +125,105 @@ export function ResourceDirectSharingPanel({
       ) : (
         <>
           <Text style={styles.info}>
-            Buscá una persona y elegila para conceder o revocar su acceso.
-            Solo se muestran resultados del directorio, no una lista
-            completa de permisos ya concedidos.
+            Consultá las personas que tienen acceso vigente y revocá permisos
+            desde la lista. También podés buscar otro destinatario y concederle
+            acceso.
           </Text>
+          <Text accessibilityRole="header" style={styles.heading}>
+            Personas con acceso
+          </Text>
+          {current?.grantsState === "loading" ? (
+            <View style={styles.row}>
+              <ActivityIndicator accessibilityLabel="Cargando accesos" />
+              <Text style={styles.info}>Consultando permisos…</Text>
+            </View>
+          ) : null}
+          {current?.grantsState === "error" ? (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {failureCopy[current.grantsFailure ?? "error"]}
+            </Text>
+          ) : null}
+          {current?.grantsState === "ready" ? (
+            <>
+              <Text style={styles.info}>
+                {current.grants.length === 0
+                  ? "Todavía no se encontraron personas con acceso."
+                  : `${current.grants.length} personas con acceso cargadas.`}
+                {current.grantsNextCursor
+                  ? " Quedan más permisos por consultar."
+                  : ""}
+              </Text>
+              <View style={styles.people}>
+                {current.grants.map((grant) => (
+                  <Pressable
+                    key={grant.profileId}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Administrar acceso de ${grant.displayName}`}
+                    disabled={busy}
+                    onPress={() => {
+                      if (!authorityKey) return;
+                      controller.selectGrant(
+                        authorityKey,
+                        resource.id,
+                        grant.profileId,
+                      );
+                      setConfirmRevoke(false);
+                    }}
+                    style={[
+                      styles.person,
+                      selected?.profileId === grant.profileId &&
+                        styles.selected,
+                    ]}
+                  >
+                    <Text style={styles.personName}>{grant.displayName}</Text>
+                    <Text style={styles.info}>
+                      Permiso concedido:{" "}
+                      {new Date(grant.grantedAt).toLocaleDateString("es-AR")}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {current.grantsNextCursor ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Cargar más personas con acceso"
+                  disabled={!authorityKey || busy}
+                  onPress={() => {
+                    if (authorityKey) {
+                      void controller.loadGrants(
+                        authorityKey,
+                        resource.id,
+                        true,
+                      );
+                    }
+                  }}
+                  style={[
+                    styles.secondaryButton,
+                    (!authorityKey || busy) && styles.disabled,
+                  ]}
+                >
+                  <Text style={styles.buttonLabel}>Cargar más accesos</Text>
+                </Pressable>
+              ) : null}
+            </>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Actualizar personas con acceso"
+            disabled={!authorityKey || busy || current?.grantsState === "loading"}
+            onPress={() => {
+              if (authorityKey) {
+                void controller.loadGrants(authorityKey, resource.id);
+              }
+            }}
+            style={[
+              styles.secondaryButton,
+              (!authorityKey || busy || current?.grantsState === "loading") &&
+                styles.disabled,
+            ]}
+          >
+            <Text style={styles.buttonLabel}>Actualizar accesos</Text>
+          </Pressable>
           <Text style={styles.label}>Buscar personas</Text>
           <TextInput
             accessibilityLabel="Buscar destinatarios para compartir"
@@ -213,22 +334,28 @@ export function ResourceDirectSharingPanel({
                 </Text>
               ) : null}
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Conceder acceso a ${selected.displayName}`}
-                disabled={!authorityKey || busy}
-                onPress={() => mutate("grant")}
-                style={[
-                  styles.primaryButton,
-                  (!authorityKey || busy) && styles.disabled,
-                ]}
-              >
-                {current?.busy === "grant" ? (
-                  <ActivityIndicator accessibilityLabel="Concediendo acceso" />
-                ) : (
-                  <Text style={styles.primaryLabel}>Conceder acceso</Text>
-                )}
-              </Pressable>
+              {selectedHasAccess ? (
+                <Text style={styles.success}>
+                  Esta persona figura entre los permisos cargados.
+                </Text>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Conceder acceso a ${selected.displayName}`}
+                  disabled={!authorityKey || busy}
+                  onPress={() => mutate("grant")}
+                  style={[
+                    styles.primaryButton,
+                    (!authorityKey || busy) && styles.disabled,
+                  ]}
+                >
+                  {current?.busy === "grant" ? (
+                    <ActivityIndicator accessibilityLabel="Concediendo acceso" />
+                  ) : (
+                    <Text style={styles.primaryLabel}>Conceder acceso</Text>
+                  )}
+                </Pressable>
+              )>
 
               <Pressable
                 accessibilityRole="checkbox"

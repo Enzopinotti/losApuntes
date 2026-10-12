@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, FilterQuery, Model } from 'mongoose';
+import { Types, type Connection, type FilterQuery, type Model } from 'mongoose';
 
 import type { FileAssetRecord } from '../../files/domain/file.types';
 import { FileAsset } from '../../files/mongo/file.mongo-schema';
@@ -188,6 +188,38 @@ export class MongoResourceStore implements ResourceStore {
     } finally {
       await session.endSession();
     }
+  }
+
+  async listShareGrants(
+    input: Parameters<ResourceStore['listShareGrants']>[0],
+  ): ReturnType<ResourceStore['listShareGrants']> {
+    const rows = await this.shares
+      .find({
+        resourceId: input.resourceId,
+        ...(input.after
+          ? { _id: { $gt: new Types.ObjectId(input.after.shareId) } }
+          : {}),
+      })
+      .select({ _id: 1, userId: 1, createdAt: 1 })
+      .sort({ _id: 1 })
+      .limit(input.limit + 1)
+      .lean<
+        Array<{
+          _id: Types.ObjectId;
+          userId: string;
+          createdAt: Date;
+        }>
+      >()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit).map((row) => ({
+        shareId: row._id.toHexString(),
+        userId: row.userId,
+        createdAt: row.createdAt,
+      })),
+      hasMore: rows.length > input.limit,
+    };
   }
 
   async hasShare(resourceId: string, userId: string): Promise<boolean> {

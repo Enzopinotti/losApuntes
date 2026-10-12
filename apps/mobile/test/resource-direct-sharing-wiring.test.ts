@@ -54,7 +54,7 @@ test("sharing UI exposes real people-search results and confirms revocation", ()
   assert.match(detail, /onRefresh=\{retry\}/u);
 });
 
-test("sharing API uses authenticated profile routes without a fake grants list", () => {
+test("sharing API uses real authenticated grants and recipient routes", () => {
   const api = source(
     "../src/features/resources/resource-direct-sharing-api.ts",
   );
@@ -66,7 +66,26 @@ test("sharing API uses authenticated profile routes without a fake grants list",
   assert.match(api, /encodeURIComponent\(profileId\)/u);
   assert.match(api, /isCredentialAuthoritative/u);
   assert.match(runtime, /mobileResourceDirectSharingApi/u);
-  assert.doesNotMatch(api, /GET.*shares.*list/u);
+  assert.match(api, /listGrants\(/u);
+  assert.match(api, /this\.client\.request<ResourceShareGrantsPage>/u);
+});
+
+test("recipient grants panel displays authorized pages and explicit revoke", () => {
+  const panel = source(
+    "../src/features/resources/resource-direct-sharing-panel.tsx",
+  );
+  const controller = source(
+    "../src/features/resources/resource-direct-sharing-controller.ts",
+  );
+
+  assert.match(panel, /Personas con acceso/u);
+  assert.match(panel, /current\.grants\.map/u);
+  assert.match(panel, /controller\.selectGrant\(/u);
+  assert.match(panel, /Cargar más accesos/u);
+  assert.match(panel, /Actualizar accesos/u);
+  assert.match(controller, /this\.api\.listGrants\(/u);
+  assert.match(controller, /result\.resourceRevision !== latest\.revision/u);
+  assert.match(controller, /this\.abortGrants\(\)/u);
 });
 
 test("sharing refuses changing permissions of non-shared or stale revisions", () => {
