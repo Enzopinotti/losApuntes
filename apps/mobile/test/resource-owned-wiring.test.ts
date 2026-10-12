@@ -43,10 +43,10 @@ test("filters and next-page controls use the API rather than local-only filterin
 
 test("owner endpoint uses verified identity and authorization before projection", () => {
   const routes = file(
-    "../../../api/src/resources/resources.controller.ts",
+    "../../api/src/resources/resources.controller.ts",
   );
   const store = file(
-    "../../../api/src/resources/mongo/mongo-resource.store.ts",
+    "../../api/src/resources/mongo/mongo-resource.store.ts",
   );
   assert.match(routes, /@Get\('mine'\)/u);
   assert.match(routes, /@Header\('Cache-Control', 'private, no-store'\)/u);
