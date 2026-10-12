@@ -51,9 +51,11 @@ import {
 import {
   hasActionableHomeContent,
   homeFeedItemAction,
+  homeFeedAuthorAction,
   homeFeedExploreAction,
   homeFirstValueActions,
   type HomeFeedItemAction,
+  type HomeFeedAuthorAction,
   type HomeFeedExploreAction,
   type HomeFirstValueAction,
 } from "./home-first-value";
@@ -106,32 +108,37 @@ function FeedAvatar({ name, uri }: { name: string; uri: string | null }) {
 function FeedItemRow({
   item,
   onOpen,
+  onOpenAuthor,
 }: {
   item: FeedItem;
   onOpen: (action: HomeFeedItemAction) => void;
+  onOpenAuthor: (action: HomeFeedAuthorAction) => void;
 }) {
   const action = homeFeedItemAction(item);
+  const authorAction = homeFeedAuthorAction(item);
   const author = sourceLabel(item);
   const avatarUrl = homeFeedAvatarUrl(item);
   const reasonLabels = homeFeedReasonLabels(item.why);
   const reasonSummary = homeFeedReasonAccessibilitySummary(item.why);
   const verificationLabel = homeFeedOrganizationVerificationLabel(item.source);
-  const content = (
+  const authorHeader = (
     <>
-      <View style={styles.itemHeader}>
-        <FeedAvatar name={author} uri={avatarUrl} />
-        <View style={styles.itemAuthor}>
-          <Text numberOfLines={1} style={styles.itemAuthorName}>
-            {author}
-          </Text>
-          <Text style={styles.itemKind}>
-            {itemKindLabel(item)} · {publishedDateLabel(item.createdAt)}
-          </Text>
-          {verificationLabel ? (
-            <Text style={styles.verificationLabel}>{verificationLabel}</Text>
-          ) : null}
-        </View>
+      <FeedAvatar name={author} uri={avatarUrl} />
+      <View style={styles.itemAuthor}>
+        <Text numberOfLines={1} style={styles.itemAuthorName}>
+          {author}
+        </Text>
+        <Text style={styles.itemKind}>
+          {itemKindLabel(item)} · {publishedDateLabel(item.createdAt)}
+        </Text>
+        {verificationLabel ? (
+          <Text style={styles.verificationLabel}>{verificationLabel}</Text>
+        ) : null}
       </View>
+    </>
+  );
+  const itemContent = (
+    <>
       <Text style={styles.itemTitle}>{item.title}</Text>
       {item.academic.subject ? (
         <Text style={styles.itemMeta}>{item.academic.subject.name}</Text>
@@ -162,26 +169,46 @@ function FeedItemRow({
     </>
   );
 
-  if (!action) return <View style={styles.feedItem}>{content}</View>;
-
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        reasonSummary
-          ? `${action.accessibilityLabel}. ${reasonSummary}`
-          : action.accessibilityLabel
-      }
-      accessibilityHint={action.accessibilityHint}
-      onPress={() => onOpen(action)}
-      style={({ pressed }) => [
-        styles.feedItem,
-        styles.feedItemAction,
-        pressed && styles.feedItemPressed,
-      ]}
-    >
-      {content}
-    </Pressable>
+    <View style={styles.feedItem}>
+      {authorAction ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={authorAction.accessibilityLabel}
+          accessibilityHint={authorAction.accessibilityHint}
+          onPress={() => onOpenAuthor(authorAction)}
+          style={({ pressed }) => [
+            styles.itemHeader,
+            styles.itemAuthorAction,
+            pressed && styles.feedItemPressed,
+          ]}
+        >
+          {authorHeader}
+        </Pressable>
+      ) : (
+        <View style={styles.itemHeader}>{authorHeader}</View>
+      )}
+      {action ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            reasonSummary
+              ? `${action.accessibilityLabel}. ${reasonSummary}`
+              : action.accessibilityLabel
+          }
+          accessibilityHint={action.accessibilityHint}
+          onPress={() => onOpen(action)}
+          style={({ pressed }) => [
+            styles.itemContentAction,
+            pressed && styles.feedItemPressed,
+          ]}
+        >
+          {itemContent}
+        </Pressable>
+      ) : (
+        itemContent
+      )}
+    </View>
   );
 }
 
@@ -190,6 +217,7 @@ function FeedSection({
   feed,
   surface,
   onOpen,
+  onOpenAuthor,
   onExplore,
   onRetryMore,
   onRefresh,
@@ -200,6 +228,7 @@ function FeedSection({
   feed: FeedPageResponse;
   surface: "subjects" | "community" | "for_you";
   onOpen: (action: HomeFeedItemAction) => void;
+  onOpenAuthor: (action: HomeFeedAuthorAction) => void;
   onExplore: (action: HomeFeedExploreAction) => void;
   onRetryMore: () => void;
   onRefresh: () => void;
@@ -226,6 +255,7 @@ function FeedSection({
             key={`${item.type}:${item.id}`}
             item={item}
             onOpen={onOpen}
+            onOpenAuthor={onOpenAuthor}
           />
         ))
       )}
@@ -424,6 +454,10 @@ export function HomeScreen() {
 
   const openFeedItem = useCallback(
     (action: HomeFeedItemAction) => router.push(action.href),
+    [router],
+  );
+  const openFeedAuthor = useCallback(
+    (action: HomeFeedAuthorAction) => router.push(action.href),
     [router],
   );
   const navigateFirstValueAction = useCallback(
@@ -812,6 +846,7 @@ export function HomeScreen() {
           feed={data.homeFeed}
           surface={data.homeFeed.kind}
           onOpen={openFeedItem}
+          onOpenAuthor={openFeedAuthor}
           onExplore={navigateFeedExplore}
           onRetryMore={() => loadMoreFeed("home")}
           onRefresh={refresh}
@@ -824,6 +859,7 @@ export function HomeScreen() {
           feed={data.forYou}
           surface="for_you"
           onOpen={openFeedItem}
+          onOpenAuthor={openFeedAuthor}
           onExplore={navigateFeedExplore}
           onRetryMore={() => loadMoreFeed("for_you")}
           onRefresh={refresh}
@@ -995,8 +1031,15 @@ const styles = StyleSheet.create({
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
   },
-  feedItemAction: {
-    minHeight: 48,
+  itemAuthorAction: {
+    minHeight: 44,
+    borderRadius: 8,
+  },
+  itemContentAction: {
+    gap: 8,
+    minHeight: 44,
+    borderRadius: 8,
+    justifyContent: "center",
   },
   feedItemPressed: {
     backgroundColor: "#f8f6fc",
