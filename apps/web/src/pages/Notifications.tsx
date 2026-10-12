@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { NotificationView } from "../features/community/interfaces";
+import { notificationTargetPath } from "../features/community/notification-navigation.mjs";
 import {
   communityApi,
   isCommunityApiError,
@@ -21,20 +22,13 @@ const labels: Record<NotificationView["type"], string> = {
   "qa.answer_accepted": "aceptó tu respuesta",
 };
 
-function targetPath(item: NotificationView): string | null {
-  if (item.target.type === "profile") return `/p/${item.target.id}`;
-  if (item.target.type === "question") return `/questions?id=${item.target.id}`;
-  if (item.target.type === "answer") return "/questions";
-  if (item.target.type === "connection") return "/network";
-  return null;
-}
-
 function messageFor(error: unknown, fallback: string): string {
   return isCommunityApiError(error) ? error.message : fallback;
 }
 
 const Notifications = () => {
   const { status, user, session } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState<NotificationView[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadedPages, setLoadedPages] = useState(1);
@@ -43,6 +37,10 @@ const Notifications = () => {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+  const [openingState, setOpeningState] = useState<{
+    scopeKey: string;
+    notificationId: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const firstPagePendingRef = useRef(false);
   const consumedReconcileTickRef = useRef(0);
@@ -65,6 +63,10 @@ const Notifications = () => {
   } = useAsyncAuthorityFence(`notifications-action:${authorityScope}`);
 
   const busy = loadingMore || actionBusy;
+  const openingNotificationId =
+    openingState?.scopeKey === authorityScope
+      ? openingState.notificationId
+      : null;
 
   const loadFirstPage = useCallback(async () => {
     const ticket = beginListRequest();
@@ -180,6 +182,7 @@ const Notifications = () => {
   useEffect(() => {
     setActionBusy(false);
     setLoadingMore(false);
+    setOpeningState(null);
   }, [authorityScope]);
 
   useEffect(() => {
@@ -265,7 +268,7 @@ const Notifications = () => {
     setError(null);
 
     try {
-      await communityApi.markNotificationRead(id);
+      await communityApi.markNotificationRead(id, ticket.signal);
       if (!isActionRequestCurrent(ticket)) return;
       setReconcileTick((current) => current + 1);
     } catch (nextError) {
@@ -282,7 +285,7 @@ const Notifications = () => {
     setError(null);
 
     try {
-      await communityApi.markAllNotificationsRead();
+      await communityApi.markAllNotificationsRead(ticket.signal);
       if (!isActionRequestCurrent(ticket)) return;
       setReconcileTick((current) => current + 1);
     } catch (nextError) {
@@ -292,6 +295,44 @@ const Notifications = () => {
       );
     } finally {
       if (finishActionRequest(ticket)) setActionBusy(false);
+    }
+  };
+
+  const acknowledgeAndOpen = async (item: NotificationView, target: string) => {
+    if (actionBusy) return;
+
+    const ticket = beginActionRequest();
+    setActionBusy(true);
+    setOpeningState({ scopeKey: authorityScope, notificationId: item.id });
+    setError(null);
+
+    try {
+      const result = await communityApi.markNotificationRead(
+        item.id,
+        ticket.signal,
+      );
+      if (result.read !== true) {
+        throw new Error("Unexpected notification read response");
+      }
+      if (!isActionRequestCurrent(ticket)) return;
+      setReconcileTick((current) => current + 1);
+      navigate(target);
+    } catch (nextError) {
+      if (!isActionRequestCurrent(ticket)) return;
+      setError(
+        messageFor(
+          nextError,
+          "No pudimos confirmar la lectura. Seguís en Notificaciones.",
+        ),
+      );
+    } finally {
+      if (finishActionRequest(ticket)) setActionBusy(false);
+      setOpeningState((current) =>
+        current?.scopeKey === authorityScope &&
+        current.notificationId === item.id
+          ? null
+          : current,
+      );
     }
   };
 
@@ -335,7 +376,7 @@ const Notifications = () => {
           <>
             <ul className="community-list">
               {items.map((item) => {
-                const target = targetPath(item);
+                const target = notificationTargetPath(item.target);
                 return (
                   <li key={item.id} className={item.readAt ? "" : "unread"}>
                     <div>
@@ -344,7 +385,40 @@ const Notifications = () => {
                         {labels[item.type]}
                       </strong>
                       <small>{new Date(item.createdAt).toLocaleString()}</small>
-                      {target && <Link to={target}>Abrir</Link>}
+                      {target ? (
+                        <Link
+                          to={target}
+                          aria-disabled={actionBusy || undefined}
+                          onClick={(event) => {
+                            if (
+                              event.button !== 0 ||
+                              event.metaKey ||
+                              event.ctrlKey ||
+                              event.shiftKey ||
+                              event.altKey ||
+                              event.defaultPrevented
+                            ) {
+                              return;
+                            }
+                            if (actionBusy) {
+                              event.preventDefault();
+                              return;
+                            }
+                            if (!item.readAt) {
+                              event.preventDefault();
+                              void acknowledgeAndOpen(item, target);
+                            }
+                          }}
+                        >
+                          {openingNotificationId === item.id
+                            ? "Abriendo…"
+                            : "Abrir"}
+                        </Link>
+                      ) : (
+                        <small>
+                          Esta notificación no tiene un destino navegable.
+                        </small>
+                      )}
                     </div>
                     {!item.readAt && (
                       <button
