@@ -536,26 +536,51 @@ export class ResourceService {
     };
   }
 
+  async listOwnedSubjects(userId: string) {
+    const page = await this.store.listOwnedSubjects(userId);
+    return {
+      items: await Promise.all(
+        page.items.map(async (row) => {
+          const { node } = await this.academic.getCatalogNode(row.subjectId);
+          return {
+            subjectId: row.subjectId,
+            name: node.name,
+            count: row.count,
+          };
+        }),
+      ),
+      truncated: page.truncated,
+    };
+  }
+
   async listOwned(
     userId: string,
     input: {
       limit: number;
       visibility?: ResourceRecord['visibility'];
+      q?: string;
+      subjectId?: string;
+      order?: 'newest' | 'oldest';
       cursor?: string;
     },
   ) {
+    const q = input.q ? normalized(input.q) : undefined;
+    const filters = {
+      ...(q ? { q } : {}),
+      ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+      ...(input.order ? { order: input.order } : {}),
+    };
+    const after = decodeOwnedResourceCursor(
+      input.cursor,
+      input.visibility,
+      filters,
+    );
     const page = await this.store.listOwnedResources({
       authorUserId: userId,
       limit: input.limit,
       ...(input.visibility ? { visibility: input.visibility } : {}),
-      ...(input.cursor
-        ? {
-            after: decodeOwnedResourceCursor(
-              input.cursor,
-              input.visibility,
-            ),
-          }
-        : {}),
+      ...filters,
+      ...(after ? { after } : {}),
     });
     const last = page.items.at(-1);
     return {
@@ -567,6 +592,7 @@ export class ResourceService {
           ? encodeOwnedResourceCursor(
               { createdAt: last.createdAt, id: last.id },
               input.visibility,
+              filters,
             )
           : null,
     };
