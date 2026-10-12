@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ResourceView, SearchPersonResult } from "@losapuntes/contracts";
+import type {
+  ResourceShareGrantsPage,
+  ResourceView,
+  SearchPersonResult,
+} from "@losapuntes/contracts";
 
 import { ApiRequestError } from "../src/services/api/client";
 import {
@@ -562,11 +566,7 @@ test("a mismatched grants revision blocks stale operations", async () => {
 });
 
 test("a previous account's delayed page never reaches the new account", async () => {
-  const delayed = deferred<{
-    items: Array<{ profileId: string; displayName: string; avatarUrl: null; grantedAt: string }>;
-    nextCursor: null;
-    resourceRevision: number;
-  }>();
+  const delayed = deferred<ResourceShareGrantsPage>();
   const controller = new MobileResourceDirectSharingController(apiStub({
     listGrants: async () => delayed.promise,
   }));
