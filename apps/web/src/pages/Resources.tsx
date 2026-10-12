@@ -12,7 +12,10 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
-import { feedReturnHref } from "../features/feeds/feed-navigation.mjs";
+import {
+  feedReturnHref,
+  feedReturnRestoreState,
+} from "../features/feeds/feed-navigation.mjs";
 import type {
   AcademicSubjectOption,
   ResourceView,
@@ -1024,7 +1027,11 @@ const Resources = () => {
           </p>
         </div>
         {resourceId ? (
-          <Link className="resources-back-link" to={feedReturnTo}>
+          <Link
+            className="resources-back-link"
+            to={feedReturnTo}
+            state={feedReturnRestoreState(location.state)}
+          >
             {feedReturnTo === "/" ? "Volver a Inicio" : "Volver al feed"}
           </Link>
         ) : authenticated ? (

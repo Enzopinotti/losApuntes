@@ -17,7 +17,10 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
-import { feedReturnHref } from "../features/feeds/feed-navigation.mjs";
+import {
+  feedReturnHref,
+  feedReturnRestoreState,
+} from "../features/feeds/feed-navigation.mjs";
 import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
@@ -793,6 +796,7 @@ const Questions = () => {
                   <Link
                     className="community-back-link"
                     to={feedReturnTo}
+                    state={feedReturnRestoreState(location.state)}
                     replace
                   >
                     {feedReturnTo === "/"
