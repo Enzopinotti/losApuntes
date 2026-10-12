@@ -85,6 +85,9 @@ function Landing() {
 
 const Home = () => {
   const { status, user, session } = useAuth();
+  const [activeHomeFeed, setActiveHomeFeed] = useState<
+    "contextual" | "for-you"
+  >("contextual");
   const authScopeKey = [
     status,
     user?.id ?? "anonymous",
@@ -173,6 +176,12 @@ const Home = () => {
     snapshot?.academic.currentSubjectIds.length === 0 &&
     (snapshot.lifecycle.phase === "alumni" ||
       snapshot.lifecycle.phase === "mixed");
+  const contextualFeedTitle =
+    snapshot?.homeFeed.kind === "community"
+      ? "Universidad y comunidad"
+      : "Mis materias";
+  const activeFeedTitle =
+    activeHomeFeed === "contextual" ? contextualFeedTitle : "Para vos";
 
   return (
     <section className="pilot-page" aria-labelledby="pilot-home-title">
@@ -250,19 +259,34 @@ const Home = () => {
             </section>
           )}
 
-          <div className="pilot-grid">
+          <div className="pilot-home-feed">
+            <div
+              className="pilot-feed-intents"
+              role="group"
+              aria-label="Elegir feed de inicio"
+            >
+              <button
+                type="button"
+                aria-pressed={activeHomeFeed === "contextual"}
+                onClick={() => setActiveHomeFeed("contextual")}
+              >
+                {contextualFeedTitle}
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeHomeFeed === "for-you"}
+                onClick={() => setActiveHomeFeed("for-you")}
+              >
+                Para vos
+              </button>
+            </div>
             <FeedPreview
-              title={
-                snapshot.homeFeed.kind === "community"
-                  ? "Universidad y comunidad"
-                  : "Mis materias"
+              title={activeFeedTitle}
+              items={
+                activeHomeFeed === "contextual"
+                  ? snapshot.homeFeed.items
+                  : snapshot.forYou.items
               }
-              items={snapshot.homeFeed.items}
-              moreTo="/feeds"
-            />
-            <FeedPreview
-              title="Para vos"
-              items={snapshot.forYou.items}
               moreTo="/feeds"
             />
           </div>

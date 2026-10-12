@@ -66,11 +66,40 @@
   gap: 0.15rem;
 }
 
-.pilot-grid,
 .pilot-metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.pilot-feed-intents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.pilot-feed-intents button {
+  min-height: 44px;
+  padding: 0.65rem 0.95rem;
+  border: 1px solid #cfcfd8;
+  border-radius: 999px;
+  background: #fff;
+  color: #25255c;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pilot-feed-intents button[aria-pressed="true"] {
+  border-color: #25255c;
+  background: #25255c;
+  color: #fff;
+}
+
+.pilot-feed-intents button:focus-visible {
+  outline: 3px solid #5b5bd6;
+  outline-offset: 3px;
 }
 
 .pilot-card,
@@ -269,7 +298,6 @@
     flex-direction: column;
   }
 
-  .pilot-grid,
   .pilot-metric-grid,
   .pilot-cohort-grid {
     grid-template-columns: 1fr;
