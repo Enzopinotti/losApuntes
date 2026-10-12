@@ -316,7 +316,8 @@ export class MobileResourceDirectSharingController {
       !current ||
       current.visibility !== "shared" ||
       !current.canManageShares ||
-      current.outcome === "visibility_changed" ||
+      (current.outcome === "visibility_changed" ||
+        current.outcome === "uncertain") ||
       !current.selected ||
       current.busy ||
       this.mutationOperation
