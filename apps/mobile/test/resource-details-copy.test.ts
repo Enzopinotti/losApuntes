@@ -1,12 +1,49 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  resourceAuthorAction,
   resourceFileSizeLabel,
   resourceFileTypeLabel,
   resourceRowAccessibilityLabel,
   resourceVisibilityLabel,
 } from "../src/features/resources/resource-details-copy";
+
+test("resource details open the server-projected author profile accessibly", () => {
+  const action = resourceAuthorAction({
+    profileId: "profile-1",
+    displayName: "Ana Pérez",
+    avatarUrl: null,
+  });
+  assert.deepEqual(action, {
+    profileId: "profile-1",
+    accessibilityLabel: "Ver perfil de Ana Pérez",
+    accessibilityHint:
+      "Abre el perfil público y vuelve a comprobar los permisos actuales.",
+  });
+  assert.equal(resourceAuthorAction(null), null);
+  assert.equal(
+    resourceAuthorAction({
+      profileId: "  ",
+      displayName: "Cuenta",
+      avatarUrl: null,
+    }),
+    null,
+  );
+
+  const screen = readFileSync(
+    new URL(
+      "../src/features/resources/resource-details-screen.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(screen, /accessibilityLabel=\{action\.accessibilityLabel\}/u);
+  assert.match(screen, /pathname:\s*"\/profiles\/\[profileId\]"/u);
+  assert.match(screen, /onPress=\{\(\) => void toggleSaved\(\)\}/u);
+  assert.match(screen, /onPress=\{\(\) => void openFile\(\)\}/u);
+});
 
 test("resource visibility values have concise Spanish labels", () => {
   assert.equal(resourceVisibilityLabel("private"), "Privado");
