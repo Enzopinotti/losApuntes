@@ -2,6 +2,97 @@ import { MongoResourceStore } from './mongo-resource.store';
 import { ResourceSchema } from './resource.mongo-schemas';
 import { ResourceAssetUnavailableError } from '../domain/resource.store';
 
+describe('MongoResourceStore owned statistics', () => {
+  function aggregateResult(result: unknown) {
+    const exec = jest.fn().mockResolvedValue([result]);
+    const aggregate = jest.fn().mockReturnValue({ exec });
+    const store = new MongoResourceStore(
+      {} as never,
+      { aggregate } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    return { store, aggregate };
+  }
+
+  it('restricts aggregation to available resources by the authenticated author', async () => {
+    const { store, aggregate } = aggregateResult({
+      publications: [
+        { _id: 'private', count: 1 },
+        { _id: 'shared', count: 2 },
+        { _id: 'public', count: 3 },
+      ],
+      totals: [{ saves: 13, shareGrants: 2 }],
+      topResources: [{
+        id: 'r1',
+        title: 'SQL',
+        visibility: 'shared',
+        saves: 9,
+        shareGrants: 2,
+      }],
+    });
+    const response = await store.getOwnedStatistics('owner-a');
+    expect(response).toEqual({
+      publications: { total: 6, private: 1, shared: 2, public: 3 },
+      currentSaves: 13,
+      activeShareGrants: 2,
+      topResources: [{
+        id: 'r1',
+        title: 'SQL',
+        visibility: 'shared',
+        saves: 9,
+        shareGrants: 2,
+      }],
+    });
+    const pipeline = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(pipeline[0]).toEqual({
+      $match: { authorUserId: 'owner-a', moderationState: 'available' },
+    });
+    const text = JSON.stringify(pipeline);
+    expect(text).toContain('"from":"resource_saves"');
+    expect(text).toContain('"from":"resource_shares"');
+    expect(text).toContain('"$eq":["$visibility","shared"]');
+    expect(text).toContain('"$limit":5');
+    expect(text).not.toContain('profileId');
+    expect(text).not.toContain('userId');
+  });
+
+  it('does not count orphaned share grants for a private or public resource', async () => {
+    const { store, aggregate } = aggregateResult({
+      publications: [{ _id: 'public', count: 1 }],
+      totals: [{ saves: 2, shareGrants: 0 }],
+      topResources: [{
+        id: 'r2',
+        title: 'Público',
+        visibility: 'public',
+        saves: 2,
+        shareGrants: 0,
+      }],
+    });
+    const response = await store.getOwnedStatistics('owner-b');
+    expect(response.activeShareGrants).toBe(0);
+    const pipeline = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const text = JSON.stringify(pipeline);
+    expect(text).toContain('"$eq":["$visibility","shared"]');
+  });
+
+  it('returns zero counts for a new author without any resources', async () => {
+    const { store } = aggregateResult({
+      publications: [],
+      totals: [],
+      topResources: [],
+    });
+    expect(await store.getOwnedStatistics('new-owner')).toEqual({
+      publications: { total: 0, private: 0, shared: 0, public: 0 },
+      currentSaves: 0,
+      activeShareGrants: 0,
+      topResources: [],
+    });
+  });
+});
+
 describe('MongoResourceStore owner publications library', () => {
   function resourcesQuery(rows: unknown[]) {
     const chain = {
