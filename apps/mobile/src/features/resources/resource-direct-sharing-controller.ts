@@ -327,7 +327,15 @@ export class MobileResourceDirectSharingController {
     const operation = this.operation(authorityKey, resourceId);
     this.mutationOperation = operation;
     const person = current.selected;
-    this.publish({ ...current, busy: action, outcome: null, failure: null });
+    this.publish({
+      ...current,
+      busy: action,
+      outcome: null,
+      failure: null,
+      grantsState: current.grantsState === "loading"
+        ? "idle"
+        : current.grantsState,
+    });
     let writeStarted = false;
 
     try {
@@ -348,6 +356,9 @@ export class MobileResourceDirectSharingController {
             selected: null,
             people: [],
             searchState: "idle",
+            grantsState: "idle",
+            grants: [],
+            grantsNextCursor: null,
             busy: null,
             outcome: "visibility_changed",
           });
@@ -403,6 +414,17 @@ export class MobileResourceDirectSharingController {
           ambiguous ? "uncertain" : "error",
           failure,
         );
+        if (ambiguous) {
+          const latest = this.current(authorityKey, resourceId);
+          if (latest) {
+            this.publish({
+              ...latest,
+              grantsState: "idle",
+              grants: [],
+              grantsNextCursor: null,
+            });
+          }
+        }
       }
       return false;
     }
