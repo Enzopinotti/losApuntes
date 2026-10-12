@@ -204,3 +204,89 @@ test("a failed extra page keeps already-loaded resources and supports retry", as
   assert.deepEqual(snapshot.data.items.map((item) => item.id), ["first", "second"]);
   assert.equal(snapshot.failure, null);
 });
+
+test("server-side search subject and oldest order persist across pagination", async () => {
+  const calls: unknown[] = [];
+  const controller = new MobileOwnedResourcesController({
+    listOwned: async (input) => {
+      calls.push(input);
+      return input.cursor
+        ? { items: [resource("older")], nextCursor: null }
+        : { items: [resource("newer")], nextCursor: "opaque-page-2" };
+    },
+  });
+  await controller.load("account", "shared", {
+    q: "  ÁLGEBRA   parcial  ",
+    subjectId: "subject-a",
+    order: "oldest",
+  });
+  await controller.loadMore("account");
+  assert.deepEqual(calls, [
+    {
+      visibility: "shared",
+      q: "álgebra parcial",
+      subjectId: "subject-a",
+      order: "oldest",
+    },
+    {
+      visibility: "shared",
+      q: "álgebra parcial",
+      subjectId: "subject-a",
+      order: "oldest",
+      cursor: "opaque-page-2",
+    },
+  ]);
+  const snap = controller.getSnapshot();
+  assert.equal(snap.kind, "ready");
+  if (snap.kind !== "ready") return;
+  assert.deepEqual(snap.data.items.map((row) => row.id), ["newer", "older"]);
+});
+
+test("changing only subject or query aborts earlier results with same visibility", async () => {
+  const waiting = deferred<{
+    items: ResourceView[];
+    nextCursor: string | null;
+  }>();
+  let firstSignal: AbortSignal | undefined;
+  const controller = new MobileOwnedResourcesController({
+    listOwned: async (input, signal) => {
+      if (input.subjectId === "subject-a") {
+        firstSignal = signal;
+        return waiting.promise;
+      }
+      return { items: [resource("other")], nextCursor: null };
+    },
+  });
+  const earlier = controller.load("account", null, {
+    q: "parcial", subjectId: "subject-a",
+  });
+  await controller.load("account", null, {
+    q: "final", subjectId: "subject-b",
+  });
+  waiting.resolve({ items: [resource("stale")], nextCursor: null });
+  await earlier;
+  assert.equal(firstSignal?.aborted, true);
+  const snap = controller.getSnapshot();
+  assert.equal(snap.kind, "ready");
+  if (snap.kind !== "ready") return;
+  assert.equal(snap.filters.q, "final");
+  assert.equal(snap.filters.subjectId, "subject-b");
+  assert.deepEqual(snap.data.items.map((row) => row.id), ["other"]);
+});
+
+test("changing chronological direction clears earlier pagination", async () => {
+  const controller = new MobileOwnedResourcesController({
+    listOwned: async (query) => query.order === "oldest"
+      ? { items: [resource("old")], nextCursor: null }
+      : { items: [resource("new")], nextCursor: "page-next" },
+  });
+  await controller.load("account");
+  await controller.load("account", null, { order: "oldest" });
+  await controller.loadMore("account");
+  const snap = controller.getSnapshot();
+  assert.equal(snap.kind, "ready");
+  if (snap.kind !== "ready") return;
+  assert.equal(snap.filters.order, "oldest");
+  assert.equal(snap.data.nextCursor, null);
+  assert.deepEqual(snap.data.items.map((row) => row.id), ["old"]);
+});
