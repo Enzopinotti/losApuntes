@@ -75,6 +75,49 @@
     min-width: 0;
   }
 
+  .layout-mobile-session {
+    display: none;
+    align-items: center;
+    gap: 0.75rem;
+    background: transparent;
+  }
+
+  .layout-mobile-session > span,
+  .layout-mobile-session .layout-mobile-email {
+    background: transparent;
+  }
+
+  .layout-mobile-session .layout-mobile-notifications {
+    display: none;
+    color: #e8edf9;
+    font-weight: 600;
+  }
+
+  .layout-mobile-session .layout-mobile-email {
+    min-width: 0;
+    overflow: hidden;
+    color: #d0def6;
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .layout-mobile-session button {
+    min-height: 44px;
+    background: #344c7c;
+    color: #fff;
+  }
+
+  .layout-mobile-session button:hover {
+    background: #456399;
+  }
+
+  .layout-mobile-session .error {
+    display: block;
+    max-width: 260px;
+    color: #ffdbdb;
+  }
+
   .layout-header-actions {
     grid-area: actions;
     justify-content: flex-end;
@@ -265,12 +308,25 @@
       grid-template-columns: minmax(0, 1fr) auto;
       grid-template-areas:
         "brand actions"
+        "session session"
         "nav nav";
       column-gap: 0.75rem;
     }
 
     .layout-menu-toggle {
       display: inline-flex;
+    }
+
+    .layout-mobile-session {
+      grid-area: session;
+      display: flex;
+      justify-content: space-between;
+      padding-top: 0.6rem;
+      border-top: 1px solid #465877;
+    }
+
+    .layout-nav .layout-session-actions {
+      display: none;
     }
 
     .layout-nav {
@@ -346,8 +402,18 @@
     }
 
     .layout-notifications-link {
+      display: none;
+    }
+
+    .layout-mobile-session .layout-mobile-notifications {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       padding: 0.45rem 0.55rem;
-      font-size: 0.8rem;
+    }
+
+    .layout-mobile-session .layout-mobile-email {
+      display: none;
     }
 
     .layout-primary-links {

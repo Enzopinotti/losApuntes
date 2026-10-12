@@ -181,6 +181,22 @@ const Layout = () => {
               )}
             </div>
           </nav>
+
+          {authenticated ? (
+            <div className="layout-mobile-session">
+              <NavLink
+                to="/notifications"
+                className="layout-mobile-notifications"
+                onClick={closeNavigation}
+              >
+                Notificaciones
+              </NavLink>
+              <span className="layout-mobile-email" aria-label="Cuenta actual">
+                {user?.email}
+              </span>
+              <LogoutButton />
+            </div>
+          ) : null}
         </div>
       </header>
 
