@@ -66,6 +66,11 @@ function apiStub(
 ): ResourceDirectSharingApi {
   return {
     searchPeople: async () => [ana, lucia],
+    listGrants: async () => ({
+      items: [],
+      nextCursor: null,
+      resourceRevision: 2,
+    }),
     resource: async () => ({ resource: resource() }),
     grant: async () => ({ shared: true }),
     revoke: async () => undefined,
