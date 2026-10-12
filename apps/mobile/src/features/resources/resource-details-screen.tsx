@@ -487,6 +487,7 @@ export function MobileResourceDetailsScreen({
                 resource={currentMetadata?.resource ?? resource}
                 snapshot={sharingSnapshot}
                 controller={sharingController}
+                onRefresh={retry}
               />
             ) : null}
 
