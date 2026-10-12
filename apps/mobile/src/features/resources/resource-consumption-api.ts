@@ -4,6 +4,7 @@ import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 
 import type { SessionController } from "../session/session-controller";
 import type { ResourceReportInput } from "./resource-report-policy";
+import type { ResourceMetadataUpdateInput } from "./resource-metadata-policy";
 
 export type ResourceAccessResponse = {
   file: ResourceView["file"];
@@ -31,6 +32,11 @@ export interface ResourceConsumptionApi {
   save(resourceId: string, signal?: AbortSignal): Promise<{ saved: true }>;
   unsave(resourceId: string, signal?: AbortSignal): Promise<void>;
   saved(cursor?: string, signal?: AbortSignal): Promise<ResourceSavedPage>;
+  update(
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ): Promise<{ resource: ResourceView }>;
 }
 
 export interface MobileResourceConsumptionTransport {
@@ -68,6 +74,12 @@ export interface MobileResourceConsumptionTransport {
   ): Promise<{
     report: { id: string; status: "pending" | "resolved" | "dismissed" };
   }>;
+  update(
+    credential: string,
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ): Promise<{ resource: ResourceView }>;
 }
 
 export class MobileResourceConsumptionHttpTransport implements MobileResourceConsumptionTransport {
@@ -150,6 +162,23 @@ export class MobileResourceConsumptionHttpTransport implements MobileResourceCon
       ...(signal ? { signal } : {}),
     });
   }
+
+  update(
+    credential: string,
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ resource: ResourceView }>(
+      `/resources/${encodeURIComponent(resourceId)}`,
+      {
+        method: "PATCH",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 }
 
 export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
@@ -195,6 +224,16 @@ export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
   report(resourceId: string, input: ResourceReportInput, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.report(credential, resourceId, input, signal),
+    );
+  }
+
+  update(
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.update(credential, resourceId, input, signal),
     );
   }
 
