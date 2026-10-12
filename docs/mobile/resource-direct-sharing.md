@@ -29,28 +29,47 @@ públicos a contenido privado. Reutiliza el modelo de recursos existente.
   restaura**. El bloque anterior ya exige confirmar este efecto al modificar
   visibilidad.
 
-## Limitación de la API actual
+## Listado real de concesiones del recurso
 
-**No existe un endpoint para listar o consultar las concesiones vigentes de
-un recurso.** La pantalla no muestra un supuesto listado exhaustivo de
-personas autorizadas ni un indicador de estado por perfil derivado de un
-almacenamiento local. Solo informa lo que el servidor haya confirmado
-**durante la interacción actual** con el perfil seleccionado.
+`GET /resources/:id/shares?limit=20&cursor=...` permite a la persona
+**autora con sesión autenticada y correo verificado** consultar las
+concesiones vigentes, solo si el recurso sigue en estado `shared`.
+La ruta responde con cabecera `Cache-Control: private, no-store`.
+No existe ruta pública ni vista de permisos para otros estudiantes.
 
-Por ese motivo, la revocación trabaja sobre un **perfil buscado y elegido
-explícitamente**; no necesita asumir que el permiso exista antes. Una
-respuesta HTTP confirmada de DELETE permite afirmar que la solicitud de
-revocación terminó, no reconstruir el histórico de permisos.
+La respuesta contiene `items` con `profileId`, `displayName`,
+`avatarUrl`, `grantedAt`, más `nextCursor` y `resourceRevision`.
+**Nunca incluye `userId` interno, correo electrónico ni un token de
+archivo.** El servicio de perfiles aplica sus reglas de privacidad:
+cuando el nombre público no puede mostrarse, se utiliza
+«Usuario de Los Apuntes» y no se expone el avatar.
 
-Esta limitación debería abordarse en otro bloque mediante un endpoint GET
-autorizado, con política de privacidad, paginación y tests de backend.
+El backend limita cada página a **1–50 registros** (por defecto 20) y
+continúa con un cursor asociado al recurso y su revisión. El cursor
+incluye la posición del documento de permiso en MongoDB, **no** el
+identificador interno del destinatario. Si cambia la revisión o se
+consulta el cursor en otro recurso, se rechaza y es necesario
+recargar el detalle y reiniciar la paginación.
+
+La pantalla muestra los accesos cargados, indica cuando hay más
+páginas, permite seleccionar una persona de la lista y revocarle
+acceso mediante el mismo DELETE autorizado y con confirmación.
+También mantiene la búsqueda de destinatarios del bloque anterior
+para conceder acceso a nuevos perfiles.
+
+**Limitación residual:** el listado es paginado y está sujeto a
+cambios concurrentes en los permisos. No constituye una fotografía
+transaccional de todos los grants durante todas las páginas;
+los botones de actualización y las revisiones permiten volver a
+consultar su estado. No se guarda una copia persistente en el móvil.
 
 ## Autoridad y seguridad del cliente
 
 - La UI aparece solo cuando `resource.capabilities.manageShares` es true.
 - El controlador también comprueba esa capacidad y el estado Compartido.
 - Ningún usuario se selecciona por un ID tipeado a mano: se selecciona un
-  `profileId` procedente de la búsqueda autenticada.
+  `profileId` procedente de la búsqueda autenticada o del listado de
+  concesiones autorizado por el backend.
 - Se excluye el perfil del autor y se deduplican perfiles repetidos.
 - Al modificar texto de búsqueda se descarta la selección anterior.
 - Al cambiar recurso, revisión o autoridad de sesión se cancelan búsquedas
@@ -89,6 +108,17 @@ autorizado, con política de privacidad, paginación y tests de backend.
    verificar aislamiento de respuestas tardías.
 10. Probar acceso por teclado, VoiceOver/TalkBack, botón de búsqueda,
     radios de selección y checkbox de confirmación en Android e iOS.
+
+11. Consultar lista de accesos desde la cuenta autora y cargar más
+    de 20 concesiones. Verificar nombres privados, avatar oculto y que
+    no se vea `userId`, correo ni IDs internos en los datos de la página.
+12. Abrir directamente una cuenta ajena sin autoría y solicitar
+    `GET /resources/:id/shares`; la respuesta no debe revelar
+    destinatarios. Probar además recurso Privado y Público.
+13. Cambiar visibilidad o revisión entre páginas y comprobar que el
+    cursor antiguo no sigue siendo aceptado.
+14. Revocar a una persona elegida desde la lista y confirmar que deja
+    de aparecer después de actualizar los accesos.
 
 ## Calidad e integración
 
