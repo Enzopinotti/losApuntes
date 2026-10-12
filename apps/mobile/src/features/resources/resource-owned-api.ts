@@ -1,5 +1,6 @@
 import type {
   OwnedResourcesPage,
+  OwnedResourceSubjects,
   ResourceVisibility,
 } from "@losapuntes/contracts";
 
@@ -8,10 +9,14 @@ import type { SessionController } from "@/features/session/session-controller";
 
 export type OwnedResourcesQuery = {
   visibility?: ResourceVisibility;
+  q?: string;
+  subjectId?: string;
+  order?: "newest" | "oldest";
   cursor?: string;
 };
 
 export interface OwnedResourcesApi {
+  listSubjects(signal?: AbortSignal): Promise<OwnedResourceSubjects>;
   listOwned(
     input: OwnedResourcesQuery,
     signal?: AbortSignal,
@@ -28,10 +33,36 @@ export class MobileOwnedResourcesApi implements OwnedResourcesApi {
     private readonly client: MobileApiClient,
   ) {}
 
+  async listSubjects(signal?: AbortSignal): Promise<OwnedResourceSubjects> {
+    return this.withCredential(
+      (credential) => this.client.request<OwnedResourceSubjects>(
+        "/resources/mine/subjects",
+        {
+          credential,
+          ...(signal ? { signal } : {}),
+        },
+      ),
+    );
+  }
+
   async listOwned(
     input: OwnedResourcesQuery,
     signal?: AbortSignal,
   ): Promise<OwnedResourcesPage> {
+    return this.withCredential((credential) =>
+      this.client.request<OwnedResourcesPage>(
+        `/resources/mine?${query.toString()}`,
+        {
+          credential,
+          ...(signal ? { signal } : {}),
+        },
+      ),
+    );
+  }
+
+  private async withCredential<T>(
+    request: (credential: string) => Promise<T>,
+  ): Promise<T> {
     const authority = this.session.getCredentialSnapshot();
     if (!authority) {
       throw new ApiRequestError(
@@ -43,15 +74,12 @@ export class MobileOwnedResourcesApi implements OwnedResourcesApi {
     }
     const query = new URLSearchParams({ limit: "25" });
     if (input.visibility) query.set("visibility", input.visibility);
+    if (input.q) query.set("q", input.q);
+    if (input.subjectId) query.set("subjectId", input.subjectId);
+    if (input.order) query.set("order", input.order);
     if (input.cursor) query.set("cursor", input.cursor);
     try {
-      const page = await this.client.request<OwnedResourcesPage>(
-        `/resources/mine?${query.toString()}`,
-        {
-          credential: authority.credential,
-          ...(signal ? { signal } : {}),
-        },
-      );
+      const page = await request(authority.credential);
       if (
         !this.session.isCredentialAuthoritative(
           authority.credential,
