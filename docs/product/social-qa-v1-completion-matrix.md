@@ -25,6 +25,7 @@
 | Bounded cursor pagination for relationships/questions/notifications | yes | unit + Web contract + runtime |
 | Web network surface | yes | build + static contract |
 | Web Q&A surface | yes | build + static contract |
+| Web question and answer authors link to public profiles | yes | social Q&A contract + keyboard focus rule |
 | Mobile question and answer authors link to public profiles | yes | route + accessibility contract + Expo exports |
 | Dedicated critical coverage gate | yes | CI |
 | Container lifecycle smoke | yes | CI |

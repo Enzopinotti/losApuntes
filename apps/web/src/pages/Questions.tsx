@@ -9,6 +9,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AnswerView,
+  CommunityPerson,
   QuestionDetailResponse,
   QuestionState,
   QuestionView,
@@ -25,6 +26,26 @@ import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
+
+function CommunityAuthorAttribution({
+  author,
+}: {
+  author: CommunityPerson | null;
+}) {
+  const displayName = author?.displayName.trim() || "Usuario de Los Apuntes";
+  const profileId = author?.profileId;
+  if (!profileId || profileId.trim() !== profileId) return displayName;
+
+  return (
+    <Link
+      aria-label={`Ver perfil de ${displayName}`}
+      className="community-author-link"
+      to={`/p/${encodeURIComponent(profileId)}`}
+    >
+      {displayName}
+    </Link>
+  );
+}
 
 function appendAnswers(
   current: AnswerView[],
@@ -810,8 +831,9 @@ const Questions = () => {
                 <h2>{selected.question.title}</h2>
                 <p>{selected.question.body}</p>
                 <small>
-                  {selected.question.author?.displayName ??
-                    "Usuario de Los Apuntes"}{" "}
+                  <CommunityAuthorAttribution
+                    author={selected.question.author}
+                  />{" "}
                   · {selected.question.academic.subject.name}
                 </small>
               </header>
@@ -894,7 +916,7 @@ const Questions = () => {
                       }
                     >
                       <strong>
-                        {answer.author?.displayName ?? "Usuario de Los Apuntes"}
+                        <CommunityAuthorAttribution author={answer.author} />
                       </strong>
                       {editAnswerId === answer.id ? (
                         <div>
