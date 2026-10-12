@@ -133,7 +133,11 @@ function FeedItemRow({
       ) : null}
       {action ? (
         <Text style={styles.actionLabel}>
-          {item.type === "resource" ? "Abrir apunte" : "Abrir pregunta"}
+          {item.type === "resource"
+            ? "Abrir apunte"
+            : item.type === "question"
+              ? "Abrir pregunta"
+              : "Ver organización"}
         </Text>
       ) : null}
     </>

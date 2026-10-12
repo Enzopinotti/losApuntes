@@ -8,7 +8,8 @@ export interface HomeFeedItemAction {
 }
 
 export function homeFeedItemAction(
-  item: Pick<FeedItem, "type" | "id" | "title">,
+  item: Pick<FeedItem, "type" | "id" | "title"> &
+    Partial<Pick<FeedItem, "source">>,
 ): HomeFeedItemAction | null {
   if (item.type === "resource") {
     return {
@@ -31,17 +32,38 @@ export function homeFeedItemAction(
     };
   }
 
+  if (
+    item.type === "organization_post" &&
+    item.source?.kind === "campus_organization"
+  ) {
+    return {
+      href: {
+        pathname: "/organizations/[organizationId]",
+        params: { organizationId: item.source.organization.id },
+      },
+      accessibilityLabel: `Ver organización: ${item.source.organization.name}`,
+      accessibilityHint:
+        "Abre la página de la organización y vuelve a comprobar el contenido disponible.",
+    };
+  }
+
   return null;
 }
 
 export function hasActionableHomeContent(
   ...feeds: ReadonlyArray<{
-    items: ReadonlyArray<Pick<FeedItem, "type">>;
+    items: ReadonlyArray<
+      Pick<FeedItem, "type"> & Partial<Pick<FeedItem, "source">>
+    >;
   }>
 ): boolean {
   return feeds.some((feed) =>
     feed.items.some(
-      (item) => item.type === "resource" || item.type === "question",
+      (item) =>
+        item.type === "resource" ||
+        item.type === "question" ||
+        (item.type === "organization_post" &&
+          item.source?.kind === "campus_organization"),
     ),
   );
 }

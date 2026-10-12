@@ -109,12 +109,38 @@ test("Home marks only organizations whose server state is verified", () => {
   );
 });
 
-test("Home does not invent a destination for organization posts", () => {
+test("Home organization posts open their authorized organization detail", () => {
+  const organization = homeFeedItemAction({
+    type: "organization_post",
+    id: "post-1",
+    title: "Novedades",
+    source: {
+      kind: "campus_organization",
+      organization: {
+        id: "org-1",
+        name: "Centro de Estudiantes",
+        avatarUrl: null,
+        verificationState: "verified",
+      },
+    },
+  });
+
+  assert.deepEqual(organization?.href, {
+    pathname: "/organizations/[organizationId]",
+    params: { organizationId: "org-1" },
+  });
+  assert.equal(
+    organization?.accessibilityLabel,
+    "Ver organización: Centro de Estudiantes",
+  );
+  assert.match(organization?.accessibilityHint ?? "", /comprobar/);
+
   assert.equal(
     homeFeedItemAction({
       type: "organization_post",
       id: "post-1",
       title: "Novedades",
+      source: { kind: "personal_user" },
     }),
     null,
   );
@@ -145,9 +171,28 @@ test("empty Home actions link to Search and gate question creation on a current 
 test("Home shows next-step actions only when no resource or question can be opened", () => {
   assert.equal(
     hasActionableHomeContent({
-      items: [{ type: "organization_post" }],
+      items: [{ type: "organization_post", source: { kind: "personal_user" } }],
     }),
     false,
+  );
+  assert.equal(
+    hasActionableHomeContent({
+      items: [
+        {
+          type: "organization_post",
+          source: {
+            kind: "campus_organization",
+            organization: {
+              id: "org-1",
+              name: "Centro de Estudiantes",
+              avatarUrl: null,
+              verificationState: "unverified",
+            },
+          },
+        },
+      ],
+    }),
+    true,
   );
   assert.equal(
     hasActionableHomeContent({
