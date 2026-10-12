@@ -1,14 +1,59 @@
-import type { ResourceView } from "@losapuntes/contracts";
+import type {
+  ResourceView,
+  ResourceVisibility,
+} from "@losapuntes/contracts";
 
 export const RESOURCE_TITLE_MAX_LENGTH = 160;
 export const RESOURCE_DESCRIPTION_MAX_LENGTH = 3000;
 export const RESOURCE_TAG_MAX_LENGTH = 40;
 export const RESOURCE_TAG_MAX_COUNT = 12;
 
+export const RESOURCE_VISIBILITY_OPTIONS = [
+  { value: "private", label: "Privado", detail: "Solo vos podés abrir el apunte." },
+  {
+    value: "shared",
+    label: "Compartido",
+    detail: "Solo vos y las personas con permiso explícito pueden abrirlo.",
+  },
+  {
+    value: "public",
+    label: "Público",
+    detail: "Cualquier persona puede consultar el apunte.",
+  },
+] as const satisfies ReadonlyArray<{
+  value: ResourceVisibility;
+  label: string;
+  detail: string;
+}>;
+
+/**
+ * A previously shared resource loses its explicit grants atomically when
+ * switching to private/public. Switching *back* does not restore grants.
+ */
+export function resourceVisibilityWarning(
+  before: ResourceVisibility,
+  after: ResourceVisibility,
+): string | null {
+  if (before === after) return null;
+  if (before === "shared") {
+    return after === "public"
+      ? "Al hacerlo público, cualquiera podrá abrir el apunte. Se eliminarán los permisos individuales anteriores y no se recuperarán al volver a Compartido."
+      : "Al hacerlo privado, se eliminarán los permisos individuales anteriores. No se recuperarán automáticamente al volver a Compartido.";
+  }
+  if (after === "public") {
+    return "Al hacerlo público, cualquier persona podrá consultar y abrir este apunte.";
+  }
+  if (after === "shared") {
+    return "Compartido no lo publica automáticamente: solo podrán abrirlo las personas con permisos explícitos. Necesitás conceder esos permisos por separado.";
+  }
+  return "El apunte dejará de estar disponible para otras personas y pasará a ser privado.";
+}
+
 export type ResourceMetadataDraft = {
   title: string;
   description: string;
   tagsText: string;
+  visibility?: ResourceVisibility;
 };
 
 export type ResourceMetadataUpdateInput = {
@@ -16,6 +61,7 @@ export type ResourceMetadataUpdateInput = {
   title?: string;
   description?: string | null;
   tags?: string[];
+  visibility?: ResourceVisibility;
 };
 
 export type ResourceMetadataValidation =
@@ -28,6 +74,7 @@ export function resourceMetadataDraft(resource: ResourceView): ResourceMetadataD
     title: resource.title,
     description: resource.description ?? "",
     tagsText: resource.tags.join(", "),
+    visibility: resource.visibility,
   };
 }
 
@@ -41,6 +88,13 @@ export function validateResourceMetadata(
 ): ResourceMetadataValidation {
   if (!resource.capabilities.edit || !Number.isInteger(resource.revision) || resource.revision < 1) {
     return { kind: "invalid", message: "No tenés permiso para editar este apunte." };
+  }
+
+  const visibility = draft.visibility ?? resource.visibility;
+  if (
+    !RESOURCE_VISIBILITY_OPTIONS.some((option) => option.value === visibility)
+  ) {
+    return { kind: "invalid", message: "Elegí una visibilidad válida." };
   }
 
   const title = draft.title.normalize("NFC").trim().replace(/\s+/gu, " ");
@@ -85,6 +139,7 @@ export function validateResourceMetadata(
   ) {
     input.tags = tags;
   }
+  if (visibility !== resource.visibility) input.visibility = visibility;
 
   return Object.keys(input).length === 1
     ? { kind: "unchanged" }
@@ -99,6 +154,10 @@ export function resourceMetadataMatches(
 ): boolean {
   if (updated.id !== original.id || updated.revision <= original.revision) return false;
   if (input.title !== undefined && updated.title !== input.title) return false;
+  if (
+    input.visibility !== undefined &&
+    updated.visibility !== input.visibility
+  ) return false;
   if (
     input.description !== undefined &&
     updated.description !== input.description
