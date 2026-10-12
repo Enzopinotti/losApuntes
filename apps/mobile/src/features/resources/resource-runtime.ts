@@ -8,6 +8,7 @@ import {
   MobileResourceConsumptionHttpTransport,
 } from "./resource-consumption-api";
 import { MobileResourceApi, MobileResourceHttpTransport } from "./resource-api";
+import { MobileResourceEditApi } from "./resource-edit-api";
 import { ResourceUploadController } from "./resource-upload-controller";
 import { uploadResourceBytes } from "./resource-uploader";
 
@@ -19,6 +20,11 @@ export const mobileResourceApi = new MobileResourceApi(
 export const mobileResourceConsumptionApi = new MobileResourceConsumptionApi(
   mobileSessionController,
   new MobileResourceConsumptionHttpTransport(mobileApiClient),
+);
+
+export const mobileResourceEditApi = new MobileResourceEditApi(
+  mobileSessionController,
+  mobileApiClient,
 );
 
 export const mobileResourceUploadController = new ResourceUploadController(
