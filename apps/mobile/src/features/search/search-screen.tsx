@@ -26,6 +26,7 @@ import {
 } from "react";
 
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
+import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import {
@@ -52,6 +53,11 @@ import {
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
 import {
+  MobileSearchQuickSaveController,
+  type SearchQuickSaveEntry,
+  type SearchQuickSaveSnapshot,
+} from "./search-quick-save-controller";
+import {
   ACADEMIC_CONTEXT_HOME_ROUTE,
   contextualDiscoveryEmptyCopy,
 } from "./search-contextual-discovery-copy";
@@ -75,10 +81,16 @@ function ResourceResult({
   resource,
   onPress,
   onOpenProfile,
+  quickSaveEntry,
+  onQuickSave,
+  onOpenSaved,
 }: {
   resource: ResourceView;
   onPress: () => void;
   onOpenProfile: (profileId: string) => void;
+  quickSaveEntry: SearchQuickSaveEntry | undefined;
+  onQuickSave: () => void;
+  onOpenSaved: () => void;
 }) {
   const authorAction = resourceAuthorAction(resource.author);
 
@@ -129,6 +141,62 @@ function ResourceResult({
           <Text style={styles.meta}>Por {resource.author.displayName}</Text>
         )
       ) : null}
+      <View style={styles.quickSaveRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={quickSaveEntry?.state === "saved"
+            ? `${resource.title} ya está guardado`
+            : `Guardar ${resource.title} desde Buscar`}
+          accessibilityState={{
+            disabled:
+              quickSaveEntry?.state === "saving" ||
+              quickSaveEntry?.state === "saved" ||
+              quickSaveEntry?.state === "uncertain",
+          }}
+          disabled={
+            quickSaveEntry?.state === "saving" ||
+            quickSaveEntry?.state === "saved" ||
+            quickSaveEntry?.state === "uncertain"
+          }
+          onPress={onQuickSave}
+          style={styles.quickSaveButton}
+        >
+          {quickSaveEntry?.state === "saving" ? (
+            <ActivityIndicator accessibilityLabel="Guardando apunte" />
+          ) : (
+            <Text style={styles.actionLabel}>
+              {quickSaveEntry?.state === "saved"
+                ? "Guardado"
+                : quickSaveEntry?.state === "error"
+                  ? "Reintentar guardar"
+                  : "Guardar"}
+            </Text>
+          )}
+        </Pressable>
+        {quickSaveEntry?.state === "uncertain" ? (
+          <>
+            <Text accessibilityRole="alert" style={styles.error}>
+              No pudimos confirmar el guardado.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Revisar mis recursos guardados"
+              onPress={onOpenSaved}
+              style={styles.quickSaveButton}
+            >
+              <Text style={styles.actionLabel}>Revisar Guardados</Text>
+            </Pressable>
+          </>
+        ) : quickSaveEntry?.state === "error" ? (
+          <Text accessibilityRole="alert" style={styles.error}>
+            No se pudo guardar. Revisá tu sesión o el acceso al recurso.
+          </Text>
+        ) : quickSaveEntry?.state === "saved" ? (
+          <Text accessibilityLiveRegion="polite" style={styles.meta}>
+            Confirmado por el servidor.
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -138,11 +206,17 @@ function ResourceGroup({
   resources,
   onOpen,
   onOpenProfile,
+  quickSave,
+  onQuickSave,
+  onOpenSaved,
 }: {
   title: string;
   resources: ResourceView[];
   onOpen: (resource: ResourceView) => void;
   onOpenProfile: (profileId: string) => void;
+  quickSave: SearchQuickSaveSnapshot;
+  onQuickSave: (id: string) => void;
+  onOpenSaved: () => void;
 }) {
   return (
     <View style={styles.card}>
@@ -158,6 +232,9 @@ function ResourceGroup({
             resource={resource}
             onPress={() => onOpen(resource)}
             onOpenProfile={onOpenProfile}
+            quickSaveEntry={quickSave.items[resource.id]}
+            onQuickSave={() => onQuickSave(resource.id)}
+            onOpenSaved={onOpenSaved}
           />
         ))
       )}
@@ -242,6 +319,9 @@ function ContextualDiscovery({
   onOpen,
   onOpenProfile,
   onConfigureContext,
+  quickSave,
+  onQuickSave,
+  onOpenSaved,
 }: {
   snapshot: ContextualDiscoverySnapshot;
   authorityKey: string | null;
@@ -250,6 +330,9 @@ function ContextualDiscovery({
   onOpen: (resource: ResourceView) => void;
   onOpenProfile: (profileId: string) => void;
   onConfigureContext: () => void;
+  quickSave: SearchQuickSaveSnapshot;
+  onQuickSave: (id: string) => void;
+  onOpenSaved: () => void;
 }) {
   const current =
     snapshot.kind !== "idle" && snapshot.authorityKey === authorityKey
@@ -299,6 +382,9 @@ function ContextualDiscovery({
                     resource={resource}
                     onPress={() => onOpen(resource)}
                     onOpenProfile={onOpenProfile}
+                    quickSaveEntry={quickSave.items[resource.id]}
+                    onQuickSave={() => onQuickSave(resource.id)}
+                    onOpenSaved={onOpenSaved}
                   />
                 ))
               )}
@@ -334,6 +420,13 @@ export function SearchScreen() {
   const controller = useMemo(
     () => new MobileSearchController(mobileSearchApi),
     [],
+  );
+  const quickSaveController = useMemo(
+    () => new MobileSearchQuickSaveController(mobileResourceConsumptionApi),
+    [],
+  );
+  const [quickSave, setQuickSave] = useState<SearchQuickSaveSnapshot>(
+    quickSaveController.getSnapshot(),
   );
   const [search, setSearch] = useState<MobileSearchSnapshot>(
     controller.getSearchSnapshot(),
@@ -377,6 +470,10 @@ export function SearchScreen() {
     academicMatchesSession
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
+  const scopedQuickSave: SearchQuickSaveSnapshot =
+    quickSave.authorityKey === authorityKey
+      ? quickSave
+      : { authorityKey, items: {} };
   const normalizedQuery = query.trim();
   const searchInput = useMemo<MobileSearchInput | null>(() => {
     if (normalizedQuery.length >= 2) {
@@ -391,6 +488,16 @@ export function SearchScreen() {
     }
     return null;
   }, [normalizedQuery, scope, subjectId]);
+
+  useEffect(
+    () => quickSaveController.subscribe(setQuickSave),
+    [quickSaveController],
+  );
+
+  useEffect(() => {
+    quickSaveController.setAuthority(authorityKey);
+    return () => quickSaveController.invalidate();
+  }, [authorityKey, quickSaveController]);
 
   useEffect(
     () =>
@@ -493,6 +600,18 @@ export function SearchScreen() {
     clearSearch();
     dispatchSearchInput({ type: "subjectFilterCleared" });
   }, [clearSearch]);
+
+  const quickSaveResource = useCallback(
+    (resourceId: string) => {
+      if (!authorityKey) return;
+      void quickSaveController.save(authorityKey, resourceId);
+    },
+    [authorityKey, quickSaveController],
+  );
+
+  const openSavedResources = useCallback(() => {
+    router.push("/saved-resources");
+  }, [router]);
 
   const openResource = useCallback(
     (resource: ResourceView) => {
@@ -619,6 +738,9 @@ export function SearchScreen() {
             resources={data.results.resources}
             onOpen={openResource}
             onOpenProfile={openPerson}
+            quickSave={scopedQuickSave}
+            onQuickSave={quickSaveResource}
+            onOpenSaved={openSavedResources}
           />
         )}
         {(resultScope === "all" || resultScope === "subjects") && (
@@ -791,6 +913,9 @@ export function SearchScreen() {
           onOpen={openResource}
           onOpenProfile={openPerson}
           onConfigureContext={() => router.push(ACADEMIC_CONTEXT_HOME_ROUTE)}
+          quickSave={scopedQuickSave}
+          onQuickSave={quickSaveResource}
+          onOpenSaved={openSavedResources}
         />
       ) : null}
     </ProductSurface>
@@ -888,6 +1013,21 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 5,
     minHeight: 44,
+  },
+  quickSaveRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  quickSaveButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#c8c8d2",
+    borderRadius: 10,
   },
   resourceAuthorAction: {
     alignSelf: "flex-start",
