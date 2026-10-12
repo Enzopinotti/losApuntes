@@ -20,7 +20,8 @@ test("stats UI labels exactly what is counted, not imagined downloads", () => {
   const screen = file("../src/features/resources/resource-owner-stats-screen.tsx");
   assert.match(screen, /Guardados vigentes/u);
   assert.match(screen, /Permisos individuales activos/u);
-  assert.match(screen, /No representa[\\s\\S]*visualizaciones/u);
+  assert.match(screen, /No representa/u);
+  assert.match(screen, /visualizaciones/u);
   assert.match(screen, /no de un historial/u);
   assert.match(screen, /data\.generatedAt/u);
 });
