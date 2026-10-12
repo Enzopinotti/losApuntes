@@ -2,6 +2,7 @@ import {
   mobileApiClient,
   mobileSessionController,
 } from "@/features/session/session-runtime";
+import { mobileSearchApi } from "@/features/search/search-runtime";
 
 import {
   MobileResourceConsumptionApi,
@@ -10,6 +11,7 @@ import {
 import { MobileResourceApi, MobileResourceHttpTransport } from "./resource-api";
 import { ResourceUploadController } from "./resource-upload-controller";
 import { uploadResourceBytes } from "./resource-uploader";
+import { MobileResourceDirectSharingApi } from "./resource-direct-sharing-api";
 
 export const mobileResourceApi = new MobileResourceApi(
   mobileSessionController,
@@ -19,6 +21,13 @@ export const mobileResourceApi = new MobileResourceApi(
 export const mobileResourceConsumptionApi = new MobileResourceConsumptionApi(
   mobileSessionController,
   new MobileResourceConsumptionHttpTransport(mobileApiClient),
+);
+
+export const mobileResourceDirectSharingApi = new MobileResourceDirectSharingApi(
+  mobileSessionController,
+  mobileApiClient,
+  mobileSearchApi,
+  mobileResourceConsumptionApi,
 );
 
 export const mobileResourceUploadController = new ResourceUploadController(
