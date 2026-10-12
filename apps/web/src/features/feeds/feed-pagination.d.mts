@@ -19,6 +19,10 @@ export declare function appendUniqueFeedItems(
   incoming: readonly FeedItem[],
 ): FeedItem[];
 
+export declare function feedPageLoadedAnnouncement(
+  newItemCount: number,
+): string;
+
 export declare function didFeedCursorAdvance(
   currentCursor: string,
   nextCursor: string | null,

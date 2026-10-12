@@ -26,6 +26,7 @@ import {
   appendUniqueFeedItems,
   canAutomaticallyLoadWebFeed,
   didFeedCursorAdvance,
+  feedPageLoadedAnnouncement,
   FEED_PREFETCH_ROOT_MARGIN,
   requiresNewWebFeedSession,
 } from "../features/feeds/feed-pagination.mjs";
@@ -82,6 +83,8 @@ const Feeds = () => {
     );
   };
   const [items, setItems] = useState<FeedItem[]>([]);
+  const itemsRef = useRef<FeedItem[]>([]);
+  const [pageAnnouncement, setPageAnnouncement] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [stopReason, setStopReason] = useState<"end" | "natural_break" | null>(
     null,
@@ -158,7 +161,9 @@ const Feeds = () => {
     inFlightPageRef.current = null;
     rootRequestRef.current = null;
     usedCursorsRef.current.clear();
+    itemsRef.current = [];
     setItems([]);
+    setPageAnnouncement("");
     setNextCursor(null);
     setStopReason(null);
     setPreferences(null);
@@ -221,6 +226,7 @@ const Feeds = () => {
 
       const pageKey = append ? `${feedRequestScope}:${cursor ?? ""}` : null;
       if (pageKey && inFlightPageRef.current?.key === pageKey) return;
+      setPageAnnouncement("");
       const pageRequest = pageKey ? { key: pageKey } : null;
       const rootRequest = append ? null : {};
       if (pageRequest) inFlightPageRef.current = pageRequest;
@@ -253,9 +259,15 @@ const Feeds = () => {
           usedCursorsRef.current.clear();
           dataScopeRef.current = feedRequestScope;
         }
-        setItems((current) =>
-          appendUniqueFeedItems(append ? current : [], result.items),
-        );
+        const previousItems = append ? itemsRef.current : [];
+        const nextItems = appendUniqueFeedItems(previousItems, result.items);
+        itemsRef.current = nextItems;
+        setItems(nextItems);
+        if (append) {
+          setPageAnnouncement(
+            feedPageLoadedAnnouncement(nextItems.length - previousItems.length),
+          );
+        }
         const cursorAdvanced =
           append &&
           cursor &&
@@ -293,6 +305,7 @@ const Feeds = () => {
         if (!append) {
           if (dataScopeRef.current !== feedRequestScope) {
             dataScopeRef.current = null;
+            itemsRef.current = [];
             setItems([]);
             setNextCursor(null);
             setStopReason(null);
@@ -514,6 +527,15 @@ const Feeds = () => {
           </button>
         </div>
       </header>
+
+      <p
+        className="feeds-visually-hidden"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {pageAnnouncement}
+      </p>
 
       {error && (
         <div className="feeds-error" role="alert">

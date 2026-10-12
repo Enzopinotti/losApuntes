@@ -5,6 +5,7 @@ import {
   appendUniqueFeedItems,
   canAutomaticallyLoadWebFeed,
   didFeedCursorAdvance,
+  feedPageLoadedAnnouncement,
   requiresNewWebFeedSession,
 } from "../apps/web/src/features/feeds/feed-pagination.mjs";
 import { presentFeedItem } from "../apps/web/src/features/feeds/feed-item-presentation.mjs";
@@ -45,6 +46,7 @@ assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /watchTime|watch_time|ctr|popularity/iu);
 
 const page = await read("apps/web/src/pages/Feeds.tsx");
+const pageStyles = await read("apps/web/src/pages/Feeds.scss");
 const homePage = await read("apps/web/src/pages/Home.tsx");
 const itemContext = await read(
   "apps/web/src/features/feeds/components/FeedItemContext.tsx",
@@ -87,6 +89,19 @@ assert.match(page, /isActionRequestCurrent/u);
 assert.match(page, /finishActionRequest/u);
 assert.match(page, /ticket\.signal/u);
 assert.match(page, /stopReason\s*===\s*"natural_break"/u);
+assert.match(
+  page,
+  /feedPageLoadedAnnouncement\(nextItems\.length - previousItems\.length\)/u,
+);
+assert.match(page, /itemsRef\.current = nextItems/u);
+assert.match(
+  page,
+  /className="feeds-visually-hidden"\s+role="status"\s+aria-live="polite"\s+aria-atomic="true"/u,
+);
+assert.match(
+  pageStyles,
+  /\.feeds-visually-hidden\s*\{[\s\S]*clip:\s*rect\(0,\s*0,\s*0,\s*0\)/u,
+);
 assert.match(page, /new IntersectionObserver/u);
 assert.match(page, /observer\.observe\(sentinel\)/u);
 assert.match(page, /continuationRef/u);
@@ -114,7 +129,10 @@ assert.match(
   homePage,
   /<FeedItemContext[\s\S]{0,120}item=\{item\}[\s\S]{0,80}reasonLimit=\{2\}/u,
 );
-assert.match(homePage, /FeedItemContext[\s\S]{0,100}homeIntent=\{homeIntent\}/u);
+assert.match(
+  homePage,
+  /FeedItemContext[\s\S]{0,100}homeIntent=\{homeIntent\}/u,
+);
 assert.match(homePage, /FeedItemOpenLink item=\{item\}/u);
 assert.match(homePage, /item\.summary/u);
 assert.match(homePage, /homeFeedEmptyGuidance\(/u);
@@ -486,6 +504,16 @@ for (const code of [
   assert.equal(requiresNewWebFeedSession(code), true);
 }
 assert.equal(requiresNewWebFeedSession("NETWORK_UNAVAILABLE"), false);
+assert.equal(
+  feedPageLoadedAnnouncement(0),
+  "La siguiente página no agregó publicaciones nuevas.",
+);
+assert.equal(feedPageLoadedAnnouncement(1), "Se agregó 1 publicación nueva.");
+assert.equal(
+  feedPageLoadedAnnouncement(6),
+  "Se agregaron 6 publicaciones nuevas.",
+);
+assert.equal(feedPageLoadedAnnouncement(-1), "");
 
 const duplicateItem = { type: "resource", id: "shared" };
 const pageOnlyItem = { type: "question", id: "shared" };
