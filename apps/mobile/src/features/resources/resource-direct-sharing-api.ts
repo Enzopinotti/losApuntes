@@ -1,4 +1,8 @@
-import type { ResourceView, SearchPersonResult } from "@losapuntes/contracts";
+import type {
+  ResourceShareGrantsPage,
+  ResourceView,
+  SearchPersonResult,
+} from "@losapuntes/contracts";
 
 import type { MobileSearchApi } from "@/features/search/search-api";
 import type { SessionController } from "@/features/session/session-controller";
@@ -8,6 +12,11 @@ import type { ResourceConsumptionApi } from "./resource-consumption-api";
 
 export interface ResourceDirectSharingApi {
   searchPeople(query: string, signal?: AbortSignal): Promise<SearchPersonResult[]>;
+  listGrants(
+    resourceId: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<ResourceShareGrantsPage>;
   resource(resourceId: string, signal?: AbortSignal): Promise<{ resource: ResourceView }>;
   grant(resourceId: string, profileId: string, signal?: AbortSignal): Promise<{ shared: true }>;
   revoke(resourceId: string, profileId: string, signal?: AbortSignal): Promise<void>;
@@ -33,6 +42,20 @@ export class MobileResourceDirectSharingApi implements ResourceDirectSharingApi 
 
   resource(resourceId: string, signal?: AbortSignal) {
     return this.resources.resource(resourceId, signal);
+  }
+
+  listGrants(resourceId: string, cursor?: string, signal?: AbortSignal) {
+    return this.authorized((credential) => {
+      const params = new URLSearchParams({ limit: "20" });
+      if (cursor) params.set("cursor", cursor);
+      return this.client.request<ResourceShareGrantsPage>(
+        `/resources/${encodeURIComponent(resourceId)}/shares?${params.toString()}`,
+        {
+          credential,
+          ...(signal ? { signal } : {}),
+        },
+      );
+    });
   }
 
   grant(resourceId: string, profileId: string, signal?: AbortSignal) {
