@@ -53,7 +53,19 @@ assert.match(directory, /await loadRef\.current\(\)/u);
 assert.match(directory, /setInstitutionSelection\(\{\s*authScopeKey/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
+const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
 assert.match(publicPage, /organizationsApi\.get\(/u);
+assert.match(publicPage, /useLocation\(\)/u);
+assert.match(publicPage, /feedReturnHref\(location\.state\)/u);
+assert.match(publicPage, /feedReturnRestoreState\(location\.state\)/u);
+assert.match(publicPage, /to=\{feedReturnTo\}[\s\S]*replace/u);
+assert.match(publicPage, /to="\/organizations">\s*Volver al directorio/u);
+assert.match(publicPage, /className="organization-feed-return"/u);
+assert.match(
+  publicPageStyles,
+  /\.organization-feed-return\s*\{[^}]*min-height:\s*44px/su,
+);
+assert.match(publicPageStyles, /\.organization-feed-return:focus-visible/u);
 assert.match(publicPage, /useAsyncAuthorityFence/u);
 assert.equal((publicPage.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
 assert.match(publicPage, /organizationScopeKey/u);
@@ -99,9 +111,22 @@ assert.equal(
 );
 assert.match(manage, /\}, \[organizationScopeKey\]\);/u);
 
-const feeds = await read('apps/web/src/pages/Feeds.tsx');
-assert.match(feeds, /organization_following/u);
-assert.match(feeds, /campus_organization/u);
-assert.match(feeds, /Ver organización/u);
+const feedPresentation = await read(
+  'apps/web/src/features/feeds/feed-item-presentation.mjs',
+);
+const feedSourceAttribution = await read(
+  'apps/web/src/features/feeds/components/FeedSourceAttribution.tsx',
+);
+assert.match(feedPresentation, /organization_following/u);
+assert.match(feedPresentation, /campus_organization/u);
+assert.match(feedPresentation, /Ver organización/u);
+assert.match(
+  feedSourceAttribution,
+  /item\.source\.kind === "campus_organization"/u,
+);
+assert.match(
+  feedSourceAttribution,
+  /to=\{`\/organizations\/\$\{encodeURIComponent\(item\.source\.organization\.id\)\}`\}/u,
+);
 
 console.log('PASS Web Organizations authority/source contract');
