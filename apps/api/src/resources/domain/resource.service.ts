@@ -528,6 +528,14 @@ export class ResourceService {
     await this.store.removeSave(id, userId);
   }
 
+  async getOwnedStatistics(userId: string) {
+    const statistics = await this.store.getOwnedStatistics(userId);
+    return {
+      ...statistics,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   async listOwned(
     userId: string,
     input: {
