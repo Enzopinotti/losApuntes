@@ -24,6 +24,7 @@ import {
   MobileResourceMetadataController,
   type MobileResourceMetadataSnapshot,
 } from "./resource-metadata-controller";
+import { resourceVisibilityLabel } from "./resource-details-copy";
 
 const errorCopy = {
   offline: "No hay conexión para verificar los cambios.",
@@ -183,6 +184,9 @@ export function ResourceMetadataEditor({
           />
           <Text accessibilityRole="header" style={styles.heading}>
             Visibilidad del apunte
+          </Text>
+          <Text style={styles.helper}>
+            Visibilidad actual: {resourceVisibilityLabel(visible.visibility)}
           </Text>
           <View
             accessibilityRole="radiogroup"
