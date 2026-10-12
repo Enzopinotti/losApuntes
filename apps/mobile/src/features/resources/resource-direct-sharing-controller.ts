@@ -21,6 +21,7 @@ export type ResourceDirectSharingSnapshot =
       revision: number;
       visibility: ResourceView["visibility"];
       ownerProfileId: string | null;
+      canManageShares: boolean;
       searchState: ShareSearchState;
       query: string;
       people: SearchPersonResult[];
@@ -72,7 +73,8 @@ export class MobileResourceDirectSharingController {
     const current = this.current(authorityKey, resource.id);
     if (current && current.revision === resource.revision &&
         current.visibility === resource.visibility &&
-        current.ownerProfileId === (resource.author?.profileId ?? null)) return;
+        current.ownerProfileId === (resource.author?.profileId ?? null) &&
+        current.canManageShares === resource.capabilities.manageShares) return;
     this.abortAll();
     this.publish({
       kind: "ready",
@@ -81,6 +83,7 @@ export class MobileResourceDirectSharingController {
       revision: resource.revision,
       visibility: resource.visibility,
       ownerProfileId: resource.author?.profileId ?? null,
+      canManageShares: resource.capabilities.manageShares,
       searchState: "idle",
       query: "",
       people: [],
@@ -93,7 +96,12 @@ export class MobileResourceDirectSharingController {
 
   async search(authorityKey: string, resourceId: string, rawQuery: string): Promise<void> {
     const current = this.current(authorityKey, resourceId);
-    if (!current || current.visibility !== "shared" || current.busy) return;
+    if (
+      !current ||
+      !current.canManageShares ||
+      current.visibility !== "shared" ||
+      current.busy
+    ) return;
     const query = rawQuery.trim().slice(0, RESOURCE_SHARE_PEOPLE_QUERY_MAX);
     this.abortSearch();
     if (!validSharePeopleQuery(query)) {
@@ -187,6 +195,7 @@ export class MobileResourceDirectSharingController {
     if (
       !current ||
       current.visibility !== "shared" ||
+      !current.canManageShares ||
       !current.selected ||
       current.busy ||
       this.mutationOperation
