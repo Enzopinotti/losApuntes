@@ -168,3 +168,26 @@ test("server response must contain expected edits with increased revision", () =
     false,
   );
 });
+
+test("description cleanup and Unicode tag dedupe follow server rules", () => {
+  const original = resource();
+  const validation = validateResourceMetadata(original, {
+    ...resourceMetadataDraft(original),
+    description: " Líneas\n con   espacios ",
+  });
+  assert.deepEqual(validation, {
+    kind: "valid",
+    input: {
+      expectedRevision: 4,
+      description: "Líneas con espacios",
+    },
+  });
+
+  assert.equal(
+    validateResourceMetadata(original, {
+      ...resourceMetadataDraft(original),
+      tagsText: "ＡＢＣ, ABC",
+    }).kind,
+    "invalid",
+  );
+});
