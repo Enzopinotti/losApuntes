@@ -144,24 +144,19 @@ const Layout = () => {
                     >
                       Más <span aria-hidden="true">▾</span>
                     </button>
-                    {moreOpen ? (
-                      <div
-                        id={moreId}
-                        className="layout-more-links"
-                        role="group"
-                        aria-label="Otras secciones"
-                      >
-                        {memberMoreNavigation.map(({ to, label }) => (
-                          <NavLink
-                            key={to}
-                            to={to}
-                            onClick={closeNavigation}
-                          >
-                            {label}
-                          </NavLink>
-                        ))}
-                      </div>
-                    ) : null}
+                    <div
+                      id={moreId}
+                      className="layout-more-links"
+                      role="group"
+                      aria-label="Otras secciones"
+                      hidden={!moreOpen}
+                    >
+                      {memberMoreNavigation.map(({ to, label }) => (
+                        <NavLink key={to} to={to} onClick={closeNavigation}>
+                          {label}
+                        </NavLink>
+                      ))}
+                    </div>
                   </div>
                   <div className="layout-session-actions">
                     <span className="layout-account-email" aria-label="Cuenta actual">
