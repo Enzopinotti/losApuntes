@@ -1,6 +1,16 @@
 const feedViews = new Set(["academic", "for-you"]);
 const feedModes = new Set(["balanced", "study", "discover", "community"]);
 const feedOrders = new Set(["ranked", "chronological"]);
+const homeFeedIntents = new Set(["contextual", "for-you"]);
+
+function isNavigationKey(candidate) {
+  return (
+    typeof candidate === "string" &&
+    candidate.length > 0 &&
+    candidate.length <= 128 &&
+    !/[\u0000-\u001f]/u.test(candidate)
+  );
+}
 
 export function feedReturnHref(locationState) {
   if (typeof locationState !== "object" || locationState === null) {
@@ -28,7 +38,14 @@ export function feedReturnRestoreState(locationState) {
   const feedReturnKey = feedReturnScrollKey(locationState);
   if (!feedReturnTo || !feedReturnKey) return null;
 
-  return { feedRestoreTo: feedReturnTo, feedRestoreKey: feedReturnKey };
+  const homeIntent = feedReturnHomeIntent(locationState);
+  return {
+    feedRestoreTo: feedReturnTo,
+    feedRestoreKey: feedReturnKey,
+    ...(feedReturnTo === "/" && homeIntent
+      ? { feedRestoreHomeIntent: homeIntent }
+      : {}),
+  };
 }
 
 export function feedReturnScrollKey(locationState) {
@@ -36,17 +53,35 @@ export function feedReturnScrollKey(locationState) {
     return null;
   }
 
-  const candidate = locationState.feedReturnKey;
-  if (
-    typeof candidate === "string" &&
-    candidate.length > 0 &&
-    candidate.length <= 128 &&
-    !/[\u0000-\u001f]/u.test(candidate)
-  ) {
-    return candidate;
+  return isNavigationKey(locationState.feedReturnKey)
+    ? locationState.feedReturnKey
+    : null;
+}
+
+export function feedReturnHomeIntent(locationState) {
+  if (typeof locationState !== "object" || locationState === null) {
+    return null;
   }
 
-  return null;
+  return homeFeedIntents.has(locationState.feedReturnHomeIntent)
+    ? locationState.feedReturnHomeIntent
+    : null;
+}
+
+export function feedRestoreHomeIntent(locationState, currentHref) {
+  if (
+    typeof locationState !== "object" ||
+    locationState === null ||
+    currentHref !== "/" ||
+    locationState.feedRestoreTo !== currentHref ||
+    !isNavigationKey(locationState.feedRestoreKey)
+  ) {
+    return null;
+  }
+
+  return homeFeedIntents.has(locationState.feedRestoreHomeIntent)
+    ? locationState.feedRestoreHomeIntent
+    : null;
 }
 
 export function feedSelectionFromSearchParams(searchParams) {

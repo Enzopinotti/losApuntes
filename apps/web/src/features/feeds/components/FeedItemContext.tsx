@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../../contexts/useAuth";
 import type { FeedItem } from "../interfaces";
 import { presentFeedItem } from "../feed-item-presentation.mjs";
+import type { HomeFeedIntent } from "../feed-navigation.mjs";
 import {
   feedScrollAuthorityScope,
   rememberFeedScrollPosition,
@@ -73,7 +74,13 @@ export function FeedItemContext({
   );
 }
 
-export function FeedItemOpenLink({ item }: { item: FeedItem }) {
+export function FeedItemOpenLink({
+  item,
+  homeIntent,
+}: {
+  item: FeedItem;
+  homeIntent?: HomeFeedIntent;
+}) {
   const location = useLocation();
   const { status, user, session } = useAuth();
   const authorityScope = feedScrollAuthorityScope(
@@ -89,7 +96,11 @@ export function FeedItemOpenLink({ item }: { item: FeedItem }) {
     <Link
       className="feed-item-open-link"
       to={presentation.href}
-      state={{ feedReturnTo: returnTo, feedReturnKey: returnKey }}
+      state={{
+        feedReturnTo: returnTo,
+        feedReturnKey: returnKey,
+        ...(homeIntent ? { feedReturnHomeIntent: homeIntent } : {}),
+      }}
       onClick={(event) => {
         if (
           event.defaultPrevented ||
