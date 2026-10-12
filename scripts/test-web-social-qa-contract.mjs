@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import {
-  shouldReconcileNotificationTick,
-} from '../apps/web/src/features/community/notificationReconciliation.ts';
+import { shouldReconcileNotificationTick } from '../apps/web/src/features/community/notificationReconciliation.ts';
+import { notificationTargetPath } from '../apps/web/src/features/community/notification-navigation.mjs';
 
 const root = process.cwd();
 
@@ -25,7 +24,10 @@ assert.match(service, /respondConnection:[\s\S]*signal\?: AbortSignal/u);
 assert.match(service, /disconnect:[\s\S]*signal\?: AbortSignal/u);
 assert.match(service, /cursor/u);
 assert.match(service, /questions/u);
-assert.match(service, /\/questions\/\$\{encodeURIComponent\(questionId\)\}\/answers/u);
+assert.match(
+  service,
+  /\/questions\/\$\{encodeURIComponent\(questionId\)\}\/answers/u,
+);
 assert.match(service, /questions:[\s\S]{0,260}signal\?: AbortSignal/u);
 assert.match(service, /question: \(id: string, signal\?: AbortSignal\)/u);
 assert.match(service, /answers:[\s\S]{0,220}signal\?: AbortSignal/u);
@@ -37,6 +39,11 @@ assert.match(service, /acceptAnswer:[\s\S]{0,220}signal\?: AbortSignal/u);
 assert.match(service, /reportQuestion: \(id: string, signal\?: AbortSignal\)/u);
 assert.match(service, /reportAnswer: \(id: string, signal\?: AbortSignal\)/u);
 assert.match(service, /notifications/u);
+assert.match(
+  service,
+  /markNotificationRead: \(id: string, signal\?: AbortSignal\)/u,
+);
+assert.match(service, /markAllNotificationsRead: \(signal\?: AbortSignal\)/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
@@ -50,7 +57,10 @@ assert.equal((network.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 3);
 assert.match(network, /network-load:\$\{authScopeKey\}/u);
 assert.match(network, /network-action:\$\{authScopeKey\}/u);
 assert.match(network, /network-search:\$\{searchScopeKey\}/u);
-assert.match(network, /communityApi\.following\(50, undefined, ticket\.signal\)/u);
+assert.match(
+  network,
+  /communityApi\.following\(50, undefined, ticket\.signal\)/u,
+);
 assert.match(
   network,
   /communityApi\.connections\(undefined, 50, undefined, ticket\.signal\)/u,
@@ -69,6 +79,7 @@ assert.doesNotMatch(network, /academic.*connect|auto.*connect/iu);
 assert.doesNotMatch(network, /localStorage|sessionStorage/u);
 
 const questions = await read('apps/web/src/pages/Questions.tsx');
+const communityStyles = await read('apps/web/src/pages/Community.scss');
 assert.match(questions, /useAuth\(\)/u);
 assert.match(questions, /user\?\.id/u);
 assert.match(questions, /session\?\.id/u);
@@ -87,7 +98,10 @@ assert.match(
   /subjectSearchState\?\.scopeKey === subjectSearchScopeKey/u,
 );
 assert.match(questions, /actionState\?\.scopeKey === actionScopeKey/u);
-assert.match(questions, /communityApi\.questions\([\s\S]{0,420}ticket\.signal/u);
+assert.match(
+  questions,
+  /communityApi\.questions\([\s\S]{0,420}ticket\.signal/u,
+);
 assert.match(
   questions,
   /communityApi\s*\.\s*question\s*\(\s*initialId,\s*ticket\.signal\s*\)/u,
@@ -108,6 +122,16 @@ assert.match(questions, /await loadListRef\.current\(\)/u);
 assert.match(questions, /loadDetailRef\.current\(\)/u);
 assert.match(questions, /setSearchParams\(\{ id: result\.question\.id \}\)/u);
 assert.match(questions, /Cargando pregunta…/u);
+assert.match(questions, /feedReturnHref\(location\.state\)/u);
+assert.match(
+  questions,
+  /className="community-back-link"[\s\S]{0,180}to=\{feedReturnTo\}[\s\S]{0,100}replace/u,
+);
+assert.match(
+  questions,
+  /feedReturnTo === "\/"[\s\S]{0,120}Volver a Inicio[\s\S]{0,80}Volver al feed/u,
+);
+assert.match(communityStyles, /\.community-back-link:focus-visible/u);
 assert.match(questions, /nextCursor/u);
 assert.match(questions, /questions-more/u);
 assert.match(questions, /answersNextCursor/u);
@@ -117,6 +141,19 @@ assert.match(questions, /Cargar más respuestas/u);
 assert.doesNotMatch(questions, /localStorage|sessionStorage/u);
 
 const notifications = await read('apps/web/src/pages/Notifications.tsx');
+assert.match(notifications, /useLayoutEffect/u);
+assert.match(
+  notifications,
+  /previousAuthorityScopeRef\.current === authorityScope/u,
+);
+assert.match(notifications, /setItems\(\[\]\);[\s\S]*setNextCursor\(null\)/u);
+assert.match(notifications, /setUnreadOnly\(false\)/u);
+assert.match(
+  notifications,
+  /setLoadingMore\(false\);[\s\S]*setActionBusy\(false\)/u,
+);
+assert.match(notifications, /setOpeningState\(null\);[\s\S]*setError\(null\)/u);
+assert.match(notifications, /window\.scrollTo\(0, 0\)/u);
 const notificationReconciliation = {
   authenticated: true,
   firstPagePending: false,
@@ -126,9 +163,7 @@ const notificationReconciliation = {
 };
 let consumedReconcileTick = 0;
 const consumeReconcileTick = (tick, state) => {
-  if (
-    !shouldReconcileNotificationTick(tick, consumedReconcileTick, state)
-  ) {
+  if (!shouldReconcileNotificationTick(tick, consumedReconcileTick, state)) {
     return false;
   }
 
@@ -170,6 +205,32 @@ assert.equal(
 assert.match(notifications, /communityApi\.notifications/u);
 assert.match(notifications, /communityApi\.markNotificationRead/u);
 assert.match(notifications, /communityApi\.markAllNotificationsRead/u);
+assert.match(notifications, /notificationTargetPath\(item\.target\)/u);
+const acknowledgeAndOpenStart = notifications.indexOf(
+  'const acknowledgeAndOpen = async',
+);
+const acknowledgeAndOpenEnd = notifications.indexOf(
+  '\n  return (',
+  acknowledgeAndOpenStart,
+);
+assert.ok(
+  acknowledgeAndOpenStart !== -1 &&
+    acknowledgeAndOpenEnd > acknowledgeAndOpenStart,
+  'Notification opening stays in one explicit acknowledgement flow',
+);
+const acknowledgeAndOpen = notifications.slice(
+  acknowledgeAndOpenStart,
+  acknowledgeAndOpenEnd,
+);
+assert.match(acknowledgeAndOpen, /markNotificationRead\(/u);
+assert.match(acknowledgeAndOpen, /item\.id,[\s\S]*ticket\.signal/u);
+assert.match(acknowledgeAndOpen, /result\.read !== true/u);
+assert.match(
+  acknowledgeAndOpen,
+  /isActionRequestCurrent\(ticket\)[\s\S]*navigate\(target\)/u,
+);
+assert.match(notifications, /aria-disabled=\{actionBusy \|\| undefined\}/u);
+assert.match(notifications, /Esta notificación no tiene un destino navegable/u);
 assert.match(notifications, /nextCursor/u);
 assert.match(notifications, /Cargar más/u);
 assert.match(notifications, /useAsyncAuthorityFence/u);
@@ -186,16 +247,30 @@ assert.match(notifications, /setActionBusy\(false\)/u);
 assert.match(notifications, /consumedReconcileTickRef/u);
 assert.match(notifications, /firstPagePendingRef/u);
 assert.match(notifications, /shouldReconcileNotificationTick/u);
-assert.match(
-  notifications,
-  /setActionBusy\(false\);\s*setLoadingMore\(false\);\s*\}, \[authorityScope\]/u,
-);
 assert.doesNotMatch(
   notifications,
   /await\s+load\(undefined,\s*false,\s*true\)/u,
   'stale mutation continuations must not invoke a captured list loader',
 );
 assert.doesNotMatch(notifications, /localStorage|sessionStorage/u);
+assert.equal(
+  notificationTargetPath({ type: 'profile', id: 'profile / 1' }),
+  '/p/profile%20%2F%201',
+);
+assert.equal(
+  notificationTargetPath({ type: 'question', id: 'question / 1' }),
+  '/questions?id=question%20%2F%201',
+);
+assert.equal(
+  notificationTargetPath({ type: 'connection', id: 'connection-1' }),
+  '/network',
+);
+assert.equal(
+  notificationTargetPath({ type: 'answer', id: 'answer-1' }),
+  null,
+  'answer targets without a parent question do not open an unrelated question list',
+);
+assert.equal(notificationTargetPath(null), null);
 
 const communityService = await read(
   'apps/web/src/features/community/services/communityService.ts',

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { FeedItem } from "../features/feeds/interfaces";
@@ -95,6 +101,7 @@ const Home = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const previousAuthScopeKeyRef = useRef(authScopeKey);
   const {
     begin: beginLoad,
     isCurrent: isLoadCurrent,
@@ -117,6 +124,19 @@ const Home = () => {
     viewState?.scopeKey === authScopeKey ? viewState : null;
   const loading = currentViewState?.loading ?? status === "authenticated";
   const error = currentViewState?.error ?? null;
+
+  useLayoutEffect(() => {
+    if (previousAuthScopeKeyRef.current === authScopeKey) return;
+    previousAuthScopeKeyRef.current = authScopeKey;
+    setActiveHomeFeed("contextual");
+    setSnapshotState(null);
+    setViewState({
+      scopeKey: authScopeKey,
+      loading: status === "authenticated",
+      error: null,
+    });
+    window.scrollTo(0, 0);
+  }, [authScopeKey, status]);
 
   const load = useCallback(async () => {
     if (status !== "authenticated") return;

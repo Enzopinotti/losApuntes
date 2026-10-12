@@ -5,7 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AnswerView,
@@ -17,6 +17,7 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import { feedReturnHref } from "../features/feeds/feed-navigation.mjs";
 import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
@@ -55,6 +56,8 @@ function messageFor(error: unknown): string {
 const Questions = () => {
   const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const location = useLocation();
+  const feedReturnTo = feedReturnHref(location.state);
   const viewerScopeKey = [
     status,
     user?.id ?? "anonymous",
@@ -786,6 +789,17 @@ const Questions = () => {
           ) : (
             <>
               <header className="community-question-header">
+                {feedReturnTo && (
+                  <Link
+                    className="community-back-link"
+                    to={feedReturnTo}
+                    replace
+                  >
+                    {feedReturnTo === "/"
+                      ? "Volver a Inicio"
+                      : "Volver al feed"}
+                  </Link>
+                )}
                 <span className="community-status">
                   {selected.question.state}
                 </span>

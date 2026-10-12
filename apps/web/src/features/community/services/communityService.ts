@@ -332,14 +332,16 @@ export const communityApi = {
     );
   },
 
-  markNotificationRead: (id: string) =>
+  markNotificationRead: (id: string, signal?: AbortSignal) =>
     request<{ read: true }>(`/notifications/${encodeURIComponent(id)}/read`, {
       method: "PATCH",
+      signal,
     }),
 
-  markAllNotificationsRead: () =>
+  markAllNotificationsRead: (signal?: AbortSignal) =>
     request<{ updated: number }>("/notifications/read-all", {
       method: "POST",
+      signal,
     }),
 };
 
