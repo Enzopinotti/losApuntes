@@ -50,6 +50,15 @@ export type OwnedResourceStatistics = {
   }>;
 };
 
+export type OwnedResourceSubjects = {
+  items: Array<{
+    subjectId: string;
+    name: string;
+    count: number;
+  }>;
+  truncated: boolean;
+};
+
 export type OwnedResourcesPage = {
   items: ResourceView[];
   nextCursor: string | null;
