@@ -9,6 +9,7 @@ import type {
   FeedPreferencesResponse,
   FeedReasonCode,
 } from "../features/feeds/interfaces";
+import { FeedSourceAttribution } from "../features/feeds/components/FeedSourceAttribution";
 import {
   feedsApi,
   isFeedsApiError,
@@ -554,9 +555,7 @@ const Feeds = () => {
                   </span>
                   <h2>{item.title}</h2>
                   <p className="feed-meta">
-                    {item.source.kind === "campus_organization"
-                      ? item.source.organization.name
-                      : item.author.displayName}
+                    <FeedSourceAttribution item={item} />
                     {item.academic.subject
                       ? ` · ${item.academic.subject.name}`
                       : ""}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { FeedItem } from "../features/feeds/interfaces";
+import { FeedSourceAttribution } from "../features/feeds/components/FeedSourceAttribution";
 import type { PilotHomeResponse } from "../features/pilot/interfaces";
 import {
   isPilotApiError,
@@ -38,19 +39,15 @@ function FeedPreview({
                 : item.type === "question"
                   ? "Pregunta"
                   : "Organización";
-            const sourceLabel =
-              item.source.kind === "campus_organization"
-                ? item.source.organization.name
-                : item.author.displayName;
-
             return (
               <li key={`${item.type}:${item.id}`}>
                 <span>{kindLabel}</span>
                 <strong>{item.title}</strong>
                 <small>
                   {item.academic.subject
-                    ? `${item.academic.subject.name} · ${sourceLabel}`
-                    : sourceLabel}
+                    ? `${item.academic.subject.name} · `
+                    : ""}
+                  <FeedSourceAttribution item={item} />
                 </small>
               </li>
             );

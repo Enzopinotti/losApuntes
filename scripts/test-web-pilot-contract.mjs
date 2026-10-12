@@ -51,6 +51,7 @@ assert.match(home, /aria-pressed=\{activeHomeFeed === "for-you"\}/u);
 assert.match(home, /snapshot\?\.homeFeed\.kind === "community"/u);
 assert.match(home, /snapshot\.homeFeed\.items/u);
 assert.match(home, /snapshot\.forYou\.items/u);
+assert.match(home, /FeedSourceAttribution item=\{item\}/u);
 assert.doesNotMatch(home, /Unishare/u);
 assert.doesNotMatch(home, /localStorage|sessionStorage/u);
 

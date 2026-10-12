@@ -26,6 +26,9 @@ assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /watchTime|watch_time|ctr|popularity/iu);
 
 const page = await read("apps/web/src/pages/Feeds.tsx");
+const sourceAttribution = await read(
+  "apps/web/src/features/feeds/components/FeedSourceAttribution.tsx",
+);
 assert.match(page, /feedsApi\.academic/u);
 assert.match(page, /feedsApi\.forYou/u);
 assert.match(page, /aria-pressed=\{view === "academic"\}/u);
@@ -55,8 +58,18 @@ assert.match(page, /dataScopeRef\.current = feedRequestScope/u);
 assert.match(page, /dataScopeRef\.current !== feedRequestScope/u);
 assert.match(page, /Reintentar esta página/u);
 assert.match(page, /Empezar una nueva sesión/u);
-assert.match(page, /item\.source\.organization\.name/u);
 assert.match(page, /verificationState\s*===\s*"verified"/u);
+assert.match(page, /FeedSourceAttribution item=\{item\}/u);
+assert.match(sourceAttribution, /item\.source\.organization\.name/u);
+assert.match(
+  sourceAttribution,
+  /to=\{`\/organizations\/\$\{encodeURIComponent\(item\.source\.organization\.id\)\}`\}/u,
+);
+assert.match(
+  sourceAttribution,
+  /to=\{`\/p\/\$\{encodeURIComponent\(item\.author\.profileId\)\}`\}/u,
+);
+assert.match(sourceAttribution, /item\.author\.displayName/u);
 assert.doesNotMatch(page, /Ver otra tanda/u);
 assert.doesNotMatch(page, /localStorage|sessionStorage/u);
 assert.doesNotMatch(page, /setInterval|setTimeout/u);
