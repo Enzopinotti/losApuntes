@@ -42,6 +42,7 @@ import {
   resourceFileTypeLabel,
   resourceVisibilityLabel,
 } from "./resource-details-copy";
+import { ResourceEditPanel } from "./resource-edit-panel";
 import { mobileResourceConsumptionApi } from "./resource-runtime";
 import {
   MobileResourceReportController,
@@ -452,6 +453,12 @@ export function MobileResourceDetailsScreen({
                 guarda como permiso local.
               </Text>
             </View>
+
+            <ResourceEditPanel
+              resource={resource}
+              authorityKey={authorityKey}
+              onRefresh={retry}
+            />
 
             <View style={styles.card}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>
