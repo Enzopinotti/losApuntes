@@ -419,6 +419,13 @@ export function SearchScreen() {
     () => new MobileSearchController(mobileSearchApi),
     [],
   );
+  const quickSaveController = useMemo(
+    () => new MobileSearchQuickSaveController(mobileResourceConsumptionApi),
+    [],
+  );
+  const [quickSave, setQuickSave] = useState<SearchQuickSaveSnapshot>(
+    quickSaveController.getSnapshot(),
+  );
   const [search, setSearch] = useState<MobileSearchSnapshot>(
     controller.getSearchSnapshot(),
   );
@@ -475,6 +482,16 @@ export function SearchScreen() {
     }
     return null;
   }, [normalizedQuery, scope, subjectId]);
+
+  useEffect(
+    () => quickSaveController.subscribe(setQuickSave),
+    [quickSaveController],
+  );
+
+  useEffect(() => {
+    quickSaveController.setAuthority(authorityKey);
+    return () => quickSaveController.invalidate();
+  }, [authorityKey, quickSaveController]);
 
   useEffect(
     () =>
@@ -577,6 +594,18 @@ export function SearchScreen() {
     clearSearch();
     dispatchSearchInput({ type: "subjectFilterCleared" });
   }, [clearSearch]);
+
+  const quickSaveResource = useCallback(
+    (resourceId: string) => {
+      if (!authorityKey) return;
+      void quickSaveController.save(authorityKey, resourceId);
+    },
+    [authorityKey, quickSaveController],
+  );
+
+  const openSavedResources = useCallback(() => {
+    router.push("/saved-resources");
+  }, [router]);
 
   const openResource = useCallback(
     (resource: ResourceView) => {
@@ -703,6 +732,9 @@ export function SearchScreen() {
             resources={data.results.resources}
             onOpen={openResource}
             onOpenProfile={openPerson}
+            quickSave={quickSave}
+            onQuickSave={quickSaveResource}
+            onOpenSaved={openSavedResources}
           />
         )}
         {(resultScope === "all" || resultScope === "subjects") && (
@@ -875,6 +907,9 @@ export function SearchScreen() {
           onOpen={openResource}
           onOpenProfile={openPerson}
           onConfigureContext={() => router.push(ACADEMIC_CONTEXT_HOME_ROUTE)}
+          quickSave={quickSave}
+          onQuickSave={quickSaveResource}
+          onOpenSaved={openSavedResources}
         />
       ) : null}
     </ProductSurface>
@@ -972,6 +1007,21 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 5,
     minHeight: 44,
+  },
+  quickSaveRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  quickSaveButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#c8c8d2",
+    borderRadius: 10,
   },
   resourceAuthorAction: {
     alignSelf: "flex-start",
