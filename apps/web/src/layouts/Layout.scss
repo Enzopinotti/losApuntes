@@ -114,7 +114,7 @@
   .layout-brand:focus-visible,
   .layout-nav a:focus-visible,
   .layout-header-actions a:focus-visible,
-  .layout button:focus-visible {
+  button:focus-visible {
     outline: 3px solid #a7d8ff;
     outline-offset: 2px;
   }
