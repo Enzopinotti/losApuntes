@@ -40,6 +40,7 @@ export const routes: RouteObject[] = [
       { path: "account/restricted", element: <AccountRestricted /> },
       { path: "p/:profileId", element: <PublicProfile /> },
       { path: "resources", element: <Resources /> },
+      { path: "resources/:resourceId", element: <Resources /> },
       { path: "search", element: <Search /> },
       { path: "questions", element: <Questions /> },
       { path: "organizations", element: <Organizations /> },

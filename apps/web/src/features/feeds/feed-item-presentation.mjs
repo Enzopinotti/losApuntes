@@ -35,12 +35,11 @@ export function presentFeedItem(item, reasonLimit = Number.POSITIVE_INFINITY) {
   } else if (item.type === "organization_post" && organization !== null) {
     href = `/organizations/${encodeURIComponent(organization.id)}`;
     actionLabel = "Ver organización";
+  } else if (item.type === "resource") {
+    href = `/resources/${encodeURIComponent(item.id)}`;
+    actionLabel = "Abrir apunte";
   } else {
-    href = `/resources?q=${encodeURIComponent(item.title)}${
-      item.academic.subject
-        ? `&subjectId=${encodeURIComponent(item.academic.subject.id)}`
-        : ""
-    }`;
+    href = `/resources?q=${encodeURIComponent(item.title)}`;
     actionLabel = "Buscar apunte";
   }
 
