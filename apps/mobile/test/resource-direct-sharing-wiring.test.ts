@@ -7,20 +7,40 @@ function source(path: string): string {
 }
 
 test("resource sharing is shown only for owners with manageShares capability", () => {
-  const detail = source("../src/features/resources/resource-details-screen.tsx");
-  const panel = source("../src/features/resources/resource-direct-sharing-panel.tsx");
-  const controller = source("../src/features/resources/resource-direct-sharing-controller.ts");
+  const detail = source(
+    "../src/features/resources/resource-details-screen.tsx",
+  );
+  const panel = source(
+    "../src/features/resources/resource-direct-sharing-panel.tsx",
+  );
+  const controller = source(
+    "../src/features/resources/resource-direct-sharing-controller.ts",
+  );
 
   assert.match(detail, /resource\.capabilities\.manageShares \?/u);
-  assert.match(panel, /if \(!resource\.capabilities\.manageShares\) return null/u);
+  assert.match(
+    panel,
+    /if \(!resource\.capabilities\.manageShares\) return null/u,
+  );
   assert.match(controller, /!current\.canManageShares/u);
-  assert.match(detail, /sharingController\.setScope\(scopeKey, readyResource\)/u);
+  assert.match(
+    detail,
+    /sharingController\.setScope\(scopeKey, readyResource\)/u,
+  );
 });
 
 test("sharing UI exposes real people-search results and confirms revocation", () => {
-  const panel = source("../src/features/resources/resource-direct-sharing-panel.tsx");
+  const detail = source(
+    "../src/features/resources/resource-details-screen.tsx",
+  );
+  const panel = source(
+    "../src/features/resources/resource-direct-sharing-panel.tsx",
+  );
   assert.match(panel, /Compartir con personas/u);
-  assert.match(panel, /controller\.search\(authorityKey, resource\.id, query\)/u);
+  assert.match(
+    panel,
+    /controller\.search\(authorityKey, resource\.id, query\)/u,
+  );
   assert.match(panel, /current\.people\.map/u);
   assert.match(panel, /accessibilityRole="radiogroup"/u);
   assert.match(panel, /accessibilityRole="radio"/u);
@@ -35,7 +55,9 @@ test("sharing UI exposes real people-search results and confirms revocation", ()
 });
 
 test("sharing API uses authenticated profile routes without a fake grants list", () => {
-  const api = source("../src/features/resources/resource-direct-sharing-api.ts");
+  const api = source(
+    "../src/features/resources/resource-direct-sharing-api.ts",
+  );
   const runtime = source("../src/features/resources/resource-runtime.ts");
 
   assert.match(api, /scope: "people"/u);
@@ -48,7 +70,9 @@ test("sharing API uses authenticated profile routes without a fake grants list",
 });
 
 test("sharing refuses changing permissions of non-shared or stale revisions", () => {
-  const controller = source("../src/features/resources/resource-direct-sharing-controller.ts");
+  const controller = source(
+    "../src/features/resources/resource-direct-sharing-controller.ts",
+  );
   assert.match(controller, /resource\.visibility !== "shared"/u);
   assert.match(controller, /resource\.revision !== current\.revision/u);
   assert.match(controller, /resource\.capabilities\.manageShares/u);
