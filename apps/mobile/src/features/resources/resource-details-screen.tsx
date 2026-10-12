@@ -8,6 +8,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import {
@@ -42,6 +43,16 @@ import {
   resourceVisibilityLabel,
 } from "./resource-details-copy";
 import { mobileResourceConsumptionApi } from "./resource-runtime";
+import {
+  MobileResourceReportController,
+  type MobileResourceReportSnapshot,
+} from "./resource-report-controller";
+import {
+  RESOURCE_REPORT_REASONS,
+  RESOURCE_REPORT_DETAILS_MAX_LENGTH,
+  validateResourceReport,
+  type ResourceReportReason,
+} from "./resource-report-policy";
 
 const detailFailureCopy: Record<DetailFailureKind, string> = {
   offline: "No hay conexión. Volvé a intentarlo cuando estés en línea.",
@@ -158,6 +169,17 @@ export function MobileResourceDetailsScreen({
     controller.getSnapshot(),
   );
   const [handoffError, setHandoffError] = useState<string | null>(null);
+  const reportController = useMemo(
+    () => new MobileResourceReportController(mobileResourceConsumptionApi),
+    [],
+  );
+  const [reportSnapshot, setReportSnapshot] =
+    useState<MobileResourceReportSnapshot>(reportController.getSnapshot());
+  const [reportFormOpen, setReportFormOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ResourceReportReason | null>(
+    null,
+  );
+  const [reportDetails, setReportDetails] = useState("");
   const announcedNotice = useRef<"saved" | "unsaved" | null>(null);
   const sessionAuthority =
     session.kind === "authenticated"
@@ -180,6 +202,31 @@ export function MobileResourceDetailsScreen({
   const { snapshot, retry } = useFencedDetail(authorityKey, load);
 
   useEffect(() => controller.subscribe(setAction), [controller]);
+  useEffect(
+    () => reportController.subscribe(setReportSnapshot),
+    [reportController],
+  );
+
+  useEffect(() => {
+    setReportFormOpen(false);
+    setReportReason(null);
+    setReportDetails("");
+  }, [scopeKey]);
+
+  useEffect(() => {
+    if (!scopeKey) {
+      reportController.invalidate();
+      return;
+    }
+
+    reportController.setScope(scopeKey, resourceId);
+    if (!authorityKey) {
+      reportController.suspend(scopeKey);
+      return;
+    }
+
+    return () => reportController.suspend(scopeKey);
+  }, [authorityKey, reportController, resourceId, scopeKey]);
 
   useEffect(() => {
     if (
@@ -240,6 +287,25 @@ export function MobileResourceDetailsScreen({
     action.kind === "ready" && action.authorityKey === authorityKey
       ? action
       : null;
+  const currentReport =
+    reportSnapshot.kind === "ready" &&
+    reportSnapshot.authorityKey === authorityKey &&
+    reportSnapshot.resourceId === resourceId
+      ? reportSnapshot
+      : null;
+  const reportValidation = validateResourceReport(reportReason, reportDetails);
+
+  const sendReport = async () => {
+    if (!authorityKey || !currentReport || reportValidation.kind !== "valid") {
+      return;
+    }
+    await reportController.submit(
+      authorityKey,
+      resourceId,
+      reportValidation.input.reason,
+      reportDetails,
+    );
+  };
 
   const openFile = async () => {
     if (!authorityKey) return;
@@ -386,6 +452,135 @@ export function MobileResourceDetailsScreen({
                 guarda como permiso local.
               </Text>
             </View>
+
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>
+                Ayudanos a cuidar los apuntes
+              </Text>
+              {currentReport?.outcome === "confirmed" ? (
+                <Text accessibilityRole="alert" style={styles.success}>
+                  Recibimos tu reporte. Gracias por avisarnos.
+                </Text>
+              ) : currentReport?.outcome === "uncertain" ? (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  No pudimos confirmar si se recibió el reporte. Para evitar
+                  duplicados, no lo vuelvas a enviar desde esta pantalla.
+                </Text>
+              ) : (
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      reportFormOpen
+                        ? "Cerrar formulario para reportar recurso"
+                        : `Reportar ${resource.title}`
+                    }
+                    disabled={!currentReport || currentReport.sending}
+                    onPress={() => setReportFormOpen((previous) => !previous)}
+                    style={[
+                      styles.secondaryButton,
+                      (!currentReport || currentReport.sending) &&
+                        styles.disabledButton,
+                    ]}
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      {reportFormOpen ? "Cancelar reporte" : "Reportar recurso"}
+                    </Text>
+                  </Pressable>
+                  {reportFormOpen ? (
+                    <>
+                      <Text style={styles.copy}>
+                        Elegí el motivo. El equipo revisará el reporte; no
+                        incluyas contraseñas ni datos personales.
+                      </Text>
+                      <View
+                        accessibilityRole="radiogroup"
+                        style={styles.reportReasons}
+                      >
+                        {RESOURCE_REPORT_REASONS.map((reason) => (
+                          <Pressable
+                            key={reason.value}
+                            accessibilityRole="radio"
+                            accessibilityLabel={reason.label}
+                            accessibilityState={{
+                              checked: reportReason === reason.value,
+                              disabled: currentReport?.sending ?? true,
+                            }}
+                            disabled={!currentReport || currentReport.sending}
+                            onPress={() => setReportReason(reason.value)}
+                            style={[
+                              styles.reportReason,
+                              reportReason === reason.value &&
+                                styles.reportReasonSelected,
+                            ]}
+                          >
+                            <Text style={styles.reportReasonText}>
+                              {reason.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                      <Text style={styles.copy}>
+                        Detalles adicionales (opcional)
+                      </Text>
+                      <TextInput
+                        accessibilityLabel="Detalles del reporte"
+                        accessibilityHint="Opcional. Si escribís algo, usá entre 3 y 1500 caracteres."
+                        multiline
+                        maxLength={RESOURCE_REPORT_DETAILS_MAX_LENGTH}
+                        onChangeText={setReportDetails}
+                        placeholder="Explicá brevemente lo ocurrido"
+                        style={styles.reportDetails}
+                        textAlignVertical="top"
+                        value={reportDetails}
+                      />
+                      {reportReason &&
+                      reportValidation.kind === "invalid" ? (
+                        <Text accessibilityRole="alert" style={styles.error}>
+                          {reportValidation.message}
+                        </Text>
+                      ) : null}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Enviar reporte de recurso"
+                        accessibilityState={{
+                          disabled:
+                            !currentReport ||
+                            currentReport.sending ||
+                            reportValidation.kind !== "valid",
+                        }}
+                        disabled={
+                          !currentReport ||
+                          currentReport.sending ||
+                          reportValidation.kind !== "valid"
+                        }
+                        onPress={() => void sendReport()}
+                        style={[
+                          styles.primaryButton,
+                          (!currentReport ||
+                            currentReport.sending ||
+                            reportValidation.kind !== "valid") &&
+                            styles.disabledButton,
+                        ]}
+                      >
+                        {currentReport?.sending ? (
+                          <ActivityIndicator accessibilityLabel="Enviando reporte" />
+                        ) : (
+                          <Text style={styles.primaryButtonText}>
+                            Enviar reporte
+                          </Text>
+                        )}
+                      </Pressable>
+                      {currentReport?.failure ? (
+                        <Text accessibilityRole="alert" style={styles.error}>
+                          {actionFailureCopy[currentReport.failure]}
+                        </Text>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              )}
+            </View>
           </>
         )}
       </DetailState>
@@ -436,6 +631,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: "#6b6b75",
+  },
+  reportReasons: {
+    gap: 8,
+  },
+  reportReason: {
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    justifyContent: "center",
+  },
+  reportReasonSelected: {
+    borderColor: "#43366a",
+    backgroundColor: "#f1eff8",
+  },
+  reportReasonText: {
+    color: "#20202a",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  reportDetails: {
+    minHeight: 104,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    fontSize: 14,
+    color: "#20202a",
   },
   loadingRow: {
     minHeight: 42,
