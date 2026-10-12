@@ -1,0 +1,11 @@
+.author-profile-link {
+  color: #315c9b;
+  font-weight: 600;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.author-profile-link:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}

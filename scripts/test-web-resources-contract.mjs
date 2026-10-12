@@ -39,6 +39,19 @@ assert.doesNotMatch(service, /Bearer\s+/u);
 assert.doesNotMatch(service, /withCredentials\s*=\s*true/u);
 
 const page = await read('apps/web/src/pages/Resources.tsx');
+const authorProfileLink = await read(
+  'apps/web/src/features/profile/AuthorProfileLink.tsx',
+);
+const authorProfileLinkStyles = await read(
+  'apps/web/src/features/profile/AuthorProfileLink.scss',
+);
+assert.match(authorProfileLink, /profileId\.trim\(\) !== profileId/u);
+assert.match(authorProfileLink, /encodeURIComponent\(profileId\)/u);
+assert.match(
+  authorProfileLink,
+  /aria-label=\{`Ver perfil de \$\{visibleName\}`\}/u,
+);
+assert.match(authorProfileLinkStyles, /\.author-profile-link:focus-visible/u);
 assert.match(page, /resourcesApi\.createUploadIntent/u);
 assert.match(page, /resourcesApi\.uploadDirect/u);
 assert.match(page, /resourcesApi\.finalize/u);
@@ -48,6 +61,10 @@ assert.match(page, /resourcesApi\.get\(resourceId, ticket\.signal\)/u);
 assert.match(page, /Apunte recomendado en tu feed/u);
 assert.match(page, /Volver al feed/u);
 assert.match(page, /resources-back-link/u);
+assert.match(
+  page,
+  /<AuthorProfileLink[\s\S]{0,120}profileId=\{resource\.author\?\.profileId\}/u,
+);
 assert.match(page, /Este apunte ya no está disponible o dejó de ser accesible/u);
 assert.match(page, /useAsyncAuthorityFence/u);
 assert.equal((page.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 4);

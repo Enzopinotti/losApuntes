@@ -12,6 +12,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import {
   feedReturnHref,
   feedReturnRestoreState,
@@ -1360,8 +1361,13 @@ const Resources = () => {
                   </span>
                   <h2>{resource.title}</h2>
                   <p>
-                    {resource.author?.displayName ?? "Usuario de Los Apuntes"} ·{" "}
-                    {resource.academic.subject.name}
+                    <AuthorProfileLink
+                      profileId={resource.author?.profileId}
+                      displayName={
+                        resource.author?.displayName ?? "Usuario de Los Apuntes"
+                      }
+                    />{" "}
+                    · {resource.academic.subject.name}
                   </p>
                 </div>
                 <span>{Math.ceil(resource.file.byteSize / 1024)} KiB</span>
