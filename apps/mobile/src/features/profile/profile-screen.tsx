@@ -165,6 +165,16 @@ function ChoiceGroup<T extends string>({
 function AccountActions({ logout }: { logout: () => Promise<void> }) {
   return (
     <View style={styles.accountActions}>
+      <Link href="/my-resources" asChild>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Administrar mis apuntes publicados"
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>Mis apuntes</Text>
+        </Pressable>
+      </Link>
+
       <Link href="/saved-resources" asChild>
         <Pressable
           accessibilityRole="link"
