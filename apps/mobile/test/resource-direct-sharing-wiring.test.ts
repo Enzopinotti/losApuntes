@@ -29,6 +29,9 @@ test("sharing UI exposes real people-search results and confirms revocation", ()
   assert.match(panel, /Conceder acceso/u);
   assert.match(panel, /Revocar acceso/u);
   assert.match(panel, /No pudimos confirmar/u);
+  assert.match(panel, /onRefresh/u);
+  assert.match(panel, /Actualizar apunte/u);
+  assert.match(detail, /onRefresh=\{retry\}/u);
 });
 
 test("sharing API uses authenticated profile routes without a fake grants list", () => {
