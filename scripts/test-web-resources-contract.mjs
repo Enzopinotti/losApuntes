@@ -18,6 +18,8 @@ assert.match(service, /xhr\.send\(file\)/u);
 assert.match(service, /operationKey/u);
 assert.match(service, /Podés reintentar sin perder el formulario/u);
 assert.match(service, /unsave:\s*\(resourceId/u);
+assert.match(service, /get:\s*\(resourceId: string/u);
+assert.match(service, /`\/resources\/\$\{encodeURIComponent\(resourceId\)\}`/u);
 assert.match(service, /saved:\s*\(cursor\?/u);
 assert.match(service, /ResourceSearchResponse/u);
 assert.match(service, /query\.set\("cursor", cursor\)/u);
@@ -41,6 +43,12 @@ assert.match(page, /resourcesApi\.createUploadIntent/u);
 assert.match(page, /resourcesApi\.uploadDirect/u);
 assert.match(page, /resourcesApi\.finalize/u);
 assert.match(page, /resourcesApi\.searchSubjects/u);
+assert.match(page, /useParams/u);
+assert.match(page, /resourcesApi\.get\(resourceId, ticket\.signal\)/u);
+assert.match(page, /Apunte recomendado en tu feed/u);
+assert.match(page, /Volver al feed/u);
+assert.match(page, /resources-back-link/u);
+assert.match(page, /Este apunte ya no está disponible o dejó de ser accesible/u);
 assert.match(page, /useAsyncAuthorityFence/u);
 assert.equal((page.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 4);
 assert.match(page, /user\?\.id/u);
@@ -127,6 +135,11 @@ assert.match(
   routes,
   /\{\s*path:\s*"resources",\s*element:\s*<Resources\s*\/>\s*\}/u,
   'Resources discovery route must remain anonymous-readable',
+);
+assert.match(
+  routes,
+  /\{\s*path:\s*"resources\/:resourceId",\s*element:\s*<Resources\s*\/>\s*\}/u,
+  'Direct resource route must use the same anonymous-readable authorized detail page',
 );
 
 console.log('PASS Web Resources privacy/upload contract');

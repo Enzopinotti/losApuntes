@@ -103,6 +103,10 @@ assert.doesNotMatch(
 );
 assert.match(itemContext, /FeedSourceAttribution item=\{item\}/u);
 assert.match(itemContext, /presentFeedItem\(item, reasonLimit\)/u);
+assert.match(
+  itemContext,
+  /feedReturnTo:\s*`\$\{location\.pathname\}\$\{location\.search\}`/u,
+);
 assert.match(itemPresentation, /verificationState\s*===\s*"verified"/u);
 assert.match(sourceAttribution, /item\.source\.organization\.name/u);
 assert.match(
@@ -304,7 +308,7 @@ assert.equal(organizationPresentation.actionLabel, "Ver organización");
 
 const resourcePresentation = presentFeedItem({
   type: "resource",
-  id: "resource-1",
+  id: "resource / 1",
   title: "Resumen / unidad 2",
   summary: "",
   author: {
@@ -321,9 +325,9 @@ assert.equal(resourcePresentation.kindLabel, "Apunte");
 assert.equal(resourcePresentation.avatarUrl, "https://example.test/avatar.png");
 assert.equal(
   resourcePresentation.href,
-  "/resources?q=Resumen%20%2F%20unidad%202&subjectId=subject%20%2F%202",
+  "/resources/resource%20%2F%201",
 );
-assert.equal(resourcePresentation.actionLabel, "Buscar apunte");
+assert.equal(resourcePresentation.actionLabel, "Abrir apunte");
 
 const routes = await read("apps/web/src/app/routes.tsx");
 assert.match(

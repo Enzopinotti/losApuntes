@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import type { FeedItem } from "../interfaces";
 import { presentFeedItem } from "../feed-item-presentation.mjs";
 import { FeedSourceAttribution } from "./FeedSourceAttribution";
@@ -69,10 +69,15 @@ export function FeedItemContext({
 }
 
 export function FeedItemOpenLink({ item }: { item: FeedItem }) {
+  const location = useLocation();
   const presentation = presentFeedItem(item);
 
   return (
-    <Link className="feed-item-open-link" to={presentation.href}>
+    <Link
+      className="feed-item-open-link"
+      to={presentation.href}
+      state={{ feedReturnTo: `${location.pathname}${location.search}` }}
+    >
       {presentation.actionLabel}
     </Link>
   );
