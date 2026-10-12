@@ -47,4 +47,53 @@ describe('owner resources HTTP route', () => {
       cursor: 'opaque-page',
     });
   });
+
+  it('forwards search subject and sort while preserving the session owner', async () => {
+    const listOwned = jest.fn().mockResolvedValue({ items: [], nextCursor: null });
+    const controller = new ResourcesController({
+      listOwned,
+    } as unknown as ResourceService);
+    await controller.mine(
+      { user: { id: 'session-owner' } } as AuthenticatedRequest,
+      {
+        limit: 25,
+        q: 'Álgebra',
+        subjectId: '22222222-2222-4222-8222-222222222222',
+        visibility: 'shared',
+        order: 'oldest',
+      },
+    );
+    expect(listOwned).toHaveBeenCalledWith('session-owner', {
+      limit: 25,
+      q: 'Álgebra',
+      subjectId: '22222222-2222-4222-8222-222222222222',
+      visibility: 'shared',
+      order: 'oldest',
+    });
+  });
+
+  it('protects owner subject facets with both guards and private caching', async () => {
+    const method = ResourcesController.prototype.ownedSubjects;
+    expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine/subjects');
+    expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
+      AuthSessionGuard,
+      VerifiedEmailGuard,
+    ]);
+    expect(Reflect.getMetadata(HEADERS_METADATA, method)).toContainEqual({
+      name: 'Cache-Control',
+      value: 'private, no-store',
+    });
+
+    const listOwnedSubjects = jest.fn().mockResolvedValue({
+      items: [], truncated: false,
+    });
+    const controller = new ResourcesController({
+      listOwnedSubjects,
+    } as unknown as ResourceService);
+    await controller.ownedSubjects({
+      user: { id: 'session-owner' },
+    } as AuthenticatedRequest);
+    expect(listOwnedSubjects).toHaveBeenCalledWith('session-owner');
+  });
+
 });
