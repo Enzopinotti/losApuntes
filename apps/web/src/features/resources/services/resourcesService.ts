@@ -148,6 +148,12 @@ export function isResourcesApiError(
 }
 
 export const resourcesApi = {
+  get: (resourceId: string, signal?: AbortSignal) =>
+    request<{ resource: ResourceView }>(
+      `/resources/${encodeURIComponent(resourceId)}`,
+      { signal },
+    ),
+
   search: (
     input: {
       q?: string;

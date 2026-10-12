@@ -5,8 +5,18 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
+import {
+  feedReturnHref,
+  feedReturnRestoreState,
+} from "../features/feeds/feed-navigation.mjs";
 import type {
   AcademicSubjectOption,
   ResourceView,
@@ -30,7 +40,7 @@ const SUPPORTED_TYPES = new Set([
   "image/webp",
 ]);
 
-function messageFor(error: unknown): string {
+function messageFor(error: unknown, resourceDetail = false): string {
   if (!isResourcesApiError(error)) {
     return "No pudimos completar la operación.";
   }
@@ -41,6 +51,14 @@ function messageFor(error: unknown): string {
 
   if (error.code === "RESOURCE_REVISION_CONFLICT") {
     return "El apunte cambió en otra pestaña. Recargá la lista antes de editar.";
+  }
+
+  if (resourceDetail && error.status === 404) {
+    return "Este apunte ya no está disponible o dejó de ser accesible.";
+  }
+
+  if (resourceDetail && error.status === 403) {
+    return "Tu cuenta ya no tiene acceso a este apunte.";
   }
 
   return error.message;
@@ -208,6 +226,8 @@ function isUncertainResourceCreateOutcome(error: unknown): boolean {
 const Resources = () => {
   const { status, user, session } = useAuth();
   const location = useLocation();
+  const { resourceId: routeResourceId } = useParams<{ resourceId: string }>();
+  const resourceId = routeResourceId?.trim() ?? "";
   const [searchParams] = useSearchParams();
   const routeQuery = searchParams.get("q") ?? "";
   const subjectIdFilter = searchParams.get("subjectId") ?? undefined;
@@ -235,6 +255,7 @@ const Resources = () => {
     "resources-list",
     authScopeKey,
     location.key,
+    resourceId || "all-resources",
     subjectIdFilter ?? "all-subjects",
     visibilityFilter || "all-visibility",
     savedView ? "saved" : "discovery",
@@ -436,9 +457,16 @@ const Resources = () => {
       if (isListRequestCurrent(ticket)) setErrorState(null);
 
       try {
-        const result = savedView
-          ? await resourcesApi.saved(cursor, ticket.signal)
-          : await resourcesApi.search(
+        const result = resourceId
+          ? {
+              items: [
+                (await resourcesApi.get(resourceId, ticket.signal)).resource,
+              ],
+              nextCursor: null,
+            }
+          : savedView
+            ? await resourcesApi.saved(cursor, ticket.signal)
+            : await resourcesApi.search(
               {
                 q: query.trim() || undefined,
                 visibility: visibilityFilter || undefined,
@@ -467,7 +495,7 @@ const Resources = () => {
         if (isListRequestCurrent(ticket)) {
           setErrorState({
             scopeKey: listScopeKey,
-            message: messageFor(nextError),
+            message: messageFor(nextError, Boolean(resourceId)),
             isCurrent: () => isListRequestCurrent(ticket),
           });
         }
@@ -487,6 +515,7 @@ const Resources = () => {
       isListRequestCurrent,
       listScopeKey,
       query,
+      resourceId,
       routeQueryIsSynchronized,
       savedView,
       subjectIdFilter,
@@ -553,6 +582,8 @@ const Resources = () => {
         : current,
     );
   };
+
+  const feedReturnTo = feedReturnHref(location.state) ?? "/resources";
 
   const finishResourceActionUi = (ticket: AsyncAuthorityTicket) => {
     if (!finishResourceAction(ticket)) return;
@@ -985,13 +1016,26 @@ const Resources = () => {
       <header className="resources-hero">
         <div>
           <p className="resources-eyebrow">Apuntes y recursos</p>
-          <h1>Encontrá material útil sin perder el contexto académico</h1>
+          <h1>
+            {resourceId
+              ? "Apunte recomendado en tu feed"
+              : "Encontrá material útil sin perder el contexto académico"}
+          </h1>
           <p>
-            Cada recurso conserva su materia canónica y su privacidad se
-            revalida antes de cada descarga.
+            {resourceId
+              ? "Consultá el recurso exacto y guardalo en tu biblioteca."
+              : "Cada recurso conserva su materia canónica y su privacidad se revalida antes de cada descarga."}
           </p>
         </div>
-        {authenticated && (
+        {resourceId ? (
+          <Link
+            className="resources-back-link"
+            to={feedReturnTo}
+            state={feedReturnRestoreState(location.state)}
+          >
+            {feedReturnTo === "/" ? "Volver a Inicio" : "Volver al feed"}
+          </Link>
+        ) : authenticated ? (
           <button
             type="button"
             className="secondary"
@@ -1002,7 +1046,7 @@ const Resources = () => {
           >
             {savedMode ? "Ver descubrimiento" : "Ver guardados"}
           </button>
-        )}
+        ) : null}
       </header>
 
       {feedback && (
@@ -1017,7 +1061,7 @@ const Resources = () => {
       )}
 
       {subjectIdFilter && (
-        <p className="resources-login-note">
+        <p className="resources-login-note" hidden={Boolean(resourceId)}>
           Filtrando por la materia seleccionada desde búsqueda.{" "}
           <Link to="/resources">Quitar filtro de materia</Link>
         </p>
@@ -1025,6 +1069,7 @@ const Resources = () => {
 
       <form
         className="resources-search"
+        hidden={Boolean(resourceId)}
         onSubmit={(event) => {
           event.preventDefault();
           void load();
@@ -1061,7 +1106,7 @@ const Resources = () => {
       </form>
 
       {authenticated ? (
-        <details className="resources-publish">
+        <details className="resources-publish" hidden={Boolean(resourceId)}>
           <summary>Subir un apunte</summary>
           <form onSubmit={publish} className="resources-form">
             <label>
@@ -1291,7 +1336,7 @@ const Resources = () => {
           </form>
         </details>
       ) : (
-        <p className="resources-login-note">
+        <p className="resources-login-note" hidden={Boolean(resourceId)}>
           <Link to="/login">Iniciá sesión</Link> para subir, guardar o descargar
           recursos.
         </p>
@@ -1299,9 +1344,13 @@ const Resources = () => {
 
       <section className="resources-list" aria-live="polite">
         {loading ? (
-          <p>Cargando recursos…</p>
+          <p>{resourceId ? "Cargando apunte…" : "Cargando recursos…"}</p>
         ) : items.length === 0 ? (
-          <p>No encontramos recursos con esos filtros.</p>
+          <p>
+            {resourceId
+              ? "Este apunte ya no está disponible."
+              : "No encontramos recursos con esos filtros."}
+          </p>
         ) : (
           items.map((resource) => (
             <article className="resource-card" key={resource.id}>
@@ -1312,8 +1361,13 @@ const Resources = () => {
                   </span>
                   <h2>{resource.title}</h2>
                   <p>
-                    {resource.author?.displayName ?? "Usuario de Los Apuntes"} ·{" "}
-                    {resource.academic.subject.name}
+                    <AuthorProfileLink
+                      profileId={resource.author?.profileId}
+                      displayName={
+                        resource.author?.displayName ?? "Usuario de Los Apuntes"
+                      }
+                    />{" "}
+                    · {resource.academic.subject.name}
                   </p>
                 </div>
                 <span>{Math.ceil(resource.file.byteSize / 1024)} KiB</span>

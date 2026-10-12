@@ -4,6 +4,23 @@
   padding: 2.5rem 0 4rem;
 }
 
+.public-profile-feed-return {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 1rem;
+  padding: 0 0.85rem;
+  border: 1px solid #cbd1dc;
+  border-radius: 9px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.public-profile-feed-return:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
 .profile-hero,
 .profile-card {
   background: #ffffff;

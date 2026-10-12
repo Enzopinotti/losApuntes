@@ -46,6 +46,16 @@ assert.doesNotMatch(owner, /localStorage|sessionStorage/u);
 assert.doesNotMatch(owner, /career_id|cohort_year/u);
 
 const publicPage = await read('apps/web/src/pages/PublicProfile.tsx');
+const publicProfileStyles = await read('apps/web/src/pages/Profile.scss');
+assert.match(publicPage, /useLocation\(\)/u);
+assert.match(publicPage, /feedReturnHref\(location\.state\)/u);
+assert.match(publicPage, /feedReturnRestoreState\(location\.state\)/u);
+assert.match(publicPage, /state=\{feedReturnState\}/u);
+assert.match(publicPage, /public-profile-feed-return/u);
+assert.match(
+  publicProfileStyles,
+  /\.public-profile-feed-return:focus-visible/u,
+);
 assert.match(publicPage, /profileApi\s*\.\s*publicProfile\s*\(/u);
 assert.match(publicPage, /useAuth\(\)/u);
 assert.match(publicPage, /user\?\.id/u);

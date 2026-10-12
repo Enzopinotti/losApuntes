@@ -190,6 +190,34 @@
   margin-bottom: 1rem;
 }
 
+.community-back-link {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #cbd1dc;
+  border-radius: 9px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.community-back-link:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 2px;
+}
+
+.community-author-link {
+  color: #315c9b;
+  font-weight: 600;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.community-author-link:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
 .community-answer-list > li {
   display: block;
 }

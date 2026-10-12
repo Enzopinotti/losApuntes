@@ -17,6 +17,7 @@ See:
 
 - `docs/adr/0006-mobile-expo-native-foundation.md`;
 - `docs/mobile/auth-v1.md`.
+- `docs/mobile/first-day-native-acceptance.md` (manual Android/iOS day-one evidence; not covered by repository CI).
 
 ## Notifications
 

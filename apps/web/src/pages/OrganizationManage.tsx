@@ -16,6 +16,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
@@ -403,7 +404,13 @@ const OrganizationManage = () => {
             {management.managers.map((manager, index) => (
               <li key={manager.profile.profileId ?? `${manager.role}:${index}`}>
                 <span>
-                  <strong>{manager.profile.displayName}</strong> ·{" "}
+                  <strong>
+                    <AuthorProfileLink
+                      profileId={manager.profile.profileId}
+                      displayName={manager.profile.displayName}
+                    />
+                  </strong>
+                  {" · "}
                   {manager.role}
                 </span>
                 {manager.profile.profileId && (

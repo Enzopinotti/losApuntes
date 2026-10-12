@@ -14,6 +14,7 @@ import type {
 
 import type { CommunityApi } from "../src/features/community/community-api";
 import {
+  canRefreshCommunityQuestion,
   captureOwnedQuestionBaseline,
   cancelCommunityComposerSubmission,
   communityAnswerDraftConfirmationTransition,
@@ -470,6 +471,115 @@ test("does not let answer pagination cancel an in-flight answer mutation", async
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind === "ready") assert.equal(snapshot.submittingAnswer, false);
+});
+
+test("keeps answer pagination and loaded answers intact during a refresh attempt", async () => {
+  const nextPage = deferred<{
+    items: AnswerView[];
+    nextCursor: string | null;
+  }>();
+  let questionCalls = 0;
+  let answerPageSignal: AbortSignal | undefined;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => {
+      questionCalls += 1;
+      return detail(id, [answer("current")], "opaque-answer-cursor");
+    },
+    answers: async (_questionId, _cursor, _limit, signal) => {
+      answerPageSignal = signal;
+      return nextPage.promise;
+    },
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => ({ answer: answer("created") }),
+  });
+
+  await controller.load("authority-a", "question-a");
+  const loadingMore = controller.loadMoreAnswers("authority-a");
+  const duringPagination = controller.getSnapshot();
+  assert.equal(duringPagination.kind, "ready");
+  if (duringPagination.kind === "ready") {
+    assert.equal(duringPagination.loadingMoreAnswers, true);
+    assert.deepEqual(
+      duringPagination.detail.answers.map((item) => item.id),
+      ["current"],
+    );
+  }
+
+  await controller.load("authority-a", "question-a");
+
+  assert.equal(questionCalls, 1);
+  assert.equal(answerPageSignal?.aborted, false);
+  const afterRefreshAttempt = controller.getSnapshot();
+  assert.equal(afterRefreshAttempt.kind, "ready");
+  if (afterRefreshAttempt.kind === "ready") {
+    assert.equal(afterRefreshAttempt.loadingMoreAnswers, true);
+    assert.equal(
+      afterRefreshAttempt.detail.answersNextCursor,
+      "opaque-answer-cursor",
+    );
+    assert.deepEqual(
+      afterRefreshAttempt.detail.answers.map((item) => item.id),
+      ["current"],
+    );
+  }
+
+  nextPage.resolve({ items: [answer("older")], nextCursor: null });
+  await loadingMore;
+
+  const settled = controller.getSnapshot();
+  assert.equal(settled.kind, "ready");
+  if (settled.kind === "ready") {
+    assert.equal(settled.loadingMoreAnswers, false);
+    assert.equal(settled.detail.answersNextCursor, null);
+    assert.deepEqual(
+      settled.detail.answers.map((item) => item.id),
+      ["current", "older"],
+    );
+  }
+});
+
+test("offers question refresh only when no detail operation is active", async () => {
+  assert.equal(canRefreshCommunityQuestion({ kind: "idle" }), true);
+  assert.equal(
+    canRefreshCommunityQuestion({
+      kind: "loading",
+      authorityKey: "authority-a",
+      questionId: "question-a",
+    }),
+    false,
+  );
+  assert.equal(
+    canRefreshCommunityQuestion({
+      kind: "failure",
+      authorityKey: "authority-a",
+      questionId: "question-a",
+      failure: { kind: "offline", code: "NETWORK_UNAVAILABLE" },
+    }),
+    true,
+  );
+
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => detail(id),
+    answers: async () => ({ items: [], nextCursor: null }),
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => ({ answer: answer("created") }),
+  });
+  await controller.load("authority-a", "question-a");
+  const ready = controller.getSnapshot();
+  assert.equal(ready.kind, "ready");
+  if (ready.kind === "ready") {
+    assert.equal(canRefreshCommunityQuestion(ready), true);
+    assert.equal(
+      canRefreshCommunityQuestion({ ...ready, loadingMoreAnswers: true }),
+      false,
+    );
+    assert.equal(
+      canRefreshCommunityQuestion({ ...ready, submittingAnswer: true }),
+      false,
+    );
+  }
 });
 
 test("composer authority cancellation aborts its POST and resets the local submit lock", () => {

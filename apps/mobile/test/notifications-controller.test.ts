@@ -13,6 +13,7 @@ import {
   MobileNotificationsController,
   shouldReconcileMobileNotifications,
 } from "../src/features/notifications/notifications-controller";
+import { ApiRequestError } from "../src/services/api/client";
 
 const notification = (
   id: string,
@@ -209,4 +210,163 @@ test("reconciliation is limited to a focused active screen", () => {
   assert.equal(shouldReconcileMobileNotifications(true, "active"), true);
   assert.equal(shouldReconcileMobileNotifications(false, "active"), false);
   assert.equal(shouldReconcileMobileNotifications(true, "background"), false);
+});
+
+test("opening an unread notification marks it read before approving navigation", async () => {
+  const { api, calls, actions } = apiHarness((_input, call) =>
+    call === 1
+      ? page(["unread"])
+      : {
+          items: [notification("unread", "2026-10-12T12:00:00.000Z")],
+          nextCursor: null,
+        },
+  );
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user-a:session-a", false);
+
+  const canOpen = await controller.openAndMarkRead(
+    "user-a:session-a",
+    "unread",
+  );
+
+  assert.equal(canOpen, true);
+  assert.deepEqual(actions, ["read:unread"]);
+  assert.equal(calls.length, 2);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.items[0]?.readAt, "2026-10-12T12:00:00.000Z");
+    assert.equal(snapshot.actionBusy, false);
+  }
+});
+
+test("opening an already read notification navigates without another mutation", async () => {
+  const { api, actions, calls } = apiHarness(() => ({
+    items: [notification("read", "2026-10-11T12:00:00.000Z")],
+    nextCursor: null,
+  }));
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user-a:session-a", false);
+
+  assert.equal(
+    await controller.openAndMarkRead("user-a:session-a", "read"),
+    true,
+  );
+  assert.deepEqual(actions, []);
+  assert.equal(calls.length, 1);
+});
+
+test("opening a missing or another-account notification is denied", async () => {
+  const { api, actions } = apiHarness(() => page(["current"]));
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user-a:session-a", false);
+
+  assert.equal(
+    await controller.openAndMarkRead("user-b:session-b", "current"),
+    false,
+  );
+  assert.equal(
+    await controller.openAndMarkRead("user-a:session-a", "missing"),
+    false,
+  );
+  assert.deepEqual(actions, []);
+});
+
+test("a rejected read mutation keeps the notification available and denies navigation", async () => {
+  const { api } = apiHarness(() => page(["unread"]));
+  api.markNotificationRead = async () => {
+    throw new ApiRequestError(
+      "offline",
+      null,
+      "NETWORK_UNAVAILABLE",
+      "offline",
+    );
+  };
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user-a:session-a", false);
+
+  assert.equal(
+    await controller.openAndMarkRead("user-a:session-a", "unread"),
+    false,
+  );
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.items[0]?.readAt, null);
+    assert.equal(snapshot.failure?.kind, "offline");
+    assert.equal(snapshot.actionBusy, false);
+  }
+});
+
+test("late read success from a replaced account cannot approve old navigation", async () => {
+  const pending = deferred<{ read: true }>();
+  const { api, calls } = apiHarness((_input, call) =>
+    call === 1 ? page(["old"]) : page(["new"]),
+  );
+  let signal: AbortSignal | undefined;
+  api.markNotificationRead = async (_id, nextSignal) => {
+    signal = nextSignal;
+    return pending.promise;
+  };
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user-a:session-a", false);
+
+  const opening = controller.openAndMarkRead("user-a:session-a", "old");
+  await controller.load("user-b:session-b", false);
+  pending.resolve({ read: true });
+
+  assert.equal(await opening, false);
+  assert.equal(signal?.aborted, true);
+  assert.equal(calls.length, 2);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.authorityKey, "user-b:session-b");
+    assert.deepEqual(
+      snapshot.data.items.map((item) => item.id),
+      ["new"],
+    );
+  }
+});
+
+test("suspending the inbox prevents a late read from opening a destination", async () => {
+  const pending = deferred<{ read: true }>();
+  const { api } = apiHarness(() => page(["old"]));
+  api.markNotificationRead = async () => pending.promise;
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user-a:session-a", false);
+
+  const opening = controller.openAndMarkRead("user-a:session-a", "old");
+  controller.suspend("user-a:session-a");
+  pending.resolve({ read: true });
+
+  assert.equal(await opening, false);
+  assert.equal(controller.getSnapshot().kind, "ready");
+  const snapshot = controller.getSnapshot();
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.items[0]?.readAt, null);
+    assert.equal(snapshot.actionBusy, false);
+  }
+});
+
+test("a second open during an in-flight read cannot issue duplicate mutations", async () => {
+  const pending = deferred<{ read: true }>();
+  const { api } = apiHarness(() => page(["old"]));
+  let mutations = 0;
+  api.markNotificationRead = async () => {
+    mutations += 1;
+    return pending.promise;
+  };
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user-a:session-a", false);
+
+  const opening = controller.openAndMarkRead("user-a:session-a", "old");
+  assert.equal(
+    await controller.openAndMarkRead("user-a:session-a", "old"),
+    false,
+  );
+  pending.resolve({ read: true });
+
+  assert.equal(await opening, true);
+  assert.equal(mutations, 1);
 });

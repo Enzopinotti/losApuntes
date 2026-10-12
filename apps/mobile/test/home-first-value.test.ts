@@ -1,18 +1,90 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
   hasActionableHomeContent,
+  homeFeedAuthorAction,
   homeFeedExploreAction,
   homeFeedItemAction,
   homeFirstValueActions,
 } from "../src/features/home/home-first-value";
 import {
+  homeFeedAvatarUrl,
   homeFeedOrganizationVerificationLabel,
   homeFeedReasonAccessibilitySummary,
   homeFeedReasonLabels,
 } from "../src/features/home/home-feed-presentation";
 import type { FeedReasonCode } from "@losapuntes/contracts";
+
+test("Home author action opens only a server-projected personal profile", () => {
+  const author = homeFeedAuthorAction({
+    type: "resource",
+    source: { kind: "personal_user" },
+    author: {
+      profileId: "profile-1",
+      displayName: "Ana Pérez",
+      avatarUrl: null,
+    },
+  });
+
+  assert.deepEqual(author?.href, {
+    pathname: "/profiles/[profileId]",
+    params: { profileId: "profile-1" },
+  });
+  assert.equal(author?.accessibilityLabel, "Ver perfil de Ana Pérez");
+  assert.match(author?.accessibilityHint ?? "", /permisos actuales/);
+  assert.equal(
+    homeFeedAuthorAction({
+      type: "question",
+      source: { kind: "personal_user" },
+      author: { profileId: null, displayName: "Cuenta", avatarUrl: null },
+    }),
+    null,
+  );
+  assert.equal(
+    homeFeedAuthorAction({
+      type: "resource",
+      source: { kind: "personal_user" },
+      author: { profileId: "  ", displayName: "Cuenta", avatarUrl: null },
+    }),
+    null,
+  );
+  assert.equal(
+    homeFeedAuthorAction({
+      type: "organization_post",
+      source: {
+        kind: "campus_organization",
+        organization: {
+          id: "org-1",
+          name: "Centro de Estudiantes",
+          avatarUrl: null,
+          verificationState: "verified",
+        },
+      },
+      author: {
+        profileId: "profile-1",
+        displayName: "Ana Pérez",
+        avatarUrl: null,
+      },
+    }),
+    null,
+  );
+});
+
+test("Home separates the author profile action from opening the feed item", () => {
+  const screen = readFileSync(
+    new URL("../src/features/home/home-screen.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(screen, /homeFeedAuthorAction\(item\)/u);
+  assert.match(screen, /onPress=\{\(\) => onOpenAuthor\(authorAction\)\}/u);
+  assert.match(screen, /onPress=\{\(\) => onOpen\(action\)\}/u);
+  assert.match(
+    screen,
+    /accessibilityLabel=\{authorAction\.accessibilityLabel\}/u,
+  );
+});
 
 test("Home resources and questions target their existing detail routes", () => {
   const resource = homeFeedItemAction({
@@ -105,6 +177,60 @@ test("Home marks only organizations whose server state is verified", () => {
   );
   assert.equal(
     homeFeedOrganizationVerificationLabel({ kind: "personal_user" }),
+    null,
+  );
+});
+
+test("Home uses only the avatar belonging to the feed item's source", () => {
+  assert.equal(
+    homeFeedAvatarUrl({
+      author: {
+        profileId: "profile-1",
+        displayName: "Ana Pérez",
+        avatarUrl: "https://cdn.example.test/ana.png",
+      },
+      source: { kind: "personal_user" },
+    }),
+    "https://cdn.example.test/ana.png",
+  );
+
+  assert.equal(
+    homeFeedAvatarUrl({
+      author: {
+        profileId: null,
+        displayName: "Autor interno",
+        avatarUrl: "https://cdn.example.test/author.png",
+      },
+      source: {
+        kind: "campus_organization",
+        organization: {
+          id: "org-1",
+          name: "Centro de Estudiantes",
+          avatarUrl: "https://cdn.example.test/org.png",
+          verificationState: "verified",
+        },
+      },
+    }),
+    "https://cdn.example.test/org.png",
+  );
+
+  assert.equal(
+    homeFeedAvatarUrl({
+      author: {
+        profileId: null,
+        displayName: "Autor interno",
+        avatarUrl: "https://cdn.example.test/author.png",
+      },
+      source: {
+        kind: "campus_organization",
+        organization: {
+          id: "org-1",
+          name: "Centro de Estudiantes",
+          avatarUrl: null,
+          verificationState: "unverified",
+        },
+      },
+    }),
     null,
   );
 });

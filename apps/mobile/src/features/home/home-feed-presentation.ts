@@ -19,6 +19,14 @@ export function homeFeedReasonLabels(
   return reasons.map((reason) => reasonLabels[reason]);
 }
 
+export function homeFeedAvatarUrl(
+  item: Pick<FeedItem, "author" | "source">,
+): string | null {
+  return item.source.kind === "campus_organization"
+    ? item.source.organization.avatarUrl
+    : item.author.avatarUrl;
+}
+
 export function homeFeedReasonAccessibilitySummary(
   reasons: readonly FeedReasonCode[],
 ): string | null {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   ProfileActivity,
@@ -10,6 +10,10 @@ import {
   profileApi,
 } from "../features/profile/services/profileService";
 import { PublicProfileSocialActions } from "../features/community/public-profile-social-actions";
+import {
+  feedReturnHref,
+  feedReturnRestoreState,
+} from "../features/feeds/feed-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Profile.scss";
 
@@ -24,7 +28,20 @@ function appendActivities(
 
 const PublicProfile = () => {
   const { profileId } = useParams();
+  const location = useLocation();
   const { status, user, session } = useAuth();
+  const feedReturnTo = feedReturnHref(location.state);
+  const feedReturnState = feedReturnRestoreState(location.state);
+  const feedReturnLink = feedReturnTo ? (
+    <Link
+      className="public-profile-feed-return"
+      to={feedReturnTo}
+      state={feedReturnState}
+      replace
+    >
+      {feedReturnTo === "/" ? "Volver a Inicio" : "Volver al feed"}
+    </Link>
+  ) : null;
   const viewerScopeKey = [
     status,
     user?.id ?? "anonymous",
@@ -197,10 +214,11 @@ const PublicProfile = () => {
   if (error) {
     return (
       <section className="profile-page">
+        {feedReturnLink}
         <p className="profile-error" role="alert">
           {error}
         </p>
-        <Link to="/">Volver al inicio</Link>
+        {!feedReturnLink ? <Link to="/">Volver al inicio</Link> : null}
       </section>
     );
   }
@@ -208,6 +226,7 @@ const PublicProfile = () => {
   if (!snapshot) {
     return (
       <section className="profile-page">
+        {feedReturnLink}
         <p role="status">Cargando perfil…</p>
       </section>
     );
@@ -217,6 +236,7 @@ const PublicProfile = () => {
 
   return (
     <section className="profile-page public-profile">
+      {feedReturnLink}
       <header className="profile-hero">
         <div>
           <p className="profile-eyebrow">Perfil en Los Apuntes</p>

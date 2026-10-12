@@ -5,10 +5,11 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AnswerView,
+  CommunityPerson,
   QuestionDetailResponse,
   QuestionState,
   QuestionView,
@@ -17,10 +18,34 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import {
+  feedReturnHref,
+  feedReturnRestoreState,
+} from "../features/feeds/feed-navigation.mjs";
 import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
+
+function CommunityAuthorAttribution({
+  author,
+}: {
+  author: CommunityPerson | null;
+}) {
+  const displayName = author?.displayName.trim() || "Usuario de Los Apuntes";
+  const profileId = author?.profileId;
+  if (!profileId || profileId.trim() !== profileId) return displayName;
+
+  return (
+    <Link
+      aria-label={`Ver perfil de ${displayName}`}
+      className="community-author-link"
+      to={`/p/${encodeURIComponent(profileId)}`}
+    >
+      {displayName}
+    </Link>
+  );
+}
 
 function appendAnswers(
   current: AnswerView[],
@@ -55,6 +80,8 @@ function messageFor(error: unknown): string {
 const Questions = () => {
   const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const location = useLocation();
+  const feedReturnTo = feedReturnHref(location.state);
   const viewerScopeKey = [
     status,
     user?.id ?? "anonymous",
@@ -786,14 +813,27 @@ const Questions = () => {
           ) : (
             <>
               <header className="community-question-header">
+                {feedReturnTo && (
+                  <Link
+                    className="community-back-link"
+                    to={feedReturnTo}
+                    state={feedReturnRestoreState(location.state)}
+                    replace
+                  >
+                    {feedReturnTo === "/"
+                      ? "Volver a Inicio"
+                      : "Volver al feed"}
+                  </Link>
+                )}
                 <span className="community-status">
                   {selected.question.state}
                 </span>
                 <h2>{selected.question.title}</h2>
                 <p>{selected.question.body}</p>
                 <small>
-                  {selected.question.author?.displayName ??
-                    "Usuario de Los Apuntes"}{" "}
+                  <CommunityAuthorAttribution
+                    author={selected.question.author}
+                  />{" "}
                   · {selected.question.academic.subject.name}
                 </small>
               </header>
@@ -876,7 +916,7 @@ const Questions = () => {
                       }
                     >
                       <strong>
-                        {answer.author?.displayName ?? "Usuario de Los Apuntes"}
+                        <CommunityAuthorAttribution author={answer.author} />
                       </strong>
                       {editAnswerId === answer.id ? (
                         <div>

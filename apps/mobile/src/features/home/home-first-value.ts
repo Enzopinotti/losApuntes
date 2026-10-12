@@ -7,6 +7,34 @@ export interface HomeFeedItemAction {
   accessibilityHint: string;
 }
 
+export interface HomeFeedAuthorAction {
+  href: Href;
+  accessibilityLabel: string;
+  accessibilityHint: string;
+}
+
+export function homeFeedAuthorAction(
+  item: Pick<FeedItem, "type" | "author" | "source">,
+): HomeFeedAuthorAction | null {
+  const profileId = item.author.profileId;
+  if (
+    item.type === "organization_post" ||
+    item.source.kind !== "personal_user" ||
+    !profileId ||
+    profileId.trim() !== profileId
+  ) {
+    return null;
+  }
+
+  const displayName = item.author.displayName.trim() || "esta persona";
+  return {
+    href: { pathname: "/profiles/[profileId]", params: { profileId } },
+    accessibilityLabel: `Ver perfil de ${displayName}`,
+    accessibilityHint:
+      "Abre el perfil público y vuelve a comprobar los permisos actuales.",
+  };
+}
+
 export function homeFeedItemAction(
   item: Pick<FeedItem, "type" | "id" | "title"> &
     Partial<Pick<FeedItem, "source">>,

@@ -9,12 +9,17 @@ import {
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { CreateQuestionInput } from "@losapuntes/contracts/social-qa";
+import type {
+  CommunityPerson,
+  CreateQuestionInput,
+} from "@losapuntes/contracts/social-qa";
 
 import { ProductSurface } from "@/features/navigation/product-surface";
 
+import { communityAuthorAction } from "./community-author-action";
 import {
   cancelCommunityComposerSubmission,
+  canRefreshCommunityQuestion,
   captureOwnedQuestionBaseline,
   communityAnswerDraftConfirmationTransition,
   communityFailure,
@@ -206,29 +211,65 @@ function QuestionCard({
 }: {
   title: string;
   subject: string;
-  author: string;
+  author: CommunityPerson | null;
   answerCount: number;
   state: "open" | "closed";
   onPress: () => void;
 }) {
   return (
+    <View style={styles.questionCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir pregunta: ${title}`}
+        accessibilityHint="Muestra la pregunta y sus respuestas."
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.questionCardContent,
+          pressed ? styles.questionCardPressed : null,
+        ]}
+      >
+        <Text style={styles.questionState}>
+          {state === "open" ? "Abierta" : "Cerrada"}
+        </Text>
+        <Text style={styles.questionTitle}>{title}</Text>
+        <Text style={styles.questionMeta}>
+          {subject} · {answerCount}{" "}
+          {answerCount === 1 ? "respuesta" : "respuestas"}
+        </Text>
+      </Pressable>
+      <CommunityAuthorAttribution author={author} prefix="Por " />
+    </View>
+  );
+}
+
+function CommunityAuthorAttribution({
+  author,
+  prefix = "",
+}: {
+  author: CommunityPerson | null;
+  prefix?: string;
+}) {
+  const router = useRouter();
+  const action = communityAuthorAction(author);
+  const displayName =
+    action?.displayName ??
+    (author?.displayName.trim() || "Persona de la comunidad");
+  const visibleName = `${prefix}${displayName}`;
+
+  if (!action) return <Text style={styles.copy}>{visibleName}</Text>;
+
+  return (
     <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={action.accessibilityLabel}
+      accessibilityHint={action.accessibilityHint}
+      onPress={() => router.push(action.href)}
       style={({ pressed }) => [
-        styles.questionCard,
-        pressed ? styles.questionCardPressed : null,
+        styles.authorAction,
+        pressed ? styles.authorActionPressed : null,
       ]}
     >
-      <Text style={styles.questionState}>
-        {state === "open" ? "Abierta" : "Cerrada"}
-      </Text>
-      <Text style={styles.questionTitle}>{title}</Text>
-      <Text style={styles.questionMeta}>
-        {subject} · {answerCount}{" "}
-        {answerCount === 1 ? "respuesta" : "respuestas"}
-      </Text>
-      <Text style={styles.copy}>Por {author}</Text>
+      <Text style={styles.authorActionLabel}>{visibleName}</Text>
     </Pressable>
   );
 }
@@ -392,9 +433,7 @@ export function CommunityNetworkScreen() {
                   key={question.id}
                   title={question.title}
                   subject={question.academic.subject.name}
-                  author={
-                    question.author?.displayName ?? "Persona de la comunidad"
-                  }
+                  author={question.author}
                   answerCount={question.answerCount}
                   state={question.state}
                   onPress={() =>
@@ -524,12 +563,16 @@ export function CommunityQuestionScreen({
   const snapshotFailure = visibleDetail ? detailFailure(visibleDetail) : null;
   const refreshing =
     authority.gate === "ready" && visibleDetail?.kind === "loading";
+  const canRefreshDetail =
+    !visibleDetail || canRefreshCommunityQuestion(visibleDetail);
 
   return (
     <ProductSurface
       title="Pregunta"
       description="Leé la conversación y respondé si el servidor habilita tu cuenta para hacerlo."
-      onRefresh={authority.gate === "ready" ? retry : undefined}
+      onRefresh={
+        authority.gate === "ready" && canRefreshDetail ? retry : undefined
+      }
       refreshing={refreshing}
     >
       <ActionButton label="Volver a la Red" onPress={() => router.back()} />
@@ -628,9 +671,7 @@ function QuestionDetailContent({
             ? ` · ${question.academic.courseOffering.name}`
             : ""}
         </Text>
-        <Text style={styles.copy}>
-          Por {question.author?.displayName ?? "Persona de la comunidad"}
-        </Text>
+        <CommunityAuthorAttribution author={question.author} prefix="Por " />
         <Text style={styles.body}>{question.body}</Text>
         {question.viewer.canEdit ? (
           <View style={styles.list}>
@@ -723,9 +764,7 @@ function QuestionDetailContent({
               {question.acceptedAnswerId === answer.id ? (
                 <Text style={styles.accepted}>Respuesta aceptada</Text>
               ) : null}
-              <Text style={styles.copy}>
-                {answer.author?.displayName ?? "Persona de la comunidad"}
-              </Text>
+              <CommunityAuthorAttribution author={answer.author} />
               <Text style={styles.body}>{answer.body}</Text>
               {answer.viewer.canEdit ? (
                 editingAnswerId === answer.id ? (
@@ -1242,8 +1281,30 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#ffffff",
   },
+  questionCardContent: {
+    gap: 7,
+    alignSelf: "stretch",
+    borderRadius: 10,
+  },
   questionCardPressed: {
     backgroundColor: "#f0eff8",
+  },
+  authorAction: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  authorActionPressed: {
+    backgroundColor: "#f0eff8",
+  },
+  authorActionLabel: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#43366a",
+    fontWeight: "600",
   },
   questionState: {
     fontSize: 12,

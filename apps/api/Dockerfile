@@ -33,6 +33,10 @@ COPY apps/web/package.json apps/web/package.json
 
 RUN pnpm install --frozen-lockfile --prod --filter @losapuntes/api...
 
+COPY scripts/security/check-api-runtime-dependency-boundary.mjs scripts/security/check-api-runtime-dependency-boundary.mjs
+RUN node scripts/security/check-api-runtime-dependency-boundary.mjs \
+    && rm scripts/security/check-api-runtime-dependency-boundary.mjs
+
 COPY --from=build /workspace/apps/api/dist apps/api/dist
 
 WORKDIR /workspace/apps/api

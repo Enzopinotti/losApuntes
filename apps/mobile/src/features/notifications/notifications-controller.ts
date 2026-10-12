@@ -245,6 +245,24 @@ export class MobileNotificationsController {
     );
   }
 
+  async openAndMarkRead(
+    authorityKey: string,
+    notificationId: string,
+  ): Promise<boolean> {
+    const current = this.currentReady(authorityKey);
+    if (!current || current.actionBusy || this.activeAction) return false;
+
+    const notification = current.data.items.find(
+      (item) => item.id === notificationId,
+    );
+    if (!notification) return false;
+    if (notification.readAt) return true;
+
+    return this.runReadAction(authorityKey, (signal) =>
+      this.api.markNotificationRead(notificationId, signal),
+    );
+  }
+
   invalidate(authorityKey?: string): void {
     if (authorityKey && authorityKey !== this.authorityKey) return;
 
@@ -281,9 +299,9 @@ export class MobileNotificationsController {
   private async runReadAction(
     authorityKey: string,
     action: (signal: AbortSignal) => Promise<unknown>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const current = this.currentReady(authorityKey);
-    if (!current || current.actionBusy || this.activeAction) return;
+    if (!current || current.actionBusy || this.activeAction) return false;
 
     const controller = new AbortController();
     const generation = ++this.actionGeneration;
@@ -293,10 +311,14 @@ export class MobileNotificationsController {
 
     try {
       await action(controller.signal);
-      if (!this.isCurrentAction(authorityKey, generation, controller)) return;
+      if (!this.isCurrentAction(authorityKey, generation, controller)) {
+        return false;
+      }
       succeeded = true;
     } catch (error) {
-      if (!this.isCurrentAction(authorityKey, generation, controller)) return;
+      if (!this.isCurrentAction(authorityKey, generation, controller)) {
+        return false;
+      }
       const latest = this.currentReady(authorityKey);
       if (latest) {
         this.publish({
@@ -305,6 +327,7 @@ export class MobileNotificationsController {
           failure: communityFailure(error),
         });
       }
+      return false;
     } finally {
       if (this.isCurrentAction(authorityKey, generation, controller)) {
         this.activeAction = null;
@@ -316,6 +339,14 @@ export class MobileNotificationsController {
     if (succeeded && authorityKey === this.authorityKey) {
       await this.reconcile(authorityKey, true);
     }
+
+    return (
+      succeeded &&
+      this.authorityKey === authorityKey &&
+      this.actionGeneration === generation &&
+      this.snapshot.kind === "ready" &&
+      this.snapshot.authorityKey === authorityKey
+    );
   }
 
   private beginList(authorityKey: string, unreadOnly: boolean): ListOperation {

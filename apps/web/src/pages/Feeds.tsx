@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   FeedFeedbackSignal,
@@ -7,9 +13,11 @@ import type {
   FeedMode,
   FeedOrder,
   FeedPreferencesResponse,
-  FeedReasonCode,
 } from "../features/feeds/interfaces";
-import { FeedSourceAttribution } from "../features/feeds/components/FeedSourceAttribution";
+import {
+  FeedItemContext,
+  FeedItemOpenLink,
+} from "../features/feeds/components/FeedItemContext";
 import {
   feedsApi,
   isFeedsApiError,
@@ -21,24 +29,21 @@ import {
   FEED_PREFETCH_ROOT_MARGIN,
   requiresNewWebFeedSession,
 } from "../features/feeds/feed-pagination.mjs";
+import {
+  feedSelectionFromSearchParams,
+  type FeedSelection,
+} from "../features/feeds/feed-navigation.mjs";
+import {
+  clearFeedScrollPositions,
+  feedRestorePositionKey,
+  feedScrollAuthorityScope,
+  takeFeedScrollPosition,
+} from "../features/feeds/feed-scroll-restoration.mjs";
+import { fullFeedEmptyGuidance } from "../features/feeds/full-feed-empty-guidance.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Feeds.scss";
 
-type FeedView = "academic" | "for-you";
 type FeedErrorRecovery = { kind: "page"; cursor: string } | { kind: "session" };
-
-const reasonLabels: Record<FeedReasonCode, string> = {
-  current_subject: "De tu materia actual",
-  prioritized_subject: "De una materia priorizada",
-  connection: "De una conexión",
-  following: "De alguien que seguís",
-  organization_following: "De una organización que seguís",
-  interest_match: "Relacionado con tus intereses",
-  unanswered_question: "Pregunta sin responder",
-  fresh: "Publicado recientemente",
-  explicit_more: "Por tu preferencia de ver más",
-  exploration: "Para descubrir contenido",
-};
 
 function messageFor(error: unknown): string {
   if (!isFeedsApiError(error)) return "No pudimos cargar tu feed.";
@@ -59,9 +64,23 @@ function messageFor(error: unknown): string {
 
 const Feeds = () => {
   const { status, user, session } = useAuth();
-  const [view, setView] = useState<FeedView>("academic");
-  const [mode, setMode] = useState<FeedMode>("balanced");
-  const [order, setOrder] = useState<FeedOrder>("ranked");
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { view, mode, order } = feedSelectionFromSearchParams(searchParams);
+  const updateSelection = (selection: Partial<FeedSelection>) => {
+    setSearchParams(
+      (current) => {
+        const next = feedSelectionFromSearchParams(current);
+        const updated = { ...next, ...selection };
+        const params = new URLSearchParams(current);
+        params.set("view", updated.view);
+        params.set("mode", updated.mode);
+        params.set("order", updated.order);
+        return params;
+      },
+      { replace: true },
+    );
+  };
   const [items, setItems] = useState<FeedItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [stopReason, setStopReason] = useState<"end" | "natural_break" | null>(
@@ -92,7 +111,22 @@ const Feeds = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const scrollAuthorityScope = feedScrollAuthorityScope(
+    status,
+    user?.id,
+    session?.id,
+  );
+  const restorePositionKey = feedRestorePositionKey(
+    location.state,
+    `${location.pathname}${location.search}`,
+  );
+  const previousAuthorityScopeRef = useRef(authorityScope);
   const feedRequestScope = [authorityScope, view, mode, order].join(":");
+  const pendingScrollRestoreRef = useRef<{
+    authorityScope: string;
+    feedRequestScope: string;
+    targetY: number;
+  } | null>(null);
   const {
     begin: beginPreferencesRequest,
     isCurrent: isPreferencesRequestCurrent,
@@ -112,6 +146,50 @@ const Feeds = () => {
   } = useAsyncAuthorityFence(
     `feeds-action:${authorityScope}:${view}:${mode}:${order}`,
   );
+
+  useLayoutEffect(() => {
+    if (previousAuthorityScopeRef.current === authorityScope) return;
+    previousAuthorityScopeRef.current = authorityScope;
+    clearFeedScrollPositions();
+    pendingScrollRestoreRef.current = null;
+
+    dataScopeRef.current = null;
+    latestCursorRef.current = null;
+    inFlightPageRef.current = null;
+    rootRequestRef.current = null;
+    usedCursorsRef.current.clear();
+    setItems([]);
+    setNextCursor(null);
+    setStopReason(null);
+    setPreferences(null);
+    setEffectiveSignals(null);
+    setLoading(true);
+    setBusy(null);
+    setError(null);
+    setFeedErrorRecovery(null);
+    window.scrollTo(0, 0);
+  }, [authorityScope]);
+
+  useLayoutEffect(() => {
+    pendingScrollRestoreRef.current = null;
+    if (!restorePositionKey) return;
+
+    const targetY = takeFeedScrollPosition(
+      restorePositionKey,
+      scrollAuthorityScope,
+    );
+    if (targetY === null) return;
+    pendingScrollRestoreRef.current = {
+      authorityScope: scrollAuthorityScope,
+      feedRequestScope,
+      targetY,
+    };
+  }, [
+    feedRequestScope,
+    location.key,
+    restorePositionKey,
+    scrollAuthorityScope,
+  ]);
 
   const loadPreferences = useCallback(async () => {
     const ticket = beginPreferencesRequest();
@@ -135,8 +213,11 @@ const Feeds = () => {
   ]);
 
   const loadFeed = useCallback(
-    async (cursor?: string, append = false) => {
+    async (cursor?: string, append = false, preserveScrollRestore = false) => {
       if (append && (!cursor || cursor !== latestCursorRef.current)) return;
+      if (!append && !preserveScrollRestore) {
+        pendingScrollRestoreRef.current = null;
+      }
 
       const pageKey = append ? `${feedRequestScope}:${cursor ?? ""}` : null;
       if (pageKey && inFlightPageRef.current?.key === pageKey) return;
@@ -248,8 +329,8 @@ const Feeds = () => {
   }, [loadPreferences]);
 
   useEffect(() => {
-    void loadFeed();
-  }, [loadFeed]);
+    void loadFeed(undefined, false, restorePositionKey !== null);
+  }, [loadFeed, restorePositionKey]);
 
   const canAutoLoadPage = canAutomaticallyLoadWebFeed({
     nextCursor,
@@ -258,6 +339,50 @@ const Feeds = () => {
     busy,
     hasError: Boolean(error),
   });
+  const emptyGuidance = fullFeedEmptyGuidance(view, mode);
+
+  useLayoutEffect(() => {
+    const pending = pendingScrollRestoreRef.current;
+    if (!pending) return;
+    if (
+      pending.authorityScope !== scrollAuthorityScope ||
+      pending.feedRequestScope !== feedRequestScope
+    ) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (loading || busy === "more") return;
+
+    const scrollingElement =
+      document.scrollingElement ?? document.documentElement;
+    const maxScrollY = Math.max(
+      0,
+      scrollingElement.scrollHeight - window.innerHeight,
+    );
+    window.scrollTo(0, Math.min(pending.targetY, maxScrollY));
+
+    if (error) return;
+    if (pending.targetY <= maxScrollY + 1) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (!nextCursor || stopReason !== null) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (canAutoLoadPage) void loadFeed(nextCursor, true);
+  }, [
+    busy,
+    canAutoLoadPage,
+    error,
+    feedRequestScope,
+    items.length,
+    loadFeed,
+    loading,
+    nextCursor,
+    scrollAuthorityScope,
+    stopReason,
+  ]);
 
   useEffect(() => {
     const sentinel = continuationRef.current;
@@ -375,7 +500,7 @@ const Feeds = () => {
             type="button"
             className={view === "academic" ? "active" : ""}
             aria-pressed={view === "academic"}
-            onClick={() => setView("academic")}
+            onClick={() => updateSelection({ view: "academic" })}
           >
             Mis materias
           </button>
@@ -383,7 +508,7 @@ const Feeds = () => {
             type="button"
             className={view === "for-you" ? "active" : ""}
             aria-pressed={view === "for-you"}
-            onClick={() => setView("for-you")}
+            onClick={() => updateSelection({ view: "for-you" })}
           >
             Para vos
           </button>
@@ -399,7 +524,12 @@ const Feeds = () => {
               onClick={() =>
                 feedErrorRecovery.kind === "page"
                   ? void loadFeed(feedErrorRecovery.cursor, true)
-                  : void loadFeed()
+                  : void loadFeed(
+                      undefined,
+                      false,
+                      items.length === 0 &&
+                        pendingScrollRestoreRef.current !== null,
+                    )
               }
             >
               {feedErrorRecovery.kind === "page"
@@ -418,7 +548,9 @@ const Feeds = () => {
             Modo
             <select
               value={mode}
-              onChange={(event) => setMode(event.target.value as FeedMode)}
+              onChange={(event) =>
+                updateSelection({ mode: event.target.value as FeedMode })
+              }
             >
               <option value="balanced">Equilibrado</option>
               <option value="study">Estudio</option>
@@ -430,7 +562,9 @@ const Feeds = () => {
             Orden
             <select
               value={order}
-              onChange={(event) => setOrder(event.target.value as FeedOrder)}
+              onChange={(event) =>
+                updateSelection({ order: event.target.value as FeedOrder })
+              }
             >
               <option value="ranked">Relevancia transparente</option>
               <option value="chronological">Cronológico</option>
@@ -535,10 +669,10 @@ const Feeds = () => {
       ) : items.length === 0 ? (
         <section className="feeds-empty">
           <h2>No hay contenido para esta tanda</h2>
-          <p>
-            Podés revisar tus materias, cambiar señales o volver a buscar más
-            tarde. No rellenamos el feed con contenido irrelevante.
-          </p>
+          <p>{emptyGuidance.message}</p>
+          <Link className="feed-item-open-link" to={emptyGuidance.href}>
+            {emptyGuidance.actionLabel}
+          </Link>
         </section>
       ) : (
         <div className="feeds-list">
@@ -546,67 +680,15 @@ const Feeds = () => {
             <article className="feed-card" key={`${item.type}:${item.id}`}>
               <header>
                 <div>
-                  <span className="feed-kind">
-                    {item.type === "resource"
-                      ? "Apunte"
-                      : item.type === "question"
-                        ? "Pregunta"
-                        : "Organización"}
-                  </span>
+                  <FeedItemContext item={item} />
                   <h2>{item.title}</h2>
-                  <p className="feed-meta">
-                    <FeedSourceAttribution item={item} />
-                    {item.academic.subject
-                      ? ` · ${item.academic.subject.name}`
-                      : ""}
-                  </p>
-                  {item.source.kind === "campus_organization" &&
-                  item.source.organization.verificationState === "verified" ? (
-                    <span className="feed-verified">
-                      Organización verificada
-                    </span>
-                  ) : null}
                 </div>
-                <time dateTime={item.createdAt}>
-                  {new Date(item.createdAt).toLocaleDateString("es-AR")}
-                </time>
               </header>
 
               {item.summary && <p>{item.summary}</p>}
 
-              <div className="feed-why" aria-label="Por qué aparece">
-                {item.why.map((reason) => (
-                  <span key={reason}>{reasonLabels[reason]}</span>
-                ))}
-              </div>
-
               <div className="feeds-actions">
-                {item.type === "question" ? (
-                  <Link to={`/questions?id=${encodeURIComponent(item.id)}`}>
-                    Abrir pregunta
-                  </Link>
-                ) : item.type === "organization_post" &&
-                  item.source.kind === "campus_organization" ? (
-                  <Link
-                    to={`/organizations/${encodeURIComponent(
-                      item.source.organization.id,
-                    )}`}
-                  >
-                    Ver organización
-                  </Link>
-                ) : (
-                  <Link
-                    to={`/resources?q=${encodeURIComponent(item.title)}${
-                      item.academic.subject
-                        ? `&subjectId=${encodeURIComponent(
-                            item.academic.subject.id,
-                          )}`
-                        : ""
-                    }`}
-                  >
-                    Buscar apunte
-                  </Link>
-                )}
+                <FeedItemOpenLink item={item} />
                 <button
                   type="button"
                   className="secondary"
