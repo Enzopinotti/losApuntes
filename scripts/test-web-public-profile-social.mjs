@@ -15,7 +15,7 @@ const [page, actions, styles, profileContract, socialService] =
 
 assert.match(page, /PublicProfileSocialActions/u);
 assert.match(page, /status === "authenticated"/u);
-assert.match(page, /status === "unauthenticated"/u);
+assert.match(page, /status === "anonymous"/u);
 assert.match(page, /profile\.about\?\.displayName && status/u);
 assert.match(page, /viewerScopeKey=\{viewerScopeKey\}/u);
 assert.match(page, /profileId=\{profile\.id\}/u);
