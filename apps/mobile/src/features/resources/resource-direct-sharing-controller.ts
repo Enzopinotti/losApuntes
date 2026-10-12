@@ -208,6 +208,7 @@ export class MobileResourceDirectSharingController {
     this.mutationOperation = operation;
     const person = current.selected;
     this.publish({ ...current, busy: action, outcome: null, failure: null });
+    let writeStarted = false;
 
     try {
       // A stale screen may still say "shared" after a visibility change.
@@ -235,6 +236,7 @@ export class MobileResourceDirectSharingController {
       }
 
       if (action === "grant") {
+        writeStarted = true;
         const result = await this.api.grant(
           resourceId,
           person.profileId,
@@ -246,6 +248,7 @@ export class MobileResourceDirectSharingController {
           return false;
         }
       } else {
+        writeStarted = true;
         await this.api.revoke(
           resourceId,
           person.profileId,
@@ -260,10 +263,11 @@ export class MobileResourceDirectSharingController {
       if (this.mutationCurrent(operation)) {
         const failure = resourceConsumptionFailure(error);
         const ambiguous =
-          failure === "offline" ||
-          failure === "timeout" ||
-          failure === "server_unavailable" ||
-          failure === "error";
+          writeStarted &&
+          (failure === "offline" ||
+            failure === "timeout" ||
+            failure === "server_unavailable" ||
+            failure === "error");
         this.finishMutation(
           operation,
           ambiguous ? "uncertain" : "error",
