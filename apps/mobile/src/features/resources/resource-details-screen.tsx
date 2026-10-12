@@ -42,7 +42,15 @@ import {
   resourceFileTypeLabel,
   resourceVisibilityLabel,
 } from "./resource-details-copy";
-import { mobileResourceConsumptionApi } from "./resource-runtime";
+import {
+  mobileResourceConsumptionApi,
+  mobileResourceDirectSharingApi,
+} from "./resource-runtime";
+import { ResourceDirectSharingPanel } from "./resource-direct-sharing-panel";
+import {
+  MobileResourceDirectSharingController,
+  type ResourceDirectSharingSnapshot,
+} from "./resource-direct-sharing-controller";
 import { ResourceMetadataEditor } from "./resource-metadata-editor";
 import {
   MobileResourceMetadataController,
@@ -174,6 +182,12 @@ export function MobileResourceDetailsScreen({
     controller.getSnapshot(),
   );
   const [handoffError, setHandoffError] = useState<string | null>(null);
+  const sharingController = useMemo(
+    () => new MobileResourceDirectSharingController(mobileResourceDirectSharingApi),
+    [],
+  );
+  const [sharingSnapshot, setSharingSnapshot] =
+    useState<ResourceDirectSharingSnapshot>(sharingController.getSnapshot());
   const metadataController = useMemo(
     () => new MobileResourceMetadataController(mobileResourceConsumptionApi),
     [],
@@ -215,6 +229,40 @@ export function MobileResourceDetailsScreen({
   const { snapshot, retry } = useFencedDetail(authorityKey, load);
 
   useEffect(() => controller.subscribe(setAction), [controller]);
+  useEffect(
+    () => sharingController.subscribe(setSharingSnapshot),
+    [sharingController],
+  );
+  useEffect(() => {
+    if (!scopeKey) {
+      sharingController.invalidate();
+      return;
+    }
+    if (!authorityKey) {
+      sharingController.suspend(scopeKey);
+      return;
+    }
+    const readyResource =
+      metadataSnapshot.kind === "ready" &&
+      metadataSnapshot.authorityKey === scopeKey &&
+      metadataSnapshot.resource.id === resourceId
+        ? metadataSnapshot.resource
+        : snapshot.kind === "ready" &&
+            snapshot.authorityKey === authorityKey &&
+            snapshot.data.resource.id === resourceId
+          ? snapshot.data.resource
+          : null;
+    if (readyResource?.capabilities.manageShares) {
+      sharingController.setScope(scopeKey, readyResource);
+    }
+  }, [
+    authorityKey,
+    metadataSnapshot,
+    resourceId,
+    scopeKey,
+    sharingController,
+    snapshot,
+  ]);
   useEffect(
     () => metadataController.subscribe(setMetadataSnapshot),
     [metadataController],
@@ -430,6 +478,16 @@ export function MobileResourceDetailsScreen({
                 snapshot={metadataSnapshot}
                 controller={metadataController}
                 onUpdated={retry}
+              />
+            ) : null}
+
+            {resource.capabilities.manageShares ? (
+              <ResourceDirectSharingPanel
+                authorityKey={authorityKey}
+                resource={currentMetadata?.resource ?? resource}
+                snapshot={sharingSnapshot}
+                controller={sharingController}
+                onRefresh={retry}
               />
             ) : null}
 
