@@ -234,6 +234,9 @@ test("a changed visibility or revision stops operations before PUT or DELETE", a
     if (snapshot.kind === "ready") {
       assert.equal(snapshot.outcome, "visibility_changed");
       assert.equal(snapshot.selected, null);
+      // Preserve old scope so the panel can explain why a refresh is needed.
+      assert.equal(snapshot.revision, 2);
+      assert.equal(snapshot.visibility, "shared");
     }
   }
 });
@@ -358,4 +361,39 @@ test("a new revision resets prior search recipients, not just mutation status", 
   assert.equal(snapshot.selected, null);
   assert.deepEqual(snapshot.people, []);
   assert.equal(snapshot.outcome, null);
+});
+
+test("a stale resource blocks further searches and grants until a fresh GET resets scope", async () => {
+  let searches = 0;
+  let grants = 0;
+  const controller = await selectedController({
+    resource: async () => ({
+      resource: resource({ visibility: "private", revision: 3 }),
+    }),
+    searchPeople: async () => {
+      searches += 1;
+      return [ana];
+    },
+    grant: async () => {
+      grants += 1;
+      return { shared: true };
+    },
+  });
+  await controller.mutate("session-a", "resource-a", "grant");
+  await controller.search("session-a", "resource-a", "Lucía");
+  assert.equal(searches, 1);
+  assert.equal(grants, 0);
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind === "ready" ? snapshot.outcome : null, "visibility_changed");
+
+  controller.setScope("session-a", resource({
+    visibility: "private",
+    revision: 3,
+  }));
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.visibility, "private");
+  assert.equal(snapshot.outcome, null);
+  assert.equal(snapshot.selected, null);
 });
