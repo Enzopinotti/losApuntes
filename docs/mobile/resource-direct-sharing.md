@@ -59,6 +59,10 @@ autorizado, con política de privacidad, paginación y tests de backend.
 - Si una operación de red es ambigua no se muestra éxito. No se ejecutan
   reintentos automáticos de PUT/DELETE. El usuario debe comprobar su
   situación antes de realizar otra operación.
+- Si la lectura previa a PUT/DELETE detecta una **revisión obsoleta** o
+  visibilidad distinta, se bloquean búsquedas y mutaciones hasta que
+  el autor pulse **Actualizar apunte**, que solicita un detalle nuevo
+  desde el backend. Ningún permiso se modifica durante ese bloqueo.
 - Revocar exige una confirmación separada de la selección del perfil.
 - El acceso a archivos permanece sujeto a la autorización del backend;
   compartir no almacena ni distribuye URLs firmadas en el dispositivo.
