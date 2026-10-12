@@ -26,7 +26,10 @@ export function validateResourceReport(
   reason: ResourceReportReason | null,
   details: string,
 ): ResourceReportValidation {
-  if (!reason || !RESOURCE_REPORT_REASONS.some((item) => item.value === reason)) {
+  if (
+    !reason ||
+    !RESOURCE_REPORT_REASONS.some((item) => item.value === reason)
+  ) {
     return { kind: "invalid", message: "Elegí el motivo del reporte." };
   }
 

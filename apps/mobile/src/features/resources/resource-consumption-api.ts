@@ -65,7 +65,9 @@ export interface MobileResourceConsumptionTransport {
     resourceId: string,
     input: ResourceReportInput,
     signal?: AbortSignal,
-  ): Promise<{ report: { id: string; status: "pending" | "resolved" | "dismissed" } }>;
+  ): Promise<{
+    report: { id: string; status: "pending" | "resolved" | "dismissed" };
+  }>;
 }
 
 export class MobileResourceConsumptionHttpTransport implements MobileResourceConsumptionTransport {

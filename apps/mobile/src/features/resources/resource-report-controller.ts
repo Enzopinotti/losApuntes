@@ -1,4 +1,7 @@
-import { resourceConsumptionFailure, type ResourceConsumptionFailure } from "./resource-consumption-controller";
+import {
+  resourceConsumptionFailure,
+  type ResourceConsumptionFailure,
+} from "./resource-consumption-controller";
 import {
   validateResourceReport,
   type ResourceReportInput,
@@ -161,7 +164,10 @@ export class MobileResourceReportController {
     this.publish({ kind: "idle" });
   }
 
-  private current(authorityKey: string, resourceId: string): ReadySnapshot | null {
+  private current(
+    authorityKey: string,
+    resourceId: string,
+  ): ReadySnapshot | null {
     return this.snapshot.kind === "ready" &&
       this.snapshot.authorityKey === authorityKey &&
       this.snapshot.resourceId === resourceId

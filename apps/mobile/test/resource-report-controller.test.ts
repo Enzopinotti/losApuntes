@@ -95,7 +95,12 @@ test("definite validation failure remains retryable and does not claim success",
     report: async () => {
       calls += 1;
       if (calls === 1) {
-        throw new ApiRequestError("validation", 422, "INVALID_REPORT", "Bad report");
+        throw new ApiRequestError(
+          "validation",
+          422,
+          "INVALID_REPORT",
+          "Bad report",
+        );
       }
       return accepted;
     },
@@ -207,11 +212,17 @@ test("background suspension blocks repeated POST with uncertain outcome", async 
 
 test("report UI and transport target the existing API, without signed file URLs", () => {
   const detail = readFileSync(
-    new URL("../src/features/resources/resource-details-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/resources/resource-details-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   const api = readFileSync(
-    new URL("../src/features/resources/resource-consumption-api.ts", import.meta.url),
+    new URL(
+      "../src/features/resources/resource-consumption-api.ts",
+      import.meta.url,
+    ),
     "utf8",
   );
   assert.match(detail, /Reportar recurso/u);
@@ -219,6 +230,9 @@ test("report UI and transport target the existing API, without signed file URLs"
   assert.match(detail, /reportController\.submit\(/u);
   assert.match(detail, /Recibimos tu reporte/u);
   assert.match(detail, /No pudimos confirmar/u);
-  assert.match(api, /\/resources\/\$\{encodeURIComponent\(resourceId\)\}\/reports/u);
+  assert.match(
+    api,
+    /\/resources\/\$\{encodeURIComponent\(resourceId\)\}\/reports/u,
+  );
   assert.match(api, /method: "POST"/u);
 });

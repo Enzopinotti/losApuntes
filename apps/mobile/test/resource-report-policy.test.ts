@@ -36,7 +36,10 @@ test("report details are trimmed, optional and bounded by backend contract", () 
   });
   assert.equal(validateResourceReport("other", "ab").kind, "invalid");
   assert.equal(validateResourceReport("other", "x".repeat(1500)).kind, "valid");
-  assert.equal(validateResourceReport("other", "x".repeat(1501)).kind, "invalid");
+  assert.equal(
+    validateResourceReport("other", "x".repeat(1501)).kind,
+    "invalid",
+  );
   assert.equal(RESOURCE_REPORT_DETAILS_MAX_LENGTH, 1500);
 });
 
