@@ -84,6 +84,16 @@ type PendingAnswerReconciliation = {
   failure: CommunityFailure | null;
 };
 
+export function canRefreshCommunityQuestion(
+  snapshot: CommunityQuestionDetailSnapshot,
+): boolean {
+  if (snapshot.kind === "loading") return false;
+  return (
+    snapshot.kind !== "ready" ||
+    (!snapshot.loadingMoreAnswers && !snapshot.submittingAnswer)
+  );
+}
+
 export type QuestionScope =
   | { kind: "all" }
   | {
@@ -498,10 +508,10 @@ export class MobileCommunityQuestionController {
   async load(authorityKey: string, questionId: string): Promise<void> {
     const current = this.snapshot;
     if (
-      current.kind === "ready" &&
+      current.kind !== "idle" &&
       current.authorityKey === authorityKey &&
       current.questionId === questionId &&
-      current.submittingAnswer
+      !canRefreshCommunityQuestion(current)
     ) {
       return;
     }
