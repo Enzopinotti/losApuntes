@@ -32,3 +32,7 @@ The production audit still runs at `high`; only this one exact CVE is tolerated 
 ## Removal
 
 When upstream or Expo resolves the graph, remove the pnpm ignore, delete the policy entry, run exact-head production audit + Mobile verification, and close #133 with replacement-version evidence.
+
+## API runtime graph separation
+
+The API Docker image separately checks its **filtered production pnpm install** for unexpected `braces` or `node-forge` packages. See `docs/security/api-production-runtime-boundary.md`. This image-build assertion is independent from the monorepo production audit: passing one never suppresses the other.

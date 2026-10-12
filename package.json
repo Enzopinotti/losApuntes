@@ -47,7 +47,7 @@
     "test:notification-fanout-contract": "node scripts/test-notification-fanout-contract.mjs",
     "resilience:check": "node scripts/resilience/check-evidence.mjs",
     "resilience:compose-env": "node scripts/resilience/render-compose-env.mjs",
-    "test:resilience-contract": "node --test scripts/resilience/resilience-lib.test.mjs && node scripts/test-production-resilience-contract.mjs && pnpm security:audit-exceptions",
+    "test:resilience-contract": "node --test scripts/resilience/resilience-lib.test.mjs && node scripts/test-production-resilience-contract.mjs && pnpm security:audit-exceptions && node --test scripts/security/check-api-runtime-dependency-boundary.test.mjs",
     "security:audit-exceptions": "node scripts/security/check-audit-exceptions.mjs",
     "test:account-lifecycle-contract": "node scripts/test-account-lifecycle-contract.mjs",
     "test:web-observability-contract": "node scripts/test-web-observability-contract.mjs",
