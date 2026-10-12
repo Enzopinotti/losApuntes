@@ -13,6 +13,7 @@ import { ResourceUploadController } from "./resource-upload-controller";
 import { uploadResourceBytes } from "./resource-uploader";
 import { MobileResourceDirectSharingApi } from "./resource-direct-sharing-api";
 import { MobileOwnedResourcesApi } from "./resource-owned-api";
+import { MobileOwnerStatisticsApi } from "./resource-owner-stats-api";
 
 export const mobileResourceApi = new MobileResourceApi(
   mobileSessionController,
@@ -32,6 +33,11 @@ export const mobileResourceDirectSharingApi = new MobileResourceDirectSharingApi
 );
 
 export const mobileOwnedResourcesApi = new MobileOwnedResourcesApi(
+  mobileSessionController,
+  mobileApiClient,
+);
+
+export const mobileOwnerStatisticsApi = new MobileOwnerStatisticsApi(
   mobileSessionController,
   mobileApiClient,
 );

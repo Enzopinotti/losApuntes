@@ -27,6 +27,29 @@ export type ResourceShareGrantsPage = {
   resourceRevision: number;
 };
 
+/**
+ * Point-in-time counts of current records, not historical traffic.
+ * Access intents are not tracked as completed reads or downloads.
+ */
+export type OwnedResourceStatistics = {
+  generatedAt: string;
+  publications: {
+    total: number;
+    private: number;
+    shared: number;
+    public: number;
+  };
+  currentSaves: number;
+  activeShareGrants: number;
+  topResources: Array<{
+    id: string;
+    title: string;
+    visibility: ResourceVisibility;
+    saves: number;
+    shareGrants: number;
+  }>;
+};
+
 export type OwnedResourcesPage = {
   items: ResourceView[];
   nextCursor: string | null;

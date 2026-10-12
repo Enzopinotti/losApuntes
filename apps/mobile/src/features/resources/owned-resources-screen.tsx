@@ -165,6 +165,14 @@ export function OwnedResourcesScreen() {
           Ordenadas por fecha de publicación. Los conteos muestran únicamente
           las páginas cargadas.
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ver estadísticas de mis apuntes"
+          onPress={() => router.push("/my-resource-statistics")}
+          style={styles.statisticsLink}
+        >
+          <Text style={styles.statisticsLabel}>Ver mis estadísticas</Text>
+        </Pressable>
         <View accessibilityRole="radiogroup" style={styles.filters}>
           {choices.map((option) => (
             <Pressable
@@ -279,6 +287,16 @@ export function OwnedResourcesScreen() {
 }
 
 const styles = StyleSheet.create({
+  statisticsLink: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  statisticsLabel: { color: "#43366a", fontWeight: "700", fontSize: 14 },
   backButton: {
     alignSelf: "flex-start",
     minHeight: 44,

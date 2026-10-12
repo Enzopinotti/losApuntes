@@ -254,6 +254,124 @@ export class MongoResourceStore implements ResourceStore {
     await this.saves.deleteOne({ resourceId, userId }).exec();
   }
 
+  async getOwnedStatistics(
+    authorUserId: string,
+  ): ReturnType<ResourceStore['getOwnedStatistics']> {
+    type Row = {
+      publications: Array<{ _id: ResourceVisibility; count: number }>;
+      totals: Array<{ saves: number; shareGrants: number }>;
+      topResources: Array<{
+        id: string;
+        title: string;
+        visibility: ResourceVisibility;
+        saves: number;
+        shareGrants: number;
+      }>;
+    };
+
+    const [row] = await this.resources
+      .aggregate<Row>([
+        {
+          $match: {
+            authorUserId,
+            moderationState: 'available',
+          },
+        },
+        {
+          $lookup: {
+            from: 'resource_saves',
+            let: { resourceId: '$id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ['$resourceId', '$$resourceId'] },
+                },
+              },
+              { $count: 'count' },
+            ],
+            as: 'saveCounts',
+          },
+        },
+        {
+          $lookup: {
+            from: 'resource_shares',
+            let: { resourceId: '$id', visibility: '$visibility' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$resourceId', '$$resourceId'] },
+                      { $eq: ['$$visibility', 'shared'] },
+                    ],
+                  },
+                },
+              },
+              { $count: 'count' },
+            ],
+            as: 'shareCounts',
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            id: 1,
+            title: 1,
+            visibility: 1,
+            saves: {
+              $ifNull: [{ $arrayElemAt: ['$saveCounts.count', 0] }, 0],
+            },
+            shareGrants: {
+              $ifNull: [{ $arrayElemAt: ['$shareCounts.count', 0] }, 0],
+            },
+          },
+        },
+        {
+          $facet: {
+            publications: [
+              { $group: { _id: '$visibility', count: { $sum: 1 } } },
+            ],
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  saves: { $sum: '$saves' },
+                  shareGrants: { $sum: '$shareGrants' },
+                },
+              },
+            ],
+            topResources: [
+              { $sort: { saves: -1, shareGrants: -1, id: 1 } },
+              { $limit: 5 },
+            ],
+          },
+        },
+      ])
+      .exec();
+
+    const counts = {
+      total: 0,
+      private: 0,
+      shared: 0,
+      public: 0,
+    };
+    for (const group of row?.publications ?? []) {
+      if (group._id === 'private' ||
+          group._id === 'shared' ||
+          group._id === 'public') {
+        counts[group._id] = group.count;
+        counts.total += group.count;
+      }
+    }
+
+    return {
+      publications: counts,
+      currentSaves: row?.totals[0]?.saves ?? 0,
+      activeShareGrants: row?.totals[0]?.shareGrants ?? 0,
+      topResources: row?.topResources ?? [],
+    };
+  }
+
   async listOwnedResources(
     input: Parameters<ResourceStore['listOwnedResources']>[0],
   ): ReturnType<ResourceStore['listOwnedResources']> {

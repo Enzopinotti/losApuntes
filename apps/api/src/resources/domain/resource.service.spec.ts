@@ -69,6 +69,7 @@ function store(): jest.Mocked<ResourceStore> {
     removeShare: jest.fn(),
     upsertSave: jest.fn(),
     removeSave: jest.fn(),
+    getOwnedStatistics: jest.fn(),
     listOwnedResources: jest.fn(),
     listSavedResources: jest.fn(),
     searchAuthorized: jest.fn(),
@@ -161,6 +162,59 @@ function projectionDeps(deps: ReturnType<typeof dependencies>) {
 }
 
 describe('ResourceService', () => {
+  describe('owned statistics', () => {
+    it('queries statistics only for authenticated account identity', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.getOwnedStatistics.mockResolvedValue({
+        publications: { total: 3, private: 1, shared: 1, public: 1 },
+        currentSaves: 7,
+        activeShareGrants: 2,
+        topResources: [{
+          id: resource().id,
+          title: 'Base de Datos',
+          visibility: 'public',
+          saves: 5,
+          shareGrants: 0,
+        }],
+      });
+
+      const response = await service(resourceStore, deps)
+        .getOwnedStatistics('author-1');
+      expect(resourceStore.getOwnedStatistics)
+        .toHaveBeenCalledWith('author-1');
+      expect(response).toMatchObject({
+        publications: { total: 3, private: 1, shared: 1, public: 1 },
+        currentSaves: 7,
+        activeShareGrants: 2,
+        topResources: [{
+          id: resource().id,
+          saves: 5,
+          shareGrants: 0,
+        }],
+      });
+      expect(new Date(response.generatedAt).toISOString()).toBe(response.generatedAt);
+      expect(JSON.stringify(response)).not.toContain('authorUserId');
+      expect(deps.profiles.getAttributionForUser).not.toHaveBeenCalled();
+    });
+
+    it('returns genuine zero counts when there are no publications', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.getOwnedStatistics.mockResolvedValue({
+        publications: { total: 0, private: 0, shared: 0, public: 0 },
+        currentSaves: 0,
+        activeShareGrants: 0,
+        topResources: [],
+      });
+      const response = await service(resourceStore, deps)
+        .getOwnedStatistics('author-2');
+      expect(response.currentSaves).toBe(0);
+      expect(response.activeShareGrants).toBe(0);
+      expect(response.topResources).toEqual([]);
+    });
+  });
+
   describe('owner publications library', () => {
     it('queries only the authenticated author and includes private resources', async () => {
       const resourceStore = store();

@@ -47,6 +47,13 @@ export class ResourcesController {
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get('mine/stats')
+  @Header('Cache-Control', 'private, no-store')
+  ownedStatistics(@Req() request: AuthenticatedRequest) {
+    return this.resources.getOwnedStatistics(request.user.id);
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
   @Get('mine')
   @Header('Cache-Control', 'private, no-store')
   mine(
