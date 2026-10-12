@@ -20,6 +20,10 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import {
+  groupNetworkConnections,
+  networkConnectionStatusLabel,
+} from "../features/community/network-presentation";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
 
@@ -34,6 +38,97 @@ function messageFor(error: unknown): string {
     return error.message;
   }
   return "No pudimos completar la operación.";
+}
+
+type NetworkAction = (
+  key: string,
+  action: (signal: AbortSignal) => Promise<unknown>,
+  success: string,
+) => Promise<void>;
+
+function ConnectionRow({
+  connection,
+  busy,
+  onAction,
+}: {
+  connection: ConnectionView;
+  busy: string | null;
+  onAction: NetworkAction;
+}) {
+  return (
+    <li>
+      <div>
+        <Link
+          className="network-person-name"
+          to={`/p/${encodeURIComponent(connection.other.profileId)}`}
+        >
+          {connection.other.displayName}
+        </Link>
+        <span className="community-status">
+          {networkConnectionStatusLabel(connection)}
+        </span>
+      </div>
+      <div className="community-actions">
+        {connection.incoming && connection.status === "pending" && (
+          <>
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() =>
+                void onAction(
+                  `accept:${connection.id}`,
+                  (signal) =>
+                    communityApi.respondConnection(
+                      connection.id,
+                      "accept",
+                      signal,
+                    ),
+                  "Conexión aceptada.",
+                )
+              }
+            >
+              Aceptar
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={Boolean(busy)}
+              onClick={() =>
+                void onAction(
+                  `decline:${connection.id}`,
+                  (signal) =>
+                    communityApi.respondConnection(
+                      connection.id,
+                      "decline",
+                      signal,
+                    ),
+                  "Solicitud rechazada.",
+                )
+              }
+            >
+              Rechazar
+            </button>
+          </>
+        )}
+        {connection.status === "accepted" && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={Boolean(busy)}
+            onClick={() =>
+              void onAction(
+                `disconnect:${connection.id}`,
+                (signal) => communityApi.disconnect(connection.id, signal),
+                "Conexión finalizada.",
+              )
+            }
+          >
+            Desconectar
+          </button>
+        )}
+      </div>
+    </li>
+  );
 }
 
 const Network = () => {
@@ -75,6 +170,7 @@ const Network = () => {
   const followingNextCursor = snapshot?.followingNextCursor ?? null;
   const connections = snapshot?.connections ?? [];
   const connectionsNextCursor = snapshot?.connectionsNextCursor ?? null;
+  const connectionGroups = groupNetworkConnections(connections);
 
   const [searchState, setSearchState] = useState<{
     scopeKey: string;
@@ -426,6 +522,15 @@ const Network = () => {
             ))}
           </ul>
         )}
+        {currentSearchState &&
+          !currentSearchState.busy &&
+          !currentSearchState.error &&
+          people.length === 0 && (
+            <p className="community-note" role="status">
+              No encontramos perfiles públicos que coincidan con tu búsqueda.
+              Probá otro nombre.
+            </p>
+          )}
       </section>
 
       <div className="community-grid">
@@ -479,94 +584,61 @@ const Network = () => {
           )}
         </section>
 
-        <section className="community-card">
-          <h2>Conexiones</h2>
+        <section className="community-card network-relationships">
+          <h2>Conexiones y solicitudes</h2>
+          <p className="network-section-description">
+            Las conexiones requieren aceptación; seguir a alguien no crea una
+            conexión.
+          </p>
           {loading ? (
-            <p>Cargando…</p>
+            <p role="status">Cargando relaciones…</p>
           ) : connections.length === 0 ? (
-            <p>No hay solicitudes ni conexiones todavía.</p>
+            <p>
+              No hay solicitudes ni conexiones todavía. Buscá personas para
+              empezar.
+            </p>
           ) : (
             <>
-              <ul className="community-list">
-                {connections.map((connection) => (
-                  <li key={connection.id}>
-                    <div>
-                      <strong>{connection.other.displayName}</strong>
-                      <span className="community-status">
-                        {connection.status}
-                      </span>
-                      {connection.status === "pending" && (
-                        <small>
-                          {connection.incoming
-                            ? "Solicitud recibida"
-                            : "Solicitud enviada"}
-                        </small>
-                      )}
-                    </div>
-                    <div className="community-actions">
-                      {connection.incoming &&
-                        connection.status === "pending" && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={busy === `accept:${connection.id}`}
-                              onClick={() =>
-                                void run(
-                                  `accept:${connection.id}`,
-                                  (signal) =>
-                                    communityApi.respondConnection(
-                                      connection.id,
-                                      "accept",
-                                      signal,
-                                    ),
-                                  "Conexión aceptada.",
-                                )
-                              }
-                            >
-                              Aceptar
-                            </button>
-                            <button
-                              type="button"
-                              className="secondary"
-                              disabled={busy === `decline:${connection.id}`}
-                              onClick={() =>
-                                void run(
-                                  `decline:${connection.id}`,
-                                  (signal) =>
-                                    communityApi.respondConnection(
-                                      connection.id,
-                                      "decline",
-                                      signal,
-                                    ),
-                                  "Solicitud rechazada.",
-                                )
-                              }
-                            >
-                              Rechazar
-                            </button>
-                          </>
-                        )}
-                      {connection.status === "accepted" && (
-                        <button
-                          type="button"
-                          className="secondary"
-                          disabled={busy === `disconnect:${connection.id}`}
-                          onClick={() =>
-                            void run(
-                              `disconnect:${connection.id}`,
-                              (signal) =>
-                                communityApi.disconnect(connection.id, signal),
-                              "Conexión finalizada.",
-                            )
-                          }
-                        >
-                          Desconectar
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {connectionGroups.incomingRequests.length > 0 && (
+                <section
+                  className="network-requests"
+                  aria-labelledby="network-incoming-title"
+                >
+                  <h3 id="network-incoming-title">
+                    Solicitudes para responder
+                    <span className="network-request-count">
+                      {connectionGroups.incomingRequests.length}
+                    </span>
+                  </h3>
+                  <ul className="community-list">
+                    {connectionGroups.incomingRequests.map((connection) => (
+                      <ConnectionRow
+                        key={connection.id}
+                        connection={connection}
+                        busy={busy}
+                        onAction={run}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {connectionGroups.otherRelationships.length > 0 && (
+                <section aria-labelledby="network-other-title">
+                  <h3 id="network-other-title">
+                    Tu red y solicitudes enviadas
+                  </h3>
+                  <ul className="community-list">
+                    {connectionGroups.otherRelationships.map((connection) => (
+                      <ConnectionRow
+                        key={connection.id}
+                        connection={connection}
+                        busy={busy}
+                        onAction={run}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
               {connectionsNextCursor && (
                 <button
                   type="button"
@@ -574,7 +646,9 @@ const Network = () => {
                   disabled={busy === "connections-more"}
                   onClick={() => void loadMoreConnections()}
                 >
-                  {busy === "connections-more" ? "Cargando…" : "Cargar más"}
+                  {busy === "connections-more"
+                    ? "Cargando…"
+                    : "Ver más relaciones"}
                 </button>
               )}
             </>
