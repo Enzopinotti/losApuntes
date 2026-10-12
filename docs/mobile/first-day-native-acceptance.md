@@ -13,20 +13,20 @@ Estado: **guía de ejecución pendiente**. Este archivo define cómo obtener evi
 
 Ejecutar cada punto **en Android e iOS**, registrando por separado `PASS`, `FAIL` o `BLOCKED`, SHA/build y una evidencia saneada que no contenga secretos.
 
-| ID | Recorrido | Evidencia esperada |
-| --- | --- | --- |
-| N01 | Instalación limpia, registro, verificación de email y primer login | No requiere Web como alternativa; la sesión solo se habilita después de validación del backend. |
-| N02 | Cierre, reapertura y vuelta de background con sesión vigente | Revalidación de sesión por backend, sin estado de otra cuenta ni recuperación insegura de credenciales. |
-| N03 | Password recovery: enlace válido, inválido y vencido | Mensajes claros, token de un uso no expuesto en historial/capturas ni logs. |
-| N04 | Google nativo cuando está configurado, y fallback cuando no lo está | Resultado real del proveedor, vinculación/desvinculación autorizada, sin perder el último método de acceso. Si faltan credenciales OAuth/dispositivo, **BLOCKED** y referencia a #49. |
-| N05 | Selección y cambio de institución/carrera/materia | El backend confirma contexto y revisión; una respuesta tardía del contexto anterior no modifica la pantalla. |
-| N06 | Búsqueda con contexto académico, abrir un PDF, guardar y desguardar | Resultados de servidor, acceso al archivo mediante autorización reciente y cambios de guardado confirmados; repetir con cierre/reapertura. |
-| N07 | Subir PDF/JPG/PNG/WebP de prueba hasta el límite permitido | Intent → transferencia → finalización → creación, recurso inicialmente privado y asociado a materia válida; comprobar error para formatos/tamaños inválidos. |
-| N08 | Interrumpir red/cambiar de contexto/cuenta durante subida | La subida cancelada no avanza a etapas posteriores; si la creación ya fue enviada, no reintentar a ciegas ante resultado incierto: verificar desde la cuenta autorizada si se creó. |
-| N09 | Volver de background durante búsqueda, detalle de recurso y cambio de sesión A → B | No reaparecen resultados privados ni avisos exitosos pertenecientes a A. |
-| N10 | Offline, timeout y 401/revocación durante restore y uso | Offline ≠ logout automático; 401 revoca la autoridad de sesión local; hay reintento y error comprensible. |
-| N11 | Logout y acceso con la cuenta B | SecureStore invalida A; navegación, contenido privado y contexto de A no quedan disponibles para B. |
-| N12 | Pantalla pequeña, teclado, VoiceOver/TalkBack y enlaces profundos | Controles accesibles, navegación de vuelta, foco y mensajes de error legibles, sin depender solo del color. |
+| ID  | Recorrido                                                                          | Evidencia esperada                                                                                                                                                                    |
+| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N01 | Instalación limpia, registro, verificación de email y primer login                 | No requiere Web como alternativa; la sesión solo se habilita después de validación del backend.                                                                                       |
+| N02 | Cierre, reapertura y vuelta de background con sesión vigente                       | Revalidación de sesión por backend, sin estado de otra cuenta ni recuperación insegura de credenciales.                                                                               |
+| N03 | Password recovery: enlace válido, inválido y vencido                               | Mensajes claros, token de un uso no expuesto en historial/capturas ni logs.                                                                                                           |
+| N04 | Google nativo cuando está configurado, y fallback cuando no lo está                | Resultado real del proveedor, vinculación/desvinculación autorizada, sin perder el último método de acceso. Si faltan credenciales OAuth/dispositivo, **BLOCKED** y referencia a #49. |
+| N05 | Selección y cambio de institución/carrera/materia                                  | El backend confirma contexto y revisión; una respuesta tardía del contexto anterior no modifica la pantalla.                                                                          |
+| N06 | Búsqueda con contexto académico, abrir un PDF, guardar y desguardar                | Resultados de servidor, acceso al archivo mediante autorización reciente y cambios de guardado confirmados; repetir con cierre/reapertura.                                            |
+| N07 | Subir PDF/JPG/PNG/WebP de prueba hasta el límite permitido                         | Intent → transferencia → finalización → creación, recurso inicialmente privado y asociado a materia válida; comprobar error para formatos/tamaños inválidos.                          |
+| N08 | Interrumpir red/cambiar de contexto/cuenta durante subida                          | La subida cancelada no avanza a etapas posteriores; si la creación ya fue enviada, no reintentar a ciegas ante resultado incierto: verificar desde la cuenta autorizada si se creó.   |
+| N09 | Volver de background durante búsqueda, detalle de recurso y cambio de sesión A → B | No reaparecen resultados privados ni avisos exitosos pertenecientes a A.                                                                                                              |
+| N10 | Offline, timeout y 401/revocación durante restore y uso                            | Offline ≠ logout automático; 401 revoca la autoridad de sesión local; hay reintento y error comprensible.                                                                             |
+| N11 | Logout y acceso con la cuenta B                                                    | SecureStore invalida A; navegación, contenido privado y contexto de A no quedan disponibles para B.                                                                                   |
+| N12 | Pantalla pequeña, teclado, VoiceOver/TalkBack y enlaces profundos                  | Controles accesibles, navegación de vuelta, foco y mensajes de error legibles, sin depender solo del color.                                                                           |
 
 ## Protocolo para fallas de publicación
 
