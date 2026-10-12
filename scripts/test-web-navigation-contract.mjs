@@ -55,6 +55,13 @@ assert.match(layout, /Saltar al contenido/u);
 assert.match(layout, /href="#contenido-principal"/u);
 assert.match(layout, /<main id="contenido-principal" tabIndex=\{-1\}>/u);
 assert.match(layout, /<LogoutButton\s*\/>/u);
+assert.equal(
+  (layout.match(/<LogoutButton\\s*\\/>/gu) ?? []).length,
+  2,
+  "Desktop and collapsed mobile navigation each provide a logout action",
+);
+assert.match(layout, /className="layout-mobile-session"/u);
+assert.match(layout, /className="layout-mobile-notifications"/u);
 assert.match(layout, /\/notifications/u);
 assert.match(layout, /\/login/u);
 assert.match(layout, /\/sign-up/u);
@@ -72,6 +79,11 @@ assert.match(styles, /prefers-reduced-motion/u);
 assert.match(styles, /focus-visible/u);
 assert.match(styles, /grid-template-areas/u);
 assert.match(styles, /min-height: 100dvh/u);
+assert.match(styles, /"session session"/u);
+assert.match(styles, /\\.layout-nav \\.layout-session-actions\\s*\\{\\s*display: none/u);
+assert.match(styles, /\\.layout-mobile-session\\s*\\{[\\s\\S]*?display: flex/u);
+assert.match(styles, /\\.layout-mobile-session \\.layout-mobile-notifications/u);
+assert.match(styles, /\\.layout-notifications-link\\s*\\{\\s*display: none/u);
 assert.match(styles, /main\s*\{\s*flex: 1/u);
 assert.doesNotMatch(styles, /main\s*\{\s*height:\s*100vh/u);
 
