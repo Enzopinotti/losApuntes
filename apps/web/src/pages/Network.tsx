@@ -78,7 +78,11 @@ function ConnectionRow({
                 void onAction(
                   `accept:${connection.id}`,
                   (signal) =>
-                    communityApi.respondConnection(connection.id, "accept", signal),
+                    communityApi.respondConnection(
+                      connection.id,
+                      "accept",
+                      signal,
+                    ),
                   "Conexión aceptada.",
                 )
               }
@@ -93,7 +97,11 @@ function ConnectionRow({
                 void onAction(
                   `decline:${connection.id}`,
                   (signal) =>
-                    communityApi.respondConnection(connection.id, "decline", signal),
+                    communityApi.respondConnection(
+                      connection.id,
+                      "decline",
+                      signal,
+                    ),
                   "Solicitud rechazada.",
                 )
               }
@@ -585,7 +593,10 @@ const Network = () => {
           {loading ? (
             <p role="status">Cargando relaciones…</p>
           ) : connections.length === 0 ? (
-            <p>No hay solicitudes ni conexiones todavía. Buscá personas para empezar.</p>
+            <p>
+              No hay solicitudes ni conexiones todavía. Buscá personas para
+              empezar.
+            </p>
           ) : (
             <>
               {connectionGroups.incomingRequests.length > 0 && (
@@ -613,7 +624,9 @@ const Network = () => {
               )}
               {connectionGroups.otherRelationships.length > 0 && (
                 <section aria-labelledby="network-other-title">
-                  <h3 id="network-other-title">Tu red y solicitudes enviadas</h3>
+                  <h3 id="network-other-title">
+                    Tu red y solicitudes enviadas
+                  </h3>
                   <ul className="community-list">
                     {connectionGroups.otherRelationships.map((connection) => (
                       <ConnectionRow
@@ -633,7 +646,9 @@ const Network = () => {
                   disabled={busy === "connections-more"}
                   onClick={() => void loadMoreConnections()}
                 >
-                  {busy === "connections-more" ? "Cargando…" : "Ver más relaciones"}
+                  {busy === "connections-more"
+                    ? "Cargando…"
+                    : "Ver más relaciones"}
                 </button>
               )}
             </>
