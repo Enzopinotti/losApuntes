@@ -69,3 +69,34 @@ test("the Network exposes the inbox and connection notifications open its target
   assert.match(notifications, /pathname: "\/social-connections"/u);
   assert.match(notifications, /connectionId: destination\.connectionId/u);
 });
+
+test("unroutable notifications do not invent a native destination", () => {
+  assert.equal(
+    mobileNotificationDestination(notification({ type: "profile", id: "" })),
+    null,
+  );
+  assert.equal(
+    mobileNotificationDestination(
+      notification({ type: "resource", id: "resource-a" } as never),
+    ),
+    null,
+  );
+});
+
+test("the native inbox disables dead links and waits for read authority before routing", () => {
+  const notifications = readFileSync(
+    new URL(
+      "../src/features/notifications/notifications-screen.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    notifications,
+    /mobileNotificationDestination\(notification\) \?/u,
+  );
+  assert.match(notifications, /Sin destino disponible/u);
+  assert.match(notifications, /await controller\.openAndMarkRead\(/u);
+  assert.match(notifications, /if \(!canOpen\) return/u);
+});
