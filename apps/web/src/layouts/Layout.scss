@@ -124,6 +124,12 @@
     background: transparent;
   }
 
+  .layout-more-toggle span,
+  .layout-menu-toggle span,
+  .layout-session-actions > span {
+    background: transparent;
+  }
+
   .layout-more-toggle {
     gap: 0.35rem;
     cursor: pointer;
