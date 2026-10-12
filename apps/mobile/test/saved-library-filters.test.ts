@@ -5,7 +5,9 @@ import test from "node:test";
 import type { ResourceView } from "@losapuntes/contracts";
 
 import {
+  activeLoadedSavedSubject,
   findLoadedSavedResources,
+  loadedSavedLibrarySubjects,
   loadedSavedSearchSummary,
   SAVED_LIBRARY_QUERY_MAX_LENGTH,
 } from "../src/features/resources/saved-library-filters";
@@ -20,6 +22,7 @@ function resource(
     description?: string;
     author?: string;
     tags?: string[];
+    subjectId?: string;
   } = {},
 ): ResourceView {
   return {
@@ -36,7 +39,10 @@ function resource(
         }
       : null,
     academic: {
-      subject: { id: "subject-a", name: subjectName },
+      subject: {
+        id: options.subjectId ?? "subject-a",
+        name: subjectName,
+      },
       courseOffering: null,
     },
     file: {
@@ -228,11 +234,214 @@ test("screen presents loaded-page limitations and resets filters on account chan
   );
   assert.match(
     screen,
-    /findLoadedSavedResources\(current\.data\.items, query, sort\)/u,
+    /findLoadedSavedResources\(\s*current\.data\.items,\s*query,\s*sort,\s*activeSubjectId,\s*\)/u,
   );
   assert.match(screen, /sessionKey\]/u);
   assert.match(screen, /setQuery\(""\)/u);
   assert.match(screen, /setSort\("saved"\)/u);
   assert.match(screen, /Cargar más guardados/u);
   assert.match(screen, /guardados cargados/u);
+});
+
+test("saved subjects group by academic ID with loaded counts and Spanish order", () => {
+  const resources = [
+    resource("c1", "Guía", "Cálculo", { subjectId: "subject-c" }),
+    resource("b1", "Resumen", "Álgebra", { subjectId: "subject-a" }),
+    resource("d1", "Parcial", "Cálculo", { subjectId: "subject-d" }),
+    resource("c2", "Fórmulas", "Cálculo", { subjectId: "subject-c" }),
+  ];
+
+  assert.deepEqual(loadedSavedLibrarySubjects(resources), [
+    { id: "subject-a", name: "Álgebra", loadedCount: 1 },
+    { id: "subject-c", name: "Cálculo", loadedCount: 2 },
+    { id: "subject-d", name: "Cálculo", loadedCount: 1 },
+  ]);
+  assert.deepEqual(
+    resources.map((resource) => resource.id),
+    ["c1", "b1", "d1", "c2"],
+  );
+});
+
+test("subject selection only accepts a currently loaded academic ID", () => {
+  const subjects = loadedSavedLibrarySubjects([
+    resource("one", "Resumen", "Álgebra", { subjectId: "subject-a" }),
+  ]);
+  assert.equal(activeLoadedSavedSubject(subjects, null), null);
+  assert.equal(activeLoadedSavedSubject(subjects, "subject-a"), "subject-a");
+  assert.equal(activeLoadedSavedSubject(subjects, "subject-b"), null);
+  assert.equal(activeLoadedSavedSubject([], "subject-a"), null);
+});
+
+test("subject selection composes with multi-field search and title ordering", () => {
+  const resources = [
+    resource("z", "Teoría", "Álgebra", {
+      subjectId: "subject-a",
+      author: "Ana",
+      tags: ["parcial"],
+    }),
+    resource("b", "Ejercicios", "Álgebra", {
+      subjectId: "subject-a",
+      author: "Ana",
+      tags: ["parcial"],
+    }),
+    resource("c", "Ejercicios", "Análisis", {
+      subjectId: "subject-b",
+      author: "Ana",
+      tags: ["parcial"],
+    }),
+    resource("d", "Ejercicios", "Álgebra", {
+      subjectId: "subject-a-2",
+      author: "Ana",
+      tags: ["parcial"],
+    }),
+  ];
+
+  assert.deepEqual(
+    findLoadedSavedResources(
+      resources,
+      "ANA PARCIAL",
+      "title",
+      "subject-a",
+    ).map((item) => item.id),
+    ["b", "z"],
+  );
+  assert.deepEqual(
+    findLoadedSavedResources(resources, "ANA PARCIAL", "saved").map(
+      (item) => item.id,
+    ),
+    ["z", "b", "c", "d"],
+  );
+});
+
+test("subject grouping reflects newly loaded pages and does not imply global counts", async () => {
+  const firstPage = resource("one", "Apunte I", "Historia", {
+    subjectId: "history",
+  });
+  const secondPage = resource("two", "Apunte II", "Historia", {
+    subjectId: "history",
+  });
+  const another = resource("three", "Apunte III", "Geometría", {
+    subjectId: "geometry",
+  });
+  const calls: Array<string | undefined> = [];
+  const api = {
+    saved: async (cursor?: string) => {
+      calls.push(cursor);
+      return cursor
+        ? { items: [secondPage, another], nextCursor: null }
+        : { items: [firstPage], nextCursor: "next-page" };
+    },
+  } as ResourceConsumptionApi;
+  const controller = new MobileSavedResourcesController(api);
+
+  await controller.load("session-a");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(loadedSavedLibrarySubjects(snapshot.data.items), [
+    { id: "history", name: "Historia", loadedCount: 1 },
+  ]);
+  assert.equal(snapshot.data.nextCursor, "next-page");
+
+  await controller.loadMore("session-a");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(loadedSavedLibrarySubjects(snapshot.data.items), [
+    { id: "geometry", name: "Geometría", loadedCount: 1 },
+    { id: "history", name: "Historia", loadedCount: 2 },
+  ]);
+  assert.deepEqual(calls, [undefined, "next-page"]);
+});
+
+test("removing the last saved resource clears an obsolete subject selection", async () => {
+  const a = resource("a", "Parcial", "Física", { subjectId: "physics" });
+  const b = resource("b", "Resumen", "Química", { subjectId: "chemistry" });
+  const api: ResourceConsumptionApi = {
+    saved: async () => ({ items: [a, b], nextCursor: null }),
+    unsave: async () => undefined,
+    resource: async (id) => ({ resource: resource(id, "Otro") }),
+    access: async () => ({
+      file: a.file,
+      access: {
+        url: "https://storage.example.invalid/unused",
+        expiresAt: "2026-10-12T00:00:00.000Z",
+      },
+    }),
+    save: async () => ({ saved: true }),
+  };
+  const controller = new MobileSavedResourcesController(api);
+
+  await controller.load("session-a");
+  await controller.removeSaved("session-a", "a");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  const subjects = loadedSavedLibrarySubjects(snapshot.data.items);
+  assert.equal(activeLoadedSavedSubject(subjects, "physics"), null);
+  assert.deepEqual(
+    findLoadedSavedResources(snapshot.data.items, "", "saved").map(
+      (item) => item.id,
+    ),
+    ["b"],
+  );
+});
+
+test("subject groups never show a previous account after authority change", async () => {
+  const calls: Array<string | undefined> = [];
+  const api = {
+    saved: async (_cursor?: string) => {
+      calls.push(_cursor);
+      return calls.length === 1
+        ? {
+            items: [
+              resource("first", "Solo A", "Matemática", {
+                subjectId: "subject-a",
+              }),
+            ],
+            nextCursor: null,
+          }
+        : {
+            items: [
+              resource("second", "Solo B", "Literatura", {
+                subjectId: "subject-b",
+              }),
+            ],
+            nextCursor: null,
+          };
+    },
+  } as ResourceConsumptionApi;
+  const controller = new MobileSavedResourcesController(api);
+
+  await controller.load("session-a");
+  controller.invalidate("session-a");
+  await controller.load("session-b");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.authorityKey, "session-b");
+  const groups = loadedSavedLibrarySubjects(snapshot.data.items);
+  assert.deepEqual(groups, [
+    { id: "subject-b", name: "Literatura", loadedCount: 1 },
+  ]);
+  assert.equal(activeLoadedSavedSubject(groups, "subject-a"), null);
+});
+
+test("native subject selection is accessible and retains pagination controls", () => {
+  const screen = readFileSync(
+    new URL(
+      "../src/features/resources/saved-resources-screen.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(screen, /Tus materias/u);
+  assert.match(screen, /loadedSavedLibrarySubjects\(current\.data\.items\)/u);
+  assert.match(screen, /accessibilityLabel="Todas las materias"/u);
+  assert.match(screen, /accessibilityRole="radio"/u);
+  assert.match(screen, /setSelectedSubjectId\(subject\.id\)/u);
+  assert.match(screen, /setSelectedSubjectId\(null\)/u);
+  assert.match(screen, /activeSubjectId/u);
+  assert.match(screen, /controller\.loadMore\(current\.authorityKey\)/u);
+  assert.match(screen, /controller\.removeSaved\(/u);
 });
