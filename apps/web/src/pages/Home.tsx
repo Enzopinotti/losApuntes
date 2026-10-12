@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { FeedItem } from "../features/feeds/interfaces";
 import { FeedSourceAttribution } from "../features/feeds/components/FeedSourceAttribution";
+import { homeFeedHref } from "../features/feeds/feed-navigation.mjs";
 import type { PilotHomeResponse } from "../features/pilot/interfaces";
 import {
   isPilotApiError,
@@ -284,7 +285,7 @@ const Home = () => {
                   ? snapshot.homeFeed.items
                   : snapshot.forYou.items
               }
-              moreTo="/feeds"
+              moreTo={homeFeedHref(activeHomeFeed, snapshot.homeFeed.kind)}
             />
           </div>
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   FeedFeedbackSignal,
@@ -21,10 +21,13 @@ import {
   FEED_PREFETCH_ROOT_MARGIN,
   requiresNewWebFeedSession,
 } from "../features/feeds/feed-pagination.mjs";
+import {
+  feedSelectionFromSearchParams,
+  type FeedSelection,
+} from "../features/feeds/feed-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Feeds.scss";
 
-type FeedView = "academic" | "for-you";
 type FeedErrorRecovery = { kind: "page"; cursor: string } | { kind: "session" };
 
 const reasonLabels: Record<FeedReasonCode, string> = {
@@ -59,9 +62,22 @@ function messageFor(error: unknown): string {
 
 const Feeds = () => {
   const { status, user, session } = useAuth();
-  const [view, setView] = useState<FeedView>("academic");
-  const [mode, setMode] = useState<FeedMode>("balanced");
-  const [order, setOrder] = useState<FeedOrder>("ranked");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { view, mode, order } = feedSelectionFromSearchParams(searchParams);
+  const updateSelection = (selection: Partial<FeedSelection>) => {
+    setSearchParams(
+      (current) => {
+        const next = feedSelectionFromSearchParams(current);
+        const updated = { ...next, ...selection };
+        const params = new URLSearchParams(current);
+        params.set("view", updated.view);
+        params.set("mode", updated.mode);
+        params.set("order", updated.order);
+        return params;
+      },
+      { replace: true },
+    );
+  };
   const [items, setItems] = useState<FeedItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [stopReason, setStopReason] = useState<"end" | "natural_break" | null>(
@@ -375,7 +391,7 @@ const Feeds = () => {
             type="button"
             className={view === "academic" ? "active" : ""}
             aria-pressed={view === "academic"}
-            onClick={() => setView("academic")}
+            onClick={() => updateSelection({ view: "academic" })}
           >
             Mis materias
           </button>
@@ -383,7 +399,7 @@ const Feeds = () => {
             type="button"
             className={view === "for-you" ? "active" : ""}
             aria-pressed={view === "for-you"}
-            onClick={() => setView("for-you")}
+            onClick={() => updateSelection({ view: "for-you" })}
           >
             Para vos
           </button>
@@ -418,7 +434,9 @@ const Feeds = () => {
             Modo
             <select
               value={mode}
-              onChange={(event) => setMode(event.target.value as FeedMode)}
+              onChange={(event) =>
+                updateSelection({ mode: event.target.value as FeedMode })
+              }
             >
               <option value="balanced">Equilibrado</option>
               <option value="study">Estudio</option>
@@ -430,7 +448,9 @@ const Feeds = () => {
             Orden
             <select
               value={order}
-              onChange={(event) => setOrder(event.target.value as FeedOrder)}
+              onChange={(event) =>
+                updateSelection({ order: event.target.value as FeedOrder })
+              }
             >
               <option value="ranked">Relevancia transparente</option>
               <option value="chronological">Cronológico</option>
