@@ -43,6 +43,11 @@ import {
   resourceVisibilityLabel,
 } from "./resource-details-copy";
 import { mobileResourceConsumptionApi } from "./resource-runtime";
+import { ResourceMetadataEditor } from "./resource-metadata-editor";
+import {
+  MobileResourceMetadataController,
+  type MobileResourceMetadataSnapshot,
+} from "./resource-metadata-controller";
 import {
   MobileResourceReportController,
   type MobileResourceReportSnapshot,
@@ -169,6 +174,14 @@ export function MobileResourceDetailsScreen({
     controller.getSnapshot(),
   );
   const [handoffError, setHandoffError] = useState<string | null>(null);
+  const metadataController = useMemo(
+    () => new MobileResourceMetadataController(mobileResourceConsumptionApi),
+    [],
+  );
+  const [metadataSnapshot, setMetadataSnapshot] =
+    useState<MobileResourceMetadataSnapshot>(
+      metadataController.getSnapshot(),
+    );
   const reportController = useMemo(
     () => new MobileResourceReportController(mobileResourceConsumptionApi),
     [],
@@ -202,6 +215,29 @@ export function MobileResourceDetailsScreen({
   const { snapshot, retry } = useFencedDetail(authorityKey, load);
 
   useEffect(() => controller.subscribe(setAction), [controller]);
+  useEffect(
+    () => metadataController.subscribe(setMetadataSnapshot),
+    [metadataController],
+  );
+
+  useEffect(() => {
+    if (!scopeKey) {
+      metadataController.invalidate();
+      return;
+    }
+    if (!authorityKey) {
+      metadataController.suspend(scopeKey);
+      return;
+    }
+    if (
+      snapshot.kind === "ready" &&
+      snapshot.authorityKey === authorityKey &&
+      snapshot.data.resource.id === resourceId &&
+      snapshot.data.resource.capabilities.edit
+    ) {
+      metadataController.setScope(scopeKey, snapshot.data.resource);
+    }
+  }, [authorityKey, metadataController, resourceId, scopeKey, snapshot]);
   useEffect(
     () => reportController.subscribe(setReportSnapshot),
     [reportController],
@@ -286,6 +322,12 @@ export function MobileResourceDetailsScreen({
   const currentAction =
     action.kind === "ready" && action.authorityKey === authorityKey
       ? action
+      : null;
+  const currentMetadata =
+    metadataSnapshot.kind === "ready" &&
+    metadataSnapshot.authorityKey === authorityKey &&
+    metadataSnapshot.resource.id === resourceId
+      ? metadataSnapshot
       : null;
   const currentReport =
     reportSnapshot.kind === "ready" &&
@@ -380,6 +422,16 @@ export function MobileResourceDetailsScreen({
                 Visibilidad: {resourceVisibilityLabel(resource.visibility)}
               </Text>
             </View>
+
+            {resource.capabilities.edit ? (
+              <ResourceMetadataEditor
+                authorityKey={authorityKey}
+                resource={currentMetadata?.resource ?? resource}
+                snapshot={metadataSnapshot}
+                controller={metadataController}
+                onUpdated={retry}
+              />
+            ) : null}
 
             <View style={styles.card}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>
