@@ -133,57 +133,11 @@
 }
 
 .feed-card > header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  display: block;
 }
 
 .feed-card h2 {
   margin-bottom: 0.3rem;
-}
-
-.feed-kind {
-  display: inline-block;
-  color: #5b5bd6;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.feed-meta {
-  color: #626274;
-  margin-top: 0;
-}
-
-.feed-source-link {
-  color: inherit;
-  font-weight: 650;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-}
-
-.feed-verified {
-  display: inline-flex;
-  border-radius: 999px;
-  padding: 0.2rem 0.55rem;
-  background: #e9f2ed;
-  color: #315d43;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.feed-why {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin: 1rem 0;
-}
-
-.feed-why span {
-  background: #f1f0ff;
-  border-radius: 999px;
-  padding: 0.3rem 0.65rem;
-  font-size: 0.84rem;
 }
 
 .feeds-actions {
@@ -244,9 +198,5 @@ button.secondary {
 
   .feeds-signal-controls {
     grid-column: auto;
-  }
-
-  .feed-card > header {
-    flex-direction: column;
   }
 }

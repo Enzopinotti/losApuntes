@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   FeedFeedbackSignal,
@@ -7,9 +7,11 @@ import type {
   FeedMode,
   FeedOrder,
   FeedPreferencesResponse,
-  FeedReasonCode,
 } from "../features/feeds/interfaces";
-import { FeedSourceAttribution } from "../features/feeds/components/FeedSourceAttribution";
+import {
+  FeedItemContext,
+  FeedItemOpenLink,
+} from "../features/feeds/components/FeedItemContext";
 import {
   feedsApi,
   isFeedsApiError,
@@ -29,19 +31,6 @@ import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Feeds.scss";
 
 type FeedErrorRecovery = { kind: "page"; cursor: string } | { kind: "session" };
-
-const reasonLabels: Record<FeedReasonCode, string> = {
-  current_subject: "De tu materia actual",
-  prioritized_subject: "De una materia priorizada",
-  connection: "De una conexión",
-  following: "De alguien que seguís",
-  organization_following: "De una organización que seguís",
-  interest_match: "Relacionado con tus intereses",
-  unanswered_question: "Pregunta sin responder",
-  fresh: "Publicado recientemente",
-  explicit_more: "Por tu preferencia de ver más",
-  exploration: "Para descubrir contenido",
-};
 
 function messageFor(error: unknown): string {
   if (!isFeedsApiError(error)) return "No pudimos cargar tu feed.";
@@ -566,67 +555,15 @@ const Feeds = () => {
             <article className="feed-card" key={`${item.type}:${item.id}`}>
               <header>
                 <div>
-                  <span className="feed-kind">
-                    {item.type === "resource"
-                      ? "Apunte"
-                      : item.type === "question"
-                        ? "Pregunta"
-                        : "Organización"}
-                  </span>
+                  <FeedItemContext item={item} />
                   <h2>{item.title}</h2>
-                  <p className="feed-meta">
-                    <FeedSourceAttribution item={item} />
-                    {item.academic.subject
-                      ? ` · ${item.academic.subject.name}`
-                      : ""}
-                  </p>
-                  {item.source.kind === "campus_organization" &&
-                  item.source.organization.verificationState === "verified" ? (
-                    <span className="feed-verified">
-                      Organización verificada
-                    </span>
-                  ) : null}
                 </div>
-                <time dateTime={item.createdAt}>
-                  {new Date(item.createdAt).toLocaleDateString("es-AR")}
-                </time>
               </header>
 
               {item.summary && <p>{item.summary}</p>}
 
-              <div className="feed-why" aria-label="Por qué aparece">
-                {item.why.map((reason) => (
-                  <span key={reason}>{reasonLabels[reason]}</span>
-                ))}
-              </div>
-
               <div className="feeds-actions">
-                {item.type === "question" ? (
-                  <Link to={`/questions?id=${encodeURIComponent(item.id)}`}>
-                    Abrir pregunta
-                  </Link>
-                ) : item.type === "organization_post" &&
-                  item.source.kind === "campus_organization" ? (
-                  <Link
-                    to={`/organizations/${encodeURIComponent(
-                      item.source.organization.id,
-                    )}`}
-                  >
-                    Ver organización
-                  </Link>
-                ) : (
-                  <Link
-                    to={`/resources?q=${encodeURIComponent(item.title)}${
-                      item.academic.subject
-                        ? `&subjectId=${encodeURIComponent(
-                            item.academic.subject.id,
-                          )}`
-                        : ""
-                    }`}
-                  >
-                    Buscar apunte
-                  </Link>
-                )}
+                <FeedItemOpenLink item={item} />
                 <button
                   type="button"
                   className="secondary"

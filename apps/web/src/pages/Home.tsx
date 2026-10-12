@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { FeedItem } from "../features/feeds/interfaces";
-import { FeedSourceAttribution } from "../features/feeds/components/FeedSourceAttribution";
+import {
+  FeedItemContext,
+  FeedItemOpenLink,
+} from "../features/feeds/components/FeedItemContext";
 import { homeFeedHref } from "../features/feeds/feed-navigation.mjs";
 import type { PilotHomeResponse } from "../features/pilot/interfaces";
 import {
@@ -34,22 +37,14 @@ function FeedPreview({
       ) : (
         <ul className="pilot-feed-preview">
           {items.map((item) => {
-            const kindLabel =
-              item.type === "resource"
-                ? "Apunte"
-                : item.type === "question"
-                  ? "Pregunta"
-                  : "Organización";
             return (
               <li key={`${item.type}:${item.id}`}>
-                <span>{kindLabel}</span>
-                <strong>{item.title}</strong>
-                <small>
-                  {item.academic.subject
-                    ? `${item.academic.subject.name} · `
-                    : ""}
-                  <FeedSourceAttribution item={item} />
-                </small>
+                <FeedItemContext item={item} reasonLimit={2} />
+                <div className="pilot-feed-preview-content">
+                  <h3>{item.title}</h3>
+                  {item.summary ? <p>{item.summary}</p> : null}
+                </div>
+                <FeedItemOpenLink item={item} />
               </li>
             );
           })}
