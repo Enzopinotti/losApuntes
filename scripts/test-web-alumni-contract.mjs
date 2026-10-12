@@ -33,7 +33,7 @@ assert.doesNotMatch(lifecycle, /localStorage|sessionStorage/u);
 const home = await read('apps/web/src/pages/Home.tsx');
 assert.match(home, /snapshot\.lifecycle\.phase/u);
 assert.match(home, /snapshot\.academic\.currentSubjectIds\.length\s*===\s*0/u);
-assert.match(home, /snapshot\.homeFeed\.kind\s*===\s*"community"/u);
+assert.match(home, /snapshot\??\.homeFeed\.kind\s*===\s*"community"/u);
 assert.match(home, /Universidad y comunidad/u);
 assert.match(home, /Tu etapa cambió, tu comunidad sigue/u);
 assert.doesNotMatch(home, /isGraduated/u);
