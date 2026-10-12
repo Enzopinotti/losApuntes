@@ -66,7 +66,11 @@ function FeedPreview({
           {items.map((item) => {
             return (
               <li key={`${item.type}:${item.id}`}>
-                <FeedItemContext item={item} reasonLimit={2} />
+                <FeedItemContext
+                  item={item}
+                  reasonLimit={2}
+                  homeIntent={homeIntent}
+                />
                 <div className="pilot-feed-preview-content">
                   <h3>{item.title}</h3>
                   {item.summary ? <p>{item.summary}</p> : null}

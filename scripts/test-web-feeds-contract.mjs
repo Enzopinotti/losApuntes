@@ -49,6 +49,9 @@ const homePage = await read("apps/web/src/pages/Home.tsx");
 const itemContext = await read(
   "apps/web/src/features/feeds/components/FeedItemContext.tsx",
 );
+const itemContextStyles = await read(
+  "apps/web/src/features/feeds/components/FeedItemContext.scss",
+);
 const resourcesPage = await read("apps/web/src/pages/Resources.tsx");
 const questionsPage = await read("apps/web/src/pages/Questions.tsx");
 const itemPresentation = await read(
@@ -107,7 +110,11 @@ assert.match(page, /void loadFeed\(nextCursor, true\)/u);
 assert.match(page, /stopReason !== null/u);
 assert.match(page, /FeedItemContext item=\{item\}/u);
 assert.match(page, /FeedItemOpenLink item=\{item\}/u);
-assert.match(homePage, /FeedItemContext item=\{item\} reasonLimit=\{2\}/u);
+assert.match(
+  homePage,
+  /<FeedItemContext[\s\S]{0,120}item=\{item\}[\s\S]{0,80}reasonLimit=\{2\}/u,
+);
+assert.match(homePage, /FeedItemContext[\s\S]{0,100}homeIntent=\{homeIntent\}/u);
 assert.match(homePage, /FeedItemOpenLink item=\{item\}/u);
 assert.match(homePage, /item\.summary/u);
 assert.match(homePage, /homeFeedEmptyGuidance\(/u);
@@ -152,6 +159,21 @@ assert.match(itemContext, /rememberFeedScrollPosition\(/u);
 assert.match(itemContext, /window\.scrollY/u);
 assert.match(itemContext, /event\.metaKey[\s\S]*event\.ctrlKey/u);
 assert.match(
+  itemContext,
+  /FeedSourceAttribution item=\{item\} homeIntent=\{homeIntent\}/u,
+);
+assert.match(sourceAttribution, /feedScrollAuthorityScope\(/u);
+assert.match(sourceAttribution, /rememberFeedScrollPosition\(/u);
+assert.match(sourceAttribution, /window\.scrollY/u);
+assert.match(sourceAttribution, /feedReturnTo:\s*returnTo/u);
+assert.match(sourceAttribution, /feedReturnKey:\s*returnKey/u);
+assert.match(sourceAttribution, /feedReturnHomeIntent:\s*homeIntent/u);
+assert.match(sourceAttribution, /event\.metaKey[\s\S]*event\.ctrlKey/u);
+assert.match(
+  itemContextStyles,
+  /\.feed-item-byline \.feed-source-link:focus-visible/u,
+);
+assert.match(
   resourcesPage,
   /state=\{feedReturnRestoreState\(location\.state\)\}/u,
 );
@@ -167,8 +189,9 @@ assert.match(
 );
 assert.match(
   sourceAttribution,
-  /to=\{`\/p\/\$\{encodeURIComponent\(item\.author\.profileId\)\}`\}/u,
+  /to=\{`\/p\/\$\{encodeURIComponent\(profileId\)\}`\}/u,
 );
+assert.match(sourceAttribution, /profileId\.trim\(\) === profileId/u);
 assert.match(sourceAttribution, /item\.author\.displayName/u);
 assert.doesNotMatch(page, /const reasonLabels/u);
 assert.doesNotMatch(page, /Ver otra tanda/u);

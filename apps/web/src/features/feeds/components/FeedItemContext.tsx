@@ -13,9 +13,11 @@ import "./FeedItemContext.scss";
 export function FeedItemContext({
   item,
   reasonLimit,
+  homeIntent,
 }: {
   item: FeedItem;
   reasonLimit?: number;
+  homeIntent?: HomeFeedIntent;
 }) {
   const presentation = presentFeedItem(item, reasonLimit);
   const initials =
@@ -43,7 +45,7 @@ export function FeedItemContext({
 
       <div className="feed-item-context-details">
         <div className="feed-item-byline">
-          <FeedSourceAttribution item={item} />
+          <FeedSourceAttribution item={item} homeIntent={homeIntent} />
         </div>
         <div className="feed-item-metadata">
           <span className="feed-item-kind">{presentation.kindLabel}</span>

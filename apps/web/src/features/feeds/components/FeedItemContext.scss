@@ -47,6 +47,12 @@
   text-underline-offset: 0.2em;
 }
 
+.feed-item-byline .feed-source-link:focus-visible {
+  border-radius: 2px;
+  outline: 3px solid #5b5bd6;
+  outline-offset: 3px;
+}
+
 .feed-item-metadata,
 .feed-item-reasons {
   display: flex;
