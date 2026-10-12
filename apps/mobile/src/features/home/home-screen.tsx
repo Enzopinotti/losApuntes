@@ -54,6 +54,7 @@ import {
 } from "./home-controller";
 import {
   hasActionableHomeContent,
+  homeComposeActions,
   homeFeedItemAction,
   homeFeedAuthorAction,
   homeFeedExploreAction,
@@ -381,8 +382,8 @@ function FirstValueCard({
       </Text>
       <Text style={styles.copy}>
         {hasCurrentSubject
-          ? "Buscá otros apuntes o iniciá una pregunta sobre tu materia. Cuando abras un recurso, vas a poder guardarlo desde su detalle."
-          : "Podés buscar apuntes ahora. Si el servidor ya reconoce una participación académica válida, elegí una materia actual en Contexto académico para ver contenido asociado y habilitar preguntas."}
+          ? "Buscá otros apuntes, compartí un recurso de una materia cursada o iniciá una pregunta sobre tu materia actual. Los nuevos recursos empiezan privados."
+          : "Buscá apuntes o abrí Crear para ver en qué materias podés compartir. Para hacer preguntas necesitás una materia actual en Contexto académico."}
       </Text>
       <View style={styles.firstValueActions}>
         {actions.map((action) => (
@@ -398,6 +399,51 @@ function FirstValueCard({
             ]}
           >
             <Text style={styles.firstValueActionLabel}>{action.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function HomeComposeCard({
+  hasCurrentSubject,
+  onNavigate,
+}: {
+  hasCurrentSubject: boolean;
+  onNavigate: (action: HomeFirstValueAction) => void;
+}) {
+  const actions = homeComposeActions(hasCurrentSubject);
+
+  return (
+    <View style={styles.composeCard}>
+      <View style={styles.composeHeading}>
+        <View accessible={false} style={styles.composeAvatar}>
+          <Text style={styles.composeAvatarLabel}>+</Text>
+        </View>
+        <View style={styles.composeCopy}>
+          <Text style={styles.composeTitle}>¿Qué querés aportar?</Text>
+          <Text style={styles.copy}>
+            {hasCurrentSubject
+              ? "Compartí un apunte o hacé una pregunta sobre tu materia."
+              : "Compartí material de una materia habilitada; para preguntar, necesitás una materia actual."}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.composeActions}>
+        {actions.map((action) => (
+          <Pressable
+            key={action.id}
+            accessibilityRole="button"
+            accessibilityLabel={action.accessibilityLabel}
+            accessibilityHint={action.accessibilityHint}
+            onPress={() => onNavigate(action)}
+            style={({ pressed }) => [
+              styles.composeAction,
+              pressed && styles.firstValueActionPressed,
+            ]}
+          >
+            <Text style={styles.composeActionLabel}>{action.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -854,6 +900,11 @@ export function HomeScreen() {
   const relationWindowTruncated =
     activeFeed === "for_you" &&
     data.forYou.effectiveSignals.relationWindowTruncated;
+  const hasCurrentSubject = data.academic.currentSubjectIds.length > 0;
+  const hasActionableContent = hasActionableHomeContent(
+    data.homeFeed,
+    data.forYou,
+  );
   const activeFeedPageStatus =
     currentHome?.kind === "ready"
       ? currentHome.pagination?.[activeFeed]
@@ -884,12 +935,17 @@ export function HomeScreen() {
   return renderSurface(
     <View style={styles.content}>
       {currentHome?.kind === "loading" ? <LoadingCard refreshing /> : null}
-      {!hasActionableHomeContent(data.homeFeed, data.forYou) ? (
-        <FirstValueCard
-          hasCurrentSubject={data.academic.currentSubjectIds.length > 0}
+      {hasActionableContent ? (
+        <HomeComposeCard
+          hasCurrentSubject={hasCurrentSubject}
           onNavigate={navigateFirstValueAction}
         />
-      ) : null}
+      ) : (
+        <FirstValueCard
+          hasCurrentSubject={hasCurrentSubject}
+          onNavigate={navigateFirstValueAction}
+        />
+      )}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Abrir notificaciones, ${data.notifications.unreadCount} sin leer`}
@@ -973,6 +1029,65 @@ const styles = StyleSheet.create({
   },
   firstValueActions: {
     gap: 8,
+  },
+  composeCard: {
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#e4e1eb",
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: "#ffffff",
+  },
+  composeHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  composeAvatar: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 19,
+    backgroundColor: "#eeeaf8",
+  },
+  composeAvatarLabel: {
+    color: "#43376a",
+    fontSize: 22,
+    fontWeight: "500",
+  },
+  composeCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  composeTitle: {
+    color: "#20202a",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  composeActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  composeAction: {
+    flexGrow: 1,
+    flexBasis: 128,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d7d2e1",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "#f8f6fc",
+  },
+  composeActionLabel: {
+    color: "#342b4d",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
   },
   feedExplore: {
     gap: 8,

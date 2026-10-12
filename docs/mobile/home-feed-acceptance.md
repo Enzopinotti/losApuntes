@@ -11,6 +11,11 @@ break.
 - The Home heading, academic context, notification entry, intent selector, and
   active feed heading are in the list header. Feed cards are virtualized list
   rows, so Home does not nest a list inside `ProductSurface`'s `ScrollView`.
+- When there is actionable feed content, the list header offers existing
+  contribution routes: share a resource or, when a current subject exists, ask
+  a question. The empty-feed state uses the same actions alongside Search.
+  Resource eligibility remains server-projected by the Create screen (including
+  completed participations); question creation keeps its current-subject gate.
 - `onEndReached` and measured distance from the viewport end may request the
   next page. The controller deduplicates concurrent requests, checks current
   session/context authority, and appends only unseen items.
