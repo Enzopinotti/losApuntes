@@ -369,6 +369,7 @@ test("removing the last saved resource clears an obsolete subject selection", as
       },
     }),
     save: async () => ({ saved: true }),
+    update: async () => ({ resource: a }),
   };
   const controller = new MobileSavedResourcesController(api);
 
