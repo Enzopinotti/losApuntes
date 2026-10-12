@@ -75,6 +75,12 @@ export interface ResourceStore {
   removeShare(resourceId: string, userId: string): Promise<void>;
   upsertSave(resourceId: string, userId: string): Promise<void>;
   removeSave(resourceId: string, userId: string): Promise<void>;
+  listOwnedResources(input: {
+    authorUserId: string;
+    visibility?: ResourceVisibility;
+    limit: number;
+    after?: { createdAt: Date; id: string };
+  }): Promise<{ items: ResourceRecord[]; hasMore: boolean }>;
   listSavedResources(input: {
     userId: string;
     limit: number;
