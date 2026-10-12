@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   hasActionableHomeContent,
+  homeComposeActions,
   homeFeedAuthorAction,
   homeFeedExploreAction,
   homeFeedItemAction,
@@ -272,26 +273,50 @@ test("Home organization posts open their authorized organization detail", () => 
   );
 });
 
-test("empty Home actions link to Search and gate question creation on a current subject", () => {
+test("Home uses existing contribution routes and gates questions on a current subject", () => {
   const withoutSubject = homeFirstValueActions(false);
   assert.deepEqual(
     withoutSubject.map((action) => [action.id, action.href]),
-    [["search", "/(tabs)/search"]],
+    [
+      ["search", "/(tabs)/search"],
+      ["resource", "/(tabs)/create"],
+    ],
   );
   assert.equal(
     withoutSubject[0]?.accessibilityLabel,
     "Buscar apuntes y materias",
   );
+  assert.equal(withoutSubject[1]?.accessibilityLabel, "Compartir un apunte");
+  assert.match(withoutSubject[1]?.accessibilityHint ?? "", /servidor valida/u);
 
   const withSubject = homeFirstValueActions(true);
   assert.deepEqual(
     withSubject.map((action) => [action.id, action.href]),
     [
       ["search", "/(tabs)/search"],
+      ["resource", "/(tabs)/create"],
       ["question", "/questions/new"],
     ],
   );
-  assert.match(withSubject[1]?.accessibilityHint ?? "", /pregunta académica/);
+  assert.match(withSubject[2]?.accessibilityHint ?? "", /pregunta académica/u);
+});
+
+test("Home compose entry includes only the existing content contribution actions", () => {
+  assert.deepEqual(
+    homeComposeActions(false).map((action) => action.id),
+    ["resource"],
+  );
+  assert.deepEqual(
+    homeComposeActions(true).map((action) => action.id),
+    ["resource", "question"],
+  );
+
+  const screen = readFileSync(
+    new URL("../src/features/home/home-screen.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(screen, /<HomeComposeCard/u);
+  assert.match(screen, /onNavigate=\{navigateFirstValueAction\}/u);
 });
 
 test("Home shows next-step actions only when no resource or question can be opened", () => {

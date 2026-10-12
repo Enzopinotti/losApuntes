@@ -120,7 +120,7 @@ export function homeFeedExploreAction(
 }
 
 export interface HomeFirstValueAction {
-  id: "search" | "question";
+  id: "search" | "resource" | "question";
   label: string;
   accessibilityLabel: string;
   accessibilityHint: string;
@@ -141,6 +141,15 @@ export function homeFirstValueActions(
       navigation: "navigate",
       href: "/(tabs)/search",
     },
+    {
+      id: "resource",
+      label: "Compartir apunte",
+      accessibilityLabel: "Compartir un apunte",
+      accessibilityHint:
+        "Abre Crear para elegir una materia habilitada. El servidor valida la participación y publica el recurso en privado.",
+      navigation: "navigate",
+      href: "/(tabs)/create",
+    },
   ];
 
   if (hasCurrentSubject) {
@@ -156,4 +165,12 @@ export function homeFirstValueActions(
   }
 
   return actions;
+}
+
+export function homeComposeActions(
+  hasCurrentSubject: boolean,
+): HomeFirstValueAction[] {
+  return homeFirstValueActions(hasCurrentSubject).filter(
+    (action) => action.id !== "search",
+  );
 }
