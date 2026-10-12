@@ -154,6 +154,21 @@ export class MobileResourceDirectSharingController {
     }
   }
 
+  clearSearch(authorityKey: string, resourceId: string): void {
+    const current = this.current(authorityKey, resourceId);
+    if (!current || current.busy) return;
+    this.abortSearch();
+    this.publish({
+      ...current,
+      query: "",
+      people: [],
+      selected: null,
+      searchState: "idle",
+      outcome: null,
+      failure: null,
+    });
+  }
+
   select(authorityKey: string, resourceId: string, profileId: string): boolean {
     const current = this.current(authorityKey, resourceId);
     if (!current || current.busy || current.searchState !== "ready") return false;
