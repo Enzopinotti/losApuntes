@@ -69,6 +69,7 @@ assert.doesNotMatch(network, /academic.*connect|auto.*connect/iu);
 assert.doesNotMatch(network, /localStorage|sessionStorage/u);
 
 const questions = await read('apps/web/src/pages/Questions.tsx');
+const communityStyles = await read('apps/web/src/pages/Community.scss');
 assert.match(questions, /useAuth\(\)/u);
 assert.match(questions, /user\?\.id/u);
 assert.match(questions, /session\?\.id/u);
@@ -108,6 +109,16 @@ assert.match(questions, /await loadListRef\.current\(\)/u);
 assert.match(questions, /loadDetailRef\.current\(\)/u);
 assert.match(questions, /setSearchParams\(\{ id: result\.question\.id \}\)/u);
 assert.match(questions, /Cargando pregunta…/u);
+assert.match(questions, /feedReturnHref\(location\.state\)/u);
+assert.match(
+  questions,
+  /className="community-back-link"[\s\S]{0,180}to=\{feedReturnTo\}[\s\S]{0,100}replace/u,
+);
+assert.match(
+  questions,
+  /feedReturnTo === "\/"[\s\S]{0,120}Volver a Inicio[\s\S]{0,80}Volver al feed/u,
+);
+assert.match(communityStyles, /\.community-back-link:focus-visible/u);
 assert.match(questions, /nextCursor/u);
 assert.match(questions, /questions-more/u);
 assert.match(questions, /answersNextCursor/u);

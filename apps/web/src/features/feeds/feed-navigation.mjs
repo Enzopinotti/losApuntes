@@ -2,6 +2,23 @@ const feedViews = new Set(["academic", "for-you"]);
 const feedModes = new Set(["balanced", "study", "discover", "community"]);
 const feedOrders = new Set(["ranked", "chronological"]);
 
+export function feedReturnHref(locationState) {
+  if (typeof locationState !== "object" || locationState === null) {
+    return null;
+  }
+
+  const candidate = locationState.feedReturnTo;
+  if (candidate === "/") return candidate;
+  if (
+    typeof candidate === "string" &&
+    /^\/feeds(?:\?[^#\\\u0000-\u001f]*)?$/u.test(candidate)
+  ) {
+    return candidate;
+  }
+
+  return null;
+}
+
 export function feedSelectionFromSearchParams(searchParams) {
   const requestedView = searchParams.get("view");
   const requestedMode = searchParams.get("mode");

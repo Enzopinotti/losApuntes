@@ -12,6 +12,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { feedReturnHref } from "../features/feeds/feed-navigation.mjs";
 import type {
   AcademicSubjectOption,
   ResourceView,
@@ -578,20 +579,7 @@ const Resources = () => {
     );
   };
 
-  const feedReturnTo = (() => {
-    const state = location.state;
-    if (typeof state !== "object" || state === null) return "/resources";
-    const candidate = (state as { feedReturnTo?: unknown }).feedReturnTo;
-    if (
-      typeof candidate === "string" &&
-      (candidate === "/" ||
-        candidate === "/feeds" ||
-        candidate.startsWith("/feeds?"))
-    ) {
-      return candidate;
-    }
-    return "/resources";
-  })();
+  const feedReturnTo = feedReturnHref(location.state) ?? "/resources";
 
   const finishResourceActionUi = (ticket: AsyncAuthorityTicket) => {
     if (!finishResourceAction(ticket)) return;
