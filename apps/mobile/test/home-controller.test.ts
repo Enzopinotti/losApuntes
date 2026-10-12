@@ -175,6 +175,44 @@ test("Home automatically prefetches near the end but respects feed stops", () =>
   );
 });
 
+test("an explicit new Home session replaces the prior feed window", async () => {
+  const firstSnapshot: PilotHomeResponse = {
+    ...home(),
+    homeFeed: {
+      ...home().homeFeed,
+      items: [item("old-session-item")],
+      nextCursor: "old-session-cursor",
+    },
+  };
+  const nextSnapshot: PilotHomeResponse = {
+    ...home(),
+    homeFeed: {
+      ...home().homeFeed,
+      items: [item("new-session-item")],
+      nextCursor: "new-session-cursor",
+    },
+  };
+  const snapshots = [firstSnapshot, nextSnapshot];
+  const api: PilotHomeApi = {
+    ...defaultPages,
+    pilotHome: async () => {
+      const snapshot = snapshots.shift();
+      if (!snapshot) throw new Error("Unexpected Home snapshot request");
+      return snapshot;
+    },
+  };
+  const controller = new MobileHomeController(api);
+
+  await controller.load("authority-a", context());
+  await controller.load("authority-a", context());
+
+  const current = controller.getSnapshot();
+  assert.equal(current.kind, "ready");
+  if (current.kind !== "ready") return;
+  assert.deepEqual(current.data.homeFeed.items, [item("new-session-item")]);
+  assert.equal(current.data.homeFeed.nextCursor, "new-session-cursor");
+});
+
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
   let reject!: (reason: unknown) => void;
