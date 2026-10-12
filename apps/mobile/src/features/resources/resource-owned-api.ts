@@ -15,8 +15,11 @@ export type OwnedResourcesQuery = {
   cursor?: string;
 };
 
-export interface OwnedResourcesApi {
+export interface OwnedResourceSubjectsApi {
   listSubjects(signal?: AbortSignal): Promise<OwnedResourceSubjects>;
+}
+
+export interface OwnedResourcesApi {
   listOwned(
     input: OwnedResourcesQuery,
     signal?: AbortSignal,
@@ -27,7 +30,7 @@ export interface OwnedResourcesApi {
  * Owner-scoped listing is intentionally distinct from search and saved items.
  * The identity is always taken from the authoritative session credential.
  */
-export class MobileOwnedResourcesApi implements OwnedResourcesApi {
+export class MobileOwnedResourcesApi implements OwnedResourcesApi, OwnedResourceSubjectsApi {
   constructor(
     private readonly session: SessionController,
     private readonly client: MobileApiClient,
