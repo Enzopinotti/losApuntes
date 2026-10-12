@@ -10,9 +10,18 @@ import {
 import { presentFeedItem } from "../apps/web/src/features/feeds/feed-item-presentation.mjs";
 import {
   feedReturnHref,
+  feedReturnRestoreState,
+  feedReturnScrollKey,
   feedSelectionFromSearchParams,
   homeFeedHref,
 } from "../apps/web/src/features/feeds/feed-navigation.mjs";
+import {
+  clearFeedScrollPositions,
+  feedRestorePositionKey,
+  feedScrollAuthorityScope,
+  rememberFeedScrollPosition,
+  takeFeedScrollPosition,
+} from "../apps/web/src/features/feeds/feed-scroll-restoration.mjs";
 import { homeFeedEmptyGuidance } from "../apps/web/src/features/feeds/home-feed-empty-guidance.mjs";
 import { fullFeedEmptyGuidance } from "../apps/web/src/features/feeds/full-feed-empty-guidance.mjs";
 
@@ -38,6 +47,8 @@ const homePage = await read("apps/web/src/pages/Home.tsx");
 const itemContext = await read(
   "apps/web/src/features/feeds/components/FeedItemContext.tsx",
 );
+const resourcesPage = await read("apps/web/src/pages/Resources.tsx");
+const questionsPage = await read("apps/web/src/pages/Questions.tsx");
 const itemPresentation = await read(
   "apps/web/src/features/feeds/feed-item-presentation.mjs",
 );
@@ -85,6 +96,13 @@ assert.match(page, /dataScopeRef\.current = feedRequestScope/u);
 assert.match(page, /dataScopeRef\.current !== feedRequestScope/u);
 assert.match(page, /Reintentar esta página/u);
 assert.match(page, /Empezar una nueva sesión/u);
+assert.match(page, /pendingScrollRestoreRef/u);
+assert.match(page, /feedRestorePositionKey\(\s*location\.state/u);
+assert.match(page, /takeFeedScrollPosition\(/u);
+assert.match(page, /clearFeedScrollPositions\(\)/u);
+assert.match(page, /targetY <= maxScrollY/u);
+assert.match(page, /void loadFeed\(nextCursor, true\)/u);
+assert.match(page, /stopReason !== null/u);
 assert.match(page, /FeedItemContext item=\{item\}/u);
 assert.match(page, /FeedItemOpenLink item=\{item\}/u);
 assert.match(homePage, /FeedItemContext item=\{item\} reasonLimit=\{2\}/u);
@@ -94,6 +112,9 @@ assert.match(homePage, /homeFeedEmptyGuidance\(/u);
 assert.match(homePage, /emptyGuidance\.href/u);
 assert.match(homePage, /emptyGuidance\.actionLabel/u);
 assert.match(homePage, /previousAuthScopeKeyRef\.current === authScopeKey/u);
+assert.match(homePage, /feedRestorePositionKey\(\s*location\.state/u);
+assert.match(homePage, /takeFeedScrollPosition\(/u);
+assert.match(homePage, /clearFeedScrollPositions\(\)/u);
 assert.match(homePage, /setActiveHomeFeed\("contextual"\)/u);
 assert.match(homePage, /setSnapshotState\(null\)/u);
 assert.match(homePage, /window\.scrollTo\(0, 0\)/u);
@@ -116,9 +137,18 @@ assert.doesNotMatch(
 );
 assert.match(itemContext, /FeedSourceAttribution item=\{item\}/u);
 assert.match(itemContext, /presentFeedItem\(item, reasonLimit\)/u);
+assert.match(itemContext, /feedReturnTo:\s*returnTo/u);
+assert.match(itemContext, /feedReturnKey:\s*returnKey/u);
+assert.match(itemContext, /rememberFeedScrollPosition\(/u);
+assert.match(itemContext, /window\.scrollY/u);
+assert.match(itemContext, /event\.metaKey[\s\S]*event\.ctrlKey/u);
 assert.match(
-  itemContext,
-  /feedReturnTo:\s*`\$\{location\.pathname\}\$\{location\.search\}`/u,
+  resourcesPage,
+  /state=\{feedReturnRestoreState\(location\.state\)\}/u,
+);
+assert.match(
+  questionsPage,
+  /state=\{feedReturnRestoreState\(location\.state\)\}/u,
 );
 assert.match(itemPresentation, /verificationState\s*===\s*"verified"/u);
 assert.match(sourceAttribution, /item\.source\.organization\.name/u);
@@ -157,6 +187,22 @@ assert.deepEqual(
 );
 assert.equal(feedReturnHref({ feedReturnTo: "/" }), "/");
 assert.equal(feedReturnHref({ feedReturnTo: "/feeds" }), "/feeds");
+assert.equal(feedReturnScrollKey({ feedReturnKey: "route-key" }), "route-key");
+assert.deepEqual(
+  feedReturnRestoreState({ feedReturnTo: "/", feedReturnKey: "route-key" }),
+  { feedRestoreTo: "/", feedRestoreKey: "route-key" },
+);
+assert.equal(
+  feedReturnRestoreState({
+    feedReturnTo: "/resources",
+    feedReturnKey: "route-key",
+  }),
+  null,
+);
+assert.equal(
+  feedReturnRestoreState({ feedReturnTo: "/", feedReturnKey: "bad\nkey" }),
+  null,
+);
 assert.equal(
   feedReturnHref({
     feedReturnTo: "/feeds?view=for-you&mode=community&order=ranked",
@@ -177,6 +223,65 @@ for (const locationState of [
 ]) {
   assert.equal(feedReturnHref(locationState), null);
 }
+assert.equal(
+  feedRestorePositionKey(
+    { feedRestoreTo: "/feeds?view=academic", feedRestoreKey: "route-key" },
+    "/feeds?view=academic",
+  ),
+  "route-key",
+);
+assert.equal(
+  feedRestorePositionKey(
+    { feedRestoreTo: "/feeds?view=academic", feedRestoreKey: "route-key" },
+    "/feeds?view=for-you",
+  ),
+  null,
+);
+assert.equal(
+  feedRestorePositionKey(
+    { feedRestoreTo: "/resources", feedRestoreKey: "route-key" },
+    "/resources",
+  ),
+  null,
+);
+const scrollAuthority = feedScrollAuthorityScope(
+  "authenticated",
+  "user-a",
+  "session-a",
+);
+assert.notEqual(
+  scrollAuthority,
+  feedScrollAuthorityScope("authenticated", "user-a", "session-b"),
+);
+clearFeedScrollPositions();
+assert.equal(
+  rememberFeedScrollPosition("route-key", scrollAuthority, 640),
+  true,
+);
+assert.equal(takeFeedScrollPosition("route-key", scrollAuthority), 640);
+assert.equal(takeFeedScrollPosition("route-key", scrollAuthority), null);
+assert.equal(
+  rememberFeedScrollPosition("route-key", scrollAuthority, 12),
+  true,
+);
+assert.equal(
+  takeFeedScrollPosition(
+    "route-key",
+    feedScrollAuthorityScope("authenticated", "user-a", "session-b"),
+  ),
+  null,
+);
+assert.equal(rememberFeedScrollPosition("bad\nkey", scrollAuthority, 1), false);
+assert.equal(
+  rememberFeedScrollPosition("route-key", scrollAuthority, -1),
+  false,
+);
+for (let index = 0; index < 33; index += 1) {
+  rememberFeedScrollPosition(`bounded-${index}`, scrollAuthority, index);
+}
+assert.equal(takeFeedScrollPosition("bounded-0", scrollAuthority), null);
+assert.equal(takeFeedScrollPosition("bounded-32", scrollAuthority), 32);
+clearFeedScrollPositions();
 assert.equal(homeFeedHref("contextual", "subjects"), "/feeds?view=academic");
 assert.equal(
   homeFeedHref("contextual", "community"),

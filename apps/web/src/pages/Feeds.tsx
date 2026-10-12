@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   FeedFeedbackSignal,
@@ -33,6 +33,12 @@ import {
   feedSelectionFromSearchParams,
   type FeedSelection,
 } from "../features/feeds/feed-navigation.mjs";
+import {
+  clearFeedScrollPositions,
+  feedRestorePositionKey,
+  feedScrollAuthorityScope,
+  takeFeedScrollPosition,
+} from "../features/feeds/feed-scroll-restoration.mjs";
 import { fullFeedEmptyGuidance } from "../features/feeds/full-feed-empty-guidance.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Feeds.scss";
@@ -58,6 +64,7 @@ function messageFor(error: unknown): string {
 
 const Feeds = () => {
   const { status, user, session } = useAuth();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { view, mode, order } = feedSelectionFromSearchParams(searchParams);
   const updateSelection = (selection: Partial<FeedSelection>) => {
@@ -104,8 +111,22 @@ const Feeds = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const scrollAuthorityScope = feedScrollAuthorityScope(
+    status,
+    user?.id,
+    session?.id,
+  );
+  const restorePositionKey = feedRestorePositionKey(
+    location.state,
+    `${location.pathname}${location.search}`,
+  );
   const previousAuthorityScopeRef = useRef(authorityScope);
   const feedRequestScope = [authorityScope, view, mode, order].join(":");
+  const pendingScrollRestoreRef = useRef<{
+    authorityScope: string;
+    feedRequestScope: string;
+    targetY: number;
+  } | null>(null);
   const {
     begin: beginPreferencesRequest,
     isCurrent: isPreferencesRequestCurrent,
@@ -129,6 +150,8 @@ const Feeds = () => {
   useLayoutEffect(() => {
     if (previousAuthorityScopeRef.current === authorityScope) return;
     previousAuthorityScopeRef.current = authorityScope;
+    clearFeedScrollPositions();
+    pendingScrollRestoreRef.current = null;
 
     dataScopeRef.current = null;
     latestCursorRef.current = null;
@@ -146,6 +169,27 @@ const Feeds = () => {
     setFeedErrorRecovery(null);
     window.scrollTo(0, 0);
   }, [authorityScope]);
+
+  useLayoutEffect(() => {
+    pendingScrollRestoreRef.current = null;
+    if (!restorePositionKey) return;
+
+    const targetY = takeFeedScrollPosition(
+      restorePositionKey,
+      scrollAuthorityScope,
+    );
+    if (targetY === null) return;
+    pendingScrollRestoreRef.current = {
+      authorityScope: scrollAuthorityScope,
+      feedRequestScope,
+      targetY,
+    };
+  }, [
+    feedRequestScope,
+    location.key,
+    restorePositionKey,
+    scrollAuthorityScope,
+  ]);
 
   const loadPreferences = useCallback(async () => {
     const ticket = beginPreferencesRequest();
@@ -169,8 +213,11 @@ const Feeds = () => {
   ]);
 
   const loadFeed = useCallback(
-    async (cursor?: string, append = false) => {
+    async (cursor?: string, append = false, preserveScrollRestore = false) => {
       if (append && (!cursor || cursor !== latestCursorRef.current)) return;
+      if (!append && !preserveScrollRestore) {
+        pendingScrollRestoreRef.current = null;
+      }
 
       const pageKey = append ? `${feedRequestScope}:${cursor ?? ""}` : null;
       if (pageKey && inFlightPageRef.current?.key === pageKey) return;
@@ -282,8 +329,8 @@ const Feeds = () => {
   }, [loadPreferences]);
 
   useEffect(() => {
-    void loadFeed();
-  }, [loadFeed]);
+    void loadFeed(undefined, false, restorePositionKey !== null);
+  }, [loadFeed, restorePositionKey]);
 
   const canAutoLoadPage = canAutomaticallyLoadWebFeed({
     nextCursor,
@@ -293,6 +340,49 @@ const Feeds = () => {
     hasError: Boolean(error),
   });
   const emptyGuidance = fullFeedEmptyGuidance(view, mode);
+
+  useLayoutEffect(() => {
+    const pending = pendingScrollRestoreRef.current;
+    if (!pending) return;
+    if (
+      pending.authorityScope !== scrollAuthorityScope ||
+      pending.feedRequestScope !== feedRequestScope
+    ) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (loading || busy === "more") return;
+
+    const scrollingElement =
+      document.scrollingElement ?? document.documentElement;
+    const maxScrollY = Math.max(
+      0,
+      scrollingElement.scrollHeight - window.innerHeight,
+    );
+    window.scrollTo(0, Math.min(pending.targetY, maxScrollY));
+
+    if (error) return;
+    if (pending.targetY <= maxScrollY + 1) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (!nextCursor || stopReason !== null) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (canAutoLoadPage) void loadFeed(nextCursor, true);
+  }, [
+    busy,
+    canAutoLoadPage,
+    error,
+    feedRequestScope,
+    items.length,
+    loadFeed,
+    loading,
+    nextCursor,
+    scrollAuthorityScope,
+    stopReason,
+  ]);
 
   useEffect(() => {
     const sentinel = continuationRef.current;
@@ -434,7 +524,12 @@ const Feeds = () => {
               onClick={() =>
                 feedErrorRecovery.kind === "page"
                   ? void loadFeed(feedErrorRecovery.cursor, true)
-                  : void loadFeed()
+                  : void loadFeed(
+                      undefined,
+                      false,
+                      items.length === 0 &&
+                        pendingScrollRestoreRef.current !== null,
+                    )
               }
             >
               {feedErrorRecovery.kind === "page"

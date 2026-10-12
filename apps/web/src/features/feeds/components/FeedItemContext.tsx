@@ -1,6 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../../../contexts/useAuth";
 import type { FeedItem } from "../interfaces";
 import { presentFeedItem } from "../feed-item-presentation.mjs";
+import {
+  feedScrollAuthorityScope,
+  rememberFeedScrollPosition,
+} from "../feed-scroll-restoration.mjs";
 import { FeedSourceAttribution } from "./FeedSourceAttribution";
 import "./FeedItemContext.scss";
 
@@ -70,13 +75,34 @@ export function FeedItemContext({
 
 export function FeedItemOpenLink({ item }: { item: FeedItem }) {
   const location = useLocation();
+  const { status, user, session } = useAuth();
+  const authorityScope = feedScrollAuthorityScope(
+    status,
+    user?.id,
+    session?.id,
+  );
+  const returnTo = `${location.pathname}${location.search}`;
+  const returnKey = location.key || "default";
   const presentation = presentFeedItem(item);
 
   return (
     <Link
       className="feed-item-open-link"
       to={presentation.href}
-      state={{ feedReturnTo: `${location.pathname}${location.search}` }}
+      state={{ feedReturnTo: returnTo, feedReturnKey: returnKey }}
+      onClick={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        rememberFeedScrollPosition(returnKey, authorityScope, window.scrollY);
+      }}
     >
       {presentation.actionLabel}
     </Link>

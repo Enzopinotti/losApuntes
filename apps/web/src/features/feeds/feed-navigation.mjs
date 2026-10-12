@@ -19,6 +19,36 @@ export function feedReturnHref(locationState) {
   return null;
 }
 
+export function feedReturnRestoreState(locationState) {
+  if (typeof locationState !== "object" || locationState === null) {
+    return null;
+  }
+
+  const feedReturnTo = feedReturnHref(locationState);
+  const feedReturnKey = feedReturnScrollKey(locationState);
+  if (!feedReturnTo || !feedReturnKey) return null;
+
+  return { feedRestoreTo: feedReturnTo, feedRestoreKey: feedReturnKey };
+}
+
+export function feedReturnScrollKey(locationState) {
+  if (typeof locationState !== "object" || locationState === null) {
+    return null;
+  }
+
+  const candidate = locationState.feedReturnKey;
+  if (
+    typeof candidate === "string" &&
+    candidate.length > 0 &&
+    candidate.length <= 128 &&
+    !/[\u0000-\u001f]/u.test(candidate)
+  ) {
+    return candidate;
+  }
+
+  return null;
+}
+
 export function feedSelectionFromSearchParams(searchParams) {
   const requestedView = searchParams.get("view");
   const requestedMode = searchParams.get("mode");

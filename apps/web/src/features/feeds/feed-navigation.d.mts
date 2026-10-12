@@ -10,6 +10,14 @@ export interface FeedSelection {
 
 export declare function feedReturnHref(locationState: unknown): string | null;
 
+export declare function feedReturnRestoreState(
+  locationState: unknown,
+): { feedRestoreTo: string; feedRestoreKey: string } | null;
+
+export declare function feedReturnScrollKey(
+  locationState: unknown,
+): string | null;
+
 export declare function feedSelectionFromSearchParams(searchParams: {
   get(name: string): string | null;
 }): FeedSelection;

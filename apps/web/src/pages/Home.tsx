@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { FeedItem } from "../features/feeds/interfaces";
 import {
@@ -13,6 +13,12 @@ import {
   FeedItemOpenLink,
 } from "../features/feeds/components/FeedItemContext";
 import { homeFeedHref } from "../features/feeds/feed-navigation.mjs";
+import {
+  clearFeedScrollPositions,
+  feedRestorePositionKey,
+  feedScrollAuthorityScope,
+  takeFeedScrollPosition,
+} from "../features/feeds/feed-scroll-restoration.mjs";
 import {
   homeFeedEmptyGuidance,
   type HomeFeedEmptyGuidance,
@@ -93,6 +99,7 @@ function Landing() {
 
 const Home = () => {
   const { status, user, session } = useAuth();
+  const location = useLocation();
   const [activeHomeFeed, setActiveHomeFeed] = useState<
     "contextual" | "for-you"
   >("contextual");
@@ -101,6 +108,15 @@ const Home = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const scrollAuthorityScope = feedScrollAuthorityScope(
+    status,
+    user?.id,
+    session?.id,
+  );
+  const restorePositionKey = feedRestorePositionKey(
+    location.state,
+    `${location.pathname}${location.search}`,
+  );
   const previousAuthScopeKeyRef = useRef(authScopeKey);
   const {
     begin: beginLoad,
@@ -128,6 +144,7 @@ const Home = () => {
   useLayoutEffect(() => {
     if (previousAuthScopeKeyRef.current === authScopeKey) return;
     previousAuthScopeKeyRef.current = authScopeKey;
+    clearFeedScrollPositions();
     setActiveHomeFeed("contextual");
     setSnapshotState(null);
     setViewState({
@@ -181,6 +198,30 @@ const Home = () => {
       void load();
     }
   }, [load, status]);
+
+  useLayoutEffect(() => {
+    if (
+      status !== "authenticated" ||
+      loading ||
+      !snapshot ||
+      !restorePositionKey
+    ) {
+      return;
+    }
+
+    const scrollY = takeFeedScrollPosition(
+      restorePositionKey,
+      scrollAuthorityScope,
+    );
+    if (scrollY !== null) window.scrollTo(0, scrollY);
+  }, [
+    loading,
+    location.key,
+    restorePositionKey,
+    scrollAuthorityScope,
+    snapshot,
+    status,
+  ]);
 
   if (status === "restoring") {
     return (
