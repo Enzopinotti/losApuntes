@@ -26,6 +26,7 @@
 | Organization directory | API + Web |
 | Public organization page | API + Web |
 | Public organization manager links when a profile identity is available | existing public Profile route + Web Organizations contract |
+| Organization management roster links to profiles without nesting revoke actions | Web Organizations contract |
 | Web Feed organization attribution returns to its validated originating Feed | Web Feeds + Organizations contracts |
 | Manager Web surface | Web build/static contract |
 | Followed-org For You eligibility | Feeds unit + runtime |
