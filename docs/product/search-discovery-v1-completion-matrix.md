@@ -8,6 +8,7 @@
 | Resource search authorization | Reuses current Resources authority | Implemented | Unit + runtime |
 | Canonical Subject search | Reuses Academic Graph redirects/aliases | Implemented | Unit + runtime |
 | Public Profile search | Implemented | Implemented | Privacy-negative unit + runtime |
+| Resource author links from discovery surfaces | Uses server projection | Resources + Search route to public profile | Web contracts + keyboard focus rule |
 | No private Profile leakage | Enforced by Profile public eligibility | Server projection only | Unit + static contract + runtime |
 | Optional authenticated search | Implemented; presented invalid credentials fail closed | Cookie transport | Unit + static + runtime |
 | Current-subject contextual discovery | Implemented | Implemented | Unit + runtime |

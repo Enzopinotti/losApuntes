@@ -20,6 +20,10 @@ assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
 
 const page = await read('apps/web/src/pages/Search.tsx');
+assert.match(
+  page,
+  /<AuthorProfileLink[\s\S]{0,120}profileId=\{resource\.author\?\.profileId\}/u,
+);
 assert.match(page, /searchApi\s*\.\s*search\s*\(/u);
 assert.match(page, /searchApi\s*\.\s*contextual\s*\(/u);
 assert.match(page, /status\s*===\s*"authenticated"/u);
