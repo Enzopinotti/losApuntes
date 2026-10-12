@@ -150,6 +150,10 @@
     box-shadow: 0 12px 32px rgb(17 35 65 / 18%);
   }
 
+  .layout-more-links[hidden] {
+    display: none;
+  }
+
   .layout-more-links a {
     justify-content: flex-start;
     color: #17264a;
