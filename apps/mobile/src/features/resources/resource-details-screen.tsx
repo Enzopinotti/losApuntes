@@ -38,6 +38,7 @@ import {
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
 import {
+  resourceAuthorAction,
   resourceFileSizeLabel,
   resourceFileTypeLabel,
   resourceVisibilityLabel,
@@ -119,6 +120,32 @@ function DetailsFrame({ children }: { children: ReactNode }) {
   );
 }
 
+function ResourceAuthorAttribution({
+  author,
+  onOpenProfile,
+}: {
+  author: ResourceView["author"];
+  onOpenProfile: (profileId: string) => void;
+}) {
+  if (!author) return null;
+  const action = resourceAuthorAction(author);
+  if (!action) {
+    return <Text style={styles.meta}>Por {author.displayName}</Text>;
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={action.accessibilityLabel}
+      accessibilityHint={action.accessibilityHint}
+      onPress={() => onOpenProfile(action.profileId)}
+      style={styles.authorLink}
+    >
+      <Text style={styles.meta}>Por {author.displayName}</Text>
+    </Pressable>
+  );
+}
+
 function DetailState({
   snapshot,
   authorityKey,
@@ -171,6 +198,7 @@ export function MobileResourceDetailsScreen({
   resourceId: string;
   initialSaved?: boolean | null;
 }) {
+  const router = useRouter();
   const { snapshot: session } = useSession();
   const isFocused = useIsFocused();
   const appState = useActiveAppState();
@@ -442,11 +470,15 @@ export function MobileResourceDetailsScreen({
                   {resource.academic.courseOffering.name}
                 </Text>
               ) : null}
-              {resource.author ? (
-                <Text style={styles.meta}>
-                  Por {resource.author.displayName}
-                </Text>
-              ) : null}
+              <ResourceAuthorAttribution
+                author={resource.author}
+                onOpenProfile={(profileId) =>
+                  router.push({
+                    pathname: "/profiles/[profileId]",
+                    params: { profileId },
+                  })
+                }
+              />
               {resource.description ? (
                 <Text style={styles.copy}>{resource.description}</Text>
               ) : (
@@ -736,6 +768,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: "#656570",
+  },
+  authorLink: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    borderRadius: 6,
   },
   helper: {
     fontSize: 12,

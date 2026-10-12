@@ -1,7 +1,29 @@
 import type {
+  ResourceView,
   ResourceFileMimeType,
   ResourceVisibility,
 } from "@losapuntes/contracts";
+
+export type ResourceAuthorAction = {
+  profileId: string;
+  accessibilityLabel: string;
+  accessibilityHint: string;
+};
+
+export function resourceAuthorAction(
+  author: ResourceView["author"],
+): ResourceAuthorAction | null {
+  const profileId = author?.profileId;
+  if (!profileId || profileId.trim() !== profileId) return null;
+
+  const displayName = author.displayName.trim() || "esta persona";
+  return {
+    profileId,
+    accessibilityLabel: `Ver perfil de ${displayName}`,
+    accessibilityHint:
+      "Abre el perfil público y vuelve a comprobar los permisos actuales.",
+  };
+}
 
 const fileTypeLabels: Record<ResourceFileMimeType, string> = {
   "application/pdf": "PDF",
