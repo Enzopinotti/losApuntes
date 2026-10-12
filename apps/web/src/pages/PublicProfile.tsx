@@ -175,7 +175,8 @@ const PublicProfile = () => {
         previous?.scopeKey === profileScopeKey
           ? {
               ...previous,
-              loadMoreError: "No pudimos cargar más actividades. Reintentá cuando vuelva la conexión.",
+              loadMoreError:
+                "No pudimos cargar más actividades. Reintentá cuando vuelva la conexión.",
             }
           : previous,
       );
@@ -221,7 +222,9 @@ const PublicProfile = () => {
           <p className="profile-eyebrow">Perfil en Los Apuntes</p>
           <h1>{profile.about?.displayName ?? "Perfil privado"}</h1>
           {profile.professional?.headline && (
-            <p className="public-profile-headline">{profile.professional.headline}</p>
+            <p className="public-profile-headline">
+              {profile.professional.headline}
+            </p>
           )}
           {profile.about?.bio && <p>{profile.about.bio}</p>}
         </div>
