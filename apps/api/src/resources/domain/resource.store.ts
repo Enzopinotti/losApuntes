@@ -92,7 +92,15 @@ export interface ResourceStore {
       shareGrants: number;
     }>;
   }>;
+  listOwnedSubjects(authorUserId: string): Promise<{
+    items: Array<{ subjectId: string; count: number }>;
+    truncated: boolean;
+  }>;
   listOwnedResources(input: {
+    q?: string;
+    subjectId?: string;
+    order?: 'newest' | 'oldest';
+
     authorUserId: string;
     visibility?: ResourceVisibility;
     limit: number;
