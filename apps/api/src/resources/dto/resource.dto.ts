@@ -115,6 +115,19 @@ export class ResourceAccessDto {
 
 export class ResourceOwnedListDto {
   @IsOptional()
+  @IsString()
+  @Length(2, 120)
+  q?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  subjectId?: string;
+
+  @IsOptional()
+  @IsIn(['newest', 'oldest'])
+  order?: 'newest' | 'oldest';
+
+  @IsOptional()
   @IsIn(RESOURCE_VISIBILITIES)
   visibility?: ResourceVisibility;
 
