@@ -101,6 +101,7 @@ Every ranked item returns one or more stable reason codes when applicable:
 - `prioritized_subject`;
 - `connection`;
 - `following`;
+- `organization_following`;
 - `interest_match`;
 - `unanswered_question`;
 - `fresh`;
@@ -108,6 +109,7 @@ Every ranked item returns one or more stable reason codes when applicable:
 - `exploration`.
 
 Explanations are descriptive. They are not authorization and do not expose hidden Profile or Academic data.
+Clients may present a concise explanation only for codes returned in `why[]`; they must not infer a reason from local profile, relationship, or academic data.
 
 ## User controls
 

@@ -56,6 +56,11 @@ import {
   type HomeFeedExploreAction,
   type HomeFirstValueAction,
 } from "./home-first-value";
+import {
+  homeFeedOrganizationVerificationLabel,
+  homeFeedReasonAccessibilitySummary,
+  homeFeedReasonLabels,
+} from "./home-feed-presentation";
 import { useAcademicContext } from "../academic/academic-context-provider";
 
 const itemKindLabel = (item: FeedItem): string => {
@@ -85,6 +90,9 @@ function FeedItemRow({
 }) {
   const action = homeFeedItemAction(item);
   const author = sourceLabel(item);
+  const reasonLabels = homeFeedReasonLabels(item.why);
+  const reasonSummary = homeFeedReasonAccessibilitySummary(item.why);
+  const verificationLabel = homeFeedOrganizationVerificationLabel(item.source);
   const content = (
     <>
       <View style={styles.itemHeader}>
@@ -100,6 +108,9 @@ function FeedItemRow({
           <Text style={styles.itemKind}>
             {itemKindLabel(item)} · {publishedDateLabel(item.createdAt)}
           </Text>
+          {verificationLabel ? (
+            <Text style={styles.verificationLabel}>{verificationLabel}</Text>
+          ) : null}
         </View>
       </View>
       <Text style={styles.itemTitle}>{item.title}</Text>
@@ -110,6 +121,15 @@ function FeedItemRow({
         <Text numberOfLines={3} style={styles.copy}>
           {item.summary}
         </Text>
+      ) : null}
+      {reasonLabels.length > 0 ? (
+        <View accessible={false} style={styles.reasonList}>
+          {reasonLabels.map((label, index) => (
+            <View key={`${item.why[index]}:${label}`} style={styles.reasonChip}>
+              <Text style={styles.reasonLabel}>{label}</Text>
+            </View>
+          ))}
+        </View>
       ) : null}
       {action ? (
         <Text style={styles.actionLabel}>
@@ -124,7 +144,11 @@ function FeedItemRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={action.accessibilityLabel}
+      accessibilityLabel={
+        reasonSummary
+          ? `${action.accessibilityLabel}. ${reasonSummary}`
+          : action.accessibilityLabel
+      }
       accessibilityHint={action.accessibilityHint}
       onPress={() => onOpen(action)}
       style={({ pressed }) => [
@@ -958,6 +982,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#6c5b91",
+  },
+  verificationLabel: {
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    backgroundColor: "#e9f2ed",
+    color: "#315d43",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  reasonList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  reasonChip: {
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: "#f0eef6",
+  },
+  reasonLabel: {
+    color: "#4f456a",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
   },
   itemHeader: {
     flexDirection: "row",

@@ -7,6 +7,12 @@ import {
   homeFeedItemAction,
   homeFirstValueActions,
 } from "../src/features/home/home-first-value";
+import {
+  homeFeedOrganizationVerificationLabel,
+  homeFeedReasonAccessibilitySummary,
+  homeFeedReasonLabels,
+} from "../src/features/home/home-feed-presentation";
+import type { FeedReasonCode } from "@losapuntes/contracts";
 
 test("Home resources and questions target their existing detail routes", () => {
   const resource = homeFeedItemAction({
@@ -36,6 +42,70 @@ test("Home resources and questions target their existing detail routes", () => {
   assert.equal(
     question?.accessibilityLabel,
     "Abrir pregunta: ¿Cómo se resuelve este límite?",
+  );
+});
+
+test("Home explains feed items only with the reason codes returned by the API", () => {
+  const reasons: FeedReasonCode[] = [
+    "current_subject",
+    "prioritized_subject",
+    "connection",
+    "following",
+    "organization_following",
+    "interest_match",
+    "unanswered_question",
+    "fresh",
+    "explicit_more",
+    "exploration",
+  ];
+
+  assert.deepEqual(homeFeedReasonLabels(reasons), [
+    "De tu materia actual",
+    "De una materia priorizada",
+    "De una conexión",
+    "De alguien que seguís",
+    "De una organización que seguís",
+    "Relacionado con tus intereses",
+    "Pregunta sin responder",
+    "Publicado recientemente",
+    "Por tu preferencia de ver más",
+    "Para descubrir contenido",
+  ]);
+  assert.equal(
+    homeFeedReasonAccessibilitySummary(["current_subject", "fresh"]),
+    "Aparece porque: De tu materia actual, Publicado recientemente.",
+  );
+  assert.equal(homeFeedReasonAccessibilitySummary([]), null);
+});
+
+test("Home marks only organizations whose server state is verified", () => {
+  assert.equal(
+    homeFeedOrganizationVerificationLabel({
+      kind: "campus_organization",
+      organization: {
+        id: "org-1",
+        name: "Centro de Estudiantes",
+        avatarUrl: null,
+        verificationState: "verified",
+      },
+    }),
+    "Organización verificada",
+  );
+  assert.equal(
+    homeFeedOrganizationVerificationLabel({
+      kind: "campus_organization",
+      organization: {
+        id: "org-1",
+        name: "Centro de Estudiantes",
+        avatarUrl: null,
+        verificationState: "unverified",
+      },
+    }),
+    null,
+  );
+  assert.equal(
+    homeFeedOrganizationVerificationLabel({ kind: "personal_user" }),
+    null,
   );
 });
 
