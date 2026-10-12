@@ -10,8 +10,10 @@ import {
 import { presentFeedItem } from "../apps/web/src/features/feeds/feed-item-presentation.mjs";
 import {
   feedReturnHref,
+  feedReturnHomeIntent,
   feedReturnRestoreState,
   feedReturnScrollKey,
+  feedRestoreHomeIntent,
   feedSelectionFromSearchParams,
   homeFeedHref,
 } from "../apps/web/src/features/feeds/feed-navigation.mjs";
@@ -113,6 +115,12 @@ assert.match(homePage, /emptyGuidance\.href/u);
 assert.match(homePage, /emptyGuidance\.actionLabel/u);
 assert.match(homePage, /previousAuthScopeKeyRef\.current === authScopeKey/u);
 assert.match(homePage, /feedRestorePositionKey\(\s*location\.state/u);
+assert.match(homePage, /feedRestoreHomeIntent\(\s*location\.state/u);
+assert.match(homePage, /homeIntent=\{activeHomeFeed\}/u);
+assert.match(
+  homePage,
+  /<FeedItemOpenLink item=\{item\} homeIntent=\{homeIntent\}/u,
+);
 assert.match(homePage, /takeFeedScrollPosition\(/u);
 assert.match(homePage, /clearFeedScrollPositions\(\)/u);
 assert.match(homePage, /setActiveHomeFeed\("contextual"\)/u);
@@ -139,6 +147,7 @@ assert.match(itemContext, /FeedSourceAttribution item=\{item\}/u);
 assert.match(itemContext, /presentFeedItem\(item, reasonLimit\)/u);
 assert.match(itemContext, /feedReturnTo:\s*returnTo/u);
 assert.match(itemContext, /feedReturnKey:\s*returnKey/u);
+assert.match(itemContext, /feedReturnHomeIntent:\s*homeIntent/u);
 assert.match(itemContext, /rememberFeedScrollPosition\(/u);
 assert.match(itemContext, /window\.scrollY/u);
 assert.match(itemContext, /event\.metaKey[\s\S]*event\.ctrlKey/u);
@@ -191,6 +200,75 @@ assert.equal(feedReturnScrollKey({ feedReturnKey: "route-key" }), "route-key");
 assert.deepEqual(
   feedReturnRestoreState({ feedReturnTo: "/", feedReturnKey: "route-key" }),
   { feedRestoreTo: "/", feedRestoreKey: "route-key" },
+);
+assert.equal(
+  feedReturnHomeIntent({ feedReturnHomeIntent: "for-you" }),
+  "for-you",
+);
+assert.equal(feedReturnHomeIntent({ feedReturnHomeIntent: "community" }), null);
+assert.deepEqual(
+  feedReturnRestoreState({
+    feedReturnTo: "/",
+    feedReturnKey: "route-key",
+    feedReturnHomeIntent: "for-you",
+  }),
+  {
+    feedRestoreTo: "/",
+    feedRestoreKey: "route-key",
+    feedRestoreHomeIntent: "for-you",
+  },
+);
+assert.equal(
+  feedReturnRestoreState({
+    feedReturnTo: "/feeds?view=academic",
+    feedReturnKey: "route-key",
+    feedReturnHomeIntent: "for-you",
+  })?.feedRestoreHomeIntent,
+  undefined,
+);
+assert.equal(
+  feedRestoreHomeIntent(
+    {
+      feedRestoreTo: "/",
+      feedRestoreKey: "route-key",
+      feedRestoreHomeIntent: "for-you",
+    },
+    "/",
+  ),
+  "for-you",
+);
+assert.equal(
+  feedRestoreHomeIntent(
+    {
+      feedRestoreTo: "/feeds?view=academic",
+      feedRestoreKey: "route-key",
+      feedRestoreHomeIntent: "for-you",
+    },
+    "/",
+  ),
+  null,
+);
+assert.equal(
+  feedRestoreHomeIntent(
+    {
+      feedRestoreTo: "/",
+      feedRestoreKey: "route-key",
+      feedRestoreHomeIntent: "discover",
+    },
+    "/",
+  ),
+  null,
+);
+assert.equal(
+  feedRestoreHomeIntent(
+    {
+      feedRestoreTo: "/",
+      feedRestoreKey: "bad\nkey",
+      feedRestoreHomeIntent: "for-you",
+    },
+    "/",
+  ),
+  null,
 );
 assert.equal(
   feedReturnRestoreState({

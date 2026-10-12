@@ -7,6 +7,7 @@
 | --- | --- |
 | Contextual authenticated Home | API + Web + runtime |
 | Home reuses existing Feed authority | architecture + unit |
+| Returning from a Home detail preserves the selected feed intent | Web navigation contract |
 | Anonymous landing remains available | Web contract |
 | Follow / Connection | already closed in Social v1 |
 | Lightweight Q&A | already closed in Social/Q&A v1 |

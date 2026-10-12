@@ -12,7 +12,11 @@ import {
   FeedItemContext,
   FeedItemOpenLink,
 } from "../features/feeds/components/FeedItemContext";
-import { homeFeedHref } from "../features/feeds/feed-navigation.mjs";
+import {
+  feedRestoreHomeIntent,
+  homeFeedHref,
+  type HomeFeedIntent,
+} from "../features/feeds/feed-navigation.mjs";
 import {
   clearFeedScrollPositions,
   feedRestorePositionKey,
@@ -36,11 +40,13 @@ function FeedPreview({
   items,
   moreTo,
   emptyGuidance,
+  homeIntent,
 }: {
   title: string;
   items: FeedItem[];
   moreTo: string;
   emptyGuidance: HomeFeedEmptyGuidance;
+  homeIntent: HomeFeedIntent;
 }) {
   return (
     <section className="pilot-card">
@@ -65,7 +71,7 @@ function FeedPreview({
                   <h3>{item.title}</h3>
                   {item.summary ? <p>{item.summary}</p> : null}
                 </div>
-                <FeedItemOpenLink item={item} />
+                <FeedItemOpenLink item={item} homeIntent={homeIntent} />
               </li>
             );
           })}
@@ -100,9 +106,13 @@ function Landing() {
 const Home = () => {
   const { status, user, session } = useAuth();
   const location = useLocation();
-  const [activeHomeFeed, setActiveHomeFeed] = useState<
-    "contextual" | "for-you"
-  >("contextual");
+  const [activeHomeFeed, setActiveHomeFeed] = useState<HomeFeedIntent>(
+    () =>
+      feedRestoreHomeIntent(
+        location.state,
+        `${location.pathname}${location.search}`,
+      ) ?? "contextual",
+  );
   const authScopeKey = [
     status,
     user?.id ?? "anonymous",
@@ -374,6 +384,7 @@ const Home = () => {
                 activeHomeFeed,
                 snapshot.homeFeed.kind,
               )}
+              homeIntent={activeHomeFeed}
             />
           </div>
 
