@@ -55,6 +55,14 @@ assert.match(page, /aria-pressed=\{view === "for-you"\}/u);
 assert.match(page, /feedsApi\.updatePreferences/u);
 assert.match(page, /feedsApi\.setFeedback/u);
 assert.match(page, /useAsyncAuthorityFence/u);
+assert.match(page, /useLayoutEffect/u);
+assert.match(page, /previousAuthorityScopeRef\.current === authorityScope/u);
+assert.match(page, /dataScopeRef\.current = null;[\s\S]*setItems\(\[\]\)/u);
+assert.match(
+  page,
+  /setPreferences\(null\);[\s\S]*setEffectiveSignals\(null\)/u,
+);
+assert.match(page, /window\.scrollTo\(0, 0\)/u);
 assert.match(page, /beginFeedRequest/u);
 assert.match(page, /isFeedRequestCurrent/u);
 assert.match(page, /finishFeedRequest/u);
@@ -85,6 +93,10 @@ assert.match(homePage, /item\.summary/u);
 assert.match(homePage, /homeFeedEmptyGuidance\(/u);
 assert.match(homePage, /emptyGuidance\.href/u);
 assert.match(homePage, /emptyGuidance\.actionLabel/u);
+assert.match(homePage, /previousAuthScopeKeyRef\.current === authScopeKey/u);
+assert.match(homePage, /setActiveHomeFeed\("contextual"\)/u);
+assert.match(homePage, /setSnapshotState\(null\)/u);
+assert.match(homePage, /window\.scrollTo\(0, 0\)/u);
 assert.match(homePage, /to="\/questions">\s*Hacer una pregunta/u);
 assert.match(homePage, /to="\/resources">\s*Subir un apunte/u);
 const createEntryStart = homePage.indexOf("pilot-create-entry");
@@ -346,10 +358,7 @@ const resourcePresentation = presentFeedItem({
 });
 assert.equal(resourcePresentation.kindLabel, "Apunte");
 assert.equal(resourcePresentation.avatarUrl, "https://example.test/avatar.png");
-assert.equal(
-  resourcePresentation.href,
-  "/resources/resource%20%2F%201",
-);
+assert.equal(resourcePresentation.href, "/resources/resource%20%2F%201");
 assert.equal(resourcePresentation.actionLabel, "Abrir apunte");
 
 const routes = await read("apps/web/src/app/routes.tsx");

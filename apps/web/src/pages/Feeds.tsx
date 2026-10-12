@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -98,6 +104,7 @@ const Feeds = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const previousAuthorityScopeRef = useRef(authorityScope);
   const feedRequestScope = [authorityScope, view, mode, order].join(":");
   const {
     begin: beginPreferencesRequest,
@@ -118,6 +125,27 @@ const Feeds = () => {
   } = useAsyncAuthorityFence(
     `feeds-action:${authorityScope}:${view}:${mode}:${order}`,
   );
+
+  useLayoutEffect(() => {
+    if (previousAuthorityScopeRef.current === authorityScope) return;
+    previousAuthorityScopeRef.current = authorityScope;
+
+    dataScopeRef.current = null;
+    latestCursorRef.current = null;
+    inFlightPageRef.current = null;
+    rootRequestRef.current = null;
+    usedCursorsRef.current.clear();
+    setItems([]);
+    setNextCursor(null);
+    setStopReason(null);
+    setPreferences(null);
+    setEffectiveSignals(null);
+    setLoading(true);
+    setBusy(null);
+    setError(null);
+    setFeedErrorRecovery(null);
+    window.scrollTo(0, 0);
+  }, [authorityScope]);
 
   const loadPreferences = useCallback(async () => {
     const ticket = beginPreferencesRequest();

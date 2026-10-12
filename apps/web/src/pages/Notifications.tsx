@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { NotificationView } from "../features/community/interfaces";
@@ -50,6 +56,7 @@ const Notifications = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const previousAuthorityScopeRef = useRef(authorityScope);
   const listScope = `notifications:${authorityScope}:${String(unreadOnly)}`;
   const {
     begin: beginListRequest,
@@ -67,6 +74,24 @@ const Notifications = () => {
     openingState?.scopeKey === authorityScope
       ? openingState.notificationId
       : null;
+
+  useLayoutEffect(() => {
+    if (previousAuthorityScopeRef.current === authorityScope) return;
+    previousAuthorityScopeRef.current = authorityScope;
+    firstPagePendingRef.current = false;
+    consumedReconcileTickRef.current = 0;
+    setItems([]);
+    setNextCursor(null);
+    setLoadedPages(1);
+    setReconcileTick(0);
+    setUnreadOnly(false);
+    setLoading(status === "authenticated");
+    setLoadingMore(false);
+    setActionBusy(false);
+    setOpeningState(null);
+    setError(null);
+    window.scrollTo(0, 0);
+  }, [authorityScope, status]);
 
   const loadFirstPage = useCallback(async () => {
     const ticket = beginListRequest();
@@ -178,12 +203,6 @@ const Notifications = () => {
   useEffect(() => {
     void loadFirstPage();
   }, [loadFirstPage]);
-
-  useEffect(() => {
-    setActionBusy(false);
-    setLoadingMore(false);
-    setOpeningState(null);
-  }, [authorityScope]);
 
   useEffect(() => {
     if (
