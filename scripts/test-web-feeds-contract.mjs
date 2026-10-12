@@ -77,6 +77,23 @@ assert.match(page, /FeedItemOpenLink item=\{item\}/u);
 assert.match(homePage, /FeedItemContext item=\{item\} reasonLimit=\{2\}/u);
 assert.match(homePage, /FeedItemOpenLink item=\{item\}/u);
 assert.match(homePage, /item\.summary/u);
+assert.match(homePage, /to="\/questions">\s*Hacer una pregunta/u);
+assert.match(homePage, /to="\/resources">\s*Subir un apunte/u);
+const createEntryStart = homePage.indexOf("pilot-create-entry");
+const homeFeedStart = homePage.indexOf("pilot-home-feed");
+assert.ok(
+  createEntryStart !== -1 &&
+    homeFeedStart !== -1 &&
+    createEntryStart < homeFeedStart,
+  "Home puts real creation entry points before its feed",
+);
+const shortcutsStart = homePage.indexOf("pilot-shortcuts");
+assert.notEqual(shortcutsStart, -1, "Home keeps exploration shortcuts");
+assert.doesNotMatch(
+  homePage.slice(shortcutsStart),
+  /to="\/(?:questions|resources)"/u,
+  "Home does not repeat create links in the exploration shortcuts",
+);
 assert.match(itemContext, /FeedSourceAttribution item=\{item\}/u);
 assert.match(itemContext, /presentFeedItem\(item, reasonLimit\)/u);
 assert.match(itemPresentation, /verificationState\s*===\s*"verified"/u);

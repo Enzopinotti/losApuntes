@@ -252,6 +252,25 @@ const Home = () => {
             </section>
           )}
 
+          <section className="pilot-card pilot-create-entry">
+            <div>
+              <p className="pilot-eyebrow">Participá</p>
+              <h2>Aportá a tu comunidad</h2>
+              <p>
+                Compartí un apunte o abrí una pregunta para que otras personas
+                puedan ayudarte.
+              </p>
+            </div>
+            <div className="pilot-actions">
+              <Link className="pilot-primary-link" to="/questions">
+                Hacer una pregunta
+              </Link>
+              <Link className="pilot-secondary-link" to="/resources">
+                Subir un apunte
+              </Link>
+            </div>
+          </section>
+
           <div className="pilot-home-feed">
             <div
               className="pilot-feed-intents"
@@ -285,13 +304,9 @@ const Home = () => {
           </div>
 
           <section className="pilot-card pilot-shortcuts">
-            <h2>
-              {alumniContinuity ? "Seguir conectado" : "Seguir estudiando"}
-            </h2>
+            <h2>Explorar tu espacio</h2>
             <div className="pilot-actions">
               <Link to="/academic/lifecycle">Mi trayectoria</Link>
-              <Link to="/resources">Buscar o subir apuntes</Link>
-              <Link to="/questions">Preguntar o responder</Link>
               <Link to="/network">Revisar mi red</Link>
               <Link to="/organizations">Organizaciones</Link>
               <Link to="/search">Buscar en Los Apuntes</Link>
