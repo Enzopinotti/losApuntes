@@ -8,7 +8,14 @@ import {
   resourceConsumptionFailure,
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
-import type { OwnedResourcesApi } from "./resource-owned-api";
+import type { OwnedResourcesApi, OwnedResourcesQuery } from "./resource-owned-api";
+
+export type OwnedLibraryFilters = {
+  visibility: ResourceVisibility | null;
+  q: string | null;
+  subjectId: string | null;
+  order: "newest" | "oldest";
+};
 
 export type OwnedResourcesSnapshot =
   | { kind: "idle" }
@@ -16,17 +23,20 @@ export type OwnedResourcesSnapshot =
       kind: "loading";
       authorityKey: string;
       visibility: ResourceVisibility | null;
+      filters: OwnedLibraryFilters;
     }
   | {
       kind: "failure";
       authorityKey: string;
       visibility: ResourceVisibility | null;
+      filters: OwnedLibraryFilters;
       failure: ResourceConsumptionFailure;
     }
   | {
       kind: "ready";
       authorityKey: string;
       visibility: ResourceVisibility | null;
+      filters: OwnedLibraryFilters;
       data: OwnedResourcesPage;
       loadingMore: boolean;
       failure: ResourceConsumptionFailure | null;
@@ -37,8 +47,29 @@ type Operation = {
   authorityKey: string;
   generation: number;
   controller: AbortController;
-  visibility: ResourceVisibility | null;
+  filters: OwnedLibraryFilters;
 };
+
+function normalizeFilters(
+  visibility: ResourceVisibility | null,
+  query: Pick<OwnedResourcesQuery, "q" | "subjectId" | "order"> = {},
+): OwnedLibraryFilters {
+  return {
+    visibility,
+    q: query.q?.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("es-AR") || null,
+    subjectId: query.subjectId || null,
+    order: query.order ?? "newest",
+  };
+}
+
+function serverQuery(filters: OwnedLibraryFilters): OwnedResourcesQuery {
+  return {
+    ...(filters.visibility ? { visibility: filters.visibility } : {}),
+    ...(filters.q ? { q: filters.q } : {}),
+    ...(filters.subjectId ? { subjectId: filters.subjectId } : {}),
+    ...(filters.order !== "newest" ? { order: filters.order } : {}),
+  };
+}
 
 function appendUnique(
   original: ResourceView[],
@@ -55,10 +86,7 @@ function appendUnique(
   return result;
 }
 
-/**
- * All pages are scoped to one session and server-side visibility filter.
- * Late responses cannot reveal the preceding account's publications.
- */
+/** Paginated owner results are scoped by account, query, subject, visibility and sort. */
 export class MobileOwnedResourcesController {
   private snapshot: OwnedResourcesSnapshot = { kind: "idle" };
   private readonly listeners = new Set<Listener>();
@@ -79,13 +107,15 @@ export class MobileOwnedResourcesController {
   async load(
     authorityKey: string,
     visibility: ResourceVisibility | null = null,
+    query: Pick<OwnedResourcesQuery, "q" | "subjectId" | "order"> = {},
   ): Promise<void> {
-    const operation = this.begin(authorityKey, visibility);
-    this.publish({ kind: "loading", authorityKey, visibility });
+    const filters = normalizeFilters(visibility, query);
+    const operation = this.begin(authorityKey, filters);
+    this.publish({ kind: "loading", authorityKey, visibility, filters });
 
     try {
       const data = await this.api.listOwned(
-        visibility ? { visibility } : {},
+        serverQuery(filters),
         operation.controller.signal,
       );
       if (!this.isCurrent(operation)) return;
@@ -93,6 +123,7 @@ export class MobileOwnedResourcesController {
         kind: "ready",
         authorityKey,
         visibility,
+        filters,
         data,
         loadingMore: false,
         failure: null,
@@ -103,6 +134,7 @@ export class MobileOwnedResourcesController {
           kind: "failure",
           authorityKey,
           visibility,
+          filters,
           failure: resourceConsumptionFailure(error),
         });
       }
@@ -117,20 +149,17 @@ export class MobileOwnedResourcesController {
       return;
     }
 
-    const operation = this.begin(authorityKey, current.visibility);
+    const operation = this.begin(authorityKey, current.filters);
     this.publish({ ...current, loadingMore: true, failure: null });
 
     try {
       const next = await this.api.listOwned(
-        {
-          ...(current.visibility ? { visibility: current.visibility } : {}),
-          cursor: current.data.nextCursor,
-        },
+        { ...serverQuery(current.filters), cursor: current.data.nextCursor },
         operation.controller.signal,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.ready(authorityKey);
-      if (!latest || latest.visibility !== operation.visibility) return;
+      if (!latest || latest.filters !== operation.filters) return;
       this.publish({
         ...latest,
         data: {
@@ -156,12 +185,7 @@ export class MobileOwnedResourcesController {
   }
 
   suspend(authorityKey: string): void {
-    if (
-      this.snapshot.kind === "idle" ||
-      this.snapshot.authorityKey !== authorityKey
-    ) return;
-    this.cancel();
-    this.publish({ kind: "idle" });
+    this.invalidate(authorityKey);
   }
 
   invalidate(authorityKey?: string): void {
@@ -174,14 +198,11 @@ export class MobileOwnedResourcesController {
     this.publish({ kind: "idle" });
   }
 
-  private begin(
-    authorityKey: string,
-    visibility: ResourceVisibility | null,
-  ): Operation {
+  private begin(authorityKey: string, filters: OwnedLibraryFilters): Operation {
     this.cancel();
     const operation: Operation = {
       authorityKey,
-      visibility,
+      filters,
       generation: ++this.generation,
       controller: new AbortController(),
     };
@@ -196,7 +217,7 @@ export class MobileOwnedResourcesController {
       !operation.controller.signal.aborted &&
       this.snapshot.kind !== "idle" &&
       this.snapshot.authorityKey === operation.authorityKey &&
-      this.snapshot.visibility === operation.visibility
+      this.snapshot.filters === operation.filters
     );
   }
 
