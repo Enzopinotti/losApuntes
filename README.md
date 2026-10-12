@@ -30,6 +30,14 @@ Cadena esperada:
 
 Un merge no equivale por sí solo a cierre. Las reglas y el checklist operativo viven en [Delivery traceability](docs/operations/delivery-traceability.md).
 
+## Reconciliación documental y próxima entrega de valor (12/10/2026)
+
+- [Auditoría de las fuentes 00–05 vs `main`](docs/engineering/documentation-reconciliation-2026-10-12.md): separa código integrado, validación exact-head, aceptación Mobile y readiness. Es un mapa de discrepancias; no reemplaza los documentos canónicos ni los Excel.
+- [Secuencia de valor académico rápido](docs/product/rapid-value-sequencing-2026-10-12.md): prioriza el camino contexto → Buscar → Guardar frente a nuevas expansiones no justificadas.
+- [Registro de evidencia pendiente](docs/operations/consolidation-evidence-2026-10-12.md): enumera los últimos merges sin verificación y el gate reproducible necesario para un release.
+
+**Aviso:** los slices Mobile recientes figuran mergeados con `[skip ci]` por decisión temporal. No se deben interpretar como builds, tests o aceptación nativa aprobados; consultar la evidencia del SHA concreto antes de un piloto o release.
+
 ## Dominio 2026
 
 - [Domain Contract 2026](docs/domain/domain-contract-2026.md)
