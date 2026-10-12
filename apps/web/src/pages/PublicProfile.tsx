@@ -101,6 +101,7 @@ const PublicProfile = () => {
         setViewState({
           scopeKey: profileScopeKey,
           loadingMore: false,
+          loadMoreError: null,
           error:
             isProfileApiError(nextError) && nextError.status === 404
               ? "Este perfil no existe o ya no está disponible."
@@ -125,6 +126,7 @@ const PublicProfile = () => {
 
     const target = snapshot;
     const cursor = target.profile.activitiesNextCursor;
+    if (!cursor) return;
     pagingRef.current = { scopeKey: profileScopeKey, cursor };
     const ticket = beginPagination();
     if (!isPaginationCurrent(ticket)) return;
