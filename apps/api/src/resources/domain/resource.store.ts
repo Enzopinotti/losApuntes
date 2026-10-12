@@ -75,6 +75,23 @@ export interface ResourceStore {
   removeShare(resourceId: string, userId: string): Promise<void>;
   upsertSave(resourceId: string, userId: string): Promise<void>;
   removeSave(resourceId: string, userId: string): Promise<void>;
+  getOwnedStatistics(authorUserId: string): Promise<{
+    publications: {
+      total: number;
+      private: number;
+      shared: number;
+      public: number;
+    };
+    currentSaves: number;
+    activeShareGrants: number;
+    topResources: Array<{
+      id: string;
+      title: string;
+      visibility: ResourceVisibility;
+      saves: number;
+      shareGrants: number;
+    }>;
+  }>;
   listOwnedResources(input: {
     authorUserId: string;
     visibility?: ResourceVisibility;
