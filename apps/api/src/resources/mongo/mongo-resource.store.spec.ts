@@ -2,6 +2,87 @@ import { MongoResourceStore } from './mongo-resource.store';
 import { ResourceSchema } from './resource.mongo-schemas';
 import { ResourceAssetUnavailableError } from '../domain/resource.store';
 
+describe('MongoResourceStore owner publications library', () => {
+  function resourcesQuery(rows: unknown[]) {
+    const chain = {
+      sort: jest.fn(),
+      limit: jest.fn(),
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(rows),
+    };
+    chain.sort.mockReturnValue(chain);
+    chain.limit.mockReturnValue(chain);
+    chain.lean.mockReturnValue(chain);
+    return chain;
+  }
+
+  it('limits publications to the author and excludes moderated hidden resources', async () => {
+    const rows = Array.from({ length: 3 }, (_, i) => ({
+      id: `resource-${i}`,
+      authorUserId: 'author-a',
+    }));
+    const chain = resourcesQuery(rows);
+    const resources = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoResourceStore(
+      {} as never,
+      resources as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await store.listOwnedResources({
+      authorUserId: 'author-a',
+      limit: 2,
+    });
+    expect(resources.find).toHaveBeenCalledWith({
+      authorUserId: 'author-a',
+      moderationState: 'available',
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1, id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+    expect(result).toEqual({ items: rows.slice(0, 2), hasMore: true });
+  });
+
+  it('uses the owner and visibility constraints on every page', async () => {
+    const chain = resourcesQuery([]);
+    const resources = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoResourceStore(
+      {} as never,
+      resources as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const createdAt = new Date('2026-10-12T12:00:00.000Z');
+    await store.listOwnedResources({
+      authorUserId: 'author-b',
+      visibility: 'shared',
+      limit: 25,
+      after: {
+        id: '11111111-1111-4111-8111-111111111111',
+        createdAt,
+      },
+    });
+
+    expect(resources.find).toHaveBeenCalledWith({
+      authorUserId: 'author-b',
+      moderationState: 'available',
+      visibility: 'shared',
+      $or: [
+        { createdAt: { $lt: createdAt } },
+        {
+          createdAt,
+          id: { $gt: '11111111-1111-4111-8111-111111111111' },
+        },
+      ],
+    });
+    expect(chain.limit).toHaveBeenCalledWith(26);
+  });
+});
+
 describe('MongoResourceStore owner share listing', () => {
   function shareQuery(rows: Array<{
     _id: { toHexString(): string };
