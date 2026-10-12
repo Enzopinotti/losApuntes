@@ -1,10 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ConnectionView } from "./interfaces";
-import {
-  communityApi,
-  isCommunityApiError,
-} from "./services/communityService";
+import { communityApi, isCommunityApiError } from "./services/communityService";
 import { networkConnectionStatusLabel } from "./network-presentation";
 import { useAsyncAuthorityFence } from "../../shared/useAsyncAuthorityFence";
 
@@ -73,13 +70,9 @@ export function PublicProfileSocialActions({
       scopeKey,
       busy: action,
       followingConfirmed:
-        previous?.scopeKey === scopeKey
-          ? previous.followingConfirmed
-          : null,
+        previous?.scopeKey === scopeKey ? previous.followingConfirmed : null,
       connectionConfirmed:
-        previous?.scopeKey === scopeKey
-          ? previous.connectionConfirmed
-          : null,
+        previous?.scopeKey === scopeKey ? previous.connectionConfirmed : null,
       feedback: null,
       error: null,
     }));
@@ -192,8 +185,8 @@ export function PublicProfileSocialActions({
         </p>
       )}
       <p className="public-profile-social-help">
-        Seguir no crea una conexión. Una conexión requiere aceptación de la
-        otra persona.
+        Seguir no crea una conexión. Una conexión requiere aceptación de la otra
+        persona.
       </p>
     </section>
   );
