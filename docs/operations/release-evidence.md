@@ -83,6 +83,7 @@ One release candidate should be reconstructable from one bounded record. Copy th
 ## Security and abuse
 
 - Production dependency audit:
+- API runtime dependency boundary (filtered production image build/run and bounded event):
 - Secret store/provider:
 - Secrets source (`SECRETS_SOURCE`):
 - Secrets revision (`SECRETS_REVISION`):
