@@ -144,7 +144,9 @@ function ResourceResult({
       <View style={styles.quickSaveRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Guardar ${resource.title} desde Buscar`}
+          accessibilityLabel={quickSaveEntry?.state === "saved"
+            ? `${resource.title} ya está guardado`
+            : `Guardar ${resource.title} desde Buscar`}
           accessibilityState={{
             disabled:
               quickSaveEntry?.state === "saving" ||
@@ -468,6 +470,10 @@ export function SearchScreen() {
     academicMatchesSession
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
+  const scopedQuickSave: SearchQuickSaveSnapshot =
+    quickSave.authorityKey === authorityKey
+      ? quickSave
+      : { authorityKey, items: {} };
   const normalizedQuery = query.trim();
   const searchInput = useMemo<MobileSearchInput | null>(() => {
     if (normalizedQuery.length >= 2) {
@@ -732,7 +738,7 @@ export function SearchScreen() {
             resources={data.results.resources}
             onOpen={openResource}
             onOpenProfile={openPerson}
-            quickSave={quickSave}
+            quickSave={scopedQuickSave}
             onQuickSave={quickSaveResource}
             onOpenSaved={openSavedResources}
           />
@@ -907,7 +913,7 @@ export function SearchScreen() {
           onOpen={openResource}
           onOpenProfile={openPerson}
           onConfigureContext={() => router.push(ACADEMIC_CONTEXT_HOME_ROUTE)}
-          quickSave={quickSave}
+          quickSave={scopedQuickSave}
           onQuickSave={quickSaveResource}
           onOpenSaved={openSavedResources}
         />
