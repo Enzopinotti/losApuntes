@@ -100,6 +100,7 @@ export class MobileResourceDirectSharingController {
       !current ||
       !current.canManageShares ||
       current.visibility !== "shared" ||
+      current.outcome === "visibility_changed" ||
       current.busy
     ) return;
     const query = rawQuery.trim().slice(0, RESOURCE_SHARE_PEOPLE_QUERY_MAX);
@@ -164,7 +165,7 @@ export class MobileResourceDirectSharingController {
 
   clearSearch(authorityKey: string, resourceId: string): void {
     const current = this.current(authorityKey, resourceId);
-    if (!current || current.busy) return;
+    if (!current || current.busy || current.outcome === "visibility_changed") return;
     this.abortSearch();
     this.publish({
       ...current,
@@ -196,6 +197,7 @@ export class MobileResourceDirectSharingController {
       !current ||
       current.visibility !== "shared" ||
       !current.canManageShares ||
+      current.outcome === "visibility_changed" ||
       !current.selected ||
       current.busy ||
       this.mutationOperation
@@ -222,8 +224,6 @@ export class MobileResourceDirectSharingController {
         if (ready) {
           this.publish({
             ...ready,
-            revision: resource.revision,
-            visibility: resource.visibility,
             selected: null,
             people: [],
             searchState: "idle",
