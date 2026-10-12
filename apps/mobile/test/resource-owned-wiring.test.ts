@@ -38,7 +38,7 @@ test("filters and next-page controls use the API rather than local-only filterin
   assert.match(screen, /controller.loadMore\(authorityKey\)/u);
   assert.match(controller, /this.api.listOwned\(/u);
   assert.match(controller, /appendUnique\(/u);
-  assert.match(controller, /operation.controller.abort\(\)/u);
+  assert.match(controller, /this\.active\?\.controller\.abort\(\)/u);
   assert.match(controller, /latest.filters !== operation.filters/u);
 });
 
