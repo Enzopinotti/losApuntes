@@ -8,6 +8,7 @@ import {
   homeFirstValueActions,
 } from "../src/features/home/home-first-value";
 import {
+  homeFeedAvatarUrl,
   homeFeedOrganizationVerificationLabel,
   homeFeedReasonAccessibilitySummary,
   homeFeedReasonLabels,
@@ -105,6 +106,60 @@ test("Home marks only organizations whose server state is verified", () => {
   );
   assert.equal(
     homeFeedOrganizationVerificationLabel({ kind: "personal_user" }),
+    null,
+  );
+});
+
+test("Home uses only the avatar belonging to the feed item's source", () => {
+  assert.equal(
+    homeFeedAvatarUrl({
+      author: {
+        profileId: "profile-1",
+        displayName: "Ana Pérez",
+        avatarUrl: "https://cdn.example.test/ana.png",
+      },
+      source: { kind: "personal_user" },
+    }),
+    "https://cdn.example.test/ana.png",
+  );
+
+  assert.equal(
+    homeFeedAvatarUrl({
+      author: {
+        profileId: null,
+        displayName: "Autor interno",
+        avatarUrl: "https://cdn.example.test/author.png",
+      },
+      source: {
+        kind: "campus_organization",
+        organization: {
+          id: "org-1",
+          name: "Centro de Estudiantes",
+          avatarUrl: "https://cdn.example.test/org.png",
+          verificationState: "verified",
+        },
+      },
+    }),
+    "https://cdn.example.test/org.png",
+  );
+
+  assert.equal(
+    homeFeedAvatarUrl({
+      author: {
+        profileId: null,
+        displayName: "Autor interno",
+        avatarUrl: "https://cdn.example.test/author.png",
+      },
+      source: {
+        kind: "campus_organization",
+        organization: {
+          id: "org-1",
+          name: "Centro de Estudiantes",
+          avatarUrl: null,
+          verificationState: "unverified",
+        },
+      },
+    }),
     null,
   );
 });
