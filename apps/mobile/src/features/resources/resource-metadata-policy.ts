@@ -44,7 +44,10 @@ export function validateResourceMetadata(
   }
 
   const title = draft.title.normalize("NFC").trim().replace(/\s+/gu, " ");
-  const description = draft.description.normalize("NFC").trim();
+  const description = draft.description
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/gu, " ");
   const tags = draft.tagsText
     .split(",")
     .map((value) => value.normalize("NFC").trim().replace(/\s+/gu, " "))
@@ -62,7 +65,9 @@ export function validateResourceMetadata(
   if (tags.some((tag) => tag.length > RESOURCE_TAG_MAX_LENGTH)) {
     return { kind: "invalid", message: "Cada etiqueta puede tener hasta 40 caracteres." };
   }
-  const unique = new Set(tags.map((tag) => tag.toLocaleLowerCase("es-AR")));
+  const unique = new Set(
+    tags.map((tag) => tag.normalize("NFKC").toLocaleLowerCase("es-AR")),
+  );
   if (unique.size !== tags.length) {
     return { kind: "invalid", message: "No repitas etiquetas." };
   }
