@@ -1,4 +1,8 @@
-import type { ResourceView, SearchPersonResult } from "@losapuntes/contracts";
+import type {
+  ResourceShareGrantView,
+  ResourceView,
+  SearchPersonResult,
+} from "@losapuntes/contracts";
 
 import { ApiRequestError } from "@/services/api/client";
 
@@ -22,6 +26,10 @@ export type ResourceDirectSharingSnapshot =
       visibility: ResourceView["visibility"];
       ownerProfileId: string | null;
       canManageShares: boolean;
+      grantsState: "idle" | "loading" | "ready" | "error";
+      grants: ResourceShareGrantView[];
+      grantsNextCursor: string | null;
+      grantsFailure: ResourceConsumptionFailure | null;
       searchState: ShareSearchState;
       query: string;
       people: SearchPersonResult[];
@@ -47,14 +55,15 @@ export function validSharePeopleQuery(query: string): boolean {
 }
 
 /**
- * No enumeration of share grants is available from the API. This controller
- * only displays acknowledged operations against an explicitly selected
- * result from the authenticated people search.
+ * Shares can be enumerated only by the server-authorized owner. Separate
+ * search, pagination and mutation operations fence stale responses to the
+ * same session, resource and revision.
  */
 export class MobileResourceDirectSharingController {
   private snapshot: ResourceDirectSharingSnapshot = { kind: "idle" };
   private readonly listeners = new Set<Listener>();
   private searchOperation: Operation | null = null;
+  private grantsOperation: Operation | null = null;
   private mutationOperation: Operation | null = null;
   private generation = 0;
 
@@ -84,6 +93,10 @@ export class MobileResourceDirectSharingController {
       visibility: resource.visibility,
       ownerProfileId: resource.author?.profileId ?? null,
       canManageShares: resource.capabilities.manageShares,
+      grantsState: "idle",
+      grants: [],
+      grantsNextCursor: null,
+      grantsFailure: null,
       searchState: "idle",
       query: "",
       people: [],
@@ -92,6 +105,112 @@ export class MobileResourceDirectSharingController {
       outcome: null,
       failure: null,
     });
+  }
+
+  async loadGrants(
+    authorityKey: string,
+    resourceId: string,
+    loadMore = false,
+  ): Promise<void> {
+    const current = this.current(authorityKey, resourceId);
+    if (
+      !current ||
+      !current.canManageShares ||
+      current.visibility !== "shared" ||
+      current.outcome === "visibility_changed" ||
+      current.busy ||
+      this.grantsOperation ||
+      (loadMore && (!current.grantsNextCursor || current.grantsState !== "ready"))
+    ) return;
+
+    const operation = this.operation(authorityKey, resourceId);
+    this.grantsOperation = operation;
+    this.publish({
+      ...current,
+      grantsState: "loading",
+      grantsFailure: null,
+    });
+
+    try {
+      const result = await this.api.listGrants(
+        resourceId,
+        loadMore ? current.grantsNextCursor ?? undefined : undefined,
+        operation.controller.signal,
+      );
+      if (!this.grantsCurrent(operation)) return;
+      const latest = this.current(authorityKey, resourceId);
+      if (!latest) return;
+      if (result.resourceRevision !== latest.revision) {
+        this.publish({
+          ...latest,
+          grantsState: "idle",
+          grants: [],
+          grantsNextCursor: null,
+          outcome: "visibility_changed",
+          selected: null,
+        });
+        return;
+      }
+      const seen = new Set<string>();
+      const items = [...(loadMore ? latest.grants : []), ...result.items]
+        .filter((grant) => {
+          if (seen.has(grant.profileId)) return false;
+          seen.add(grant.profileId);
+          return true;
+        });
+      this.publish({
+        ...latest,
+        grantsState: "ready",
+        grants: items,
+        grantsNextCursor: result.nextCursor,
+        grantsFailure: null,
+      });
+    } catch (error) {
+      if (!this.grantsCurrent(operation)) return;
+      const latest = this.current(authorityKey, resourceId);
+      if (!latest) return;
+      const stale =
+        error instanceof ApiRequestError &&
+        (error.code === "RESOURCE_SHARES_CURSOR_STALE" ||
+          error.code === "RESOURCE_SHARE_VISIBILITY_REQUIRED");
+      this.publish({
+        ...latest,
+        grantsState: stale ? "idle" : "error",
+        grants: stale ? [] : latest.grants,
+        grantsNextCursor: stale ? null : latest.grantsNextCursor,
+        grantsFailure: stale ? null : resourceConsumptionFailure(error),
+        outcome: stale ? "visibility_changed" : latest.outcome,
+      });
+    } finally {
+      if (this.grantsOperation === operation) this.grantsOperation = null;
+    }
+  }
+
+  selectGrant(
+    authorityKey: string,
+    resourceId: string,
+    profileId: string,
+  ): boolean {
+    const current = this.current(authorityKey, resourceId);
+    if (
+      !current ||
+      current.busy ||
+      current.grantsState !== "ready" ||
+      current.outcome === "visibility_changed"
+    ) return false;
+    const person = current.grants.find((grant) => grant.profileId === profileId);
+    if (!person) return false;
+    this.publish({
+      ...current,
+      selected: {
+        profileId: person.profileId,
+        displayName: person.displayName,
+        avatarUrl: person.avatarUrl,
+      },
+      outcome: null,
+      failure: null,
+    });
+    return true;
   }
 
   async search(authorityKey: string, resourceId: string, rawQuery: string): Promise<void> {
@@ -204,6 +323,7 @@ export class MobileResourceDirectSharingController {
     ) return false;
 
     this.abortSearch();
+    this.abortGrants();
     const operation = this.operation(authorityKey, resourceId);
     this.mutationOperation = operation;
     const person = current.selected;
@@ -258,6 +378,16 @@ export class MobileResourceDirectSharingController {
       }
 
       this.finishMutation(operation, action === "grant" ? "granted" : "revoked", null);
+      const latest = this.current(authorityKey, resourceId);
+      if (latest) {
+        this.publish({
+          ...latest,
+          grantsState: "idle",
+          grants: [],
+          grantsNextCursor: null,
+          grantsFailure: null,
+        });
+      }
       return true;
     } catch (error) {
       if (this.mutationCurrent(operation)) {
@@ -286,6 +416,7 @@ export class MobileResourceDirectSharingController {
       ...current,
       busy: null,
       searchState: current.searchState === "loading" ? "idle" : current.searchState,
+      grantsState: current.grantsState === "loading" ? "idle" : current.grantsState,
       outcome: current.busy ? "uncertain" : current.outcome,
     });
   }
@@ -320,6 +451,12 @@ export class MobileResourceDirectSharingController {
       this.current(operation.authorityKey, operation.resourceId) !== null;
   }
 
+  private grantsCurrent(operation: Operation): boolean {
+    return this.grantsOperation === operation &&
+      !operation.controller.signal.aborted &&
+      this.current(operation.authorityKey, operation.resourceId) !== null;
+  }
+
   private mutationCurrent(operation: Operation): boolean {
     return this.mutationOperation === operation &&
       !operation.controller.signal.aborted &&
@@ -348,9 +485,15 @@ export class MobileResourceDirectSharingController {
     this.mutationOperation = null;
   }
 
+  private abortGrants(): void {
+    this.grantsOperation?.controller.abort();
+    this.grantsOperation = null;
+  }
+
   private abortAll(): void {
     this.generation += 1;
     this.abortSearch();
+    this.abortGrants();
     this.abortMutation();
   }
 
