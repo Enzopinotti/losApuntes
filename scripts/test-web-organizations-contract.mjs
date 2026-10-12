@@ -96,6 +96,14 @@ assert.match(publicPage, /Cargar más eventos/u);
 assert.doesNotMatch(publicPage, /actorUserId|createdByUserId/u);
 
 const manage = await read('apps/web/src/pages/OrganizationManage.tsx');
+assert.match(
+  manage,
+  /import \{ AuthorProfileLink \} from "\.\.\/features\/profile\/AuthorProfileLink"/u,
+);
+assert.match(
+  manage,
+  /<AuthorProfileLink\s+profileId=\{manager\.profile\.profileId\}\s+displayName=\{manager\.profile\.displayName\}\s*\/>/u,
+);
 assert.match(manage, /organizationsApi\.management\(/u);
 assert.match(manage, /managementRevision/u);
 assert.match(manage, /updateVerification/u);
