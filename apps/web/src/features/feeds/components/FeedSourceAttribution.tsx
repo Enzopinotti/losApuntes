@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../../contexts/useAuth";
 import type { FeedItem } from "../interfaces";
@@ -23,12 +24,32 @@ export function FeedSourceAttribution({
   );
   const returnTo = `${location.pathname}${location.search}`;
   const returnKey = location.key || "default";
+  const feedReturnState = {
+    feedReturnTo: returnTo,
+    feedReturnKey: returnKey,
+    ...(homeIntent ? { feedReturnHomeIntent: homeIntent } : {}),
+  };
+  const rememberFeedPosition = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    rememberFeedScrollPosition(returnKey, authorityScope, window.scrollY);
+  };
 
   if (item.source.kind === "campus_organization") {
     return (
       <Link
         className="feed-source-link"
         to={`/organizations/${encodeURIComponent(item.source.organization.id)}`}
+        state={feedReturnState}
+        onClick={rememberFeedPosition}
       >
         {item.source.organization.name}
       </Link>
@@ -41,24 +62,8 @@ export function FeedSourceAttribution({
       <Link
         className="feed-source-link"
         to={`/p/${encodeURIComponent(profileId)}`}
-        state={{
-          feedReturnTo: returnTo,
-          feedReturnKey: returnKey,
-          ...(homeIntent ? { feedReturnHomeIntent: homeIntent } : {}),
-        }}
-        onClick={(event) => {
-          if (
-            event.defaultPrevented ||
-            event.button !== 0 ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.shiftKey ||
-            event.altKey
-          ) {
-            return;
-          }
-          rememberFeedScrollPosition(returnKey, authorityScope, window.scrollY);
-        }}
+        state={feedReturnState}
+        onClick={rememberFeedPosition}
       >
         {item.author.displayName}
       </Link>

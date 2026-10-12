@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
 import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import {
+  feedReturnHref,
+  feedReturnRestoreState,
+} from "../features/feeds/feed-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
 
@@ -34,7 +38,23 @@ function messageFor(error: unknown): string {
 
 const Organization = () => {
   const { organizationId } = useParams();
+  const location = useLocation();
   const { status, user, session } = useAuth();
+  const feedReturnTo = feedReturnHref(location.state);
+  const feedReturnLink = feedReturnTo ? (
+    <Link
+      className="organization-feed-return"
+      to={feedReturnTo}
+      state={feedReturnRestoreState(location.state)}
+      replace
+    >
+      {feedReturnTo === "/" ? "Volver a Inicio" : "Volver al feed"}
+    </Link>
+  ) : (
+    <Link className="organization-feed-return" to="/organizations">
+      Volver al directorio
+    </Link>
+  );
   const authenticated = status === "authenticated";
   const authScopeKey = [
     status,
@@ -305,10 +325,10 @@ const Organization = () => {
   if (error && !organization) {
     return (
       <section className="organizations-page">
+        {feedReturnLink}
         <p className="organizations-error" role="alert">
           {error}
         </p>
-        <Link to="/organizations">Volver al directorio</Link>
       </section>
     );
   }
@@ -316,6 +336,7 @@ const Organization = () => {
   if (!organization) {
     return (
       <section className="organizations-page">
+        {feedReturnLink}
         <p role="status">Cargando organización…</p>
       </section>
     );
@@ -326,6 +347,7 @@ const Organization = () => {
       className="organizations-page"
       aria-labelledby="organization-title"
     >
+      {feedReturnLink}
       <header className="organizations-hero organization-public-hero">
         <div>
           <p className="organizations-eyebrow">

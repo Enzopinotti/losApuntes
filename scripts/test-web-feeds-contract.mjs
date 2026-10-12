@@ -168,6 +168,13 @@ assert.match(sourceAttribution, /window\.scrollY/u);
 assert.match(sourceAttribution, /feedReturnTo:\s*returnTo/u);
 assert.match(sourceAttribution, /feedReturnKey:\s*returnKey/u);
 assert.match(sourceAttribution, /feedReturnHomeIntent:\s*homeIntent/u);
+assert.match(sourceAttribution, /state=\{feedReturnState\}/u);
+assert.match(sourceAttribution, /onClick=\{rememberFeedPosition\}/u);
+assert.match(sourceAttribution, /const feedReturnState = \{/u);
+assert.match(
+  sourceAttribution,
+  /const rememberFeedPosition = \(event: MouseEvent<HTMLAnchorElement>\)/u,
+);
 assert.match(sourceAttribution, /event\.metaKey[\s\S]*event\.ctrlKey/u);
 assert.match(
   itemContextStyles,
@@ -187,6 +194,23 @@ assert.match(
   sourceAttribution,
   /to=\{`\/organizations\/\$\{encodeURIComponent\(item\.source\.organization\.id\)\}`\}/u,
 );
+const organizationAttributionStart = sourceAttribution.indexOf(
+  'if (item.source.kind === "campus_organization")',
+);
+const profileAttributionStart = sourceAttribution.indexOf(
+  "const profileId = item.author.profileId",
+);
+assert.ok(
+  organizationAttributionStart !== -1 &&
+    profileAttributionStart > organizationAttributionStart,
+  "organization attribution has a dedicated source-link branch",
+);
+const organizationAttribution = sourceAttribution.slice(
+  organizationAttributionStart,
+  profileAttributionStart,
+);
+assert.match(organizationAttribution, /state=\{feedReturnState\}/u);
+assert.match(organizationAttribution, /onClick=\{rememberFeedPosition\}/u);
 assert.match(
   sourceAttribution,
   /to=\{`\/p\/\$\{encodeURIComponent\(profileId\)\}`\}/u,

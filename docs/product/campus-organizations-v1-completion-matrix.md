@@ -25,6 +25,7 @@
 | Featured Resource reauthorization | negative unit + runtime |
 | Organization directory | API + Web |
 | Public organization page | API + Web |
+| Web Feed organization attribution returns to its validated originating Feed | Web Feeds + Organizations contracts |
 | Manager Web surface | Web build/static contract |
 | Followed-org For You eligibility | Feeds unit + runtime |
 | Unfollow removes future eligibility | Feeds runtime |
