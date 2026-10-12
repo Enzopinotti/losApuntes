@@ -93,6 +93,95 @@ describe('MongoResourceStore owned statistics', () => {
   });
 });
 
+describe('MongoResourceStore owned library advanced browsing', () => {
+  function mockResources() {
+    const query = {
+      sort: jest.fn(),
+      limit: jest.fn(),
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue([]),
+    };
+    query.sort.mockReturnValue(query);
+    query.limit.mockReturnValue(query);
+    query.lean.mockReturnValue(query);
+    const resources = {
+      find: jest.fn().mockReturnValue(query),
+      aggregate: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      }),
+    };
+    const store = new MongoResourceStore(
+      {} as never,
+      resources as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    return { store, resources, query };
+  }
+
+  it('applies all filters server-side before paginating oldest-first', async () => {
+    const { store, resources, query } = mockResources();
+    const after = {
+      createdAt: new Date('2026-10-01T12:00:00.000Z'),
+      id: '11111111-1111-4111-8111-111111111111',
+    };
+    await store.listOwnedResources({
+      authorUserId: 'author-a',
+      visibility: 'shared',
+      subjectId: '22222222-2222-4222-8222-222222222222',
+      q: 'c++ (avanzado)',
+      order: 'oldest',
+      limit: 25,
+      after,
+    });
+    expect(resources.find).toHaveBeenCalledWith({
+      authorUserId: 'author-a',
+      moderationState: 'available',
+      visibility: 'shared',
+      subjectId: '22222222-2222-4222-8222-222222222222',
+      searchText: { $regex: 'c\\+\\+ \\(avanzado\\)', $options: 'i' },
+      $or: [
+        { createdAt: { $gt: after.createdAt } },
+        { createdAt: after.createdAt, id: { $gt: after.id } },
+      ],
+    });
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: 1, id: 1 });
+    expect(query.limit).toHaveBeenCalledWith(26);
+  });
+
+  it('preserves original newest-first ordering with no new filters', async () => {
+    const { store, query } = mockResources();
+    await store.listOwnedResources({ authorUserId: 'author-a', limit: 25 });
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1, id: 1 });
+  });
+
+  it('limits subject facets to this author and at most fifty subjects', async () => {
+    const { store, resources } = mockResources();
+    await store.listOwnedSubjects('author-a');
+    const pipeline = resources.aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(pipeline[0]).toEqual({
+      $match: { authorUserId: 'author-a', moderationState: 'available' },
+    });
+    expect(pipeline).toContainEqual({ $limit: 51 });
+    expect(pipeline).toContainEqual({ $sort: { count: -1, _id: 1 } });
+  });
+
+  it('marks subject facets as truncated rather than claiming all are shown', async () => {
+    const { store, resources } = mockResources();
+    const rows = Array.from({ length: 51 }, (_, i) => ({
+      subjectId: `subject-${i}`, count: 51 - i,
+    }));
+    resources.aggregate.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(rows),
+    });
+    const page = await store.listOwnedSubjects('author-a');
+    expect(page.items).toHaveLength(50);
+    expect(page.truncated).toBe(true);
+  });
+});
+
 describe('MongoResourceStore owner publications library', () => {
   function resourcesQuery(rows: unknown[]) {
     const chain = {

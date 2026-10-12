@@ -65,4 +65,68 @@ describe('owned resource listing cursor', () => {
       );
     }
   });
+
+  it('round trips a search-and-subject cursor in oldest-first order', () => {
+    const filters = {
+      q: 'química avanzada',
+      subjectId: '22222222-2222-4222-8222-222222222222',
+      order: 'oldest' as const,
+    };
+    const token = encodeOwnedResourceCursor(cursor, 'shared', filters);
+    expect(decodeOwnedResourceCursor(token, 'shared', filters)).toEqual(cursor);
+    expect(JSON.parse(Buffer.from(token, 'base64url').toString('utf8')))
+      .toEqual({
+        v: 2,
+        id: cursor.id,
+        createdAt: cursor.createdAt.toISOString(),
+        visibility: 'shared',
+        q: filters.q,
+        subjectId: filters.subjectId,
+        order: 'oldest',
+      });
+  });
+
+  it('rejects reusing pages with a different query, subject or order', () => {
+    const filters = {
+      q: 'cálculo',
+      subjectId: '22222222-2222-4222-8222-222222222222',
+      order: 'oldest' as const,
+    };
+    const token = encodeOwnedResourceCursor(cursor, 'private', filters);
+    for (const altered of [
+      { ...filters, q: 'física' },
+      { ...filters, subjectId: '33333333-3333-4333-8333-333333333333' },
+      { ...filters, order: 'newest' as const },
+    ]) {
+      expect(() => decodeOwnedResourceCursor(token, 'private', altered))
+        .toThrow(UnprocessableEntityException);
+    }
+    expect(() => decodeOwnedResourceCursor(token, 'private'))
+      .toThrow(UnprocessableEntityException);
+  });
+
+  it('keeps old default pagination tokens valid for existing clients', () => {
+    const token = encodeOwnedResourceCursor(cursor, 'public');
+    expect(decodeOwnedResourceCursor(token, 'public', { order: 'newest' }))
+      .toEqual(cursor);
+    expect(() => decodeOwnedResourceCursor(token, 'public', {
+      q: 'álgebra',
+    })).toThrow(UnprocessableEntityException);
+  });
+
+  it('rejects injection-shaped and extra-field v2 cursor payloads', () => {
+    const good = encodeOwnedResourceCursor(cursor, undefined, { q: 'álgebra' });
+    const payload = JSON.parse(Buffer.from(good, 'base64url').toString('utf8'));
+    for (const malformed of [
+      { ...payload, q: { $gt: '' } },
+      { ...payload, subjectId: { $ne: null } },
+      { ...payload, extra: 'untrusted' },
+    ]) {
+      const token = Buffer.from(JSON.stringify(malformed)).toString('base64url');
+      expect(() => decodeOwnedResourceCursor(token, undefined, {
+        q: 'álgebra',
+      })).toThrow(UnprocessableEntityException);
+    }
+  });
+
 });

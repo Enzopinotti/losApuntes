@@ -70,6 +70,7 @@ function store(): jest.Mocked<ResourceStore> {
     upsertSave: jest.fn(),
     removeSave: jest.fn(),
     getOwnedStatistics: jest.fn(),
+    listOwnedSubjects: jest.fn(),
     listOwnedResources: jest.fn(),
     listSavedResources: jest.fn(),
     searchAuthorized: jest.fn(),
@@ -212,6 +213,99 @@ describe('ResourceService', () => {
       expect(response.currentSaves).toBe(0);
       expect(response.activeShareGrants).toBe(0);
       expect(response.topResources).toEqual([]);
+    });
+  });
+
+  describe('owner publications filters', () => {
+    it('normalizes search and binds all filters to the first page', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      projectionDeps(deps);
+      const item = resource({ visibility: 'shared' });
+      resourceStore.listOwnedResources.mockResolvedValue({
+        items: [item],
+        hasMore: true,
+      });
+      const first = await service(resourceStore, deps).listOwned(
+        'author-1',
+        {
+          limit: 2,
+          visibility: 'shared',
+          q: '  ÁLGEBRA   avanzada  ',
+          subjectId: item.subjectId,
+          order: 'oldest',
+        },
+      );
+      expect(resourceStore.listOwnedResources).toHaveBeenCalledWith({
+        authorUserId: 'author-1',
+        limit: 2,
+        visibility: 'shared',
+        q: 'álgebra avanzada',
+        subjectId: item.subjectId,
+        order: 'oldest',
+      });
+      expect(first.nextCursor).toEqual(expect.any(String));
+      await service(resourceStore, deps).listOwned('author-1', {
+        limit: 2,
+        visibility: 'shared',
+        q: 'Álgebra avanzada',
+        subjectId: item.subjectId,
+        order: 'oldest',
+        cursor: first.nextCursor!,
+      });
+      expect(resourceStore.listOwnedResources).toHaveBeenLastCalledWith({
+        authorUserId: 'author-1',
+        limit: 2,
+        visibility: 'shared',
+        q: 'álgebra avanzada',
+        subjectId: item.subjectId,
+        order: 'oldest',
+        after: { createdAt: item.createdAt, id: item.id },
+      });
+    });
+
+    it('rejects a cursor on different filters before querying Mongo', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      const token = Buffer.from(JSON.stringify({
+        v: 2,
+        id: resource().id,
+        createdAt: now.toISOString(),
+        visibility: null,
+        q: 'álgebra',
+        subjectId: null,
+        order: 'newest',
+      })).toString('base64url');
+      await expect(service(resourceStore, deps).listOwned('author-1', {
+        q: 'química',
+        limit: 25,
+        cursor: token,
+      })).rejects.toThrow(UnprocessableEntityException);
+      expect(resourceStore.listOwnedResources).not.toHaveBeenCalled();
+    });
+
+    it('lists up to fifty subjects from only the author records with academic names', async () => {
+      const resourceStore = store();
+      const deps = dependencies();
+      resourceStore.listOwnedSubjects.mockResolvedValue({
+        items: [{ subjectId: resource().subjectId, count: 8 }],
+        truncated: false,
+      });
+      deps.academic.getCatalogNode.mockResolvedValue({
+        node: { name: 'Base de Datos' },
+      } as never);
+      expect(await service(resourceStore, deps).listOwnedSubjects('author-1'))
+        .toEqual({
+          items: [{
+            subjectId: resource().subjectId,
+            name: 'Base de Datos',
+            count: 8,
+          }],
+          truncated: false,
+        });
+      expect(resourceStore.listOwnedSubjects).toHaveBeenCalledWith('author-1');
+      expect(deps.academic.getCatalogNode)
+        .toHaveBeenCalledWith(resource().subjectId);
     });
   });
 

@@ -1,12 +1,18 @@
-import type { ResourceView, ResourceVisibility } from "@losapuntes/contracts";
+import type {
+  OwnedResourceSubjects,
+  ResourceView,
+  ResourceVisibility,
+} from "@losapuntes/contracts";
 import { Redirect, useIsFocused, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -93,6 +99,15 @@ export function OwnedResourcesScreen() {
   const { snapshot: session } = useSession();
   const [appState, setAppState] = useState(AppState.currentState);
   const [visibility, setVisibility] = useState<ResourceVisibility | null>(null);
+  const [draftQuery, setDraftQuery] = useState("");
+  const [query, setQuery] = useState("");
+  const [subjectId, setSubjectId] = useState<string | null>(null);
+  const [order, setOrder] = useState<"newest" | "oldest">("newest");
+  const [subjects, setSubjects] = useState<{
+    authorityKey: string;
+    data: OwnedResourceSubjects | null;
+    failed: boolean;
+  } | null>(null);
   const controller = useMemo(
     () => new MobileOwnedResourcesController(mobileOwnedResourcesApi),
     [],
@@ -116,6 +131,10 @@ export function OwnedResourcesScreen() {
 
   useEffect(() => {
     setVisibility(null);
+    setDraftQuery("");
+    setQuery("");
+    setSubjectId(null);
+    setOrder("newest");
   }, [sessionKey]);
 
   useEffect(() => {
@@ -123,23 +142,63 @@ export function OwnedResourcesScreen() {
       controller.invalidate();
       return;
     }
-    void controller.load(authorityKey, visibility);
+    void controller.load(authorityKey, visibility, {
+      ...(query ? { q: query } : {}),
+      ...(subjectId ? { subjectId } : {}),
+      ...(order !== "newest" ? { order } : {}),
+    });
     return () => controller.invalidate(authorityKey);
-  }, [authorityKey, controller, visibility]);
+  }, [authorityKey, controller, visibility, query, subjectId, order]);
+
+  useEffect(() => {
+    if (!authorityKey) {
+      setSubjects(null);
+      return;
+    }
+    const active = new AbortController();
+    setSubjects({ authorityKey, data: null, failed: false });
+    void mobileOwnedResourcesApi.listSubjects(active.signal)
+      .then((data) => {
+        if (!active.signal.aborted) {
+          setSubjects({ authorityKey, data, failed: false });
+        }
+      })
+      .catch(() => {
+        if (!active.signal.aborted) {
+          setSubjects({ authorityKey, data: null, failed: true });
+        }
+      });
+    return () => active.abort();
+  }, [authorityKey]);
 
   if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
 
   const current =
     snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey &&
-    snapshot.visibility === visibility
+    snapshot.visibility === visibility &&
+    snapshot.filters.q === (query || null) &&
+    snapshot.filters.subjectId === subjectId &&
+    snapshot.filters.order === order
       ? snapshot
       : null;
   const ready = current?.kind === "ready" ? current : null;
 
   const refresh = () => {
-    if (authorityKey) void controller.load(authorityKey, visibility);
+    if (authorityKey) {
+      void controller.load(authorityKey, visibility, {
+        ...(query ? { q: query } : {}),
+        ...(subjectId ? { subjectId } : {}),
+        ...(order !== "newest" ? { order } : {}),
+      });
+    }
   };
+  const normalizedDraft = draftQuery.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("es-AR");
+  const canSearch = normalizedDraft.length === 0 ||
+    (normalizedDraft.length >= 2 && normalizedDraft.length <= 120);
+  const subjectResults =
+    subjects?.authorityKey === authorityKey ? subjects : null;
+  const hasFilters = !!query || !!subjectId || !!visibility || order !== "newest";
 
   return (
     <ProductSurface
@@ -173,6 +232,38 @@ export function OwnedResourcesScreen() {
         >
           <Text style={styles.statisticsLabel}>Ver mis estadísticas</Text>
         </Pressable>
+        <Text style={styles.sectionLabel}>Buscar en todas mis publicaciones</Text>
+        <View style={styles.searchRow}>
+          <TextInput
+            accessibilityLabel="Buscar mis apuntes por título, descripción o etiquetas"
+            autoCorrect={false}
+            returnKeyType="search"
+            placeholder="Título, descripción o etiqueta"
+            maxLength={120}
+            value={draftQuery}
+            onChangeText={setDraftQuery}
+            onSubmitEditing={() => {
+              if (canSearch) setQuery(normalizedDraft);
+            }}
+            style={styles.searchInput}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Buscar entre mis publicaciones"
+            accessibilityState={{ disabled: !canSearch }}
+            disabled={!canSearch}
+            onPress={() => setQuery(normalizedDraft)}
+            style={[styles.filterButton, !canSearch && styles.disabled]}
+          >
+            <Text style={styles.filterText}>Buscar</Text>
+          </Pressable>
+        </View>
+        {!canSearch ? (
+          <Text accessibilityRole="alert" style={styles.error}>
+            Escribí al menos 2 caracteres o borrá la búsqueda.
+          </Text>
+        ) : null}
+        <Text style={styles.sectionLabel}>Visibilidad</Text>
         <View accessibilityRole="radiogroup" style={styles.filters}>
           {choices.map((option) => (
             <Pressable
@@ -190,6 +281,94 @@ export function OwnedResourcesScreen() {
             </Pressable>
           ))}
         </View>
+        <Text style={styles.sectionLabel}>Materia</Text>
+        {subjectResults?.failed ? (
+          <Text style={styles.error}>
+            No se pudieron consultar tus materias. Volvé a entrar para reintentar.
+          </Text>
+        ) : subjectResults?.data ? (
+          <>
+            <View accessibilityRole="radiogroup">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.filters}>
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityLabel="Todas las materias"
+                    accessibilityState={{ checked: subjectId === null }}
+                    onPress={() => setSubjectId(null)}
+                    style={[
+                      styles.filterButton,
+                      subjectId === null && styles.filterSelected,
+                    ]}
+                  >
+                    <Text style={styles.filterText}>Todas las materias</Text>
+                  </Pressable>
+                  {subjectResults.data.items.map((subject) => (
+                    <Pressable
+                      key={subject.subjectId}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`Materia ${subject.name}: ${subject.count} publicaciones`}
+                      accessibilityState={{ checked: subjectId === subject.subjectId }}
+                      onPress={() => setSubjectId(subject.subjectId)}
+                      style={[
+                        styles.filterButton,
+                        subjectId === subject.subjectId && styles.filterSelected,
+                      ]}
+                    >
+                      <Text style={styles.filterText}>
+                        {subject.name} ({subject.count})
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+            {subjectResults.data.truncated ? (
+              <Text style={styles.meta}>
+                Se muestran las 50 materias con más publicaciones.
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.meta}>Cargando materias…</Text>
+        )}
+        <Text style={styles.sectionLabel}>Ordenar por publicación</Text>
+        <View accessibilityRole="radiogroup" style={styles.filters}>
+          {([
+            { value: "newest", label: "Más recientes" },
+            { value: "oldest", label: "Más antiguos" },
+          ] as const).map((choice) => (
+            <Pressable
+              key={choice.value}
+              accessibilityRole="radio"
+              accessibilityLabel={choice.label}
+              accessibilityState={{ checked: order === choice.value }}
+              onPress={() => setOrder(choice.value)}
+              style={[
+                styles.filterButton,
+                order === choice.value && styles.filterSelected,
+              ]}
+            >
+              <Text style={styles.filterText}>{choice.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {hasFilters ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Limpiar búsqueda y filtros"
+            onPress={() => {
+              setDraftQuery("");
+              setQuery("");
+              setVisibility(null);
+              setSubjectId(null);
+              setOrder("newest");
+            }}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.buttonText}>Limpiar filtros</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {!current || current.kind === "loading" ? (
@@ -222,11 +401,11 @@ export function OwnedResourcesScreen() {
                 <Text style={styles.meta}>
                   {ready.data.nextCursor
                     ? "No hay resultados en esta página. Cargá más para continuar."
-                    : visibility
-                      ? "Todavía no tenés publicaciones con esta visibilidad."
+                    : hasFilters
+                      ? "No hay publicaciones que coincidan con estos filtros."
                       : "Todavía no publicaste apuntes. Podés crear tu primer recurso desde Crear."}
                 </Text>
-                {!visibility && !ready.data.nextCursor ? (
+                {!hasFilters && !ready.data.nextCursor ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Crear un apunte"
@@ -313,6 +492,18 @@ const styles = StyleSheet.create({
   title: { color: "#20202a", fontWeight: "700", fontSize: 18 },
   meta: { color: "#686875", lineHeight: 20, fontSize: 13 },
   filters: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  sectionLabel: { fontWeight: "700", color: "#20202a", fontSize: 14 },
+  searchRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  searchInput: {
+    minHeight: 46,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    color: "#20202a",
+    fontSize: 14,
+  },
   filterButton: {
     minHeight: 44,
     justifyContent: "center",

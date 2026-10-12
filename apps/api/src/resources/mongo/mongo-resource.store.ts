@@ -372,6 +372,21 @@ export class MongoResourceStore implements ResourceStore {
     };
   }
 
+  async listOwnedSubjects(
+    authorUserId: string,
+  ): ReturnType<ResourceStore['listOwnedSubjects']> {
+    const rows = await this.resources
+      .aggregate<{ subjectId: string; count: number }>([
+        { $match: { authorUserId, moderationState: 'available' } },
+        { $group: { _id: '$subjectId', count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 51 },
+        { $project: { _id: 0, subjectId: '$_id', count: 1 } },
+      ])
+      .exec();
+    return { items: rows.slice(0, 50), truncated: rows.length > 50 };
+  }
+
   async listOwnedResources(
     input: Parameters<ResourceStore['listOwnedResources']>[0],
   ): ReturnType<ResourceStore['listOwnedResources']> {
@@ -380,10 +395,24 @@ export class MongoResourceStore implements ResourceStore {
         authorUserId: input.authorUserId,
         moderationState: 'available',
         ...(input.visibility ? { visibility: input.visibility } : {}),
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+        ...(input.q
+          ? {
+              searchText: {
+                $regex: escapeRegex(input.q),
+                $options: 'i',
+              },
+            }
+          : {}),
         ...(input.after
           ? {
               $or: [
-                { createdAt: { $lt: input.after.createdAt } },
+                {
+                  createdAt: {
+                    [input.order === 'oldest' ? '$gt' : '$lt']:
+                      input.after.createdAt,
+                  },
+                },
                 {
                   createdAt: input.after.createdAt,
                   id: { $gt: input.after.id },
@@ -392,7 +421,7 @@ export class MongoResourceStore implements ResourceStore {
             }
           : {}),
       })
-      .sort({ createdAt: -1, id: 1 })
+      .sort({ createdAt: input.order === 'oldest' ? 1 : -1, id: 1 })
       .limit(input.limit + 1)
       .lean<ResourceRecord[]>()
       .exec();

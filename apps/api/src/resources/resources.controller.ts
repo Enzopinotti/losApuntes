@@ -54,6 +54,13 @@ export class ResourcesController {
   }
 
   @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get('mine/subjects')
+  @Header('Cache-Control', 'private, no-store')
+  ownedSubjects(@Req() request: AuthenticatedRequest) {
+    return this.resources.listOwnedSubjects(request.user.id);
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
   @Get('mine')
   @Header('Cache-Control', 'private, no-store')
   mine(
@@ -63,6 +70,9 @@ export class ResourcesController {
     return this.resources.listOwned(request.user.id, {
       limit: query.limit,
       ...(query.visibility ? { visibility: query.visibility } : {}),
+      ...(query.q ? { q: query.q } : {}),
+      ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+      ...(query.order ? { order: query.order } : {}),
       ...(query.cursor ? { cursor: query.cursor } : {}),
     });
   }

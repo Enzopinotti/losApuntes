@@ -26,7 +26,9 @@ function setup({
   const client = {
     request: async (path: string, options: Record<string, unknown>) => {
       calls.push({ path, options });
-      return { items: [], nextCursor: null };
+      return path === "/resources/mine/subjects"
+        ? { items: [], truncated: false }
+        : { items: [], nextCursor: null };
     },
   } as unknown as MobileApiClient;
   return {
@@ -81,4 +83,41 @@ test("an old session's response is rejected after credential changes", async () 
       error.code === "STALE_SESSION_AUTHORITY",
   );
   assert.equal(invalidations(), 1);
+});
+
+test("owner subject facets use a credentialed request without another user's ID", async () => {
+  const { api, calls } = setup();
+  assert.deepEqual(await api.listSubjects(), {
+    items: [], truncated: false,
+  });
+  assert.deepEqual(calls, [{
+    path: "/resources/mine/subjects",
+    options: { credential: "session-secret" },
+  }]);
+});
+
+test("all advanced owner filters are serialized in the server request", async () => {
+  const { api, calls } = setup();
+  await api.listOwned({
+    visibility: "shared",
+    q: "álgebra & SQL",
+    subjectId: "22222222-2222-4222-8222-222222222222",
+    order: "oldest",
+    cursor: "page=2",
+  });
+  assert.deepEqual(calls, [{
+    path: "/resources/mine?limit=25&visibility=shared&q=%C3%A1lgebra+%26+SQL&subjectId=22222222-2222-4222-8222-222222222222&order=oldest&cursor=page%3D2",
+    options: { credential: "session-secret" },
+  }]);
+});
+
+test("unauthorized account cannot enumerate its private subject facets", async () => {
+  const { api, calls } = setup({ credential: false });
+  await assert.rejects(
+    () => api.listSubjects(),
+    (error: unknown) =>
+      error instanceof ApiRequestError &&
+      error.code === "AUTHENTICATION_REQUIRED",
+  );
+  assert.deepEqual(calls, []);
 });
