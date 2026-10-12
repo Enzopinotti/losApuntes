@@ -15,6 +15,7 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 
 import {
   cancelCommunityComposerSubmission,
+  canRefreshCommunityQuestion,
   captureOwnedQuestionBaseline,
   communityAnswerDraftConfirmationTransition,
   communityFailure,
@@ -524,12 +525,16 @@ export function CommunityQuestionScreen({
   const snapshotFailure = visibleDetail ? detailFailure(visibleDetail) : null;
   const refreshing =
     authority.gate === "ready" && visibleDetail?.kind === "loading";
+  const canRefreshDetail =
+    !visibleDetail || canRefreshCommunityQuestion(visibleDetail);
 
   return (
     <ProductSurface
       title="Pregunta"
       description="Leé la conversación y respondé si el servidor habilita tu cuenta para hacerlo."
-      onRefresh={authority.gate === "ready" ? retry : undefined}
+      onRefresh={
+        authority.gate === "ready" && canRefreshDetail ? retry : undefined
+      }
       refreshing={refreshing}
     >
       <ActionButton label="Volver a la Red" onPress={() => router.back()} />
