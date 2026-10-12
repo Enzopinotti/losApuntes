@@ -194,6 +194,12 @@
   border-bottom: 1px solid #ececf1;
 }
 
+.organization-compact-list .author-profile-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 .organization-content-list article {
   padding: 1rem;
   border: 1px solid #ececf1;
