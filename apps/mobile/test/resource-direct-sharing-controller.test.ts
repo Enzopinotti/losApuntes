@@ -293,6 +293,10 @@ test("timeout never masquerades as a granted permission or retries automatically
     assert.equal(snapshot.outcome, "uncertain");
     assert.equal(snapshot.failure, "timeout");
   }
+  assert.equal(
+    await controller.mutate("session-a", "resource-a", "grant"),
+    false,
+  );
   assert.equal(calls, 1);
 });
 
