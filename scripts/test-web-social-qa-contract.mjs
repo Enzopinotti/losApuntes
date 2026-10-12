@@ -138,6 +138,22 @@ assert.match(questions, /answersNextCursor/u);
 assert.match(questions, /answers-more/u);
 assert.match(questions, /appendAnswers/u);
 assert.match(questions, /Cargar más respuestas/u);
+assert.match(questions, /function CommunityAuthorAttribution/u);
+assert.match(questions, /profileId\.trim\(\) !== profileId/u);
+assert.match(
+  questions,
+  /to=\{`\/p\/\$\{encodeURIComponent\(profileId\)\}`\}/u,
+);
+assert.match(questions, /aria-label=\{`Ver perfil de \$\{displayName\}`\}/u);
+assert.equal(
+  (
+    questions.match(
+      /<CommunityAuthorAttribution[\s\S]{0,80}author=\{(?:selected\.question|answer)\.author\}/gu,
+    ) ?? []
+  ).length,
+  2,
+);
+assert.match(communityStyles, /\.community-author-link:focus-visible/u);
 assert.doesNotMatch(questions, /localStorage|sessionStorage/u);
 
 const notifications = await read('apps/web/src/pages/Notifications.tsx');
