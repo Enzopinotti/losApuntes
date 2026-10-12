@@ -331,16 +331,17 @@ test("late people search cannot overwrite a new query or a new account", async (
 
 test("suspension cancels in-flight share and prevents a stale success message", async () => {
   const pending = deferred<{ shared: true }>();
+  const started = deferred<void>();
   let signal: AbortSignal | undefined;
   const controller = await selectedController({
     grant: async (_resourceId, _profileId, nextSignal) => {
       signal = nextSignal;
+      started.resolve(undefined);
       return pending.promise;
     },
   });
   const first = controller.mutate("session-a", "resource-a", "grant");
-  // The preflight GET is asynchronous: give it one microtask to resolve.
-  await Promise.resolve();
+  await started.promise;
   controller.suspend("session-a");
   pending.resolve({ shared: true });
   assert.equal(await first, false);
@@ -396,4 +397,27 @@ test("a stale resource blocks further searches and grants until a fresh GET rese
   assert.equal(snapshot.visibility, "private");
   assert.equal(snapshot.outcome, null);
   assert.equal(snapshot.selected, null);
+});
+
+test("GET preflight failure never invokes PUT and remains a definite error", async () => {
+  let grantCalls = 0;
+  const controller = await selectedController({
+    resource: async () => {
+      throw new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "Offline");
+    },
+    grant: async () => {
+      grantCalls += 1;
+      return { shared: true };
+    },
+  });
+  assert.equal(
+    await controller.mutate("session-a", "resource-a", "grant"),
+    false,
+  );
+  assert.equal(grantCalls, 0);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.outcome, "error");
+  assert.equal(snapshot.failure, "offline");
 });
