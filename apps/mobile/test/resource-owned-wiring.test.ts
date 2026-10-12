@@ -34,11 +34,12 @@ test("filters and next-page controls use the API rather than local-only filterin
   );
   assert.match(screen, /accessibilityRole="radiogroup"/u);
   assert.match(screen, /setVisibility\(option.value\)/u);
-  assert.match(screen, /controller.load\(authorityKey, visibility\)/u);
+  assert.match(screen, /controller.load\(authorityKey, visibility,/u);
   assert.match(screen, /controller.loadMore\(authorityKey\)/u);
   assert.match(controller, /this.api.listOwned\(/u);
   assert.match(controller, /appendUnique\(/u);
   assert.match(controller, /operation.controller.abort\(\)/u);
+  assert.match(controller, /latest.filters !== operation.filters/u);
 });
 
 test("owner endpoint uses verified identity and authorization before projection", () => {
@@ -52,4 +53,25 @@ test("owner endpoint uses verified identity and authorization before projection"
   assert.match(routes, /@Header\('Cache-Control', 'private, no-store'\)/u);
   assert.match(store, /authorUserId: input.authorUserId/u);
   assert.match(store, /moderationState: 'available'/u);
+  assert.match(store, /input.subjectId/u);
+  assert.match(store, /searchText:/u);
+  assert.match(store, /input.order === 'oldest'/u);
+});
+
+test("owner search, subjects, chronological order and reset are server-backed", () => {
+  const screen = file("../src/features/resources/owned-resources-screen.tsx");
+  const controller = file("../src/features/resources/resource-owned-controller.ts");
+  const api = file("../src/features/resources/resource-owned-api.ts");
+  assert.match(screen, /Buscar en todas mis publicaciones/u);
+  assert.match(screen, /onSubmitEditing/u);
+  assert.match(screen, /setQuery\(normalizedDraft\)/u);
+  assert.match(screen, /listSubjects\(active.signal\)/u);
+  assert.match(screen, /setSubjectId\(subject.subjectId\)/u);
+  assert.match(screen, /setOrder\(choice.value\)/u);
+  assert.match(screen, /Limpiar filtros/u);
+  assert.match(screen, /subjectResults.data.truncated/u);
+  assert.match(controller, /serverQuery\(current.filters\)/u);
+  assert.match(api, /query.set\("subjectId"/u);
+  assert.match(api, /query.set\("order"/u);
+  assert.match(api, /query.set\("q"/u);
 });
