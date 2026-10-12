@@ -144,7 +144,7 @@ function OwnerStatisticsData({
                 <View
                   style={[
                     styles.barFill,
-                    { width: `${Math.round((resource.saves / maxSaves) * 100)}%` },
+                    { width: `${Math.round((resource.saves / maxSaves) * 100)}%` as `${number}%` },
                   ]}
                 />
               </View>
