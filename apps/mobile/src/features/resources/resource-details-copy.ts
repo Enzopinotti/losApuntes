@@ -64,7 +64,7 @@ export function resourceFileSizeLabel(byteSize: number): string {
 
 export function resourceRowAccessibilityLabel(
   resource: ResourceRowAccessibilityDetails,
-  action: "Abrir recurso" | "Abrir recurso guardado",
+  action: "Abrir recurso" | "Abrir recurso guardado" | "Administrar mi apunte",
 ): string {
   return `${action}: ${resource.title}. Materia: ${resource.subjectName}. Autor: ${resource.authorName ?? "no disponible"}. Formato: ${resourceFileTypeLabel(resource.mimeType)}. Tamaño: ${resourceFileSizeLabel(resource.byteSize)}.`;
 }
