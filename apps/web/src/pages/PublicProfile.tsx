@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -9,6 +9,7 @@ import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
+import { PublicProfileSocialActions } from "../features/community/public-profile-social-actions";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Profile.scss";
 
@@ -56,17 +57,21 @@ const PublicProfile = () => {
     scopeKey: string;
     loadingMore: boolean;
     error: string | null;
+    loadMoreError: string | null;
   } | null>(null);
+  const pagingRef = useRef<{ scopeKey: string; cursor: string } | null>(null);
   const currentViewState =
     viewState?.scopeKey === profileScopeKey ? viewState : null;
   const loadingMore = currentViewState?.loadingMore ?? false;
   const error = currentViewState?.error ?? null;
+  const loadMoreError = currentViewState?.loadMoreError ?? null;
 
   useEffect(() => {
     if (!profileId) {
       setViewState({
         scopeKey: profileScopeKey,
         loadingMore: false,
+        loadMoreError: null,
         error: "Perfil inválido.",
       });
       return;
@@ -77,6 +82,7 @@ const PublicProfile = () => {
     setViewState({
       scopeKey: profileScopeKey,
       loadingMore: false,
+      loadMoreError: null,
       error: null,
     });
 
@@ -95,6 +101,7 @@ const PublicProfile = () => {
         setViewState({
           scopeKey: profileScopeKey,
           loadingMore: false,
+          loadMoreError: null,
           error:
             isProfileApiError(nextError) && nextError.status === 404
               ? "Este perfil no existe o ya no está disponible."
@@ -110,20 +117,25 @@ const PublicProfile = () => {
     if (
       !profileId ||
       !snapshot?.profile.activitiesNextCursor ||
-      currentSnapshotState?.profileId !== profileId
+      currentSnapshotState?.profileId !== profileId ||
+      loadingMore ||
+      pagingRef.current?.scopeKey === profileScopeKey
     ) {
       return;
     }
 
     const target = snapshot;
     const cursor = target.profile.activitiesNextCursor;
+    if (!cursor) return;
+    pagingRef.current = { scopeKey: profileScopeKey, cursor };
     const ticket = beginPagination();
     if (!isPaginationCurrent(ticket)) return;
-    setViewState({
+    setViewState((previous) => ({
       scopeKey: profileScopeKey,
       loadingMore: true,
-      error: null,
-    });
+      error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+      loadMoreError: null,
+    }));
 
     try {
       const page = await profileApi.publicActivities(
@@ -159,12 +171,19 @@ const PublicProfile = () => {
       });
     } catch {
       if (!isPaginationCurrent(ticket)) return;
-      setViewState({
-        scopeKey: profileScopeKey,
-        loadingMore: true,
-        error: "No pudimos cargar más actividades de este perfil.",
-      });
+      setViewState((previous) =>
+        previous?.scopeKey === profileScopeKey
+          ? {
+              ...previous,
+              loadMoreError:
+                "No pudimos cargar más actividades. Reintentá cuando vuelva la conexión.",
+            }
+          : previous,
+      );
     } finally {
+      if (pagingRef.current?.scopeKey === profileScopeKey) {
+        pagingRef.current = null;
+      }
       if (finishPagination(ticket)) {
         setViewState((current) =>
           current?.scopeKey === profileScopeKey
@@ -202,8 +221,24 @@ const PublicProfile = () => {
         <div>
           <p className="profile-eyebrow">Perfil en Los Apuntes</p>
           <h1>{profile.about?.displayName ?? "Perfil privado"}</h1>
+          {profile.professional?.headline && (
+            <p className="public-profile-headline">
+              {profile.professional.headline}
+            </p>
+          )}
           {profile.about?.bio && <p>{profile.about.bio}</p>}
         </div>
+        {profile.about?.displayName && status === "authenticated" && (
+          <PublicProfileSocialActions
+            profileId={profile.id}
+            viewerScopeKey={viewerScopeKey}
+          />
+        )}
+        {profile.about?.displayName && status === "anonymous" && (
+          <Link className="public-profile-signin" to="/login">
+            Ingresá para seguir o conectar
+          </Link>
+        )}
       </header>
 
       <div className="profile-grid">
@@ -279,6 +314,11 @@ const PublicProfile = () => {
                 ))}
               </ul>
             )}
+            {loadMoreError && (
+              <p className="profile-error" role="alert">
+                {loadMoreError}
+              </p>
+            )}
             {profile.activitiesNextCursor && (
               <button
                 type="button"
@@ -286,7 +326,11 @@ const PublicProfile = () => {
                 disabled={loadingMore}
                 onClick={() => void loadMoreActivities()}
               >
-                {loadingMore ? "Cargando…" : "Cargar más actividades"}
+                {loadingMore
+                  ? "Cargando…"
+                  : loadMoreError
+                    ? "Reintentar actividades"
+                    : "Cargar más actividades"}
               </button>
             )}
           </section>
