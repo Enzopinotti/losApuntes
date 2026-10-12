@@ -14,6 +14,19 @@ export type AcademicSubjectOption = {
   name: string;
 };
 
+export type ResourceShareGrantView = {
+  profileId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  grantedAt: string;
+};
+
+export type ResourceShareGrantsPage = {
+  items: ResourceShareGrantView[];
+  nextCursor: string | null;
+  resourceRevision: number;
+};
+
 export type ResourceView = {
   id: string;
   title: string;
