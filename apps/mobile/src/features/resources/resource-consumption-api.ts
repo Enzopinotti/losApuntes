@@ -3,6 +3,7 @@ import type { ResourceView } from "@losapuntes/contracts";
 import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 
 import type { SessionController } from "../session/session-controller";
+import type { ResourceReportInput } from "./resource-report-policy";
 
 export type ResourceAccessResponse = {
   file: ResourceView["file"];
@@ -59,6 +60,12 @@ export interface MobileResourceConsumptionTransport {
     cursor?: string,
     signal?: AbortSignal,
   ): Promise<ResourceSavedPage>;
+  report(
+    credential: string,
+    resourceId: string,
+    input: ResourceReportInput,
+    signal?: AbortSignal,
+  ): Promise<{ report: { id: string; status: "pending" | "resolved" | "dismissed" } }>;
 }
 
 export class MobileResourceConsumptionHttpTransport implements MobileResourceConsumptionTransport {
@@ -125,6 +132,22 @@ export class MobileResourceConsumptionHttpTransport implements MobileResourceCon
       },
     );
   }
+
+  report(
+    credential: string,
+    resourceId: string,
+    input: ResourceReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{
+      report: { id: string; status: "pending" | "resolved" | "dismissed" };
+    }>(`/resources/${encodeURIComponent(resourceId)}/reports`, {
+      method: "POST",
+      credential,
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
 }
 
 export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
@@ -164,6 +187,12 @@ export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
   saved(cursor?: string, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.saved(credential, cursor, signal),
+    );
+  }
+
+  report(resourceId: string, input: ResourceReportInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.report(credential, resourceId, input, signal),
     );
   }
 
