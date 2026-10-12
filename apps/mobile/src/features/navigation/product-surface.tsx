@@ -1,5 +1,8 @@
-import type { ReactNode, RefObject } from "react";
+import type { ReactElement, ReactNode, RefObject } from "react";
 import {
+  FlatList,
+  type FlatList as FlatListInstance,
+  type ListRenderItem,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -12,7 +15,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-interface ProductSurfaceProps {
+export interface ProductSurfaceListProps<T> {
+  listKey?: string | undefined;
+  data: readonly T[];
+  renderItem: ListRenderItem<T>;
+  keyExtractor: (item: T, index: number) => string;
+  ref?: RefObject<FlatListInstance<T> | null> | undefined;
+  footer?: ReactElement | null;
+  onEndReached?: (() => void) | undefined;
+  onEndReachedThreshold?: number | undefined;
+}
+
+interface ProductSurfaceProps<T = never> {
   title: string;
   description: string;
   children?: ReactNode;
@@ -23,9 +37,10 @@ interface ProductSurfaceProps {
     ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | undefined;
   onScrollLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onContentSizeChange?: ((width: number, height: number) => void) | undefined;
+  flatList?: ProductSurfaceListProps<T> | undefined;
 }
 
-export function ProductSurface({
+export function ProductSurface<T = never>({
   title,
   description,
   children,
@@ -35,32 +50,71 @@ export function ProductSurface({
   onScroll,
   onScrollLayout,
   onContentSizeChange,
-}: ProductSurfaceProps) {
+  flatList,
+}: ProductSurfaceProps<T>) {
+  const heading = (
+    <View style={styles.heading}>
+      <Text accessibilityRole="header" style={styles.title}>
+        {title}
+      </Text>
+      <Text style={styles.description}>{description}</Text>
+    </View>
+  );
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
-      <ScrollView
-        ref={scrollViewRef}
-        onScroll={onScroll}
-        onLayout={onScrollLayout}
-        onContentSizeChange={onContentSizeChange}
-        scrollEventThrottle={16}
-        contentContainerStyle={styles.content}
-        contentInsetAdjustmentBehavior="automatic"
-        keyboardShouldPersistTaps="handled"
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          ) : undefined
-        }
-      >
-        <View style={styles.heading}>
-          <Text accessibilityRole="header" style={styles.title}>
-            {title}
-          </Text>
-          <Text style={styles.description}>{description}</Text>
-        </View>
-        {children}
-      </ScrollView>
+      {flatList ? (
+        <FlatList
+          key={flatList.listKey}
+          ref={flatList.ref}
+          data={flatList.data}
+          renderItem={flatList.renderItem}
+          keyExtractor={flatList.keyExtractor}
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
+              {heading}
+              {children}
+            </View>
+          }
+          ListFooterComponent={flatList.footer}
+          onEndReached={flatList.onEndReached}
+          onEndReachedThreshold={flatList.onEndReachedThreshold ?? 0.6}
+          onScroll={onScroll}
+          onLayout={onScrollLayout}
+          onContentSizeChange={onContentSizeChange}
+          scrollEventThrottle={16}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          contentContainerStyle={styles.content}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            ) : undefined
+          }
+        />
+      ) : (
+        <ScrollView
+          ref={scrollViewRef}
+          onScroll={onScroll}
+          onLayout={onScrollLayout}
+          onContentSizeChange={onContentSizeChange}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.content}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            ) : undefined
+          }
+        >
+          {heading}
+          {children}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -98,6 +152,9 @@ const styles = StyleSheet.create({
   },
   heading: {
     gap: 8,
+  },
+  listHeader: {
+    gap: 20,
   },
   title: {
     fontSize: 30,
