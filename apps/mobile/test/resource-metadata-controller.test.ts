@@ -51,6 +51,9 @@ function stub(
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.tags !== undefined ? { tags: input.tags } : {}),
+        ...(input.visibility !== undefined
+          ? { visibility: input.visibility }
+          : {}),
       }),
     }),
     ...overrides,
@@ -247,4 +250,111 @@ test("unverified PATCH response does not claim success", async () => {
   );
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind === "ready" ? snapshot.outcome : null, "uncertain");
+});
+
+test("visibility PATCH succeeds only with server-confirmed visibility", async () => {
+  const changes: string[] = [];
+  const controller = new MobileResourceMetadataController(
+    stub({
+      update: async (id, input) => {
+        changes.push(`${id}:${input.expectedRevision}:${input.visibility}`);
+        return {
+          resource: resource({
+            visibility: input.visibility,
+            revision: input.expectedRevision + 1,
+          }),
+        };
+      },
+    }),
+  );
+  controller.setScope("session", resource());
+  assert.equal(
+    await controller.submit("session", "r1", {
+      ...resourceMetadataDraft(resource()),
+      visibility: "public",
+    }),
+    true,
+  );
+  assert.deepEqual(changes, ["r1:2:public"]);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.resource.visibility, "public");
+  assert.equal(snapshot.resource.revision, 3);
+  assert.equal(snapshot.outcome, "saved");
+});
+
+test("visibility response mismatch never claims a successful permission change", async () => {
+  const controller = new MobileResourceMetadataController(
+    stub({
+      update: async () => ({
+        resource: resource({ revision: 3, visibility: "private" }),
+      }),
+    }),
+  );
+  controller.setScope("session", resource());
+  assert.equal(
+    await controller.submit("session", "r1", {
+      ...resourceMetadataDraft(resource()),
+      visibility: "public",
+    }),
+    false,
+  );
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind === "ready" ? snapshot.outcome : null, "uncertain");
+});
+
+test("concurrent visibility conflict reloads current server access state", async () => {
+  const controller = new MobileResourceMetadataController(
+    stub({
+      update: async () => {
+        throw new ApiRequestError(
+          "conflict",
+          409,
+          "RESOURCE_REVISION_CONFLICT",
+          "Revision changed",
+        );
+      },
+      resource: async () => ({
+        resource: resource({ revision: 5, visibility: "shared" }),
+      }),
+    }),
+  );
+  controller.setScope("session", resource());
+  assert.equal(
+    await controller.submit("session", "r1", {
+      ...resourceMetadataDraft(resource()),
+      visibility: "public",
+    }),
+    false,
+  );
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.outcome, "conflict");
+  assert.equal(snapshot.resource.visibility, "shared");
+  assert.equal(snapshot.resource.revision, 5);
+});
+
+test("network ambiguity reconciles visibility instead of blindly retrying", async () => {
+  const controller = new MobileResourceMetadataController(
+    stub({
+      update: async () => {
+        throw new ApiRequestError("timeout", null, "TIMEOUT", "Timeout");
+      },
+      resource: async () => ({
+        resource: resource({ revision: 3, visibility: "public" }),
+      }),
+    }),
+  );
+  controller.setScope("session", resource());
+  assert.equal(
+    await controller.submit("session", "r1", {
+      ...resourceMetadataDraft(resource()),
+      visibility: "public",
+    }),
+    true,
+  );
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind === "ready" ? snapshot.outcome : null, "saved");
 });

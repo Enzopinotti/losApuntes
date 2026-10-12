@@ -419,7 +419,7 @@ export function MobileResourceDetailsScreen({
                 Tamaño: {resourceFileSizeLabel(resource.file.byteSize)}
               </Text>
               <Text style={styles.meta}>
-                Visibilidad: {resourceVisibilityLabel(resource.visibility)}
+                Visibilidad: {resourceVisibilityLabel(currentMetadata?.resource.visibility ?? resource.visibility)}
               </Text>
             </View>
 

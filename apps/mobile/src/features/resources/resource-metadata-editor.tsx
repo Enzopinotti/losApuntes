@@ -16,12 +16,15 @@ import {
   RESOURCE_TAG_MAX_COUNT,
   RESOURCE_TAG_MAX_LENGTH,
   RESOURCE_TITLE_MAX_LENGTH,
+  RESOURCE_VISIBILITY_OPTIONS,
+  resourceVisibilityWarning,
   type ResourceMetadataDraft,
 } from "./resource-metadata-policy";
 import {
   MobileResourceMetadataController,
   type MobileResourceMetadataSnapshot,
 } from "./resource-metadata-controller";
+import { resourceVisibilityLabel } from "./resource-details-copy";
 
 const errorCopy = {
   offline: "No hay conexión para verificar los cambios.",
@@ -47,6 +50,7 @@ export function ResourceMetadataEditor({
   onUpdated: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [visibilityConfirmed, setVisibilityConfirmed] = useState(false);
   const [draft, setDraft] = useState<ResourceMetadataDraft>(
     resourceMetadataDraft(resource),
   );
@@ -58,16 +62,27 @@ export function ResourceMetadataEditor({
       : null;
   const visible = current?.resource ?? resource;
   const validation = validateResourceMetadata(visible, draft);
+  const selectedVisibility = draft.visibility ?? visible.visibility;
+  const visibilityChanged = selectedVisibility !== visible.visibility;
+  const visibilityWarning = resourceVisibilityWarning(
+    visible.visibility,
+    selectedVisibility,
+  );
+  const readyToSave =
+    validation.kind === "valid" &&
+    (!visibilityChanged || visibilityConfirmed);
   const busy = current?.busy !== null && current?.busy !== undefined;
 
   useEffect(() => {
     setOpen(false);
+    setVisibilityConfirmed(false);
     setDraft(resourceMetadataDraft(resource));
   }, [authorityKey, resource.id, resource.revision]);
 
   useEffect(() => {
     if (current?.outcome === "conflict" || current?.outcome === "saved") {
       setOpen(false);
+      setVisibilityConfirmed(false);
       setDraft(resourceMetadataDraft(visible));
     }
   }, [current?.outcome, visible.revision]);
@@ -77,12 +92,13 @@ export function ResourceMetadataEditor({
   const start = () => {
     if (!authorityKey || !current || busy || current.outcome === "uncertain") return;
     setDraft(resourceMetadataDraft(current.resource));
+    setVisibilityConfirmed(false);
     controller.clearOutcome(authorityKey, resource.id);
     setOpen(true);
   };
 
   const submit = async () => {
-    if (!authorityKey || !current || validation.kind !== "valid") return;
+    if (!authorityKey || !current || !readyToSave) return;
     const succeeded = await controller.submit(authorityKey, resource.id, draft);
     const latest = controller.getSnapshot();
     if (
@@ -166,6 +182,68 @@ export function ResourceMetadataEditor({
             }
             style={styles.input}
           />
+          <Text accessibilityRole="header" style={styles.heading}>
+            Visibilidad del apunte
+          </Text>
+          <Text style={styles.helper}>
+            Visibilidad actual: {resourceVisibilityLabel(visible.visibility)}
+          </Text>
+          <View
+            accessibilityRole="radiogroup"
+            style={styles.visibilityChoices}
+          >
+            {RESOURCE_VISIBILITY_OPTIONS.map((option) => (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityLabel={option.label}
+                accessibilityHint={option.detail}
+                accessibilityState={{
+                  checked: selectedVisibility === option.value,
+                  disabled: busy,
+                }}
+                disabled={busy}
+                onPress={() => {
+                  setDraft((previous) => ({
+                    ...previous,
+                    visibility: option.value,
+                  }));
+                  setVisibilityConfirmed(false);
+                }}
+                style={[
+                  styles.visibilityOption,
+                  selectedVisibility === option.value &&
+                    styles.visibilityOptionSelected,
+                  busy && styles.disabled,
+                ]}
+              >
+                <Text style={styles.visibilityName}>{option.label}</Text>
+                <Text style={styles.helper}>{option.detail}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {visibilityWarning ? (
+            <View style={styles.visibilityWarning}>
+              <Text style={styles.warningText}>{visibilityWarning}</Text>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityLabel="Confirmo las consecuencias del cambio de visibilidad"
+                accessibilityState={{
+                  checked: visibilityConfirmed,
+                  disabled: busy,
+                }}
+                disabled={busy}
+                onPress={() =>
+                  setVisibilityConfirmed((previous) => !previous)
+                }
+                style={styles.confirmRow}
+              >
+                <Text style={styles.confirmText}>
+                  {visibilityConfirmed ? "☑" : "☐"} Entiendo y confirmo el cambio
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
           {validation.kind === "invalid" ? (
             <Text accessibilityRole="alert" style={styles.error}>
               {validation.message}
@@ -182,13 +260,13 @@ export function ResourceMetadataEditor({
             accessibilityRole="button"
             accessibilityLabel="Guardar cambios del apunte"
             accessibilityState={{
-              disabled: busy || validation.kind !== "valid",
+              disabled: busy || !readyToSave,
             }}
-            disabled={busy || validation.kind !== "valid"}
+            disabled={busy || !readyToSave}
             onPress={() => void submit()}
             style={[
               styles.primaryButton,
-              (busy || validation.kind !== "valid") && styles.disabled,
+              (busy || !readyToSave) && styles.disabled,
             ]}
           >
             {busy ? (
@@ -210,12 +288,14 @@ export function ResourceMetadataEditor({
       ) : (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Editar título, descripción y etiquetas de ${visible.title}`}
+          accessibilityLabel={`Editar título, descripción, etiquetas y visibilidad de ${visible.title}`}
           disabled={!authorityKey || busy}
           onPress={start}
           style={[styles.button, busy && styles.disabled]}
         >
-          <Text style={styles.buttonText}>Editar título, descripción y etiquetas</Text>
+          <Text style={styles.buttonText}>
+            Editar datos y visibilidad
+          </Text>
         </Pressable>
       )}
     </View>
@@ -238,6 +318,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   description: { minHeight: 104 },
+  visibilityChoices: { gap: 8 },
+  visibilityOption: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
+  visibilityOptionSelected: {
+    borderColor: "#43366a",
+    backgroundColor: "#f1eff8",
+  },
+  visibilityName: { color: "#20202a", fontSize: 15, fontWeight: "700" },
+  visibilityWarning: {
+    borderWidth: 1,
+    borderColor: "#b58a44",
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  warningText: { color: "#785313", fontSize: 14, lineHeight: 20 },
+  confirmRow: {
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  confirmText: { color: "#24243a", fontSize: 14, fontWeight: "700" },
   button: {
     minHeight: 46,
     alignItems: "center",

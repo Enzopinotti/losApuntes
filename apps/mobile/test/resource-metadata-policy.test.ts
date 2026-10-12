@@ -10,6 +10,8 @@ import {
   RESOURCE_TAG_MAX_COUNT,
   RESOURCE_TAG_MAX_LENGTH,
   RESOURCE_TITLE_MAX_LENGTH,
+  RESOURCE_VISIBILITY_OPTIONS,
+  resourceVisibilityWarning,
 } from "../src/features/resources/resource-metadata-policy";
 
 function resource(overrides: Partial<ResourceView> = {}): ResourceView {
@@ -43,6 +45,7 @@ test("editing starts with the authenticated resource metadata", () => {
     title: "Álgebra inicial",
     description: "Un resumen",
     tagsText: "parcial, apuntes",
+    visibility: "private",
   });
   const validation = validateResourceMetadata(
     resource(),
@@ -189,5 +192,115 @@ test("description cleanup and Unicode tag dedupe follow server rules", () => {
       tagsText: "ＡＢＣ, ABC",
     }).kind,
     "invalid",
+  );
+});
+
+test("visibility options follow backend's private/shared/public contract", () => {
+  assert.deepEqual(
+    RESOURCE_VISIBILITY_OPTIONS.map((option) => option.value),
+    ["private", "shared", "public"],
+  );
+  assert.equal(resourceVisibilityWarning("private", "private"), null);
+  assert.match(resourceVisibilityWarning("private", "public") ?? "", /cualquier persona/u);
+  assert.match(resourceVisibilityWarning("private", "shared") ?? "", /permisos explícitos/u);
+});
+
+test("leaving shared explicitly warns that individual grants are deleted", () => {
+  assert.match(
+    resourceVisibilityWarning("shared", "private") ?? "",
+    /no se recuperarán/i,
+  );
+  assert.match(
+    resourceVisibilityWarning("shared", "public") ?? "",
+    /se eliminarán los permisos individuales/i,
+  );
+});
+
+test("visibility-only PATCH uses one revision and no unrelated metadata", () => {
+  const original = resource();
+  assert.deepEqual(
+    validateResourceMetadata(original, {
+      ...resourceMetadataDraft(original),
+      visibility: "shared",
+    }),
+    {
+      kind: "valid",
+      input: { expectedRevision: 4, visibility: "shared" },
+    },
+  );
+  assert.deepEqual(
+    validateResourceMetadata(original, {
+      ...resourceMetadataDraft(original),
+      visibility: "public",
+    }),
+    {
+      kind: "valid",
+      input: { expectedRevision: 4, visibility: "public" },
+    },
+  );
+});
+
+test("visibility changes can be combined with a title edit in a single PATCH", () => {
+  const original = resource();
+  const result = validateResourceMetadata(original, {
+    ...resourceMetadataDraft(original),
+    title: "Nuevo título",
+    visibility: "public",
+  });
+  assert.deepEqual(result, {
+    kind: "valid",
+    input: {
+      expectedRevision: 4,
+      title: "Nuevo título",
+      visibility: "public",
+    },
+  });
+});
+
+test("unauthorized, invalid or no-op visibility cannot create a PATCH", () => {
+  const original = resource();
+  assert.equal(
+    validateResourceMetadata(
+      resource({ capabilities: { edit: false, manageShares: false } }),
+      { ...resourceMetadataDraft(original), visibility: "public" },
+    ).kind,
+    "invalid",
+  );
+  assert.equal(
+    validateResourceMetadata(original, {
+      ...resourceMetadataDraft(original),
+      visibility: "unsupported" as "private",
+    }).kind,
+    "invalid",
+  );
+  assert.equal(
+    validateResourceMetadata(original, {
+      ...resourceMetadataDraft(original),
+      visibility: "private",
+    }).kind,
+    "unchanged",
+  );
+});
+
+test("matching response must confirm visibility and a strictly newer revision", () => {
+  const original = resource({ visibility: "shared" });
+  const input = { expectedRevision: 4, visibility: "public" as const };
+  const updated = resource({ visibility: "public", revision: 5 });
+  assert.equal(resourceMetadataMatches(updated, original, input), true);
+  assert.equal(
+    resourceMetadataMatches(
+      { ...updated, visibility: "private" },
+      original,
+      input,
+    ),
+    false,
+  );
+  assert.equal(
+    resourceMetadataMatches(
+      { ...updated, revision: 4 },
+      original,
+      input,
+    ),
+    false,
   );
 });

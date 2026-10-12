@@ -34,10 +34,28 @@ test("resource metadata update uses existing authorized and revisioned PATCH", (
   assert.match(controller, /this\.api\.resource\(/u);
 });
 
-test("metadata editor does not replace file, identity or academic context", () => {
+test("resource editor changes visibility but not file, author or academic context", () => {
   const policy = source("../src/features/resources/resource-metadata-policy.ts");
-  assert.doesNotMatch(policy, /input\.(?:assetId|authorUserId|subjectId|courseOfferingId|visibility)\s*=/u);
+  assert.doesNotMatch(
+    policy,
+    /input\.(?:assetId|authorUserId|subjectId|courseOfferingId)\s*=/u,
+  );
   assert.match(policy, /input\.title\s*=/u);
   assert.match(policy, /input\.description\s*=/u);
   assert.match(policy, /input\.tags\s*=/u);
+  assert.match(policy, /input\.visibility\s*=/u);
+});
+
+test("visibility requires a separate user acknowledgement before enabling save", () => {
+  const editor = source("../src/features/resources/resource-metadata-editor.tsx");
+  const detail = source("../src/features/resources/resource-details-screen.tsx");
+  assert.match(editor, /RESOURCE_VISIBILITY_OPTIONS\.map/u);
+  assert.match(editor, /resourceVisibilityWarning\(/u);
+  assert.match(editor, /accessibilityRole="radiogroup"/u);
+  assert.match(editor, /accessibilityRole="radio"/u);
+  assert.match(editor, /accessibilityRole="checkbox"/u);
+  assert.match(editor, /visibilityConfirmed/u);
+  assert.match(editor, /!visibilityChanged \|\| visibilityConfirmed/u);
+  assert.match(editor, /setVisibilityConfirmed\(false\)/u);
+  assert.match(detail, /currentMetadata\?\.resource\.visibility/u);
 });
