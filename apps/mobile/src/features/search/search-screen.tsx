@@ -29,6 +29,7 @@ import { useAcademicContext } from "@/features/academic/academic-context-provide
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import {
+  resourceAuthorAction,
   resourceFileSizeLabel,
   resourceFileTypeLabel,
   resourceRowAccessibilityLabel,
@@ -73,42 +74,62 @@ const failureCopy: Record<string, string> = {
 function ResourceResult({
   resource,
   onPress,
+  onOpenProfile,
 }: {
   resource: ResourceView;
   onPress: () => void;
+  onOpenProfile: (profileId: string) => void;
 }) {
+  const authorAction = resourceAuthorAction(resource.author);
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={resourceRowAccessibilityLabel(
-        {
-          title: resource.title,
-          subjectName: resource.academic.subject.name,
-          authorName: resource.author?.displayName ?? null,
-          mimeType: resource.file.mimeType,
-          byteSize: resource.file.byteSize,
-        },
-        "Abrir recurso",
-      )}
-      onPress={onPress}
-      style={styles.resultRow}
-    >
-      <Text style={styles.resultTitle}>{resource.title}</Text>
-      <Text style={styles.meta}>
-        {resource.academic.subject.name} ·{" "}
-        {resource.author?.displayName ?? "Autor no disponible"}
-      </Text>
-      {resource.description ? (
-        <Text numberOfLines={2} style={styles.copy}>
-          {resource.description}
+    <View style={styles.resultRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={resourceRowAccessibilityLabel(
+          {
+            title: resource.title,
+            subjectName: resource.academic.subject.name,
+            authorName: resource.author?.displayName ?? null,
+            mimeType: resource.file.mimeType,
+            byteSize: resource.file.byteSize,
+          },
+          "Abrir recurso",
+        )}
+        onPress={onPress}
+        style={styles.resourceOpenAction}
+      >
+        <Text style={styles.resultTitle}>{resource.title}</Text>
+        <Text style={styles.meta}>{resource.academic.subject.name}</Text>
+        {resource.description ? (
+          <Text numberOfLines={2} style={styles.copy}>
+            {resource.description}
+          </Text>
+        ) : null}
+        <Text style={styles.meta}>
+          {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
+          {resourceFileSizeLabel(resource.file.byteSize)}
         </Text>
+        <Text style={styles.actionLabel}>Ver recurso</Text>
+      </Pressable>
+      {resource.author ? (
+        authorAction ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={authorAction.accessibilityLabel}
+            accessibilityHint={authorAction.accessibilityHint}
+            onPress={() => onOpenProfile(authorAction.profileId)}
+            style={styles.resourceAuthorAction}
+          >
+            <Text style={styles.resourceAuthorLabel}>
+              Por {resource.author.displayName}
+            </Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.meta}>Por {resource.author.displayName}</Text>
+        )
       ) : null}
-      <Text style={styles.meta}>
-        {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
-        {resourceFileSizeLabel(resource.file.byteSize)}
-      </Text>
-      <Text style={styles.actionLabel}>Ver recurso</Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -116,10 +137,12 @@ function ResourceGroup({
   title,
   resources,
   onOpen,
+  onOpenProfile,
 }: {
   title: string;
   resources: ResourceView[];
   onOpen: (resource: ResourceView) => void;
+  onOpenProfile: (profileId: string) => void;
 }) {
   return (
     <View style={styles.card}>
@@ -134,6 +157,7 @@ function ResourceGroup({
             key={resource.id}
             resource={resource}
             onPress={() => onOpen(resource)}
+            onOpenProfile={onOpenProfile}
           />
         ))
       )}
@@ -216,6 +240,7 @@ function ContextualDiscovery({
   noContext,
   onRetry,
   onOpen,
+  onOpenProfile,
   onConfigureContext,
 }: {
   snapshot: ContextualDiscoverySnapshot;
@@ -223,6 +248,7 @@ function ContextualDiscovery({
   noContext: boolean;
   onRetry: () => void;
   onOpen: (resource: ResourceView) => void;
+  onOpenProfile: (profileId: string) => void;
   onConfigureContext: () => void;
 }) {
   const current =
@@ -272,6 +298,7 @@ function ContextualDiscovery({
                     key={resource.id}
                     resource={resource}
                     onPress={() => onOpen(resource)}
+                    onOpenProfile={onOpenProfile}
                   />
                 ))
               )}
@@ -591,6 +618,7 @@ export function SearchScreen() {
             title="Apuntes y recursos"
             resources={data.results.resources}
             onOpen={openResource}
+            onOpenProfile={openPerson}
           />
         )}
         {(resultScope === "all" || resultScope === "subjects") && (
@@ -761,6 +789,7 @@ export function SearchScreen() {
           noContext={academic.kind === "no_context"}
           onRetry={() => void controller.loadContextual(authorityKey)}
           onOpen={openResource}
+          onOpenProfile={openPerson}
           onConfigureContext={() => router.push(ACADEMIC_CONTEXT_HOME_ROUTE)}
         />
       ) : null}
@@ -854,6 +883,23 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
+  },
+  resourceOpenAction: {
+    alignItems: "flex-start",
+    gap: 5,
+    minHeight: 44,
+  },
+  resourceAuthorAction: {
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: 4,
+  },
+  resourceAuthorLabel: {
+    color: "#43366a",
+    fontSize: 12,
+    lineHeight: 18,
+    textDecorationLine: "underline",
   },
   contextBucket: {
     gap: 8,
