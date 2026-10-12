@@ -49,6 +49,12 @@ export class MobileOwnedResourcesApi implements OwnedResourcesApi {
     input: OwnedResourcesQuery,
     signal?: AbortSignal,
   ): Promise<OwnedResourcesPage> {
+    const query = new URLSearchParams({ limit: "25" });
+    if (input.visibility) query.set("visibility", input.visibility);
+    if (input.q) query.set("q", input.q);
+    if (input.subjectId) query.set("subjectId", input.subjectId);
+    if (input.order) query.set("order", input.order);
+    if (input.cursor) query.set("cursor", input.cursor);
     return this.withCredential((credential) =>
       this.client.request<OwnedResourcesPage>(
         `/resources/mine?${query.toString()}`,
@@ -72,12 +78,6 @@ export class MobileOwnedResourcesApi implements OwnedResourcesApi {
         "Authentication required",
       );
     }
-    const query = new URLSearchParams({ limit: "25" });
-    if (input.visibility) query.set("visibility", input.visibility);
-    if (input.q) query.set("q", input.q);
-    if (input.subjectId) query.set("subjectId", input.subjectId);
-    if (input.order) query.set("order", input.order);
-    if (input.cursor) query.set("cursor", input.cursor);
     try {
       const page = await request(authority.credential);
       if (
