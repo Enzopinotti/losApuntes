@@ -7,6 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +27,12 @@ import {
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
 import { mobileResourceConsumptionApi } from "./resource-runtime";
+import {
+  findLoadedSavedResources,
+  loadedSavedSearchSummary,
+  SAVED_LIBRARY_QUERY_MAX_LENGTH,
+  type SavedLibrarySort,
+} from "./saved-library-filters";
 
 const failureCopy: Record<ResourceConsumptionFailure, string> = {
   offline:
@@ -134,11 +141,19 @@ export function SavedResourcesScreen() {
     controller.getSnapshot(),
   );
   const [appState, setAppState] = useState(AppState.currentState);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SavedLibrarySort>("saved");
   const announcedRemoval = useRef<number | null>(null);
-  const authorityKey =
-    isFocused && appState === "active" && session.kind === "authenticated"
+  const sessionKey =
+    session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
+  const authorityKey = isFocused && appState === "active" ? sessionKey : null;
+
+  useEffect(() => {
+    setQuery("");
+    setSort("saved");
+  }, [sessionKey]);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
 
@@ -184,6 +199,10 @@ export function SavedResourcesScreen() {
     snapshot.kind !== "idle" && snapshot.authorityKey === authorityKey
       ? snapshot
       : null;
+  const shownResources =
+    current?.kind === "ready"
+      ? findLoadedSavedResources(current.data.items, query, sort)
+      : [];
 
   const refresh = () => {
     if (authorityKey) void controller.load(authorityKey);
@@ -255,33 +274,107 @@ export function SavedResourcesScreen() {
                 ) : null}
               </>
             ) : (
-              current.data.items.map((resource) => (
-                <SavedResourceRow
-                  key={resource.id}
-                  resource={resource}
-                  removing={current.removingResourceId === resource.id}
-                  removalPending={
-                    current.removingResourceId !== null || current.loadingMore
-                  }
-                  removalFailure={
-                    current.removalFailure?.resourceId === resource.id
-                      ? current.removalFailure.failure
-                      : null
-                  }
-                  onOpen={() =>
-                    router.push({
-                      pathname: "/resources/[id]",
-                      params: { id: resource.id, saved: "1" },
-                    })
-                  }
-                  onRemove={() =>
-                    void controller.removeSaved(
-                      current.authorityKey,
-                      resource.id,
-                    )
-                  }
-                />
-              ))
+              <>
+                <View style={styles.searchControls}>
+                  <Text style={styles.fieldLabel}>Buscar en tus guardados</Text>
+                  <TextInput
+                    accessibilityLabel="Buscar entre los guardados cargados"
+                    accessibilityHint="Busca por título, materia, autor o etiquetas entre los recursos ya cargados."
+                    autoCapitalize="none"
+                    maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
+                    onChangeText={setQuery}
+                    placeholder="Título, materia, autor o etiqueta"
+                    returnKeyType="search"
+                    style={styles.searchInput}
+                    value={query}
+                  />
+                  {query.length > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Limpiar búsqueda de guardados"
+                      onPress={() => setQuery("")}
+                      style={styles.clearSearchButton}
+                    >
+                      <Text style={styles.clearSearchLabel}>
+                        Limpiar búsqueda
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  <View
+                    accessibilityRole="radiogroup"
+                    style={styles.sortOptions}
+                  >
+                    <Pressable
+                      accessibilityRole="radio"
+                      accessibilityLabel="Orden de guardado"
+                      accessibilityState={{ checked: sort === "saved" }}
+                      onPress={() => setSort("saved")}
+                      style={[
+                        styles.sortButton,
+                        sort === "saved" && styles.sortButtonSelected,
+                      ]}
+                    >
+                      <Text style={styles.sortLabel}>Guardado</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="radio"
+                      accessibilityLabel="Ordenar por título"
+                      accessibilityState={{ checked: sort === "title" }}
+                      onPress={() => setSort("title")}
+                      style={[
+                        styles.sortButton,
+                        sort === "title" && styles.sortButtonSelected,
+                      ]}
+                    >
+                      <Text style={styles.sortLabel}>Título A–Z</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <Text accessibilityLiveRegion="polite" style={styles.meta}>
+                  {loadedSavedSearchSummary(
+                    shownResources.length,
+                    current.data.items.length,
+                    Boolean(current.data.nextCursor),
+                  )}
+                </Text>
+                {shownResources.length === 0 ? (
+                  <Text style={styles.copy}>
+                    No hay coincidencias entre los guardados cargados.
+                    {current.data.nextCursor
+                      ? " Cargá más para seguir buscando."
+                      : " Probá con otra palabra o limpiá la búsqueda."}
+                  </Text>
+                ) : (
+                  shownResources.map((resource) => (
+                    <SavedResourceRow
+                      key={resource.id}
+                      resource={resource}
+                      removing={current.removingResourceId === resource.id}
+                      removalPending={
+                        current.removingResourceId !== null ||
+                        current.loadingMore
+                      }
+                      removalFailure={
+                        current.removalFailure?.resourceId === resource.id
+                          ? current.removalFailure.failure
+                          : null
+                      }
+                      onOpen={() =>
+                        router.push({
+                          pathname: "/resources/[id]",
+                          params: { id: resource.id, saved: "1" },
+                        })
+                      }
+                      onRemove={() =>
+                        void controller.removeSaved(
+                          current.authorityKey,
+                          resource.id,
+                        )
+                      }
+                    />
+                  ))
+                )}
+              </>
             )}
           </View>
 
@@ -311,7 +404,9 @@ export function SavedResourcesScreen() {
               {current.loadingMore ? (
                 <ActivityIndicator accessibilityLabel="Cargando más guardados" />
               ) : (
-                <Text style={styles.secondaryButtonText}>Cargar más</Text>
+                <Text style={styles.secondaryButtonText}>
+                  {query.trim() ? "Cargar más guardados" : "Cargar más"}
+                </Text>
               )}
             </Pressable>
           ) : null}
@@ -344,6 +439,56 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: "700",
     color: "#20202a",
+  },
+  searchControls: {
+    gap: 8,
+  },
+  fieldLabel: {
+    color: "#20202a",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  searchInput: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    borderRadius: 11,
+    paddingHorizontal: 12,
+    color: "#20202a",
+    fontSize: 15,
+  },
+  clearSearchButton: {
+    alignSelf: "flex-start",
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  clearSearchLabel: {
+    color: "#43366a",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  sortOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  sortButton: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    borderRadius: 12,
+    justifyContent: "center",
+  },
+  sortButtonSelected: {
+    borderColor: "#43366a",
+    backgroundColor: "#f1eff8",
+  },
+  sortLabel: {
+    color: "#343247",
+    fontSize: 14,
+    fontWeight: "700",
   },
   row: {
     gap: 5,
