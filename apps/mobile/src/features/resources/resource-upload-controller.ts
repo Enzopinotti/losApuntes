@@ -160,11 +160,19 @@ export class ResourceUploadController {
       throw new ResourceUploadError("RESOURCE_CREATE_OUTCOME_UNCERTAIN");
     }
 
+    const assertActive = (): void => {
+      if (signal?.aborted || this.operation !== operation) {
+        throw new ResourceUploadError("UPLOAD_CANCELLED");
+      }
+    };
+
     this.inFlight = true;
     try {
+      assertActive();
       if (!operation.intent) {
         onProgress({ stage: "intent", percent: null });
-        operation.intent = await this.api.createUploadIntent(
+        assertActive();
+        const issuedIntent = await this.api.createUploadIntent(
           {
             operationKey: file.operationKey,
             filename: file.name,
@@ -173,26 +181,36 @@ export class ResourceUploadController {
           },
           signal,
         );
+        assertActive();
+        operation.intent = issuedIntent;
       }
 
+      assertActive();
       if (!operation.bytesUploaded) {
         onProgress({ stage: "transfer", percent: 0 });
+        assertActive();
         await this.uploadBytes(
           file,
           operation.intent,
           (percent) => onProgress({ stage: "transfer", percent }),
           signal,
         );
+        assertActive();
         operation.bytesUploaded = true;
       }
 
+      assertActive();
       if (!operation.finalized) {
         onProgress({ stage: "finalize", percent: null });
+        assertActive();
         await this.api.finalize(operation.intent.file.id, signal);
+        assertActive();
         operation.finalized = true;
       }
 
+      assertActive();
       onProgress({ stage: "create", percent: null });
+      assertActive();
       try {
         const created = await this.api.create(
           {
@@ -202,6 +220,10 @@ export class ResourceUploadController {
           },
           signal,
         );
+        if (signal?.aborted || this.operation !== operation) {
+          operation.resourceCreateUncertain = true;
+          throw new ResourceUploadError("RESOURCE_CREATE_OUTCOME_UNCERTAIN");
+        }
         this.operation = null;
         return created;
       } catch (error) {
