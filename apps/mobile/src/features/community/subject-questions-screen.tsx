@@ -120,11 +120,11 @@ export function SubjectQuestionsScreen({
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Volver a Buscar"
+        accessibilityLabel="Volver a la pantalla anterior"
         style={styles.back}
         onPress={() => router.back()}
       >
-        <Text style={styles.link}>Volver a Buscar</Text>
+        <Text style={styles.link}>Volver</Text>
       </Pressable>
 
       {!subjectId ? (
