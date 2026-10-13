@@ -4,6 +4,14 @@
 **Base documental:** 00/Tesis/MVP/Loops/Métricas, 01/`RES-FR-006/009`, `SEARCH-FR-001/002`, `MOB-FR-005/007`, 02/invariantes, 03/exact-head y ambos Excel 04–05.  
 **Código considerado:** `main@afd48cc...`.
 
+## Avances del plan (reconciliados con GitHub)
+
+- **P0, consolidación de fuentes:** integrada por [PR #278](https://github.com/Enzopinotti/losApuntes/pull/278). Hay mapa de discrepancias y plan de QA; no se ejecutó el gate de validación.
+- **P1, guardar desde Buscar:** integrado por [PR #279](https://github.com/Enzopinotti/losApuntes/pull/279), reutilizando la API real de guardados y protección de sesión. Los tests del PR siguen sin ejecución certificada.
+- **P2, materia → preguntas:** implementación propuesta en un carrier separado que reutiliza Q&A por `subjectId`; su nueva pantalla distingue lectura de permiso para publicar. Ver `docs/mobile/subject-questions-from-search.md`. Registrar el PR/SHA definitivo tras integración.
+
+La tabla siguiente conserva la priorización *al momento de planear* y no vuelve a abrir features ya integrados. Ningún merge con `[skip ci]` se considera validado.
+
 ## Resultado buscado
 
 Reducir el tiempo desde **“necesito un apunte para mi materia”** hasta una **acción útil persistente**. La promesa de Los Apuntes no es tener muchas pantallas: es conectar contexto académico, recurso, utilidad y personas. La consolidación permite privilegiar el cuello de botella de valor antes que seguir sumando módulos periféricos.
