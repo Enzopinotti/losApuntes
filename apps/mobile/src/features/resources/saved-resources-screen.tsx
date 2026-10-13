@@ -28,6 +28,10 @@ import {
 } from "./resource-consumption-controller";
 import { mobileResourceConsumptionApi } from "./resource-runtime";
 import {
+  savedSubjectQuestionsAction,
+  type SavedSubjectQuestionsAction,
+} from "./saved-subject-questions-action";
+import {
   activeLoadedSavedSubject,
   findLoadedSavedResources,
   loadedSavedLibrarySubjects,
@@ -64,6 +68,7 @@ const removalFailureCopy: Record<ResourceConsumptionFailure, string> = {
 function SavedResourceRow({
   resource,
   onOpen,
+  onOpenQuestions,
   onRemove,
   removing,
   removalPending,
@@ -71,11 +76,14 @@ function SavedResourceRow({
 }: {
   resource: ResourceView;
   onOpen: () => void;
+  onOpenQuestions: (action: SavedSubjectQuestionsAction) => void;
   onRemove: () => void;
   removing: boolean;
   removalPending: boolean;
   removalFailure: ResourceConsumptionFailure | null;
 }) {
+  const questionsAction = savedSubjectQuestionsAction(resource);
+
   return (
     <View style={styles.row}>
       <Pressable
@@ -105,9 +113,21 @@ function SavedResourceRow({
         <Text style={styles.actionLabel}>Abrir recurso</Text>
       </Pressable>
 
+      {questionsAction ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={questionsAction.accessibilityLabel}
+          accessibilityHint={questionsAction.accessibilityHint}
+          onPress={() => onOpenQuestions(questionsAction)}
+          style={styles.questionsButton}
+        >
+          <Text style={styles.actionLabel}>Preguntas de la materia</Text>
+        </Pressable>
+      ) : null}
+
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${removalFailure ? "Reintentar quitar" : "Quitar"} ${resource.title} de guardados`}
+        accessibilityLabel={`${removalFailure ? "Reintentar quitar" : "Quitar"} ${resource.title} de guardados`
         accessibilityState={{ disabled: removalPending }}
         disabled={removalPending}
         onPress={onRemove}
@@ -452,6 +472,7 @@ export function SavedResourcesScreen() {
                           params: { id: resource.id, saved: "1" },
                         })
                       }
+                      onOpenQuestions={(action) => router.push(action.href)}
                       onRemove={() =>
                         void controller.removeSaved(
                           current.authorityKey,
@@ -646,6 +667,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "#43366a",
     fontWeight: "700",
+  },
+  questionsButton: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: "#f1eff8",
   },
   removeButton: {
     minHeight: 44,
