@@ -260,10 +260,10 @@ function SubjectGroup({
         <Text style={styles.copy}>No encontramos materias.</Text>
       ) : (
         subjects.map((subject) => (
-          <Pressable
+          <View key={subject.id} style={styles.subjectResult}>
+            <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Buscar apuntes de ${subject.name}`}
-            key={subject.id}
             onPress={() => onOpen(subject)}
             style={styles.resultRow}
           >
@@ -285,6 +285,7 @@ function SubjectGroup({
               Ver preguntas de esta materia
             </Text>
           </Pressable>
+          </View>
         ))
       )}
     </View>
@@ -1042,6 +1043,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#20202a",
   },
+  subjectResult: { gap: 8 },
   resultRow: {
     gap: 5,
     borderTopWidth: StyleSheet.hairlineWidth,
