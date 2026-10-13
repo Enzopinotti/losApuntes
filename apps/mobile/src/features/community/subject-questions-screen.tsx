@@ -71,8 +71,10 @@ export function SubjectQuestionsScreen({
   const [snapshot, setSnapshot] = useState<CommunityQuestionFeedSnapshot>(
     controller.getSnapshot(),
   );
+  const contextReady =
+    authority.gate === "ready" && authority.scope.kind !== "unresolved";
   const scopeKey =
-    subjectId && authority.gate === "ready" && authority.authorityKey
+    subjectId && contextReady && authority.authorityKey
       ? `${authority.authorityKey}:questions-subject:${subjectId}`
       : null;
 
@@ -131,10 +133,12 @@ export function SubjectQuestionsScreen({
             El enlace de la materia no es válido.
           </Text>
         </View>
-      ) : authority.gate !== "ready" ? (
+      ) : !contextReady ? (
         <View style={styles.card}>
           <Text accessibilityRole="alert" style={styles.note}>
-            {gateCopy(authority.gate)}
+            {authority.scope.kind === "unresolved"
+              ? "El contexto académico está desactualizado. Revalidalo antes de continuar."
+              : gateCopy(authority.gate)}
           </Text>
           {authority.gate !== "blurred" &&
           authority.gate !== "suspended" ? (
