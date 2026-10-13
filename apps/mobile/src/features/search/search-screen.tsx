@@ -262,29 +262,29 @@ function SubjectGroup({
         subjects.map((subject) => (
           <View key={subject.id} style={styles.subjectResult}>
             <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Buscar apuntes de ${subject.name}`}
-            onPress={() => onOpen(subject)}
-            style={styles.resultRow}
-          >
-            <Text style={styles.resultTitle}>{subject.name}</Text>
-            {subject.aliases.length > 0 ? (
-              <Text style={styles.meta}>
-                También: {subject.aliases.join(", ")}
+              accessibilityRole="button"
+              accessibilityLabel={`Buscar apuntes de ${subject.name}`}
+              onPress={() => onOpen(subject)}
+              style={styles.resultRow}
+            >
+              <Text style={styles.resultTitle}>{subject.name}</Text>
+              {subject.aliases.length > 0 ? (
+                <Text style={styles.meta}>
+                  También: {subject.aliases.join(", ")}
+                </Text>
+              ) : null}
+              <Text style={styles.actionLabel}>Ver apuntes de esta materia</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Ver preguntas de la materia ${subject.name}`}
+              onPress={() => onOpenQuestions(subject.id)}
+              style={styles.searchActionButton}
+            >
+              <Text style={styles.searchActionLabel}>
+                Ver preguntas de esta materia
               </Text>
-            ) : null}
-            <Text style={styles.actionLabel}>Ver apuntes de esta materia</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Ver preguntas de la materia ${subject.name}`}
-            onPress={() => onOpenQuestions(subject.id)}
-            style={styles.searchActionButton}
-          >
-            <Text style={styles.searchActionLabel}>
-              Ver preguntas de esta materia
-            </Text>
-          </Pressable>
+            </Pressable>
           </View>
         ))
       )}
