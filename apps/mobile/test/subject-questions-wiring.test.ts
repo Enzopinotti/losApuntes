@@ -27,6 +27,8 @@ test("subject route is validated before requesting backend Q&A", () => {
   assert.match(screen, /controller\.loadMore\(scopeKey\)/u);
   assert.match(screen, /controller\.invalidate\(scopeKey\)/u);
   assert.match(screen, /useCommunityAuthority\(\)/u);
+  assert.match(screen, /authority.scope.kind !== "unresolved"/u);
+  assert.match(screen, /El contexto académico está desactualizado/u);
 });
 
 test("read-only subject browsing cannot spoof a question publishing context", () => {
