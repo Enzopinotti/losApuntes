@@ -21,6 +21,9 @@
 | [#275](https://github.com/Enzopinotti/losApuntes/pull/275) | Sí | Sí | **NO ejecutada** | Sin aceptación física referenciada | Integrado / evidencia pendiente |
 | [#276](https://github.com/Enzopinotti/losApuntes/pull/276) | Sí | Sí | **NO ejecutada** | Sin aceptación física referenciada | Integrado / evidencia pendiente |
 | [#277](https://github.com/Enzopinotti/losApuntes/pull/277) | Sí; merge `afd48cc...` | Sí | **NO ejecutada** | Sin aceptación física referenciada | Integrado / evidencia pendiente |
+| [#279](https://github.com/Enzopinotti/losApuntes/pull/279) | Sí; merge `6a865864...` | Sí | **NO ejecutada** | Sin aceptación física referenciada | Guardar desde Buscar integrado / evidencia pendiente |
+
+**Actualización:** el registro también incluye el guardado rápido #279, integrado después del corte de auditoría original. El próximo carrier de materias → Q&A debe incorporarse con su SHA real una vez fusionado. No reutilizar el baseline inicial de este documento para afirmar verificación de cambios posteriores.
 
 La lectura de `main` actual incluye muchos otros cambios de Web/Mobile/operaciones. Esta tabla **no afirma** que los cinco carriers sean las únicas modificaciones pendientes de verificación.
 
