@@ -245,9 +245,11 @@ function ResourceGroup({
 function SubjectGroup({
   subjects,
   onOpen,
+  onOpenQuestions,
 }: {
   subjects: SearchSubjectResult[];
   onOpen: (subject: SearchSubjectResult) => void;
+  onOpenQuestions: (subjectId: string) => void;
 }) {
   return (
     <View style={styles.card}>
@@ -272,6 +274,16 @@ function SubjectGroup({
               </Text>
             ) : null}
             <Text style={styles.actionLabel}>Ver apuntes de esta materia</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Ver preguntas de la materia ${subject.name}`}
+            onPress={() => onOpenQuestions(subject.id)}
+            style={styles.searchActionButton}
+          >
+            <Text style={styles.searchActionLabel}>
+              Ver preguntas de esta materia
+            </Text>
           </Pressable>
         ))
       )}
@@ -319,6 +331,7 @@ function ContextualDiscovery({
   onOpen,
   onOpenProfile,
   onConfigureContext,
+  onOpenQuestions,
   quickSave,
   onQuickSave,
   onOpenSaved,
@@ -330,6 +343,7 @@ function ContextualDiscovery({
   onOpen: (resource: ResourceView) => void;
   onOpenProfile: (profileId: string) => void;
   onConfigureContext: () => void;
+  onOpenQuestions: (subjectId: string) => void;
   quickSave: SearchQuickSaveSnapshot;
   onQuickSave: (id: string) => void;
   onOpenSaved: () => void;
@@ -371,6 +385,16 @@ function ContextualDiscovery({
           current.data.subjects.map((bucket) => (
             <View key={bucket.subject.id} style={styles.contextBucket}>
               <Text style={styles.resultTitle}>{bucket.subject.name}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Ver preguntas de la materia ${bucket.subject.name}`}
+                onPress={() => onOpenQuestions(bucket.subject.id)}
+                style={styles.searchActionButton}
+              >
+                <Text style={styles.searchActionLabel}>
+                  Ver preguntas de esta materia
+                </Text>
+              </Pressable>
               {bucket.resources.length === 0 ? (
                 <Text style={styles.copy}>
                   Todavía no hay recursos visibles.
@@ -641,6 +665,16 @@ export function SearchScreen() {
     [clearSearch, query.length, scope, subjectId],
   );
 
+  const openSubjectQuestions = useCallback(
+    (subjectId: string) => {
+      router.push({
+        pathname: "/questions/subjects/[subjectId]",
+        params: { subjectId },
+      });
+    },
+    [router],
+  );
+
   const openPerson = useCallback(
     (profileId: string) => {
       router.push({
@@ -744,7 +778,11 @@ export function SearchScreen() {
           />
         )}
         {(resultScope === "all" || resultScope === "subjects") && (
-          <SubjectGroup subjects={data.results.subjects} onOpen={openSubject} />
+          <SubjectGroup
+            subjects={data.results.subjects}
+            onOpen={openSubject}
+            onOpenQuestions={openSubjectQuestions}
+          />
         )}
         {(resultScope === "all" || resultScope === "people") && (
           <PeopleGroup result={data} onOpen={openPerson} />
@@ -913,6 +951,7 @@ export function SearchScreen() {
           onOpen={openResource}
           onOpenProfile={openPerson}
           onConfigureContext={() => router.push(ACADEMIC_CONTEXT_HOME_ROUTE)}
+          onOpenQuestions={openSubjectQuestions}
           quickSave={scopedQuickSave}
           onQuickSave={quickSaveResource}
           onOpenSaved={openSavedResources}
