@@ -121,8 +121,23 @@ export class MongoNotificationStore implements NotificationStore {
     id: string,
     readAt: Date,
   ): Promise<NotificationRecord | null> {
+    // The first successful transition owns readAt. A retry (or a competing
+    // request that lost the conditional write) must never change that time.
+    const updated = await this.notifications
+      .findOneAndUpdate(
+        { id, userId, readAt: null },
+        { $set: { readAt } },
+        { new: true },
+      )
+      .lean<NotificationRecord>()
+      .exec();
+
+    if (updated) return updated;
+
+    // Preserve the public idempotent success for an already-read own row.
+    // The fallback is owner-scoped and never broadens access to other users.
     return this.notifications
-      .findOneAndUpdate({ id, userId }, { $set: { readAt } }, { new: true })
+      .findOne({ id, userId })
       .lean<NotificationRecord>()
       .exec();
   }
