@@ -20,6 +20,7 @@ const publicNavigation: NavigationDestination[] = [
 const memberNavigation: NavigationDestination[] = [
   { to: "/", label: "Inicio" },
   { to: "/feeds", label: "Feed" },
+  { to: "/study", label: "Estudiar" },
   { to: "/network", label: "Red" },
   { to: "/search", label: "Buscar" },
   { to: "/resources", label: "Apuntes" },
