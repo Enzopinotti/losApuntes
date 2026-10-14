@@ -170,7 +170,10 @@ test("invalid incoming link clears previous selected subject without a query", (
 
 test("search link integration is explicit, session-scoped, and storage-free", async () => {
   const { readFile } = await import("node:fs/promises");
-  const url = new URL("../src/features/search/search-screen.tsx", import.meta.url);
+  const url = new URL(
+    "../src/features/search/search-screen.tsx",
+    import.meta.url,
+  );
   const screen = await readFile(url, "utf8");
   assert.match(screen, /useLocalSearchParams/u);
   assert.match(screen, /parseMobileSearchLink/u);
@@ -181,7 +184,10 @@ test("search link integration is explicit, session-scoped, and storage-free", as
   assert.match(screen, /invalidSharedSearchOpened/u);
   assert.match(screen, /incomingRouteKey/u);
   assert.match(screen, /Share\.share\(\{ message: url \}\)/u);
-  assert.match(screen, /accessibilityLabel="Compartir búsqueda y filtro actual"/u);
+  assert.match(
+    screen,
+    /accessibilityLabel="Compartir búsqueda y filtro actual"/u,
+  );
   assert.match(screen, /accessibilityRole="alert"/u);
   assert.doesNotMatch(screen, /AsyncStorage|localStorage|sessionStorage/u);
 });
