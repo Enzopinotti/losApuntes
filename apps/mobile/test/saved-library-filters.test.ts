@@ -224,7 +224,7 @@ test("loading more expands the search window, and removal updates results", asyn
   assert.deepEqual(removals, ["two"]);
 });
 
-test("screen delegates metadata and subject search to the server", () => {
+test("screen delegates metadata, subject and ordering to the server", () => {
   const screen = readFileSync(
     new URL(
       "../src/features/resources/saved-resources-screen.tsx",
@@ -234,7 +234,7 @@ test("screen delegates metadata and subject search to the server", () => {
   );
   assert.match(
     screen,
-    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*sort,\s*null,\s*\)/u,
+    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*"saved",\s*null,\s*\)/u,
   );
   assert.match(screen, /sessionKey\]/u);
   assert.match(screen, /setQuery\(""\)/u);
