@@ -36,7 +36,7 @@
 
 .search-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px auto;
+  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 180px)) auto;
   gap: 0.8rem;
   align-items: end;
   padding: 1rem;
@@ -171,6 +171,12 @@
 
 .context-buckets li + li {
   margin-top: 0.5rem;
+}
+
+@media (max-width: 980px) {
+  .search-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {

@@ -24,3 +24,18 @@
 La prueba existente `node scripts/test-web-search-contract.mjs` incluye now casos de decodificación/serialización de URLs, escapado de caracteres reservados, alcances desconocidos, consultas duplicadas/incorrectas, identidad de la selección y contrato de navegación directa. Continúan vigentes las comprobaciones de cookies, cache no-store, timeouts y fence asíncrono.
 
 La aceptación final requiere CI exact-head, navegación manual desde una búsqueda a un apunte y vuelta, refresco de enlace con filtros, error de red/reintento y copia del enlace en navegador. No se reclama browser-E2E por la prueba estática.
+
+## Buscar apuntes por materia actual
+
+Con sesión iniciada, el buscador ofrece un filtro **Materia (solo apuntes)** basado en las materias actuales obtenidas del servicio contextual existente. Una persona puede buscar, por ejemplo, `parcial` dentro de `Base de Datos`, sin mezclarse con apuntes de otras materias.
+
+- **Todas las materias** elimina el filtro. La opción seleccionada se conserva en `/search?q=...&scope=resources&subjectId=<UUID v4>` y se puede compartir.
+- El filtro aplica **solamente** a la sección Recursos, tanto en alcance `all` como `resources`. Los resultados de Personas y Materias no se alteran y el selector desaparece al escoger esas categorías.
+- Las personas que abran un enlace público pueden conservar o quitar la materia, aunque no tengan una cursada activa vinculada. Si la materia no está en su contexto actual, el selector muestra **Materia del enlace** sin exponer datos académicos privados ni intentar inferir el nombre.
+- Los UUID se validan como versión 4, se normalizan a minúsculas y los valores ausentes, malformados, duplicados o incompatibles con otro alcance no ejecutan una búsqueda amplia por accidente.
+- La selección entra en la identidad de la búsqueda y en su fence asíncrono: respuestas de otra materia, consulta o sesión no pueden reemplazar los resultados nuevos.
+- El endpoint de búsqueda y la autorización de archivos permanecen sin cambios. La API continúa validando `subjectId` y el acceso a cada recurso.
+
+### Escenarios de aceptación adicionales
+
+Buscar `parcial` en una materia actual y luego en todas debe consultar los resultados con el filtro correspondiente. Copiar el enlace, abrirlo en sesión anónima, recargarlo y regresar desde el detalle debe conservar el mismo UUID público. Cambiar de `resources` a `people` debe quitar el filtro. Un enlace con `subjectId` manipulado, duplicado o no UUID v4 debe mostrar un error explícito en vez de mostrar recursos fuera del alcance solicitado.

@@ -32,6 +32,7 @@ const Search = () => {
   const submittedKey = searchSelectionKey(submitted);
   const submittedQuery = submitted?.q ?? "";
   const submittedScope = submitted?.scope ?? "all";
+  const submittedSubjectId = submitted?.subjectId ?? "";
   const invalidLinkedSearch = searchParams.has("q") && submittedKey === null;
   const authorityScope = [
     status,
@@ -54,6 +55,7 @@ const Search = () => {
   );
   const [query, setQuery] = useState(submittedQuery);
   const [scope, setScope] = useState<SearchScope>(submittedScope);
+  const [subjectId, setSubjectId] = useState(submittedSubjectId);
   const [retryCount, setRetryCount] = useState(0);
   const resultScopeKey = JSON.stringify([authorityScope, submittedKey]);
   const [searchState, setSearchState] = useState<{
@@ -71,20 +73,25 @@ const Search = () => {
     scopeKey: string;
     message: string;
   } | null>(null);
-  const [contextual, setContextual] =
-    useState<ContextualDiscoveryResponse | null>(null);
+  const [contextState, setContextState] = useState<{
+    scopeKey: string;
+    data: ContextualDiscoveryResponse;
+  } | null>(null);
+  const contextual =
+    contextState?.scopeKey === authorityScope ? contextState.data : null;
   const [contextLoading, setContextLoading] = useState(false);
 
   // Back/forward navigation updates the draft; editing alone never writes a URL.
   useEffect(() => {
     setQuery(submittedQuery);
     setScope(submittedScope);
-  }, [submittedQuery, submittedScope]);
+    setSubjectId(submittedSubjectId);
+  }, [submittedQuery, submittedScope, submittedSubjectId]);
 
   useEffect(() => {
     if (!authenticated) {
       invalidateContextRequest();
-      setContextual(null);
+      setContextState(null);
       setContextLoading(false);
       return;
     }
@@ -95,10 +102,12 @@ const Search = () => {
     void searchApi
       .contextual({}, ticket.signal)
       .then((value) => {
-        if (isContextRequestCurrent(ticket)) setContextual(value);
+        if (isContextRequestCurrent(ticket)) {
+          setContextState({ scopeKey: authorityScope, data: value });
+        }
       })
       .catch(() => {
-        if (isContextRequestCurrent(ticket)) setContextual(null);
+        if (isContextRequestCurrent(ticket)) setContextState(null);
       })
       .finally(() => {
         if (finishContextRequest(ticket)) setContextLoading(false);
@@ -109,6 +118,7 @@ const Search = () => {
     };
   }, [
     authenticated,
+    authorityScope,
     beginContextRequest,
     finishContextRequest,
     invalidateContextRequest,
@@ -134,7 +144,14 @@ const Search = () => {
     });
 
     void searchApi
-      .search({ q: submittedQuery, scope: submittedScope }, ticket.signal)
+      .search(
+        {
+          q: submittedQuery,
+          scope: submittedScope,
+          subjectId: submittedSubjectId || undefined,
+        },
+        ticket.signal,
+      )
       .then((nextResult) => {
         if (!isSearchRequestCurrent(ticket)) return;
         setSearchState({
@@ -170,11 +187,16 @@ const Search = () => {
     submittedKey,
     submittedQuery,
     submittedScope,
+    submittedSubjectId,
   ]);
 
   const runSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const href = searchSelectionHref({ q: query, scope });
+    const href = searchSelectionHref({
+      q: query,
+      scope,
+      subjectId: subjectId || undefined,
+    });
     if (!href) return;
 
     const nextParams = new URLSearchParams(href.slice("/search?".length));
@@ -193,6 +215,7 @@ const Search = () => {
     const href = searchSelectionHref({
       q: submittedQuery,
       scope: submittedScope,
+      subjectId: submittedSubjectId || undefined,
     });
     if (!href) return;
 
@@ -246,7 +269,11 @@ const Search = () => {
           <select
             value={scope}
             onChange={(event) => {
-              setScope(event.target.value as SearchScope);
+              const nextScope = event.target.value as SearchScope;
+              setScope(nextScope);
+              if (nextScope !== "all" && nextScope !== "resources") {
+                setSubjectId("");
+              }
             }}
           >
             <option value="all">Todo</option>
@@ -255,6 +282,27 @@ const Search = () => {
             <option value="people">Personas</option>
           </select>
         </label>
+        {(scope === "all" || scope === "resources") &&
+          (authenticated || Boolean(subjectId)) && (
+            <label>
+              Materia (solo apuntes)
+              <select
+                value={subjectId}
+                onChange={(event) => setSubjectId(event.target.value)}
+              >
+                <option value="">Todas las materias</option>
+                {subjectId &&
+                  !contextual?.subjects.some(
+                    (bucket) => bucket.subject.id === subjectId,
+                  ) && <option value={subjectId}>Materia del enlace</option>}
+                {contextual?.subjects.map((bucket) => (
+                  <option key={bucket.subject.id} value={bucket.subject.id}>
+                    {bucket.subject.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         <button
           type="submit"
           disabled={query.trim().length < 2 || query.trim().length > 120}
@@ -265,8 +313,8 @@ const Search = () => {
 
       {invalidLinkedSearch && (
         <p className="search-error" role="alert">
-          Este enlace de búsqueda no es válido. Ingresá entre 2 y 120 caracteres
-          y buscá nuevamente.
+          Este enlace de búsqueda o su filtro de materia no es válido. Revisá
+          los filtros y buscá nuevamente.
         </p>
       )}
       {error && (
@@ -303,6 +351,7 @@ const Search = () => {
         <section aria-live="polite" className="search-results">
           <p className="search-summary">
             Resultados para <strong>{result.query}</strong>
+            {submittedSubjectId && " · Apuntes filtrados por materia"}
           </p>
 
           {(submittedScope === "all" || submittedScope === "resources") && (
@@ -402,6 +451,10 @@ const Search = () => {
             <p>
               Esta sección usa únicamente materias marcadas como actuales y
               recencia. No es un feed personalizado.
+            </p>
+            <p>
+              Podés elegir una de estas materias en el filtro de arriba para
+              buscar apuntes dentro de esa cursada.
             </p>
           </div>
 

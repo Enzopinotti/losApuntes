@@ -74,12 +74,84 @@ assert.deepEqual(
 );
 assert.equal(
   searchSelectionKey(urlSelection),
-  JSON.stringify(['Base de Datos', 'subjects']),
+  JSON.stringify(['Base de Datos', 'subjects', null]),
 );
 assert.notEqual(
   searchSelectionKey({ q: 'Base de Datos', scope: 'people' }),
   searchSelectionKey(urlSelection),
   'Changing the search category must invalidate prior result identity',
+);
+const subjectId = 'b2d9085e-4fa2-4f12-8b31-2acf4219d876';
+const filteredSelection = {
+  q: 'Parcial de programación',
+  scope: 'resources',
+  subjectId,
+};
+const filteredHref = searchSelectionHref(filteredSelection);
+assert.equal(
+  filteredHref,
+  '/search?q=Parcial+de+programaci%C3%B3n&scope=resources&subjectId=' +
+    subjectId,
+);
+assert.deepEqual(
+  searchSelectionFromSearchParams(
+    new URLSearchParams(filteredHref.split('?')[1]),
+  ),
+  filteredSelection,
+);
+assert.deepEqual(
+  searchSelectionFromSearchParams(
+    new URLSearchParams('q=parcial&subjectId=' + subjectId.toUpperCase()),
+  ),
+  { q: 'parcial', scope: 'all', subjectId },
+  'A shared academic filter must normalize public UUID case',
+);
+assert.notEqual(
+  searchSelectionKey(filteredSelection),
+  searchSelectionKey({ q: filteredSelection.q, scope: 'resources' }),
+  'Switching subjects must invalidate results from the previous filter',
+);
+assert.notEqual(
+  searchSelectionKey(filteredSelection),
+  searchSelectionKey({
+    ...filteredSelection,
+    subjectId: 'f4ab248d-23ee-443f-a1cf-52a0b4e77290',
+  }),
+);
+
+for (const rejectedParams of [
+  'q=parcial&subjectId=not-a-uuid',
+  'q=parcial&subjectId=',
+  'q=parcial&subjectId=b2d9085e-4fa2-3f12-8b31-2acf4219d876',
+  'q=parcial&subjectId=' + subjectId + '&subjectId=' + subjectId,
+  'q=parcial&scope=people&subjectId=' + subjectId,
+  'q=parcial&scope=subjects&subjectId=' + subjectId,
+]) {
+  assert.equal(
+    searchSelectionFromSearchParams(new URLSearchParams(rejectedParams)),
+    null,
+    'Invalid resource filters must not expand into unrestricted searches',
+  );
+}
+assert.equal(
+  searchSelectionHref({ ...filteredSelection, scope: 'people' }),
+  null,
+);
+assert.equal(
+  searchSelectionHref({ ...filteredSelection, subjectId: 'not-a-uuid' }),
+  null,
+);
+assert.equal(
+  searchReturnHref({ searchReturnTo: filteredHref }),
+  filteredHref,
+  'Return-to-search links must preserve the canonical subject filter',
+);
+assert.equal(
+  searchReturnHref({
+    searchReturnTo: filteredHref + '&accountId=private',
+  }),
+  null,
+  'No sensitive extra parameters can enter a return link',
 );
 assert.equal(searchSelectionKey(null), null);
 assert.equal(searchReturnHref({ searchReturnTo: '/search' }), '/search');
@@ -141,6 +213,21 @@ assert.match(page, /setSearchParams\(nextParams\)/u);
 assert.match(page, /search:\$\{authorityScope\}:\$\{submittedKey/u);
 assert.match(page, /resultScopeKey/u);
 assert.match(page, /submittedScope === "resources"/u);
+assert.match(page, /submittedSubjectId/u);
+assert.match(page, /subjectId: submittedSubjectId \|\| undefined/u);
+assert.match(page, /setSubjectId\(event\.target\.value\)/u);
+assert.match(page, /contextual\?\.subjects\.map/u);
+assert.match(page, /Materia \(solo apuntes\)/u);
+assert.match(page, /Todas las materias/u);
+assert.match(page, /Materia del enlace/u);
+assert.match(page, /contextState\?\.scopeKey === authorityScope/u);
+assert.match(page, /setContextState\(\{ scopeKey: authorityScope, data: value \}\)/u);
+assert.doesNotMatch(
+  page,
+  /setContextual\(value\)/u,
+  'Suggestions from a different account must never be displayed unscoped',
+);
+assert.match(page, /setSubjectId\(""\)/u);
 assert.match(page, /copySearchLink/u);
 assert.match(page, /navigator\.clipboard\?\.writeText/u);
 assert.match(page, /role="status"/u);
