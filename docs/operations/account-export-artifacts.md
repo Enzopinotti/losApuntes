@@ -120,6 +120,40 @@ Container runtime smoke therefore covers the local Mongo/worker/object-store
 path end to end. It does not verify production-provider IAM, lifecycle
 readback, private-access configuration or physical deletion.
 
+## Artifact metadata and streamed read integrity
+
+**Format v1 has exactly 30 named sections.** The Nest contributor factory
+fails during module setup if the inventory drifts, and
+`AccountExportService.complete` rejects completed jobs whose assembly
+metadata reports any other section count. The owner-visible status does
+not advertise an artifact as downloadable unless the stored record has
+the correct format version, 30 sections, positive safe-integer byte length,
+non-expired generation and a lowercase SHA-256 digest.
+
+On every authorized GET, the controller receives that persisted digest only
+from the owner-fenced service. The private object stream is bounded to the
+committed byte length **before forwarding an oversized chunk**. At end of
+stream it checks that both the byte length and SHA-256 match the metadata.
+Truncation, oversized objects, binary-type errors, client cancellation and
+digest mismatch fail the stream. A provider read failure retains its original
+error for server handling; clients must treat a failed/incomplete response as
+unusable.
+
+**Important limitation:** an end-of-stream digest check cannot retract
+bytes already transmitted, and an HTTP content-length may be satisfied before
+a late streaming error is observed by some clients. This mechanism is a
+defense in depth, **not a pre-delivery verified download** or a guarantee
+against provider tampering. A production trust decision requires private
+bucket/IAM review, provider readback of SHA-256, client-side checksum support
+if strict end-to-end integrity is required, and fault-injection tests in the
+actual HTTP runtime.
+
+New regression specifications exist in
+`storage/account-export-download-integrity.spec.ts`,
+`domain/account-export.service.spec.ts` and
+`account-export.controller.spec.ts`.
+They are written but were **not executed** in this accelerated block.
+
 ## Lost-lease completed artifacts
 
 Every retry writes to a different private attempt generation
