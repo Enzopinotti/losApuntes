@@ -10,6 +10,7 @@ import {
 
 import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
 import { savedSubjectQuestionsAction } from "@/features/resources/saved-subject-questions-action";
+import { subjectResourcesSearchAction } from "@/features/search/search-subject-navigation";
 import type { HomeSelectedSubject } from "./home-recent-academic-continuity";
 import {
   mobileSessionRecentResourceOpens,
@@ -75,6 +76,12 @@ export function HomeRecentOpenedCard({
   if (!authorityKey || !sessionAuthorityKey) return null;
   const current = snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey ? snapshot : null;
+  const exploreCurrentSubject = currentSubject
+    ? subjectResourcesSearchAction({
+        subjectId: currentSubject.subjectId,
+        subjectName: currentSubject.name,
+      })
+    : null;
   const selectedQuestionsHref = currentSubject
     ? {
         pathname: "/questions/subjects/[subjectId]" as const,
@@ -112,6 +119,17 @@ export function HomeRecentOpenedCard({
           >
             <Text style={styles.buttonLabel}>Preguntas de mi materia</Text>
           </Pressable>
+          {exploreCurrentSubject ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={exploreCurrentSubject.accessibilityLabel}
+              accessibilityHint={exploreCurrentSubject.accessibilityHint}
+              onPress={() => router.push(exploreCurrentSubject.href)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.buttonLabel}>Explorar apuntes de mi materia</Text>
+            </Pressable>
+          ) : null}
           {current?.kind === "ready" && current.items.length > 0 ? (
             <View accessibilityRole="radiogroup" style={styles.scopeChoices}>
               <Pressable

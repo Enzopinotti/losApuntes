@@ -21,6 +21,7 @@ import {
   resourceRowAccessibilityLabel,
 } from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
+import { subjectResourcesSearchAction } from "@/features/search/search-subject-navigation";
 
 import {
   MobileSavedResourcesController,
@@ -301,6 +302,13 @@ export function SavedResourcesScreen() {
           null,
         )
       : [];
+
+  const exploreSelectedSubject = activeSubject
+    ? subjectResourcesSearchAction({
+        subjectId: activeSubject.subjectId,
+        subjectName: activeSubject.name,
+      })
+    : null;
 
   useEffect(() => {
     if (
@@ -604,6 +612,19 @@ export function SavedResourcesScreen() {
                 </Pressable>
               ))}
             </View>
+            {exploreSelectedSubject ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={exploreSelectedSubject.accessibilityLabel}
+                accessibilityHint={exploreSelectedSubject.accessibilityHint}
+                onPress={() => router.push(exploreSelectedSubject.href)}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Explorar más apuntes de esta materia
+                </Text>
+              </Pressable>
+            ) : null}
             {activeFacetSnapshot.refreshFailure ? (
               <Text accessibilityRole="alert" style={styles.error}>
                 No pudimos actualizar las materias guardadas.

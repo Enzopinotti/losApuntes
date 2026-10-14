@@ -12,6 +12,7 @@ import {
 import { mobileResourceConsumptionApi } from "./resource-runtime";
 import { mobileSessionRecentResourceOpens } from "./recent-opened-memory";
 import { savedSubjectQuestionsAction } from "./saved-subject-questions-action";
+import { subjectResourcesSearchAction } from "@/features/search/search-subject-navigation";
 import {
   ResourceRelatedSessionController,
   type ResourceRelatedSessionSnapshot,
@@ -57,6 +58,10 @@ export function ResourceRelatedSessionPanel({
   const currentResourceId = currentResource.id;
   const subjectId = currentResource.academic.subject.id;
   const questionsAction = savedSubjectQuestionsAction(currentResource);
+  const exploreAction = subjectResourcesSearchAction({
+    subjectId,
+    subjectName: currentResource.academic.subject.name,
+  });
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
   useEffect(() => {
@@ -88,6 +93,17 @@ export function ResourceRelatedSessionPanel({
         Volvé a otros apuntes de {currentResource.academic.subject.name} que
         abriste en esta sesión. Se comprueban sus permisos antes de mostrarlos.
       </Text>
+      {exploreAction ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={exploreAction.accessibilityLabel}
+          accessibilityHint={exploreAction.accessibilityHint}
+          onPress={() => router.push(exploreAction.href)}
+          style={styles.questionsButton}
+        >
+          <Text style={styles.buttonText}>Explorar otros apuntes de esta materia</Text>
+        </Pressable>
+      ) : null}
       {questionsAction ? (
         <Pressable
           accessibilityRole="button"
