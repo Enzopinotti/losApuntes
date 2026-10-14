@@ -499,6 +499,35 @@ describe('AccountExportService', () => {
     expect(status).not.toHaveProperty('artifactGeneration');
   });
 
+  it.each([
+    { artifactSectionCount: 29 },
+    { artifactSectionCount: 31 },
+    { artifactSha256: null },
+    { artifactSha256: 'INVALID-DIGEST' },
+    { artifactByteLength: 0 },
+    { formatVersion: 2 },
+  ])('never advertises incomplete export artifact metadata as downloadable (%o)', async (change) => {
+    const f = fixture();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    f.store.findOwned.mockResolvedValue(job({
+      state: 'completed',
+      active: false,
+      artifactGeneration: 'generation-1',
+      artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30,
+      artifactRecordCount: 1,
+      artifactByteLength: 512,
+      artifactSha256: 'a'.repeat(64),
+      ...change,
+    }));
+
+    const status = await f.service.status('user-1', 'export-1', now);
+    expect(status?.downloadable).toBe(false);
+    await expect(f.service.download('user-1', 'export-1', now))
+      .rejects.toThrow('artifact metadata is invalid');
+    expect(f.store.findOwned).toHaveBeenCalledWith('export-1', 'user-1');
+  });
+
   it('reauthorizes every download and rejects expired or incomplete artifacts', async () => {
     const f = fixture();
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
