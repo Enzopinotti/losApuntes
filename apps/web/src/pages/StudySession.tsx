@@ -166,7 +166,8 @@ export default function StudySession() {
       ? draftState.plan
       : emptyStudySession(subjectId))
     : null;
-  const labels = draftState?.scope === scope ? draftState.labels : {};
+  const labels: Record<string, string | null> =
+    draftState?.scope === scope ? draftState.labels : {};
   const [feedback, setFeedback] = useState<Status | null>(null);
   const [busy, setBusy] = useState<Status | null>(null);
   const currentFeedback = feedback?.scope === scope ? feedback : null;
