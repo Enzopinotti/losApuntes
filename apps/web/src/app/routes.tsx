@@ -19,6 +19,7 @@ import PublicProfile from "../pages/PublicProfile";
 import ResetPassword from "../pages/ResetPassword";
 import Resources from "../pages/Resources";
 import Search from "../pages/Search";
+import StudyWorkbench from "../pages/StudyWorkbench";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
 import VerificationPending from "../pages/VerificationPending";
@@ -43,6 +44,14 @@ export const routes: RouteObject[] = [
       { path: "resources/:resourceId", element: <Resources /> },
       { path: "search", element: <Search /> },
       { path: "questions", element: <Questions /> },
+      {
+        path: "study",
+        element: (
+          <PrivateRoute>
+            <StudyWorkbench />
+          </PrivateRoute>
+        ),
+      },
       { path: "organizations", element: <Organizations /> },
       { path: "organizations/:organizationId", element: <Organization /> },
       {
