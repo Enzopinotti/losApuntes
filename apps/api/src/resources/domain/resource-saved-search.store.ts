@@ -9,8 +9,13 @@ export const SAVED_RESOURCE_SEARCH_STORE = Symbol('SAVED_RESOURCE_SEARCH_STORE')
 export interface SavedResourceSearchStore {
   searchSavedResources(input: {
     userId: string;
-    q: string;
+    q?: string;
+    subjectId?: string;
     limit: number;
     after?: SavedResourceCursor;
   }): Promise<SavedResourcePage>;
+  listSavedSubjectFacets(userId: string): Promise<{
+    items: Array<{ subjectId: string; count: number }>;
+    truncated: boolean;
+  }>;
 }
