@@ -10,6 +10,7 @@ import {
   RECENT_OPENED_PREVIEW_LIMIT,
   SessionRecentResourceOpens,
 } from "@/features/resources/recent-opened-memory";
+import { prioritizeHomeRecentlyOpened } from "./home-recent-academic-continuity";
 
 export type HomeRecentOpenedSnapshot =
   | { kind: "idle" }
@@ -59,7 +60,7 @@ export class HomeRecentOpenedController {
     return () => this.listeners.delete(listener);
   }
 
-  async load(authorityKey: string, sessionAuthorityKey = authorityKey): Promise<void> {
+  async load(authorityKey: string, sessionAuthorityKey = authorityKey, preferredSubjectId: string | null = null): Promise<void> {
     this.active?.abort();
     const generation = ++this.generation;
     const operation = new AbortController();
@@ -122,7 +123,7 @@ export class HomeRecentOpenedController {
         this.publish({
           kind: "ready",
           authorityKey,
-          items: items.slice(0, RECENT_OPENED_PREVIEW_LIMIT),
+          items: prioritizeHomeRecentlyOpened(items, preferredSubjectId, RECENT_OPENED_PREVIEW_LIMIT),
           moreAvailable: items.length > RECENT_OPENED_PREVIEW_LIMIT,
           partialFailure,
         });

@@ -73,6 +73,7 @@ import {
 import { useAcademicContext } from "../academic/academic-context-provider";
 import { HomeSavedReturnCard } from "./home-saved-return-card";
 import { HomeRecentOpenedCard } from "./home-recent-opened-card";
+import { homeSelectedCurrentSubject } from "./home-recent-academic-continuity";
 
 const itemKindLabel = (item: FeedItem): string => {
   if (item.type === "resource") return "Apunte";
@@ -627,6 +628,12 @@ export function HomeScreen() {
 
   const expectedContext: AcademicCurrentContext | null =
     academicData?.context ?? null;
+  // AcademicCurrentContext holds a participation ID; resolve canonical
+  // subjectId against the same session-authorized academic snapshot.
+  const selectedRecentSubject =
+    activeHomeAuthority && academicData && academicBelongsToSession
+      ? homeSelectedCurrentSubject(expectedContext, academicData.participations)
+      : null;
   const contextSignature = academicContextSignature(expectedContext);
   const canLoad =
     Boolean(activeHomeAuthority) &&
@@ -951,6 +958,7 @@ export function HomeScreen() {
       <HomeRecentOpenedCard
         authorityKey={activeHomeAuthority}
         sessionAuthorityKey={sessionAuthority}
+        currentSubject={selectedRecentSubject}
       />
       <HomeSavedReturnCard authorityKey={activeHomeAuthority} />
       <Pressable
