@@ -36,6 +36,6 @@ export class ResourceSavedSearchDto {
 
   @IsOptional()
   @IsString()
-  @Length(4, 512)
+  @Length(4, 2048)
   cursor?: string;
 }
