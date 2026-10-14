@@ -14,10 +14,11 @@ describe('saved query execution budgets', () => {
       { code: 50, message: 'Mongo query timed out' },
       { codeName: 'MaxTimeMSExpired', message: 'Mongo query timed out' },
     ]) {
-      const run = boundedSavedQuery(() => Promise.reject(error));
+      const mongoError = Object.assign(new Error(error.message), error);
+      const run = boundedSavedQuery(() => Promise.reject(mongoError));
       await expect(run).rejects.toBeInstanceOf(RequestTimeoutException);
       await expect(
-        boundedSavedQuery(() => Promise.reject(error)),
+        boundedSavedQuery(() => Promise.reject(mongoError)),
       ).rejects.toMatchObject({
         response: {
           code: 'RESOURCE_SAVED_QUERY_TIMEOUT',
