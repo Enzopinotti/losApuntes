@@ -793,7 +793,7 @@ export function SearchScreen() {
         {scopedSubjectEmpty ? (
           <View style={styles.emptyRecovery}>
             <Text style={styles.copy}>
-              No encontramos apuntes accesibles de {selectedSubject.name}
+              No encontramos apuntes accesibles de {selectedSubject?.name ?? "esta materia"}
               {normalizedQuery ? ` con “${normalizedQuery}”` : ""}.
               Probá con otra palabra o ampliá la búsqueda.
             </Text>
@@ -810,7 +810,7 @@ export function SearchScreen() {
             {normalizedQuery.length >= 2 ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Ver apuntes de ${selectedSubject.name} sin palabras clave`}
+                accessibilityLabel={`Ver apuntes de ${selectedSubject?.name ?? "esta materia"} sin palabras clave`}
                 onPress={() => setQueryText("")}
                 style={styles.searchActionButton}
               >
