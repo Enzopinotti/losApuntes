@@ -39,10 +39,8 @@ function runtimeDiagnosticContext(surface: string): MobileDiagnosticContext {
 
 export function MobileObservabilityRoot({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const context = useMemo(
-    () => runtimeDiagnosticContext(pathname || "/"),
-    [pathname],
-  );
+  const routeKey = pathname || "/";
+  const context = useMemo(() => runtimeDiagnosticContext(routeKey), [routeKey]);
   const contextRef = useRef(context);
   contextRef.current = context;
 
@@ -55,5 +53,9 @@ export function MobileObservabilityRoot({ children }: { children: ReactNode }) {
     return installMobileGlobalErrorHandler(errorUtils, report);
   }, [report]);
 
-  return <MobileErrorBoundary onError={report}>{children}</MobileErrorBoundary>;
+  return (
+    <MobileErrorBoundary onError={report} resetRouteKey={routeKey}>
+      {children}
+    </MobileErrorBoundary>
+  );
 }
