@@ -271,12 +271,12 @@ describe('NotificationService', () => {
       profileApi as unknown as ProfileService,
     );
 
-    await expect(
-      service.markRead('user-a', alreadyRead.id),
-    ).resolves.toEqual({ read: true });
-    await expect(
-      service.markRead('user-a', alreadyRead.id),
-    ).resolves.toEqual({ read: true });
+    await expect(service.markRead('user-a', alreadyRead.id)).resolves.toEqual({
+      read: true,
+    });
+    await expect(service.markRead('user-a', alreadyRead.id)).resolves.toEqual({
+      read: true,
+    });
 
     expect(notificationStore.markRead).toHaveBeenCalledTimes(2);
     expect(notificationStore.markRead.mock.calls[0]?.slice(0, 2)).toEqual([
