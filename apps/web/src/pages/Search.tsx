@@ -421,10 +421,11 @@ const Search = () => {
                           <Link
                             to={`/resources/${encodeURIComponent(resource.id)}`}
                             state={{
-                              searchReturnTo: searchSelectionHref({
-                                q: submittedQuery,
-                                scope: submittedScope,
-                              }),
+                              searchReturnTo:
+                                searchSelectionHref({
+                                  q: submittedQuery,
+                                  scope: submittedScope,
+                                }) ?? "/search",
                             }}
                           >
                             {resource.title}
