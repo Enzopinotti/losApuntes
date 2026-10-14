@@ -26,12 +26,13 @@ export const mobileResourceConsumptionApi = new MobileResourceConsumptionApi(
   new MobileResourceConsumptionHttpTransport(mobileApiClient),
 );
 
-export const mobileResourceDirectSharingApi = new MobileResourceDirectSharingApi(
-  mobileSessionController,
-  mobileApiClient,
-  mobileSearchApi,
-  mobileResourceConsumptionApi,
-);
+export const mobileResourceDirectSharingApi =
+  new MobileResourceDirectSharingApi(
+    mobileSessionController,
+    mobileApiClient,
+    mobileSearchApi,
+    mobileResourceConsumptionApi,
+  );
 
 export const mobileOwnedResourcesApi = new MobileOwnedResourcesApi(
   mobileSessionController,
