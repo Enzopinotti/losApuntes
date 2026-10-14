@@ -587,6 +587,16 @@ const Resources = () => {
   const feedReturnTo = feedReturnHref(location.state) ?? "/resources";
   const searchReturnTo = searchReturnHref(location.state);
   const resourceReturnTo = searchReturnTo ?? feedReturnTo;
+  const resourceReturnState = searchReturnTo
+    ? undefined
+    : feedReturnRestoreState(location.state);
+  const resourceReturnLabel = searchReturnTo
+    ? "Volver a la búsqueda"
+    : feedReturnTo === "/"
+      ? "Volver a Inicio"
+      : feedReturnTo === "/resources"
+        ? "Ver otros apuntes"
+        : "Volver al feed";
 
   const finishResourceActionUi = (ticket: AsyncAuthorityTicket) => {
     if (!finishResourceAction(ticket)) return;
@@ -1034,17 +1044,9 @@ const Resources = () => {
           <Link
             className="resources-back-link"
             to={resourceReturnTo}
-            state={
-              searchReturnTo ? undefined : feedReturnRestoreState(location.state)
-            }
+            state={resourceReturnState}
           >
-            {searchReturnTo
-              ? "Volver a la búsqueda"
-              : feedReturnTo === "/"
-                ? "Volver a Inicio"
-                : feedReturnTo === "/resources"
-                  ? "Ver otros apuntes"
-                  : "Volver al feed"}
+            {resourceReturnLabel}
           </Link>
         ) : authenticated ? (
           <button
