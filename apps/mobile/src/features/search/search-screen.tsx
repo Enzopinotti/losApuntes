@@ -5,7 +5,7 @@ import type {
   SearchScope,
   SearchSubjectResult,
 } from "@losapuntes/contracts";
-import { useIsFocused, useRouter } from "expo-router";
+import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   AccessibilityInfo,
@@ -52,6 +52,7 @@ import {
 } from "./search-results-copy";
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
+import { subjectResourcesSearchRouteId } from "./search-subject-navigation";
 import {
   MobileSearchQuickSaveController,
   type SearchQuickSaveEntry,
@@ -333,6 +334,7 @@ function ContextualDiscovery({
   onOpenProfile,
   onConfigureContext,
   onOpenQuestions,
+  onExploreSubject,
   quickSave,
   onQuickSave,
   onOpenSaved,
@@ -345,6 +347,7 @@ function ContextualDiscovery({
   onOpenProfile: (profileId: string) => void;
   onConfigureContext: () => void;
   onOpenQuestions: (subjectId: string) => void;
+  onExploreSubject: (subject: { id: string; name: string }) => void;
   quickSave: SearchQuickSaveSnapshot;
   onQuickSave: (id: string) => void;
   onOpenSaved: () => void;
@@ -386,6 +389,14 @@ function ContextualDiscovery({
           current.data.subjects.map((bucket) => (
             <View key={bucket.subject.id} style={styles.contextBucket}>
               <Text style={styles.resultTitle}>{bucket.subject.name}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Explorar apuntes de ${bucket.subject.name}`}
+                onPress={() => onExploreSubject(bucket.subject)}
+                style={styles.searchActionButton}
+              >
+                <Text style={styles.searchActionLabel}>Explorar apuntes de esta materia</Text>
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Ver preguntas de la materia ${bucket.subject.name}`}
@@ -439,6 +450,9 @@ function ContextualDiscovery({
 
 export function SearchScreen() {
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{ subjectId?: string }>();
+  const incomingSubjectId = subjectResourcesSearchRouteId(routeParams.subjectId);
+  const handledIncomingSubject = useRef<string | null>(null);
   const isFocused = useIsFocused();
   const { snapshot: session } = useSession();
   const { snapshot: academic, retry: retryAcademic } = useAcademicContext();
@@ -495,6 +509,18 @@ export function SearchScreen() {
     academicMatchesSession
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
+  useEffect(() => {
+    if (!authorityKey || !incomingSubjectId) return;
+    const key = `${authorityKey}:${incomingSubjectId}`;
+    if (handledIncomingSubject.current === key) return;
+    handledIncomingSubject.current = key;
+    controller.cancelSearch();
+    dispatchSearchInput({
+      type: "subjectSelected",
+      subject: { id: incomingSubjectId, name: "esta materia" },
+    });
+  }, [authorityKey, controller, incomingSubjectId]);
+
   const scopedQuickSave: SearchQuickSaveSnapshot =
     quickSave.authorityKey === authorityKey
       ? quickSave
@@ -664,6 +690,19 @@ export function SearchScreen() {
       });
     },
     [clearSearch, query.length, scope, subjectId],
+  );
+
+  const exploreContextSubject = useCallback(
+    (subject: { id: string; name: string }) => {
+      const canonicalId = subjectResourcesSearchRouteId(subject.id);
+      if (!canonicalId) return;
+      clearSearch();
+      dispatchSearchInput({
+        type: "subjectSelected",
+        subject: { id: canonicalId, name: subject.name },
+      });
+    },
+    [clearSearch],
   );
 
   const openSubjectQuestions = useCallback(
@@ -953,6 +992,7 @@ export function SearchScreen() {
           onOpenProfile={openPerson}
           onConfigureContext={() => router.push(ACADEMIC_CONTEXT_HOME_ROUTE)}
           onOpenQuestions={openSubjectQuestions}
+          onExploreSubject={exploreContextSubject}
           quickSave={scopedQuickSave}
           onQuickSave={quickSaveResource}
           onOpenSaved={openSavedResources}
