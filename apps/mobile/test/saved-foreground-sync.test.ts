@@ -238,3 +238,42 @@ test("foreground-only scheduler stops on lost focus or background and does not a
   assert.match(screen, /clearInterval\(interval\)/u);
   assert.doesNotMatch(screen, /onEndReached=/u);
 });
+
+test("suspending an active check aborts it and clears the busy state", async () => {
+  const pending = deferred<ResourceSavedPage>();
+  let calls = 0;
+  let signal: AbortSignal | undefined;
+  const api = {
+    saved: async (_cursor?: string, passedSignal?: AbortSignal): Promise<ResourceSavedPage> => {
+      calls++;
+      if (calls === 1) return { items: [resource("existing")], nextCursor: null };
+      signal = passedSignal;
+      return pending.promise;
+    },
+  } as ResourceConsumptionApi;
+  const controller = new MobileSavedResourcesController(api);
+  await controller.load("account-a");
+  const syncing = controller.sync("account-a");
+  controller.suspend("account-a");
+  pending.resolve({ items: [resource("outdated")], nextCursor: null });
+  await syncing;
+  const result = controller.getSnapshot();
+  assert.equal(signal?.aborted, true);
+  assert.equal(result.kind, "ready");
+  if (result.kind === "ready") {
+    assert.equal(result.syncing, false);
+    assert.equal(result.syncNotice, null);
+    assert.deepEqual(result.data.items.map((item) => item.id), ["existing"]);
+  }
+});
+
+test("only a new sync-update notice triggers scrolling, not each pagination render", () => {
+  const screen = readFileSync(
+    new URL("../src/features/resources/saved-resources-screen.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(screen, /const syncNoticeForScroll =/u);
+  assert.match(screen, /\[syncNoticeForScroll\]/u);
+  assert.match(screen, /syncNoticeForScroll === "updated"/u);
+  assert.doesNotMatch(screen, /\[snapshot\]\);\s*\n\s*const current/u);
+});
