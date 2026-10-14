@@ -73,8 +73,12 @@ const Search = () => {
     scopeKey: string;
     message: string;
   } | null>(null);
-  const [contextual, setContextual] =
-    useState<ContextualDiscoveryResponse | null>(null);
+  const [contextState, setContextState] = useState<{
+    scopeKey: string;
+    data: ContextualDiscoveryResponse;
+  } | null>(null);
+  const contextual =
+    contextState?.scopeKey === authorityScope ? contextState.data : null;
   const [contextLoading, setContextLoading] = useState(false);
 
   // Back/forward navigation updates the draft; editing alone never writes a URL.
@@ -87,7 +91,7 @@ const Search = () => {
   useEffect(() => {
     if (!authenticated) {
       invalidateContextRequest();
-      setContextual(null);
+      setContextState(null);
       setContextLoading(false);
       return;
     }
@@ -98,10 +102,12 @@ const Search = () => {
     void searchApi
       .contextual({}, ticket.signal)
       .then((value) => {
-        if (isContextRequestCurrent(ticket)) setContextual(value);
+        if (isContextRequestCurrent(ticket)) {
+          setContextState({ scopeKey: authorityScope, data: value });
+        }
       })
       .catch(() => {
-        if (isContextRequestCurrent(ticket)) setContextual(null);
+        if (isContextRequestCurrent(ticket)) setContextState(null);
       })
       .finally(() => {
         if (finishContextRequest(ticket)) setContextLoading(false);
@@ -112,6 +118,7 @@ const Search = () => {
     };
   }, [
     authenticated,
+    authorityScope,
     beginContextRequest,
     finishContextRequest,
     invalidateContextRequest,
@@ -308,8 +315,8 @@ const Search = () => {
 
       {invalidLinkedSearch && (
         <p className="search-error" role="alert">
-          Este enlace de búsqueda no es válido. Ingresá entre 2 y 120 caracteres
-          y buscá nuevamente.
+          Este enlace de búsqueda o su filtro de materia no es válido. Revisá
+          los filtros y buscá nuevamente.
         </p>
       )}
       {error && (
