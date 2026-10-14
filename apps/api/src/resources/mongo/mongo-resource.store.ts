@@ -636,7 +636,7 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ['$id', '$resourceId'] },
+                $expr: { $eq: ['$id', '$$resourceId'] },
                 moderationState: 'available',
               },
             },
@@ -655,7 +655,7 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ['$resourceId', '$resourceId'] },
+                    { $eq: ['$resourceId', '$$resourceId'] },
                     { $eq: ['$userId', userId] },
                   ],
                 },
