@@ -24,6 +24,15 @@ export function appendUniqueFeedItems(existing, incoming) {
   return result;
 }
 
+export function feedPageLoadedAnnouncement(newItemCount) {
+  if (!Number.isSafeInteger(newItemCount) || newItemCount < 0) return "";
+  if (newItemCount === 0) {
+    return "La siguiente página no agregó publicaciones nuevas.";
+  }
+  if (newItemCount === 1) return "Se agregó 1 publicación nueva.";
+  return `Se agregaron ${newItemCount} publicaciones nuevas.`;
+}
+
 export function didFeedCursorAdvance(
   currentCursor,
   nextCursor,
