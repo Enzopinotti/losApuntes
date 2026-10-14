@@ -46,3 +46,36 @@ test("saved search keeps the same query across cursor pages", async () => {
     { cursor: "next-page", q: "resumen" },
   ]);
 });
+
+test("switching search query cancels stale results and keeps the current page", async () => {
+  let resolveFirst!: (value: ResourceSavedPage) => void;
+  const pending = new Promise<ResourceSavedPage>((yes) => { resolveFirst = yes; });
+  let calls = 0;
+  let firstSignal: AbortSignal | undefined;
+  const api = {
+    saved: async (_cursor?: string, signal?: AbortSignal): Promise<ResourceSavedPage> => {
+      calls += 1;
+      if (calls === 1) {
+        firstSignal = signal;
+        return pending;
+      }
+      return { items: [resource("new-query")], nextCursor: null };
+    },
+  } as ResourceConsumptionApi;
+  const controller = new MobileSavedResourcesController(api);
+
+  const old = controller.load("session-a", "algebra");
+  await controller.load("session-a", "fisica");
+  resolveFirst({ items: [resource("stale")], nextCursor: null });
+  await old;
+
+  const result = controller.getSnapshot();
+  assert.equal(firstSignal?.aborted, true);
+  assert.equal(result.kind, "ready");
+  if (result.kind === "ready") {
+    assert.equal(result.searchQuery, "fisica");
+    assert.deepEqual(result.data.items.map((r) => r.id), ["new-query"]);
+  }
+  controller.invalidate("session-a");
+  assert.deepEqual(controller.getSnapshot(), { kind: "idle" });
+});
