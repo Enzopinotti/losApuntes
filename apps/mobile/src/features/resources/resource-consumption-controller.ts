@@ -268,6 +268,9 @@ export type MobileSavedResourcesSnapshot =
       order?: 'title';
       data: ResourceSavedPage;
       loadingMore: boolean;
+      syncing: boolean;
+      syncFailure: ResourceConsumptionFailure | null;
+      syncNotice: "updated" | null;
       paginationStalled: boolean;
       paginationResetReason?: 'cursor_cycle' | 'data_changed' | undefined;
       failure: ResourceConsumptionFailure | null;
@@ -289,7 +292,7 @@ type SavedOperation = {
   authorityKey: string;
   generation: number;
   controller: AbortController;
-  kind: "load" | "loadMore" | "remove";
+  kind: "load" | "loadMore" | "remove" | "sync";
 };
 
 function appendUniqueResources(
@@ -309,6 +312,8 @@ export class MobileSavedResourcesController {
   private activeSubjectId: string | null = null;
   private activeOrder: 'saved' | 'title' = 'saved';
   private readonly usedPageCursors = new Set<string>();
+  private firstPageLength = 0;
+  private firstPageCursor: string | null = null;
   private generation = 0;
   private active: SavedOperation | null = null;
 
@@ -337,6 +342,8 @@ export class MobileSavedResourcesController {
     this.activeSubjectId = subjectId ?? null;
     this.activeOrder = order;
     this.usedPageCursors.clear();
+    this.firstPageLength = 0;
+    this.firstPageCursor = null;
     const scope = {
       ...(searchQuery ? { searchQuery } : {}),
       ...(subjectId ? { subjectId } : {}),
@@ -348,12 +355,17 @@ export class MobileSavedResourcesController {
     try {
       const data = await this.api.saved(undefined, operation.controller.signal, searchQuery ?? undefined, subjectId, order);
       if (!this.isCurrent(operation)) return;
+      this.firstPageLength = data.items.length;
+      this.firstPageCursor = data.nextCursor;
       this.publish({
         kind: "ready",
         authorityKey,
         ...scope,
         data,
         loadingMore: false,
+        syncing: false,
+        syncFailure: null,
+        syncNotice: null,
         paginationStalled: false,
         paginationResetReason: undefined,
         failure: null,
@@ -369,6 +381,79 @@ export class MobileSavedResourcesController {
         ...scope,
         failure: resourceConsumptionFailure(error),
       });
+    } finally {
+      this.finish(operation);
+    }
+  }
+
+  /**
+   * Foreground-only cross-device reconciliation. Checks one currently
+   * authorized first page, never uses a previously paginated cursor, and
+   * does not interrupt remove, loadMore or an explicit refresh.
+   *
+   * Old continuation pages are discarded when the first page changes, so
+   * the controller cannot combine two different page generations.
+   */
+  async sync(authorityKey: string): Promise<void> {
+    const previous = this.currentReady(authorityKey);
+    if (!previous || this.active || previous.syncing || previous.removingResourceId) return;
+
+    const operation = this.begin(authorityKey, "sync");
+    this.publish({ ...previous, syncing: true, syncFailure: null });
+
+    try {
+      const first = await this.api.saved(
+        undefined,
+        operation.controller.signal,
+        this.activeSearchQuery ?? undefined,
+        this.activeSubjectId ?? undefined,
+        this.activeOrder,
+      );
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+
+      const firstPageChanged =
+        this.firstPageLength !== first.items.length ||
+        this.firstPageCursor !== first.nextCursor ||
+        JSON.stringify(latest.data.items.slice(0, this.firstPageLength)) !==
+          JSON.stringify(first.items);
+
+      this.firstPageLength = first.items.length;
+      this.firstPageCursor = first.nextCursor;
+      if (firstPageChanged) {
+        this.usedPageCursors.clear();
+        this.publish({
+          ...latest,
+          data: first,
+          syncing: false,
+          syncFailure: null,
+          syncNotice: "updated",
+          loadingMore: false,
+          paginationStalled: false,
+          paginationResetReason: undefined,
+          failure: null,
+          notice: null,
+          removalFailure: null,
+        });
+      } else {
+        this.publish({
+          ...latest,
+          syncing: false,
+          syncFailure: null,
+          syncNotice: null,
+        });
+      }
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (latest) {
+        this.publish({
+          ...latest,
+          syncing: false,
+          syncFailure: resourceConsumptionFailure(error),
+        });
+      }
     } finally {
       this.finish(operation);
     }
@@ -521,6 +606,8 @@ export class MobileSavedResourcesController {
     this.activeSubjectId = null;
     this.activeOrder = 'saved';
     this.usedPageCursors.clear();
+    this.firstPageLength = 0;
+    this.firstPageCursor = null;
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
