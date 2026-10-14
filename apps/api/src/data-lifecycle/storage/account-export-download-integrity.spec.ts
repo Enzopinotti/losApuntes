@@ -110,7 +110,7 @@ describe('verifyAccountExportDownload', () => {
   it('does not leak a provider failure message through integrity handling', async () => {
     const failure = new Error('private internal storage object key');
     async function* failedProvider() {
-      throw failure;
+      await Promise.reject(failure);
       yield content;
     }
     await expect(consume(
