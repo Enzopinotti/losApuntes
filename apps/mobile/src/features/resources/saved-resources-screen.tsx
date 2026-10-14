@@ -230,8 +230,6 @@ export function SavedResourcesScreen() {
     };
   }, [authorityKey, controller, searchEligible, searchQuery]);
 
-  if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
-
   const current =
     snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey &&
@@ -263,6 +261,8 @@ export function SavedResourcesScreen() {
       setSelectedSubjectId(null);
     }
   }, [activeSubjectId, current?.kind, selectedSubjectId]);
+
+  if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
 
   const refresh = () => {
     if (authorityKey && searchEligible) {
