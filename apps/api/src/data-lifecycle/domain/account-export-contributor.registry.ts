@@ -55,7 +55,9 @@ export function assertAccountExportV1Sections(
     actual.length !== expected.length ||
     actual.some((sectionId, index) => sectionId !== expected[index])
   ) {
-    throw new Error('Account export v1 contributor inventory is incomplete or incompatible');
+    throw new Error(
+      'Account export v1 contributor inventory is incomplete or incompatible',
+    );
   }
 }
 

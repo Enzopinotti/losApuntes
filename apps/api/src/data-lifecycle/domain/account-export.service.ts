@@ -35,7 +35,12 @@ export type AccountExportDownload =
   | { kind: 'not_found' }
   | { kind: 'not_ready' }
   | { kind: 'expired' }
-  | { kind: 'available'; generation: string; byteLength: number; sha256: string };
+  | {
+      kind: 'available';
+      generation: string;
+      byteLength: number;
+      sha256: string;
+    };
 
 function assertCompletionResult(
   result: AccountExportAssemblyResult,
