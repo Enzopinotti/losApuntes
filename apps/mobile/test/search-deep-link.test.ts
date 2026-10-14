@@ -152,6 +152,22 @@ test("shared link hydration overwrites stale local search in one transition", ()
   );
 });
 
+test("invalid incoming link clears previous selected subject without a query", () => {
+  const old = {
+    query: "private",
+    scope: "resources" as const,
+    selectedSubject: { id: "stale-subject", name: "Materia anterior" },
+  };
+  assert.equal(
+    parseMobileSearchLink({ q: "x", scope: "resources", subjectId: subject }),
+    null,
+  );
+  assert.deepEqual(
+    searchInputReducer(old, { type: "invalidSharedSearchOpened" }),
+    initialSearchInputState,
+  );
+});
+
 test("search link integration is explicit, session-scoped, and storage-free", async () => {
   const { readFile } = await import("node:fs/promises");
   const url = new URL("../src/features/search/search-screen.tsx", import.meta.url);
@@ -162,6 +178,8 @@ test("search link integration is explicit, session-scoped, and storage-free", as
   assert.match(screen, /sharedSearchOpened/u);
   assert.match(screen, /controller\.cancelSearch\(\)/u);
   assert.match(screen, /handledIncomingSearch\.current/u);
+  assert.match(screen, /invalidSharedSearchOpened/u);
+  assert.match(screen, /incomingRouteKey/u);
   assert.match(screen, /Share\.share\(\{ message: url \}\)/u);
   assert.match(screen, /accessibilityLabel="Compartir búsqueda y filtro actual"/u);
   assert.match(screen, /accessibilityRole="alert"/u);
