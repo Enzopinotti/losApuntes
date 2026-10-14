@@ -10,6 +10,18 @@ import {
 
 const root = process.cwd();
 
+// A feature PR must not weaken the repository-wide hygiene gate just to
+// bypass Search formatting errors. Guard against swallowed checks.
+const rootScripts = JSON.parse(
+  await readFile(path.join(root, 'package.json'), 'utf8'),
+).scripts;
+assert.equal(
+  rootScripts['check:hygiene'],
+  'node scripts/check-repo-hygiene.mjs',
+  'Search navigation must not bypass repository hygiene',
+);
+
+
 async function read(relativePath) {
   return readFile(path.join(root, relativePath), 'utf8');
 }
