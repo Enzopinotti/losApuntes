@@ -62,10 +62,10 @@ test("global title-only browsing uses the saved search endpoint; default stays l
 
 test("title mode stays attached to every cursor page", async () => {
   const calls: Array<{
-    cursor?: string;
-    query?: string;
-    subject?: string;
-    order?: string;
+    cursor?: string | undefined;
+    query?: string | undefined;
+    subject?: string | undefined;
+    order?: string | undefined;
   }> = [];
   const api = {
     saved: async (
