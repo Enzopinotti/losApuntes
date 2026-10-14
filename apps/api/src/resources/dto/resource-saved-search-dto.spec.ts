@@ -17,7 +17,7 @@ describe('ResourceSavedSearchDto metadata search', () => {
   });
 
   it('rejects too-short, too-long and non-string queries', () => {
-    for (const q of ['a', '', 'x'.repeat(121), 1234, { x: 1 }]) {
+    for (const q of ['a', 'a ', '   ', 'x'.repeat(121), '', 1234, { x: 1 }]) {
       expect(errorsFor(q).length).toBeGreaterThan(0);
     }
   });
