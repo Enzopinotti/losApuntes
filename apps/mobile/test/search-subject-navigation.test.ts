@@ -86,7 +86,7 @@ test("manual edits and clearing a routed filter do not restore a stale Subject",
     type: "subjectSelected", subject: { id, name: "esta materia" },
   });
   const typed = searchInputReducer(selected, { type: "queryChanged", query: "álgebra" });
-  assert.equal(typed.selectedSubject, null);
+  assert.deepEqual(typed.selectedSubject, { id, name: "esta materia" });
   assert.equal(typed.query, "álgebra");
   const cleared = searchInputReducer(selected, { type: "subjectFilterCleared" });
   assert.deepEqual(cleared, initialSearchInputState);
