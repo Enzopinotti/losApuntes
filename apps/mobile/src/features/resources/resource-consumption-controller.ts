@@ -257,12 +257,14 @@ export type MobileSavedResourcesSnapshot =
       failure: ResourceConsumptionFailure;
       searchQuery?: string;
       subjectId?: string;
+      order?: 'title';
     }
   | {
       kind: "ready";
       authorityKey: string;
       searchQuery?: string;
       subjectId?: string;
+      order?: 'title';
       data: ResourceSavedPage;
       loadingMore: boolean;
       failure: ResourceConsumptionFailure | null;
@@ -302,6 +304,7 @@ export class MobileSavedResourcesController {
   private authorityKey: string | null = null;
   private activeSearchQuery: string | null = null;
   private activeSubjectId: string | null = null;
+  private activeOrder: 'saved' | 'title' = 'saved';
   private generation = 0;
   private active: SavedOperation | null = null;
 
@@ -316,7 +319,7 @@ export class MobileSavedResourcesController {
     return () => this.listeners.delete(listener);
   }
 
-  async load(authorityKey: string, query?: string, subjectId?: string): Promise<void> {
+  async load(authorityKey: string, query?: string, subjectId?: string, order: 'saved' | 'title' = 'saved'): Promise<void> {
     if (
       this.active?.kind === "remove" &&
       this.active.authorityKey === authorityKey
@@ -328,15 +331,17 @@ export class MobileSavedResourcesController {
     const searchQuery = query?.trim() || null;
     this.activeSearchQuery = searchQuery;
     this.activeSubjectId = subjectId ?? null;
+    this.activeOrder = order;
     const scope = {
       ...(searchQuery ? { searchQuery } : {}),
       ...(subjectId ? { subjectId } : {}),
+      ...(order === 'title' ? { order: 'title' as const } : {}),
     };
     const operation = this.begin(authorityKey, "load");
     this.publish({ kind: "loading", authorityKey, ...scope });
 
     try {
-      const data = await this.api.saved(undefined, operation.controller.signal, searchQuery ?? undefined, subjectId);
+      const data = await this.api.saved(undefined, operation.controller.signal, searchQuery ?? undefined, subjectId, order);
       if (!this.isCurrent(operation)) return;
       this.publish({
         kind: "ready",
@@ -381,6 +386,7 @@ export class MobileSavedResourcesController {
         operation.controller.signal,
         this.activeSearchQuery ?? undefined,
         this.activeSubjectId ?? undefined,
+        this.activeOrder,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
@@ -474,6 +480,7 @@ export class MobileSavedResourcesController {
     this.authorityKey = null;
     this.activeSearchQuery = null;
     this.activeSubjectId = null;
+    this.activeOrder = 'saved';
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
