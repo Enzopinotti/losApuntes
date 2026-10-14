@@ -174,7 +174,7 @@ test("controller sends both filter dimensions and fences older cross-Subject ans
       return inputs.length === 1 ? stale : response(input.q ?? "");
     },
     contextualDiscovery: async () => ({ subjects: [] }),
-  } as MobileSearchApi;
+  } as unknown as MobileSearchApi;
   const controller = new MobileSearchController(api);
   const first = controller.search("user:session", {
     q: "límites",
