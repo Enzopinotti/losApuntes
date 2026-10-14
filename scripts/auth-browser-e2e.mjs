@@ -12,6 +12,8 @@ import {
   waitForMail,
   waitForMailpit,
 } from "./mailpit-smoke.mjs";
+import { withTtlMonitorPaused } from "./auth-ttl-guard.mjs";
+import { assertLocalAuthSmokeMongo } from "./auth-local-compose-guard.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WEB_ROOT = resolve(ROOT, "apps/web");
@@ -225,7 +227,136 @@ function setSyntheticAccountStatus(email, status) {
   );
 }
 
+function mongoTtlMonitorCommand(script) {
+  return execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      "compose.local.yml",
+      "exec",
+      "-T",
+      "mongo",
+      "mongosh",
+      "--quiet",
+      "losapuntes_local",
+      "--eval",
+      script,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  ).trim();
+}
+
+function readMongoTtlMonitorEnabled() {
+  const output = mongoTtlMonitorCommand(
+    [
+      "const state = db.adminCommand({ getParameter: 1, ttlMonitorEnabled: 1 });",
+      'if (state.ok !== 1 || typeof state.ttlMonitorEnabled !== "boolean") throw new Error("TTL monitor state unavailable");',
+      'print(state.ttlMonitorEnabled ? "enabled" : "disabled");',
+    ].join("\n"),
+  );
+  assert.ok(
+    ["enabled", "disabled"].includes(output),
+    "unexpected TTL monitor state",
+  );
+  return output === "enabled";
+}
+
+function setMongoTtlMonitorEnabled(enabled) {
+  mongoTtlMonitorCommand(
+    [
+      `const changed = db.adminCommand({ setParameter: 1, ttlMonitorEnabled: ${enabled ? "true" : "false"} });`,
+      'if (changed.ok !== 1) throw new Error("Cannot change local TTL monitor");',
+    ].join("\n"),
+  );
+  assert.equal(readMongoTtlMonitorEnabled(), enabled);
+}
+
+async function withLocalMongoTtlMonitorPaused(operation) {
+  // This scenario uses the disposable Compose Mongo only. No production
+  // TTL configuration, index or Auth behavior is changed.
+  return withTtlMonitorPaused(
+    {
+      readEnabled: readMongoTtlMonitorEnabled,
+      setEnabled: setMongoTtlMonitorEnabled,
+    },
+    operation,
+  );
+}
+function expireSyntheticSession(sessionId) {
+  const script = [
+    "const result = db.auth_sessions.updateOne(",
+    `  { sessionId: ${JSON.stringify(sessionId)} },`,
+    "  { $set: { expiresAt: new Date(Date.now() - 1000) } },",
+    ");",
+    "if (result.matchedCount !== 1) {",
+    "  printjson(result);",
+    "  quit(2);",
+    "}",
+  ].join("\n");
+
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      "compose.local.yml",
+      "exec",
+      "-T",
+      "mongo",
+      "mongosh",
+      "--quiet",
+      "losapuntes_local",
+      "--eval",
+      script,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+}
+
+function assertExpiredSyntheticSessionStillPresent(sessionId) {
+  // A missing session also returns 401. Verify Mongo's TTL monitor has not
+  // removed the fixture, so this test proves the application expiry predicate.
+  const script = [
+    `const session = db.auth_sessions.findOne({ sessionId: ${JSON.stringify(sessionId)} });`,
+    "if (!session || !(session.expiresAt instanceof Date) || session.expiresAt.getTime() >= Date.now()) {",
+    '  throw new Error("Synthetic Auth session must still exist and be expired");',
+    "}",
+  ].join("\n");
+
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      "compose.local.yml",
+      "exec",
+      "-T",
+      "mongo",
+      "mongosh",
+      "--quiet",
+      "losapuntes_local",
+      "--eval",
+      script,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+}
+
 async function run() {
+  assertLocalAuthSmokeMongo(ROOT);
   const health = await fetch(new URL("/health/ready", API_ORIGIN), {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -945,9 +1076,76 @@ async function run() {
       throw revocationFlowError;
     }
 
+    await page.goto(new URL("/login", WEB_ORIGIN).toString());
+    const expiryLoginEmail = page.getByLabel("Email", { exact: true });
+    const expiryLoginPassword = page.getByLabel("Contraseña", { exact: true });
+    await expiryLoginEmail.fill(email);
+    await expiryLoginPassword.fill(recoveredPassword);
+    const expiryLoginResponsePromise = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        new URL(response.url()).pathname === "/auth/login" &&
+        request.method() === "POST"
+      );
+    });
+    await page.getByRole("button", { name: "Iniciar sesión" }).click();
+    const expiryLoginResponse = await expiryLoginResponsePromise;
+    assert.equal(
+      expiryLoginResponse.status(),
+      200,
+      "browser login should succeed before synthetic absolute expiry",
+    );
+    await page.waitForURL((url) => url.pathname === "/dashboard");
+
+    const expirySnapshot = await authenticatedMe(page);
+    assert.equal(expirySnapshot.status, 200);
+    const expiringSessionId = expirySnapshot.body?.session?.id;
+    assert.equal(
+      typeof expiringSessionId,
+      "string",
+      "authenticated Web snapshot should expose the expiring session id",
+    );
+
+    await withLocalMongoTtlMonitorPaused(async () => {
+      expireSyntheticSession(expiringSessionId);
+      assertExpiredSyntheticSessionStillPresent(expiringSessionId);
+  
+      const expiredBootstrapResponsePromise = page.waitForResponse((response) => {
+        const request = response.request();
+        return (
+          new URL(response.url()).pathname === "/auth/me" &&
+          request.method() === "GET"
+        );
+      });
+      await page.reload();
+      const expiredBootstrapResponse = await expiredBootstrapResponsePromise;
+      assert.equal(
+        expiredBootstrapResponse.status(),
+        401,
+        "expired Web session should fail the next Auth bootstrap",
+      );
+      const expiredBootstrapBody = await expiredBootstrapResponse.json();
+      assert.equal(
+        expiredBootstrapBody?.code,
+        "AUTHENTICATION_REQUIRED",
+        "expired Web session should preserve the stable anonymous Auth code",
+      );
+      assertExpiredSyntheticSessionStillPresent(expiringSessionId);
+      await page.waitForURL((url) => url.pathname === "/login");
+      await page
+        .getByRole("heading", { name: "Inicia sesión en tu cuenta", exact: true })
+        .waitFor();
+    });
+
+    assert.deepEqual(
+      pageErrors,
+      [],
+      "auth journey should not produce uncaught page errors",
+    );
+
     await context.close();
     console.log(
-      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout, recovered credential login, restricted-account routing and remote Web-session revocation.",
+      "Auth browser E2E passed: verification/recovery URL and history scrubbing, keyboard/autofill, HttpOnly login, /auth/me, CSRF rejection, logout, recovered credential login, restricted-account routing, remote Web-session revocation and expired-session routing.",
     );
   } finally {
     await browser?.close();
