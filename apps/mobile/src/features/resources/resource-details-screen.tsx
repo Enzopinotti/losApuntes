@@ -26,6 +26,7 @@ import {
 } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
+import { mobileSessionRecentResourceOpens } from "./recent-opened-memory";
 import {
   useFencedDetail,
   type DetailFailureKind,
@@ -255,6 +256,21 @@ export function MobileResourceDetailsScreen({
     [resourceId],
   );
   const { snapshot, retry } = useFencedDetail(authorityKey, load);
+
+  // Record only after a fresh, authorized detail response is ready for the
+  // active session. Navigating to an ID or encountering a 403/404 does not
+  // count as opening an apunte.
+  useEffect(() => {
+    if (
+      sessionAuthority &&
+      authorityKey &&
+      snapshot.kind === "ready" &&
+      snapshot.authorityKey === authorityKey &&
+      snapshot.data.resource.id === resourceId
+    ) {
+      mobileSessionRecentResourceOpens.record(sessionAuthority, resourceId);
+    }
+  }, [authorityKey, resourceId, sessionAuthority, snapshot]);
 
   useEffect(() => controller.subscribe(setAction), [controller]);
   useEffect(
