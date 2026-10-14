@@ -11,7 +11,10 @@ import { ResourceSavedSearchController } from './resource-saved-search.controlle
 
 describe('saved search HTTP authority', () => {
   it('uses session guard, static route and private/no-store response', () => {
-    const method = Reflect.get(ResourceSavedSearchController.prototype, 'search') as object;
+    const method = Reflect.get(
+      ResourceSavedSearchController.prototype,
+      'search',
+    ) as object;
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toContain(
       AuthSessionGuard,
     );
@@ -47,7 +50,10 @@ describe('saved search HTTP authority', () => {
     );
   });
   it('keeps saved-subject facets behind session and private cache policy', async () => {
-    const method = Reflect.get(ResourceSavedSearchController.prototype, 'subjects') as object;
+    const method = Reflect.get(
+      ResourceSavedSearchController.prototype,
+      'subjects',
+    ) as object;
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toContain(
       AuthSessionGuard,
     );
