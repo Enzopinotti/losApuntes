@@ -43,3 +43,24 @@ export function searchSelectionHref(selection) {
 export function searchSelectionKey(selection) {
   return selection ? JSON.stringify([selection.q, selection.scope]) : null;
 }
+
+/**
+ * Only a canonical internal Search URL is accepted as a return destination.
+ * Ignore arbitrary navigation state instead of treating it as a redirect.
+ */
+export function searchReturnHref(locationState) {
+  if (typeof locationState !== "object" || locationState === null) {
+    return null;
+  }
+
+  const candidate = locationState.searchReturnTo;
+  if (typeof candidate !== "string" || !candidate.startsWith("/search?")) {
+    return null;
+  }
+
+  const selection = searchSelectionFromSearchParams(
+    new URLSearchParams(candidate.slice("/search?".length)),
+  );
+  const canonical = selection && searchSelectionHref(selection);
+  return candidate === canonical ? canonical : null;
+}
