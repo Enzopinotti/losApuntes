@@ -1,7 +1,4 @@
-import type {
-  ResourceView,
-  ResourceVisibility,
-} from "@losapuntes/contracts";
+import type { ResourceView, ResourceVisibility } from "@losapuntes/contracts";
 
 export const RESOURCE_TITLE_MAX_LENGTH = 160;
 export const RESOURCE_DESCRIPTION_MAX_LENGTH = 3000;
@@ -9,7 +6,11 @@ export const RESOURCE_TAG_MAX_LENGTH = 40;
 export const RESOURCE_TAG_MAX_COUNT = 12;
 
 export const RESOURCE_VISIBILITY_OPTIONS = [
-  { value: "private", label: "Privado", detail: "Solo vos podés abrir el apunte." },
+  {
+    value: "private",
+    label: "Privado",
+    detail: "Solo vos podés abrir el apunte.",
+  },
   {
     value: "shared",
     label: "Compartido",
@@ -69,7 +70,9 @@ export type ResourceMetadataValidation =
   | { kind: "unchanged" }
   | { kind: "valid"; input: ResourceMetadataUpdateInput };
 
-export function resourceMetadataDraft(resource: ResourceView): ResourceMetadataDraft {
+export function resourceMetadataDraft(
+  resource: ResourceView,
+): ResourceMetadataDraft {
   return {
     title: resource.title,
     description: resource.description ?? "",
@@ -86,8 +89,15 @@ export function validateResourceMetadata(
   resource: ResourceView,
   draft: ResourceMetadataDraft,
 ): ResourceMetadataValidation {
-  if (!resource.capabilities.edit || !Number.isInteger(resource.revision) || resource.revision < 1) {
-    return { kind: "invalid", message: "No tenés permiso para editar este apunte." };
+  if (
+    !resource.capabilities.edit ||
+    !Number.isInteger(resource.revision) ||
+    resource.revision < 1
+  ) {
+    return {
+      kind: "invalid",
+      message: "No tenés permiso para editar este apunte.",
+    };
   }
 
   const visibility = draft.visibility ?? resource.visibility;
@@ -108,16 +118,25 @@ export function validateResourceMetadata(
     .filter(Boolean);
 
   if (title.length < 2 || title.length > RESOURCE_TITLE_MAX_LENGTH) {
-    return { kind: "invalid", message: "El título debe tener entre 2 y 160 caracteres." };
+    return {
+      kind: "invalid",
+      message: "El título debe tener entre 2 y 160 caracteres.",
+    };
   }
   if (description.length > RESOURCE_DESCRIPTION_MAX_LENGTH) {
-    return { kind: "invalid", message: "La descripción puede tener hasta 3000 caracteres." };
+    return {
+      kind: "invalid",
+      message: "La descripción puede tener hasta 3000 caracteres.",
+    };
   }
   if (tags.length > RESOURCE_TAG_MAX_COUNT) {
     return { kind: "invalid", message: "Podés agregar hasta 12 etiquetas." };
   }
   if (tags.some((tag) => tag.length > RESOURCE_TAG_MAX_LENGTH)) {
-    return { kind: "invalid", message: "Cada etiqueta puede tener hasta 40 caracteres." };
+    return {
+      kind: "invalid",
+      message: "Cada etiqueta puede tener hasta 40 caracteres.",
+    };
   }
   const unique = new Set(
     tags.map((tag) => tag.normalize("NFKC").toLocaleLowerCase("es-AR")),
@@ -152,19 +171,21 @@ export function resourceMetadataMatches(
   original: ResourceView,
   input: ResourceMetadataUpdateInput,
 ): boolean {
-  if (updated.id !== original.id || updated.revision <= original.revision) return false;
+  if (updated.id !== original.id || updated.revision <= original.revision)
+    return false;
   if (input.title !== undefined && updated.title !== input.title) return false;
-  if (
-    input.visibility !== undefined &&
-    updated.visibility !== input.visibility
-  ) return false;
+  if (input.visibility !== undefined && updated.visibility !== input.visibility)
+    return false;
   if (
     input.description !== undefined &&
     updated.description !== input.description
-  ) return false;
-  if (input.tags !== undefined && (
-    updated.tags.length !== input.tags.length ||
-    updated.tags.some((tag, index) => tag !== input.tags?.[index])
-  )) return false;
+  )
+    return false;
+  if (
+    input.tags !== undefined &&
+    (updated.tags.length !== input.tags.length ||
+      updated.tags.some((tag, index) => tag !== input.tags?.[index]))
+  )
+    return false;
   return true;
 }
