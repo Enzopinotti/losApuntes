@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 
 import {
   SAVED_RESOURCE_SEARCH_STORE,
@@ -63,6 +63,21 @@ export class ResourceSavedSearchService {
     const titleAfter = order === 'title'
       ? decodeSavedTitleCursor(cursor, userId, q, subjectId)
       : undefined;
+    if (after || titleAfter) {
+      const fresh = await boundedSavedQuery(() => this.store.isSavedSearchAnchorCurrent({
+        userId,
+        ...(q ? { q } : {}),
+        ...(subjectId ? { subjectId } : {}),
+        ...(after ? { after } : {}),
+        ...(titleAfter ? { titleAfter } : {}),
+      }));
+      if (!fresh) {
+        throw new ConflictException({
+          code: 'RESOURCE_SAVED_SEARCH_CURSOR_STALE',
+          message: 'Saved library changed; reload from the first page',
+        });
+      }
+    }
     const page = await boundedSavedQuery(() => this.store.searchSavedResources({
       userId,
       ...(q ? { q } : {}),
