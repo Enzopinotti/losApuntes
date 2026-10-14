@@ -97,10 +97,3 @@ export function parseAccountExportRequest(
   };
 }
 
-function exportPath(id: string): string {
-  if (!exportIdPattern.test(id)) {
-    throw new AuthApiError("INVALID_EXPORT_ID", 400, "Exportación inválida.");
-  }
-  return `/account/exports/${encodeURIComponent(id)}`;
-}
-
