@@ -54,6 +54,7 @@ export function searchReturnHref(locationState) {
   }
 
   const candidate = locationState.searchReturnTo;
+  if (candidate === "/search") return candidate;
   if (typeof candidate !== "string" || !candidate.startsWith("/search?")) {
     return null;
   }
