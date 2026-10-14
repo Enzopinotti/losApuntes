@@ -74,6 +74,7 @@ import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
+  assertAccountExportV1Sections,
 } from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
 import { AccountExportProcessor } from './domain/account-export-processor';
@@ -191,7 +192,8 @@ import {
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
         pilotActivity: PilotActivityExportContributor,
-      ) => [
+      ) => {
+        const contributors = [
         account,
         profile,
         activities,
@@ -222,7 +224,10 @@ import {
         socialFollowing,
         socialConnections,
         pilotActivity,
-      ],
+        ];
+        assertAccountExportV1Sections(contributors);
+        return contributors;
+      },
       inject: [
         AccountIdentityExportContributor,
         ProfileExportContributor,
