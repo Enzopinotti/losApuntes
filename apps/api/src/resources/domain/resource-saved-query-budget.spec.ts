@@ -5,7 +5,7 @@ import { boundedSavedQuery } from './resource-saved-query-budget';
 describe('saved query execution budgets', () => {
   it('preserves successful authorized results', async () => {
     await expect(
-      boundedSavedQuery(async () => ({ items: [1], hasMore: false })),
+      boundedSavedQuery(() => Promise.resolve({ items: [1], hasMore: false })),
     ).resolves.toEqual({ items: [1], hasMore: false });
   });
 
@@ -14,14 +14,10 @@ describe('saved query execution budgets', () => {
       { code: 50, message: 'Mongo query timed out' },
       { codeName: 'MaxTimeMSExpired', message: 'Mongo query timed out' },
     ]) {
-      const run = boundedSavedQuery(async () => {
-        throw error;
-      });
+      const run = boundedSavedQuery(() => Promise.reject(error));
       await expect(run).rejects.toBeInstanceOf(RequestTimeoutException);
       await expect(
-        boundedSavedQuery(async () => {
-          throw error;
-        }),
+        boundedSavedQuery(() => Promise.reject(error)),
       ).rejects.toMatchObject({
         response: {
           code: 'RESOURCE_SAVED_QUERY_TIMEOUT',
@@ -33,9 +29,7 @@ describe('saved query execution budgets', () => {
   it('never masks unrelated persistence failures or returns an empty page', async () => {
     const failure = new Error('database connection unavailable');
     await expect(
-      boundedSavedQuery(async () => {
-        throw failure;
-      }),
+      boundedSavedQuery(() => Promise.reject(failure)),
     ).rejects.toBe(failure);
   });
 });
