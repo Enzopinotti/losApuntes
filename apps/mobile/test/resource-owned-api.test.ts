@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ApiRequestError, type MobileApiClient } from "../src/services/api/client";
+import {
+  ApiRequestError,
+  type MobileApiClient,
+} from "../src/services/api/client";
 import type { SessionController } from "../src/features/session/session-controller";
 import { MobileOwnedResourcesApi } from "../src/features/resources/resource-owned-api";
 
@@ -44,10 +47,12 @@ test("authenticated listing requests only session owner's resources", async () =
     items: [],
     nextCursor: null,
   });
-  assert.deepEqual(calls, [{
-    path: "/resources/mine?limit=25",
-    options: { credential: "session-secret" },
-  }]);
+  assert.deepEqual(calls, [
+    {
+      path: "/resources/mine?limit=25",
+      options: { credential: "session-secret" },
+    },
+  ]);
 });
 
 test("visibility and cursor are encoded in the next page request", async () => {
@@ -57,10 +62,12 @@ test("visibility and cursor are encoded in the next page request", async () => {
     { visibility: "shared", cursor: "page?with=value" },
     signal,
   );
-  assert.deepEqual(calls, [{
-    path: "/resources/mine?limit=25&visibility=shared&cursor=page%3Fwith%3Dvalue",
-    options: { credential: "session-secret", signal },
-  }]);
+  assert.deepEqual(calls, [
+    {
+      path: "/resources/mine?limit=25&visibility=shared&cursor=page%3Fwith%3Dvalue",
+      options: { credential: "session-secret", signal },
+    },
+  ]);
 });
 
 test("missing session refuses fetching private publications", async () => {
@@ -88,12 +95,15 @@ test("an old session's response is rejected after credential changes", async () 
 test("owner subject facets use a credentialed request without another user's ID", async () => {
   const { api, calls } = setup();
   assert.deepEqual(await api.listSubjects(), {
-    items: [], truncated: false,
+    items: [],
+    truncated: false,
   });
-  assert.deepEqual(calls, [{
-    path: "/resources/mine/subjects",
-    options: { credential: "session-secret" },
-  }]);
+  assert.deepEqual(calls, [
+    {
+      path: "/resources/mine/subjects",
+      options: { credential: "session-secret" },
+    },
+  ]);
 });
 
 test("all advanced owner filters are serialized in the server request", async () => {
@@ -105,10 +115,12 @@ test("all advanced owner filters are serialized in the server request", async ()
     order: "oldest",
     cursor: "page=2",
   });
-  assert.deepEqual(calls, [{
-    path: "/resources/mine?limit=25&visibility=shared&q=%C3%A1lgebra+%26+SQL&subjectId=22222222-2222-4222-8222-222222222222&order=oldest&cursor=page%3D2",
-    options: { credential: "session-secret" },
-  }]);
+  assert.deepEqual(calls, [
+    {
+      path: "/resources/mine?limit=25&visibility=shared&q=%C3%A1lgebra+%26+SQL&subjectId=22222222-2222-4222-8222-222222222222&order=oldest&cursor=page%3D2",
+      options: { credential: "session-secret" },
+    },
+  ]);
 });
 
 test("unauthorized account cannot enumerate its private subject facets", async () => {

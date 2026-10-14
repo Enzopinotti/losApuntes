@@ -86,9 +86,7 @@ function OwnedResourceRow({
       <Text style={styles.meta}>
         Publicado: {new Date(resource.createdAt).toLocaleDateString("es-AR")}
       </Text>
-      <Text style={styles.actionText}>
-        Abrir y administrar
-      </Text>
+      <Text style={styles.actionText}>Abrir y administrar</Text>
     </Pressable>
   );
 }
@@ -119,8 +117,7 @@ export function OwnedResourcesScreen() {
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
-  const authorityKey =
-    isFocused && appState === "active" ? sessionKey : null;
+  const authorityKey = isFocused && appState === "active" ? sessionKey : null;
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
 
@@ -157,7 +154,8 @@ export function OwnedResourcesScreen() {
     }
     const active = new AbortController();
     setSubjects({ authorityKey, data: null, failed: false });
-    void mobileOwnedResourcesApi.listSubjects(active.signal)
+    void mobileOwnedResourcesApi
+      .listSubjects(active.signal)
       .then((data) => {
         if (!active.signal.aborted) {
           setSubjects({ authorityKey, data, failed: false });
@@ -193,12 +191,18 @@ export function OwnedResourcesScreen() {
       });
     }
   };
-  const normalizedDraft = draftQuery.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("es-AR");
-  const canSearch = normalizedDraft.length === 0 ||
+  const normalizedDraft = draftQuery
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/gu, " ")
+    .toLocaleLowerCase("es-AR");
+  const canSearch =
+    normalizedDraft.length === 0 ||
     (normalizedDraft.length >= 2 && normalizedDraft.length <= 120);
   const subjectResults =
     subjects?.authorityKey === authorityKey ? subjects : null;
-  const hasFilters = !!query || !!subjectId || !!visibility || order !== "newest";
+  const hasFilters =
+    !!query || !!subjectId || !!visibility || order !== "newest";
 
   return (
     <ProductSurface
@@ -232,7 +236,9 @@ export function OwnedResourcesScreen() {
         >
           <Text style={styles.statisticsLabel}>Ver mis estadísticas</Text>
         </Pressable>
-        <Text style={styles.sectionLabel}>Buscar en todas mis publicaciones</Text>
+        <Text style={styles.sectionLabel}>
+          Buscar en todas mis publicaciones
+        </Text>
         <View style={styles.searchRow}>
           <TextInput
             accessibilityLabel="Buscar mis apuntes por título, descripción o etiquetas"
@@ -284,7 +290,8 @@ export function OwnedResourcesScreen() {
         <Text style={styles.sectionLabel}>Materia</Text>
         {subjectResults?.failed ? (
           <Text style={styles.error}>
-            No se pudieron consultar tus materias. Volvé a entrar para reintentar.
+            No se pudieron consultar tus materias. Volvé a entrar para
+            reintentar.
           </Text>
         ) : subjectResults?.data ? (
           <>
@@ -308,11 +315,14 @@ export function OwnedResourcesScreen() {
                       key={subject.subjectId}
                       accessibilityRole="radio"
                       accessibilityLabel={`Materia ${subject.name}: ${subject.count} publicaciones`}
-                      accessibilityState={{ checked: subjectId === subject.subjectId }}
+                      accessibilityState={{
+                        checked: subjectId === subject.subjectId,
+                      }}
                       onPress={() => setSubjectId(subject.subjectId)}
                       style={[
                         styles.filterButton,
-                        subjectId === subject.subjectId && styles.filterSelected,
+                        subjectId === subject.subjectId &&
+                          styles.filterSelected,
                       ]}
                     >
                       <Text style={styles.filterText}>
@@ -334,10 +344,12 @@ export function OwnedResourcesScreen() {
         )}
         <Text style={styles.sectionLabel}>Ordenar por publicación</Text>
         <View accessibilityRole="radiogroup" style={styles.filters}>
-          {([
-            { value: "newest", label: "Más recientes" },
-            { value: "oldest", label: "Más antiguos" },
-          ] as const).map((choice) => (
+          {(
+            [
+              { value: "newest", label: "Más recientes" },
+              { value: "oldest", label: "Más antiguos" },
+            ] as const
+          ).map((choice) => (
             <Pressable
               key={choice.value}
               accessibilityRole="radio"

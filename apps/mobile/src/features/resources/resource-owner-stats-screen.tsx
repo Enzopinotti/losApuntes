@@ -144,7 +144,10 @@ function OwnerStatisticsData({
                 <View
                   style={[
                     styles.barFill,
-                    { width: `${Math.round((resource.saves / maxSaves) * 100)}%` as `${number}%` },
+                    {
+                      width:
+                        `${Math.round((resource.saves / maxSaves) * 100)}%` as `${number}%`,
+                    },
                   ]}
                 />
               </View>
@@ -154,9 +157,9 @@ function OwnerStatisticsData({
         )}
       </View>
       <Text style={styles.disclaimer}>
-        Actualizado: {new Date(data.generatedAt).toLocaleString("es-AR")}.
-        Datos calculados a partir de los registros actuales, no de un historial
-        de aperturas. Se excluyen recursos ocultados por moderación.
+        Actualizado: {new Date(data.generatedAt).toLocaleString("es-AR")}. Datos
+        calculados a partir de los registros actuales, no de un historial de
+        aperturas. Se excluyen recursos ocultados por moderación.
       </Text>
     </>
   );

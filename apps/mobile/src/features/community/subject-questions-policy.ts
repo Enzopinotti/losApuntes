@@ -2,7 +2,8 @@
  * A route parameter never grants academic participation or read authority.
  * Its sole purpose is to request the already-authorized questions feed.
  */
-const SUBJECT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const SUBJECT_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export function subjectQuestionsRouteId(
   param: string | string[] | undefined,

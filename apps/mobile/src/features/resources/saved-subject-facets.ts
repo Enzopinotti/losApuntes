@@ -17,8 +17,18 @@ export type SavedSubjectFacetsPage = {
 export type SavedSubjectFacetsSnapshot =
   | { kind: "idle" }
   | { kind: "loading"; authorityKey: string }
-  | { kind: "ready"; authorityKey: string; data: SavedSubjectFacetsPage; refreshing?: boolean; refreshFailure?: ResourceConsumptionFailure | null }
-  | { kind: "failure"; authorityKey: string; reason: ResourceConsumptionFailure };
+  | {
+      kind: "ready";
+      authorityKey: string;
+      data: SavedSubjectFacetsPage;
+      refreshing?: boolean;
+      refreshFailure?: ResourceConsumptionFailure | null;
+    }
+  | {
+      kind: "failure";
+      authorityKey: string;
+      reason: ResourceConsumptionFailure;
+    };
 
 export interface SavedSubjectFacetsApi {
   subjects(signal?: AbortSignal): Promise<SavedSubjectFacetsPage>;
@@ -34,7 +44,12 @@ export class MobileSavedSubjectFacetsApi implements SavedSubjectFacetsApi {
   async subjects(signal?: AbortSignal): Promise<SavedSubjectFacetsPage> {
     const authority = this.session.getCredentialSnapshot();
     if (!authority) {
-      throw new ApiRequestError("unauthorized", 401, "AUTHENTICATION_REQUIRED", "Authentication required");
+      throw new ApiRequestError(
+        "unauthorized",
+        401,
+        "AUTHENTICATION_REQUIRED",
+        "Authentication required",
+      );
     }
     try {
       const data = await this.client.request<SavedSubjectFacetsPage>(
@@ -44,16 +59,32 @@ export class MobileSavedSubjectFacetsApi implements SavedSubjectFacetsApi {
           ...(signal ? { signal } : {}),
         },
       );
-      if (!this.session.isCredentialAuthoritative(authority.credential, authority.generation)) {
-        throw new ApiRequestError("unauthorized", null, "STALE_SESSION_AUTHORITY", "Session changed during saved facet load");
+      if (
+        !this.session.isCredentialAuthoritative(
+          authority.credential,
+          authority.generation,
+        )
+      ) {
+        throw new ApiRequestError(
+          "unauthorized",
+          null,
+          "STALE_SESSION_AUTHORITY",
+          "Session changed during saved facet load",
+        );
       }
       return data;
     } catch (error) {
       if (error instanceof ApiRequestError) {
         if (error.kind === "unauthorized") {
-          await this.session.invalidateIfAuthoritative(authority.credential, authority.generation);
+          await this.session.invalidateIfAuthoritative(
+            authority.credential,
+            authority.generation,
+          );
         } else if (error.code === "ACCOUNT_RESTRICTED") {
-          await this.session.restrictIfAuthoritative(authority.credential, authority.generation);
+          await this.session.restrictIfAuthoritative(
+            authority.credential,
+            authority.generation,
+          );
         }
       }
       throw error;
@@ -71,11 +102,15 @@ export class MobileSavedSubjectFacetsController {
 
   constructor(private readonly api: SavedSubjectFacetsApi) {}
 
-  getSnapshot() { return this.snapshot; }
+  getSnapshot() {
+    return this.snapshot;
+  }
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   async load(authorityKey: string): Promise<void> {
@@ -90,7 +125,11 @@ export class MobileSavedSubjectFacetsController {
       this.publish({ kind: "ready", authorityKey, data });
     } catch (error) {
       if (!this.isCurrent(generation, controller, authorityKey)) return;
-      this.publish({ kind: "failure", authorityKey, reason: resourceConsumptionFailure(error) });
+      this.publish({
+        kind: "failure",
+        authorityKey,
+        reason: resourceConsumptionFailure(error),
+      });
     } finally {
       if (this.active === controller) this.active = null;
     }
@@ -106,7 +145,8 @@ export class MobileSavedSubjectFacetsController {
       this.snapshot.kind !== "ready" ||
       this.snapshot.authorityKey !== authorityKey ||
       this.active
-    ) return;
+    )
+      return;
     const controller = new AbortController();
     const generation = ++this.generation;
     this.active = controller;
@@ -114,7 +154,13 @@ export class MobileSavedSubjectFacetsController {
     try {
       const data = await this.api.subjects(controller.signal);
       if (!this.isCurrent(generation, controller, authorityKey)) return;
-      this.publish({ kind: "ready", authorityKey, data, refreshing: false, refreshFailure: null });
+      this.publish({
+        kind: "ready",
+        authorityKey,
+        data,
+        refreshing: false,
+        refreshFailure: null,
+      });
     } catch (error) {
       if (!this.isCurrent(generation, controller, authorityKey)) return;
       const current = this.snapshot;
@@ -131,17 +177,30 @@ export class MobileSavedSubjectFacetsController {
   }
 
   invalidate(authorityKey?: string) {
-    if (authorityKey && this.snapshot.kind !== "idle" && this.snapshot.authorityKey !== authorityKey) return;
+    if (
+      authorityKey &&
+      this.snapshot.kind !== "idle" &&
+      this.snapshot.authorityKey !== authorityKey
+    )
+      return;
     ++this.generation;
     this.active?.abort();
     this.active = null;
     this.publish({ kind: "idle" });
   }
 
-  private isCurrent(generation: number, controller: AbortController, key: string) {
-    return generation === this.generation && this.active === controller &&
+  private isCurrent(
+    generation: number,
+    controller: AbortController,
+    key: string,
+  ) {
+    return (
+      generation === this.generation &&
+      this.active === controller &&
       !controller.signal.aborted &&
-      this.snapshot.kind !== "idle" && this.snapshot.authorityKey === key;
+      this.snapshot.kind !== "idle" &&
+      this.snapshot.authorityKey === key
+    );
   }
 
   private publish(snapshot: SavedSubjectFacetsSnapshot) {

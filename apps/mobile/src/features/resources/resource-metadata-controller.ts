@@ -50,7 +50,9 @@ export class MobileResourceMetadataController {
     input: ResourceMetadataUpdateInput;
   } | null = null;
 
-  constructor(private readonly api: Pick<ResourceConsumptionApi, "update" | "resource">) {}
+  constructor(
+    private readonly api: Pick<ResourceConsumptionApi, "update" | "resource">,
+  ) {}
 
   getSnapshot(): MobileResourceMetadataSnapshot {
     return this.snapshot;
@@ -105,7 +107,8 @@ export class MobileResourceMetadataController {
     draft: ResourceMetadataDraft,
   ): Promise<boolean> {
     const current = this.current(authorityKey, resourceId);
-    if (!current || current.busy || current.outcome === "uncertain") return false;
+    if (!current || current.busy || current.outcome === "uncertain")
+      return false;
     const validation = validateResourceMetadata(current.resource, draft);
     if (validation.kind !== "valid") return false;
 
@@ -116,7 +119,11 @@ export class MobileResourceMetadataController {
     if (!operation) return false;
 
     try {
-      const result = await this.api.update(resourceId, input, operation.controller.signal);
+      const result = await this.api.update(
+        resourceId,
+        input,
+        operation.controller.signal,
+      );
       if (!this.isCurrent(operation)) return false;
       if (!resourceMetadataMatches(result.resource, baseline, input)) {
         this.setResult(operation, baseline, "uncertain", null);
@@ -153,23 +160,41 @@ export class MobileResourceMetadataController {
 
   async refresh(authorityKey: string, resourceId: string): Promise<boolean> {
     const current = this.current(authorityKey, resourceId);
-    if (!current || current.busy || current.outcome !== "uncertain") return false;
+    if (!current || current.busy || current.outcome !== "uncertain")
+      return false;
     const operation = this.begin(authorityKey, resourceId, "refreshing");
     if (!operation) return false;
     try {
-      const result = await this.api.resource(resourceId, operation.controller.signal);
+      const result = await this.api.resource(
+        resourceId,
+        operation.controller.signal,
+      );
       if (!this.isCurrent(operation)) return false;
       const attempt = this.lastAttempt;
       const saved = Boolean(
         attempt &&
-          attempt.authorityKey === authorityKey &&
-          resourceMetadataMatches(result.resource, attempt.baseline, attempt.input),
+        attempt.authorityKey === authorityKey &&
+        resourceMetadataMatches(
+          result.resource,
+          attempt.baseline,
+          attempt.input,
+        ),
       );
-      this.setResult(operation, result.resource, saved ? "saved" : "conflict", null);
+      this.setResult(
+        operation,
+        result.resource,
+        saved ? "saved" : "conflict",
+        null,
+      );
       return true;
     } catch (error) {
       if (this.isCurrent(operation)) {
-        this.setResult(operation, current.resource, "uncertain", resourceConsumptionFailure(error));
+        this.setResult(
+          operation,
+          current.resource,
+          "uncertain",
+          resourceConsumptionFailure(error),
+        );
       }
       return false;
     } finally {
@@ -178,7 +203,11 @@ export class MobileResourceMetadataController {
   }
 
   suspend(authorityKey: string): void {
-    if (this.snapshot.kind !== "ready" || this.snapshot.authorityKey !== authorityKey) return;
+    if (
+      this.snapshot.kind !== "ready" ||
+      this.snapshot.authorityKey !== authorityKey
+    )
+      return;
     const current = this.snapshot;
     this.abort();
     this.publish({
@@ -193,7 +222,8 @@ export class MobileResourceMetadataController {
       authorityKey &&
       this.snapshot.kind === "ready" &&
       this.snapshot.authorityKey !== authorityKey
-    ) return;
+    )
+      return;
     this.abort();
     this.lastAttempt = null;
     this.publish({ kind: "idle" });
@@ -215,9 +245,11 @@ export class MobileResourceMetadataController {
       this.setResult(
         operation,
         resource,
-        matched ? "saved" : confirmedConflict || resource.revision > baseline.revision
-          ? "conflict"
-          : "uncertain",
+        matched
+          ? "saved"
+          : confirmedConflict || resource.revision > baseline.revision
+            ? "conflict"
+            : "uncertain",
         null,
       );
     } catch (error) {

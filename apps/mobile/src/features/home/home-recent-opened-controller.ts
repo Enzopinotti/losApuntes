@@ -60,7 +60,11 @@ export class HomeRecentOpenedController {
     return () => this.listeners.delete(listener);
   }
 
-  async load(authorityKey: string, sessionAuthorityKey = authorityKey, preferredSubjectId: string | null = null): Promise<void> {
+  async load(
+    authorityKey: string,
+    sessionAuthorityKey = authorityKey,
+    preferredSubjectId: string | null = null,
+  ): Promise<void> {
     this.active?.abort();
     const generation = ++this.generation;
     const operation = new AbortController();
@@ -83,27 +87,35 @@ export class HomeRecentOpenedController {
     }
 
     try {
-      const checks = await Promise.all(ids.map(async (resourceId): Promise<VerifiedRecent> => {
-        try {
-          const result = await this.api.resource(resourceId, operation.signal);
-          // Defense in depth: never show a resource that does not match its ID.
-          if (result.resource.id !== resourceId) {
-            return { kind: "failure", reason: "error" };
+      const checks = await Promise.all(
+        ids.map(async (resourceId): Promise<VerifiedRecent> => {
+          try {
+            const result = await this.api.resource(
+              resourceId,
+              operation.signal,
+            );
+            // Defense in depth: never show a resource that does not match its ID.
+            if (result.resource.id !== resourceId) {
+              return { kind: "failure", reason: "error" };
+            }
+            return { kind: "readable", resource: result.resource };
+          } catch (error) {
+            // A revoked/deleted resource is removed from session memory only
+            // after the entire request is fenced to this same authority.
+            if (
+              error instanceof ApiRequestError &&
+              (error.status === 404 ||
+                (error.status === 403 && error.code !== "ACCOUNT_RESTRICTED"))
+            ) {
+              return { kind: "revoked", resourceId };
+            }
+            return {
+              kind: "failure",
+              reason: resourceConsumptionFailure(error),
+            };
           }
-          return { kind: "readable", resource: result.resource };
-        } catch (error) {
-          // A revoked/deleted resource is removed from session memory only
-          // after the entire request is fenced to this same authority.
-          if (
-            error instanceof ApiRequestError &&
-            (error.status === 404 ||
-              (error.status === 403 && error.code !== "ACCOUNT_RESTRICTED"))
-          ) {
-            return { kind: "revoked", resourceId };
-          }
-          return { kind: "failure", reason: resourceConsumptionFailure(error) };
-        }
-      }));
+        }),
+      );
       if (!this.isCurrent(generation, operation, authorityKey)) return;
 
       const items: ResourceView[] = [];
@@ -123,7 +135,11 @@ export class HomeRecentOpenedController {
         this.publish({
           kind: "ready",
           authorityKey,
-          items: prioritizeHomeRecentlyOpened(items, preferredSubjectId, RECENT_OPENED_PREVIEW_LIMIT),
+          items: prioritizeHomeRecentlyOpened(
+            items,
+            preferredSubjectId,
+            RECENT_OPENED_PREVIEW_LIMIT,
+          ),
           moreAvailable: items.length > RECENT_OPENED_PREVIEW_LIMIT,
           partialFailure,
         });
@@ -142,7 +158,11 @@ export class HomeRecentOpenedController {
   }
 
   clear(authorityKey: string, sessionAuthorityKey = authorityKey): void {
-    if (this.snapshot.kind === "idle" || this.snapshot.authorityKey !== authorityKey) return;
+    if (
+      this.snapshot.kind === "idle" ||
+      this.snapshot.authorityKey !== authorityKey
+    )
+      return;
     this.memory.clear(sessionAuthorityKey);
     ++this.generation;
     this.active?.abort();
@@ -161,19 +181,26 @@ export class HomeRecentOpenedController {
       authorityKey &&
       this.snapshot.kind !== "idle" &&
       this.snapshot.authorityKey !== authorityKey
-    ) return;
+    )
+      return;
     ++this.generation;
     this.active?.abort();
     this.active = null;
     this.publish({ kind: "idle" });
   }
 
-  private isCurrent(generation: number, operation: AbortController, authorityKey: string): boolean {
-    return generation === this.generation &&
+  private isCurrent(
+    generation: number,
+    operation: AbortController,
+    authorityKey: string,
+  ): boolean {
+    return (
+      generation === this.generation &&
       operation === this.active &&
       !operation.signal.aborted &&
       this.snapshot.kind !== "idle" &&
-      this.snapshot.authorityKey === authorityKey;
+      this.snapshot.authorityKey === authorityKey
+    );
   }
 
   private publish(snapshot: HomeRecentOpenedSnapshot): void {
