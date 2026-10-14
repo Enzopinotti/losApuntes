@@ -174,6 +174,8 @@ export function SavedResourcesScreen() {
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
   const authorityKey = isFocused && appState === "active" ? sessionKey : null;
+  const searchQuery = query.trim().replace(/\\s+/gu, " ");
+  const searchEligible = searchQuery.length === 0 || searchQuery.length >= 2;
 
   useEffect(() => {
     setQuery("");
@@ -215,14 +217,25 @@ export function SavedResourcesScreen() {
       return;
     }
 
-    void controller.load(authorityKey);
-    return () => controller.invalidate(authorityKey);
-  }, [authorityKey, controller]);
+    if (!searchEligible) {
+      controller.invalidate(authorityKey);
+      return;
+    }
+    const timeout = setTimeout(() => {
+      void controller.load(authorityKey, searchQuery || undefined);
+    }, searchQuery ? 300 : 0);
+    return () => {
+      clearTimeout(timeout);
+      controller.invalidate(authorityKey);
+    };
+  }, [authorityKey, controller, searchEligible, searchQuery]);
 
   if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
 
   const current =
-    snapshot.kind !== "idle" && snapshot.authorityKey === authorityKey
+    snapshot.kind !== "idle" &&
+    snapshot.authorityKey === authorityKey &&
+    (snapshot.searchQuery ?? "") === searchQuery
       ? snapshot
       : null;
   const subjectGroups =
@@ -239,7 +252,7 @@ export function SavedResourcesScreen() {
     current?.kind === "ready"
       ? findLoadedSavedResources(
           current.data.items,
-          query,
+          "",
           sort,
           activeSubjectId,
         )
@@ -252,7 +265,9 @@ export function SavedResourcesScreen() {
   }, [activeSubjectId, current?.kind, selectedSubjectId]);
 
   const refresh = () => {
-    if (authorityKey) void controller.load(authorityKey);
+    if (authorityKey && searchEligible) {
+      void controller.load(authorityKey, searchQuery || undefined);
+    }
   };
 
   return (
