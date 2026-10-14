@@ -40,6 +40,7 @@ assert.ok(ics.startsWith("BEGIN:VCALENDAR\r\n"));
 assert.ok(ics.includes("BEGIN:VEVENT\r\n"));
 assert.ok(ics.includes("END:VCALENDAR\r\n"));
 assert.ok(ics.includes("UID:44444444-4444-4444-8444-444444444444@losapuntes.app"));
+assert.ok(ics.split("\\r\\n").every((line) => new TextEncoder().encode(line).length <= 75));
 const rejects = (input) => assert.throws(() => normalizeStudySession(input));
 rejects({ ...plan, subjectId: "wrong" });
 rejects({ ...plan, version: 2 });
