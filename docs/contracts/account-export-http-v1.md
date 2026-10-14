@@ -92,3 +92,33 @@ returned in status.
 
 The v1 artifact format and included section inventory are specified in
 [`../security/account-data-export-v1.md`](../security/account-data-export-v1.md).
+
+## Web Security integration (feature-gated)
+
+The Web Security page includes an opt-in "Exportar mis datos" section behind
+`VITE_ACCOUNT_EXPORT_WEB_ENABLED=true`. The example environment keeps this
+flag `false` by default. The backend code landed under #230 as integrated but
+not yet fully verified in the target environment; enabling a production UI
+requires completion of the privacy/content review, provider/IAM/lifecycle
+checks and exact-main qualification tracked by #183, #82 and #83.
+
+When enabled, the Web flow:
+
+- requests an export through authenticated cookie POST without a request body;
+- retains only the current job's public status in memory, fenced by user,
+  session and auth state; reloading the page simply allows replaying the
+  server-side active job, never reading a durable browser job identifier;
+- polls the server on a bounded 30-second cadence only while pending or
+  processing and the document is visible, revalidating when focused;
+- allows manual status refresh and a fresh request after failure or expired
+  completion; backend CAS/deduplication remains authoritative;
+- starts downloads through a regular browser attachment navigation to the
+  same authenticated API, not a JavaScript `Blob`/object URL. It does not
+  hold export bytes, object keys, signed URLs, credentials or session tokens;
+- never assumes a timestamp shown in the browser provides authority to
+  download. The backend rechecks active account, job ownership and expiry on
+  the download request.
+
+Only status records are ever shown in the Web interface. The v1 contents
+remain subject to the documented domain-inclusion and privacy decisions.
+This feature flag does not change or waive production launch gates.
