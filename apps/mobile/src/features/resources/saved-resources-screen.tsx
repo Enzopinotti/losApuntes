@@ -284,7 +284,7 @@ export function SavedResourcesScreen() {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Volver a Perfil"
+        accessibilityLabel="Volver a la pantalla anterior"
         onPress={() => router.back()}
         style={styles.backButton}
       >
@@ -300,9 +300,9 @@ export function SavedResourcesScreen() {
             autoCapitalize="none"
             maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
             onChangeText={(value) => {
-            setQuery(value);
-            setSelectedSubjectId(null);
-          }}
+              setQuery(value);
+              setSelectedSubjectId(null);
+            }}
             placeholder="Título, descripción o etiqueta"
             returnKeyType="search"
             style={styles.searchInput}
@@ -388,10 +388,12 @@ export function SavedResourcesScreen() {
               <>
                 <Text style={styles.copy}>
                   {current.data.nextCursor
-                    ? "No quedan recursos en esta página. Cargá más para seguir viendo tus guardados."
-                    : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
+                    ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
+                    : searchQuery
+                      ? "No encontramos apuntes guardados que coincidan con esa búsqueda. Probá otro título, descripción o etiqueta."
+                      : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
                 </Text>
-                {!current.data.nextCursor ? (
+                {!current.data.nextCursor && !searchQuery ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Buscar recursos"
@@ -409,8 +411,8 @@ export function SavedResourcesScreen() {
                     Tus materias
                   </Text>
                   <Text style={styles.meta}>
-                    Elegí una materia para ver sus recursos guardados. Los
-                    conteos incluyen solo las páginas cargadas.
+                    Elegí una materia para filtrar los resultados cargados.
+                    Los conteos corresponden sólo a las páginas cargadas.
                   </Text>
                   <View
                     accessibilityRole="radiogroup"
@@ -472,11 +474,11 @@ export function SavedResourcesScreen() {
                 {shownResources.length === 0 ? (
                   <Text style={styles.copy}>
                     {activeSubject
-                      ? "No hay coincidencias en esta materia entre los guardados cargados."
-                      : "No hay coincidencias entre los guardados cargados."}
+                      ? "No hay resultados de esta materia entre las páginas cargadas."
+                      : "No hay resultados visibles entre las páginas cargadas."}
                     {current.data.nextCursor
-                      ? " Cargá más guardados para ampliar los resultados."
-                      : " Probá con otra palabra o seleccioná otra materia."}
+                      ? " Cargá más para ampliar los resultados."
+                      : " Probá otra búsqueda o seleccioná otra materia."}
                   </Text>
                 ) : (
                   shownResources.map((resource) => (
