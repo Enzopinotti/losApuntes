@@ -528,7 +528,7 @@ export class MongoResourceStore implements ResourceStore {
             pipeline: [
               {
                 $match: {
-                  $expr: { $eq: ['$id', '$savedResourceId'] },
+                  $expr: { $eq: ['$id', '$$savedResourceId'] },
                   moderationState: 'available',
                   searchText: {
                     $regex: savedMetadataRegex(input.q),
@@ -551,7 +551,7 @@ export class MongoResourceStore implements ResourceStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$resourceId', '$savedResourceId'] },
+                      { $eq: ['$resourceId', '$$savedResourceId'] },
                       { $eq: ['$userId', input.userId] },
                     ],
                   },
