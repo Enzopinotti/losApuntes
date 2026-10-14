@@ -35,7 +35,10 @@ const resource = (id: string) =>
   }) as ResourceView;
 
 test("saved search keeps the same query across cursor pages", async () => {
-  const requests: Array<{ cursor?: string | undefined; q?: string | undefined }> = [];
+  const requests: Array<{
+    cursor?: string | undefined;
+    q?: string | undefined;
+  }> = [];
   const api = {
     saved: async (
       cursor?: string,
