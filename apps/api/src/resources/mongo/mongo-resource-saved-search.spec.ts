@@ -1,7 +1,7 @@
 import { MongoResourceStore, savedMetadataRegex } from './mongo-resource.store';
 
 describe('Mongo saved-library full-collection search', () => {
-  function build(result: Array<{ resourceId: string; createdAt: Date }> = []) {
+  function build(result: Array<{ resourceId: string; createdAt: Date; title?: string }> = []) {
     const exec = jest.fn().mockResolvedValue(result);
     const collation = jest.fn().mockReturnValue({ exec });
     const aggregate = jest.fn().mockReturnValue({ exec, collation });
