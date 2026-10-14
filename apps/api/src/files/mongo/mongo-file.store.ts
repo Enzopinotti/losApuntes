@@ -6,7 +6,12 @@ import {
   type CreateUploadFileAssetRecord,
   type FileAssetStore,
 } from '../domain/file.store';
-import type { FileAssetRecord, FileAssetState } from '../domain/file.types';
+import {
+  FILE_ASSET_ACCOUNT_EXPORT_MAX_LIMIT,
+  type FileAssetAccountExportRecord,
+  type FileAssetRecord,
+  type FileAssetState,
+} from '../domain/file.types';
 import { FileAsset } from './file.mongo-schema';
 
 function mongoErrorCode(error: unknown): number | null {
@@ -56,6 +61,45 @@ export class MongoFileAssetStore implements FileAssetStore {
     @InjectModel(FileAsset.name)
     private readonly assets: Model<FileAsset>,
   ) {}
+
+  async listForAccountExport(input: {
+    creatorUserId: string;
+    limit: number;
+    after?: { id: string };
+  }): Promise<{ items: FileAssetAccountExportRecord[]; hasMore: boolean }> {
+    const requestedLimit = Number.isFinite(input.limit)
+      ? Math.trunc(input.limit)
+      : 1;
+    const limit = Math.min(
+      Math.max(1, requestedLimit),
+      FILE_ASSET_ACCOUNT_EXPORT_MAX_LIMIT,
+    );
+    const filter: FilterQuery<FileAsset> = {
+      creatorUserId: input.creatorUserId,
+      ...(input.after ? { id: { $gt: input.after.id } } : {}),
+    };
+    const rows = await this.assets
+      .find(filter)
+      .select({
+        _id: 0,
+        id: 1,
+        originalFilename: 1,
+        declaredMimeType: 1,
+        verifiedMimeType: 1,
+        expectedByteSize: 1,
+        actualByteSize: 1,
+        createdAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(limit + 1)
+      .lean<FileAssetAccountExportRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
+  }
 
   async createOrReplayUpload(
     input: CreateUploadFileAssetRecord,

@@ -1,4 +1,8 @@
-import type { AccountExportJobRecord } from './account-export.types';
+import type {
+  AccountExportAssemblyResult,
+  AccountExportFailureCode,
+  AccountExportJobRecord,
+} from './account-export.types';
 
 export const ACCOUNT_EXPORT_STORE = Symbol('ACCOUNT_EXPORT_STORE');
 
@@ -18,13 +22,41 @@ export interface AccountExportStore {
     leaseExpiresAt: Date;
   }): Promise<AccountExportJobRecord | null>;
 
+  renewLease(input: {
+    id: string;
+    claimId: string;
+    now: Date;
+    leaseExpiresAt: Date;
+  }): Promise<boolean>;
+
   reschedule(input: {
     id: string;
     claimId: string;
     state: 'pending' | 'failed';
     nextAttemptAt: Date;
-    failureCode: string;
-    failedAt: Date | null;
+    failureCode: AccountExportFailureCode;
+    now: Date;
+  }): Promise<boolean>;
+
+  complete(input: {
+    id: string;
+    claimId: string;
+    artifactGeneration: string;
+    completedAt: Date;
+    artifactExpiresAt: Date;
+    result: AccountExportAssemblyResult;
+  }): Promise<boolean>;
+
+  findExpiredArtifacts(input: {
+    now: Date;
+    limit: number;
+  }): Promise<import('./account-export.types').ExpiredAccountExportArtifact[]>;
+
+  clearExpiredArtifact(input: {
+    id: string;
+    generation: string;
+    expiresAt: Date;
+    now: Date;
   }): Promise<boolean>;
 
   hasFailed(): Promise<boolean>;

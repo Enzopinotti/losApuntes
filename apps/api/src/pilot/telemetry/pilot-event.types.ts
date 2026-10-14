@@ -18,3 +18,18 @@ export interface PilotEventRecord {
   resultCount?: number;
   createdAt: Date;
 }
+
+export const PILOT_EVENT_ACCOUNT_EXPORT_MAX_LIMIT = 100;
+
+export interface PilotEventAccountExportCursor {
+  createdAt: Date;
+  id: string;
+}
+
+export interface PilotEventAccountExportRecord {
+  id: string;
+  event: PilotEventName;
+  subjectId?: string;
+  resultCount?: number;
+  createdAt: Date;
+}

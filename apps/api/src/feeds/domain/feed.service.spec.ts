@@ -89,8 +89,10 @@ function question(
 function store(): jest.Mocked<FeedStore> {
   return {
     getOrCreatePreferences: jest.fn(),
+    findPreferencesForExport: jest.fn(),
     updatePreferences: jest.fn(),
     listFeedback: jest.fn(),
+    listFeedbackForExport: jest.fn(),
     setFeedback: jest.fn(),
     clearFeedback: jest.fn(),
   };
@@ -236,6 +238,143 @@ function service(
 }
 
 describe('FeedService', () => {
+  it('reads only persisted preferences for export without creating defaults', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    const persisted = {
+      useAcademic: false,
+      useSocial: true,
+      useInterests: false,
+      mutedSubjectIds: [subjectId],
+      mutedProfileIds: [profileId],
+      prioritizedSubjectIds: [otherSubjectId],
+      createdAt: now,
+      updatedAt: now,
+    };
+    feedStore.findPreferencesForExport.mockResolvedValue(persisted);
+
+    await expect(
+      service(feedStore, deps).findAccountExportPreferences('viewer'),
+    ).resolves.toEqual(persisted);
+
+    expect(feedStore.findPreferencesForExport.mock.calls).toEqual([['viewer']]);
+    expect(feedStore.getOrCreatePreferences.mock.calls).toHaveLength(0);
+  });
+
+  it('returns no preference section data when no preferences row exists', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    feedStore.findPreferencesForExport.mockResolvedValue(null);
+
+    await expect(
+      service(feedStore, deps).findAccountExportPreferences('viewer'),
+    ).resolves.toBeNull();
+    expect(feedStore.getOrCreatePreferences.mock.calls).toHaveLength(0);
+  });
+
+  it('fails closed for persisted preferences outside their bounded contract', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    feedStore.findPreferencesForExport.mockResolvedValue({
+      useAcademic: true,
+      useSocial: true,
+      useInterests: true,
+      mutedSubjectIds: Array.from({ length: 101 }, (_, index) => `${index}`),
+      mutedProfileIds: [],
+      prioritizedSubjectIds: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(
+      service(feedStore, deps).findAccountExportPreferences('viewer'),
+    ).rejects.toThrow('Feed preferences export row is invalid');
+  });
+
+  it('pages owner feedback by a canonical section-bound identity cursor', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    const rows = [
+      {
+        targetType: 'organization_post' as const,
+        targetId: 'post-a',
+        signal: 'less' as const,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        targetType: 'question' as const,
+        targetId: 'question-b',
+        signal: 'less' as const,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        targetType: 'resource' as const,
+        targetId: 'resource-c',
+        signal: 'more' as const,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    feedStore.listFeedbackForExport
+      .mockResolvedValueOnce(rows)
+      .mockResolvedValueOnce([rows[2]]);
+    const feeds = service(feedStore, deps);
+
+    const first = await feeds.listAccountExportFeedback('viewer', {
+      limit: 2,
+      cursor: null,
+    });
+    expect(first.items).toEqual(rows.slice(0, 2));
+    expect(feedStore.listFeedbackForExport.mock.calls[0]).toEqual([
+      'viewer',
+      null,
+      3,
+    ]);
+    expect(first.nextCursor).toBeTruthy();
+
+    const cursorPayload = JSON.parse(
+      Buffer.from(first.nextCursor as string, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+    expect(cursorPayload).toEqual({
+      section: 'feeds.feedback',
+      targetType: 'question',
+      targetId: 'question-b',
+    });
+
+    const second = await feeds.listAccountExportFeedback('viewer', {
+      limit: 2,
+      cursor: first.nextCursor,
+    });
+    expect(second).toEqual({ items: [rows[2]], nextCursor: null });
+    expect(feedStore.listFeedbackForExport.mock.calls[1]).toEqual([
+      'viewer',
+      {
+        targetType: 'question',
+        targetId: 'question-b',
+      },
+      3,
+    ]);
+  });
+
+  it('rejects invalid feedback export cursors and limits before reading', async () => {
+    const feedStore = store();
+    const deps = dependencies();
+    const feeds = service(feedStore, deps);
+
+    await expect(
+      feeds.listAccountExportFeedback('viewer', {
+        limit: 100,
+        cursor: 'not-a-valid-cursor',
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      feeds.listAccountExportFeedback('viewer', { limit: 101, cursor: null }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(feedStore.listFeedbackForExport.mock.calls).toHaveLength(0);
+  });
+
   it('applies Profile recommendation consent as an upper boundary', async () => {
     const feedStore = store();
     const deps = dependencies();

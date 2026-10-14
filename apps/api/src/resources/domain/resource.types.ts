@@ -94,6 +94,11 @@ export interface ResourceReportRecord {
   updatedAt: Date;
 }
 
+export type ResourceReportAccountExportRow = Pick<
+  ResourceReportRecord,
+  'id' | 'resourceId' | 'reason' | 'details' | 'createdAt'
+>;
+
 export interface ResourceSearchCursor {
   updatedAt: Date;
   id: string;

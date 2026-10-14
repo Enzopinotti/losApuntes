@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 
 import type { AccountExportStore } from '../domain/account-export.store';
-import type { AccountExportJobRecord } from '../domain/account-export.types';
+import {
+  isAccountExportFailureCode,
+  type AccountExportJobRecord,
+} from '../domain/account-export.types';
 import { AccountExportJob } from './account-export.mongo-schema';
 
 function isDuplicateKey(error: unknown): boolean {
@@ -42,6 +45,13 @@ export class MongoAccountExportStore implements AccountExportStore {
               leaseExpiresAt: null,
               failureCode: null,
               failedAt: null,
+              completedAt: null,
+              artifactSectionCount: null,
+              artifactRecordCount: null,
+              artifactByteLength: null,
+              artifactSha256: null,
+              artifactGeneration: null,
+              artifactExpiresAt: null,
             },
           },
           { upsert: true, new: true },
@@ -108,15 +118,42 @@ export class MongoAccountExportStore implements AccountExportStore {
       .exec();
   }
 
-  async reschedule(
-    input: Parameters<AccountExportStore['reschedule']>[0],
-  ): ReturnType<AccountExportStore['reschedule']> {
+  async renewLease(
+    input: Parameters<AccountExportStore['renewLease']>[0],
+  ): ReturnType<AccountExportStore['renewLease']> {
     const result = await this.jobs
       .updateOne(
         {
           id: input.id,
+          active: true,
           state: 'processing',
           claimId: input.claimId,
+          leaseExpiresAt: { $gt: input.now },
+        },
+        {
+          $max: { leaseExpiresAt: input.leaseExpiresAt },
+        },
+      )
+      .exec();
+
+    return result.matchedCount === 1;
+  }
+
+  async reschedule(
+    input: Parameters<AccountExportStore['reschedule']>[0],
+  ): ReturnType<AccountExportStore['reschedule']> {
+    if (!isAccountExportFailureCode(input.failureCode)) {
+      throw new Error('Account export failure code is invalid');
+    }
+
+    const result = await this.jobs
+      .updateOne(
+        {
+          id: input.id,
+          active: true,
+          state: 'processing',
+          claimId: input.claimId,
+          leaseExpiresAt: { $gt: input.now },
         },
         {
           $set: {
@@ -124,11 +161,103 @@ export class MongoAccountExportStore implements AccountExportStore {
             active: input.state === 'pending',
             nextAttemptAt: input.nextAttemptAt,
             failureCode: input.failureCode,
-            failedAt: input.failedAt,
+            failedAt: input.state === 'failed' ? input.now : null,
+            completedAt: null,
+            artifactSectionCount: null,
+            artifactRecordCount: null,
+            artifactByteLength: null,
+            artifactSha256: null,
+            artifactGeneration: null,
+            artifactExpiresAt: null,
             claimId: null,
             leaseExpiresAt: null,
           },
         },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
+  }
+
+  async complete(
+    input: Parameters<AccountExportStore['complete']>[0],
+  ): ReturnType<AccountExportStore['complete']> {
+    const result = await this.jobs
+      .updateOne(
+        {
+          id: input.id,
+          active: true,
+          state: 'processing',
+          formatVersion: input.result.formatVersion,
+          claimId: input.claimId,
+          leaseExpiresAt: { $gt: input.completedAt },
+        },
+        {
+          $set: {
+            state: 'completed',
+            active: false,
+            claimId: null,
+            leaseExpiresAt: null,
+            failureCode: null,
+            failedAt: null,
+            completedAt: input.completedAt,
+            artifactSectionCount: input.result.sectionCount,
+            artifactRecordCount: input.result.recordCount,
+            artifactByteLength: input.result.byteLength,
+            artifactSha256: input.result.sha256,
+            artifactGeneration: input.artifactGeneration,
+            artifactExpiresAt: input.artifactExpiresAt,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount === 1;
+  }
+
+  async findExpiredArtifacts(
+    input: Parameters<AccountExportStore['findExpiredArtifacts']>[0],
+  ): ReturnType<AccountExportStore['findExpiredArtifacts']> {
+    const jobs = await this.jobs
+      .find({
+        state: 'completed',
+        artifactGeneration: { $type: 'string' },
+        artifactExpiresAt: { $lte: input.now },
+      })
+      .sort({ artifactExpiresAt: 1, id: 1 })
+      .limit(input.limit)
+      .select({ id: 1, artifactGeneration: 1, artifactExpiresAt: 1 })
+      .lean<
+        Array<{
+          id: string;
+          artifactGeneration: string;
+          artifactExpiresAt: Date;
+        }>
+      >()
+      .exec();
+
+    return jobs.map((job) => ({
+      id: job.id,
+      generation: job.artifactGeneration,
+      expiresAt: job.artifactExpiresAt,
+    }));
+  }
+
+  async clearExpiredArtifact(
+    input: Parameters<AccountExportStore['clearExpiredArtifact']>[0],
+  ): ReturnType<AccountExportStore['clearExpiredArtifact']> {
+    const result = await this.jobs
+      .updateOne(
+        {
+          id: input.id,
+          state: 'completed',
+          artifactGeneration: input.generation,
+          artifactExpiresAt: {
+            $eq: input.expiresAt,
+            $lte: input.now,
+          },
+        },
+        { $set: { artifactGeneration: null } },
       )
       .exec();
 

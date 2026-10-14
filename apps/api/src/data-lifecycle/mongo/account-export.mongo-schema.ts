@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 import {
+  ACCOUNT_EXPORT_FAILURE_CODES,
   ACCOUNT_EXPORT_JOB_STATES,
   type AccountExportJobState,
 } from '../domain/account-export.types';
@@ -38,11 +39,36 @@ export class AccountExportJob {
   @Prop({ type: Date, default: null, index: true })
   leaseExpiresAt!: Date | null;
 
-  @Prop({ type: String, default: null })
+  @Prop({
+    type: String,
+    enum: [...ACCOUNT_EXPORT_FAILURE_CODES, null],
+    default: null,
+  })
   failureCode!: string | null;
 
   @Prop({ type: Date, default: null })
   failedAt!: Date | null;
+
+  @Prop({ type: Date, default: null })
+  completedAt!: Date | null;
+
+  @Prop({ type: Number, min: 0, default: null })
+  artifactSectionCount!: number | null;
+
+  @Prop({ type: Number, min: 0, default: null })
+  artifactRecordCount!: number | null;
+
+  @Prop({ type: Number, min: 1, default: null })
+  artifactByteLength!: number | null;
+
+  @Prop({ type: String, match: /^[a-f0-9]{64}$/u, default: null })
+  artifactSha256!: string | null;
+
+  @Prop({ type: String, default: null })
+  artifactGeneration!: string | null;
+
+  @Prop({ type: Date, default: null, index: true })
+  artifactExpiresAt!: Date | null;
 
   createdAt!: Date;
   updatedAt!: Date;
@@ -66,4 +92,10 @@ AccountExportJobSchema.index({
   leaseExpiresAt: 1,
   createdAt: 1,
   userId: 1,
+});
+
+AccountExportJobSchema.index({
+  state: 1,
+  artifactExpiresAt: 1,
+  artifactGeneration: 1,
 });

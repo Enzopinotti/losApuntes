@@ -178,6 +178,20 @@ export class UsersService {
     );
   }
 
+  async hasActiveAccount(userId: string): Promise<boolean> {
+    return Boolean(
+      await this.userModel
+        .exists({
+          _id: userId,
+          $or: [
+            { account_status: 'active' },
+            { account_status: { $exists: false } },
+          ],
+        })
+        .exec(),
+    );
+  }
+
   async replacePasswordHashIfCurrent(
     userId: string,
     currentPasswordHash: string,

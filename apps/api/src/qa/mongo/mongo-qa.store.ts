@@ -14,6 +14,7 @@ import type {
   AnswerAccountExportRow,
   AnswerRecord,
   QaReportRecord,
+  QaReportAccountExportRow,
   QuestionCursor,
   QuestionAccountExportRow,
   QuestionRecord,
@@ -102,6 +103,34 @@ export class MongoQaStore implements QaStore {
       .sort({ id: 1 })
       .limit(input.limit + 1)
       .lean<AnswerAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listSubmittedReportsForExport(
+    input: Parameters<QaStore['listSubmittedReportsForExport']>[0],
+  ): ReturnType<QaStore['listSubmittedReportsForExport']> {
+    const rows = await this.reports
+      .find({
+        reporterUserId: input.reporterUserId,
+        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
+      })
+      .select({
+        _id: 0,
+        id: 1,
+        targetType: 1,
+        targetId: 1,
+        reason: 1,
+        details: 1,
+        createdAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<QaReportAccountExportRow[]>()
       .exec();
 
     return {

@@ -70,7 +70,11 @@ describe('MongoResourceExportStore', () => {
     chain.limit.mockReturnValue(chain);
     chain.lean.mockReturnValue(chain);
     const resources = { find: jest.fn().mockReturnValue(chain) };
-    const store = new MongoResourceExportStore(resources as never, {} as never);
+    const store = new MongoResourceExportStore(
+      resources as never,
+      {} as never,
+      {} as never,
+    );
 
     await expect(
       store.listAuthoredResourcesForExport({
@@ -115,7 +119,11 @@ describe('MongoResourceExportStore', () => {
     chain.limit.mockReturnValue(chain);
     chain.lean.mockReturnValue(chain);
     const resources = { find: jest.fn().mockReturnValue(chain) };
-    const store = new MongoResourceExportStore(resources as never, {} as never);
+    const store = new MongoResourceExportStore(
+      resources as never,
+      {} as never,
+      {} as never,
+    );
 
     await expect(
       store.listAuthoredResourcesForExport({
@@ -139,6 +147,7 @@ describe('MongoResourceExportStore', () => {
     const store = new MongoResourceExportStore(
       resources as never,
       shares as never,
+      {} as never,
     );
 
     await expect(
@@ -196,6 +205,7 @@ describe('MongoResourceExportStore', () => {
     const store = new MongoResourceExportStore(
       resources as never,
       shares as never,
+      {} as never,
     );
 
     await expect(
@@ -234,5 +244,63 @@ describe('MongoResourceExportStore', () => {
         { resourceId: { $gt: 'resource-a' } },
       ],
     });
+  });
+
+  it('projects exact-owner Resource reports with stable bounded id pagination', async () => {
+    const rows = [
+      {
+        id: 'resource-report-a',
+        resourceId: 'resource-ref-a',
+        reason: 'copyright',
+        details: null,
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+        status: 'pending',
+        reviewedByUserId: 'moderator',
+      },
+      {
+        id: 'resource-report-b',
+        resourceId: 'resource-ref-b',
+        reason: 'other',
+        details: 'Owner text',
+        createdAt: new Date('2026-10-02T00:00:00.000Z'),
+      },
+      {
+        id: 'resource-report-c',
+        resourceId: 'resource-ref-c',
+        reason: 'spam',
+        details: null,
+        createdAt: new Date('2026-10-03T00:00:00.000Z'),
+      },
+    ];
+    const chain = query(rows);
+    const reports = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoResourceExportStore(
+      {} as never,
+      {} as never,
+      reports as never,
+    );
+
+    await expect(
+      store.listSubmittedReportsForExport({
+        reporterUserId: 'owner-1',
+        limit: 2,
+        afterId: 'resource-report-before',
+      }),
+    ).resolves.toEqual({ items: rows.slice(0, 2), hasMore: true });
+
+    expect(reports.find).toHaveBeenCalledWith({
+      reporterUserId: 'owner-1',
+      id: { $gt: 'resource-report-before' },
+    });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      resourceId: 1,
+      reason: 1,
+      details: 1,
+      createdAt: 1,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
   });
 });

@@ -176,3 +176,4 @@ ResourceReportSchema.index(
   { unique: true },
 );
 ResourceReportSchema.index({ status: 1, createdAt: 1, id: 1 });
+ResourceReportSchema.index({ reporterUserId: 1, id: 1 });

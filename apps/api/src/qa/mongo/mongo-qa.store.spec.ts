@@ -237,3 +237,69 @@ describe('MongoQaStore Answer pagination', () => {
     expect(chain.limit).toHaveBeenCalledWith(26);
   });
 });
+
+describe('MongoQaStore submitted report export', () => {
+  it('projects exact-owner Q&A reports with stable bounded id pagination', async () => {
+    const rows = [
+      {
+        id: 'qa-report-a',
+        targetType: 'question',
+        targetId: 'question-ref-a',
+        reason: 'spam',
+        details: null,
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+        status: 'pending',
+        reviewedByUserId: 'moderator',
+      },
+      {
+        id: 'qa-report-b',
+        targetType: 'answer',
+        targetId: 'answer-ref-b',
+        reason: 'plagiarism',
+        details: 'Owner text',
+        createdAt: new Date('2026-10-02T00:00:00.000Z'),
+      },
+      {
+        id: 'qa-report-c',
+        targetType: 'question',
+        targetId: 'question-ref-c',
+        reason: 'other',
+        details: null,
+        createdAt: new Date('2026-10-03T00:00:00.000Z'),
+      },
+    ];
+    const chain = query(rows);
+    const reports = { find: jest.fn().mockReturnValue(chain) };
+    const store = new MongoQaStore(
+      {} as never,
+      {} as never,
+      {} as never,
+      reports as never,
+      {} as never,
+    );
+
+    await expect(
+      store.listSubmittedReportsForExport({
+        reporterUserId: 'owner-1',
+        limit: 2,
+        afterId: 'qa-report-before',
+      }),
+    ).resolves.toEqual({ items: rows.slice(0, 2), hasMore: true });
+
+    expect(reports.find).toHaveBeenCalledWith({
+      reporterUserId: 'owner-1',
+      id: { $gt: 'qa-report-before' },
+    });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      targetType: 1,
+      targetId: 1,
+      reason: 1,
+      details: 1,
+      createdAt: 1,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(3);
+  });
+});

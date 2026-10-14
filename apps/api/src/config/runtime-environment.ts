@@ -8,6 +8,11 @@ const LOCAL_AUTH_ABUSE_KEY_SECRET = 'losapuntes-local-auth-abuse-secret-2026';
 const KNOWN_LOCAL_PRODUCTION_CREDENTIALS = new Map<string, Set<string>>([
   ['FILES_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
   ['FILES_S3_SECRET_ACCESS_KEY', new Set(['losapuntes-local-files-secret'])],
+  ['ACCOUNT_EXPORT_S3_ACCESS_KEY_ID', new Set(['losapuntes-local'])],
+  [
+    'ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY',
+    new Set(['losapuntes-local-files-secret']),
+  ],
   ['AUTH_ABUSE_KEY_SECRET', new Set([LOCAL_AUTH_ABUSE_KEY_SECRET])],
 ]);
 
@@ -385,6 +390,24 @@ export function validateRuntimeEnvironment(
     source,
     'FILES_S3_SECRET_ACCESS_KEY',
   );
+  const accountExportS3Bucket = requiredString(
+    source,
+    'ACCOUNT_EXPORT_S3_BUCKET',
+  );
+  const accountExportS3AccessKeyId = requiredString(
+    source,
+    'ACCOUNT_EXPORT_S3_ACCESS_KEY_ID',
+  );
+  const accountExportS3SecretAccessKey = requiredString(
+    source,
+    'ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY',
+  );
+
+  if (accountExportS3Bucket === requiredString(source, 'FILES_S3_BUCKET')) {
+    throw new Error(
+      'ACCOUNT_EXPORT_S3_BUCKET must be separate from FILES_S3_BUCKET',
+    );
+  }
 
   rejectKnownLocalProductionCredential(
     nodeEnv,
@@ -398,6 +421,28 @@ export function validateRuntimeEnvironment(
     'FILES_S3_SECRET_ACCESS_KEY',
     filesS3SecretAccessKey,
   );
+  rejectKnownLocalProductionCredential(
+    nodeEnv,
+    deploymentProfile,
+    'ACCOUNT_EXPORT_S3_ACCESS_KEY_ID',
+    accountExportS3AccessKeyId,
+  );
+  rejectKnownLocalProductionCredential(
+    nodeEnv,
+    deploymentProfile,
+    'ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY',
+    accountExportS3SecretAccessKey,
+  );
+
+  if (
+    deploymentProfile === 'production' &&
+    (accountExportS3AccessKeyId === filesS3AccessKeyId ||
+      accountExportS3SecretAccessKey === filesS3SecretAccessKey)
+  ) {
+    throw new Error(
+      'Account export storage credentials must be separate from Files credentials in production',
+    );
+  }
 
   if (nodeEnv === 'production' && deploymentProfile === 'local') {
     if (
@@ -490,6 +535,9 @@ export function validateRuntimeEnvironment(
     FILES_S3_BUCKET: requiredString(source, 'FILES_S3_BUCKET'),
     FILES_S3_ACCESS_KEY_ID: filesS3AccessKeyId,
     FILES_S3_SECRET_ACCESS_KEY: filesS3SecretAccessKey,
+    ACCOUNT_EXPORT_S3_BUCKET: accountExportS3Bucket,
+    ACCOUNT_EXPORT_S3_ACCESS_KEY_ID: accountExportS3AccessKeyId,
+    ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY: accountExportS3SecretAccessKey,
     FILES_DOWNLOAD_URL_TTL_SECONDS: parseBoundedInteger(
       source.FILES_DOWNLOAD_URL_TTL_SECONDS,
       'FILES_DOWNLOAD_URL_TTL_SECONDS',

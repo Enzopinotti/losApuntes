@@ -465,6 +465,7 @@ jobs:
           node scripts/smoke-pilot-lifecycle.mjs
           node scripts/smoke-organizations-lifecycle.mjs
           node scripts/smoke-alumni-lifecycle.mjs
+          node scripts/smoke-account-export-lifecycle.mjs
 
       - name: Runtime logs on failure
         if: failure()

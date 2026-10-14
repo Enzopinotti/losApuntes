@@ -9,6 +9,7 @@ import type {
   QuestionAccountExportRow,
   QuestionRecord,
   QuestionState,
+  QaReportAccountExportRow,
 } from './qa.types';
 
 export const QA_STORE = Symbol('QA_STORE');
@@ -31,6 +32,11 @@ export interface QaStore {
     limit: number;
     afterId?: string;
   }) => Promise<{ items: AnswerAccountExportRow[]; hasMore: boolean }>;
+  listSubmittedReportsForExport: (input: {
+    reporterUserId: string;
+    limit: number;
+    afterId?: string;
+  }) => Promise<{ items: QaReportAccountExportRow[]; hasMore: boolean }>;
   createQuestion: (input: CreateQuestionRecord) => Promise<QuestionRecord>;
   findQuestion: (id: string) => Promise<QuestionRecord | null>;
   searchQuestions: (input: {

@@ -319,6 +319,7 @@ export const AcademicCatalogProposalSchema = SchemaFactory.createForClass(
 );
 AcademicCatalogProposalSchema.index({ userId: 1, createdAt: -1 });
 AcademicCatalogProposalSchema.index({ status: 1, createdAt: 1, id: 1 });
+AcademicCatalogProposalSchema.index({ userId: 1, id: 1 });
 
 @Schema({ collection: 'academic_audit_events', timestamps: false })
 export class AcademicAuditEvent {

@@ -20,6 +20,22 @@ export const RESOURCE_FILE_MIME_TYPES = [
 
 export type ResourceFileMimeType = (typeof RESOURCE_FILE_MIME_TYPES)[number];
 
+export const FILE_ASSET_ACCOUNT_EXPORT_MAX_LIMIT = 100;
+
+export interface FileAssetAccountExportRecord {
+  id: string;
+  originalFilename: string;
+  declaredMimeType: ResourceFileMimeType;
+  verifiedMimeType?: ResourceFileMimeType;
+  expectedByteSize: number;
+  actualByteSize?: number;
+  createdAt: Date;
+}
+
+export interface FileAssetAccountExportCursor {
+  id: string;
+}
+
 export interface FileAssetRecord {
   id: string;
   creatorUserId: string;

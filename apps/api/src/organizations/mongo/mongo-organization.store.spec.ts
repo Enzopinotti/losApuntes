@@ -3,11 +3,38 @@ import {
   ORGANIZATION_LINK_LIMIT,
   ORGANIZATION_MANAGER_LIMIT,
 } from '../domain/organization-limits';
+import {
+  OrganizationFeaturedResourceSchema,
+  OrganizationLinkSchema,
+} from './organization.mongo-schemas';
 import { MongoOrganizationStore } from './mongo-organization.store';
 
 const now = new Date('2026-09-30T12:00:00.000Z');
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const actorUserId = '22222222-2222-4222-8222-222222222222';
+
+describe('Organization account-export indexes', () => {
+  it('supports stable creator-scoped curation scans and preserves featured uniqueness', () => {
+    expect(
+      OrganizationLinkSchema.indexes().map(([keys]) => keys),
+    ).toContainEqual({ createdByUserId: 1, id: 1 });
+
+    const featuredIndexes = OrganizationFeaturedResourceSchema.indexes();
+    expect(featuredIndexes.map(([keys]) => keys)).toContainEqual({
+      createdByUserId: 1,
+      organizationId: 1,
+      resourceId: 1,
+    });
+    expect(
+      featuredIndexes.some(
+        ([keys, options]) =>
+          JSON.stringify(keys) ===
+            JSON.stringify({ organizationId: 1, resourceId: 1 }) &&
+          options.unique === true,
+      ),
+    ).toBe(true);
+  });
+});
 
 function query<T>(value: T) {
   return {
@@ -1138,5 +1165,88 @@ describe('MongoOrganizationStore account export authored content', () => {
     expect(fixture.authoredEventListQuery.sort).toHaveBeenCalledWith({ id: 1 });
     expect(fixture.authoredEventListQuery.limit).toHaveBeenCalledWith(101);
     expect(result).toEqual({ items: [first], hasMore: false });
+  });
+
+  it('reads only the owner-authored links with an explicit projection and stable id page', async () => {
+    const first = {
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      organizationId,
+      label: 'Community site',
+      url: 'https://example.test',
+      createdAt: now,
+      updatedAt: now,
+      createdByUserId: actorUserId,
+    };
+    const fixture = models({ linkRows: [first, { ...first }] });
+
+    const result = await fixture.store.listAuthoredLinksForAccountExport({
+      userId: actorUserId,
+      limit: 1,
+      after: { id: '00000000-0000-4000-8000-000000000000' },
+    });
+
+    expect(fixture.links.find).toHaveBeenCalledWith({
+      $and: [
+        { createdByUserId: actorUserId },
+        { id: { $gt: '00000000-0000-4000-8000-000000000000' } },
+      ],
+    });
+    expect(fixture.linkListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      organizationId: 1,
+      label: 1,
+      url: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.linkListQuery.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(fixture.linkListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [first], hasMore: true });
+    expect(fixture.organizations.findOne).not.toHaveBeenCalled();
+  });
+
+  it('reads only the creator featured-resource relations with an opaque tuple page', async () => {
+    const first = {
+      organizationId,
+      resourceId: 'resource-2',
+      createdAt: now,
+      updatedAt: now,
+      createdByUserId: actorUserId,
+    };
+    const fixture = models({ featuredRows: [first, { ...first }] });
+
+    const result = await fixture.store.listFeaturedResourcesForAccountExport({
+      userId: actorUserId,
+      limit: 1,
+      after: { organizationId, resourceId: 'resource-1' },
+    });
+
+    expect(fixture.featuredResources.find).toHaveBeenCalledWith({
+      $and: [
+        { createdByUserId: actorUserId },
+        {
+          $or: [
+            { organizationId: { $gt: organizationId } },
+            { organizationId, resourceId: { $gt: 'resource-1' } },
+          ],
+        },
+      ],
+    });
+    expect(fixture.featuredListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      organizationId: 1,
+      resourceId: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.featuredListQuery.sort).toHaveBeenCalledWith({
+      organizationId: 1,
+      resourceId: 1,
+    });
+    expect(fixture.featuredListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [first], hasMore: true });
+    expect(fixture.organizations.findOne).not.toHaveBeenCalled();
+    expect(fixture.posts.find).not.toHaveBeenCalled();
   });
 });

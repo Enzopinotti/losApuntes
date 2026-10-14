@@ -21,10 +21,13 @@ import type {
   OrganizationEventRecord,
   OrganizationEventAccountExportRow,
   OrganizationFeaturedResourceRecord,
+  OrganizationFeaturedResourceAccountExportCursor,
+  OrganizationFeaturedResourceAccountExportRow,
   OrganizationFollowRecord,
   OrganizationFollowAccountExportCursor,
   OrganizationFollowAccountExportRow,
   OrganizationLinkRecord,
+  OrganizationLinkAccountExportRow,
   OrganizationManagerAccountExportCursor,
   OrganizationManagerAccountExportRow,
   OrganizationManagerRecord,
@@ -1359,6 +1362,86 @@ export class MongoOrganizationStore implements OrganizationStore {
       .sort({ id: 1 })
       .limit(input.limit + 1)
       .lean<OrganizationEventAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listAuthoredLinksForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: { id: string };
+  }): Promise<{
+    items: OrganizationLinkAccountExportRow[];
+    hasMore: boolean;
+  }> {
+    const filters: FilterQuery<OrganizationLink>[] = [
+      { createdByUserId: input.userId },
+    ];
+
+    if (input.after) filters.push({ id: { $gt: input.after.id } });
+
+    const rows = await this.links
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        id: 1,
+        organizationId: 1,
+        label: 1,
+        url: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<OrganizationLinkAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listFeaturedResourcesForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: OrganizationFeaturedResourceAccountExportCursor;
+  }): Promise<{
+    items: OrganizationFeaturedResourceAccountExportRow[];
+    hasMore: boolean;
+  }> {
+    const filters: FilterQuery<OrganizationFeaturedResource>[] = [
+      { createdByUserId: input.userId },
+    ];
+
+    if (input.after) {
+      filters.push({
+        $or: [
+          { organizationId: { $gt: input.after.organizationId } },
+          {
+            organizationId: input.after.organizationId,
+            resourceId: { $gt: input.after.resourceId },
+          },
+        ],
+      });
+    }
+
+    const rows = await this.featuredResources
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        organizationId: 1,
+        resourceId: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ organizationId: 1, resourceId: 1 })
+      .limit(input.limit + 1)
+      .lean<OrganizationFeaturedResourceAccountExportRow[]>()
       .exec();
 
     return {
