@@ -223,27 +223,47 @@ export function installMobileGlobalErrorHandler(
 ): () => void {
   if (!errorUtils) return () => undefined;
 
-  const previous = errorUtils.getGlobalHandler();
+  let previous: MobileGlobalErrorHandler | null | undefined;
+  try {
+    previous = errorUtils.getGlobalHandler();
+  } catch {
+    // Diagnostics must not prevent the app from starting.
+    return () => undefined;
+  }
+
+  // Without a native predecessor there is no fatal path to preserve.
+  // Installing a report-only handler here would silently swallow crashes.
+  if (typeof previous !== "function") return () => undefined;
+
   const handler: MobileGlobalErrorHandler = (error, isFatal) => {
     try {
       report(error);
     } catch {
       // A diagnostic adapter must never create a second unhandled exception.
     }
-    if (previous) {
-      // Preserve the native fatal path without forwarding private message/stack data.
-      const safeError = new Error("Client runtime failure");
-      safeError.name = safeErrorClass(error);
-      safeError.stack = "";
-      previous(safeError, isFatal);
-    }
+
+    // Preserve the native fatal path without forwarding private message/stack data.
+    const safeError = new Error("Client runtime failure");
+    safeError.name = safeErrorClass(error);
+    safeError.stack = "";
+    previous(safeError, isFatal);
   };
 
-  errorUtils.setGlobalHandler(handler);
+  try {
+    errorUtils.setGlobalHandler(handler);
+  } catch {
+    // A broken observability hook must not block app initialization.
+    return () => undefined;
+  }
 
   return () => {
-    if (previous && errorUtils.getGlobalHandler() === handler) {
-      errorUtils.setGlobalHandler(previous);
+    try {
+      // Never replace a handler another owner installed after this one.
+      if (errorUtils.getGlobalHandler() === handler) {
+        errorUtils.setGlobalHandler(previous);
+      }
+    } catch {
+      // Cleanup must not crash unmount or hide the original UI failure.
     }
   };
 }
