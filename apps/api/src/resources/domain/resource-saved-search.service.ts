@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 
 import {
   SAVED_RESOURCE_SEARCH_STORE,
@@ -6,6 +6,8 @@ import {
 } from './resource-saved-search.store';
 import { ResourceService } from './resource.service';
 import { AcademicService } from '../../academic/domain/academic.service';
+import { decodeSavedTitleCursor, encodeSavedTitleCursor } from './resource-saved-title-cursor';
+import type { SavedLibraryOrder } from './resource-saved-search.store';
 import {
   decodeSavedSearchCursor,
   encodeSavedSearchCursor,
@@ -39,11 +41,13 @@ export class ResourceSavedSearchService {
     limit: number,
     cursor?: string,
     subjectId?: string,
+    order: SavedLibraryOrder = 'saved',
   ) {
     const q = rawQuery === undefined ? '' : normalizeSavedQuery(rawQuery);
     if (
       (rawQuery !== undefined && (q.length < 2 || q.length > 120)) ||
-      (!q && !subjectId) ||
+      (!q && !subjectId && order !== 'title') ||
+      (order !== 'title' && order !== 'saved') ||
       (subjectId !== undefined &&
         !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(subjectId))
     ) {
@@ -52,13 +56,20 @@ export class ResourceSavedSearchService {
         message: 'Saved library search needs valid text or a Subject',
       });
     }
-    const after = decodeSavedSearchCursor(cursor, userId, q, subjectId);
+    const after = order === 'saved'
+      ? decodeSavedSearchCursor(cursor, userId, q, subjectId)
+      : undefined;
+    const titleAfter = order === 'title'
+      ? decodeSavedTitleCursor(cursor, userId, q, subjectId)
+      : undefined;
     const page = await this.store.searchSavedResources({
       userId,
       ...(q ? { q } : {}),
       ...(subjectId ? { subjectId } : {}),
       limit,
+      ...(order === 'title' ? { order } : {}),
       ...(after ? { after } : {}),
+      ...(titleAfter ? { titleAfter } : {}),
     });
 
     // Availability can change between Mongo's snapshot and HTTP projection.
@@ -76,12 +87,20 @@ export class ResourceSavedSearchService {
     );
     const items = projected.filter((item) => item !== null);
     const last = page.items.at(-1);
+    if (page.hasMore && last && order === 'title' && typeof last.title !== 'string') {
+      throw new InternalServerErrorException('Saved title pagination is unavailable');
+    }
 
     return {
       items,
       nextCursor:
         page.hasMore && last
-          ? encodeSavedSearchCursor(last, userId, q, subjectId)
+          ? order === 'title'
+            ? encodeSavedTitleCursor(
+                { title: last.title!, resourceId: last.resourceId },
+                userId, q, subjectId,
+              )
+            : encodeSavedSearchCursor(last, userId, q, subjectId)
           : null,
     };
   }
