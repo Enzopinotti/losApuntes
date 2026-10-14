@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -12,6 +13,7 @@ import {
 export class ResourceSavedSearchDto {
   @IsString()
   @Length(2, 120)
+  @Matches(/\S[\s\S]*\S/u, { message: 'Search requires at least two visible characters' })
   q!: string;
 
   @IsOptional()
