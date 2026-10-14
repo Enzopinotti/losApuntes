@@ -267,11 +267,13 @@ export function SavedResourcesScreen() {
     return () => clearInterval(interval);
   }, [authorityKey, controller, subjectsController, searchEligible]);
 
+  const syncNoticeForScroll =
+    snapshot.kind === "ready" ? snapshot.syncNotice : null;
   useEffect(() => {
-    if (snapshot.kind === "ready" && snapshot.syncNotice === "updated") {
+    if (syncNoticeForScroll === "updated") {
       listRef.current?.scrollToOffset({ offset: 0, animated: false });
     }
-  }, [snapshot]);
+  }, [syncNoticeForScroll]);
 
   const current =
     snapshot.kind !== "idle" &&
