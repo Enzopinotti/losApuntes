@@ -269,6 +269,7 @@ export type MobileSavedResourcesSnapshot =
       data: ResourceSavedPage;
       loadingMore: boolean;
       paginationStalled: boolean;
+      paginationResetReason?: 'cursor_cycle' | 'data_changed';
       failure: ResourceConsumptionFailure | null;
       removingResourceId: string | null;
       removalFailure: {
@@ -354,6 +355,7 @@ export class MobileSavedResourcesController {
         data,
         loadingMore: false,
         paginationStalled: false,
+        paginationResetReason: undefined,
         failure: null,
         removingResourceId: null,
         removalFailure: null,
@@ -388,6 +390,7 @@ export class MobileSavedResourcesController {
         ...current,
         data: { ...current.data, nextCursor: null },
         paginationStalled: true,
+        paginationResetReason: 'cursor_cycle',
         failure: null,
       });
       return;
@@ -418,17 +421,33 @@ export class MobileSavedResourcesController {
         },
         loadingMore: false,
         paginationStalled: repeated,
+        paginationResetReason: repeated ? 'cursor_cycle' : undefined,
         failure: null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (latest) {
-        this.publish({
-          ...latest,
-          loadingMore: false,
-          failure: resourceConsumptionFailure(error),
-        });
+        if (
+          error instanceof ApiRequestError &&
+          error.status === 409 &&
+          error.code === "RESOURCE_SAVED_SEARCH_CURSOR_STALE"
+        ) {
+          this.publish({
+            ...latest,
+            data: { ...latest.data, nextCursor: null },
+            loadingMore: false,
+            paginationStalled: true,
+            paginationResetReason: "data_changed",
+            failure: null,
+          });
+        } else {
+          this.publish({
+            ...latest,
+            loadingMore: false,
+            failure: resourceConsumptionFailure(error),
+          });
+        }
       }
     } finally {
       this.finish(operation);
