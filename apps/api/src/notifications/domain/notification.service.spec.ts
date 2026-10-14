@@ -14,11 +14,15 @@ import type {
 
 const now = new Date('2026-09-23T15:00:00.000Z');
 
-type ProfileApi = Pick<ProfileService, 'getAttributionForUser'>;
+type ProfileApi = Pick<
+  ProfileService,
+  'getAttributionForUser' | 'getProfileIdsForAccountExport'
+>;
 
 function profiles(): jest.Mocked<ProfileApi> {
   return {
     getAttributionForUser: jest.fn(),
+    getProfileIdsForAccountExport: jest.fn(),
   };
 }
 
@@ -26,6 +30,7 @@ function store(): jest.Mocked<NotificationStore> {
   return {
     createMany: jest.fn(),
     list: jest.fn(),
+    listForAccountExport: jest.fn(),
     markRead: jest.fn(),
     markAllRead: jest.fn(),
     countUnread: jest.fn(),
@@ -315,5 +320,138 @@ describe('NotificationService', () => {
 
     expect(result.items[0]?.actor).toBeNull();
     expect(profileApi.getAttributionForUser).not.toHaveBeenCalled();
+  });
+
+  it('exports owner inbox records with stable actor Profile ids and reference-only targets', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const source = row({
+      type: 'qa.answer_accepted',
+      targetType: 'question',
+      targetId: 'question-1',
+      readAt: now,
+    });
+    notificationStore.listForAccountExport
+      .mockResolvedValueOnce({ items: [source], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    profileApi.getProfileIdsForAccountExport
+      .mockResolvedValueOnce(new Map([['user-b', 'profile-b-stable-id']]))
+      .mockResolvedValueOnce(new Map());
+    const instance = new NotificationService(
+      notificationStore,
+      profileApi as unknown as ProfileService,
+    );
+
+    const first = await instance.listAccountExportNotifications('user-a', {
+      limit: 1,
+      cursor: null,
+    });
+
+    expect(first.items).toEqual([
+      {
+        id: source.id,
+        type: 'qa.answer_accepted',
+        actorProfileId: 'profile-b-stable-id',
+        targetType: 'question',
+        targetId: 'question-1',
+        readAt: now.toISOString(),
+        createdAt: now.toISOString(),
+      },
+    ]);
+    expect(JSON.stringify(first)).not.toContain('user-a');
+    expect(JSON.stringify(first)).not.toContain('user-b');
+    expect(first.nextCursor).not.toBeNull();
+    expect(notificationStore.listForAccountExport).toHaveBeenCalledWith({
+      userId: 'user-a',
+      limit: 1,
+      after: undefined,
+    });
+    expect(profileApi.getProfileIdsForAccountExport).toHaveBeenCalledWith([
+      'user-b',
+    ]);
+
+    await expect(
+      instance.listAccountExportNotifications('user-a', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(notificationStore.listForAccountExport).toHaveBeenLastCalledWith({
+      userId: 'user-a',
+      limit: 1,
+      after: {
+        createdAt: now,
+        id: source.id,
+      },
+    });
+    expect(profileApi.getProfileIdsForAccountExport).toHaveBeenLastCalledWith(
+      [],
+    );
+  });
+
+  it('preserves a null system actor and fails closed when an actor Profile is missing', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const instance = new NotificationService(
+      notificationStore,
+      profileApi as unknown as ProfileService,
+    );
+    notificationStore.listForAccountExport.mockResolvedValueOnce({
+      items: [row({ actorUserId: null })],
+      hasMore: false,
+    });
+    profileApi.getProfileIdsForAccountExport.mockResolvedValueOnce(new Map());
+
+    const systemPage = await instance.listAccountExportNotifications('user-a', {
+      limit: 10,
+      cursor: null,
+    });
+    expect(systemPage.items[0]?.actorProfileId).toBeNull();
+
+    notificationStore.listForAccountExport.mockResolvedValueOnce({
+      items: [row({ actorUserId: 'user-b' })],
+      hasMore: false,
+    });
+    profileApi.getProfileIdsForAccountExport.mockResolvedValueOnce(new Map());
+
+    await expect(
+      instance.listAccountExportNotifications('user-a', {
+        limit: 10,
+        cursor: null,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects invalid export limits and noncanonical cursors before persistence', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const instance = new NotificationService(
+      notificationStore,
+      profileApi as unknown as ProfileService,
+    );
+
+    await expect(
+      instance.listAccountExportNotifications('user-a', {
+        limit: 101,
+        cursor: null,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      instance.listAccountExportNotifications('user-a', {
+        limit: 10,
+        cursor: Buffer.from(
+          JSON.stringify({ createdAt: now.toISOString(), id: 'n-1', extra: 1 }),
+          'utf8',
+        ).toString('base64url'),
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      instance.listAccountExportNotifications('user-a', {
+        limit: 10,
+        cursor: 'bad-padding=',
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(notificationStore.listForAccountExport).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,7 @@ export function resourceConsumptionFailure(
 ): ResourceConsumptionFailure {
   if (!(error instanceof ApiRequestError)) return "error";
   if (error.code === "ACCOUNT_RESTRICTED") return "restricted";
+  if (error.code === "RESOURCE_SAVED_QUERY_TIMEOUT") return "timeout";
   if (error.kind === "offline") return "offline";
   if (error.kind === "timeout") return "timeout";
   if (error.kind === "server_unavailable") return "server_unavailable";
@@ -37,6 +38,7 @@ export type MobileResourceDetailSnapshot =
       saved: boolean | null;
       busy: "access" | "save" | "unsave" | null;
       failure: ResourceConsumptionFailure | null;
+      notice: "saved" | "unsaved" | null;
     };
 
 type DetailListener = (snapshot: MobileResourceDetailSnapshot) => void;
@@ -81,6 +83,7 @@ export class MobileResourceDetailController {
       saved: initialSaved,
       busy: null,
       failure: null,
+      notice: null,
     });
   }
 
@@ -114,7 +117,14 @@ export class MobileResourceDetailController {
       await this.api.save(resourceId, operation.controller.signal);
       if (!this.isCurrent(operation)) return;
       const current = this.current(authorityKey, resourceId);
-      if (current) this.publish({ ...current, saved: true, failure: null });
+      if (current) {
+        this.publish({
+          ...current,
+          saved: true,
+          failure: null,
+          notice: "saved",
+        });
+      }
     } catch (error) {
       if (this.isCurrent(operation)) this.fail(operation, error);
     } finally {
@@ -130,7 +140,14 @@ export class MobileResourceDetailController {
       await this.api.unsave(resourceId, operation.controller.signal);
       if (!this.isCurrent(operation)) return;
       const current = this.current(authorityKey, resourceId);
-      if (current) this.publish({ ...current, saved: false, failure: null });
+      if (current) {
+        this.publish({
+          ...current,
+          saved: false,
+          failure: null,
+          notice: "unsaved",
+        });
+      }
     } catch (error) {
       if (this.isCurrent(operation)) this.fail(operation, error);
     } finally {
@@ -148,7 +165,7 @@ export class MobileResourceDetailController {
 
     const current = this.snapshot;
     this.cancel();
-    this.publish({ ...current, busy: null });
+    this.publish({ ...current, busy: null, notice: null });
   }
 
   invalidate(authorityKey?: string): void {
@@ -180,7 +197,7 @@ export class MobileResourceDetailController {
       controller: new AbortController(),
     };
     this.active = operation;
-    this.publish({ ...current, busy, failure: null });
+    this.publish({ ...current, busy, failure: null, notice: null });
     return operation;
   }
 
@@ -234,18 +251,39 @@ export class MobileResourceDetailController {
 
 export type MobileSavedResourcesSnapshot =
   | { kind: "idle" }
-  | { kind: "loading"; authorityKey: string }
+  | { kind: "loading"; authorityKey: string; searchQuery?: string; subjectId?: string; order?: "title" }
   | {
       kind: "failure";
       authorityKey: string;
       failure: ResourceConsumptionFailure;
+      searchQuery?: string;
+      subjectId?: string;
+      order?: 'title';
     }
   | {
       kind: "ready";
       authorityKey: string;
+      searchQuery?: string;
+      subjectId?: string;
+      order?: 'title';
       data: ResourceSavedPage;
       loadingMore: boolean;
+      syncing: boolean;
+      syncFailure: ResourceConsumptionFailure | null;
+      syncNotice: "updated" | null;
+      paginationStalled: boolean;
+      paginationResetReason?: 'cursor_cycle' | 'data_changed' | undefined;
       failure: ResourceConsumptionFailure | null;
+      removingResourceId: string | null;
+      removalFailure: {
+        resourceId: string;
+        failure: ResourceConsumptionFailure;
+      } | null;
+      notice: {
+        operationId: number;
+        resourceId: string;
+        resourceTitle: string;
+      } | null;
     };
 
 type SavedListener = (snapshot: MobileSavedResourcesSnapshot) => void;
@@ -254,6 +292,7 @@ type SavedOperation = {
   authorityKey: string;
   generation: number;
   controller: AbortController;
+  kind: "load" | "loadMore" | "remove" | "sync";
 };
 
 function appendUniqueResources(
@@ -269,6 +308,12 @@ export class MobileSavedResourcesController {
   private snapshot: MobileSavedResourcesSnapshot = { kind: "idle" };
   private listeners = new Set<SavedListener>();
   private authorityKey: string | null = null;
+  private activeSearchQuery: string | null = null;
+  private activeSubjectId: string | null = null;
+  private activeOrder: 'saved' | 'title' = 'saved';
+  private readonly usedPageCursors = new Set<string>();
+  private firstPageLength = 0;
+  private firstPageCursor: string | null = null;
   private generation = 0;
   private active: SavedOperation | null = null;
 
@@ -283,28 +328,132 @@ export class MobileSavedResourcesController {
     return () => this.listeners.delete(listener);
   }
 
-  async load(authorityKey: string): Promise<void> {
+  async load(authorityKey: string, query?: string, subjectId?: string, order: 'saved' | 'title' = 'saved'): Promise<void> {
+    if (
+      this.active?.kind === "remove" &&
+      this.active.authorityKey === authorityKey
+    ) {
+      return;
+    }
+
     this.authorityKey = authorityKey;
-    const operation = this.begin(authorityKey);
-    this.publish({ kind: "loading", authorityKey });
+    const searchQuery = query?.trim() || null;
+    this.activeSearchQuery = searchQuery;
+    this.activeSubjectId = subjectId ?? null;
+    this.activeOrder = order;
+    this.usedPageCursors.clear();
+    this.firstPageLength = 0;
+    this.firstPageCursor = null;
+    const scope = {
+      ...(searchQuery ? { searchQuery } : {}),
+      ...(subjectId ? { subjectId } : {}),
+      ...(order === 'title' ? { order: 'title' as const } : {}),
+    };
+    const operation = this.begin(authorityKey, "load");
+    this.publish({ kind: "loading", authorityKey, ...scope });
 
     try {
-      const data = await this.api.saved(undefined, operation.controller.signal);
+      const data = await this.api.saved(undefined, operation.controller.signal, searchQuery ?? undefined, subjectId, order);
       if (!this.isCurrent(operation)) return;
+      this.firstPageLength = data.items.length;
+      this.firstPageCursor = data.nextCursor;
       this.publish({
         kind: "ready",
         authorityKey,
+        ...scope,
         data,
         loadingMore: false,
+        syncing: false,
+        syncFailure: null,
+        syncNotice: null,
+        paginationStalled: false,
+        paginationResetReason: undefined,
         failure: null,
+        removingResourceId: null,
+        removalFailure: null,
+        notice: null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
       this.publish({
         kind: "failure",
         authorityKey,
+        ...scope,
         failure: resourceConsumptionFailure(error),
       });
+    } finally {
+      this.finish(operation);
+    }
+  }
+
+  /**
+   * Foreground-only cross-device reconciliation. Checks one currently
+   * authorized first page, never uses a previously paginated cursor, and
+   * does not interrupt remove, loadMore or an explicit refresh.
+   *
+   * Old continuation pages are discarded when the first page changes, so
+   * the controller cannot combine two different page generations.
+   */
+  async sync(authorityKey: string): Promise<void> {
+    const previous = this.currentReady(authorityKey);
+    if (!previous || this.active || previous.syncing || previous.removingResourceId) return;
+
+    const operation = this.begin(authorityKey, "sync");
+    this.publish({ ...previous, syncing: true, syncFailure: null });
+
+    try {
+      const first = await this.api.saved(
+        undefined,
+        operation.controller.signal,
+        this.activeSearchQuery ?? undefined,
+        this.activeSubjectId ?? undefined,
+        this.activeOrder,
+      );
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+
+      const firstPageChanged =
+        this.firstPageLength !== first.items.length ||
+        this.firstPageCursor !== first.nextCursor ||
+        JSON.stringify(latest.data.items.slice(0, this.firstPageLength)) !==
+          JSON.stringify(first.items);
+
+      this.firstPageLength = first.items.length;
+      this.firstPageCursor = first.nextCursor;
+      if (firstPageChanged) {
+        this.usedPageCursors.clear();
+        this.publish({
+          ...latest,
+          data: first,
+          syncing: false,
+          syncFailure: null,
+          syncNotice: "updated",
+          loadingMore: false,
+          paginationStalled: false,
+          paginationResetReason: undefined,
+          failure: null,
+          notice: null,
+          removalFailure: null,
+        });
+      } else {
+        this.publish({
+          ...latest,
+          syncing: false,
+          syncFailure: null,
+          syncNotice: null,
+        });
+      }
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (latest) {
+        this.publish({
+          ...latest,
+          syncing: false,
+          syncFailure: resourceConsumptionFailure(error),
+        });
+      }
     } finally {
       this.finish(operation);
     }
@@ -320,36 +469,130 @@ export class MobileSavedResourcesController {
     )
       return;
 
-    const operation = this.begin(authorityKey);
+    const requestedCursor = current.data.nextCursor;
+    if (this.usedPageCursors.has(requestedCursor)) {
+      this.publish({
+        ...current,
+        data: { ...current.data, nextCursor: null },
+        paginationStalled: true,
+        paginationResetReason: 'cursor_cycle',
+        failure: null,
+      });
+      return;
+    }
+
+    const operation = this.begin(authorityKey, "loadMore");
     this.publish({ ...current, loadingMore: true, failure: null });
 
     try {
       const next = await this.api.saved(
-        current.data.nextCursor,
+        requestedCursor,
         operation.controller.signal,
+        this.activeSearchQuery ?? undefined,
+        this.activeSubjectId ?? undefined,
+        this.activeOrder,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (!latest) return;
+      const repeated = next.nextCursor !== null &&
+        (next.nextCursor === requestedCursor || this.usedPageCursors.has(next.nextCursor));
+      this.usedPageCursors.add(requestedCursor);
       this.publish({
         ...latest,
         data: {
           items: appendUniqueResources(latest.data.items, next.items),
-          nextCursor: next.nextCursor,
+          nextCursor: repeated ? null : next.nextCursor,
         },
         loadingMore: false,
+        paginationStalled: repeated,
+        paginationResetReason: repeated ? 'cursor_cycle' : undefined,
         failure: null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (latest) {
-        this.publish({
-          ...latest,
-          loadingMore: false,
-          failure: resourceConsumptionFailure(error),
-        });
+        if (
+          error instanceof ApiRequestError &&
+          error.status === 409 &&
+          error.code === "RESOURCE_SAVED_SEARCH_CURSOR_STALE"
+        ) {
+          this.publish({
+            ...latest,
+            data: { ...latest.data, nextCursor: null },
+            loadingMore: false,
+            paginationStalled: true,
+            paginationResetReason: "data_changed",
+            failure: null,
+          });
+        } else {
+          this.publish({
+            ...latest,
+            loadingMore: false,
+            failure: resourceConsumptionFailure(error),
+          });
+        }
       }
+    } finally {
+      this.finish(operation);
+    }
+  }
+
+  async removeSaved(authorityKey: string, resourceId: string): Promise<void> {
+    const current = this.currentReady(authorityKey);
+    if (
+      !current ||
+      current.removingResourceId ||
+      this.active ||
+      !current.data.items.some((item) => item.id === resourceId)
+    ) {
+      return;
+    }
+
+    const operation = this.begin(authorityKey, "remove");
+    this.publish({
+      ...current,
+      removingResourceId: resourceId,
+      removalFailure: null,
+      notice: null,
+    });
+
+    try {
+      await this.api.unsave(resourceId, operation.controller.signal);
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+      const removed = latest.data.items.find((item) => item.id === resourceId);
+      if (!removed) return;
+
+      this.publish({
+        ...latest,
+        data: {
+          ...latest.data,
+          items: latest.data.items.filter((item) => item.id !== resourceId),
+        },
+        removingResourceId: null,
+        removalFailure: null,
+        notice: {
+          operationId: operation.generation,
+          resourceId,
+          resourceTitle: removed.title,
+        },
+      });
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+      this.publish({
+        ...latest,
+        removingResourceId: null,
+        removalFailure: {
+          resourceId,
+          failure: resourceConsumptionFailure(error),
+        },
+        notice: null,
+      });
     } finally {
       this.finish(operation);
     }
@@ -359,6 +602,12 @@ export class MobileSavedResourcesController {
     if (authorityKey && authorityKey !== this.authorityKey) return;
 
     this.authorityKey = null;
+    this.activeSearchQuery = null;
+    this.activeSubjectId = null;
+    this.activeOrder = 'saved';
+    this.usedPageCursors.clear();
+    this.firstPageLength = 0;
+    this.firstPageCursor = null;
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
@@ -374,19 +623,32 @@ export class MobileSavedResourcesController {
 
     const current = this.currentReady(authorityKey);
     if (current) {
-      this.publish({ ...current, loadingMore: false });
+      this.publish({
+        ...current,
+        loadingMore: false,
+        syncing: false,
+        syncFailure: null,
+        syncNotice: null,
+        removingResourceId: null,
+        removalFailure: null,
+        notice: null,
+      });
     } else {
       this.publish({ kind: "idle" });
     }
   }
 
-  private begin(authorityKey: string): SavedOperation {
+  private begin(
+    authorityKey: string,
+    kind: SavedOperation["kind"],
+  ): SavedOperation {
     this.generation += 1;
     this.active?.controller.abort();
     const operation = {
       authorityKey,
       generation: this.generation,
       controller: new AbortController(),
+      kind,
     };
     this.active = operation;
     return operation;

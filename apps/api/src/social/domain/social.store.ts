@@ -1,12 +1,21 @@
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import type {
   ConnectionRecord,
+  ConnectionAccountExportRow,
   ConnectionStatus,
+  FollowAccountExportRow,
   FollowRecord,
   SocialCursor,
 } from './social.types';
 
 export const SOCIAL_STORE = Symbol('SOCIAL_STORE');
+
+export class SocialParticipantInactiveError extends Error {
+  constructor() {
+    super('Social relationships cannot involve an inactive account');
+    this.name = 'SocialParticipantInactiveError';
+  }
+}
 
 export interface SocialStore {
   follow: (input: {
@@ -21,6 +30,11 @@ export interface SocialStore {
     limit: number,
     after?: SocialCursor,
   ) => Promise<FollowRecord[]>;
+  listFollowingForAccountExport: (
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ) => Promise<{ items: FollowAccountExportRow[]; hasMore: boolean }>;
 
   requestConnection: (input: {
     id: string;
@@ -36,6 +50,11 @@ export interface SocialStore {
     limit: number,
     after?: SocialCursor,
   ) => Promise<ConnectionRecord[]>;
+  listConnectionsForAccountExport: (
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ) => Promise<{ items: ConnectionAccountExportRow[]; hasMore: boolean }>;
   respondConnection: (input: {
     id: string;
     recipientUserId: string;

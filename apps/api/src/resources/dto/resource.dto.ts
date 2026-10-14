@@ -113,6 +113,37 @@ export class ResourceAccessDto {
   disposition: 'inline' | 'attachment' = 'inline';
 }
 
+export class ResourceOwnedListDto {
+  @IsOptional()
+  @IsString()
+  @Length(2, 120)
+  q?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  subjectId?: string;
+
+  @IsOptional()
+  @IsIn(['newest', 'oldest'])
+  order?: 'newest' | 'oldest';
+
+  @IsOptional()
+  @IsIn(RESOURCE_VISIBILITIES)
+  visibility?: ResourceVisibility;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 25;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
+}
+
 export class ResourceSavedListDto {
   @IsOptional()
   @Type(() => Number)
@@ -120,6 +151,20 @@ export class ResourceSavedListDto {
   @Min(1)
   @Max(50)
   limit = 25;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 512)
+  cursor?: string;
+}
+
+export class ResourceShareListDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 20;
 
   @IsOptional()
   @IsString()

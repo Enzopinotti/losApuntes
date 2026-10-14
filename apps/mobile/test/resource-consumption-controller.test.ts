@@ -57,6 +57,17 @@ const apiStub = (
     items: [],
     nextCursor: null,
   }),
+  update: async (resourceId, input) => ({
+    resource: {
+      ...resource(resourceId),
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.description !== undefined
+        ? { description: input.description }
+        : {}),
+      ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      revision: input.expectedRevision + 1,
+    },
+  }),
   ...overrides,
 });
 
@@ -94,6 +105,7 @@ test("resource detail keeps save state scoped to the current resource authority"
     saved: true,
     busy: null,
     failure: null,
+    notice: "saved",
   });
 
   await controller.unsave("session-a:resource-1", "resource-1");
@@ -101,6 +113,65 @@ test("resource detail keeps save state scoped to the current resource authority"
   assert.deepEqual(calls, ["save:resource-1", "unsave:resource-1"]);
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind === "ready" ? snapshot.saved : null, false);
+  assert.equal(snapshot.kind === "ready" ? snapshot.notice : null, "unsaved");
+});
+
+test("failed removal preserves saved state without a success notice", async () => {
+  const controller = new MobileResourceDetailController(
+    apiStub({
+      unsave: async () => {
+        throw new ApiRequestError(
+          "offline",
+          null,
+          "NETWORK_UNAVAILABLE",
+          "offline",
+        );
+      },
+    }),
+  );
+
+  controller.setScope("session-a:resource-1", "resource-1", true);
+  await controller.unsave("session-a:resource-1", "resource-1");
+
+  assert.deepEqual(controller.getSnapshot(), {
+    kind: "ready",
+    authorityKey: "session-a:resource-1",
+    resourceId: "resource-1",
+    saved: true,
+    busy: null,
+    failure: "offline",
+    notice: null,
+  });
+});
+
+test("discards a save notice when resource authority changes in flight", async () => {
+  const pending = deferred<{ saved: true }>();
+  let signal: AbortSignal | undefined;
+  const controller = new MobileResourceDetailController(
+    apiStub({
+      save: async (_id, nextSignal) => {
+        signal = nextSignal;
+        return pending.promise;
+      },
+    }),
+  );
+
+  controller.setScope("session-a:resource-1", "resource-1", false);
+  const save = controller.save("session-a:resource-1", "resource-1");
+  controller.setScope("session-b:resource-2", "resource-2");
+  pending.resolve({ saved: true });
+  await save;
+
+  assert.equal(signal?.aborted, true);
+  assert.deepEqual(controller.getSnapshot(), {
+    kind: "ready",
+    authorityKey: "session-b:resource-2",
+    resourceId: "resource-2",
+    saved: null,
+    busy: null,
+    failure: null,
+    notice: null,
+  });
 });
 
 test("resource detail preserves server-confirmed saved state across suspension", async () => {
@@ -117,6 +188,7 @@ test("resource detail preserves server-confirmed saved state across suspension",
   if (snapshot.kind === "ready") {
     assert.equal(snapshot.saved, false);
     assert.equal(snapshot.busy, null);
+    assert.equal(snapshot.notice, null);
   }
 });
 
@@ -147,6 +219,7 @@ test("resource access result is discarded when authority changes in flight", asy
     saved: null,
     busy: null,
     failure: null,
+    notice: null,
   });
 });
 
@@ -183,6 +256,151 @@ test("saved resources paginate with id dedupe and preserve server cursor", async
     );
     assert.equal(snapshot.data.nextCursor, null);
     assert.equal(snapshot.loadingMore, false);
+  }
+});
+
+test("saved resource removal waits for server confirmation and preserves the cursor", async () => {
+  const pending = deferred<void>();
+  const savedCalls: Array<string | undefined> = [];
+  const unsaveCalls: string[] = [];
+  const controller = new MobileSavedResourcesController(
+    apiStub({
+      saved: async (cursor) => {
+        savedCalls.push(cursor);
+        return {
+          items: [resource("r1"), resource("r2")],
+          nextCursor: "opaque-next-page",
+        };
+      },
+      unsave: async (resourceId) => {
+        unsaveCalls.push(resourceId);
+        return pending.promise;
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  const removing = controller.removeSaved("session-a", "r1");
+  await controller.removeSaved("session-a", "r1");
+
+  const inFlight = controller.getSnapshot();
+  assert.equal(inFlight.kind, "ready");
+  if (inFlight.kind === "ready") {
+    assert.equal(inFlight.removingResourceId, "r1");
+    assert.deepEqual(
+      inFlight.data.items.map((item) => item.id),
+      ["r1", "r2"],
+    );
+  }
+
+  await controller.load("session-a");
+  await controller.loadMore("session-a");
+  assert.deepEqual(savedCalls, [undefined]);
+  assert.deepEqual(unsaveCalls, ["r1"]);
+
+  pending.resolve(undefined);
+  await removing;
+
+  const confirmed = controller.getSnapshot();
+  assert.equal(confirmed.kind, "ready");
+  if (confirmed.kind === "ready") {
+    assert.deepEqual(
+      confirmed.data.items.map((item) => item.id),
+      ["r2"],
+    );
+    assert.equal(confirmed.data.nextCursor, "opaque-next-page");
+    assert.equal(confirmed.removingResourceId, null);
+    assert.equal(confirmed.removalFailure, null);
+    assert.deepEqual(confirmed.notice, {
+      operationId: 2,
+      resourceId: "r1",
+      resourceTitle: "Recurso r1",
+    });
+  }
+});
+
+test("failed saved resource removal keeps the row and supports an idempotent retry", async () => {
+  let attempts = 0;
+  const controller = new MobileSavedResourcesController(
+    apiStub({
+      saved: async () => ({ items: [resource("r1")], nextCursor: null }),
+      unsave: async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new ApiRequestError(
+            "offline",
+            null,
+            "NETWORK_UNAVAILABLE",
+            "offline",
+          );
+        }
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  await controller.removeSaved("session-a", "r1");
+
+  const failed = controller.getSnapshot();
+  assert.equal(failed.kind, "ready");
+  if (failed.kind === "ready") {
+    assert.deepEqual(
+      failed.data.items.map((item) => item.id),
+      ["r1"],
+    );
+    assert.deepEqual(failed.removalFailure, {
+      resourceId: "r1",
+      failure: "offline",
+    });
+    assert.equal(failed.notice, null);
+  }
+
+  await controller.removeSaved("session-a", "r1");
+
+  const retried = controller.getSnapshot();
+  assert.equal(attempts, 2);
+  assert.equal(retried.kind, "ready");
+  if (retried.kind === "ready") {
+    assert.deepEqual(retried.data.items, []);
+    assert.equal(retried.removalFailure, null);
+    assert.equal(retried.notice?.resourceId, "r1");
+  }
+});
+
+test("late saved resource removal cannot alter the current authority", async () => {
+  const pending = deferred<void>();
+  let removalSignal: AbortSignal | undefined;
+  const controller = new MobileSavedResourcesController(
+    apiStub({
+      saved: async (_cursor, signal) => ({
+        items: [resource(signal?.aborted ? "stale" : "current")],
+        nextCursor: null,
+      }),
+      unsave: async (_resourceId, signal) => {
+        removalSignal = signal;
+        return pending.promise;
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  const removing = controller.removeSaved("session-a", "current");
+  controller.invalidate("session-a");
+  await controller.load("session-b");
+  pending.resolve(undefined);
+  await removing;
+
+  assert.equal(removalSignal?.aborted, true);
+  const current = controller.getSnapshot();
+  assert.equal(current.kind, "ready");
+  if (current.kind === "ready") {
+    assert.equal(current.authorityKey, "session-b");
+    assert.deepEqual(
+      current.data.items.map((item) => item.id),
+      ["current"],
+    );
+    assert.equal(current.removingResourceId, null);
+    assert.equal(current.notice, null);
   }
 });
 

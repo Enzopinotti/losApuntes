@@ -337,3 +337,135 @@ test("resource API calls use only the current session authority", async () => {
 
   assert.deepEqual(credentials, [token, token, token]);
 });
+
+const deferred = <T>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((fulfill) => {
+    resolve = fulfill;
+  });
+  return { promise, resolve };
+};
+
+const isUploadError = (code: string) => (error: unknown) =>
+  error instanceof ResourceUploadError && error.code === code;
+
+test("aborting an in-flight intent blocks transfer, finalize and resource creation", async () => {
+  const pendingIntent = deferred<ResourceUploadIntent>();
+  const calls: string[] = [];
+  const abort = new AbortController();
+  const controller = new ResourceUploadController(
+    makeUploadApi({
+      createUploadIntent: async () => {
+        calls.push("intent");
+        return pendingIntent.promise;
+      },
+      finalize: async () => {
+        calls.push("finalize");
+      },
+      create: async () => {
+        calls.push("create");
+        return { resource };
+      },
+    }),
+    async () => {
+      calls.push("transfer");
+    },
+  );
+
+  const publication = controller.publish(file(), input, () => {}, abort.signal);
+  abort.abort();
+  pendingIntent.resolve(intent);
+
+  await assert.rejects(publication, isUploadError("UPLOAD_CANCELLED"));
+  assert.deepEqual(calls, ["intent"]);
+});
+
+test("resetting authority during a transfer blocks finalize and resource creation even without an AbortSignal", async () => {
+  const transferStarted = deferred<void>();
+  const transferFinished = deferred<void>();
+  const calls: string[] = [];
+  const controller = new ResourceUploadController(
+    makeUploadApi({
+      finalize: async () => {
+        calls.push("finalize");
+      },
+      create: async () => {
+        calls.push("create");
+        return { resource };
+      },
+    }),
+    async () => {
+      calls.push("transfer");
+      transferStarted.resolve(undefined);
+      await transferFinished.promise;
+    },
+  );
+
+  const publication = controller.publish(file(), input, () => {});
+  await transferStarted.promise;
+  controller.reset();
+  transferFinished.resolve(undefined);
+
+  await assert.rejects(publication, isUploadError("UPLOAD_CANCELLED"));
+  assert.deepEqual(calls, ["transfer"]);
+});
+
+test("aborting during finalize blocks resource creation even when the transport resolves late", async () => {
+  const finalizeStarted = deferred<void>();
+  const finalizeFinished = deferred<void>();
+  const abort = new AbortController();
+  let createCalls = 0;
+  const controller = new ResourceUploadController(
+    makeUploadApi({
+      finalize: async () => {
+        finalizeStarted.resolve(undefined);
+        await finalizeFinished.promise;
+      },
+      create: async () => {
+        createCalls += 1;
+        return { resource };
+      },
+    }),
+    async () => undefined,
+  );
+
+  const publication = controller.publish(file(), input, () => {}, abort.signal);
+  await finalizeStarted.promise;
+  abort.abort();
+  finalizeFinished.resolve(undefined);
+
+  await assert.rejects(publication, isUploadError("UPLOAD_CANCELLED"));
+  assert.equal(createCalls, 0);
+});
+
+test("aborting an already-started create reports an uncertain outcome and prevents a blind duplicate retry", async () => {
+  const createStarted = deferred<void>();
+  const createFinished = deferred<{ resource: ResourceView }>();
+  const abort = new AbortController();
+  let createCalls = 0;
+  const controller = new ResourceUploadController(
+    makeUploadApi({
+      create: async () => {
+        createCalls += 1;
+        createStarted.resolve(undefined);
+        return createFinished.promise;
+      },
+    }),
+    async () => undefined,
+  );
+
+  const publication = controller.publish(file(), input, () => {}, abort.signal);
+  await createStarted.promise;
+  abort.abort();
+  createFinished.resolve({ resource });
+
+  await assert.rejects(
+    publication,
+    isUploadError("RESOURCE_CREATE_OUTCOME_UNCERTAIN"),
+  );
+  await assert.rejects(
+    controller.publish(file(), input, () => {}),
+    isUploadError("RESOURCE_CREATE_OUTCOME_UNCERTAIN"),
+  );
+  assert.equal(createCalls, 1);
+});

@@ -132,6 +132,16 @@ V1 creates durable pending reports. Moderation resolution/queue belongs to the l
 - Share/save uniqueness is enforced in persistence, not only by controller prechecks.
 - Cross-user resource/file probes use opaque not-found behavior where existence disclosure is unnecessary.
 
+### Claimed-asset ownership and purge safety (`DELETE-01`)
+
+`FileAsset.creatorUserId` is upload provenance. It identifies who initiated the upload; it does not make the creator the deletion owner of bytes already claimed by a Resource. A claimed asset remains storage backing for that Resource until a future Resource lifecycle transition explicitly releases it.
+
+V1 cardinality is one Resource to one claimed FileAsset: `Resource.assetId` is unique, and the asset's unique `claimRef` is `resource:<resource UUID>`. Do not add a generic reference counter while these two unique relations define the model. If asset reuse, coauthorship or derived assets change cardinality, introduce an explicit reference model and migration first.
+
+Organization featured-resource entries are references to Resources, not ownership of their bytes. Archiving or purging an Organization, or closing/anonymizing an asset's creator account, does not make a claimed asset reclaimable.
+
+The abandoned-upload worker may reclaim only expired, unclaimed assets (`claimRef: null`) and must retain that predicate in both its bounded scan and compare-and-set transition. Resource deletion/tombstoning and claimed-byte release are not implemented by this contract; they require an explicit Resource transition plus retention, legal and backup/recovery policy. Physical object deletion is not a promise of complete erasure while backups or recovery sets may retain bytes.
+
 ## 6. Validation
 
 - title, description and tags are length-bounded;

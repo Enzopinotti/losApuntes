@@ -42,12 +42,220 @@ import type {
   OrganizationCursor,
   OrganizationEventCursor,
   OrganizationEventRecord,
+  OrganizationEventAccountExportRow,
+  OrganizationIdAccountExportCursor,
+  OrganizationFollowAccountExportCursor,
+  OrganizationManagerAccountExportCursor,
+  OrganizationManagerAccountExportRow,
   OrganizationManagerRecord,
   OrganizationManagerRole,
   OrganizationPostCursor,
   OrganizationPostRecord,
+  OrganizationPostAccountExportRow,
+  OrganizationReportAccountExportRow,
   OrganizationRecord,
 } from './organization.types';
+
+const ORGANIZATION_ACCOUNT_EXPORT_MAX_LIMIT = 100;
+
+function assertAccountExportLimit(limit: number): void {
+  if (
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > ORGANIZATION_ACCOUNT_EXPORT_MAX_LIMIT
+  ) {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_ACCOUNT_EXPORT_LIMIT_INVALID',
+      message: 'Organization account export limit is invalid',
+    });
+  }
+}
+
+function encodeAccountExportFollowCursor(
+  cursor: OrganizationFollowAccountExportCursor,
+): string {
+  return Buffer.from(
+    JSON.stringify({
+      createdAt: cursor.createdAt.toISOString(),
+      organizationId: cursor.organizationId,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAccountExportFollowCursor(
+  value: string | null,
+): OrganizationFollowAccountExportCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    if (
+      value.length === 0 ||
+      value.length > 512 ||
+      !/^[A-Za-z0-9_-]+$/u.test(value)
+    ) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) {
+      throw new Error('noncanonical cursor encoding');
+    }
+
+    const parsed: unknown = JSON.parse(decoded.toString('utf8'));
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('invalid cursor payload');
+    }
+
+    const cursor = parsed as Record<string, unknown>;
+    const keys = Object.keys(cursor);
+    if (
+      keys.length !== 2 ||
+      !keys.includes('createdAt') ||
+      !keys.includes('organizationId') ||
+      typeof cursor.createdAt !== 'string' ||
+      typeof cursor.organizationId !== 'string' ||
+      cursor.organizationId.length === 0 ||
+      cursor.organizationId.length > 128
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    const createdAt = new Date(cursor.createdAt);
+    if (
+      Number.isNaN(createdAt.getTime()) ||
+      createdAt.toISOString() !== cursor.createdAt
+    ) {
+      throw new Error('invalid cursor timestamp');
+    }
+
+    return { createdAt, organizationId: cursor.organizationId };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'Organization account export cursor is invalid',
+    });
+  }
+}
+
+function encodeAccountExportIdCursor(
+  cursor: OrganizationIdAccountExportCursor,
+): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function encodeAccountExportManagementCursor(
+  cursor: OrganizationManagerAccountExportCursor,
+): string {
+  return Buffer.from(
+    JSON.stringify({
+      section: 'organizations.management',
+      organizationId: cursor.organizationId,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAccountExportManagementCursor(
+  value: string | null,
+): OrganizationManagerAccountExportCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    if (
+      value.length === 0 ||
+      value.length > 256 ||
+      !/^[A-Za-z0-9_-]+$/u.test(value)
+    ) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) {
+      throw new Error('noncanonical cursor encoding');
+    }
+
+    const parsed: unknown = JSON.parse(decoded.toString('utf8'));
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('invalid cursor payload');
+    }
+
+    const cursor = parsed as Record<string, unknown>;
+    if (
+      Object.keys(cursor).length !== 2 ||
+      cursor.section !== 'organizations.management' ||
+      typeof cursor.organizationId !== 'string' ||
+      cursor.organizationId.length === 0 ||
+      cursor.organizationId.length > 128
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    return { organizationId: cursor.organizationId };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'Organization account export cursor is invalid',
+    });
+  }
+}
+
+function decodeAccountExportIdCursor(
+  value: string | null,
+  expectedSection: OrganizationIdAccountExportCursor['section'],
+): OrganizationIdAccountExportCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    if (
+      value.length === 0 ||
+      value.length > 256 ||
+      !/^[A-Za-z0-9_-]+$/u.test(value)
+    ) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) {
+      throw new Error('noncanonical cursor encoding');
+    }
+
+    const parsed: unknown = JSON.parse(decoded.toString('utf8'));
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('invalid cursor payload');
+    }
+
+    const cursor = parsed as Record<string, unknown>;
+    if (
+      Object.keys(cursor).length !== 2 ||
+      cursor.section !== expectedSection ||
+      typeof cursor.id !== 'string' ||
+      cursor.id.length === 0 ||
+      cursor.id.length > 128
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    return { section: expectedSection, id: cursor.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'Organization account export cursor is invalid',
+    });
+  }
+}
 
 type AuthorizedMutationSuccess = Extract<
   AuthorizedOrganizationMutationResult,
@@ -609,6 +817,221 @@ export class OrganizationService {
     const wasFollowing = await this.store.isFollowing(id, userId);
     await this.store.unfollow(id, userId);
     return { following: false, changed: wasFollowing };
+  }
+
+  async listAccountExportFollowing(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{ organizationId: string; followedAt: string }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listForAccountExportFollowing({
+      userId,
+      limit: input.limit,
+      after: decodeAccountExportFollowCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => ({
+        organizationId: row.organizationId,
+        followedAt: row.createdAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportFollowCursor({
+              createdAt: last.createdAt,
+              organizationId: last.organizationId,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportManagement(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      organizationId: string;
+      role: OrganizationManagerAccountExportRow['role'];
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listForAccountExportManagement({
+      userId,
+      limit: input.limit,
+      after: decodeAccountExportManagementCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row: OrganizationManagerAccountExportRow) => ({
+        organizationId: row.organizationId,
+        role: row.role,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportManagementCursor({
+              organizationId: last.organizationId,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportSubmittedReports(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      targetType: OrganizationReportAccountExportRow['targetType'];
+      targetId: string;
+      reason: OrganizationReportAccountExportRow['reason'];
+      details: string | null;
+      createdAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const cursor = decodeAccountExportIdCursor(
+      input.cursor,
+      'organizations.submittedReports',
+    );
+    const page = await this.store.listForAccountExportSubmittedReports({
+      userId,
+      limit: input.limit,
+      after: cursor ? { id: cursor.id } : undefined,
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row: OrganizationReportAccountExportRow) => ({
+        id: row.id,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        reason: row.reason,
+        details: row.details,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportIdCursor({
+              section: 'organizations.submittedReports',
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportAuthoredPosts(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      organizationId: string;
+      title: string | null;
+      body: string;
+      subjectId: string | null;
+      publishedAt: string;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const cursor = decodeAccountExportIdCursor(
+      input.cursor,
+      'organizations.authoredPosts',
+    );
+    const page = await this.store.listAuthoredPostsForAccountExport({
+      userId,
+      limit: input.limit,
+      after: cursor ? { id: cursor.id } : undefined,
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row: OrganizationPostAccountExportRow) => ({
+        id: row.id,
+        organizationId: row.organizationId,
+        title: row.title,
+        body: row.body,
+        subjectId: row.subjectId,
+        publishedAt: row.publishedAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportIdCursor({
+              section: 'organizations.authoredPosts',
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportAuthoredEvents(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      organizationId: string;
+      title: string;
+      description: string | null;
+      startsAt: string;
+      endsAt: string | null;
+      locationLabel: string | null;
+      externalUrl: string | null;
+      state: OrganizationEventAccountExportRow['state'];
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const cursor = decodeAccountExportIdCursor(
+      input.cursor,
+      'organizations.authoredEvents',
+    );
+    const page = await this.store.listAuthoredEventsForAccountExport({
+      userId,
+      limit: input.limit,
+      after: cursor ? { id: cursor.id } : undefined,
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row: OrganizationEventAccountExportRow) => ({
+        id: row.id,
+        organizationId: row.organizationId,
+        title: row.title,
+        description: row.description,
+        startsAt: row.startsAt.toISOString(),
+        endsAt: row.endsAt?.toISOString() ?? null,
+        locationLabel: row.locationLabel,
+        externalUrl: row.externalUrl,
+        state: row.state,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportIdCursor({
+              section: 'organizations.authoredEvents',
+              id: last.id,
+            })
+          : null,
+    };
   }
 
   async createPost(

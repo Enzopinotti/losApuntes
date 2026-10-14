@@ -34,6 +34,7 @@ import {
 const DEFAULT_SECTION_ORDER = [...PROFILE_SECTIONS];
 export const PROFILE_ACTIVITY_DEFAULT_LIMIT = 20;
 export const PROFILE_ACTIVITY_MAX_LIMIT = 50;
+const PROFILE_ACCOUNT_EXPORT_ID_LOOKUP_MAX = 100;
 
 const DEFAULT_VISIBILITY: ProfileVisibilityPolicy = {
   about: 'public',
@@ -375,6 +376,19 @@ export class ProfileService {
     );
 
     return byUserId;
+  }
+
+  async getProfileIdsForAccountExport(
+    userIds: string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    const uniqueUserIds = [...new Set(userIds)];
+    if (uniqueUserIds.length > PROFILE_ACCOUNT_EXPORT_ID_LOOKUP_MAX) {
+      throw new Error('Account export Profile id lookup exceeded its limit');
+    }
+    if (uniqueUserIds.length === 0) return new Map();
+
+    const rows = await this.store.findProfileIdsByUserIds(uniqueUserIds);
+    return new Map(rows.map((profile) => [profile.userId, profile.id]));
   }
 
   async resolveUserIdByProfileId(profileId: string): Promise<string | null> {

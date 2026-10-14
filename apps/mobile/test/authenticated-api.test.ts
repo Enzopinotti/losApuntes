@@ -125,6 +125,23 @@ const transport = (
     },
     notifications: { unreadCount: 0 },
   }),
+  academicFeed: async () => ({
+    items: [],
+    nextCursor: null,
+    stopReason: "end",
+    context: { subjectIds: [] },
+  }),
+  forYouFeed: async () => ({
+    items: [],
+    nextCursor: null,
+    stopReason: "end",
+    effectiveSignals: {
+      academic: true,
+      social: true,
+      interests: false,
+      relationWindowTruncated: false,
+    },
+  }),
   listSessions: async () => ({ sessions: [], truncated: false, limit: 20 }),
   revokeSession: async () => undefined,
   revokeAllSessions: async () => undefined,
@@ -378,4 +395,85 @@ test("a delayed success from an old generation is rejected", async () => {
   );
   assert.equal(session.getCredentialSnapshot()?.credential, token.value);
   assert.equal(store.value, token.value);
+});
+
+test("feed pages preserve exact cursor/mode and credential authority", async () => {
+  const token = { value: "a".repeat(43) };
+  const session = new SessionController(sessionApi(token), new Store());
+  await session.login({ email: "test@example.edu", password: "password" });
+  const calls: string[] = [];
+  const api = new AuthenticatedMobileApi(
+    session,
+    transport({
+      academicFeed: async (credential, cursor) => {
+        calls.push(`academic:${credential}:${cursor}`);
+        return {
+          items: [],
+          nextCursor: null,
+          stopReason: "end",
+          context: { subjectIds: [] },
+        };
+      },
+      forYouFeed: async (credential, cursor, mode) => {
+        calls.push(`for-you:${credential}:${cursor}:${mode}`);
+        return {
+          items: [],
+          nextCursor: null,
+          stopReason: "end",
+          effectiveSignals: {
+            academic: true,
+            social: true,
+            interests: false,
+            relationWindowTruncated: false,
+          },
+        };
+      },
+    }),
+  );
+
+  await api.academicFeed("academic-cursor");
+  await api.forYouFeed("community-cursor", "community");
+  await api.forYouFeed("for-you-cursor", "balanced");
+  assert.deepEqual(calls, [
+    `academic:${token.value}:academic-cursor`,
+    `for-you:${token.value}:community-cursor:community`,
+    `for-you:${token.value}:for-you-cursor:balanced`,
+  ]);
+});
+
+test("late paginated feed results cannot reattach to a new session", async () => {
+  const token = { value: "a".repeat(43) };
+  const session = new SessionController(sessionApi(token), new Store());
+  await session.login({ email: "test@example.edu", password: "password" });
+  let resolveOld!: (
+    value: Awaited<ReturnType<AuthenticatedApiTransport["academicFeed"]>>,
+  ) => void;
+  const old = new Promise<
+    Awaited<ReturnType<AuthenticatedApiTransport["academicFeed"]>>
+  >((resolve) => {
+    resolveOld = resolve;
+  });
+  const api = new AuthenticatedMobileApi(
+    session,
+    transport({
+      academicFeed: async () => old,
+    }),
+  );
+  const pending = api.academicFeed("cursor");
+  await Promise.resolve();
+  token.value = "b".repeat(43);
+  await session.login({ email: "new@example.edu", password: "password" });
+  resolveOld({
+    items: [],
+    nextCursor: null,
+    stopReason: "end",
+    context: { subjectIds: [] },
+  });
+  await assert.rejects(
+    () => pending,
+    (error: unknown) =>
+      error instanceof ApiRequestError &&
+      error.code === "STALE_SESSION_AUTHORITY",
+  );
+  assert.equal(session.getCredentialSnapshot()?.credential, token.value);
 });

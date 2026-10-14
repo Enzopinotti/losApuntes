@@ -39,6 +39,32 @@ export interface ResourceRecord {
   updatedAt: Date;
 }
 
+export type ResourceAccountExportRecord = Pick<
+  ResourceRecord,
+  | 'id'
+  | 'title'
+  | 'description'
+  | 'tags'
+  | 'subjectId'
+  | 'courseOfferingId'
+  | 'visibility'
+  | 'moderationState'
+  | 'revision'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+export interface ResourceAccountExportShareGrantRecord {
+  resourceId: string;
+  granteeUserId: string;
+  grantedAt: Date;
+}
+
+export type ResourceAccountExportShareCursor = {
+  resourceId: string;
+  granteeUserId?: string;
+};
+
 export interface ResourceShareRecord {
   resourceId: string;
   userId: string;

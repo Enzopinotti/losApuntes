@@ -67,6 +67,15 @@ export interface OrganizationManagerRecord {
   updatedAt: Date;
 }
 
+export type OrganizationManagerAccountExportRow = Pick<
+  OrganizationManagerRecord,
+  'organizationId' | 'role' | 'createdAt' | 'updatedAt'
+>;
+
+export interface OrganizationManagerAccountExportCursor {
+  organizationId: string;
+}
+
 export const ORGANIZATION_AUDIT_EVENTS = [
   'organization.created',
   'organization.updated',
@@ -107,6 +116,16 @@ export interface OrganizationFollowRecord {
   updatedAt: Date;
 }
 
+export type OrganizationFollowAccountExportRow = Pick<
+  OrganizationFollowRecord,
+  'organizationId' | 'createdAt'
+>;
+
+export interface OrganizationFollowAccountExportCursor {
+  createdAt: Date;
+  organizationId: string;
+}
+
 export interface OrganizationPostRecord {
   id: string;
   organizationId: string;
@@ -120,6 +139,18 @@ export interface OrganizationPostRecord {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type OrganizationPostAccountExportRow = Pick<
+  OrganizationPostRecord,
+  | 'id'
+  | 'organizationId'
+  | 'title'
+  | 'body'
+  | 'subjectId'
+  | 'publishedAt'
+  | 'createdAt'
+  | 'updatedAt'
+>;
 
 export interface OrganizationEventRecord {
   id: string;
@@ -136,6 +167,29 @@ export interface OrganizationEventRecord {
   revision: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type OrganizationEventAccountExportRow = Pick<
+  OrganizationEventRecord,
+  | 'id'
+  | 'organizationId'
+  | 'title'
+  | 'description'
+  | 'startsAt'
+  | 'endsAt'
+  | 'locationLabel'
+  | 'externalUrl'
+  | 'state'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+export interface OrganizationIdAccountExportCursor {
+  section:
+    | 'organizations.authoredPosts'
+    | 'organizations.authoredEvents'
+    | 'organizations.submittedReports';
+  id: string;
 }
 
 export interface OrganizationLinkRecord {
@@ -162,6 +216,15 @@ export interface OrganizationReportRecord {
   reviewAction?: 'hide' | 'restore' | 'dismiss';
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type OrganizationReportAccountExportRow = Pick<
+  OrganizationReportRecord,
+  'id' | 'targetType' | 'targetId' | 'reason' | 'details' | 'createdAt'
+>;
+
+export interface OrganizationReportAccountExportCursor {
+  id: string;
 }
 
 export interface OrganizationFeaturedResourceRecord {

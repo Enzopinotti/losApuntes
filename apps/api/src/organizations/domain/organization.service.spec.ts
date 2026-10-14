@@ -14,6 +14,7 @@ import type {
   OrganizationEventRecord,
   OrganizationManagerRecord,
   OrganizationPostRecord,
+  OrganizationReportAccountExportRow,
   OrganizationRecord,
 } from './organization.types';
 
@@ -119,13 +120,18 @@ function store(): jest.Mocked<OrganizationStore> {
     isFollowing: jest.fn(),
     countFollowers: jest.fn(),
     listFollowedOrganizationIds: jest.fn(),
+    listForAccountExportFollowing: jest.fn(),
+    listForAccountExportManagement: jest.fn(),
+    listForAccountExportSubmittedReports: jest.fn(),
     findPostById: jest.fn(),
     findPostByGlobalId: jest.fn(),
     listPosts: jest.fn(),
+    listAuthoredPostsForAccountExport: jest.fn(),
     listFeedPosts: jest.fn(),
     listFeedPostsForFollower: jest.fn(),
     findEventById: jest.fn(),
     listEvents: jest.fn(),
+    listAuthoredEventsForAccountExport: jest.fn(),
     listLinks: jest.fn(),
     listFeaturedResources: jest.fn(),
     upsertPendingReport: jest.fn(),
@@ -343,6 +349,456 @@ async function expectCode(
 }
 
 describe('OrganizationService', () => {
+  it('exports authored Posts and Events with stable id cursors and owner-only fields', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const postId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const eventId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const post = {
+      id: postId,
+      organizationId: orgId,
+      title: 'My Post',
+      body: 'My authored body',
+      subjectId: 'subject-1',
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const event = {
+      id: eventId,
+      organizationId: orgId,
+      title: 'My Event',
+      description: null,
+      startsAt: now,
+      endsAt: null,
+      locationLabel: null,
+      externalUrl: 'https://events.example.test/ticket',
+      state: 'cancelled' as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+    organizationStore.listAuthoredPostsForAccountExport
+      .mockResolvedValueOnce({ items: [post], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    organizationStore.listAuthoredEventsForAccountExport.mockResolvedValueOnce({
+      items: [event],
+      hasMore: false,
+    });
+    const instance = service(organizationStore, dependencies);
+
+    const posts = await instance.listAccountExportAuthoredPosts('owner-user', {
+      limit: 1,
+      cursor: null,
+    });
+    expect(posts.items).toEqual([
+      {
+        id: postId,
+        organizationId: orgId,
+        title: 'My Post',
+        body: 'My authored body',
+        subjectId: 'subject-1',
+        publishedAt: now.toISOString(),
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+    ]);
+    expect(posts.items[0]).not.toHaveProperty('createdByUserId');
+    expect(posts.items[0]).not.toHaveProperty('moderationState');
+    expect(posts.items[0]).not.toHaveProperty('revision');
+    expect(posts.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.authoredPosts',
+          id: postId,
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+
+    await expect(
+      instance.listAccountExportAuthoredPosts('owner-user', {
+        limit: 1,
+        cursor: posts.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listAuthoredPostsForAccountExport.mock.calls,
+    ).toEqual([
+      [{ userId: 'owner-user', limit: 1, after: undefined }],
+      [{ userId: 'owner-user', limit: 1, after: { id: postId } }],
+    ]);
+
+    const events = await instance.listAccountExportAuthoredEvents(
+      'owner-user',
+      {
+        limit: 25,
+        cursor: Buffer.from(
+          JSON.stringify({
+            section: 'organizations.authoredEvents',
+            id: 'event-anchor',
+          }),
+          'utf8',
+        ).toString('base64url'),
+      },
+    );
+    expect(events.items).toEqual([
+      {
+        id: eventId,
+        organizationId: orgId,
+        title: 'My Event',
+        description: null,
+        startsAt: now.toISOString(),
+        endsAt: null,
+        locationLabel: null,
+        externalUrl: 'https://events.example.test/ticket',
+        state: 'cancelled',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+    ]);
+    expect(events.items[0]).not.toHaveProperty('createdByUserId');
+    expect(events.items[0]).not.toHaveProperty('moderationState');
+    expect(events.items[0]).not.toHaveProperty('revision');
+    expect(
+      organizationStore.listAuthoredEventsForAccountExport.mock.calls[0],
+    ).toEqual([
+      {
+        userId: 'owner-user',
+        limit: 25,
+        after: { id: 'event-anchor' },
+      },
+    ]);
+  });
+
+  it('exports current organization follows in stable bounded pages', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const followed = { organizationId: orgId, createdAt: now };
+    organizationStore.listForAccountExportFollowing
+      .mockResolvedValueOnce({ items: [followed], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+
+    const instance = service(organizationStore, dependencies);
+    const first = await instance.listAccountExportFollowing('owner-user', {
+      limit: 1,
+      cursor: null,
+    });
+
+    expect(first.items).toEqual([
+      { organizationId: orgId, followedAt: now.toISOString() },
+    ]);
+    expect(first.items[0]).not.toHaveProperty('userId');
+    expect(first.items[0]).not.toHaveProperty('name');
+    expect(first.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          createdAt: now.toISOString(),
+          organizationId: orgId,
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    expect(
+      organizationStore.listForAccountExportFollowing.mock.calls[0],
+    ).toEqual([{ userId: 'owner-user', limit: 1, after: undefined }]);
+
+    await expect(
+      instance.listAccountExportFollowing('owner-user', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listForAccountExportFollowing.mock.calls[1],
+    ).toEqual([
+      {
+        userId: 'owner-user',
+        limit: 1,
+        after: { createdAt: now, organizationId: orgId },
+      },
+    ]);
+  });
+
+  it('exports only the owner current organization management roles in stable pages', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const managerRow = {
+      organizationId: orgId,
+      role: 'admin' as const,
+      createdAt: now,
+      updatedAt: new Date('2026-09-25T04:00:00.000Z'),
+    };
+    organizationStore.listForAccountExportManagement
+      .mockResolvedValueOnce({ items: [managerRow], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    const instance = service(organizationStore, dependencies);
+
+    const first = await instance.listAccountExportManagement('owner-user', {
+      limit: 1,
+      cursor: null,
+    });
+
+    expect(first.items).toEqual([
+      {
+        organizationId: orgId,
+        role: 'admin',
+        createdAt: now.toISOString(),
+        updatedAt: '2026-09-25T04:00:00.000Z',
+      },
+    ]);
+    expect(first.items[0]).not.toHaveProperty('userId');
+    expect(first.items[0]).not.toHaveProperty('name');
+    expect(first.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: orgId,
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    expect(
+      organizationStore.listForAccountExportManagement.mock.calls[0],
+    ).toEqual([{ userId: 'owner-user', limit: 1, after: undefined }]);
+
+    await expect(
+      instance.listAccountExportManagement('owner-user', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listForAccountExportManagement.mock.calls[1],
+    ).toEqual([
+      {
+        userId: 'owner-user',
+        limit: 1,
+        after: { organizationId: orgId },
+      },
+    ]);
+  });
+
+  it('exports only submitted report details with a section-bound stable cursor', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const reportRow = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      targetType: 'organization_post' as const,
+      targetId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      reason: 'other' as const,
+      details: 'Owner-authored explanation',
+      createdAt: now,
+      status: 'resolved',
+      reviewedByUserId: 'reviewer-user',
+      reviewReason: 'Private moderation note',
+      reviewAction: 'hide',
+    } as OrganizationReportAccountExportRow;
+    organizationStore.listForAccountExportSubmittedReports
+      .mockResolvedValueOnce({ items: [reportRow], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    const instance = service(organizationStore, dependencies);
+
+    const first = await instance.listAccountExportSubmittedReports(
+      'owner-user',
+      { limit: 1, cursor: null },
+    );
+
+    expect(first.items).toEqual([
+      {
+        id: reportRow.id,
+        targetType: 'organization_post',
+        targetId: reportRow.targetId,
+        reason: 'other',
+        details: 'Owner-authored explanation',
+        createdAt: now.toISOString(),
+      },
+    ]);
+    for (const key of [
+      'reporterUserId',
+      'status',
+      'updatedAt',
+      'reviewedByUserId',
+      'reviewedAt',
+      'reviewReason',
+      'reviewAction',
+    ]) {
+      expect(first.items[0]).not.toHaveProperty(key);
+    }
+    expect(first.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.submittedReports',
+          id: reportRow.id,
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    expect(
+      organizationStore.listForAccountExportSubmittedReports.mock.calls[0],
+    ).toEqual([{ userId: 'owner-user', limit: 1, after: undefined }]);
+
+    await expect(
+      instance.listAccountExportSubmittedReports('owner-user', {
+        limit: 1,
+        cursor: first.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listForAccountExportSubmittedReports.mock.calls[1],
+    ).toEqual([
+      {
+        userId: 'owner-user',
+        limit: 1,
+        after: { id: reportRow.id },
+      },
+    ]);
+  });
+
+  it('rejects out-of-range limits and noncanonical or malformed export cursors', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const instance = service(organizationStore, dependencies);
+
+    for (const limit of [0, 1.5, 101]) {
+      await expectCode(
+        instance.listAccountExportFollowing('owner-user', {
+          limit,
+          cursor: null,
+        }),
+        'ORGANIZATION_ACCOUNT_EXPORT_LIMIT_INVALID',
+      );
+    }
+
+    const malformed = Buffer.from(
+      JSON.stringify({
+        createdAt: now.toISOString(),
+        organizationId: orgId,
+        extra: true,
+      }),
+      'utf8',
+    ).toString('base64url');
+    for (const cursor of [`${malformed}=`, malformed]) {
+      await expectCode(
+        instance.listAccountExportFollowing('owner-user', {
+          limit: 100,
+          cursor,
+        }),
+        'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      );
+    }
+
+    const invalidContentCursor = Buffer.from(
+      JSON.stringify({
+        section: 'organizations.authoredPosts',
+        id: orgId,
+        extra: true,
+      }),
+      'utf8',
+    ).toString('base64url');
+    await expectCode(
+      instance.listAccountExportAuthoredPosts('owner-user', {
+        limit: 100,
+        cursor: invalidContentCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+    const crossSectionCursor = Buffer.from(
+      JSON.stringify({ section: 'organizations.authoredEvents', id: orgId }),
+      'utf8',
+    ).toString('base64url');
+    await expectCode(
+      instance.listAccountExportAuthoredPosts('owner-user', {
+        limit: 100,
+        cursor: crossSectionCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+    await expectCode(
+      instance.listAccountExportSubmittedReports('owner-user', {
+        limit: 100,
+        cursor: crossSectionCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+    const crossReportCursor = Buffer.from(
+      JSON.stringify({ section: 'organizations.submittedReports', id: orgId }),
+      'utf8',
+    ).toString('base64url');
+    await expectCode(
+      instance.listAccountExportAuthoredPosts('owner-user', {
+        limit: 100,
+        cursor: crossReportCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+
+    const invalidManagementCursors = [
+      '!',
+      'a'.repeat(257),
+      Buffer.from('{', 'utf8').toString('base64url'),
+      Buffer.from('null', 'utf8').toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.authoredPosts',
+          organizationId: orgId,
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: '',
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: 'x'.repeat(129),
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: 42,
+        }),
+        'utf8',
+      ).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.management',
+          organizationId: orgId,
+          userId: 'other-user',
+        }),
+        'utf8',
+      ).toString('base64url'),
+    ];
+
+    for (const cursor of invalidManagementCursors) {
+      await expectCode(
+        instance.listAccountExportManagement('owner-user', {
+          limit: 100,
+          cursor,
+        }),
+        'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      );
+    }
+
+    expect(
+      organizationStore.listForAccountExportFollowing.mock.calls,
+    ).toHaveLength(0);
+    expect(
+      organizationStore.listAuthoredPostsForAccountExport.mock.calls,
+    ).toHaveLength(0);
+    expect(
+      organizationStore.listForAccountExportManagement.mock.calls,
+    ).toHaveLength(0);
+    expect(
+      organizationStore.listForAccountExportSubmittedReports.mock.calls,
+    ).toHaveLength(0);
+  });
+
   it('requires a Profile before organization creation', async () => {
     const organizationStore = store();
     const dependencies = deps();

@@ -1,14 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, FilterQuery, Model } from 'mongoose';
+import type { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
 
 import { assertNotificationFanoutBudget } from '../../notifications/domain/notification-fanout';
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
 import { Notification } from '../../notifications/mongo/notification.mongo-schema';
-import type { SocialStore } from '../domain/social.store';
+import { User } from '../../users/schemas/user.schema';
+import {
+  SocialParticipantInactiveError,
+  type SocialStore,
+} from '../domain/social.store';
 import type {
+  ConnectionAccountExportRow,
   ConnectionRecord,
   ConnectionStatus,
+  FollowAccountExportRow,
   FollowRecord,
   SocialCursor,
 } from '../domain/social.types';
@@ -38,7 +44,41 @@ export class MongoSocialStore implements SocialStore {
     private readonly connections: Model<SocialConnection>,
     @InjectModel(Notification.name)
     private readonly notifications: Model<Notification>,
+    @InjectModel(User.name)
+    private readonly users: Model<User>,
   ) {}
+
+  private async fenceActiveAccount(
+    userId: string,
+    session: ClientSession,
+  ): Promise<void> {
+    // The shared User write makes this transaction serialize with account closure.
+    const active = await this.users
+      .findOneAndUpdate(
+        {
+          _id: userId,
+          $or: [
+            { account_status: 'active' },
+            { account_status: { $exists: false } },
+          ],
+        },
+        { $inc: { account_lifecycle_revision: 1 } },
+        { new: false, session },
+      )
+      .lean()
+      .exec();
+
+    if (!active) throw new SocialParticipantInactiveError();
+  }
+
+  private async fenceActiveParticipants(
+    userIds: string[],
+    session: ClientSession,
+  ): Promise<void> {
+    for (const userId of [...new Set(userIds)].sort()) {
+      await this.fenceActiveAccount(userId, session);
+    }
+  }
 
   async follow(input: {
     id: string;
@@ -53,6 +93,25 @@ export class MongoSocialStore implements SocialStore {
       let result: { follow: FollowRecord; created: boolean } | undefined;
 
       await session.withTransaction(async () => {
+        const existing = await this.follows
+          .findOne({
+            followerUserId: input.followerUserId,
+            followeeUserId: input.followeeUserId,
+          })
+          .session(session)
+          .lean<FollowRecord>()
+          .exec();
+
+        if (existing) {
+          result = { follow: existing, created: false };
+          return;
+        }
+
+        await this.fenceActiveParticipants(
+          [input.followerUserId, input.followeeUserId],
+          session,
+        );
+
         const write = await this.follows
           .updateOne(
             {
@@ -140,6 +199,36 @@ export class MongoSocialStore implements SocialStore {
       .exec();
   }
 
+  async listFollowingForAccountExport(
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ): Promise<{ items: FollowAccountExportRow[]; hasMore: boolean }> {
+    const filters: FilterQuery<SocialFollow>[] = [{ followerUserId: userId }];
+
+    if (after) {
+      filters.push({
+        $or: [
+          { createdAt: { $lt: after.at } },
+          { createdAt: after.at, id: { $gt: after.id } },
+        ],
+      });
+    }
+
+    const rows = await this.follows
+      .find({ $and: filters })
+      .select({ _id: 0, id: 1, followeeUserId: 1, createdAt: 1 })
+      .sort({ createdAt: -1, id: 1 })
+      .limit(limit + 1)
+      .lean<FollowAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
+  }
+
   async requestConnection(input: {
     id: string;
     requesterUserId: string;
@@ -171,6 +260,11 @@ export class MongoSocialStore implements SocialStore {
         }
 
         if (existing) {
+          await this.fenceActiveParticipants(
+            [input.requesterUserId, input.targetUserId],
+            session,
+          );
+
           const reopened = await this.connections
             .findOneAndUpdate(
               {
@@ -212,6 +306,11 @@ export class MongoSocialStore implements SocialStore {
           result = { connection: reopened, changed: true };
           return;
         }
+
+        await this.fenceActiveParticipants(
+          [input.requesterUserId, input.targetUserId],
+          session,
+        );
 
         const created = await this.connections.create(
           [
@@ -285,6 +384,48 @@ export class MongoSocialStore implements SocialStore {
       .exec();
   }
 
+  async listConnectionsForAccountExport(
+    userId: string,
+    limit: number,
+    after?: SocialCursor,
+  ): Promise<{ items: ConnectionAccountExportRow[]; hasMore: boolean }> {
+    const filters: FilterQuery<SocialConnection>[] = [
+      { $or: [{ userLowId: userId }, { userHighId: userId }] },
+    ];
+
+    if (after) {
+      filters.push({
+        $or: [
+          { updatedAt: { $lt: after.at } },
+          { updatedAt: after.at, id: { $gt: after.id } },
+        ],
+      });
+    }
+
+    const rows = await this.connections
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        id: 1,
+        userLowId: 1,
+        userHighId: 1,
+        requestedByUserId: 1,
+        status: 1,
+        respondedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ updatedAt: -1, id: 1 })
+      .limit(limit + 1)
+      .lean<ConnectionAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    };
+  }
+
   async respondConnection(input: {
     id: string;
     recipientUserId: string;
@@ -301,6 +442,29 @@ export class MongoSocialStore implements SocialStore {
       let result: ConnectionRecord | null = null;
 
       await session.withTransaction(async () => {
+        if (input.status === 'accepted') {
+          const pending = await this.connections
+            .findOne({
+              id: input.id,
+              status: 'pending',
+              requestedByUserId: { $ne: input.recipientUserId },
+              $or: [
+                { userLowId: input.recipientUserId },
+                { userHighId: input.recipientUserId },
+              ],
+            })
+            .session(session)
+            .lean<ConnectionRecord>()
+            .exec();
+
+          if (!pending) return;
+
+          await this.fenceActiveParticipants(
+            [pending.requestedByUserId, input.recipientUserId],
+            session,
+          );
+        }
+
         result = await this.connections
           .findOneAndUpdate(
             {

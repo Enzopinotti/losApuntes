@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { QuestionSearchResponse } from "@losapuntes/contracts/social-qa";
+import type {
+  ConnectionView,
+  QuestionSearchResponse,
+} from "@losapuntes/contracts/social-qa";
 
 import {
   MobileCommunityApi,
@@ -50,6 +53,18 @@ const emptyNotifications: MobileNotificationPage = {
   items: [],
   nextCursor: null,
 };
+const emptyConnections = { items: [], nextCursor: null };
+
+const connection = (status: ConnectionView["status"]): ConnectionView => ({
+  id: "connection-a",
+  status,
+  other: { profileId: "profile-a", displayName: "Ada", avatarUrl: null },
+  requestedByMe: false,
+  incoming: status === "pending",
+  respondedAt: null,
+  createdAt: "2026-10-01T00:00:00.000Z",
+  updatedAt: "2026-10-01T00:00:00.000Z",
+});
 
 test("request methods retain the bearer credential and server cursor contract", async () => {
   const harness = sessionHarness();
@@ -92,6 +107,27 @@ test("request methods retain the bearer credential and server cursor contract", 
       });
       return { answer: {} as never };
     },
+    updateQuestion: async (credential, id, input, signal) => {
+      calls.push({
+        method: "updateQuestion",
+        args: [credential, id, input, signal],
+      });
+      return { question: {} as never };
+    },
+    updateAnswer: async (credential, id, input, signal) => {
+      calls.push({
+        method: "updateAnswer",
+        args: [credential, id, input, signal],
+      });
+      return { answer: {} as never };
+    },
+    acceptAnswer: async (credential, id, answerId, revision, signal) => {
+      calls.push({
+        method: "acceptAnswer",
+        args: [credential, id, answerId, revision, signal],
+      });
+      return { question: {} as never };
+    },
     notifications: async (credential, input, signal) => {
       calls.push({
         method: "notifications",
@@ -113,6 +149,63 @@ test("request methods retain the bearer credential and server cursor contract", 
       });
       return { updated: 2 };
     },
+    connections: async (credential, input, signal) => {
+      calls.push({ method: "connections", args: [credential, input, signal] });
+      return emptyConnections;
+    },
+    respondConnection: async (credential, id, action, signal) => {
+      calls.push({
+        method: "respondConnection",
+        args: [credential, id, action, signal],
+      });
+      return {
+        connection: connection(action === "accept" ? "accepted" : "declined"),
+      };
+    },
+    disconnectConnection: async (credential, id, signal) => {
+      calls.push({
+        method: "disconnectConnection",
+        args: [credential, id, signal],
+      });
+    },
+    requestConnection: async (credential, profileId, signal) => {
+      calls.push({
+        method: "requestConnection",
+        args: [credential, profileId, signal],
+      });
+      return { connection: connection("pending") };
+    },
+    following: async (credential, input, signal) => {
+      calls.push({ method: "following", args: [credential, input, signal] });
+      return { items: [], nextCursor: null };
+    },
+    followProfile: async (credential, profileId, signal) => {
+      calls.push({
+        method: "followProfile",
+        args: [credential, profileId, signal],
+      });
+      return { following: true };
+    },
+    unfollowProfile: async (credential, profileId, signal) => {
+      calls.push({
+        method: "unfollowProfile",
+        args: [credential, profileId, signal],
+      });
+    },
+    reportQuestion: async (credential, id, input, signal) => {
+      calls.push({
+        method: "reportQuestion",
+        args: [credential, id, input, signal],
+      });
+      return { report: {} as never };
+    },
+    reportAnswer: async (credential, id, input, signal) => {
+      calls.push({
+        method: "reportAnswer",
+        args: [credential, id, input, signal],
+      });
+      return { report: {} as never };
+    },
   };
   const api = new MobileCommunityApi(harness.session, transport);
   const signal = new AbortController().signal;
@@ -128,6 +221,22 @@ test("request methods retain the bearer credential and server cursor contract", 
   );
   await api.markNotificationRead("notification-a", signal);
   await api.markAllNotificationsRead(signal);
+  await api.connections(
+    { status: "pending", limit: 25, cursor: "opaque-connections" },
+    signal,
+  );
+  await api.respondConnection("connection-a", "accept", signal);
+  await api.disconnectConnection("connection-a", signal);
+  await api.requestConnection("profile-a", signal);
+  await api.following({ limit: 30, cursor: "follow-cursor" }, signal);
+  await api.followProfile("profile-a", signal);
+  await api.unfollowProfile("profile-a", signal);
+  await api.reportQuestion("question-a", { reason: "spam" }, signal);
+  await api.reportAnswer(
+    "answer-a",
+    { reason: "other", details: "detalle" },
+    signal,
+  );
 
   assert.deepEqual(calls[0], {
     method: "questions",
@@ -157,6 +266,164 @@ test("request methods retain the bearer credential and server cursor contract", 
     method: "markAllNotificationsRead",
     args: ["secret-session-token", signal],
   });
+  assert.deepEqual(calls[5], {
+    method: "connections",
+    args: [
+      "secret-session-token",
+      { status: "pending", limit: 25, cursor: "opaque-connections" },
+      signal,
+    ],
+  });
+  assert.deepEqual(calls[6], {
+    method: "respondConnection",
+    args: ["secret-session-token", "connection-a", "accept", signal],
+  });
+  assert.deepEqual(calls[7], {
+    method: "disconnectConnection",
+    args: ["secret-session-token", "connection-a", signal],
+  });
+  assert.deepEqual(calls[8], {
+    method: "requestConnection",
+    args: ["secret-session-token", "profile-a", signal],
+  });
+  assert.deepEqual(calls[9], {
+    method: "following",
+    args: [
+      "secret-session-token",
+      { limit: 30, cursor: "follow-cursor" },
+      signal,
+    ],
+  });
+  assert.deepEqual(calls[10], {
+    method: "followProfile",
+    args: ["secret-session-token", "profile-a", signal],
+  });
+  assert.deepEqual(calls[11], {
+    method: "unfollowProfile",
+    args: ["secret-session-token", "profile-a", signal],
+  });
+  assert.deepEqual(calls[12], {
+    method: "reportQuestion",
+    args: ["secret-session-token", "question-a", { reason: "spam" }, signal],
+  });
+  assert.deepEqual(calls[13], {
+    method: "reportAnswer",
+    args: [
+      "secret-session-token",
+      "answer-a",
+      { reason: "other", details: "detalle" },
+      signal,
+    ],
+  });
+});
+
+test("connection transport uses the authenticated paginated Social endpoints", async () => {
+  const calls: Array<{ path: string; init?: Record<string, unknown> }> = [];
+  const client = {
+    request: async (path: string, init?: Record<string, unknown>) => {
+      calls.push({ path, ...(init ? { init } : {}) });
+      if (path.startsWith("/social/me/connections")) return emptyConnections;
+      if (path.startsWith("/social/profiles/")) {
+        return { connection: connection("pending") };
+      }
+      if (path.endsWith("/accept")) {
+        return { connection: connection("accepted") };
+      }
+      return undefined;
+    },
+  } as unknown as MobileApiClient;
+  const transport = new MobileCommunityHttpTransport(client);
+  const signal = new AbortController().signal;
+
+  await transport.connections(
+    "secret-session-token",
+    { status: "pending", limit: 30, cursor: "opaque/cursor" },
+    signal,
+  );
+  await transport.respondConnection(
+    "secret-session-token",
+    "connection/a",
+    "accept",
+    signal,
+  );
+  await transport.disconnectConnection(
+    "secret-session-token",
+    "connection/a",
+    signal,
+  );
+  await transport.requestConnection(
+    "secret-session-token",
+    "profile/a",
+    signal,
+  );
+  await transport.following(
+    "secret-session-token",
+    { limit: 30, cursor: "opaque/cursor" },
+    signal,
+  );
+  await transport.followProfile("secret-session-token", "profile/a", signal);
+  await transport.unfollowProfile("secret-session-token", "profile/a", signal);
+  await transport.reportQuestion(
+    "secret-session-token",
+    "question/a",
+    { reason: "spam" },
+    signal,
+  );
+  await transport.reportAnswer(
+    "secret-session-token",
+    "answer/a",
+    { reason: "harassment", details: "detalle" },
+    signal,
+  );
+
+  assert.deepEqual(calls, [
+    {
+      path: "/social/me/connections?limit=30&status=pending&cursor=opaque%2Fcursor",
+      init: { credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/connections/connection%2Fa/accept",
+      init: { method: "POST", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/connections/connection%2Fa",
+      init: { method: "DELETE", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/profiles/profile%2Fa/connections",
+      init: { method: "POST", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/me/following?limit=30&cursor=opaque%2Fcursor",
+      init: { credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/profiles/profile%2Fa/follow",
+      init: { method: "PUT", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/profiles/profile%2Fa/follow",
+      init: { method: "DELETE", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/questions/question%2Fa/reports",
+      init: {
+        method: "POST",
+        credential: "secret-session-token",
+        body: { reason: "spam" },
+        signal,
+      },
+    },
+    {
+      path: "/answers/answer%2Fa/reports",
+      init: {
+        method: "POST",
+        credential: "secret-session-token",
+        body: { reason: "harassment", details: "detalle" },
+        signal,
+      },
+    },
+  ]);
 });
 
 test("requires the current session and never silently downgrades to anonymous", async () => {
@@ -178,9 +445,21 @@ test("requires the current session and never silently downgrades to anonymous", 
     createAnswer: async () => {
       throw new Error("unexpected");
     },
+    updateQuestion: async () => ({ question: {} as never }),
+    updateAnswer: async () => ({ answer: {} as never }),
+    acceptAnswer: async () => ({ question: {} as never }),
     notifications: async () => emptyNotifications,
     markNotificationRead: async () => ({ read: true }),
     markAllNotificationsRead: async () => ({ updated: 0 }),
+    connections: async () => emptyConnections,
+    respondConnection: async () => ({ connection: connection("pending") }),
+    disconnectConnection: async () => undefined,
+    requestConnection: async () => ({ connection: connection("pending") }),
+    following: async () => ({ items: [], nextCursor: null }),
+    followProfile: async () => ({ following: true }),
+    unfollowProfile: async () => undefined,
+    reportQuestion: async () => ({ report: {} as never }),
+    reportAnswer: async () => ({ report: {} as never }),
   };
 
   await assert.rejects(
@@ -211,9 +490,21 @@ test("fences successful responses when the session generation changed", async ()
     createAnswer: async () => {
       throw new Error("unexpected");
     },
+    updateQuestion: async () => ({ question: {} as never }),
+    updateAnswer: async () => ({ answer: {} as never }),
+    acceptAnswer: async () => ({ question: {} as never }),
     notifications: async () => emptyNotifications,
     markNotificationRead: async () => ({ read: true }),
     markAllNotificationsRead: async () => ({ updated: 0 }),
+    connections: async () => emptyConnections,
+    respondConnection: async () => ({ connection: connection("pending") }),
+    disconnectConnection: async () => undefined,
+    requestConnection: async () => ({ connection: connection("pending") }),
+    following: async () => ({ items: [], nextCursor: null }),
+    followProfile: async () => ({ following: true }),
+    unfollowProfile: async () => undefined,
+    reportQuestion: async () => ({ report: {} as never }),
+    reportAnswer: async () => ({ report: {} as never }),
   };
   const request = new MobileCommunityApi(harness.session, transport).questions({
     limit: 25,
@@ -289,4 +580,76 @@ test("encodes public question API paths and includes only server-supported pagin
     method: "POST",
     credential: "token",
   });
+});
+
+test("Q&A mutation transport sends exact revision payloads to existing authenticated routes", async () => {
+  const calls: Array<{ path: string; options: Record<string, unknown> }> = [];
+  const client = {
+    request: async <T>(path: string, options: Record<string, unknown>) => {
+      calls.push({ path, options });
+      return {} as T;
+    },
+  } as unknown as MobileApiClient;
+  const transport = new MobileCommunityHttpTransport(client);
+  const signal = new AbortController().signal;
+  const credential = "secret-session-token";
+
+  await transport.updateQuestion(
+    credential,
+    "question/a",
+    { expectedRevision: 4, title: "Una pregunta nueva" },
+    signal,
+  );
+  await transport.updateQuestion(
+    credential,
+    "question/a",
+    { expectedRevision: 5, status: "closed" },
+    signal,
+  );
+  await transport.updateAnswer(
+    credential,
+    "answer/a",
+    { expectedRevision: 2, body: "Una respuesta corregida" },
+    signal,
+  );
+  await transport.acceptAnswer(credential, "question/a", "answer/a", 6, signal);
+
+  assert.deepEqual(calls, [
+    {
+      path: "/questions/question%2Fa",
+      options: {
+        method: "PATCH",
+        credential,
+        body: { expectedRevision: 4, title: "Una pregunta nueva" },
+        signal,
+      },
+    },
+    {
+      path: "/questions/question%2Fa",
+      options: {
+        method: "PATCH",
+        credential,
+        body: { expectedRevision: 5, status: "closed" },
+        signal,
+      },
+    },
+    {
+      path: "/answers/answer%2Fa",
+      options: {
+        method: "PATCH",
+        credential,
+        body: { expectedRevision: 2, body: "Una respuesta corregida" },
+        signal,
+      },
+    },
+    {
+      path: "/questions/question%2Fa/answers/answer%2Fa/accept",
+      options: {
+        method: "POST",
+        credential,
+        body: { expectedRevision: 6 },
+        signal,
+      },
+    },
+  ]);
 });

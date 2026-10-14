@@ -4,6 +4,7 @@ import type { Connection, FilterQuery, Model } from 'mongoose';
 
 import type {
   CreateNotificationRecord,
+  NotificationAccountExportRow,
   NotificationCursor,
   NotificationRecord,
 } from '../domain/notification.types';
@@ -62,6 +63,51 @@ export class MongoNotificationStore implements NotificationStore {
       .sort({ createdAt: -1, id: 1 })
       .limit(input.limit + 1)
       .lean<NotificationRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listForAccountExport(input: {
+    userId: string;
+    limit: number;
+    after?: NotificationCursor;
+  }): Promise<{
+    items: NotificationAccountExportRow[];
+    hasMore: boolean;
+  }> {
+    const filters: FilterQuery<Notification>[] = [{ userId: input.userId }];
+
+    if (input.after) {
+      filters.push({
+        $or: [
+          { createdAt: { $lt: input.after.createdAt } },
+          {
+            createdAt: input.after.createdAt,
+            id: { $gt: input.after.id },
+          },
+        ],
+      });
+    }
+
+    const rows = await this.notifications
+      .find({ $and: filters })
+      .select({
+        _id: 0,
+        id: 1,
+        type: 1,
+        actorUserId: 1,
+        targetType: 1,
+        targetId: 1,
+        readAt: 1,
+        createdAt: 1,
+      })
+      .sort({ createdAt: -1, id: 1 })
+      .limit(input.limit + 1)
+      .lean<NotificationAccountExportRow[]>()
       .exec();
 
     return {

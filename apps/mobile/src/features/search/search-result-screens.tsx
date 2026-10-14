@@ -12,7 +12,10 @@ import {
   View,
 } from "react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { FencedDetailSnapshot } from "./use-fenced-detail";
+import type {
+  DetailFailureKind,
+  FencedDetailSnapshot,
+} from "./use-fenced-detail";
 
 import {
   activeNavigationAuthorityKey,
@@ -20,14 +23,20 @@ import {
 } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
+import {
+  SocialProfileConnectionAction,
+  SocialProfileFollowAction,
+} from "@/features/community/social-profile-connection-action";
 
 import { mobileSearchApi } from "./search-runtime";
 import { useFencedDetail } from "./use-fenced-detail";
 
-const errorCopy: Record<string, string> = {
+const errorCopy: Record<DetailFailureKind, string> = {
   offline: "No hay conexión. Volvé a intentarlo cuando estés en línea.",
   timeout: "El servidor tardó demasiado en responder.",
   server_unavailable: "Este contenido no está disponible ahora.",
+  forbidden: "Ya no tenés permiso para acceder a este contenido.",
+  not_found: "Este contenido ya no está disponible o dejó de ser visible.",
   restricted: "La cuenta no puede acceder a este contenido.",
   error: "No pudimos cargar este contenido.",
 };
@@ -99,7 +108,7 @@ function DetailState<T>({
   return (
     <View style={styles.card}>
       <Text accessibilityRole="alert" style={styles.error}>
-        {errorCopy[snapshot.kind]}
+        {errorCopy[current.kind]}
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -243,49 +252,57 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
         onRetry={retry}
       >
         {(data: PublicProfileResponse) => (
-          <View style={styles.card}>
-            <Text accessibilityRole="header" style={styles.title}>
-              {data.profile.about?.displayName ?? "Perfil"}
-            </Text>
-            {data.profile.about?.bio ? (
-              <Text style={styles.copy}>{data.profile.about.bio}</Text>
-            ) : null}
-            {data.profile.professional?.headline ? (
-              <Text style={styles.meta}>
-                {data.profile.professional.headline}
+          <View style={styles.profileContent}>
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.title}>
+                {data.profile.about?.displayName ?? "Perfil"}
               </Text>
-            ) : null}
-            {data.profile.learning?.learningTopics.length ? (
-              <Text style={styles.meta}>
-                Está aprendiendo:{" "}
-                {data.profile.learning.learningTopics.join(", ")}
-              </Text>
-            ) : null}
-            {data.profile.learning?.helpTopics.length ? (
-              <Text style={styles.meta}>
-                Puede ayudar con: {data.profile.learning.helpTopics.join(", ")}
-              </Text>
-            ) : null}
-            {data.profile.skills?.skills.length ? (
-              <Text style={styles.meta}>
-                Habilidades: {data.profile.skills.skills.join(", ")}
-              </Text>
-            ) : null}
-            {data.profile.activities?.length ? (
-              <View style={styles.activityList}>
-                <Text style={styles.sectionTitle}>Actividad pública</Text>
-                {data.profile.activities.map((activity) => (
-                  <Text key={activity.id} style={styles.copy}>
-                    {activity.title}
-                  </Text>
-                ))}
-                {data.profile.activitiesNextCursor ? (
-                  <Text style={styles.meta}>
-                    Se muestra una tanda; hay más actividad disponible.
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
+              {data.profile.about?.bio ? (
+                <Text style={styles.copy}>{data.profile.about.bio}</Text>
+              ) : null}
+              {data.profile.professional?.headline ? (
+                <Text style={styles.meta}>
+                  {data.profile.professional.headline}
+                </Text>
+              ) : null}
+              {data.profile.learning?.learningTopics.length ? (
+                <Text style={styles.meta}>
+                  Está aprendiendo:{" "}
+                  {data.profile.learning.learningTopics.join(", ")}
+                </Text>
+              ) : null}
+              {data.profile.learning?.helpTopics.length ? (
+                <Text style={styles.meta}>
+                  Puede ayudar con:{" "}
+                  {data.profile.learning.helpTopics.join(", ")}
+                </Text>
+              ) : null}
+              {data.profile.skills?.skills.length ? (
+                <Text style={styles.meta}>
+                  Habilidades: {data.profile.skills.skills.join(", ")}
+                </Text>
+              ) : null}
+              {data.profile.activities?.length ? (
+                <View style={styles.activityList}>
+                  <Text style={styles.sectionTitle}>Actividad pública</Text>
+                  {data.profile.activities.map((activity) => (
+                    <Text key={activity.id} style={styles.copy}>
+                      {activity.title}
+                    </Text>
+                  ))}
+                  {data.profile.activitiesNextCursor ? (
+                    <Text style={styles.meta}>
+                      Se muestra una tanda; hay más actividad disponible.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+            <SocialProfileConnectionAction
+              profileId={profileId}
+              displayName={data.profile.about?.displayName ?? "este perfil"}
+            />
+            <SocialProfileFollowAction profileId={profileId} />
           </View>
         )}
       </DetailState>
@@ -294,6 +311,9 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
 }
 
 const styles = StyleSheet.create({
+  profileContent: {
+    gap: 12,
+  },
   backButton: {
     minHeight: 44,
     alignSelf: "flex-start",

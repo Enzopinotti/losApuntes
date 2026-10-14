@@ -101,6 +101,7 @@ Every ranked item returns one or more stable reason codes when applicable:
 - `prioritized_subject`;
 - `connection`;
 - `following`;
+- `organization_following`;
 - `interest_match`;
 - `unanswered_question`;
 - `fresh`;
@@ -108,6 +109,7 @@ Every ranked item returns one or more stable reason codes when applicable:
 - `exploration`.
 
 Explanations are descriptive. They are not authorization and do not expose hidden Profile or Academic data.
+Clients may present a concise explanation only for codes returned in `why[]`; they must not infer a reason from local profile, relationship, or academic data.
 
 ## User controls
 
@@ -162,6 +164,8 @@ A cursor freezes:
 One feed session permits at most **3 pages** and at most **25 items per page**. After the third page, `nextCursor` is null and `stopReason = natural_break` even if more eligible content exists.
 
 This is intentional product behavior, not an API limitation to bypass with an alternate endpoint.
+
+Clients may automatically continue loading pages while the user approaches the end of the current feed, provided they use only its existing cursor and remain inside the same bounded session. This presentation behavior must stop at `natural_break` or a null cursor and must never create a cursor or session on the user's behalf. Starting another batch requires an explicit user action, such as pull-to-refresh. Automatic continuation within the existing three-page session does not change the finite-feed rule or authorize infinite scroll.
 
 ## Determinism and freshness
 

@@ -6,7 +6,10 @@ import {
 
 import type { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import type { ProfileService } from '../../profile/domain/profile.service';
-import type { SocialStore } from './social.store';
+import {
+  SocialParticipantInactiveError,
+  type SocialStore,
+} from './social.store';
 import { SocialService } from './social.service';
 import type { ConnectionRecord, FollowRecord } from './social.types';
 
@@ -14,12 +17,15 @@ const now = new Date('2026-09-23T15:00:00.000Z');
 
 type ProfileApi = Pick<
   ProfileService,
-  'getAttributionForUser' | 'resolveUserIdByProfileId'
+  | 'getAttributionForUser'
+  | 'getProfileIdsForAccountExport'
+  | 'resolveUserIdByProfileId'
 >;
 
 function profileApi(): jest.Mocked<ProfileApi> {
   return {
     getAttributionForUser: jest.fn(),
+    getProfileIdsForAccountExport: jest.fn(),
     resolveUserIdByProfileId: jest.fn(),
   };
 }
@@ -29,9 +35,11 @@ function store(): jest.Mocked<SocialStore> {
     follow: jest.fn(),
     unfollow: jest.fn(),
     listFollowing: jest.fn(),
+    listFollowingForAccountExport: jest.fn(),
     requestConnection: jest.fn(),
     findConnectionById: jest.fn(),
     listConnections: jest.fn(),
+    listConnectionsForAccountExport: jest.fn(),
     respondConnection: jest.fn(),
     disconnectConnection: jest.fn(),
   };
@@ -613,6 +621,211 @@ describe('SocialService', () => {
     );
   });
 
+  it('exports only outgoing Follow relations with stable Profile ids and a strict cursor', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const first = {
+      id: '22222222-2222-4222-8222-222222222222',
+      followeeUserId: 'user-b',
+      createdAt: now,
+    };
+    socialStore.listFollowingForAccountExport
+      .mockResolvedValueOnce({ items: [first], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    profiles.getProfileIdsForAccountExport
+      .mockResolvedValueOnce(
+        new Map([['user-b', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']]),
+      )
+      .mockResolvedValueOnce(new Map());
+
+    const instance = service(socialStore, profiles);
+    const firstPage = await instance.listAccountExportFollowing('user-a', {
+      limit: 1,
+      cursor: null,
+    });
+
+    expect(firstPage.items).toEqual([
+      {
+        followeeProfileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        followedAt: now.toISOString(),
+      },
+    ]);
+    expect(firstPage.nextCursor).not.toBeNull();
+    expect(socialStore.listFollowingForAccountExport).toHaveBeenCalledWith(
+      'user-a',
+      1,
+      undefined,
+    );
+    expect(profiles.getProfileIdsForAccountExport).toHaveBeenCalledWith([
+      'user-b',
+    ]);
+
+    await expect(
+      instance.listAccountExportFollowing('user-a', {
+        limit: 1,
+        cursor: firstPage.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(socialStore.listFollowingForAccountExport).toHaveBeenLastCalledWith(
+      'user-a',
+      1,
+      { at: now, id: first.id },
+    );
+    expect(profiles.getProfileIdsForAccountExport).toHaveBeenLastCalledWith([]);
+  });
+
+  it('exports Connection history relative to the owner without participant user ids', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const first = connection({
+      userLowId: 'user-a',
+      userHighId: 'user-b',
+      requestedByUserId: 'user-b',
+      status: 'pending',
+    });
+    const second = connection({
+      id: '44444444-4444-4444-8444-444444444444',
+      userLowId: 'user-c',
+      userHighId: 'user-a',
+      requestedByUserId: 'user-a',
+      status: 'accepted',
+      respondedAt: new Date('2026-09-23T14:00:00.000Z'),
+      updatedAt: new Date('2026-09-23T14:00:00.000Z'),
+    });
+    socialStore.listConnectionsForAccountExport.mockResolvedValue({
+      items: [first, second],
+      hasMore: false,
+    });
+    profiles.getProfileIdsForAccountExport.mockResolvedValue(
+      new Map([
+        ['user-b', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'],
+        ['user-c', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
+      ]),
+    );
+
+    const result = await service(
+      socialStore,
+      profiles,
+    ).listAccountExportConnections('user-a', { limit: 2, cursor: null });
+
+    expect(result).toEqual({
+      items: [
+        {
+          counterpartProfileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          status: 'pending',
+          requestedByOwner: false,
+          createdAt: now.toISOString(),
+          respondedAt: null,
+          updatedAt: now.toISOString(),
+        },
+        {
+          counterpartProfileId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          status: 'accepted',
+          requestedByOwner: true,
+          createdAt: now.toISOString(),
+          respondedAt: '2026-09-23T14:00:00.000Z',
+          updatedAt: '2026-09-23T14:00:00.000Z',
+        },
+      ],
+      nextCursor: null,
+    });
+    expect(JSON.stringify(result)).not.toContain('user-a');
+    expect(JSON.stringify(result)).not.toContain('user-b');
+    expect(socialStore.listConnectionsForAccountExport).toHaveBeenCalledWith(
+      'user-a',
+      2,
+      undefined,
+    );
+    expect(profiles.getProfileIdsForAccountExport).toHaveBeenCalledWith([
+      'user-b',
+      'user-c',
+    ]);
+  });
+
+  it('fails closed on missing export Profile identity and corrupt participant rows', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    socialStore.listFollowingForAccountExport.mockResolvedValue({
+      items: [{ id: 'follow-1', followeeUserId: 'user-b', createdAt: now }],
+      hasMore: false,
+    });
+    profiles.getProfileIdsForAccountExport.mockResolvedValue(new Map());
+
+    await expect(
+      service(socialStore, profiles).listAccountExportFollowing('user-a', {
+        limit: 10,
+        cursor: null,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    socialStore.listConnectionsForAccountExport.mockResolvedValue({
+      items: [
+        {
+          ...connection(),
+          userLowId: 'other-a',
+          userHighId: 'other-b',
+        },
+      ],
+      hasMore: false,
+    });
+
+    await expect(
+      service(socialStore, profiles).listAccountExportConnections('user-a', {
+        limit: 10,
+        cursor: null,
+      }),
+    ).rejects.toThrow('Account export Connection participant is invalid');
+
+    socialStore.listConnectionsForAccountExport.mockResolvedValue({
+      items: [
+        {
+          ...connection(),
+          requestedByUserId: 'unrelated-user',
+        },
+      ],
+      hasMore: false,
+    });
+
+    await expect(
+      service(socialStore, profiles).listAccountExportConnections('user-a', {
+        limit: 10,
+        cursor: null,
+      }),
+    ).rejects.toThrow('Account export Connection participant is invalid');
+    expect(profiles.getProfileIdsForAccountExport).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects invalid account export page limits and noncanonical cursors before reads', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const instance = service(socialStore, profiles);
+
+    await expect(
+      instance.listAccountExportFollowing('user-a', {
+        limit: 101,
+        cursor: null,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      instance.listAccountExportFollowing('user-a', {
+        limit: 10,
+        cursor: Buffer.from(
+          JSON.stringify({ at: now.toISOString(), id: 'follow-1', extra: 1 }),
+          'utf8',
+        ).toString('base64url'),
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      instance.listAccountExportConnections('user-a', {
+        limit: 10,
+        cursor: 'invalid-cursor=',
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(socialStore.listFollowingForAccountExport).not.toHaveBeenCalled();
+    expect(socialStore.listConnectionsForAccountExport).not.toHaveBeenCalled();
+  });
+
   it('provides bounded deduplicated feed relations and reports truncation', async () => {
     const socialStore = store();
     const profiles = profileApi();
@@ -646,5 +859,59 @@ describe('SocialService', () => {
     expect(result.followingUserIds).toEqual(['user-b', 'user-c']);
     expect(result.connectionUserIds).toEqual(['user-d']);
     expect(result.truncated).toBe(true);
+  });
+
+  it('hides an inactive account when creating a Follow', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    profiles.getAttributionForUser.mockResolvedValue({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      displayName: 'A',
+      avatarUrl: null,
+    });
+    profiles.resolveUserIdByProfileId.mockResolvedValue('user-b');
+    socialStore.follow.mockRejectedValue(new SocialParticipantInactiveError());
+
+    await expect(
+      service(socialStore, profiles).follow(
+        'user-a',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('hides an inactive account when creating a Connection request', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    profiles.getAttributionForUser.mockResolvedValue({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      displayName: 'A',
+      avatarUrl: null,
+    });
+    profiles.resolveUserIdByProfileId.mockResolvedValue('user-b');
+    socialStore.requestConnection.mockRejectedValue(
+      new SocialParticipantInactiveError(),
+    );
+
+    await expect(
+      service(socialStore, profiles).requestConnection(
+        'user-a',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('hides an inactive participant when accepting a pending Connection', async () => {
+    const socialStore = store();
+    const profiles = profileApi();
+    const pending = connection();
+    socialStore.findConnectionById.mockResolvedValue(pending);
+    socialStore.respondConnection.mockRejectedValue(
+      new SocialParticipantInactiveError(),
+    );
+
+    await expect(
+      service(socialStore, profiles).respond('user-b', pending.id, 'accepted'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

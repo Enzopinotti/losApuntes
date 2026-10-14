@@ -1,20 +1,23 @@
-import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 const root = process.cwd();
 
 async function read(relativePath) {
-  return readFile(path.join(root, relativePath), 'utf8');
+  return readFile(path.join(root, relativePath), "utf8");
 }
 
 const service = await read(
-  'apps/web/src/features/pilot/services/pilotService.ts',
+  "apps/web/src/features/pilot/services/pilotService.ts",
 );
 assert.match(service, /credentials:\s*"include"/u);
 assert.match(service, /cache:\s*"no-store"/u);
 assert.match(service, /AbortSignal\.timeout\(15_000\)/u);
-assert.match(service, /function requestSignal\(signal\?: AbortSignal \| null\)/u);
+assert.match(
+  service,
+  /function requestSignal\(signal\?: AbortSignal \| null\)/u,
+);
 assert.match(service, /AbortSignal\.any\(\[signal, timeout\]\)/u);
 assert.match(service, /signal: requestSignal\(init\.signal\)/u);
 assert.match(service, /home: \(signal\?: AbortSignal\)/u);
@@ -25,7 +28,7 @@ assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
 
-const home = await read('apps/web/src/pages/Home.tsx');
+const home = await read("apps/web/src/pages/Home.tsx");
 assert.match(home, /status\s*===\s*"authenticated"/u);
 assert.match(home, /useAuth\(\)/u);
 assert.match(home, /user\?\.id/u);
@@ -37,10 +40,25 @@ assert.match(home, /snapshotState\?\.scopeKey === authScopeKey/u);
 assert.match(home, /if \(!isLoadCurrent\(ticket\)\) return/u);
 assert.match(home, /status\s*!==\s*"authenticated"/u);
 assert.match(home, /return\s*<Landing\s*\/>/u);
+assert.equal(
+  (home.match(/<FeedPreview\b/gu) ?? []).length,
+  1,
+  "Home presents one feed surface at a time",
+);
+assert.match(home, /aria-label="Elegir feed de inicio"/u);
+assert.match(home, /aria-pressed=\{activeHomeFeed === "contextual"\}/u);
+assert.match(home, /aria-pressed=\{activeHomeFeed === "for-you"\}/u);
+assert.match(home, /snapshot\?\.homeFeed\.kind === "community"/u);
+assert.match(home, /snapshot\.homeFeed\.items/u);
+assert.match(home, /snapshot\.forYou\.items/u);
+assert.match(
+  home,
+  /FeedItemContext[\s\S]{0,100}homeIntent=\{homeIntent\}/u,
+);
 assert.doesNotMatch(home, /Unishare/u);
 assert.doesNotMatch(home, /localStorage|sessionStorage/u);
 
-const admin = await read('apps/web/src/pages/AdminPilot.tsx');
+const admin = await read("apps/web/src/pages/AdminPilot.tsx");
 assert.match(admin, /pilotApi\.metrics\(/u);
 assert.match(admin, /pilotApi\.moderation\(/u);
 assert.match(admin, /useAuth\(\)/u);
@@ -50,10 +68,7 @@ assert.equal((admin.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 2);
 assert.match(admin, /pilot-admin-load:\$\{loadScopeKey\}/u);
 assert.match(admin, /pilot-admin-action:\$\{authScopeKey\}/u);
 assert.match(admin, /pilotApi\.metrics\(days, ticket\.signal\)/u);
-assert.match(
-  admin,
-  /pilotApi\.moderation\("pending", 50, ticket\.signal\)/u,
-);
+assert.match(admin, /pilotApi\.moderation\("pending", 50, ticket\.signal\)/u);
 assert.match(admin, /ticket\.signal/u);
 assert.match(admin, /await loadRef\.current\(\)/u);
 assert.match(admin, /snapshotState\?\.scopeKey === loadScopeKey/u);
@@ -64,7 +79,7 @@ assert.match(admin, /nextError\.status\s*===\s*403/u);
 assert.doesNotMatch(admin, /pilot:ops:read|moderation:write/u);
 assert.doesNotMatch(admin, /localStorage|sessionStorage/u);
 
-const routes = await read('apps/web/src/app/routes.tsx');
+const routes = await read("apps/web/src/app/routes.tsx");
 assert.match(routes, /path:\s*"admin\/pilot"/u);
 assert.match(
   routes,
@@ -72,15 +87,15 @@ assert.match(
 );
 
 const telemetryTypes = await read(
-  'apps/api/src/pilot/telemetry/pilot-event.types.ts',
+  "apps/api/src/pilot/telemetry/pilot-event.types.ts",
 );
 for (const forbidden of [
-  'query',
-  'content',
-  'email',
-  'ipAddress',
-  'userAgent',
-  'signedUrl',
+  "query",
+  "content",
+  "email",
+  "ipAddress",
+  "userAgent",
+  "signedUrl",
 ]) {
   assert.equal(
     telemetryTypes.includes(forbidden),
@@ -89,4 +104,4 @@ for (const forbidden of [
   );
 }
 
-console.log('PASS Web Pilot privacy/transport contract');
+console.log("PASS Web Pilot privacy/transport contract");

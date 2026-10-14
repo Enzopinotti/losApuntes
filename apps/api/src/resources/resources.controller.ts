@@ -26,7 +26,9 @@ import {
   CreateResourceReportDto,
   ResourceAccessDto,
   ResourceSavedListDto,
+  ResourceOwnedListDto,
   ResourceSearchDto,
+  ResourceShareListDto,
   UpdateResourceDto,
 } from './dto/resource.dto';
 import { ResourceService } from './domain/resource.service';
@@ -44,8 +46,40 @@ export class ResourcesController {
     return this.resources.search(request.user?.id, query);
   }
 
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get('mine/stats')
+  @Header('Cache-Control', 'private, no-store')
+  ownedStatistics(@Req() request: AuthenticatedRequest) {
+    return this.resources.getOwnedStatistics(request.user.id);
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get('mine/subjects')
+  @Header('Cache-Control', 'private, no-store')
+  ownedSubjects(@Req() request: AuthenticatedRequest) {
+    return this.resources.listOwnedSubjects(request.user.id);
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get('mine')
+  @Header('Cache-Control', 'private, no-store')
+  mine(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: ResourceOwnedListDto,
+  ) {
+    return this.resources.listOwned(request.user.id, {
+      limit: query.limit,
+      ...(query.visibility ? { visibility: query.visibility } : {}),
+      ...(query.q ? { q: query.q } : {}),
+      ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+      ...(query.order ? { order: query.order } : {}),
+      ...(query.cursor ? { cursor: query.cursor } : {}),
+    });
+  }
+
   @UseGuards(AuthSessionGuard)
   @Get('saved')
+  @Header('Cache-Control', 'private, no-store')
   saved(
     @Req() request: AuthenticatedRequest,
     @Query() query: ResourceSavedListDto,
@@ -90,6 +124,22 @@ export class ResourcesController {
       request.user.id,
       id,
       dto.disposition,
+    );
+  }
+
+  @UseGuards(AuthSessionGuard, VerifiedEmailGuard)
+  @Get(':id/shares')
+  @Header('Cache-Control', 'private, no-store')
+  shares(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Query() query: ResourceShareListDto,
+  ) {
+    return this.resources.listShareGrants(
+      request.user.id,
+      id,
+      query.limit,
+      query.cursor,
     );
   }
 

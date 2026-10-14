@@ -16,6 +16,7 @@ import {
   mobileNotificationActionLabel,
   mobileNotificationMessage,
 } from "./notification-presenter";
+import { mobileNotificationDestination } from "./notification-routing";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
@@ -201,24 +202,31 @@ export function NotificationsScreen() {
     if (authorityKey && visible) void controller.load(authorityKey, unreadOnly);
   };
 
-  const openNotification = (notification: MobileNotificationView) => {
-    if (notification.target.type === "profile" && notification.target.id) {
+  const openNotification = async (notification: MobileNotificationView) => {
+    const destination = mobileNotificationDestination(notification);
+    if (!destination || !authorityKey || !visible) return;
+    const canOpen = await controller.openAndMarkRead(
+      authorityKey,
+      notification.id,
+    );
+    if (!canOpen) return;
+
+    if (destination.kind === "profile") {
       router.push({
         pathname: "/profiles/[profileId]",
-        params: { profileId: notification.target.id },
+        params: { profileId: destination.profileId },
       });
-    } else if (
-      notification.target.type === "question" &&
-      notification.target.id
-    ) {
+    } else if (destination.kind === "question") {
       router.push({
         pathname: "/questions/[questionId]",
-        params: { questionId: notification.target.id },
+        params: { questionId: destination.questionId },
       });
-    } else if (
-      notification.target.type === "answer" ||
-      notification.target.type === "connection"
-    ) {
+    } else if (destination.kind === "connection") {
+      router.push({
+        pathname: "/social-connections",
+        params: { connectionId: destination.connectionId },
+      });
+    } else if (destination.kind === "network") {
       router.push("/(tabs)/network");
     }
   };
@@ -310,18 +318,28 @@ export function NotificationsScreen() {
                   ) : null}
                 </View>
                 <View style={styles.actions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={mobileNotificationActionLabel(
-                      "open",
-                      notification,
-                    )}
-                    accessibilityHint="Abre el perfil, la pregunta o la sección de red relacionada."
-                    onPress={() => openNotification(notification)}
-                    style={styles.actionButton}
-                  >
-                    <Text style={styles.actionLabel}>Abrir</Text>
-                  </Pressable>
+                  {mobileNotificationDestination(notification) ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={mobileNotificationActionLabel(
+                        "open",
+                        notification,
+                      )}
+                      accessibilityHint="Marca la notificación como leída y abre su destino."
+                      disabled={!visible || Boolean(actionBusy)}
+                      onPress={() => void openNotification(notification)}
+                      style={[
+                        styles.actionButton,
+                        (!visible || actionBusy) && styles.disabledButton,
+                      ]}
+                    >
+                      <Text style={styles.actionLabel}>
+                        {actionBusy ? "Actualizando…" : "Abrir"}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.date}>Sin destino disponible</Text>
+                  )}
                   {!notification.readAt ? (
                     <Pressable
                       accessibilityRole="button"

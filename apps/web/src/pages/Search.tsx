@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import type {
   ContextualDiscoveryResponse,
@@ -179,8 +180,13 @@ const Search = () => {
                         <strong>{resource.title}</strong>
                         <span>{resource.academic.subject.name}</span>
                         <small>
-                          {resource.author?.displayName ??
-                            "Usuario de Los Apuntes"}
+                          <AuthorProfileLink
+                            profileId={resource.author?.profileId}
+                            displayName={
+                              resource.author?.displayName ??
+                              "Usuario de Los Apuntes"
+                            }
+                          />
                         </small>
                       </div>
                       <Link

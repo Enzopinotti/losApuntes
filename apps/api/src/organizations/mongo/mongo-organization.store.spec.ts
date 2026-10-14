@@ -19,6 +19,7 @@ function query<T>(value: T) {
 
 function listQuery<T>(value: T) {
   return {
+    select: jest.fn().mockReturnThis(),
     sort: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     lean: jest.fn().mockReturnThis(),
@@ -46,6 +47,10 @@ function models(input: {
   managerRows?: unknown[];
   linkRows?: unknown[];
   featuredRows?: unknown[];
+  followRows?: unknown[];
+  reportRows?: unknown[];
+  authoredPostRows?: unknown[];
+  authoredEventRows?: unknown[];
 }) {
   const activeSession = session();
   const connection = {
@@ -75,6 +80,10 @@ function models(input: {
   const managerListQuery = listQuery(input.managerRows ?? []);
   const linkListQuery = listQuery(input.linkRows ?? []);
   const featuredListQuery = listQuery(input.featuredRows ?? []);
+  const followListQuery = listQuery(input.followRows ?? []);
+  const reportListQuery = listQuery(input.reportRows ?? []);
+  const authoredPostListQuery = listQuery(input.authoredPostRows ?? []);
+  const authoredEventListQuery = listQuery(input.authoredEventRows ?? []);
   const managers = {
     find: jest.fn(() => managerListQuery),
     findOne: jest.fn(() => query(input.manager ?? null)),
@@ -89,8 +98,18 @@ function models(input: {
   const audits = {
     create: jest.fn(),
   };
+  const follows = {
+    find: jest.fn(() => followListQuery),
+  };
+  const reports = {
+    find: jest.fn(() => reportListQuery),
+  };
   const posts = {
+    find: jest.fn(() => authoredPostListQuery),
     create: jest.fn(),
+  };
+  const events = {
+    find: jest.fn(() => authoredEventListQuery),
   };
   const links = {
     find: jest.fn(() => linkListQuery),
@@ -118,12 +137,12 @@ function models(input: {
     organizations as never,
     managers as never,
     audits as never,
-    {} as never,
+    follows as never,
     posts as never,
-    {} as never,
+    events as never,
     links as never,
     featuredResources as never,
-    {} as never,
+    reports as never,
   );
 
   return {
@@ -135,11 +154,18 @@ function models(input: {
     managers,
     audits,
     posts,
+    events,
     links,
     featuredResources,
+    follows,
+    reports,
     managerListQuery,
     linkListQuery,
     featuredListQuery,
+    followListQuery,
+    reportListQuery,
+    authoredPostListQuery,
+    authoredEventListQuery,
   };
 }
 
@@ -888,5 +914,229 @@ describe('MongoOrganizationStore commit authority', () => {
       session: fixture.activeSession,
     });
     expect(fixture.activeSession.withTransaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MongoOrganizationStore account export following', () => {
+  it('uses the owner filter, explicit fields, stable cursor and limit+1 read', async () => {
+    const first = {
+      organizationId,
+      createdAt: now,
+    };
+    const fixture = models({ followRows: [first, { ...first }] });
+    const after = {
+      createdAt: now,
+      organizationId: '00000000-0000-4000-8000-000000000000',
+    };
+
+    const result = await fixture.store.listForAccountExportFollowing({
+      userId: actorUserId,
+      limit: 1,
+      after,
+    });
+
+    expect(fixture.follows.find).toHaveBeenCalledWith({
+      $and: [
+        { userId: actorUserId },
+        {
+          $or: [
+            { createdAt: { $lt: now } },
+            {
+              createdAt: now,
+              organizationId: { $gt: after.organizationId },
+            },
+          ],
+        },
+      ],
+    });
+    expect(fixture.followListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      organizationId: 1,
+      createdAt: 1,
+    });
+    expect(fixture.followListQuery.sort).toHaveBeenCalledWith({
+      createdAt: -1,
+      organizationId: 1,
+    });
+    expect(fixture.followListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [first], hasMore: true });
+    expect(fixture.organizations.findOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('MongoOrganizationStore account export management', () => {
+  it('reads only the owner manager rows with an explicit projection and stable limit+1 page', async () => {
+    const first = {
+      organizationId,
+      role: 'admin',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const fixture = models({ managerRows: [first, { ...first }] });
+
+    const firstPage = await fixture.store.listForAccountExportManagement({
+      userId: actorUserId,
+      limit: 1,
+    });
+    const result = await fixture.store.listForAccountExportManagement({
+      userId: actorUserId,
+      limit: 1,
+      after: { organizationId: '00000000-0000-4000-8000-000000000000' },
+    });
+
+    expect(fixture.managers.find).toHaveBeenNthCalledWith(1, {
+      $and: [{ userId: actorUserId }],
+    });
+    expect(fixture.managers.find).toHaveBeenNthCalledWith(2, {
+      $and: [
+        { userId: actorUserId },
+        { organizationId: { $gt: '00000000-0000-4000-8000-000000000000' } },
+      ],
+    });
+    expect(fixture.managerListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      organizationId: 1,
+      role: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.managerListQuery.sort).toHaveBeenCalledWith({
+      organizationId: 1,
+    });
+    expect(fixture.managerListQuery.limit).toHaveBeenNthCalledWith(1, 2);
+    expect(fixture.managerListQuery.limit).toHaveBeenNthCalledWith(2, 2);
+    expect(firstPage).toEqual({ items: [first], hasMore: true });
+    expect(result).toEqual({ items: [first], hasMore: true });
+    expect(fixture.organizations.findOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('MongoOrganizationStore account export submitted reports', () => {
+  it('reads only reports sent by the owner with an allowlist and stable id page', async () => {
+    const first = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      targetType: 'organization_post',
+      targetId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      reason: 'other',
+      details: 'Owner-authored explanation',
+      createdAt: now,
+      status: 'resolved',
+      reviewedByUserId: 'reviewer-user',
+      reviewReason: 'Private moderation note',
+      reviewAction: 'hide',
+    };
+    const fixture = models({ reportRows: [first, { ...first }] });
+    const afterId = '00000000-0000-4000-8000-000000000000';
+
+    const result = await fixture.store.listForAccountExportSubmittedReports({
+      userId: actorUserId,
+      limit: 1,
+      after: { id: afterId },
+    });
+
+    expect(fixture.reports.find).toHaveBeenCalledWith({
+      $and: [{ reporterUserId: actorUserId }, { id: { $gt: afterId } }],
+    });
+    expect(fixture.reportListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      targetType: 1,
+      targetId: 1,
+      reason: 1,
+      details: 1,
+      createdAt: 1,
+    });
+    expect(fixture.reportListQuery.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(fixture.reportListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [first], hasMore: true });
+    expect(fixture.organizations.findOne).not.toHaveBeenCalled();
+    expect(fixture.posts.find).not.toHaveBeenCalled();
+    expect(fixture.events.find).not.toHaveBeenCalled();
+  });
+});
+
+describe('MongoOrganizationStore account export authored content', () => {
+  it('reads only the owner Posts with an explicit projection and stable id page', async () => {
+    const first = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      organizationId,
+      title: 'Owner Post',
+      body: 'Owner body',
+      subjectId: 'subject-id',
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const fixture = models({ authoredPostRows: [first, { ...first }] });
+
+    const result = await fixture.store.listAuthoredPostsForAccountExport({
+      userId: actorUserId,
+      limit: 1,
+      after: { id: '00000000-0000-4000-8000-000000000000' },
+    });
+
+    expect(fixture.posts.find).toHaveBeenCalledWith({
+      $and: [
+        { createdByUserId: actorUserId },
+        { id: { $gt: '00000000-0000-4000-8000-000000000000' } },
+      ],
+    });
+    expect(fixture.authoredPostListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      organizationId: 1,
+      title: 1,
+      body: 1,
+      subjectId: 1,
+      publishedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.authoredPostListQuery.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(fixture.authoredPostListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [first], hasMore: true });
+  });
+
+  it('reads only the owner Events and omits moderation fields from the allowlist', async () => {
+    const first = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      organizationId,
+      title: 'Owner Event',
+      description: null,
+      startsAt: now,
+      endsAt: null,
+      locationLabel: null,
+      externalUrl: 'https://events.example.test/ticket',
+      state: 'cancelled',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const fixture = models({ authoredEventRows: [first] });
+
+    const result = await fixture.store.listAuthoredEventsForAccountExport({
+      userId: actorUserId,
+      limit: 100,
+    });
+
+    expect(fixture.events.find).toHaveBeenCalledWith({
+      $and: [{ createdByUserId: actorUserId }],
+    });
+    expect(fixture.authoredEventListQuery.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      organizationId: 1,
+      title: 1,
+      description: 1,
+      startsAt: 1,
+      endsAt: 1,
+      locationLabel: 1,
+      externalUrl: 1,
+      state: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fixture.authoredEventListQuery.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(fixture.authoredEventListQuery.limit).toHaveBeenCalledWith(101);
+    expect(result).toEqual({ items: [first], hasMore: false });
   });
 });

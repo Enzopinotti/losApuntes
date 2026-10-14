@@ -1,107 +1,206 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { useId, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import LogoutButton from "../shared/components/LogoutButton";
 import "./Layout.scss";
 
+type NavigationDestination = {
+  to: string;
+  label: string;
+};
+
+const publicNavigation: NavigationDestination[] = [
+  { to: "/", label: "Inicio" },
+  { to: "/search", label: "Buscar" },
+  { to: "/resources", label: "Apuntes" },
+  { to: "/questions", label: "Preguntas" },
+  { to: "/organizations", label: "Organizaciones" },
+];
+
+const memberNavigation: NavigationDestination[] = [
+  { to: "/", label: "Inicio" },
+  { to: "/feeds", label: "Feed" },
+  { to: "/network", label: "Red" },
+  { to: "/search", label: "Buscar" },
+  { to: "/resources", label: "Apuntes" },
+];
+
+const memberMoreNavigation: NavigationDestination[] = [
+  { to: "/questions", label: "Preguntas" },
+  { to: "/organizations", label: "Organizaciones" },
+  { to: "/academic/lifecycle", label: "Mi trayectoria" },
+  { to: "/profile", label: "Mi perfil" },
+  { to: "/dashboard", label: "Panel" },
+  { to: "/settings/security", label: "Seguridad" },
+];
+
 const Layout = () => {
   const { status, user } = useAuth();
   const authenticated = status === "authenticated";
+  const location = useLocation();
+  const menuId = useId();
+  const moreId = useId();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const [mobileOpenedAt, setMobileOpenedAt] = useState<string | null>(null);
+  const [moreOpenedAt, setMoreOpenedAt] = useState<string | null>(null);
+  const scope = `${location.key}:${status}:${user?.id ?? "guest"}`;
+  const mobileOpen = mobileOpenedAt === scope;
+  const moreOpen = moreOpenedAt === scope;
+
+  const closeNavigation = () => {
+    setMobileOpenedAt(null);
+    setMoreOpenedAt(null);
+  };
+
+  const destinations = authenticated ? memberNavigation : publicNavigation;
 
   return (
     <div className="layout">
+      <a className="layout-skip-link" href="#contenido-principal">
+        Saltar al contenido
+      </a>
       <header className="navbar">
-        <h1 className="logo">Los Apuntes</h1>
-        <nav aria-label="Navegación principal">
+        <div className="layout-header-inner">
           <NavLink
             to="/"
-            className={({ isActive }) => (isActive ? "active" : "")}
             end
+            className="layout-brand"
+            aria-label="Los Apuntes — ir al inicio"
+            onClick={closeNavigation}
           >
-            Home
+            Los Apuntes
           </NavLink>
 
-          <NavLink
-            to="/resources"
-            className={({ isActive }) => (isActive ? "active" : "")}
-          >
-            Recursos
-          </NavLink>
-          <NavLink
-            to="/search"
-            className={({ isActive }) => (isActive ? "active" : "")}
-          >
-            Buscar
-          </NavLink>
-          <NavLink
-            to="/organizations"
-            className={({ isActive }) => (isActive ? "active" : "")}
-          >
-            Organizaciones
-          </NavLink>
-          <NavLink
-            to="/questions"
-            className={({ isActive }) => (isActive ? "active" : "")}
-          >
-            Preguntas
-          </NavLink>
-
-          {!authenticated && (
-            <>
-              <NavLink
-                to="/login"
-                className={({ isActive }) => (isActive ? "active" : "")}
-              >
-                Login
-              </NavLink>
-              <NavLink
-                to="/sign-up"
-                className={({ isActive }) => (isActive ? "active" : "")}
-              >
-                Sign Up
-              </NavLink>
-            </>
-          )}
-
-          {authenticated && (
-            <>
-              <NavLink
-                to="/dashboard"
-                className={({ isActive }) => (isActive ? "active" : "")}
-              >
-                Dashboard
-              </NavLink>
-              <NavLink
-                to="/academic/lifecycle"
-                className={({ isActive }) => (isActive ? "active" : "")}
-              >
-                Trayectoria
-              </NavLink>
-              <NavLink
-                to="/network"
-                className={({ isActive }) => (isActive ? "active" : "")}
-              >
-                Red
-              </NavLink>
+          <div className="layout-header-actions">
+            {authenticated ? (
               <NavLink
                 to="/notifications"
-                className={({ isActive }) => (isActive ? "active" : "")}
+                className="layout-notifications-link"
+                aria-label="Ir a notificaciones"
+                onClick={closeNavigation}
               >
                 Notificaciones
               </NavLink>
+            ) : null}
+            <button
+              type="button"
+              className="layout-menu-toggle"
+              ref={menuButtonRef}
+              aria-expanded={mobileOpen}
+              aria-controls={menuId}
+              onClick={() => {
+                setMobileOpenedAt(mobileOpen ? null : scope);
+                setMoreOpenedAt(null);
+              }}
+            >
+              <span aria-hidden="true">{mobileOpen ? "✕" : "☰"}</span>
+              <span>{mobileOpen ? "Cerrar" : "Menú"}</span>
+            </button>
+          </div>
+
+          <nav
+            id={menuId}
+            className={`layout-nav${mobileOpen ? " layout-nav-open" : ""}`}
+            aria-label="Navegación principal"
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              if (moreOpen) {
+                setMoreOpenedAt(null);
+                moreButtonRef.current?.focus();
+              } else if (mobileOpen) {
+                setMobileOpenedAt(null);
+                menuButtonRef.current?.focus();
+              }
+            }}
+          >
+            <div className="layout-primary-links">
+              {destinations.map(({ to, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === "/"}
+                  onClick={closeNavigation}
+                >
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+
+            <div className="layout-navigation-extras">
+              {authenticated ? (
+                <>
+                  <div className="layout-more">
+                    <button
+                      type="button"
+                      className="layout-more-toggle"
+                      ref={moreButtonRef}
+                      aria-expanded={moreOpen}
+                      aria-controls={moreId}
+                      onClick={() => setMoreOpenedAt(moreOpen ? null : scope)}
+                    >
+                      Más <span aria-hidden="true">▾</span>
+                    </button>
+                    <div
+                      id={moreId}
+                      className="layout-more-links"
+                      role="group"
+                      aria-label="Otras secciones"
+                      hidden={!moreOpen}
+                    >
+                      {memberMoreNavigation.map(({ to, label }) => (
+                        <NavLink key={to} to={to} onClick={closeNavigation}>
+                          {label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="layout-session-actions">
+                    <span
+                      className="layout-account-email"
+                      aria-label="Cuenta actual"
+                    >
+                      {user?.email}
+                    </span>
+                    <LogoutButton />
+                  </div>
+                </>
+              ) : (
+                <div className="layout-guest-actions">
+                  <NavLink to="/login" onClick={closeNavigation}>
+                    Ingresar
+                  </NavLink>
+                  <NavLink
+                    to="/sign-up"
+                    className="layout-signup-link"
+                    onClick={closeNavigation}
+                  >
+                    Registrarme
+                  </NavLink>
+                </div>
+              )}
+            </div>
+          </nav>
+
+          {authenticated ? (
+            <div className="layout-mobile-session">
               <NavLink
-                to="/settings/security"
-                className={({ isActive }) => (isActive ? "active" : "")}
+                to="/notifications"
+                className="layout-mobile-notifications"
+                onClick={closeNavigation}
               >
-                Seguridad
+                Notificaciones
               </NavLink>
-              <span aria-label="Cuenta actual">{user?.email}</span>
+              <span className="layout-mobile-email" aria-label="Cuenta actual">
+                {user?.email}
+              </span>
               <LogoutButton />
-            </>
-          )}
-        </nav>
+            </div>
+          ) : null}
+        </div>
       </header>
 
-      <main>
+      <main id="contenido-principal" tabIndex={-1}>
         <Outlet />
       </main>
 

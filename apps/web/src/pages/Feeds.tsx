@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   FeedFeedbackSignal,
@@ -7,34 +13,49 @@ import type {
   FeedMode,
   FeedOrder,
   FeedPreferencesResponse,
-  FeedReasonCode,
 } from "../features/feeds/interfaces";
+import {
+  FeedItemContext,
+  FeedItemOpenLink,
+} from "../features/feeds/components/FeedItemContext";
 import {
   feedsApi,
   isFeedsApiError,
 } from "../features/feeds/services/feedsService";
+import {
+  appendUniqueFeedItems,
+  canAutomaticallyLoadWebFeed,
+  didFeedCursorAdvance,
+  feedPageLoadedAnnouncement,
+  FEED_PREFETCH_ROOT_MARGIN,
+  requiresNewWebFeedSession,
+} from "../features/feeds/feed-pagination.mjs";
+import {
+  feedSelectionFromSearchParams,
+  type FeedSelection,
+} from "../features/feeds/feed-navigation.mjs";
+import {
+  clearFeedScrollPositions,
+  feedRestorePositionKey,
+  feedScrollAuthorityScope,
+  takeFeedScrollPosition,
+} from "../features/feeds/feed-scroll-restoration.mjs";
+import { fullFeedEmptyGuidance } from "../features/feeds/full-feed-empty-guidance.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Feeds.scss";
 
-type FeedView = "academic" | "for-you";
-
-const reasonLabels: Record<FeedReasonCode, string> = {
-  current_subject: "Materia actual",
-  prioritized_subject: "Materia priorizada",
-  connection: "Conexión",
-  following: "Persona que seguís",
-  organization_following: "Organización que seguís",
-  interest_match: "Coincide con tus intereses",
-  unanswered_question: "Pregunta sin responder",
-  fresh: "Reciente",
-  explicit_more: "Pediste ver más",
-  exploration: "Descubrimiento",
-};
+type FeedErrorRecovery = { kind: "page"; cursor: string } | { kind: "session" };
 
 function messageFor(error: unknown): string {
   if (!isFeedsApiError(error)) return "No pudimos cargar tu feed.";
   if (error.code === "FEED_CURSOR_STALE") {
     return "Tus preferencias cambiaron. Empezá una nueva tanda.";
+  }
+  if (error.code === "FEED_CURSOR_CONTEXT_MISMATCH") {
+    return "Tu contexto cambió. Empezá una nueva tanda.";
+  }
+  if (error.code === "FEED_CURSOR_INVALID") {
+    return "Este cursor ya no es válido. Empezá una nueva tanda.";
   }
   if (error.code === "FEED_PREFERENCES_REVISION_CONFLICT") {
     return "Tus preferencias cambiaron en otra pestaña. Recargá antes de editar.";
@@ -44,10 +65,26 @@ function messageFor(error: unknown): string {
 
 const Feeds = () => {
   const { status, user, session } = useAuth();
-  const [view, setView] = useState<FeedView>("academic");
-  const [mode, setMode] = useState<FeedMode>("balanced");
-  const [order, setOrder] = useState<FeedOrder>("ranked");
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { view, mode, order } = feedSelectionFromSearchParams(searchParams);
+  const updateSelection = (selection: Partial<FeedSelection>) => {
+    setSearchParams(
+      (current) => {
+        const next = feedSelectionFromSearchParams(current);
+        const updated = { ...next, ...selection };
+        const params = new URLSearchParams(current);
+        params.set("view", updated.view);
+        params.set("mode", updated.mode);
+        params.set("order", updated.order);
+        return params;
+      },
+      { replace: true },
+    );
+  };
   const [items, setItems] = useState<FeedItem[]>([]);
+  const itemsRef = useRef<FeedItem[]>([]);
+  const [pageAnnouncement, setPageAnnouncement] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [stopReason, setStopReason] = useState<"end" | "natural_break" | null>(
     null,
@@ -63,11 +100,36 @@ const Feeds = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedErrorRecovery, setFeedErrorRecovery] =
+    useState<FeedErrorRecovery | null>(null);
+  const continuationRef = useRef<HTMLDivElement | null>(null);
+  const inFlightPageRef = useRef<{ key: string } | null>(null);
+  const rootRequestRef = useRef<object | null>(null);
+  const usedCursorsRef = useRef<Set<string>>(new Set());
+  const dataScopeRef = useRef<string | null>(null);
+  const latestCursorRef = useRef<string | null>(nextCursor);
+  if (rootRequestRef.current === null) latestCursorRef.current = nextCursor;
   const authorityScope = [
     status,
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const scrollAuthorityScope = feedScrollAuthorityScope(
+    status,
+    user?.id,
+    session?.id,
+  );
+  const restorePositionKey = feedRestorePositionKey(
+    location.state,
+    `${location.pathname}${location.search}`,
+  );
+  const previousAuthorityScopeRef = useRef(authorityScope);
+  const feedRequestScope = [authorityScope, view, mode, order].join(":");
+  const pendingScrollRestoreRef = useRef<{
+    authorityScope: string;
+    feedRequestScope: string;
+    targetY: number;
+  } | null>(null);
   const {
     begin: beginPreferencesRequest,
     isCurrent: isPreferencesRequestCurrent,
@@ -87,6 +149,52 @@ const Feeds = () => {
   } = useAsyncAuthorityFence(
     `feeds-action:${authorityScope}:${view}:${mode}:${order}`,
   );
+
+  useLayoutEffect(() => {
+    if (previousAuthorityScopeRef.current === authorityScope) return;
+    previousAuthorityScopeRef.current = authorityScope;
+    clearFeedScrollPositions();
+    pendingScrollRestoreRef.current = null;
+
+    dataScopeRef.current = null;
+    latestCursorRef.current = null;
+    inFlightPageRef.current = null;
+    rootRequestRef.current = null;
+    usedCursorsRef.current.clear();
+    itemsRef.current = [];
+    setItems([]);
+    setPageAnnouncement("");
+    setNextCursor(null);
+    setStopReason(null);
+    setPreferences(null);
+    setEffectiveSignals(null);
+    setLoading(true);
+    setBusy(null);
+    setError(null);
+    setFeedErrorRecovery(null);
+    window.scrollTo(0, 0);
+  }, [authorityScope]);
+
+  useLayoutEffect(() => {
+    pendingScrollRestoreRef.current = null;
+    if (!restorePositionKey) return;
+
+    const targetY = takeFeedScrollPosition(
+      restorePositionKey,
+      scrollAuthorityScope,
+    );
+    if (targetY === null) return;
+    pendingScrollRestoreRef.current = {
+      authorityScope: scrollAuthorityScope,
+      feedRequestScope,
+      targetY,
+    };
+  }, [
+    feedRequestScope,
+    location.key,
+    restorePositionKey,
+    scrollAuthorityScope,
+  ]);
 
   const loadPreferences = useCallback(async () => {
     const ticket = beginPreferencesRequest();
@@ -110,11 +218,31 @@ const Feeds = () => {
   ]);
 
   const loadFeed = useCallback(
-    async (cursor?: string, append = false) => {
+    async (cursor?: string, append = false, preserveScrollRestore = false) => {
+      if (append && (!cursor || cursor !== latestCursorRef.current)) return;
+      if (!append && !preserveScrollRestore) {
+        pendingScrollRestoreRef.current = null;
+      }
+
+      const pageKey = append ? `${feedRequestScope}:${cursor ?? ""}` : null;
+      if (pageKey && inFlightPageRef.current?.key === pageKey) return;
+      setPageAnnouncement("");
+      const pageRequest = pageKey ? { key: pageKey } : null;
+      const rootRequest = append ? null : {};
+      if (pageRequest) inFlightPageRef.current = pageRequest;
+      if (rootRequest) {
+        rootRequestRef.current = rootRequest;
+        latestCursorRef.current = null;
+      }
+
       const ticket = beginFeedRequest();
       if (append) setBusy("more");
-      else setLoading(true);
+      else {
+        setLoading(true);
+        inFlightPageRef.current = null;
+      }
       setError(null);
+      setFeedErrorRecovery(null);
 
       try {
         const result =
@@ -127,19 +255,70 @@ const Feeds = () => {
 
         if (!isFeedRequestCurrent(ticket)) return;
 
-        setItems((current) =>
-          append ? [...current, ...result.items] : result.items,
-        );
-        setNextCursor(result.nextCursor);
-        setStopReason(result.stopReason);
+        if (!append) {
+          usedCursorsRef.current.clear();
+          dataScopeRef.current = feedRequestScope;
+        }
+        const previousItems = append ? itemsRef.current : [];
+        const nextItems = appendUniqueFeedItems(previousItems, result.items);
+        itemsRef.current = nextItems;
+        setItems(nextItems);
+        if (append) {
+          setPageAnnouncement(
+            feedPageLoadedAnnouncement(nextItems.length - previousItems.length),
+          );
+        }
+        const cursorAdvanced =
+          append &&
+          cursor &&
+          didFeedCursorAdvance(
+            cursor,
+            result.nextCursor,
+            usedCursorsRef.current,
+          );
+        if (append && cursor) usedCursorsRef.current.add(cursor);
+        if (append && cursor && !cursorAdvanced) {
+          setNextCursor(null);
+          setStopReason(null);
+          setError(
+            "La tanda no avanzó. Empezá una nueva sesión para continuar.",
+          );
+          setFeedErrorRecovery({ kind: "session" });
+        } else {
+          setNextCursor(result.nextCursor);
+          setStopReason(result.stopReason);
+        }
         setEffectiveSignals(
           "effectiveSignals" in result ? result.effectiveSignals : null,
         );
       } catch (nextError) {
         if (!isFeedRequestCurrent(ticket)) return;
         setError(messageFor(nextError));
-        if (!append) setItems([]);
+        const mustStartNewSession =
+          isFeedsApiError(nextError) &&
+          requiresNewWebFeedSession(nextError.code);
+        setFeedErrorRecovery(
+          append && cursor && !mustStartNewSession
+            ? { kind: "page", cursor }
+            : { kind: "session" },
+        );
+        if (!append) {
+          if (dataScopeRef.current !== feedRequestScope) {
+            dataScopeRef.current = null;
+            itemsRef.current = [];
+            setItems([]);
+            setNextCursor(null);
+            setStopReason(null);
+            setEffectiveSignals(null);
+          }
+        }
       } finally {
+        if (pageRequest && inFlightPageRef.current === pageRequest) {
+          inFlightPageRef.current = null;
+        }
+        if (rootRequest && rootRequestRef.current === rootRequest) {
+          rootRequestRef.current = null;
+        }
         if (finishFeedRequest(ticket)) {
           setLoading(false);
           setBusy(null);
@@ -148,7 +327,9 @@ const Feeds = () => {
     },
     [
       beginFeedRequest,
+      dataScopeRef,
       finishFeedRequest,
+      feedRequestScope,
       isFeedRequestCurrent,
       mode,
       order,
@@ -161,8 +342,83 @@ const Feeds = () => {
   }, [loadPreferences]);
 
   useEffect(() => {
-    void loadFeed();
-  }, [loadFeed]);
+    void loadFeed(undefined, false, restorePositionKey !== null);
+  }, [loadFeed, restorePositionKey]);
+
+  const canAutoLoadPage = canAutomaticallyLoadWebFeed({
+    nextCursor,
+    stopReason,
+    loading,
+    busy,
+    hasError: Boolean(error),
+  });
+  const emptyGuidance = fullFeedEmptyGuidance(view, mode);
+
+  useLayoutEffect(() => {
+    const pending = pendingScrollRestoreRef.current;
+    if (!pending) return;
+    if (
+      pending.authorityScope !== scrollAuthorityScope ||
+      pending.feedRequestScope !== feedRequestScope
+    ) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (loading || busy === "more") return;
+
+    const scrollingElement =
+      document.scrollingElement ?? document.documentElement;
+    const maxScrollY = Math.max(
+      0,
+      scrollingElement.scrollHeight - window.innerHeight,
+    );
+    window.scrollTo(0, Math.min(pending.targetY, maxScrollY));
+
+    if (error) return;
+    if (pending.targetY <= maxScrollY + 1) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (!nextCursor || stopReason !== null) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+    if (canAutoLoadPage) void loadFeed(nextCursor, true);
+  }, [
+    busy,
+    canAutoLoadPage,
+    error,
+    feedRequestScope,
+    items.length,
+    loadFeed,
+    loading,
+    nextCursor,
+    scrollAuthorityScope,
+    stopReason,
+  ]);
+
+  useEffect(() => {
+    const sentinel = continuationRef.current;
+    if (
+      !sentinel ||
+      !nextCursor ||
+      !canAutoLoadPage ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void loadFeed(nextCursor, true);
+        }
+      },
+      { rootMargin: FEED_PREFETCH_ROOT_MARGIN },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [canAutoLoadPage, loadFeed, nextCursor]);
 
   const updatePreference = async (
     patch: Parameters<typeof feedsApi.updatePreferences>[1],
@@ -171,6 +427,7 @@ const Feeds = () => {
     const ticket = beginActionRequest();
     setBusy("preferences");
     setError(null);
+    setFeedErrorRecovery(null);
 
     try {
       const next = await feedsApi.updatePreferences(
@@ -222,6 +479,7 @@ const Feeds = () => {
     const key = `${item.type}:${item.id}:${signal}`;
     setBusy(key);
     setError(null);
+    setFeedErrorRecovery(null);
 
     try {
       await feedsApi.setFeedback(item.type, item.id, signal, ticket.signal);
@@ -254,24 +512,56 @@ const Feeds = () => {
           <button
             type="button"
             className={view === "academic" ? "active" : ""}
-            onClick={() => setView("academic")}
+            aria-pressed={view === "academic"}
+            onClick={() => updateSelection({ view: "academic" })}
           >
             Mis materias
           </button>
           <button
             type="button"
             className={view === "for-you" ? "active" : ""}
-            onClick={() => setView("for-you")}
+            aria-pressed={view === "for-you"}
+            onClick={() => updateSelection({ view: "for-you" })}
           >
             Para vos
           </button>
         </div>
       </header>
 
+      <p
+        className="feeds-visually-hidden"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {pageAnnouncement}
+      </p>
+
       {error && (
-        <p className="feeds-error" role="alert">
-          {error}
-        </p>
+        <div className="feeds-error" role="alert">
+          <p>{error}</p>
+          {feedErrorRecovery ? (
+            <button
+              type="button"
+              onClick={() =>
+                feedErrorRecovery.kind === "page"
+                  ? void loadFeed(feedErrorRecovery.cursor, true)
+                  : void loadFeed(
+                      undefined,
+                      false,
+                      items.length === 0 &&
+                        pendingScrollRestoreRef.current !== null,
+                    )
+              }
+            >
+              {feedErrorRecovery.kind === "page"
+                ? "Reintentar esta página"
+                : items.length > 0
+                  ? "Empezar una nueva sesión"
+                  : "Reintentar el feed"}
+            </button>
+          ) : null}
+        </div>
       )}
 
       {view === "for-you" && (
@@ -280,7 +570,9 @@ const Feeds = () => {
             Modo
             <select
               value={mode}
-              onChange={(event) => setMode(event.target.value as FeedMode)}
+              onChange={(event) =>
+                updateSelection({ mode: event.target.value as FeedMode })
+              }
             >
               <option value="balanced">Equilibrado</option>
               <option value="study">Estudio</option>
@@ -292,7 +584,9 @@ const Feeds = () => {
             Orden
             <select
               value={order}
-              onChange={(event) => setOrder(event.target.value as FeedOrder)}
+              onChange={(event) =>
+                updateSelection({ order: event.target.value as FeedOrder })
+              }
             >
               <option value="ranked">Relevancia transparente</option>
               <option value="chronological">Cronológico</option>
@@ -380,24 +674,27 @@ const Feeds = () => {
           </details>
         )}
 
-      {effectiveSignals && (
-        <p className="feeds-signals" role="status">
-          Señales efectivas: académico {effectiveSignals.academic ? "sí" : "no"}{" "}
-          · red {effectiveSignals.social ? "sí" : "no"} · intereses{" "}
-          {effectiveSignals.interests ? "sí" : "no"}
-          {effectiveSignals.relationWindowTruncated ? " · red acotada" : ""}
-        </p>
-      )}
+      {!loading &&
+        dataScopeRef.current === feedRequestScope &&
+        effectiveSignals && (
+          <p className="feeds-signals" role="status">
+            Señales efectivas: académico{" "}
+            {effectiveSignals.academic ? "sí" : "no"} · red{" "}
+            {effectiveSignals.social ? "sí" : "no"} · intereses{" "}
+            {effectiveSignals.interests ? "sí" : "no"}
+            {effectiveSignals.relationWindowTruncated ? " · red acotada" : ""}
+          </p>
+        )}
 
       {loading ? (
         <p role="status">Preparando una tanda útil…</p>
       ) : items.length === 0 ? (
         <section className="feeds-empty">
           <h2>No hay contenido para esta tanda</h2>
-          <p>
-            Podés revisar tus materias, cambiar señales o volver a buscar más
-            tarde. No rellenamos el feed con contenido irrelevante.
-          </p>
+          <p>{emptyGuidance.message}</p>
+          <Link className="feed-item-open-link" to={emptyGuidance.href}>
+            {emptyGuidance.actionLabel}
+          </Link>
         </section>
       ) : (
         <div className="feeds-list">
@@ -405,61 +702,15 @@ const Feeds = () => {
             <article className="feed-card" key={`${item.type}:${item.id}`}>
               <header>
                 <div>
-                  <span className="feed-kind">
-                    {item.type === "resource"
-                      ? "Apunte"
-                      : item.type === "question"
-                        ? "Pregunta"
-                        : "Organización"}
-                  </span>
+                  <FeedItemContext item={item} />
                   <h2>{item.title}</h2>
-                  <p className="feed-meta">
-                    {item.author.displayName}
-                    {item.academic.subject
-                      ? ` · ${item.academic.subject.name}`
-                      : ""}
-                  </p>
                 </div>
-                <time dateTime={item.createdAt}>
-                  {new Date(item.createdAt).toLocaleDateString("es-AR")}
-                </time>
               </header>
 
               {item.summary && <p>{item.summary}</p>}
 
-              <div className="feed-why" aria-label="Por qué aparece">
-                {item.why.map((reason) => (
-                  <span key={reason}>{reasonLabels[reason]}</span>
-                ))}
-              </div>
-
               <div className="feeds-actions">
-                {item.type === "question" ? (
-                  <Link to={`/questions?id=${encodeURIComponent(item.id)}`}>
-                    Abrir pregunta
-                  </Link>
-                ) : item.type === "organization_post" &&
-                  item.source.kind === "campus_organization" ? (
-                  <Link
-                    to={`/organizations/${encodeURIComponent(
-                      item.source.organization.id,
-                    )}`}
-                  >
-                    Ver organización
-                  </Link>
-                ) : (
-                  <Link
-                    to={`/resources?q=${encodeURIComponent(item.title)}${
-                      item.academic.subject
-                        ? `&subjectId=${encodeURIComponent(
-                            item.academic.subject.id,
-                          )}`
-                        : ""
-                    }`}
-                  >
-                    Buscar apunte
-                  </Link>
-                )}
+                <FeedItemOpenLink item={item} />
                 <button
                   type="button"
                   className="secondary"
@@ -523,29 +774,51 @@ const Feeds = () => {
       )}
 
       {!loading && nextCursor && stopReason === null && (
-        <div className="feeds-more">
-          <button
-            type="button"
-            disabled={busy === "more"}
-            onClick={() => void loadFeed(nextCursor, true)}
-          >
-            {busy === "more" ? "Cargando…" : "Ver otra tanda"}
-          </button>
+        <div className="feeds-continuation">
+          {busy === "more" ? (
+            <p className="feeds-page-loading" role="status">
+              Cargando más publicaciones…
+            </p>
+          ) : null}
+          <div
+            ref={continuationRef}
+            className="feeds-sentinel"
+            aria-hidden="true"
+          />
+          {typeof IntersectionObserver === "undefined" &&
+          busy === null &&
+          !error ? (
+            <button
+              type="button"
+              onClick={() => void loadFeed(nextCursor, true)}
+            >
+              Continuar feed
+            </button>
+          ) : null}
         </div>
       )}
 
-      {!loading && stopReason === "natural_break" && (
-        <section className="feeds-stop" aria-live="polite">
-          <h2>Fin de esta tanda</h2>
-          <p>
-            Llegaste al corte natural del feed. Podés seguir con otra tarea o,
-            si lo elegís, empezar una sesión nueva.
-          </p>
-          <button type="button" onClick={() => void loadFeed()}>
-            Empezar una nueva sesión
-          </button>
-        </section>
-      )}
+      {!loading &&
+        stopReason !== null &&
+        (items.length > 0 || stopReason === "natural_break") && (
+          <section className="feeds-stop" aria-live="polite">
+            <h2>
+              {stopReason === "natural_break"
+                ? "Fin de esta tanda"
+                : "Llegaste al final de esta tanda"}
+            </h2>
+            <p>
+              {stopReason === "natural_break"
+                ? "El servidor hizo una pausa natural. Podés seguir con otra sección o elegir empezar una sesión nueva."
+                : "No quedan más publicaciones disponibles en esta tanda."}
+            </p>
+            {stopReason === "natural_break" ? (
+              <button type="button" onClick={() => void loadFeed()}>
+                Empezar una nueva sesión
+              </button>
+            ) : null}
+          </section>
+        )}
     </section>
   );
 };

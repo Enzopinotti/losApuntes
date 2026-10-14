@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
 import {
+  assertArtifactRootOutsideRepo,
   assertNonProductionTarget,
   assertReleaseSha,
   generatedBackupSetId,
@@ -12,6 +22,8 @@ import {
   pathIsInside,
   sha256File,
   validateManifestShape,
+  verifyBackupSet,
+  writeInventory,
 } from './recovery-lib.mjs';
 
 test('release and environment guards fail closed', () => {
@@ -25,9 +37,128 @@ test('release and environment guards fail closed', () => {
   assert.equal(assertNonProductionTarget('restore-drill'), 'restore-drill');
 });
 
+test('destructive restore rejects production labels with suffixes and aliases', () => {
+  const forbidden = [
+    'prod',
+    'production',
+    'prod-eu',
+    'prd-2',
+    'live-1',
+    'public-west',
+    'restore-prod',
+    'restore-live1',
+    'qa-Prod',
+    'staging.production',
+    'PreProduction',
+    'restore-prodclone',
+    'LIVE',
+  ];
+
+  for (const label of forbidden) {
+    assert.throws(
+      () => assertNonProductionTarget(label),
+      /restore target must not be production/u,
+      label,
+    );
+  }
+});
+
+test('destructive restore requires an explicit nonproduction designation', () => {
+  for (const label of ['beta', 'campus', 'unknown', 'qa2', 'preprod']) {
+    assert.throws(
+      () => assertNonProductionTarget(label),
+      /explicit non-production label/u,
+      label,
+    );
+  }
+
+  for (const label of [
+    'restore-drill',
+    'dev',
+    'development-east',
+    'test_1',
+    'qa-west',
+    'staging',
+    'sandbox-1',
+    'local.test',
+    'preview_2',
+  ]) {
+    assert.equal(assertNonProductionTarget(label), label);
+  }
+});
+
 test('path containment cannot confuse siblings with descendants', () => {
   assert.equal(pathIsInside('/srv/losApuntes', '/srv/losApuntes/backups'), true);
   assert.equal(pathIsInside('/srv/losApuntes', '/srv/losApuntes-backups'), false);
+});
+
+test('artifact root checks physical ancestors before creating directories', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'losapuntes-recovery-roots-'));
+  const repoRoot = path.join(root, 'repo');
+  const externalRoot = path.join(root, 'external');
+
+  try {
+    await mkdir(repoRoot);
+    await mkdir(externalRoot);
+    await mkdir(path.join(repoRoot, 'existing'));
+
+    const aliasToRepo = path.join(externalRoot, 'repo-alias');
+    await symlink(repoRoot, aliasToRepo, 'dir');
+
+    for (const unsafe of [
+      path.join(repoRoot, 'backup'),
+      aliasToRepo,
+      path.join(aliasToRepo, 'existing'),
+      path.join(aliasToRepo, 'new', 'nested'),
+    ]) {
+      assert.throws(
+        () => assertArtifactRootOutsideRepo(unsafe, repoRoot),
+        /outside the repository/u,
+        unsafe,
+      );
+    }
+
+    // Root validation happens before mkdir; no directory should be created
+    // through the alias on a rejected path.
+    assert.equal(existsSync(path.join(repoRoot, 'new')), false);
+
+    const legitimate = path.join(externalRoot, 'new', 'nested');
+    assert.equal(
+      assertArtifactRootOutsideRepo(legitimate, repoRoot),
+      legitimate,
+    );
+    assert.equal(
+      assertArtifactRootOutsideRepo(path.join(root, 'repo-sibling'), repoRoot),
+      path.join(root, 'repo-sibling'),
+    );
+
+    const aliasToOutside = path.join(externalRoot, 'safe-alias');
+    await mkdir(path.join(externalRoot, 'safe'));
+    await symlink(path.join(externalRoot, 'safe'), aliasToOutside, 'dir');
+    assert.equal(
+      assertArtifactRootOutsideRepo(
+        path.join(aliasToOutside, 'backup'),
+        repoRoot,
+      ),
+      path.join(externalRoot, 'safe', 'backup'),
+    );
+
+    const aliasToFilesystemRoot = path.join(externalRoot, 'fs-root');
+    await symlink(path.parse(root).root, aliasToFilesystemRoot, 'dir');
+    assert.throws(
+      () => assertArtifactRootOutsideRepo(aliasToFilesystemRoot, repoRoot),
+      /filesystem root/u,
+    );
+
+    const dangling = path.join(externalRoot, 'dangling');
+    await symlink(path.join(root, 'missing-destination'), dangling, 'dir');
+    assert.throws(
+      () => assertArtifactRootOutsideRepo(path.join(dangling, 'new'), repoRoot),
+      /unresolved symbolic links/u,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('backup ids are deterministic from timestamp and release', () => {
@@ -53,6 +184,117 @@ test('inventory is stable, sorted and content-addressed', async () => {
       ['1.txt', 'b/2.txt'],
     );
     assert.equal(rows[0].sha256, await sha256File(path.join(root, '1.txt')));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+
+test('backup verifier rejects symlinked entrypoints despite matching checksums', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'losapuntes-recovery-links-'));
+  const setDirectory = path.join(root, 'backup-set');
+  const filesDirectory = path.join(setDirectory, 'files');
+  const externalDirectory = path.join(root, 'external');
+
+  try {
+    await mkdir(filesDirectory, { recursive: true });
+    await mkdir(externalDirectory);
+    await writeFile(path.join(filesDirectory, 'note.txt'), 'trusted file');
+    const mongoPath = path.join(setDirectory, 'mongo.archive.gz');
+    await writeFile(mongoPath, 'mongo archive fixture');
+
+    const inventory = await inventoryDirectory(filesDirectory);
+    const inventoryPath = path.join(setDirectory, 'files.inventory.jsonl');
+    await writeInventory(inventoryPath, inventory);
+
+    const manifest = {
+      formatVersion: 1,
+      backupSetId: 'fixture-set',
+      createdAt: '2026-10-10T00:00:00.000Z',
+      releaseSha: 'a'.repeat(40),
+      schemaVersion: 'mongo-v1',
+      sourceEnvironment: 'production',
+      consistencyMode: 'application-quiesced',
+      mongo: {
+        archive: 'mongo.archive.gz',
+        sha256: await sha256File(mongoPath),
+        byteSize: (await readFile(mongoPath)).byteLength,
+      },
+      files: {
+        directory: 'files',
+        inventory: 'files.inventory.jsonl',
+        inventorySha256: await sha256File(inventoryPath),
+        objectCount: inventory.length,
+        totalBytes: inventory.reduce((sum, row) => sum + row.byteSize, 0),
+      },
+    };
+    const manifestPath = path.join(setDirectory, 'manifest.json');
+    await writeFile(manifestPath, JSON.stringify(manifest));
+
+    assert.equal((await verifyBackupSet(setDirectory)).inventory.length, 1);
+
+    // A byte-for-byte valid bundle must not be trusted through a symlink
+    // that hides the actual backup set directory.
+    const setAlias = path.join(root, 'aliased-backup-set');
+    await symlink(setDirectory, setAlias, 'dir');
+    try {
+      await assert.rejects(
+        () => verifyBackupSet(setAlias),
+        /backup set directory must not use symbolic links/u,
+      );
+    } finally {
+      await rm(setAlias);
+    }
+
+    // Also reject an alias in an ancestor component of the set path.
+    const parentAlias = path.join(root, 'aliased-parent');
+    await symlink(root, parentAlias, 'dir');
+    try {
+      await assert.rejects(
+        () => verifyBackupSet(path.join(parentAlias, 'backup-set')),
+        /backup set directory must not use symbolic links/u,
+      );
+    } finally {
+      await rm(parentAlias);
+    }
+
+    assert.equal((await verifyBackupSet(setDirectory)).inventory.length, 1);
+
+    // Each external target has the same bytes as the original entrypoint.
+    // The verifier must reject the link itself, not just checksum mismatches.
+    for (const entry of [
+      'manifest.json',
+      'mongo.archive.gz',
+      'files.inventory.jsonl',
+      'files',
+    ]) {
+      const original = path.join(setDirectory, entry);
+      const preserved = path.join(setDirectory, `${entry}.original`);
+      const outside = path.join(externalDirectory, entry);
+      const directory = entry === 'files';
+
+      if (directory) {
+        await mkdir(outside);
+        await writeFile(path.join(outside, 'note.txt'), 'trusted file');
+      } else {
+        await writeFile(outside, await readFile(original));
+      }
+
+      await rename(original, preserved);
+      try {
+        await symlink(outside, original, directory ? 'dir' : 'file');
+        await assert.rejects(
+          () => verifyBackupSet(setDirectory),
+          /backup (manifest must be a regular file|set entrypoints must be regular files\/directories)/u,
+          entry,
+        );
+      } finally {
+        await rm(original, { force: true });
+        await rename(preserved, original);
+      }
+    }
+
+    assert.equal((await verifyBackupSet(setDirectory)).inventory.length, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

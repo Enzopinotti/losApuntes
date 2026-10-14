@@ -210,7 +210,38 @@ Removes the actor's save relationship.
 
 ### GET /resources/saved
 
-Requires active session.
+Requires active session. Returns `Cache-Control: private, no-store`. Lists the saved collection in descending save order with the existing legacy cursor contract.
+
+### GET /resources/saved/search
+
+Requires active session. Returns `Cache-Control: private, no-store`.
+
+- `q` optional metadata query, 2–120 characters when present: title, description and tags, case-insensitive with Spanish accent variants. Author/Subject names are not indexed here.
+- `subjectId` optional canonical Subject UUIDv4. Supply `q` or `subjectId`, or use `order=title` to browse all saved resources. Text and Subject can be combined.
+- `order` optional: `saved` (default; newest save first, UUID tie-breaker) or `title` (global A–Z, Spanish collation strength 1, resource ID tie-breaker). For unfiltered default order, use the existing `/resources/saved` endpoint.
+- `limit` 1–50, default 25; `cursor` is opaque (up to 2048 characters for Unicode-safe title cursors).
+- Normal listing without `q` remains on `GET /resources/saved`; its legacy cursors remain unchanged.
+- With text, Subject, or `order=title`, the server searches every saved relation for the current account, not only previously downloaded pages. `order=saved` keeps descending save order; `order=title` sorts all accessible matches alphabetically before applying the page limit.
+- Search joins and filters current resource visibility, moderation and metadata before applying the page limit. The service rechecks readability during projection.
+- Saved-date cursors (v1) remain compatible. Title cursors (v2) carry an exact last-title/UUID position and are scoped to authenticated actor, normalized query, selected Subject and title mode. Cross-query, cross-account, cross-Subject, cross-sort or legacy-cursor mixing fails with `RESOURCE_SAVED_SEARCH_CURSOR_INVALID` (422).
+- Before continuing from a filtered cursor, the server checks that its last page anchor is still saved by the actor, matches the original metadata/Subject filters and remains currently readable. For title sorting, the title is checked under the same Spanish collation as the keyset order. If the anchor was deleted, moved, hidden or revoked, return `RESOURCE_SAVED_SEARCH_CURSOR_STALE` (409). The client should refresh from the first page, not retry the stale cursor. This detects changes to the anchor; it does not create an immutable snapshot of the entire library.
+- Access is never granted by a bookmark, search hit, cursor or previous signed URL.
+- Mobile's Subject facet counts cover all accessible saves (independent of text query), and title ordering is global when selected. The number of displayed rows remains a loaded-page count, not a total-match count. Changing order starts again from the first page.
+
+### GET /resources/saved/subjects
+
+Requires an active session. Response: `Cache-Control: private, no-store`.
+
+Returns the accessible saved-resource count grouped by Subject ID, with display names resolved through Academic Graph. The query joins the actor's saves to currently available Resources, enforces current author/public/share permissions, and only then groups and counts; invisible resources must not contribute. Results are ordered by localized name in the response and bounded to **100** Subject groups with `truncated` indicating additional groups.
+
+```json
+{
+  "items": [{ "subjectId": "11111111-1111-4111-8111-111111111111", "name": "Álgebra", "count": 3 }],
+  "truncated": false
+}
+```
+
+The count is for all accessible saves in that Subject, not a count of the current text search's matches. Mobile must disclose if the Subject list is truncated. The Subject selection is a discovery filter, not academic enrolment or question publishing authority.
 
 Every returned row is reauthorized against current Resource visibility. Save possession never preserves access after privacy/share changes.
 

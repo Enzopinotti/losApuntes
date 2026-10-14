@@ -3,6 +3,8 @@ import type { ResourceView } from "@losapuntes/contracts";
 import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 
 import type { SessionController } from "../session/session-controller";
+import type { ResourceReportInput } from "./resource-report-policy";
+import type { ResourceMetadataUpdateInput } from "./resource-metadata-policy";
 
 export type ResourceAccessResponse = {
   file: ResourceView["file"];
@@ -29,7 +31,12 @@ export interface ResourceConsumptionApi {
   ): Promise<ResourceAccessResponse>;
   save(resourceId: string, signal?: AbortSignal): Promise<{ saved: true }>;
   unsave(resourceId: string, signal?: AbortSignal): Promise<void>;
-  saved(cursor?: string, signal?: AbortSignal): Promise<ResourceSavedPage>;
+  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order?: 'saved' | 'title'): Promise<ResourceSavedPage>;
+  update(
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ): Promise<{ resource: ResourceView }>;
 }
 
 export interface MobileResourceConsumptionTransport {
@@ -58,7 +65,24 @@ export interface MobileResourceConsumptionTransport {
     credential: string,
     cursor?: string,
     signal?: AbortSignal,
+    q?: string,
+    subjectId?: string,
+    order?: 'saved' | 'title',
   ): Promise<ResourceSavedPage>;
+  report(
+    credential: string,
+    resourceId: string,
+    input: ResourceReportInput,
+    signal?: AbortSignal,
+  ): Promise<{
+    report: { id: string; status: "pending" | "resolved" | "dismissed" };
+  }>;
+  update(
+    credential: string,
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ): Promise<{ resource: ResourceView }>;
 }
 
 export class MobileResourceConsumptionHttpTransport implements MobileResourceConsumptionTransport {
@@ -113,14 +137,50 @@ export class MobileResourceConsumptionHttpTransport implements MobileResourceCon
     );
   }
 
-  saved(credential: string, cursor?: string, signal?: AbortSignal) {
+  saved(credential: string, cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order: 'saved' | 'title' = 'saved') {
     const query = new URLSearchParams({ limit: "25" });
     if (cursor) query.set("cursor", cursor);
+    if (q) query.set("q", q);
+    if (subjectId) query.set("subjectId", subjectId);
+    if (order === "title") query.set("order", "title");
 
     return this.client.request<ResourceSavedPage>(
-      `/resources/saved?${query.toString()}`,
+      `/resources/saved${q || subjectId || order === "title" ? "/search" : ""}?${query.toString()}`,
       {
         credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  report(
+    credential: string,
+    resourceId: string,
+    input: ResourceReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{
+      report: { id: string; status: "pending" | "resolved" | "dismissed" };
+    }>(`/resources/${encodeURIComponent(resourceId)}/reports`, {
+      method: "POST",
+      credential,
+      body: input,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  update(
+    credential: string,
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<{ resource: ResourceView }>(
+      `/resources/${encodeURIComponent(resourceId)}`,
+      {
+        method: "PATCH",
+        credential,
+        body: input,
         ...(signal ? { signal } : {}),
       },
     );
@@ -161,9 +221,25 @@ export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
     );
   }
 
-  saved(cursor?: string, signal?: AbortSignal) {
+  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order?: 'saved' | 'title') {
     return this.authorized((credential) =>
-      this.transport.saved(credential, cursor, signal),
+      this.transport.saved(credential, cursor, signal, q, subjectId, order),
+    );
+  }
+
+  report(resourceId: string, input: ResourceReportInput, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.report(credential, resourceId, input, signal),
+    );
+  }
+
+  update(
+    resourceId: string,
+    input: ResourceMetadataUpdateInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.update(credential, resourceId, input, signal),
     );
   }
 

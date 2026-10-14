@@ -1,7 +1,32 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { FeedItem } from "../features/feeds/interfaces";
+import {
+  FeedItemContext,
+  FeedItemOpenLink,
+} from "../features/feeds/components/FeedItemContext";
+import {
+  feedRestoreHomeIntent,
+  homeFeedHref,
+  type HomeFeedIntent,
+} from "../features/feeds/feed-navigation.mjs";
+import {
+  clearFeedScrollPositions,
+  feedRestorePositionKey,
+  feedScrollAuthorityScope,
+  takeFeedScrollPosition,
+} from "../features/feeds/feed-scroll-restoration.mjs";
+import {
+  homeFeedEmptyGuidance,
+  type HomeFeedEmptyGuidance,
+} from "../features/feeds/home-feed-empty-guidance.mjs";
 import type { PilotHomeResponse } from "../features/pilot/interfaces";
 import {
   isPilotApiError,
@@ -14,10 +39,14 @@ function FeedPreview({
   title,
   items,
   moreTo,
+  emptyGuidance,
+  homeIntent,
 }: {
   title: string;
   items: FeedItem[];
   moreTo: string;
+  emptyGuidance: HomeFeedEmptyGuidance;
+  homeIntent: HomeFeedIntent;
 }) {
   return (
     <section className="pilot-card">
@@ -26,32 +55,27 @@ function FeedPreview({
         <Link to={moreTo}>Ver feed completo</Link>
       </header>
       {items.length === 0 ? (
-        <p className="pilot-muted">
-          Todavía no hay contenido útil para esta tanda.
-        </p>
+        <div className="pilot-feed-empty" role="status">
+          <p>{emptyGuidance.message}</p>
+          <Link className="pilot-secondary-link" to={emptyGuidance.href}>
+            {emptyGuidance.actionLabel}
+          </Link>
+        </div>
       ) : (
         <ul className="pilot-feed-preview">
           {items.map((item) => {
-            const kindLabel =
-              item.type === "resource"
-                ? "Apunte"
-                : item.type === "question"
-                  ? "Pregunta"
-                  : "Organización";
-            const sourceLabel =
-              item.source.kind === "campus_organization"
-                ? item.source.organization.name
-                : item.author.displayName;
-
             return (
               <li key={`${item.type}:${item.id}`}>
-                <span>{kindLabel}</span>
-                <strong>{item.title}</strong>
-                <small>
-                  {item.academic.subject
-                    ? `${item.academic.subject.name} · ${sourceLabel}`
-                    : sourceLabel}
-                </small>
+                <FeedItemContext
+                  item={item}
+                  reasonLimit={2}
+                  homeIntent={homeIntent}
+                />
+                <div className="pilot-feed-preview-content">
+                  <h3>{item.title}</h3>
+                  {item.summary ? <p>{item.summary}</p> : null}
+                </div>
+                <FeedItemOpenLink item={item} homeIntent={homeIntent} />
               </li>
             );
           })}
@@ -85,11 +109,29 @@ function Landing() {
 
 const Home = () => {
   const { status, user, session } = useAuth();
+  const location = useLocation();
+  const [activeHomeFeed, setActiveHomeFeed] = useState<HomeFeedIntent>(
+    () =>
+      feedRestoreHomeIntent(
+        location.state,
+        `${location.pathname}${location.search}`,
+      ) ?? "contextual",
+  );
   const authScopeKey = [
     status,
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const scrollAuthorityScope = feedScrollAuthorityScope(
+    status,
+    user?.id,
+    session?.id,
+  );
+  const restorePositionKey = feedRestorePositionKey(
+    location.state,
+    `${location.pathname}${location.search}`,
+  );
+  const previousAuthScopeKeyRef = useRef(authScopeKey);
   const {
     begin: beginLoad,
     isCurrent: isLoadCurrent,
@@ -112,6 +154,20 @@ const Home = () => {
     viewState?.scopeKey === authScopeKey ? viewState : null;
   const loading = currentViewState?.loading ?? status === "authenticated";
   const error = currentViewState?.error ?? null;
+
+  useLayoutEffect(() => {
+    if (previousAuthScopeKeyRef.current === authScopeKey) return;
+    previousAuthScopeKeyRef.current = authScopeKey;
+    clearFeedScrollPositions();
+    setActiveHomeFeed("contextual");
+    setSnapshotState(null);
+    setViewState({
+      scopeKey: authScopeKey,
+      loading: status === "authenticated",
+      error: null,
+    });
+    window.scrollTo(0, 0);
+  }, [authScopeKey, status]);
 
   const load = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -157,6 +213,30 @@ const Home = () => {
     }
   }, [load, status]);
 
+  useLayoutEffect(() => {
+    if (
+      status !== "authenticated" ||
+      loading ||
+      !snapshot ||
+      !restorePositionKey
+    ) {
+      return;
+    }
+
+    const scrollY = takeFeedScrollPosition(
+      restorePositionKey,
+      scrollAuthorityScope,
+    );
+    if (scrollY !== null) window.scrollTo(0, scrollY);
+  }, [
+    loading,
+    location.key,
+    restorePositionKey,
+    scrollAuthorityScope,
+    snapshot,
+    status,
+  ]);
+
   if (status === "restoring") {
     return (
       <section className="pilot-page">
@@ -173,6 +253,12 @@ const Home = () => {
     snapshot?.academic.currentSubjectIds.length === 0 &&
     (snapshot.lifecycle.phase === "alumni" ||
       snapshot.lifecycle.phase === "mixed");
+  const contextualFeedTitle =
+    snapshot?.homeFeed.kind === "community"
+      ? "Universidad y comunidad"
+      : "Mis materias";
+  const activeFeedTitle =
+    activeHomeFeed === "contextual" ? contextualFeedTitle : "Para vos";
 
   return (
     <section className="pilot-page" aria-labelledby="pilot-home-title">
@@ -250,31 +336,66 @@ const Home = () => {
             </section>
           )}
 
-          <div className="pilot-grid">
+          <section className="pilot-card pilot-create-entry">
+            <div>
+              <p className="pilot-eyebrow">Participá</p>
+              <h2>Aportá a tu comunidad</h2>
+              <p>
+                Compartí un apunte o abrí una pregunta para que otras personas
+                puedan ayudarte.
+              </p>
+            </div>
+            <div className="pilot-actions">
+              <Link className="pilot-primary-link" to="/questions">
+                Hacer una pregunta
+              </Link>
+              <Link className="pilot-secondary-link" to="/resources">
+                Subir un apunte
+              </Link>
+            </div>
+          </section>
+
+          <div className="pilot-home-feed">
+            <div
+              className="pilot-feed-intents"
+              role="group"
+              aria-label="Elegir feed de inicio"
+            >
+              <button
+                type="button"
+                aria-pressed={activeHomeFeed === "contextual"}
+                onClick={() => setActiveHomeFeed("contextual")}
+              >
+                {contextualFeedTitle}
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeHomeFeed === "for-you"}
+                onClick={() => setActiveHomeFeed("for-you")}
+              >
+                Para vos
+              </button>
+            </div>
             <FeedPreview
-              title={
-                snapshot.homeFeed.kind === "community"
-                  ? "Universidad y comunidad"
-                  : "Mis materias"
+              title={activeFeedTitle}
+              items={
+                activeHomeFeed === "contextual"
+                  ? snapshot.homeFeed.items
+                  : snapshot.forYou.items
               }
-              items={snapshot.homeFeed.items}
-              moreTo="/feeds"
-            />
-            <FeedPreview
-              title="Para vos"
-              items={snapshot.forYou.items}
-              moreTo="/feeds"
+              moreTo={homeFeedHref(activeHomeFeed, snapshot.homeFeed.kind)}
+              emptyGuidance={homeFeedEmptyGuidance(
+                activeHomeFeed,
+                snapshot.homeFeed.kind,
+              )}
+              homeIntent={activeHomeFeed}
             />
           </div>
 
           <section className="pilot-card pilot-shortcuts">
-            <h2>
-              {alumniContinuity ? "Seguir conectado" : "Seguir estudiando"}
-            </h2>
+            <h2>Explorar tu espacio</h2>
             <div className="pilot-actions">
               <Link to="/academic/lifecycle">Mi trayectoria</Link>
-              <Link to="/resources">Buscar o subir apuntes</Link>
-              <Link to="/questions">Preguntar o responder</Link>
               <Link to="/network">Revisar mi red</Link>
               <Link to="/organizations">Organizaciones</Link>
               <Link to="/search">Buscar en Los Apuntes</Link>

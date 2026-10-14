@@ -28,6 +28,19 @@ export type UpdateResourceRecord = Partial<
   >
 >;
 
+export type ResourceShareGrantCursor = {
+  shareId: string;
+};
+
+export type ResourceShareGrantPage = {
+  items: Array<{
+    shareId: string;
+    userId: string;
+    createdAt: Date;
+  }>;
+  hasMore: boolean;
+};
+
 export type SavedResourceCursor = {
   createdAt: Date;
   resourceId: string;
@@ -52,11 +65,47 @@ export interface ResourceStore {
     expectedRevision: number,
     patch: UpdateResourceRecord,
   ): Promise<ResourceRecord | null>; // Clears explicit shares atomically when visibility leaves shared.
+  listShareGrants(input: {
+    resourceId: string;
+    limit: number;
+    after?: ResourceShareGrantCursor;
+  }): Promise<ResourceShareGrantPage>;
   hasShare(resourceId: string, userId: string): Promise<boolean>;
   upsertShare(resourceId: string, userId: string): Promise<void>;
   removeShare(resourceId: string, userId: string): Promise<void>;
   upsertSave(resourceId: string, userId: string): Promise<void>;
   removeSave(resourceId: string, userId: string): Promise<void>;
+  getOwnedStatistics(authorUserId: string): Promise<{
+    publications: {
+      total: number;
+      private: number;
+      shared: number;
+      public: number;
+    };
+    currentSaves: number;
+    activeShareGrants: number;
+    topResources: Array<{
+      id: string;
+      title: string;
+      visibility: ResourceVisibility;
+      saves: number;
+      shareGrants: number;
+    }>;
+  }>;
+  listOwnedSubjects(authorUserId: string): Promise<{
+    items: Array<{ subjectId: string; count: number }>;
+    truncated: boolean;
+  }>;
+  listOwnedResources(input: {
+    q?: string;
+    subjectId?: string;
+    order?: 'newest' | 'oldest';
+
+    authorUserId: string;
+    visibility?: ResourceVisibility;
+    limit: number;
+    after?: { createdAt: Date; id: string };
+  }): Promise<{ items: ResourceRecord[]; hasMore: boolean }>;
   listSavedResources(input: {
     userId: string;
     limit: number;

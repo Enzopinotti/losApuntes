@@ -14,6 +14,56 @@ export type AcademicSubjectOption = {
   name: string;
 };
 
+export type ResourceShareGrantView = {
+  profileId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  grantedAt: string;
+};
+
+export type ResourceShareGrantsPage = {
+  items: ResourceShareGrantView[];
+  nextCursor: string | null;
+  resourceRevision: number;
+};
+
+/**
+ * Point-in-time counts of current records, not historical traffic.
+ * Access intents are not tracked as completed reads or downloads.
+ */
+export type OwnedResourceStatistics = {
+  generatedAt: string;
+  publications: {
+    total: number;
+    private: number;
+    shared: number;
+    public: number;
+  };
+  currentSaves: number;
+  activeShareGrants: number;
+  topResources: Array<{
+    id: string;
+    title: string;
+    visibility: ResourceVisibility;
+    saves: number;
+    shareGrants: number;
+  }>;
+};
+
+export type OwnedResourceSubjects = {
+  items: Array<{
+    subjectId: string;
+    name: string;
+    count: number;
+  }>;
+  truncated: boolean;
+};
+
+export type OwnedResourcesPage = {
+  items: ResourceView[];
+  nextCursor: string | null;
+};
+
 export type ResourceView = {
   id: string;
   title: string;

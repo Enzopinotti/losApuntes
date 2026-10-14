@@ -172,6 +172,223 @@ not the global Academic catalog. It does not export catalog source provenance,
 admin audit events, internal context guard revisions, or catalog proposals in
 this carrier.
 
+### Q&A authored sections — candidate for #183
+
+Q&A contributes two owner-scoped sections:
+
+- `qa.authoredQuestions` — the account owner's question id, academic context
+  references, title, body, open/closed state and timestamps;
+- `qa.authoredAnswers` — the account owner's answer id, its Question id
+  reference, body and timestamps.
+
+Both sections read only rows authored by the owner through explicit Mongo field
+allowlists and stable `id ASC` cursors. The page limit is capped at 100 and the
+queries use `{ authorUserId: 1, id: 1 }` indexes. Hidden authored content is
+included for the owner, but the export omits moderation metadata and reports,
+search text, answer counts, accepted-answer pointers, internal revisions and
+author user ids. An answer references its Question by id only; the export
+does not resolve or include another author's Question content.
+
+### Social relationship sections — candidate for #183
+
+Social contributes two owner-scoped relationship sections:
+
+- `social.following` — the account's current outgoing Follow relations, each
+  represented by the followed Profile id and the Follow creation time;
+- `social.connections` — the stored Connection row for each direct relation in
+  which the account participates, including its current status, whether the
+  owner requested it, and creation, response and update timestamps.
+
+Following is ordered by `createdAt DESC, id ASC`; Connections are ordered by
+`updatedAt DESC, id ASC`. Each query uses an owner/participant filter, an
+explicit Mongo field allowlist and `limit + 1` to determine continuation. The
+export page limit is capped at 100. Following uses the existing
+`{ followerUserId: 1, createdAt: -1, id: 1 }` index. Connections use separate
+`{ userLowId: 1, updatedAt: -1, id: 1 }` and
+`{ userHighId: 1, updatedAt: -1, id: 1 }` indexes so either participant arm
+can seek in export order.
+
+The portable Follow record contains only `followeeProfileId` and `followedAt`.
+The portable Connection record contains only `counterpartProfileId`, `status`,
+`requestedByOwner`, `createdAt`, `respondedAt` and `updatedAt`. Counterpart
+Profile ids are resolved in a separately bounded allowlist read; a missing
+Profile identity or a corrupt row that does not contain the owner aborts the
+page instead of emitting an incomplete or misattributed record. Closed Profile
+tombstones remain resolvable through their stable Profile id.
+
+Incoming follower lists, counterpart names, emails, avatars, internal user
+ids, notifications and counterpart Profile content are not exported. Following
+is a snapshot of current outgoing edges: an unfollowed edge is no longer stored
+and is not a revocation history. A Connection row is the domain's current
+relationship record, not an event log of every request/reopen transition.
+These relationship projections do not grant access to counterpart data and
+do not make the full account export complete.
+
+### Notification inbox section — candidate for #183
+
+Notifications contributes `notifications.inbox`, containing all notification
+records addressed to the export owner. Each portable row contains the owner's
+notification id and type, nullable `actorProfileId`, target type/id as a
+reference, `readAt` and `createdAt`. It preserves both read and unread inbox
+state; it does not resolve or include target content.
+
+The store filters by owner and uses an explicit field allowlist. Pages are
+ordered by `createdAt DESC, id ASC`, use `limit + 1`, and are capped at 100.
+The existing `{ userId: 1, createdAt: -1, id: 1 }` index supports this export
+order. The query does not read notification `updatedAt` or the owner's user id
+into the portable row. Non-null actor user ids are resolved in a separately
+capped Profile-id projection; a missing actor Profile aborts the page. A null
+actor stays null.
+
+The export contains no actor names, emails, avatars or internal user ids; no
+notification provider/delivery data; and no Question, Answer, Connection or
+Profile content behind a target reference. The target reference is not access
+authority. These inbox records remain a partial contributor and do not make
+the overall account export complete.
+
+### Organization following section — candidate for #183
+
+Organizations contributes the partial owner-scoped section
+`organizations.following`. It is a snapshot of the owner's current
+OrganizationFollow edges. Each portable record contains only the stable
+`organizationId` reference and `followedAt` timestamp. The read filters by the
+owner and selects only those two fields; it does not resolve the Organization.
+
+Pages use `createdAt DESC, organizationId ASC`, an opaque cursor,
+`limit + 1`, and a maximum page size of 100. The
+`{ userId: 1, createdAt: -1, organizationId: 1 }` index supports this order.
+An archived or missing target does not erase the owner's stored follow row;
+the export preserves the edge as stored without inferring target lifecycle.
+
+The following section does not resolve or include Organization names,
+metadata, management roles, members or linked content. The owner's own current
+management assignments, when present, use the separate section below.
+Unfollowed edges are not available as a revocation history. A follow reference
+does not transfer Organization ownership, management authority or access to
+the target.
+
+### Organization management section — candidate for #183
+
+The partial owner-scoped section `organizations.management` is a snapshot of
+current `OrganizationManager` rows whose `userId` exactly matches the export
+owner. Each portable record contains only the stable `organizationId`, current
+`role`, `createdAt` and `updatedAt` timestamps. The query does not resolve or
+include Organization data.
+
+Pages use `organizationId ASC`, a section-bound opaque cursor, `limit + 1`,
+and a maximum page size of 100. The existing
+`{ userId: 1, organizationId: 1 }` index supports the owner filter and stable
+order. A missing or archived target does not erase the owner's stored manager
+row; it remains a reference snapshot without inferring target lifecycle.
+
+Other managers and members, Organization audit events, revoked-role history,
+invitations and linked content are excluded. The role and timestamps are
+informational account data; they do not grant or transfer management
+authority. This partial section is not a management audit log or a completeness
+claim.
+
+### Organization submitted reports section — candidate for #183
+
+The partial owner-scoped section `organizations.submittedReports` contains
+only `OrganizationReport` rows whose `reporterUserId` exactly matches the
+export owner. Each portable record contains the stable report `id`,
+`targetType`, `targetId` as an opaque reference, the owner's `reason` and
+`details`, and `createdAt`. A missing or moderated target remains a reference;
+the export does not look it up.
+
+Pages use `id ASC`, a section-bound opaque cursor, `limit + 1`, and a maximum
+page size of 100. The `{ reporterUserId: 1, id: 1 }` index supports the owner
+filter and stable order. The query selects only the portable fields.
+`status`, `updatedAt`, reviewer identity, review time, review reason and review
+action are excluded, along with target content and reports submitted by other
+users. This is the owner's submission data, not a moderation outcome, audit
+history or access grant.
+
+### Organization authored Posts and Events — candidate for #183
+
+The owner-authored sections `organizations.authoredPosts` and
+`organizations.authoredEvents` preserve current Organization content whose
+`createdByUserId` exactly matches the export owner. Post rows contain their
+stable id, Organization and Subject references, title/body and publication
+and record timestamps. Event rows contain their stable id, Organization
+reference, owner-entered event details, current scheduled/cancelled state,
+external URL and timestamps.
+
+Both collections use an author-only filter, a query-time allowlist, immutable
+`id ASC` pagination, `limit + 1` and a maximum page size of 100. The
+`{ createdByUserId: 1, id: 1 }` indexes support their export order. Hidden
+authored content remains included so moderation does not erase the author's
+own saved contribution, but moderation state, internal revision counters,
+reports, reviewer identity/actions and other authors' records are excluded.
+
+The Organization reference does not resolve Organization metadata or provide
+access to its shared content. This is current authored content, not a deleted
+Post/Event history or a moderation audit log.
+
+### Resource history sections — candidate for #183
+
+Resources contributes three owner-scoped sections:
+
+- `resources.authored` — the user's own Resource metadata, including private
+  and hidden authored history, current visibility/moderation state, academic
+  references and timestamps;
+- `resources.saved` — the user's saved Resource references and save time;
+- `resources.sharedGrants` — the user's currently active explicit sharing
+  grants over Resources they authored, including each recipient's stable
+  Profile id and the grant creation time.
+
+Authored Resources use a query-time field allowlist and immutable `id ASC`
+pagination with a `{ authorUserId: 1, id: 1 }` index. The caller's page limit
+is validated at no more than 100 and Mongo reads `limit + 1` to determine
+continuation. `resources.saved` reuses the existing bounded save relation
+ordering and cursor. It intentionally exports the owner's save record even if
+the target is no longer readable; it never resolves target content or grants
+access to it.
+
+These metadata sections do not include FileAsset ids, object keys, filenames,
+signed URLs or file bytes. `resources.sharedGrants` is a snapshot of current
+grants, not a revocation log. Its portable record contains only `resourceId`,
+`granteeProfileId` and `grantedAt`; recipient names, emails, internal user ids
+and Profile contents are not included. Profile ids are resolved through a
+query-time allowlist that reads only the stable Profile id and its owning user
+id. Closed Profile tombstones remain resolvable; a missing recipient Profile
+fails the page so the assembler aborts rather than publishing an incomplete
+projection.
+
+Share export pages seek through the owner's ordered Resource ids and read
+grants in `{ resourceId: 1, userId: 1 }` order with `limit + 1`. The cursor can
+resume within one Resource or advance beyond a bounded batch of authored
+Resources that contain no grants. The existing author/id and unique
+resource/user indexes bound both reads; the adapter never materializes all of
+the owner's Resources or grants at once.
+
+The Resource/FileAsset lifecycle contract remains independent: creator
+provenance and a Resource reference do not authorize deletion or byte access.
+These Resource sections are still a partial contributor slice and are not
+enough to expose a complete downloadable account export.
+
+## Streaming artifact assembly — candidate for #183
+
+The internal v1 artifact is a compact JSON envelope:
+
+```json
+{"format":"los-apuntes-account-export","version":1,"sections":{"academic.affiliations":[...],"academic.currentContext":[...],"academic.follows":[...],"academic.subjectParticipations":[...],"account":[...],"notifications.inbox":[...],"organizations.authoredEvents":[...],"organizations.authoredPosts":[...],"organizations.following":[...],"organizations.management":[...],"organizations.submittedReports":[...],"profile":[...],"profile.activities":[...],"qa.authoredAnswers":[...],"qa.authoredQuestions":[...],"resources.authored":[...],"resources.saved":[...],"resources.sharedGrants":[...],"social.connections":[...],"social.following":[...]}}
+```
+
+Section keys follow the contributor registry's stable lexicographic order.
+Records preserve each contributor's cursor order. The assembler writes the
+envelope and each serialized record as separate awaited sink chunks, and it
+reads at most the existing 100-record contributor page budget at a time. It
+does not collect an entire section or export into an in-memory array. Cursor
+cycle detection retains only a constant-size checkpoint per section.
+
+The sink is attempt-scoped. Any contributor, serialization or sink failure
+aborts the partial output; a caller must not publish or persist completion
+metadata for an aborted attempt. This assembler is an internal building block,
+not evidence of a complete v1 export: remaining domain inclusion decisions,
+contributors, durable artifact storage, owner-reauthorized delivery and the
+public HTTP surface remain open. No generated partial export may be presented
+as complete to an account owner.
 
 ## Security and privacy exclusions
 
@@ -206,8 +423,9 @@ Examples:
   canonical shared Resource remains in place;
 - a save/share/follow is exported as the user's relationship, not as authority
   over the target;
-- Organization management/history, Q&A attribution and Academic/Alumni history
-  remain governed by their own domain contracts.
+- Organization management audit/member history, report review outcomes, Q&A
+  attribution and Academic/Alumni history remain governed by their own domain
+  contracts.
 
 ## Explicit non-goals
 
@@ -223,11 +441,19 @@ This foundation does not decide:
 
 Those remain #82/#48 or later #183 slices.
 
-Resources/Files, Social/Q&A, Organizations, Notifications and Alumni are still
-unimplemented export domains. User-authored Academic catalog proposals are also
-outside the currently implemented v1 Academic carrier pending a separate
-inclusion decision. The presence of the core and Academic sections does not make
-the overall export product complete or ready for public HTTP delivery.
+Resource authored metadata, saved references and current explicit share grants
+are implemented as an incomplete contributor candidate; Resource file bytes
+and a historical revocation log remain outside it. Q&A authored questions and
+answers, Social Following/Connection history, the owner's Notification inbox,
+current Organization follows and owner-authored Organization Posts/Events are
+also partial contributor sections. The owner's current Organization manager
+roles and submitted reports are separate partial sections; management/member
+history, report moderation outcomes and Alumni-specific data remain outside
+the current contributor set.
+User-authored Academic catalog proposals are also outside the currently
+implemented v1 Academic carrier pending a separate inclusion decision. The
+presence of core, Academic and partial Resource sections does not make the
+overall export product complete or ready for public HTTP delivery.
 
 ## Merge acceptance for this foundation
 

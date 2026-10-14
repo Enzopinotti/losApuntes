@@ -72,6 +72,10 @@ ResourceSchema.index({
   id: 1,
 });
 ResourceSchema.index({ authorUserId: 1, updatedAt: -1, id: 1 });
+ResourceSchema.index({ authorUserId: 1, id: 1 });
+ResourceSchema.index({ authorUserId: 1, moderationState: 1, createdAt: -1, id: 1 });
+ResourceSchema.index({ authorUserId: 1, moderationState: 1, subjectId: 1, createdAt: -1, id: 1 });
+ResourceSchema.index({ authorUserId: 1, moderationState: 1, subjectId: 1, createdAt: 1, id: 1 });
 ResourceSchema.index({ moderationState: 1, subjectId: 1 });
 
 @Schema({ collection: 'resource_shares', timestamps: true })
@@ -88,6 +92,7 @@ export class ResourceShare {
 
 export const ResourceShareSchema = SchemaFactory.createForClass(ResourceShare);
 ResourceShareSchema.index({ resourceId: 1, userId: 1 }, { unique: true });
+ResourceShareSchema.index({ resourceId: 1, _id: 1 });
 ResourceShareSchema.index({ userId: 1, createdAt: -1 });
 
 @Schema({ collection: 'resource_saves', timestamps: true })

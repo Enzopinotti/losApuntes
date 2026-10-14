@@ -3,11 +3,16 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import {
   OrganizationManager,
   OrganizationManagerSchema,
 } from '../organizations/mongo/organization.mongo-schemas';
 import { ProfileModule } from '../profile/profile.module';
+import { QaModule } from '../qa/qa.module';
+import { ResourcesModule } from '../resources/resources.module';
+import { SocialModule } from '../social/social.module';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -23,6 +28,28 @@ import {
   ProfileActivitiesExportContributor,
   ProfileExportContributor,
 } from './contributors/account-export-core.contributors';
+import {
+  AuthoredResourcesExportContributor,
+  SavedResourcesExportContributor,
+  SharedResourceGrantsExportContributor,
+} from './contributors/account-export-resource.contributors';
+import {
+  AuthoredAnswersExportContributor,
+  AuthoredQuestionsExportContributor,
+} from './contributors/account-export-qa.contributors';
+import { NotificationInboxExportContributor } from './contributors/account-export-notifications.contributors';
+import {
+  OrganizationAuthoredEventsExportContributor,
+  OrganizationAuthoredPostsExportContributor,
+} from './contributors/account-export-organization-content.contributors';
+import { OrganizationFollowingExportContributor } from './contributors/account-export-organization-following.contributors';
+import { OrganizationManagementExportContributor } from './contributors/account-export-organization-management.contributors';
+import { OrganizationSubmittedReportsExportContributor } from './contributors/account-export-organization-reports.contributors';
+import {
+  SocialConnectionsExportContributor,
+  SocialFollowingExportContributor,
+} from './contributors/account-export-social.contributors';
+import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
@@ -48,8 +75,13 @@ import {
   imports: [
     AcademicModule,
     AuthModule,
+    NotificationsModule,
+    OrganizationsModule,
     UsersModule,
     ProfileModule,
+    QaModule,
+    ResourcesModule,
+    SocialModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
@@ -63,6 +95,7 @@ import {
   providers: [
     AccountLifecycleService,
     AccountExportService,
+    AccountExportAssembler,
     AccountIdentityExportContributor,
     ProfileExportContributor,
     ProfileActivitiesExportContributor,
@@ -70,6 +103,19 @@ import {
     AcademicSubjectParticipationsExportContributor,
     AcademicCurrentContextExportContributor,
     AcademicFollowsExportContributor,
+    AuthoredResourcesExportContributor,
+    SavedResourcesExportContributor,
+    SharedResourceGrantsExportContributor,
+    AuthoredQuestionsExportContributor,
+    AuthoredAnswersExportContributor,
+    NotificationInboxExportContributor,
+    OrganizationAuthoredEventsExportContributor,
+    OrganizationAuthoredPostsExportContributor,
+    OrganizationFollowingExportContributor,
+    OrganizationManagementExportContributor,
+    OrganizationSubmittedReportsExportContributor,
+    SocialFollowingExportContributor,
+    SocialConnectionsExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -80,6 +126,19 @@ import {
         academicParticipations: AcademicSubjectParticipationsExportContributor,
         academicContext: AcademicCurrentContextExportContributor,
         academicFollows: AcademicFollowsExportContributor,
+        authoredResources: AuthoredResourcesExportContributor,
+        savedResources: SavedResourcesExportContributor,
+        sharedResourceGrants: SharedResourceGrantsExportContributor,
+        authoredQuestions: AuthoredQuestionsExportContributor,
+        authoredAnswers: AuthoredAnswersExportContributor,
+        notificationInbox: NotificationInboxExportContributor,
+        organizationAuthoredEvents: OrganizationAuthoredEventsExportContributor,
+        organizationAuthoredPosts: OrganizationAuthoredPostsExportContributor,
+        organizationFollowing: OrganizationFollowingExportContributor,
+        organizationManagement: OrganizationManagementExportContributor,
+        organizationSubmittedReports: OrganizationSubmittedReportsExportContributor,
+        socialFollowing: SocialFollowingExportContributor,
+        socialConnections: SocialConnectionsExportContributor,
       ) => [
         account,
         profile,
@@ -88,6 +147,19 @@ import {
         academicParticipations,
         academicContext,
         academicFollows,
+        authoredResources,
+        savedResources,
+        sharedResourceGrants,
+        authoredQuestions,
+        authoredAnswers,
+        notificationInbox,
+        organizationAuthoredEvents,
+        organizationAuthoredPosts,
+        organizationFollowing,
+        organizationManagement,
+        organizationSubmittedReports,
+        socialFollowing,
+        socialConnections,
       ],
       inject: [
         AccountIdentityExportContributor,
@@ -97,6 +169,19 @@ import {
         AcademicSubjectParticipationsExportContributor,
         AcademicCurrentContextExportContributor,
         AcademicFollowsExportContributor,
+        AuthoredResourcesExportContributor,
+        SavedResourcesExportContributor,
+        SharedResourceGrantsExportContributor,
+        AuthoredQuestionsExportContributor,
+        AuthoredAnswersExportContributor,
+        NotificationInboxExportContributor,
+        OrganizationAuthoredEventsExportContributor,
+        OrganizationAuthoredPostsExportContributor,
+        OrganizationFollowingExportContributor,
+        OrganizationManagementExportContributor,
+        OrganizationSubmittedReportsExportContributor,
+        SocialFollowingExportContributor,
+        SocialConnectionsExportContributor,
       ],
     },
     AccountExportContributorRegistry,
@@ -114,6 +199,7 @@ import {
   exports: [
     AccountLifecycleService,
     AccountExportService,
+    AccountExportAssembler,
     AccountExportContributorRegistry,
   ],
 })

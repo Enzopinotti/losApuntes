@@ -9,12 +9,17 @@ import {
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { CreateQuestionInput } from "@losapuntes/contracts/social-qa";
+import type {
+  CommunityPerson,
+  CreateQuestionInput,
+} from "@losapuntes/contracts/social-qa";
 
 import { ProductSurface } from "@/features/navigation/product-surface";
 
+import { communityAuthorAction } from "./community-author-action";
 import {
   cancelCommunityComposerSubmission,
+  canRefreshCommunityQuestion,
   captureOwnedQuestionBaseline,
   communityAnswerDraftConfirmationTransition,
   communityFailure,
@@ -30,6 +35,16 @@ import {
   type CommunityQuestionFeedSnapshot,
 } from "./community-controller";
 import { mobileCommunityApi } from "./community-runtime";
+import { QaReportAction } from "./qa-report-action";
+import {
+  ACADEMIC_CONTEXT_HOME_ROUTE,
+  communityQuestionNextStep,
+} from "./community-context-next-step";
+import {
+  MobileQaMutationsController,
+  type QaMutation,
+  type QaMutationSnapshot,
+} from "./qa-mutations-controller";
 import {
   useCommunityAuthority,
   type CommunityAuthorityGate,
@@ -78,6 +93,12 @@ function failureMessage(
   }
   if (code === "QUESTION_CLOSED") {
     return "Esta pregunta ya no acepta respuestas.";
+  }
+  if (
+    code === "QUESTION_REVISION_CONFLICT" ||
+    code === "ANSWER_REVISION_CONFLICT"
+  ) {
+    return "El contenido cambió. Actualizá la conversación antes de editar.";
   }
   if (code === "QUESTION_NOT_FOUND") {
     return "La pregunta ya no está disponible.";
@@ -190,29 +211,65 @@ function QuestionCard({
 }: {
   title: string;
   subject: string;
-  author: string;
+  author: CommunityPerson | null;
   answerCount: number;
   state: "open" | "closed";
   onPress: () => void;
 }) {
   return (
+    <View style={styles.questionCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir pregunta: ${title}`}
+        accessibilityHint="Muestra la pregunta y sus respuestas."
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.questionCardContent,
+          pressed ? styles.questionCardPressed : null,
+        ]}
+      >
+        <Text style={styles.questionState}>
+          {state === "open" ? "Abierta" : "Cerrada"}
+        </Text>
+        <Text style={styles.questionTitle}>{title}</Text>
+        <Text style={styles.questionMeta}>
+          {subject} · {answerCount}{" "}
+          {answerCount === 1 ? "respuesta" : "respuestas"}
+        </Text>
+      </Pressable>
+      <CommunityAuthorAttribution author={author} prefix="Por " />
+    </View>
+  );
+}
+
+function CommunityAuthorAttribution({
+  author,
+  prefix = "",
+}: {
+  author: CommunityPerson | null;
+  prefix?: string;
+}) {
+  const router = useRouter();
+  const action = communityAuthorAction(author);
+  const displayName =
+    action?.displayName ??
+    (author?.displayName.trim() || "Persona de la comunidad");
+  const visibleName = `${prefix}${displayName}`;
+
+  if (!action) return <Text style={styles.copy}>{visibleName}</Text>;
+
+  return (
     <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={action.accessibilityLabel}
+      accessibilityHint={action.accessibilityHint}
+      onPress={() => router.push(action.href)}
       style={({ pressed }) => [
-        styles.questionCard,
-        pressed ? styles.questionCardPressed : null,
+        styles.authorAction,
+        pressed ? styles.authorActionPressed : null,
       ]}
     >
-      <Text style={styles.questionState}>
-        {state === "open" ? "Abierta" : "Cerrada"}
-      </Text>
-      <Text style={styles.questionTitle}>{title}</Text>
-      <Text style={styles.questionMeta}>
-        {subject} · {answerCount}{" "}
-        {answerCount === 1 ? "respuesta" : "respuestas"}
-      </Text>
-      <Text style={styles.copy}>Por {author}</Text>
+      <Text style={styles.authorActionLabel}>{visibleName}</Text>
     </Pressable>
   );
 }
@@ -277,6 +334,10 @@ export function CommunityNetworkScreen() {
       void controller.loadMore(authority.authorityKey);
   }, [authority.authorityKey, controller]);
 
+  const nextStep = communityQuestionNextStep(
+    authority.gate,
+    authority.scope.kind,
+  );
   const visibleFeed =
     "authorityKey" in feed && feed.authorityKey === authority.authorityKey
       ? feed
@@ -292,6 +353,18 @@ export function CommunityNetworkScreen() {
       refreshing={refreshing}
     >
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Solicitudes y conexiones</Text>
+        <Text style={styles.copy}>
+          Revisá quién quiere conectar con vos y administrá las relaciones
+          aceptadas.
+        </Text>
+        <ActionButton
+          label="Abrir mi red"
+          onPress={() => router.push("/social-connections")}
+        />
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Organizaciones</Text>
         <Text style={styles.copy}>
           Explorá centros, clubes, laboratorios y comunidades del campus. No
@@ -303,9 +376,9 @@ export function CommunityNetworkScreen() {
         />
       </View>
 
-      {authority.gate !== "ready" ? (
+      {nextStep === "gated" ? (
         <GateCard gate={authority.gate} onRetry={retry} />
-      ) : authority.scope.kind === "unresolved" ? (
+      ) : nextStep === "revalidate" ? (
         <View style={styles.card}>
           <Text accessibilityRole="alert" style={styles.copy}>
             No pudimos confirmar la materia actual dentro de la lista del
@@ -322,17 +395,23 @@ export function CommunityNetworkScreen() {
                 ? "Mostrando preguntas para tu materia actual."
                 : "Mostrando preguntas disponibles de todas las materias."}
             </Text>
-            {authority.scope.kind === "subject" ? (
+            {nextStep === "compose" ? (
               <ActionButton
                 label="Hacer una pregunta"
                 onPress={() => router.push("/questions/new")}
               />
-            ) : (
-              <Text style={styles.note}>
-                Para publicar, elegí una materia actual en tu contexto
-                académico.
-              </Text>
-            )}
+            ) : nextStep === "configure" ? (
+              <View style={styles.list}>
+                <Text style={styles.note}>
+                  Para publicar, elegí una materia actual en tu contexto
+                  académico.
+                </Text>
+                <ActionButton
+                  label="Configurar contexto académico"
+                  onPress={() => router.navigate(ACADEMIC_CONTEXT_HOME_ROUTE)}
+                />
+              </View>
+            ) : null}
           </View>
 
           {!visibleFeed || visibleFeed.kind === "loading" ? (
@@ -354,9 +433,7 @@ export function CommunityNetworkScreen() {
                   key={question.id}
                   title={question.title}
                   subject={question.academic.subject.name}
-                  author={
-                    question.author?.displayName ?? "Persona de la comunidad"
-                  }
+                  author={question.author}
                   answerCount={question.answerCount}
                   state={question.state}
                   onPress={() =>
@@ -486,12 +563,16 @@ export function CommunityQuestionScreen({
   const snapshotFailure = visibleDetail ? detailFailure(visibleDetail) : null;
   const refreshing =
     authority.gate === "ready" && visibleDetail?.kind === "loading";
+  const canRefreshDetail =
+    !visibleDetail || canRefreshCommunityQuestion(visibleDetail);
 
   return (
     <ProductSurface
       title="Pregunta"
       description="Leé la conversación y respondé si el servidor habilita tu cuenta para hacerlo."
-      onRefresh={authority.gate === "ready" ? retry : undefined}
+      onRefresh={
+        authority.gate === "ready" && canRefreshDetail ? retry : undefined
+      }
       refreshing={refreshing}
     >
       <ActionButton label="Volver a la Red" onPress={() => router.back()} />
@@ -540,6 +621,41 @@ function QuestionDetailContent({
 }) {
   const { detail } = snapshot;
   const { question, answers } = detail;
+  const mutations = useMemo(
+    () => new MobileQaMutationsController(mobileCommunityApi),
+    [],
+  );
+  const [mutation, setMutation] = useState<QaMutationSnapshot>(
+    mutations.getSnapshot(),
+  );
+  const [editingQuestion, setEditingQuestion] = useState(false);
+  const [questionTitleDraft, setQuestionTitleDraft] = useState("");
+  const [questionBodyDraft, setQuestionBodyDraft] = useState("");
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
+  const [answerDraft, setAnswerDraft] = useState("");
+
+  useEffect(() => mutations.subscribe(setMutation), [mutations]);
+  useEffect(
+    () => () => mutations.invalidate(),
+    [mutations, snapshot.authorityKey, question.id],
+  );
+
+  const mutationLocked =
+    mutation.kind === "busy" ||
+    mutation.kind === "failure" ||
+    mutation.kind === "uncertain" ||
+    snapshot.submittingAnswer ||
+    snapshot.loadingMoreAnswers;
+
+  const applyMutation = (action: QaMutation) => {
+    if (mutationLocked) return;
+    void mutations
+      .apply(snapshot.authorityKey, detail, action)
+      .then((committed) => {
+        if (committed) onRefresh();
+      });
+  };
+
   return (
     <View style={styles.list}>
       <View style={styles.card}>
@@ -555,10 +671,85 @@ function QuestionDetailContent({
             ? ` · ${question.academic.courseOffering.name}`
             : ""}
         </Text>
-        <Text style={styles.copy}>
-          Por {question.author?.displayName ?? "Persona de la comunidad"}
-        </Text>
+        <CommunityAuthorAttribution author={question.author} prefix="Por " />
         <Text style={styles.body}>{question.body}</Text>
+        {question.viewer.canEdit ? (
+          <View style={styles.list}>
+            {editingQuestion ? (
+              <View style={styles.list}>
+                <TextInput
+                  accessibilityLabel="Editar título de la pregunta"
+                  maxLength={180}
+                  onChangeText={setQuestionTitleDraft}
+                  style={styles.input}
+                  value={questionTitleDraft}
+                />
+                <TextInput
+                  accessibilityLabel="Editar detalle de la pregunta"
+                  multiline
+                  maxLength={5000}
+                  onChangeText={setQuestionBodyDraft}
+                  style={[styles.input, styles.multiline]}
+                  textAlignVertical="top"
+                  value={questionBodyDraft}
+                />
+                <ActionButton
+                  label={
+                    mutation.kind === "busy" ? "Guardando…" : "Guardar pregunta"
+                  }
+                  disabled={
+                    mutationLocked ||
+                    questionTitleDraft.trim().length < 5 ||
+                    questionBodyDraft.trim().length < 10
+                  }
+                  onPress={() =>
+                    applyMutation({
+                      kind: "edit-question",
+                      title: questionTitleDraft,
+                      body: questionBodyDraft,
+                    })
+                  }
+                />
+                <ActionButton
+                  label="Cancelar edición"
+                  disabled={mutationLocked}
+                  onPress={() => setEditingQuestion(false)}
+                />
+              </View>
+            ) : (
+              <ActionButton
+                label="Editar pregunta"
+                disabled={mutationLocked}
+                onPress={() => {
+                  setQuestionTitleDraft(question.title);
+                  setQuestionBodyDraft(question.body);
+                  setEditingQuestion(true);
+                }}
+              />
+            )}
+            <ActionButton
+              label={
+                question.state === "open"
+                  ? "Cerrar pregunta"
+                  : "Reabrir pregunta"
+              }
+              disabled={mutationLocked}
+              onPress={() =>
+                applyMutation({
+                  kind: "set-question-state",
+                  state: question.state === "open" ? "closed" : "open",
+                })
+              }
+            />
+          </View>
+        ) : null}
+        {question.viewer.canReport ? (
+          <QaReportAction
+            authorityKey={snapshot.authorityKey}
+            targetType="question"
+            targetId={question.id}
+          />
+        ) : null}
       </View>
 
       <View style={styles.card}>
@@ -573,10 +764,68 @@ function QuestionDetailContent({
               {question.acceptedAnswerId === answer.id ? (
                 <Text style={styles.accepted}>Respuesta aceptada</Text>
               ) : null}
-              <Text style={styles.copy}>
-                {answer.author?.displayName ?? "Persona de la comunidad"}
-              </Text>
+              <CommunityAuthorAttribution author={answer.author} />
               <Text style={styles.body}>{answer.body}</Text>
+              {answer.viewer.canEdit ? (
+                editingAnswerId === answer.id ? (
+                  <View style={styles.list}>
+                    <TextInput
+                      accessibilityLabel="Editar respuesta"
+                      multiline
+                      maxLength={5000}
+                      onChangeText={setAnswerDraft}
+                      style={[styles.input, styles.multiline]}
+                      textAlignVertical="top"
+                      value={answerDraft}
+                    />
+                    <ActionButton
+                      label="Guardar respuesta"
+                      disabled={mutationLocked || answerDraft.trim().length < 2}
+                      onPress={() =>
+                        applyMutation({
+                          kind: "edit-answer",
+                          answerId: answer.id,
+                          body: answerDraft,
+                        })
+                      }
+                    />
+                    <ActionButton
+                      label="Cancelar edición de respuesta"
+                      disabled={mutationLocked}
+                      onPress={() => setEditingAnswerId(null)}
+                    />
+                  </View>
+                ) : (
+                  <ActionButton
+                    label="Editar mi respuesta"
+                    disabled={mutationLocked}
+                    onPress={() => {
+                      setEditingAnswerId(answer.id);
+                      setAnswerDraft(answer.body);
+                    }}
+                  />
+                )
+              ) : null}
+              {question.viewer.canAcceptAnswers &&
+              question.acceptedAnswerId !== answer.id ? (
+                <ActionButton
+                  label="Aceptar esta respuesta"
+                  disabled={mutationLocked}
+                  onPress={() =>
+                    applyMutation({
+                      kind: "accept-answer",
+                      answerId: answer.id,
+                    })
+                  }
+                />
+              ) : null}
+              {answer.viewer.canReport ? (
+                <QaReportAction
+                  authorityKey={snapshot.authorityKey}
+                  targetType="answer"
+                  targetId={answer.id}
+                />
+              ) : null}
             </View>
           ))
         )}
@@ -594,6 +843,16 @@ function QuestionDetailContent({
         ) : null}
       </View>
 
+      {mutation.kind === "failure" || mutation.kind === "uncertain" ? (
+        <View style={styles.card}>
+          <Text accessibilityRole="alert" style={styles.error}>
+            {mutation.kind === "uncertain"
+              ? "No pudimos confirmar el cambio. Actualizá la conversación antes de volver a intentar."
+              : failureMessage(mutation.failure, mutation.failure.code)}
+          </Text>
+          <ActionButton label="Actualizar conversación" onPress={onRefresh} />
+        </View>
+      ) : null}
       {snapshot.notice ? (
         <Text accessibilityRole="alert" style={styles.success}>
           {snapshot.notice}
@@ -631,6 +890,7 @@ function QuestionDetailContent({
             disabled={
               snapshot.submittingAnswer ||
               snapshot.loadingMoreAnswers ||
+              mutationLocked ||
               snapshot.answerRetryBlocked ||
               answerBody.trim().length < 2
             }
@@ -654,6 +914,10 @@ export function CommunityQuestionComposerScreen() {
 
   const participation =
     authority.scope.kind === "subject" ? authority.scope.participation : null;
+  const nextStep = communityQuestionNextStep(
+    authority.gate,
+    authority.scope.kind,
+  );
   const authorityKey = authority.authorityKey;
   const authorityKeyRef = useRef(authorityKey);
   const activeOperation = useRef<AbortController | null>(null);
@@ -881,21 +1145,35 @@ export function CommunityQuestionComposerScreen() {
       description="La pregunta se publica en tu materia actual y el servidor confirma si tu cuenta puede participar."
     >
       <ActionButton label="Volver a la Red" onPress={() => router.back()} />
-      {authority.gate !== "ready" ? (
+      {nextStep === "gated" ? (
         <GateCard
           gate={authority.gate}
           onRetry={() => void authority.retry()}
         />
-      ) : !participation ? (
+      ) : nextStep === "revalidate" ? (
+        <View style={styles.card}>
+          <Text accessibilityRole="alert" style={styles.copy}>
+            La materia actual ya no coincide con las participaciones validadas
+            por el servidor. Revalidá antes de publicar.
+          </Text>
+          <ActionButton
+            label="Revalidar contexto"
+            onPress={() => void authority.retry()}
+          />
+        </View>
+      ) : nextStep === "configure" ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Elegí una materia actual</Text>
           <Text style={styles.copy}>
-            Para publicar, el contexto académico necesita una materia
-            seleccionada. La Red no elige ni infiere una materia por su cuenta.
+            Para publicar, elegí tu materia desde Contexto académico en Inicio.
+            La Red no elige ni infiere una materia por su cuenta.
           </Text>
-          <ActionButton label="Volver a la Red" onPress={() => router.back()} />
+          <ActionButton
+            label="Configurar contexto académico"
+            onPress={() => router.navigate(ACADEMIC_CONTEXT_HOME_ROUTE)}
+          />
         </View>
-      ) : (
+      ) : participation ? (
         <View style={styles.card}>
           <Text style={styles.note}>Materia actual</Text>
           <Text style={styles.copy}>
@@ -949,7 +1227,7 @@ export function CommunityQuestionComposerScreen() {
             onPress={() => void submit()}
           />
         </View>
-      )}
+      ) : null}
     </ProductSurface>
   );
 }
@@ -1003,8 +1281,30 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#ffffff",
   },
+  questionCardContent: {
+    gap: 7,
+    alignSelf: "stretch",
+    borderRadius: 10,
+  },
   questionCardPressed: {
     backgroundColor: "#f0eff8",
+  },
+  authorAction: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  authorActionPressed: {
+    backgroundColor: "#f0eff8",
+  },
+  authorActionLabel: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#43366a",
+    fontWeight: "600",
   },
   questionState: {
     fontSize: 12,

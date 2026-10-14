@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   mkdir,
   mkdtemp,
+  lstat,
   readFile,
   readdir,
   realpath,
@@ -11,7 +12,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
+import { createReadStream, lstatSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,19 +69,30 @@ export function assertEnvironmentLabel(value, name) {
 }
 
 export function assertNonProductionTarget(value) {
-  const normalized = value.trim().toLowerCase();
-  const forbidden = new Set([
-    'prod',
-    'production',
-    'prd',
-    'live',
-    'public',
-    'public-prod',
-  ]);
-  if (forbidden.has(normalized) || normalized.includes('production')) {
+  const validated = assertEnvironmentLabel(value, 'RESTORE_TARGET_ENV');
+  const normalized = validated.toLowerCase();
+
+  // A descriptive label is not proof of what the supplied credentials target.
+  // Still reject production aliases anywhere in a label, including prod-eu,
+  // restore-prod, live-1 and spelling/case variants, before destructive restore.
+  if (
+    normalized.includes('production') ||
+    /(?:^|[._-])(?:prod|prd|live|public)[a-z0-9]*(?=$|[._-])/u.test(normalized)
+  ) {
     throw new Error('restore target must not be production');
   }
-  return assertEnvironmentLabel(value, 'RESTORE_TARGET_ENV');
+
+  // Require a positive nonproduction designation rather than trying to
+  // enumerate every possible alias for a real production environment.
+  if (
+    !/^(?:restore|drill|dev|development|test|testing|qa|stage|staging|sandbox|local|preview)(?:$|[._-])/u.test(
+      normalized,
+    )
+  ) {
+    throw new Error('restore target must use an explicit non-production label');
+  }
+
+  return validated;
 }
 
 export function assertRootEndpoint(value, name) {
@@ -126,19 +138,50 @@ export function pathIsInside(parent, candidate) {
   );
 }
 
+function canonicalArtifactPath(value) {
+  // The requested leaf may not exist yet. Resolve the nearest existing
+  // ancestor so an external symlink into the repo cannot evade containment
+  // checks before mkdir() is called.
+  let ancestor = value;
+  const missing = [];
+
+  while (true) {
+    try {
+      return path.resolve(realpathSync(ancestor), ...missing.reverse());
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        throw new Error('artifact root path could not be resolved');
+      }
+      // A dangling symlink exists even though realpath reports ENOENT.
+      // Treat it as invalid instead of assuming it is a missing directory.
+      if (lstatSync(ancestor, { throwIfNoEntry: false })) {
+        throw new Error(
+          'artifact root must not contain unresolved symbolic links',
+        );
+      }
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) {
+        throw new Error('artifact root path could not be resolved');
+      }
+      missing.push(path.basename(ancestor));
+      ancestor = parent;
+    }
+  }
+}
+
 export function assertArtifactRootOutsideRepo(value, repoRoot = REPO_ROOT) {
   if (!path.isAbsolute(value)) {
     throw new Error('artifact root must be an absolute path');
   }
 
-  const resolved = path.resolve(value);
-  if (resolved === path.parse(resolved).root) {
+  const canonical = canonicalArtifactPath(path.resolve(value));
+  if (canonical === path.parse(canonical).root) {
     throw new Error('artifact root must not be a filesystem root');
   }
-  if (pathIsInside(repoRoot, resolved)) {
+  if (pathIsInside(realpathSync(repoRoot), canonical)) {
     throw new Error('backup/recovery artifacts must live outside the repository');
   }
-  return resolved;
+  return canonical;
 }
 
 export async function sha256File(filename) {
@@ -341,13 +384,42 @@ export async function readInventory(filename) {
 }
 
 export async function verifyBackupSet(setDirectory) {
+  // Check the bundle path itself, not only its regular child entrypoints.
+  // An aliased set can otherwise validate by reading matching bytes from
+  // a different directory during idempotent backup reuse.
+  const setMetadata = await lstat(setDirectory);
+  if (
+    !setMetadata.isDirectory() ||
+    path.resolve(setDirectory) !== (await realpath(setDirectory))
+  ) {
+    throw new Error('backup set directory must not use symbolic links');
+  }
+
   const manifestPath = path.join(setDirectory, 'manifest.json');
+  // Entry-point symlinks can lead outside the declared recovery set even when
+  // their current bytes happen to match the manifest checksums.
+  const manifestMetadata = await lstat(manifestPath);
+  if (!manifestMetadata.isFile()) {
+    throw new Error('backup manifest must be a regular file');
+  }
   const manifest = validateManifestShape(await readJson(manifestPath));
   const mongoPath = path.join(setDirectory, manifest.mongo.archive);
   const filesPath = path.join(setDirectory, manifest.files.directory);
   const inventoryPath = path.join(setDirectory, manifest.files.inventory);
 
-  const mongoMetadata = await stat(mongoPath);
+  const [mongoMetadata, filesMetadata, inventoryMetadata] = await Promise.all([
+    lstat(mongoPath),
+    lstat(filesPath),
+    lstat(inventoryPath),
+  ]);
+  if (
+    !mongoMetadata.isFile() ||
+    !filesMetadata.isDirectory() ||
+    !inventoryMetadata.isFile()
+  ) {
+    throw new Error('backup set entrypoints must be regular files/directories');
+  }
+
   if (
     mongoMetadata.size !== manifest.mongo.byteSize ||
     (await sha256File(mongoPath)) !== manifest.mongo.sha256

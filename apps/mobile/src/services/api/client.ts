@@ -1,6 +1,8 @@
 import type {
   AcceptedResponse,
   ActionTokenInput,
+  AcademicCatalogSearchResponse,
+  AcademicCatalogSearchInput,
   AcademicAffiliationListResponse,
   AcademicCurrentContextResponse,
   AcademicSubjectParticipationListResponse,
@@ -15,16 +17,22 @@ import type {
   LoginMethodsResponse,
   MobileAuthenticatedSessionResponse,
   PilotHomeResponse,
+  AcademicFeedResponse,
+  ForYouFeedResponse,
   PasswordChangeInput,
   PasswordLoginInput,
   PasswordRecoveryCompleteInput,
   RegisterInput,
   ContextualDiscoveryResponse,
+  CreateAcademicAffiliationInput,
+  CreateAcademicAffiliationResponse,
   PublicProfileResponse,
   ResourceView,
   SearchResponse,
   SearchScope,
   SetAcademicContextInput,
+  UpsertAcademicSubjectParticipationInput,
+  UpsertAcademicSubjectParticipationResponse,
 } from "@losapuntes/contracts";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -383,6 +391,40 @@ export class MobileApiClient {
     );
   }
 
+  academicCatalogSearch(
+    input: AcademicCatalogSearchInput,
+    signal?: AbortSignal,
+  ) {
+    const query = new URLSearchParams({
+      kind: input.kind,
+      q: input.q,
+      limit: String(input.limit),
+    });
+    if (input.cursor) query.set("cursor", input.cursor);
+    if (input.parentId) query.set("parentId", input.parentId);
+
+    return this.request<AcademicCatalogSearchResponse>(
+      `/academic/catalog/search?${query.toString()}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  createAcademicAffiliation(
+    credential: string,
+    input: CreateAcademicAffiliationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<CreateAcademicAffiliationResponse>(
+      "/academic/me/affiliations",
+      {
+        method: "POST",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
   academicSubjects(
     credential: string,
     affiliationId?: string,
@@ -411,11 +453,58 @@ export class MobileApiClient {
     );
   }
 
+  upsertAcademicSubjectParticipation(
+    credential: string,
+    subjectId: string,
+    input: UpsertAcademicSubjectParticipationInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<UpsertAcademicSubjectParticipationResponse>(
+      `/academic/me/subjects/${encodeURIComponent(subjectId)}`,
+      {
+        method: "PUT",
+        credential,
+        body: input,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
   pilotHome(credential: string, signal?: AbortSignal) {
     return this.request<PilotHomeResponse>("/pilot/home", {
       credential,
       ...(signal ? { signal } : {}),
     });
+  }
+
+  academicFeed(
+    credential: string,
+    cursor: string,
+    signal?: AbortSignal,
+  ): Promise<AcademicFeedResponse> {
+    const query = new URLSearchParams({ limit: "6", cursor });
+    return this.request<AcademicFeedResponse>(
+      `/feeds/academic?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
+  forYouFeed(
+    credential: string,
+    cursor: string,
+    mode: "balanced" | "community",
+    signal?: AbortSignal,
+  ): Promise<ForYouFeedResponse> {
+    const query = new URLSearchParams({
+      limit: "6",
+      cursor,
+      mode,
+      order: "ranked",
+    });
+    return this.request<ForYouFeedResponse>(
+      `/feeds/for-you?${query.toString()}`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
   }
 
   search(

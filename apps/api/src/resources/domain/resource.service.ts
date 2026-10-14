@@ -23,7 +23,25 @@ import {
   type ResourceStore,
   type SavedResourceCursor,
 } from './resource.store';
-import type { ResourceRecord, ResourceSearchCursor } from './resource.types';
+import {
+  RESOURCE_EXPORT_STORE,
+  type ResourceExportStore,
+} from './resource-export.store';
+import type {
+  ResourceAccountExportShareCursor,
+  ResourceRecord,
+  ResourceSearchCursor,
+} from './resource.types';
+import {
+  decodeShareGrantCursor,
+  encodeShareGrantCursor,
+} from './resource-shares-cursor';
+import {
+  decodeOwnedResourceCursor,
+  encodeOwnedResourceCursor,
+} from './resource-owned-cursor';
+
+const RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT = 100;
 
 function cleanText(value: string): string {
   return value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -141,11 +159,115 @@ function decodeSavedCursor(value?: string): SavedResourceCursor | undefined {
   }
 }
 
+function encodeResourceExportCursor(id: string): string {
+  return Buffer.from(JSON.stringify({ id }), 'utf8').toString('base64url');
+}
+
+function decodeResourceExportCursor(value: string | null): string | undefined {
+  if (value === null) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    if (
+      Object.keys(parsed).length !== 1 ||
+      typeof parsed.id !== 'string' ||
+      parsed.id.length === 0
+    ) {
+      throw new Error('Invalid Resource export cursor shape');
+    }
+
+    return parsed.id;
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_EXPORT_CURSOR_INVALID',
+      message: 'Resource export cursor is invalid',
+    });
+  }
+}
+
+function assertResourceExportLimit(limit: number): void {
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT
+  ) {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_EXPORT_PAGE_LIMIT_INVALID',
+      message: 'Resource export page limit is invalid',
+    });
+  }
+}
+
+function encodeResourceShareExportCursor(
+  cursor: ResourceAccountExportShareCursor,
+): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function decodeResourceShareExportCursor(
+  value: string | null,
+): ResourceAccountExportShareCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+    const keys = Object.keys(parsed);
+    const hasGranteeUserId = Object.prototype.hasOwnProperty.call(
+      parsed,
+      'granteeUserId',
+    );
+
+    if (
+      keys.length !== (hasGranteeUserId ? 2 : 1) ||
+      keys.some((key) => key !== 'resourceId' && key !== 'granteeUserId') ||
+      typeof parsed.resourceId !== 'string' ||
+      parsed.resourceId.length === 0 ||
+      (hasGranteeUserId &&
+        (typeof parsed.granteeUserId !== 'string' ||
+          parsed.granteeUserId.length === 0))
+    ) {
+      throw new Error('Invalid Resource share export cursor shape');
+    }
+
+    return {
+      resourceId: parsed.resourceId,
+      ...(hasGranteeUserId
+        ? { granteeUserId: parsed.granteeUserId as string }
+        : {}),
+    };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_SHARE_EXPORT_CURSOR_INVALID',
+      message: 'Resource share export cursor is invalid',
+    });
+  }
+}
+
+function decodeResourceSaveExportCursor(
+  value: string | null,
+): SavedResourceCursor | undefined {
+  if (value === null) return undefined;
+  if (!value) {
+    throw new UnprocessableEntityException({
+      code: 'RESOURCE_SAVED_CURSOR_INVALID',
+      message: 'Saved Resource cursor is invalid',
+    });
+  }
+  return decodeSavedCursor(value);
+}
+
 @Injectable()
 export class ResourceService {
   constructor(
     @Inject(RESOURCE_STORE)
     private readonly store: ResourceStore,
+    @Inject(RESOURCE_EXPORT_STORE)
+    private readonly exportStore: ResourceExportStore,
     private readonly files: FileService,
     private readonly academic: AcademicService,
     private readonly profiles: ProfileService,
@@ -311,6 +433,60 @@ export class ResourceService {
     return { resource: await this.projection(updated, userId) };
   }
 
+  async listShareGrants(
+    userId: string,
+    resourceId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    const resource = await this.requireOwned(resourceId, userId);
+    if (resource.visibility !== 'shared') {
+      throw new ConflictException({
+        code: 'RESOURCE_SHARE_VISIBILITY_REQUIRED',
+        message: 'Resource must be shared to list explicit access',
+      });
+    }
+
+    const decoded = decodeShareGrantCursor(
+      cursor,
+      resourceId,
+      resource.revision,
+    );
+    const page = await this.store.listShareGrants({
+      resourceId,
+      limit,
+      ...(decoded ? { after: { shareId: decoded.shareId } } : {}),
+    });
+
+    const attributions = await this.profiles.getAttributionsForUsers(
+      page.items.map((item) => item.userId),
+    );
+    const items = page.items.flatMap((grant) => {
+      const profile = attributions.get(grant.userId);
+      if (!profile) return [];
+      return [{
+        profileId: profile.profileId,
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+        grantedAt: grant.createdAt.toISOString(),
+      }];
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items,
+      nextCursor:
+        page.hasMore && last
+          ? encodeShareGrantCursor({
+              resourceId,
+              resourceRevision: resource.revision,
+              shareId: last.shareId,
+            })
+          : null,
+      resourceRevision: resource.revision,
+    };
+  }
+
   async grantShare(userId: string, id: string, profileId: string) {
     const resource = await this.requireOwned(id, userId);
     if (resource.visibility !== 'shared') {
@@ -352,6 +528,76 @@ export class ResourceService {
     await this.store.removeSave(id, userId);
   }
 
+  async getOwnedStatistics(userId: string) {
+    const statistics = await this.store.getOwnedStatistics(userId);
+    return {
+      ...statistics,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async listOwnedSubjects(userId: string) {
+    const page = await this.store.listOwnedSubjects(userId);
+    return {
+      items: await Promise.all(
+        page.items.map(async (row) => {
+          const { node } = await this.academic.getCatalogNode(row.subjectId);
+          return {
+            subjectId: row.subjectId,
+            name: node.name,
+            count: row.count,
+          };
+        }),
+      ),
+      truncated: page.truncated,
+    };
+  }
+
+  async listOwned(
+    userId: string,
+    input: {
+      limit: number;
+      visibility?: ResourceRecord['visibility'];
+      q?: string;
+      subjectId?: string;
+      order?: 'newest' | 'oldest';
+      cursor?: string;
+    },
+  ) {
+    const q = input.q ? normalized(input.q) : undefined;
+    const filters = {
+      ...(q ? { q } : {}),
+      ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+      ...(input.order ? { order: input.order } : {}),
+    };
+    const after = decodeOwnedResourceCursor(
+      input.cursor,
+      input.visibility,
+      filters,
+    );
+    const page = await this.store.listOwnedResources({
+      authorUserId: userId,
+      limit: input.limit,
+      ...(input.visibility ? { visibility: input.visibility } : {}),
+      ...filters,
+      ...(after ? { after } : {}),
+    });
+    const last = page.items.at(-1);
+    return {
+      items: await Promise.all(
+        page.items.map((row) => this.projection(row, userId)),
+      ),
+      nextCursor:
+        page.hasMore && last
+          ? encodeOwnedResourceCursor(
+              { createdAt: last.createdAt, id: last.id },
+              input.visibility,
+              filters,
+            )
+          : null,
+    };
+  }
+
   async listSaved(userId: string, limit: number, cursor?: string) {
     const page = await this.store.listSavedResources({
       userId,
@@ -381,6 +627,102 @@ export class ResourceService {
               resourceId: last.resourceId,
             })
           : null,
+    };
+  }
+
+  async listAccountExportResources(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    assertResourceExportLimit(input.limit);
+    const page = await this.exportStore.listAuthoredResourcesForExport({
+      authorUserId: userId,
+      limit: input.limit,
+      afterId: decodeResourceExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        tags: row.tags,
+        subjectId: row.subjectId,
+        courseOfferingId: row.courseOfferingId,
+        visibility: row.visibility,
+        moderationState: row.moderationState,
+        revision: row.revision,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last ? encodeResourceExportCursor(last.id) : null,
+    };
+  }
+
+  async listAccountExportSaves(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    assertResourceExportLimit(input.limit);
+    const page = await this.store.listSavedResources({
+      userId,
+      limit: input.limit,
+      after: decodeResourceSaveExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => ({
+        resourceId: row.resourceId,
+        savedAt: row.createdAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeSavedCursor({
+              createdAt: last.createdAt,
+              resourceId: last.resourceId,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportShareGrants(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ) {
+    assertResourceExportLimit(input.limit);
+    const page =
+      await this.exportStore.listAuthoredResourceShareGrantsForExport({
+        authorUserId: userId,
+        limit: input.limit,
+        after: decodeResourceShareExportCursor(input.cursor),
+      });
+    const profileIds = await this.profiles.getProfileIdsForAccountExport(
+      page.items.map((row) => row.granteeUserId),
+    );
+
+    const items = page.items.map((row) => {
+      const granteeProfileId = profileIds.get(row.granteeUserId);
+      if (!granteeProfileId) {
+        throw new Error(
+          'Resource share export references a missing recipient Profile',
+        );
+      }
+
+      return {
+        resourceId: row.resourceId,
+        granteeProfileId,
+        grantedAt: row.grantedAt.toISOString(),
+      };
+    });
+
+    return {
+      items,
+      nextCursor: page.nextCursor
+        ? encodeResourceShareExportCursor(page.nextCursor)
+        : null,
     };
   }
 

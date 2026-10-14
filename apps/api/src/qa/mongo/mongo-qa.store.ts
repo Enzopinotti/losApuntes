@@ -11,9 +11,11 @@ import type {
   QaStore,
 } from '../domain/qa.store';
 import type {
+  AnswerAccountExportRow,
   AnswerRecord,
   QaReportRecord,
   QuestionCursor,
+  QuestionAccountExportRow,
   QuestionRecord,
   QuestionState,
 } from '../domain/qa.types';
@@ -50,6 +52,63 @@ export class MongoQaStore implements QaStore {
     @InjectModel(Notification.name)
     private readonly notifications: Model<Notification>,
   ) {}
+
+  async listAuthoredQuestionsForExport(
+    input: Parameters<QaStore['listAuthoredQuestionsForExport']>[0],
+  ): ReturnType<QaStore['listAuthoredQuestionsForExport']> {
+    const rows = await this.questions
+      .find({
+        authorUserId: input.authorUserId,
+        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
+      })
+      .select({
+        _id: 0,
+        id: 1,
+        subjectId: 1,
+        courseOfferingId: 1,
+        title: 1,
+        body: 1,
+        state: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<QuestionAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
+  async listAuthoredAnswersForExport(
+    input: Parameters<QaStore['listAuthoredAnswersForExport']>[0],
+  ): ReturnType<QaStore['listAuthoredAnswersForExport']> {
+    const rows = await this.answers
+      .find({
+        authorUserId: input.authorUserId,
+        ...(input.afterId ? { id: { $gt: input.afterId } } : {}),
+      })
+      .select({
+        _id: 0,
+        id: 1,
+        questionId: 1,
+        body: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ id: 1 })
+      .limit(input.limit + 1)
+      .lean<AnswerAccountExportRow[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
 
   async createQuestion(input: CreateQuestionRecord): Promise<QuestionRecord> {
     const created = await this.questions.create(input);

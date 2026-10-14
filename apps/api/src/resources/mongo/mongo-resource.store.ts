@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, FilterQuery, Model } from 'mongoose';
+import { Types, type Connection, type FilterQuery, type Model, type PipelineStage } from 'mongoose';
 
 import type { FileAssetRecord } from '../../files/domain/file.types';
 import { FileAsset } from '../../files/mongo/file.mongo-schema';
@@ -10,6 +10,8 @@ import {
   type ResourceStore,
   type UpdateResourceRecord,
 } from '../domain/resource.store';
+import type { SavedResourceSearchStore } from '../domain/resource-saved-search.store';
+import { authorizedSavedJoinStages } from './saved-authorized-lookup-stages';
 import type {
   ResourceRecord,
   ResourceReportRecord,
@@ -61,8 +63,45 @@ function escapeRegex(value: string): string {
     .join('');
 }
 
+const SAVED_ACCENT_GROUPS: Record<string, string> = {
+  a: '[aáàâä]',
+  á: '[aáàâä]',
+  à: '[aáàâä]',
+  â: '[aáàâä]',
+  ä: '[aáàâä]',
+  e: '[eéèêë]',
+  é: '[eéèêë]',
+  è: '[eéèêë]',
+  ê: '[eéèêë]',
+  ë: '[eéèêë]',
+  i: '[iíìîï]',
+  í: '[iíìîï]',
+  ì: '[iíìîï]',
+  î: '[iíìîï]',
+  ï: '[iíìîï]',
+  o: '[oóòôö]',
+  ó: '[oóòôö]',
+  ò: '[oóòôö]',
+  ô: '[oóòôö]',
+  ö: '[oóòôö]',
+  u: '[uúùûü]',
+  ú: '[uúùûü]',
+  ù: '[uúùûü]',
+  û: '[uúùûü]',
+  ü: '[uúùûü]',
+};
+
+/** Existing searchText is lowercased but retains accents; do not migrate it. */
+export function savedMetadataRegex(query: string): string {
+  return [...query].map((character) =>
+    SAVED_ACCENT_GROUPS[character] ?? escapeRegex(character),
+  ).join('');
+}
+
+export const SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS = 8_000;
+
 @Injectable()
-export class MongoResourceStore implements ResourceStore {
+export class MongoResourceStore implements ResourceStore, SavedResourceSearchStore {
   constructor(
     @InjectConnection()
     private readonly connection: Connection,
@@ -190,6 +229,38 @@ export class MongoResourceStore implements ResourceStore {
     }
   }
 
+  async listShareGrants(
+    input: Parameters<ResourceStore['listShareGrants']>[0],
+  ): ReturnType<ResourceStore['listShareGrants']> {
+    const rows = await this.shares
+      .find({
+        resourceId: input.resourceId,
+        ...(input.after
+          ? { _id: { $gt: new Types.ObjectId(input.after.shareId) } }
+          : {}),
+      })
+      .select({ _id: 1, userId: 1, createdAt: 1 })
+      .sort({ _id: 1 })
+      .limit(input.limit + 1)
+      .lean<
+        Array<{
+          _id: Types.ObjectId;
+          userId: string;
+          createdAt: Date;
+        }>
+      >()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit).map((row) => ({
+        shareId: row._id.toHexString(),
+        userId: row.userId,
+        createdAt: row.createdAt,
+      })),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
   async hasShare(resourceId: string, userId: string): Promise<boolean> {
     return Boolean(await this.shares.exists({ resourceId, userId }));
   }
@@ -222,6 +293,184 @@ export class MongoResourceStore implements ResourceStore {
     await this.saves.deleteOne({ resourceId, userId }).exec();
   }
 
+  async getOwnedStatistics(
+    authorUserId: string,
+  ): ReturnType<ResourceStore['getOwnedStatistics']> {
+    type Row = {
+      publications: Array<{ _id: ResourceVisibility; count: number }>;
+      totals: Array<{ saves: number; shareGrants: number }>;
+      topResources: Array<{
+        id: string;
+        title: string;
+        visibility: ResourceVisibility;
+        saves: number;
+        shareGrants: number;
+      }>;
+    };
+
+    const [row] = await this.resources
+      .aggregate<Row>([
+        {
+          $match: {
+            authorUserId,
+            moderationState: 'available',
+          },
+        },
+        {
+          $lookup: {
+            from: 'resource_saves',
+            let: { resourceId: '$id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ['$resourceId', '$$resourceId'] },
+                },
+              },
+              { $count: 'count' },
+            ],
+            as: 'saveCounts',
+          },
+        },
+        {
+          $lookup: {
+            from: 'resource_shares',
+            let: { resourceId: '$id', visibility: '$visibility' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$resourceId', '$$resourceId'] },
+                      { $eq: ['$$visibility', 'shared'] },
+                    ],
+                  },
+                },
+              },
+              { $count: 'count' },
+            ],
+            as: 'shareCounts',
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            id: 1,
+            title: 1,
+            visibility: 1,
+            saves: {
+              $ifNull: [{ $arrayElemAt: ['$saveCounts.count', 0] }, 0],
+            },
+            shareGrants: {
+              $ifNull: [{ $arrayElemAt: ['$shareCounts.count', 0] }, 0],
+            },
+          },
+        },
+        {
+          $facet: {
+            publications: [
+              { $group: { _id: '$visibility', count: { $sum: 1 } } },
+            ],
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  saves: { $sum: '$saves' },
+                  shareGrants: { $sum: '$shareGrants' },
+                },
+              },
+            ],
+            topResources: [
+              { $sort: { saves: -1, shareGrants: -1, id: 1 } },
+              { $limit: 5 },
+            ],
+          },
+        },
+      ])
+      .exec();
+
+    const counts = {
+      total: 0,
+      private: 0,
+      shared: 0,
+      public: 0,
+    };
+    for (const group of row?.publications ?? []) {
+      if (group._id === 'private' ||
+          group._id === 'shared' ||
+          group._id === 'public') {
+        counts[group._id] = group.count;
+        counts.total += group.count;
+      }
+    }
+
+    return {
+      publications: counts,
+      currentSaves: row?.totals[0]?.saves ?? 0,
+      activeShareGrants: row?.totals[0]?.shareGrants ?? 0,
+      topResources: row?.topResources ?? [],
+    };
+  }
+
+  async listOwnedSubjects(
+    authorUserId: string,
+  ): ReturnType<ResourceStore['listOwnedSubjects']> {
+    const rows = await this.resources
+      .aggregate<{ subjectId: string; count: number }>([
+        { $match: { authorUserId, moderationState: 'available' } },
+        { $group: { _id: '$subjectId', count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 51 },
+        { $project: { _id: 0, subjectId: '$_id', count: 1 } },
+      ])
+      .exec();
+    return { items: rows.slice(0, 50), truncated: rows.length > 50 };
+  }
+
+  async listOwnedResources(
+    input: Parameters<ResourceStore['listOwnedResources']>[0],
+  ): ReturnType<ResourceStore['listOwnedResources']> {
+    const rows = await this.resources
+      .find({
+        authorUserId: input.authorUserId,
+        moderationState: 'available',
+        ...(input.visibility ? { visibility: input.visibility } : {}),
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+        ...(input.q
+          ? {
+              searchText: {
+                $regex: escapeRegex(input.q),
+                $options: 'i',
+              },
+            }
+          : {}),
+        ...(input.after
+          ? {
+              $or: [
+                {
+                  createdAt: {
+                    [input.order === 'oldest' ? '$gt' : '$lt']:
+                      input.after.createdAt,
+                  },
+                },
+                {
+                  createdAt: input.after.createdAt,
+                  id: { $gt: input.after.id },
+                },
+              ],
+            }
+          : {}),
+      })
+      .sort({ createdAt: input.order === 'oldest' ? 1 : -1, id: 1 })
+      .limit(input.limit + 1)
+      .lean<ResourceRecord[]>()
+      .exec();
+
+    return {
+      items: rows.slice(0, input.limit),
+      hasMore: rows.length > input.limit,
+    };
+  }
+
   async listSavedResources(
     input: Parameters<ResourceStore['listSavedResources']>[0],
   ): ReturnType<ResourceStore['listSavedResources']> {
@@ -249,6 +498,138 @@ export class MongoResourceStore implements ResourceStore {
       items: rows.slice(0, input.limit),
       hasMore: rows.length > input.limit,
     };
+  }
+
+  async searchSavedResources(
+    input: Parameters<SavedResourceSearchStore['searchSavedResources']>[0],
+  ): ReturnType<SavedResourceSearchStore['searchSavedResources']> {
+    const byTitle = input.order === 'title';
+    // Only saves of the current viewer enter the pipeline. Metadata and
+    // authorization are resolved before either sort's final page limit.
+    const stages: PipelineStage[] = [
+      {
+        $match: {
+          userId: input.userId,
+          ...(!byTitle && input.after
+            ? {
+                $or: [
+                  { createdAt: { $lt: input.after.createdAt } },
+                  {
+                    createdAt: input.after.createdAt,
+                    resourceId: { $gt: input.after.resourceId },
+                  },
+                ],
+              }
+            : {}),
+        },
+      },
+      ...(!byTitle
+        ? [{ $sort: { createdAt: -1, resourceId: 1 } } as PipelineStage]
+        : []),
+      // Discard Mongo _id/updatedAt before joining and sorting many saves.
+      { $project: { _id: 0, resourceId: 1, createdAt: 1 } },
+      ...authorizedSavedJoinStages(input.userId, {
+        ...(input.q ? { searchRegex: savedMetadataRegex(input.q) } : {}),
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+      }),
+      ...(byTitle && input.titleAfter
+        ? [{
+            $match: {
+              $or: [
+                { '__resource.title': { $gt: input.titleAfter.title } },
+                {
+                  '__resource.title': input.titleAfter.title,
+                  resourceId: { $gt: input.titleAfter.resourceId },
+                },
+              ],
+            },
+          } as PipelineStage]
+        : []),
+      ...(byTitle
+        ? [{ $sort: { '__resource.title': 1, resourceId: 1 } } as PipelineStage]
+        : []),
+      { $limit: input.limit + 1 },
+      {
+        $project: {
+          _id: 0,
+          resourceId: 1,
+          createdAt: 1,
+          ...(byTitle ? { title: '$__resource.title' } : {}),
+        },
+      },
+    ];
+    const aggregate = this.saves.aggregate<{
+      resourceId: string;
+      createdAt: Date;
+      title?: string;
+    }>(stages).option({
+      allowDiskUse: true,
+      maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+    });
+    // Strength 1 applies Spanish case/accent-insensitive ordering to both
+    // $sort and title cursor comparisons. UUID is the stable tie-breaker.
+    const candidates = byTitle
+      ? await aggregate.collation({ locale: 'es', strength: 1 }).exec()
+      : await aggregate.exec();
+    return {
+      items: candidates.slice(0, input.limit),
+      hasMore: candidates.length > input.limit,
+    };
+  }
+
+  async isSavedSearchAnchorCurrent(
+    input: Parameters<SavedResourceSearchStore['isSavedSearchAnchorCurrent']>[0],
+  ): ReturnType<SavedResourceSearchStore['isSavedSearchAnchorCurrent']> {
+    const anchor = input.titleAfter ?? input.after;
+    if (!anchor) return false;
+
+    // Indexed (userId, resourceId) bookmark lookup. Filtering and current
+    // Resource/share permissions are checked BEFORE accepting continuation.
+    const stages: PipelineStage[] = [
+      {
+        $match: {
+          userId: input.userId,
+          resourceId: anchor.resourceId,
+          ...(input.after ? { createdAt: input.after.createdAt } : {}),
+        },
+      },
+      { $project: { _id: 0, resourceId: 1 } },
+      ...authorizedSavedJoinStages(input.userId, {
+        ...(input.q ? { searchRegex: savedMetadataRegex(input.q) } : {}),
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+      }),
+      ...(input.titleAfter
+        ? [{ $match: { '__resource.title': input.titleAfter.title } } as PipelineStage]
+        : []),
+      { $limit: 1 },
+      { $project: { _id: 0, resourceId: 1 } },
+    ];
+    const query = this.saves
+      .aggregate<{ resourceId: string }>(stages)
+      .option({ maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS });
+
+    const rows = input.titleAfter
+      ? await query.collation({ locale: 'es', strength: 1 }).exec()
+      : await query.exec();
+    return rows.length > 0;
+  }
+
+  async listSavedSubjectFacets(
+    userId: string,
+  ): ReturnType<SavedResourceSearchStore['listSavedSubjectFacets']> {
+    const rows = await this.saves.aggregate<{ subjectId: string; count: number }>([
+      { $match: { userId } },
+      { $project: { _id: 0, resourceId: 1 } },
+      ...authorizedSavedJoinStages(userId, { facets: true }),
+      { $group: { _id: '$__resource.subjectId', count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+      { $limit: 101 },
+      { $project: { _id: 0, subjectId: '$_id', count: 1 } },
+    ]).option({
+      allowDiskUse: true,
+      maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+    }).exec();
+    return { items: rows.slice(0, 100), truncated: rows.length > 100 };
   }
 
   async searchAuthorized(input: {
@@ -380,7 +761,7 @@ export class MongoResourceStore implements ResourceStore {
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: ['$resourceId', '$resourceId'] },
+                      { $eq: ['$resourceId', '$$resourceId'] },
                       { $eq: ['$userId', input.viewerUserId] },
                     ],
                   },
@@ -395,7 +776,12 @@ export class MongoResourceStore implements ResourceStore {
           $match: {
             $or: [
               { visibility: 'public' },
-              { '__viewerShares.0': { $exists: true } },
+              {
+                $and: [
+                  { visibility: 'shared' },
+                  { '__viewerShares.0': { $exists: true } },
+                ],
+              },
             ],
           },
         },
