@@ -9,7 +9,9 @@ function file(path: string): string {
 test("statistics are reachable only through Mis apuntes, not saved resources", () => {
   const owned = file("../src/features/resources/owned-resources-screen.tsx");
   const route = file("../src/app/my-resource-statistics.tsx");
-  const screen = file("../src/features/resources/resource-owner-stats-screen.tsx");
+  const screen = file(
+    "../src/features/resources/resource-owner-stats-screen.tsx",
+  );
   assert.match(owned, /router\.push\("\/my-resource-statistics"\)/u);
   assert.match(route, /OwnerResourceStatisticsScreen/u);
   assert.match(screen, /title="Estadísticas de mis apuntes"/u);
@@ -17,7 +19,9 @@ test("statistics are reachable only through Mis apuntes, not saved resources", (
 });
 
 test("stats UI labels exactly what is counted, not imagined downloads", () => {
-  const screen = file("../src/features/resources/resource-owner-stats-screen.tsx");
+  const screen = file(
+    "../src/features/resources/resource-owner-stats-screen.tsx",
+  );
   assert.match(screen, /Guardados vigentes/u);
   assert.match(screen, /Permisos individuales activos/u);
   assert.match(screen, /No representa/u);
@@ -36,14 +40,13 @@ test("stats API is authenticated and owned by session identity", () => {
 });
 
 test("stats backend filters out other authors and hidden publications", () => {
-  const controller = file(
-    "../../api/src/resources/resources.controller.ts",
-  );
-  const mongo = file(
-    "../../api/src/resources/mongo/mongo-resource.store.ts",
-  );
+  const controller = file("../../api/src/resources/resources.controller.ts");
+  const mongo = file("../../api/src/resources/mongo/mongo-resource.store.ts");
   assert.match(controller, /@Get\('mine\/stats'\)/u);
-  assert.match(controller, /this\.resources\.getOwnedStatistics\(request\.user\.id\)/u);
+  assert.match(
+    controller,
+    /this\.resources\.getOwnedStatistics\(request\.user\.id\)/u,
+  );
   assert.match(mongo, /authorUserId,/u);
   assert.match(mongo, /moderationState: 'available'/u);
   assert.match(mongo, /\$lookup:/u);
