@@ -3,9 +3,9 @@ import { UnprocessableEntityException } from '@nestjs/common';
 
 import type { SavedResourceCursor } from './resource.store';
 
-function scopeHash(userId: string, q: string): string {
+function scopeHash(userId: string, q: string, subjectId?: string): string {
   return createHash('sha256')
-    .update(JSON.stringify([userId, q]))
+    .update(JSON.stringify(subjectId ? [userId, q, subjectId] : [userId, q]))
     .digest('hex');
 }
 
@@ -25,13 +25,14 @@ export function encodeSavedSearchCursor(
   cursor: SavedResourceCursor,
   userId: string,
   q: string,
+  subjectId?: string,
 ): string {
   return Buffer.from(
     JSON.stringify({
       version: 1,
       createdAt: cursor.createdAt.toISOString(),
       resourceId: cursor.resourceId,
-      scope: scopeHash(userId, q),
+      scope: scopeHash(userId, q, subjectId),
     }),
     'utf8',
   ).toString('base64url');
@@ -41,6 +42,7 @@ export function decodeSavedSearchCursor(
   value: string | undefined,
   userId: string,
   q: string,
+  subjectId?: string,
 ): SavedResourceCursor | undefined {
   if (!value) return undefined;
 
@@ -63,7 +65,7 @@ export function decodeSavedSearchCursor(
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
         fields.resourceId,
       ) ||
-      fields.scope !== scopeHash(userId, q)
+      fields.scope !== scopeHash(userId, q, subjectId)
     ) return invalidCursor();
 
     const createdAt = new Date(fields.createdAt);
