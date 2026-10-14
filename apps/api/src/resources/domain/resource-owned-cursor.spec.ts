@@ -29,7 +29,7 @@ describe('owned resource listing cursor', () => {
   });
 
   it('does not embed internal author identity or credentials', () => {
-    const data = JSON.parse(
+    const data: unknown = JSON.parse(
       Buffer.from(
         encodeOwnedResourceCursor(cursor, 'private'),
         'base64url',
@@ -124,7 +124,7 @@ describe('owned resource listing cursor', () => {
 
   it('rejects injection-shaped and extra-field v2 cursor payloads', () => {
     const good = encodeOwnedResourceCursor(cursor, undefined, { q: 'álgebra' });
-    const payload = JSON.parse(Buffer.from(good, 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(good, 'base64url').toString('utf8')) as unknown as Record<string, unknown>;
     for (const malformed of [
       { ...payload, q: { $gt: '' } },
       { ...payload, subjectId: { $ne: null } },
