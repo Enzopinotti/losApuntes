@@ -42,9 +42,9 @@ describe('Mongo saved-library full-collection search', () => {
       }),
     ).resolves.toBe(true);
 
-    const stages = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const stages = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     expect(stages[0]).toEqual({
       $match: {
         userId: 'viewer-a',
@@ -88,9 +88,9 @@ describe('Mongo saved-library full-collection search', () => {
       }),
     ).resolves.toBe(true);
     expect(collation).toHaveBeenCalledWith({ locale: 'es', strength: 1 });
-    const stages = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const stages = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     const text = JSON.stringify(stages);
     expect(text).toContain(
       '"subjectId":"22222222-2222-4222-8222-222222222222"',
@@ -169,9 +169,9 @@ describe('Mongo saved-library full-collection search', () => {
       after,
     });
 
-    const stages = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const stages = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     expect(stages[0]).toEqual({
       $match: {
         userId: 'owner-1',
@@ -217,9 +217,9 @@ describe('Mongo saved-library full-collection search', () => {
       subjectId: '11111111-1111-4111-8111-111111111111',
       limit: 25,
     });
-    const stages = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const stages = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     const text = JSON.stringify(stages);
     expect(text).toContain(
       '"subjectId":"11111111-1111-4111-8111-111111111111"',
@@ -240,9 +240,9 @@ describe('Mongo saved-library full-collection search', () => {
       },
     ]);
     await store.listSavedSubjectFacets('owner-1');
-    const stages = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const stages = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     const text = JSON.stringify(stages);
     expect(stages[0]).toEqual({ $match: { userId: 'owner-1' } });
     expect(stages[1]).toEqual({ $project: { _id: 0, resourceId: 1 } });
@@ -288,9 +288,9 @@ describe('Mongo saved-library full-collection search', () => {
     expect(page.items).toHaveLength(1);
     expect(page.items[0]?.title).toBe('Álgebra');
     expect(collation).toHaveBeenCalledWith({ locale: 'es', strength: 1 });
-    const stages = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const stages = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     const aclIndex = stages.findIndex(
       (stage) =>
         '$match' in stage &&
@@ -334,9 +334,9 @@ describe('Mongo saved-library full-collection search', () => {
       q: 'alg',
       limit: 25,
     });
-    const stages = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const stages = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     expect(stages[1]).toEqual({ $sort: { createdAt: -1, resourceId: 1 } });
     expect(collation).not.toHaveBeenCalled();
   });
