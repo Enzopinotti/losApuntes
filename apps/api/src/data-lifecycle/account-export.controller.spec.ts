@@ -3,6 +3,7 @@ import {
   GoneException,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 
@@ -12,6 +13,7 @@ import type { AccountExportArtifactStorage } from './storage/account-export-arti
 import { AccountExportController } from './account-export.controller';
 
 const exportId = '123e4567-e89b-42d3-a456-426614174000';
+const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 
 function fixture() {
   const exports = {
@@ -80,6 +82,7 @@ describe('AccountExportController', () => {
       kind: 'available',
       generation: '123e4567-e89b-42d3-a456-426614174001',
       byteLength: content.byteLength,
+      sha256: digest(content),
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
@@ -136,6 +139,7 @@ describe('AccountExportController', () => {
       kind: 'available',
       generation: '123e4567-e89b-42d3-a456-426614174001',
       byteLength: 64,
+      sha256: 'a'.repeat(64),
     });
     let signal: AbortSignal | undefined;
     let finishRead!: () => void;
@@ -187,6 +191,7 @@ describe('AccountExportController', () => {
       kind: 'available',
       generation: '123e4567-e89b-42d3-a456-426614174001',
       byteLength: 1,
+      sha256: digest('x'),
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
