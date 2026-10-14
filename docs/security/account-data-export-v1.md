@@ -166,7 +166,7 @@ blank, padded/noncanonical, or duplicate ids during dependency wiring. This
 prevents two domains from silently claiming the same export section or exposing
 an id that differs from its registry key.
 
-The DataLifecycle module wiring contract instantiates its actual contributor factory, asserts the exact current 30-section set, and assembles those contributors with a sentinel owner. It checks that every adapter receives that exact owner and every paginated call keeps the 100-record budget. A dropped or misaligned `inject`/`useFactory` entry therefore fails the contract before it can silently omit a v1 section.
+The DataLifecycle module wiring contract instantiates its actual contributor factory, asserts the exact current 30-section set, and assembles those contributors with a sentinel owner. It checks that every adapter receives that exact owner and every paginated call keeps the 100-record budget. A dropped or misaligned `inject`/`useFactory` entry therefore fails the contract before it can silently omit a v1 section. The production Nest factory also performs a **runtime fail-closed inventory assertion** against the immutable v1 30-section list before exposing a registry. This protects deployed workers even when tests were skipped: a missing, duplicated, renamed or previously unreviewed section stops module initialization instead of silently publishing a partial v1 JSON. Isolated registry fixtures may still use subsets for targeted tests; the real factory alone enforces completeness. A future v2 section set requires explicit product/contract versioning, not adding an unreviewed field to v1.
 
 The `account` projection is allowlisted at query time. The Mongo read selects
 only the fields needed by the portable account record; password hashes,
