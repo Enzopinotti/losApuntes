@@ -210,11 +210,15 @@ Removes the actor's save relationship.
 
 ### GET /resources/saved
 
+Requires active session. Returns `Cache-Control: private, no-store`. Lists the saved collection in descending save order with the existing legacy cursor contract.
+
+### GET /resources/saved/search
+
 Requires active session. Returns `Cache-Control: private, no-store`.
 
-- `q` optional metadata query, 2–120 characters: title, description and tags, with case-insensitive matching and Spanish accent variants. Author/Subject names are not indexed here.
+- `q` **required** metadata query, 2–120 characters: title, description and tags, with case-insensitive matching and Spanish accent variants. Author/Subject names are not indexed here.
 - `limit` 1–50, default 25; `cursor` is opaque.
-- Without `q`, existing saved-list behavior and legacy cursors remain unchanged.
+- Normal listing without `q` remains on `GET /resources/saved`; its legacy cursors remain unchanged.
 - With `q`, the server searches every saved relation for the current account and preserves descending save order, rather than filtering only an already-loaded client page.
 - Search joins and filters current resource visibility, moderation and metadata before applying the page limit. The service rechecks readability during projection.
 - Filtered cursors are scoped to the actor and normalized query. Cross-query, cross-account and legacy-cursor mixing fails with `RESOURCE_SAVED_SEARCH_CURSOR_INVALID` (422).
