@@ -59,7 +59,12 @@ function resource(id: string, subjectId: string): ResourceView {
       },
       courseOffering: null,
     },
-    file: { id, filename: `${id}.pdf`, mimeType: "application/pdf", byteSize: 1024 },
+    file: {
+      id,
+      filename: `${id}.pdf`,
+      mimeType: "application/pdf",
+      byteSize: 1024,
+    },
     capabilities: { edit: false, manageShares: false },
     revision: 1,
     createdAt: "2026-10-14T12:00:00.000Z",
@@ -68,14 +73,14 @@ function resource(id: string, subjectId: string): ResourceView {
 }
 
 test("context resolves participation ID to canonical Subject, never treats it as Subject ID", () => {
-  const selected = homeSelectedCurrentSubject(
-    context(currentParticipationId),
-    [
-      participation("55555555-5555-4555-8555-555555555555", otherSubjectId),
-      participation(currentParticipationId, currentSubjectId),
-    ],
-  );
-  assert.deepEqual(selected, { subjectId: currentSubjectId, name: "Análisis Matemático" });
+  const selected = homeSelectedCurrentSubject(context(currentParticipationId), [
+    participation("55555555-5555-4555-8555-555555555555", otherSubjectId),
+    participation(currentParticipationId, currentSubjectId),
+  ]);
+  assert.deepEqual(selected, {
+    subjectId: currentSubjectId,
+    name: "Análisis Matemático",
+  });
   assert.notEqual(selected?.subjectId, currentParticipationId);
 });
 
@@ -83,13 +88,25 @@ test("no context, unknown participation, planned participation and invalid Subje
   const current = participation(currentParticipationId, currentSubjectId);
   assert.equal(homeSelectedCurrentSubject(null, [current]), null);
   assert.equal(homeSelectedCurrentSubject(context(), [current]), null);
-  assert.equal(homeSelectedCurrentSubject(context("66666666-6666-4666-8666-666666666666"), [current]), null);
-  assert.equal(homeSelectedCurrentSubject(context(currentParticipationId), [
-    participation(currentParticipationId, currentSubjectId, "planned"),
-  ]), null);
-  assert.equal(homeSelectedCurrentSubject(context(currentParticipationId), [
-    participation(currentParticipationId, "../other"),
-  ]), null);
+  assert.equal(
+    homeSelectedCurrentSubject(
+      context("66666666-6666-4666-8666-666666666666"),
+      [current],
+    ),
+    null,
+  );
+  assert.equal(
+    homeSelectedCurrentSubject(context(currentParticipationId), [
+      participation(currentParticipationId, currentSubjectId, "planned"),
+    ]),
+    null,
+  );
+  assert.equal(
+    homeSelectedCurrentSubject(context(currentParticipationId), [
+      participation(currentParticipationId, "../other"),
+    ]),
+    null,
+  );
 });
 
 test("recent current Subject appears first, keeping stable MRU order within each group", () => {
@@ -102,8 +119,14 @@ test("recent current Subject appears first, keeping stable MRU order within each
     resource("other-4", otherSubjectId),
   ];
   const groups = groupHomeRecentlyOpened(items, currentSubjectId);
-  assert.deepEqual(groups.current.map((x) => x.id), ["current-1", "current-2"]);
-  assert.deepEqual(groups.other.map((x) => x.id), ["other-1", "other-2", "other-3", "other-4"]);
+  assert.deepEqual(
+    groups.current.map((x) => x.id),
+    ["current-1", "current-2"],
+  );
+  assert.deepEqual(
+    groups.other.map((x) => x.id),
+    ["other-1", "other-2", "other-3", "other-4"],
+  );
   assert.deepEqual(
     prioritizeHomeRecentlyOpened(items, currentSubjectId, 4).map((x) => x.id),
     ["current-1", "current-2", "other-1", "other-2"],
@@ -115,13 +138,22 @@ test("recent current Subject appears first, keeping stable MRU order within each
 });
 
 test("subject preference is not a filter on authorized history; other recent resources remain accessible", () => {
-  const items = [resource("other-1", otherSubjectId), resource("other-2", otherSubjectId)];
+  const items = [
+    resource("other-1", otherSubjectId),
+    resource("other-2", otherSubjectId),
+  ];
   assert.deepEqual(
     prioritizeHomeRecentlyOpened(items, currentSubjectId, 4).map((x) => x.id),
     ["other-1", "other-2"],
   );
-  assert.equal(groupHomeRecentlyOpened(items, currentSubjectId).current.length, 0);
-  assert.equal(prioritizeHomeRecentlyOpened(items, currentSubjectId, 0).length, 0);
+  assert.equal(
+    groupHomeRecentlyOpened(items, currentSubjectId).current.length,
+    0,
+  );
+  assert.equal(
+    prioritizeHomeRecentlyOpened(items, currentSubjectId, 0).length,
+    0,
+  );
 });
 
 test("controller checks all eight IDs and can surface matching recent resource beyond first four", async () => {
@@ -133,13 +165,19 @@ test("controller checks all eight IDs and can surface matching recent resource b
     ["other-3", otherSubjectId],
     ["other-2", otherSubjectId],
     ["other-1", otherSubjectId],
-  ] as const) memory.record("user:session", id);
+  ] as const)
+    memory.record("user:session", id);
 
   const lookedUp: string[] = [];
   const api = {
     resource: async (id: string): Promise<{ resource: ResourceView }> => {
       lookedUp.push(id);
-      return { resource: resource(id, id === "current-old" ? currentSubjectId : otherSubjectId) };
+      return {
+        resource: resource(
+          id,
+          id === "current-old" ? currentSubjectId : otherSubjectId,
+        ),
+      };
     },
   } as Pick<ResourceConsumptionApi, "resource">;
   const controller = new HomeRecentOpenedController(api, memory);
@@ -147,7 +185,10 @@ test("controller checks all eight IDs and can surface matching recent resource b
   const first = controller.getSnapshot();
   assert.equal(first.kind, "ready");
   if (first.kind !== "ready") return;
-  assert.deepEqual(first.items.map((x) => x.id), ["current-old", "other-1", "other-2", "other-3"]);
+  assert.deepEqual(
+    first.items.map((x) => x.id),
+    ["current-old", "other-1", "other-2", "other-3"],
+  );
   assert.equal(first.moreAvailable, true);
   assert.equal(lookedUp.length, 5);
 
@@ -155,19 +196,33 @@ test("controller checks all eight IDs and can surface matching recent resource b
   const switched = controller.getSnapshot();
   assert.equal(switched.kind, "ready");
   if (switched.kind === "ready") {
-    assert.deepEqual(switched.items.map((x) => x.id), ["other-1", "other-2", "other-3", "other-4"]);
+    assert.deepEqual(
+      switched.items.map((x) => x.id),
+      ["other-1", "other-2", "other-3", "other-4"],
+    );
   }
-  assert.deepEqual(memory.read("user:session"), ["other-1", "other-2", "other-3", "other-4", "current-old"]);
+  assert.deepEqual(memory.read("user:session"), [
+    "other-1",
+    "other-2",
+    "other-3",
+    "other-4",
+    "current-old",
+  ]);
 });
 
 test("questions navigation reuses validated Subject UUID and has no implicit publish grant", () => {
-  const action = savedSubjectQuestionsAction(resource("current", currentSubjectId));
+  const action = savedSubjectQuestionsAction(
+    resource("current", currentSubjectId),
+  );
   assert.deepEqual(action?.href, {
     pathname: "/questions/subjects/[subjectId]",
     params: { subjectId: currentSubjectId },
   });
   assert.match(action?.accessibilityHint ?? "", /servidor vuelve a validar/u);
-  assert.equal(savedSubjectQuestionsAction(resource("invalid", "bad-id")), null);
+  assert.equal(
+    savedSubjectQuestionsAction(resource("invalid", "bad-id")),
+    null,
+  );
 });
 
 test("Home wiring derives current selected participation only from session-authorized academic data", () => {
@@ -176,13 +231,22 @@ test("Home wiring derives current selected participation only from session-autho
     "utf8",
   );
   const card = readFileSync(
-    new URL("../src/features/home/home-recent-opened-card.tsx", import.meta.url),
+    new URL(
+      "../src/features/home/home-recent-opened-card.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   assert.match(home, /academicBelongsToSession/u);
-  assert.match(home, /homeSelectedCurrentSubject\(expectedContext, academicData\.participations\)/u);
+  assert.match(
+    home,
+    /homeSelectedCurrentSubject\(expectedContext, academicData\.participations\)/u,
+  );
   assert.match(home, /currentSubject=\{selectedRecentSubject\}/u);
-  assert.match(card, /controller\.load\(authorityKey, sessionAuthorityKey, preferredSubjectId\)/u);
+  assert.match(
+    card,
+    /controller\.load\(authorityKey, sessionAuthorityKey, preferredSubjectId\)/u,
+  );
   assert.match(card, /recentScope === "current"/u);
   assert.match(card, /Preguntas de mi materia/u);
   assert.match(card, /savedSubjectQuestionsAction\(resource\)/u);

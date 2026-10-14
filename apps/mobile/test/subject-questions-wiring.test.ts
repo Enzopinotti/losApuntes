@@ -23,7 +23,10 @@ test("subject route is validated before requesting backend Q&A", () => {
   assert.match(route, /subjectQuestionsRouteId\(subjectId\)/u);
   assert.match(screen, /!subjectId/u);
   assert.match(screen, /El enlace de la materia no es válido/u);
-  assert.match(screen, /controller\.load\(scopeKey, \{ subjectId, limit: 25 \}\)/u);
+  assert.match(
+    screen,
+    /controller\.load\(scopeKey, \{ subjectId, limit: 25 \}\)/u,
+  );
   assert.match(screen, /controller\.loadMore\(scopeKey\)/u);
   assert.match(screen, /controller\.invalidate\(scopeKey\)/u);
   assert.match(screen, /useCommunityAuthority\(\)/u);

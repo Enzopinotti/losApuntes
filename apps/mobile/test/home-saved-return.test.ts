@@ -109,7 +109,10 @@ test("the preview does not reuse a previous account or academic-context response
   assert.equal(result.kind, "ready");
   if (result.kind !== "ready") return;
   assert.equal(result.authorityKey, "user-b:session-b:context-b");
-  assert.deepEqual(result.items.map((item) => item.id), ["b-only"]);
+  assert.deepEqual(
+    result.items.map((item) => item.id),
+    ["b-only"],
+  );
 });
 
 test("leaving Home clears saved projections and ignores late replies", async () => {
@@ -168,7 +171,10 @@ test("offline failure is recoverable and retry requires a successful server resp
   const result = controller.getSnapshot();
   assert.equal(result.kind, "ready");
   if (result.kind === "ready") {
-    assert.deepEqual(result.items.map((item) => item.id), ["now-available"]);
+    assert.deepEqual(
+      result.items.map((item) => item.id),
+      ["now-available"],
+    );
   }
   assert.equal(calls, 2);
 });
@@ -183,7 +189,10 @@ test("Home mounts only the bounded, separately authorized preview", () => {
     "utf8",
   );
 
-  assert.match(screen, /<HomeSavedReturnCard authorityKey=\{activeHomeAuthority\} \/>/u);
+  assert.match(
+    screen,
+    /<HomeSavedReturnCard authorityKey=\{activeHomeAuthority\} \/>/u,
+  );
   assert.match(component, /mobileResourceConsumptionApi/u);
   assert.match(component, /controller\.invalidate\(authorityKey\)/u);
   assert.match(component, /pathname: "\/resources\/\[id\]"/u);

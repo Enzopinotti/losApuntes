@@ -213,7 +213,8 @@ export function MobileResourceDetailsScreen({
   );
   const [handoffError, setHandoffError] = useState<string | null>(null);
   const sharingController = useMemo(
-    () => new MobileResourceDirectSharingController(mobileResourceDirectSharingApi),
+    () =>
+      new MobileResourceDirectSharingController(mobileResourceDirectSharingApi),
     [],
   );
   const [sharingSnapshot, setSharingSnapshot] =
@@ -223,9 +224,7 @@ export function MobileResourceDetailsScreen({
     [],
   );
   const [metadataSnapshot, setMetadataSnapshot] =
-    useState<MobileResourceMetadataSnapshot>(
-      metadataController.getSnapshot(),
-    );
+    useState<MobileResourceMetadataSnapshot>(metadataController.getSnapshot());
   const reportController = useMemo(
     () => new MobileResourceReportController(mobileResourceConsumptionApi),
     [],
@@ -516,7 +515,10 @@ export function MobileResourceDetailsScreen({
                 Tamaño: {resourceFileSizeLabel(resource.file.byteSize)}
               </Text>
               <Text style={styles.meta}>
-                Visibilidad: {resourceVisibilityLabel(currentMetadata?.resource.visibility ?? resource.visibility)}
+                Visibilidad:{" "}
+                {resourceVisibilityLabel(
+                  currentMetadata?.resource.visibility ?? resource.visibility,
+                )}
               </Text>
             </View>
 
@@ -701,8 +703,7 @@ export function MobileResourceDetailsScreen({
                         textAlignVertical="top"
                         value={reportDetails}
                       />
-                      {reportReason &&
-                      reportValidation.kind === "invalid" ? (
+                      {reportReason && reportValidation.kind === "invalid" ? (
                         <Text accessibilityRole="alert" style={styles.error}>
                           {reportValidation.message}
                         </Text>
