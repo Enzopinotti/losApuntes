@@ -59,13 +59,13 @@ export class HomeRecentOpenedController {
     return () => this.listeners.delete(listener);
   }
 
-  async load(authorityKey: string): Promise<void> {
+  async load(authorityKey: string, sessionAuthorityKey = authorityKey): Promise<void> {
     this.active?.abort();
     const generation = ++this.generation;
     const operation = new AbortController();
     this.active = operation;
     this.publish({ kind: "loading", authorityKey });
-    const ids = this.memory.read(authorityKey);
+    const ids = this.memory.read(sessionAuthorityKey);
 
     if (ids.length === 0) {
       if (this.isCurrent(generation, operation, authorityKey)) {
@@ -111,7 +111,7 @@ export class HomeRecentOpenedController {
         if (result.kind === "readable") {
           items.push(result.resource);
         } else if (result.kind === "revoked") {
-          this.memory.forget(authorityKey, result.resourceId);
+          this.memory.forget(sessionAuthorityKey, result.resourceId);
         } else {
           partialFailure ??= result.reason;
         }
@@ -140,9 +140,9 @@ export class HomeRecentOpenedController {
     }
   }
 
-  clear(authorityKey: string): void {
+  clear(authorityKey: string, sessionAuthorityKey = authorityKey): void {
     if (this.snapshot.kind === "idle" || this.snapshot.authorityKey !== authorityKey) return;
-    this.memory.clear(authorityKey);
+    this.memory.clear(sessionAuthorityKey);
     ++this.generation;
     this.active?.abort();
     this.active = null;
