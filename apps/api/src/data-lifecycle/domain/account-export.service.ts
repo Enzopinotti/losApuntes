@@ -2,6 +2,7 @@ import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { UsersService } from '../../users/users.service';
+import { ACCOUNT_EXPORT_V1_SECTION_IDS } from './account-export-contributor.registry';
 import {
   ACCOUNT_EXPORT_STORE,
   type AccountExportStore,
@@ -34,7 +35,7 @@ export type AccountExportDownload =
   | { kind: 'not_found' }
   | { kind: 'not_ready' }
   | { kind: 'expired' }
-  | { kind: 'available'; generation: string; byteLength: number };
+  | { kind: 'available'; generation: string; byteLength: number; sha256: string };
 
 function assertCompletionResult(
   result: AccountExportAssemblyResult,
@@ -44,7 +45,7 @@ function assertCompletionResult(
     result.format !== ACCOUNT_EXPORT_FORMAT ||
     result.formatVersion !== ACCOUNT_EXPORT_FORMAT_VERSION ||
     !Number.isSafeInteger(result.sectionCount) ||
-    result.sectionCount < 0 ||
+    result.sectionCount !== ACCOUNT_EXPORT_V1_SECTION_IDS.length ||
     !Number.isSafeInteger(result.recordCount) ||
     result.recordCount < 0 ||
     !Number.isSafeInteger(result.byteLength) ||
@@ -113,7 +114,11 @@ export class AccountExportService {
     if (
       typeof job.artifactByteLength !== 'number' ||
       !Number.isSafeInteger(job.artifactByteLength) ||
-      job.artifactByteLength < 1
+      job.artifactByteLength < 1 ||
+      typeof job.artifactSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(job.artifactSha256) ||
+      job.formatVersion !== ACCOUNT_EXPORT_FORMAT_VERSION ||
+      job.artifactSectionCount !== ACCOUNT_EXPORT_V1_SECTION_IDS.length
     ) {
       throw new Error('Account export artifact metadata is invalid');
     }
@@ -122,6 +127,7 @@ export class AccountExportService {
       kind: 'available',
       generation: job.artifactGeneration,
       byteLength: job.artifactByteLength,
+      sha256: job.artifactSha256,
     };
   }
 
