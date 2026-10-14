@@ -47,6 +47,7 @@ rejects({ ...plan, startsAt: "2026-02-30T18:00" });
 rejects({ ...plan, unknownField: true });
 rejects({ ...plan, title: " " });
 rejects({ ...plan, tasks: [...plan.tasks, plan.tasks[0]] });
+rejects({ ...plan, tasks: [...plan.tasks, { ...plan.tasks[0], id: b.toUpperCase() }] });
 rejects({ ...plan, tasks: plan.tasks.map((t) => ({...t, minutes: 3})) });
 rejects({ ...plan, tasks: Array.from({length: STUDY_SESSION_MAX_TASKS + 1}, (_, i) => ({
   kind: "resource", id: b, minutes: 10, done: false,
@@ -56,4 +57,8 @@ assert.throws(() => readStudySession(" ".repeat(64001)));
 assert.throws(() => buildStudySessionCalendar(plan, [], c, new Date()));
 assert.throws(() => buildStudySessionCalendar({...plan, startsAt:null}, ["A","B"], c, new Date()));
 assert.throws(() => buildStudySessionMarkdown(plan, ["A"]));
+const privateFile = serializeStudySession(plan);
+assert.ok(!privateFile.includes("Apunte"));
+assert.ok(!privateFile.includes("Duda"));
+assert.ok(!privateFile.includes("signedUrl"));
 console.log("Study session portable contract PASS");

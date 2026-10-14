@@ -58,7 +58,6 @@ type Status = {
   text: string;
   error: boolean;
 };
-type TaskKind = StudySessionTask["kind"];
 
 function apiError(error: unknown): string {
   if (isSearchApiError(error) || isResourcesApiError(error) || isCommunityApiError(error)) {
