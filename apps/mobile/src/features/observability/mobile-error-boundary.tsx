@@ -2,22 +2,39 @@ import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import {
+  recoverMobileErrorBoundaryOnRouteChange,
+  type MobileErrorBoundaryRecoveryState,
+} from "./mobile-error-boundary-recovery";
+
 type MobileErrorBoundaryProps = {
   children: ReactNode;
   onError(error: unknown): void;
+  resetRouteKey: string;
 };
 
-type MobileErrorBoundaryState = {
-  failed: boolean;
-};
+type MobileErrorBoundaryState = MobileErrorBoundaryRecoveryState;
 
 export class MobileErrorBoundary extends Component<
   MobileErrorBoundaryProps,
   MobileErrorBoundaryState
 > {
-  override state: MobileErrorBoundaryState = { failed: false };
+  override state: MobileErrorBoundaryState = {
+    failed: false,
+    routeKey: this.props.resetRouteKey,
+  };
 
-  static getDerivedStateFromError(): MobileErrorBoundaryState {
+  static getDerivedStateFromProps(
+    nextProps: MobileErrorBoundaryProps,
+    previousState: MobileErrorBoundaryState,
+  ): MobileErrorBoundaryState | null {
+    return recoverMobileErrorBoundaryOnRouteChange(
+      nextProps.resetRouteKey,
+      previousState,
+    );
+  }
+
+  static getDerivedStateFromError(): Pick<MobileErrorBoundaryState, "failed"> {
     return { failed: true };
   }
 
