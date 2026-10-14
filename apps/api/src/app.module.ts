@@ -20,6 +20,7 @@ import { QaModule } from './qa/qa.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
 import { SocialModule } from './social/social.module';
+import { StudyCollectionsModule } from './study-collections/study-collections.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -48,6 +49,7 @@ import { UsersModule } from './users/users.module';
     OrganizationsModule,
     PilotModule,
     SocialModule,
+    StudyCollectionsModule,
     QaModule,
     HealthModule,
   ],
