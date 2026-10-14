@@ -12,7 +12,10 @@ import { ResourcesController } from './resources.controller';
 
 describe('authenticated owner resource statistics route', () => {
   it('requires authenticated verified owner and private no-store response', () => {
-    const method = Reflect.get(ResourcesController.prototype, 'ownedStatistics') as object;
+    const method = Reflect.get(
+      ResourcesController.prototype,
+      'ownedStatistics',
+    ) as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine/stats');
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
       AuthSessionGuard,
