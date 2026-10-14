@@ -27,6 +27,7 @@ import {
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
 import { mobileSessionRecentResourceOpens } from "./recent-opened-memory";
+import { ResourceRelatedSessionPanel } from "./resource-related-session-panel";
 import {
   useFencedDetail,
   type DetailFailureKind,
@@ -610,6 +611,14 @@ export function MobileResourceDetailsScreen({
                 guarda como permiso local.
               </Text>
             </View>
+
+            {authorityKey ? (
+              <ResourceRelatedSessionPanel
+                currentResource={resource}
+                authorityKey={authorityKey}
+                sessionAuthorityKey={sessionAuthority}
+              />
+            ) : null}
 
             <View style={styles.card}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>
