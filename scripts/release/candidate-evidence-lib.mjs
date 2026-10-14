@@ -77,6 +77,7 @@ export function evaluateCandidateEvidence({
 }) {
   const blockers = new Set();
   const add = (code) => blockers.add(code);
+  if (!Number.isFinite(nowMs) || nowMs < 0) add("INVALID_EVALUATION_TIME");
   const record = object(evidence) ? evidence : {};
   const expectedIsSha = SHA_PATTERN.test(expectedSourceSha ?? "");
   const actualIsSha = SHA_PATTERN.test(currentSourceSha ?? "");
