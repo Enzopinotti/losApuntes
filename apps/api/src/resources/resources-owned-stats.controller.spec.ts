@@ -39,7 +39,9 @@ describe('authenticated owner resource statistics route', () => {
     const request = {
       user: { id: 'authenticated-owner' },
     } as AuthenticatedRequest;
-    await expect(controller.ownedStatistics(request)).resolves.toEqual(statistics);
+    await expect(controller.ownedStatistics(request)).resolves.toEqual(
+      statistics,
+    );
     expect(getOwnedStatistics).toHaveBeenCalledTimes(1);
     expect(getOwnedStatistics).toHaveBeenCalledWith('authenticated-owner');
   });
