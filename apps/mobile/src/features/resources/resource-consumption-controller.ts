@@ -626,6 +626,9 @@ export class MobileSavedResourcesController {
       this.publish({
         ...current,
         loadingMore: false,
+        syncing: false,
+        syncFailure: null,
+        syncNotice: null,
         removingResourceId: null,
         removalFailure: null,
         notice: null,
