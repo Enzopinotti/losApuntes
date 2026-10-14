@@ -68,7 +68,12 @@ export function searchInputForState(
       ...(state.scope === "resources" && subjectId ? { subjectId } : {}),
     };
   }
-  if (q.length === 0 && state.scope === "resources" && subjectId) {
+  if (
+    state.query.length === 0 &&
+    q.length === 0 &&
+    state.scope === "resources" &&
+    subjectId
+  ) {
     return { scope: "resources", subjectId };
   }
   return null;
