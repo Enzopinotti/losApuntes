@@ -97,6 +97,8 @@ export function savedMetadataRegex(query: string): string {
   ).join('');
 }
 
+export const SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS = 8_000;
+
 @Injectable()
 export class MongoResourceStore implements ResourceStore, SavedResourceSearchStore {
   constructor(
@@ -612,7 +614,10 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
       resourceId: string;
       createdAt: Date;
       title?: string;
-    }>(stages);
+    }>(stages).option({
+      allowDiskUse: true,
+      maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+    });
     // Strength 1 applies Spanish case/accent-insensitive ordering to both
     // $sort and title cursor comparisons. UUID is the stable tie-breaker.
     const candidates = byTitle
@@ -684,7 +689,10 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
       { $sort: { count: -1, _id: 1 } },
       { $limit: 101 },
       { $project: { _id: 0, subjectId: '$_id', count: 1 } },
-    ]).exec();
+    ]).option({
+      allowDiskUse: true,
+      maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+    }).exec();
     return { items: rows.slice(0, 100), truncated: rows.length > 100 };
   }
 

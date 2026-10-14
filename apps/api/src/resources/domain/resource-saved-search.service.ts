@@ -5,6 +5,7 @@ import {
   type SavedResourceSearchStore,
 } from './resource-saved-search.store';
 import { ResourceService } from './resource.service';
+import { boundedSavedQuery } from './resource-saved-query-budget';
 import { AcademicService } from '../../academic/domain/academic.service';
 import { decodeSavedTitleCursor, encodeSavedTitleCursor } from './resource-saved-title-cursor';
 import type { SavedLibraryOrder } from './resource-saved-search.store';
@@ -62,7 +63,7 @@ export class ResourceSavedSearchService {
     const titleAfter = order === 'title'
       ? decodeSavedTitleCursor(cursor, userId, q, subjectId)
       : undefined;
-    const page = await this.store.searchSavedResources({
+    const page = await boundedSavedQuery(() => this.store.searchSavedResources({
       userId,
       ...(q ? { q } : {}),
       ...(subjectId ? { subjectId } : {}),
@@ -70,7 +71,7 @@ export class ResourceSavedSearchService {
       ...(order === 'title' ? { order } : {}),
       ...(after ? { after } : {}),
       ...(titleAfter ? { titleAfter } : {}),
-    });
+    }));
 
     // Availability can change between Mongo's snapshot and HTTP projection.
     // Keep a second fail-closed read on the existing resource authority.
@@ -107,7 +108,7 @@ export class ResourceSavedSearchService {
 
   /** Returned counts apply only to resources currently visible to the actor. */
   async listSubjects(userId: string) {
-    const page = await this.store.listSavedSubjectFacets(userId);
+    const page = await boundedSavedQuery(() => this.store.listSavedSubjectFacets(userId));
     const readable = await Promise.all(page.items.map(async (row) => {
       try {
         const subject = await this.academic.getCatalogNode(row.subjectId);

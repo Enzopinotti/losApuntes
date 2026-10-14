@@ -20,6 +20,7 @@ export function resourceConsumptionFailure(
 ): ResourceConsumptionFailure {
   if (!(error instanceof ApiRequestError)) return "error";
   if (error.code === "ACCOUNT_RESTRICTED") return "restricted";
+  if (error.code === "RESOURCE_SAVED_QUERY_TIMEOUT") return "timeout";
   if (error.kind === "offline") return "offline";
   if (error.kind === "timeout") return "timeout";
   if (error.kind === "server_unavailable") return "server_unavailable";
@@ -267,6 +268,7 @@ export type MobileSavedResourcesSnapshot =
       order?: 'title';
       data: ResourceSavedPage;
       loadingMore: boolean;
+      paginationStalled: boolean;
       failure: ResourceConsumptionFailure | null;
       removingResourceId: string | null;
       removalFailure: {
@@ -305,6 +307,7 @@ export class MobileSavedResourcesController {
   private activeSearchQuery: string | null = null;
   private activeSubjectId: string | null = null;
   private activeOrder: 'saved' | 'title' = 'saved';
+  private readonly usedPageCursors = new Set<string>();
   private generation = 0;
   private active: SavedOperation | null = null;
 
@@ -332,6 +335,7 @@ export class MobileSavedResourcesController {
     this.activeSearchQuery = searchQuery;
     this.activeSubjectId = subjectId ?? null;
     this.activeOrder = order;
+    this.usedPageCursors.clear();
     const scope = {
       ...(searchQuery ? { searchQuery } : {}),
       ...(subjectId ? { subjectId } : {}),
@@ -349,6 +353,7 @@ export class MobileSavedResourcesController {
         ...scope,
         data,
         loadingMore: false,
+        paginationStalled: false,
         failure: null,
         removingResourceId: null,
         removalFailure: null,
@@ -377,12 +382,23 @@ export class MobileSavedResourcesController {
     )
       return;
 
+    const requestedCursor = current.data.nextCursor;
+    if (this.usedPageCursors.has(requestedCursor)) {
+      this.publish({
+        ...current,
+        data: { ...current.data, nextCursor: null },
+        paginationStalled: true,
+        failure: null,
+      });
+      return;
+    }
+
     const operation = this.begin(authorityKey, "loadMore");
     this.publish({ ...current, loadingMore: true, failure: null });
 
     try {
       const next = await this.api.saved(
-        current.data.nextCursor,
+        requestedCursor,
         operation.controller.signal,
         this.activeSearchQuery ?? undefined,
         this.activeSubjectId ?? undefined,
@@ -391,13 +407,17 @@ export class MobileSavedResourcesController {
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (!latest) return;
+      const repeated = next.nextCursor !== null &&
+        (next.nextCursor === requestedCursor || this.usedPageCursors.has(next.nextCursor));
+      this.usedPageCursors.add(requestedCursor);
       this.publish({
         ...latest,
         data: {
           items: appendUniqueResources(latest.data.items, next.items),
-          nextCursor: next.nextCursor,
+          nextCursor: repeated ? null : next.nextCursor,
         },
         loadingMore: false,
+        paginationStalled: repeated,
         failure: null,
       });
     } catch (error) {
@@ -481,6 +501,7 @@ export class MobileSavedResourcesController {
     this.activeSearchQuery = null;
     this.activeSubjectId = null;
     this.activeOrder = 'saved';
+    this.usedPageCursors.clear();
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;

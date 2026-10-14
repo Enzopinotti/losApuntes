@@ -4,6 +4,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   AppState,
+  type FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -178,6 +179,7 @@ export function SavedResourcesScreen() {
     null,
   );
   const announcedRemoval = useRef<number | null>(null);
+  const listRef = useRef<FlatList<ResourceView> | null>(null);
   const sessionKey =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
@@ -191,6 +193,10 @@ export function SavedResourcesScreen() {
     setSort("saved");
     setSelectedSubjectId(null);
   }, [sessionKey]);
+
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [sessionKey, query, selectedSubjectId, sort]);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
   useEffect(() => subjectsController.subscribe(setSubjectSnapshot), [subjectsController]);
@@ -306,6 +312,92 @@ export function SavedResourcesScreen() {
           : undefined
       }
       refreshing={current?.kind === "loading"}
+      flatList={{
+        ref: listRef,
+        data: shownResources,
+        keyExtractor: (resource) => resource.id,
+        renderItem: ({ item: resource }) =>
+          current?.kind === "ready" ? (
+            <View style={styles.virtualizedRow}>
+              <SavedResourceRow
+                resource={resource}
+                removing={current.removingResourceId === resource.id}
+                removalPending={
+                  current.removingResourceId !== null || current.loadingMore
+                }
+                removalFailure={
+                  current.removalFailure?.resourceId === resource.id
+                    ? current.removalFailure.failure
+                    : null
+                }
+                onOpen={() =>
+                  router.push({
+                    pathname: "/resources/[id]",
+                    params: { id: resource.id, saved: "1" },
+                  })
+                }
+                onOpenQuestions={(action) => router.push(action.href)}
+                onRemove={() =>
+                  void controller.removeSaved(current.authorityKey, resource.id)
+                }
+              />
+            </View>
+          ) : null,
+        footer:
+          current?.kind === "ready" ? (
+            <View style={styles.libraryFooter}>
+              {current.notice ? (
+                <Text style={styles.success}>
+                  Se quitó {current.notice.resourceTitle} de tus guardados.
+                </Text>
+              ) : null}
+              {current.failure ? (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {failureCopy[current.failure]}
+                </Text>
+              ) : null}
+              {current.paginationStalled ? (
+                <View style={styles.card}>
+                  <Text accessibilityRole="alert" style={styles.error}>
+                    La paginación devolvió un cursor repetido. Para evitar
+                    resultados duplicados, reiniciá el listado.
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Reiniciar listado de guardados"
+                    onPress={refresh}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.secondaryButtonText}>Reiniciar listado</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {current.data.nextCursor ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={current.failure
+                    ? "Reintentar cargar más guardados"
+                    : "Cargar más guardados"}
+                  accessibilityState={{ disabled: current.loadingMore }}
+                  disabled={current.loadingMore}
+                  onPress={() => void controller.loadMore(current.authorityKey)}
+                  style={[
+                    styles.secondaryButton,
+                    current.loadingMore && styles.disabledButton,
+                  ]}
+                >
+                  {current.loadingMore ? (
+                    <ActivityIndicator accessibilityLabel="Cargando más guardados" />
+                  ) : (
+                    <Text style={styles.secondaryButtonText}>
+                      {current.failure ? "Reintentar carga" : "Cargar más guardados"}
+                    </Text>
+                  )}
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null,
+      }}
     >
       <Pressable
         accessibilityRole="button"
@@ -487,13 +579,15 @@ export function SavedResourcesScreen() {
             {current.data.items.length === 0 ? (
               <>
                 <Text style={styles.copy}>
-                  {current.data.nextCursor
-                    ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
+                  {current.paginationStalled
+                    ? "La paginación se interrumpió. Reiniciá el listado para consultar tus guardados."
+                    : current.data.nextCursor
+                      ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
                     : searchQuery || selectedSubjectId
                       ? "No encontramos guardados accesibles con estos filtros. Probá otra búsqueda o materia."
                       : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
                 </Text>
-                {!current.data.nextCursor && !searchQuery && !selectedSubjectId ? (
+                {!current.paginationStalled && !current.data.nextCursor && !searchQuery && !selectedSubjectId ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Buscar recursos"
@@ -527,75 +621,10 @@ export function SavedResourcesScreen() {
                       ? " Cargá más para ampliar los resultados."
                       : " Probá otra búsqueda o seleccioná otra materia."}
                   </Text>
-                ) : (
-                  shownResources.map((resource) => (
-                    <SavedResourceRow
-                      key={resource.id}
-                      resource={resource}
-                      removing={current.removingResourceId === resource.id}
-                      removalPending={
-                        current.removingResourceId !== null ||
-                        current.loadingMore
-                      }
-                      removalFailure={
-                        current.removalFailure?.resourceId === resource.id
-                          ? current.removalFailure.failure
-                          : null
-                      }
-                      onOpen={() =>
-                        router.push({
-                          pathname: "/resources/[id]",
-                          params: { id: resource.id, saved: "1" },
-                        })
-                      }
-                      onOpenQuestions={(action) => router.push(action.href)}
-                      onRemove={() =>
-                        void controller.removeSaved(
-                          current.authorityKey,
-                          resource.id,
-                        )
-                      }
-                    />
-                  ))
-                )}
+                ) : null}
               </>
             )}
           </View>
-
-          {current.notice ? (
-            <Text style={styles.success}>
-              Se quitó {current.notice.resourceTitle} de tus guardados.
-            </Text>
-          ) : null}
-
-          {current.failure ? (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {failureCopy[current.failure]}
-            </Text>
-          ) : null}
-
-          {current.data.nextCursor ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: current.loadingMore }}
-              disabled={current.loadingMore}
-              onPress={() => void controller.loadMore(current.authorityKey)}
-              style={[
-                styles.secondaryButton,
-                current.loadingMore && styles.disabledButton,
-              ]}
-            >
-              {current.loadingMore ? (
-                <ActivityIndicator accessibilityLabel="Cargando más guardados" />
-              ) : (
-                <Text style={styles.secondaryButtonText}>
-                  {query.trim() || activeSubjectId
-                    ? "Cargar más guardados"
-                    : "Cargar más"}
-                </Text>
-              )}
-            </Pressable>
-          ) : null}
         </>
       )}
     </ProductSurface>
@@ -603,6 +632,12 @@ export function SavedResourcesScreen() {
 }
 
 const styles = StyleSheet.create({
+  virtualizedRow: {
+    marginBottom: 10,
+  },
+  libraryFooter: {
+    gap: 12,
+  },
   backButton: {
     minHeight: 44,
     alignSelf: "flex-start",
