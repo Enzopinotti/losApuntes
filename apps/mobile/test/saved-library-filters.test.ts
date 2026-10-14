@@ -224,7 +224,7 @@ test("loading more expands the search window, and removal updates results", asyn
   assert.deepEqual(removals, ["two"]);
 });
 
-test("screen delegates metadata search to the server and keeps loaded-page facets", () => {
+test("screen delegates metadata and subject search to the server", () => {
   const screen = readFileSync(
     new URL(
       "../src/features/resources/saved-resources-screen.tsx",
@@ -234,7 +234,7 @@ test("screen delegates metadata search to the server and keeps loaded-page facet
   );
   assert.match(
     screen,
-    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*sort,\s*activeSubjectId,\s*\)/u,
+    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*sort,\s*null,\s*\)/u,
   );
   assert.match(screen, /sessionKey\]/u);
   assert.match(screen, /setQuery\(""\)/u);
@@ -436,11 +436,11 @@ test("native subject selection is accessible and retains pagination controls", (
     ),
     "utf8",
   );
-  assert.match(screen, /Tus materias/u);
-  assert.match(screen, /loadedSavedLibrarySubjects\(current\.data\.items\)/u);
+  assert.match(screen, /Filtrar por materia/u);
+  assert.match(screen, /mobileSavedSubjectFacetsApi/u);
   assert.match(screen, /accessibilityLabel="Todas las materias"/u);
   assert.match(screen, /accessibilityRole="radio"/u);
-  assert.match(screen, /setSelectedSubjectId\(subject\.id\)/u);
+  assert.match(screen, /setSelectedSubjectId\(subject\.subjectId\)/u);
   assert.match(screen, /setSelectedSubjectId\(null\)/u);
   assert.match(screen, /activeSubjectId/u);
   assert.match(screen, /controller\.loadMore\(current\.authorityKey\)/u);
