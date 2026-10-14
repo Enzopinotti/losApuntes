@@ -6,6 +6,59 @@ export const ACCOUNT_EXPORT_CONTRIBUTORS = Symbol(
   'ACCOUNT_EXPORT_CONTRIBUTORS',
 );
 
+/**
+ * Public v1 is a fixed, portable 30-section contract. Check the real Nest
+ * contributor factory in production, not every partial fixture Registry.
+ * A wiring regression must not publish a seemingly successful incomplete
+ * export even when isolated contributor unit tests are not run.
+ */
+export const ACCOUNT_EXPORT_V1_SECTION_IDS = Object.freeze([
+  'academic.affiliations',
+  'academic.currentContext',
+  'academic.follows',
+  'academic.proposals',
+  'academic.subjectParticipations',
+  'account',
+  'auth.externalIdentities',
+  'feeds.feedback',
+  'feeds.preferences',
+  'files.uploads',
+  'notifications.inbox',
+  'organizations.authoredEvents',
+  'organizations.authoredLinks',
+  'organizations.authoredPosts',
+  'organizations.featuredResources',
+  'organizations.following',
+  'organizations.management',
+  'organizations.submittedReports',
+  'pilot.activity',
+  'profile',
+  'profile.activities',
+  'qa.authoredAnswers',
+  'qa.authoredQuestions',
+  'qa.submittedReports',
+  'resources.authored',
+  'resources.saved',
+  'resources.sharedGrants',
+  'resources.submittedReports',
+  'social.connections',
+  'social.following',
+] as const);
+
+/** Fail closed at actual module wiring if v1 sections are missing or altered. */
+export function assertAccountExportV1Sections(
+  contributors: readonly AccountExportContributor[],
+): void {
+  const actual = contributors.map(({ sectionId }) => sectionId).sort();
+  const expected = [...ACCOUNT_EXPORT_V1_SECTION_IDS];
+  if (
+    actual.length !== expected.length ||
+    actual.some((sectionId, index) => sectionId !== expected[index])
+  ) {
+    throw new Error('Account export v1 contributor inventory is incomplete or incompatible');
+  }
+}
+
 @Injectable()
 export class AccountExportContributorRegistry {
   private readonly contributors: readonly AccountExportContributor[];
