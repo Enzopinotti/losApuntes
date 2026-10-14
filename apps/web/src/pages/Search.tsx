@@ -1,7 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
+import {
+  searchSelectionFromSearchParams,
+  searchSelectionHref,
+  searchSelectionKey,
+} from "../features/search/search-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import type {
   ContextualDiscoveryResponse,
@@ -22,6 +27,12 @@ function messageFor(error: unknown): string {
 const Search = () => {
   const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const submitted = searchSelectionFromSearchParams(searchParams);
+  const submittedKey = searchSelectionKey(submitted);
+  const submittedQuery = submitted?.q ?? "";
+  const submittedScope = submitted?.scope ?? "all";
+  const invalidLinkedSearch = searchParams.has("q") && submittedKey === null;
   const authorityScope = [
     status,
     user?.id ?? "anonymous",
@@ -38,15 +49,37 @@ const Search = () => {
     isCurrent: isSearchRequestCurrent,
     finish: finishSearchRequest,
     invalidate: invalidateSearchRequest,
-  } = useAsyncAuthorityFence(`search:${authorityScope}`);
-  const [query, setQuery] = useState("");
-  const [scope, setScope] = useState<SearchScope>("all");
-  const [result, setResult] = useState<SearchResponse | null>(null);
+  } = useAsyncAuthorityFence(
+    `search:${authorityScope}:${submittedKey ?? "none"}`,
+  );
+  const [query, setQuery] = useState(submittedQuery);
+  const [scope, setScope] = useState<SearchScope>(submittedScope);
+  const [retryCount, setRetryCount] = useState(0);
+  const resultScopeKey = JSON.stringify([authorityScope, submittedKey]);
+  const [searchState, setSearchState] = useState<{
+    scopeKey: string;
+    result: SearchResponse | null;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+  const currentSearchState =
+    searchState?.scopeKey === resultScopeKey ? searchState : null;
+  const result = currentSearchState?.result ?? null;
+  const loading = currentSearchState?.loading ?? Boolean(submittedKey);
+  const error = currentSearchState?.error ?? null;
+  const [copyStatus, setCopyStatus] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
   const [contextual, setContextual] =
     useState<ContextualDiscoveryResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // Back/forward navigation updates the draft; editing alone never writes a URL.
+  useEffect(() => {
+    setQuery(submittedQuery);
+    setScope(submittedScope);
+  }, [submittedQuery, submittedScope]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -82,28 +115,104 @@ const Search = () => {
     isContextRequestCurrent,
   ]);
 
-  const runSearch = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const q = query.trim();
-    if (q.length < 2) return;
+  // The committed URL is the source of truth for public search results.
+  // The async authority fence prevents stale results from another session
+  // or an earlier URL from appearing after navigation.
+  useEffect(() => {
+    if (!submittedKey) {
+      invalidateSearchRequest();
+      setSearchState(null);
+      return;
+    }
 
     const ticket = beginSearchRequest();
-    setLoading(true);
-    setError(null);
+    setSearchState({
+      scopeKey: resultScopeKey,
+      result: null,
+      loading: true,
+      error: null,
+    });
+
+    void searchApi
+      .search({ q: submittedQuery, scope: submittedScope }, ticket.signal)
+      .then((nextResult) => {
+        if (!isSearchRequestCurrent(ticket)) return;
+        setSearchState({
+          scopeKey: resultScopeKey,
+          result: nextResult,
+          loading: false,
+          error: null,
+        });
+      })
+      .catch((nextError) => {
+        if (!isSearchRequestCurrent(ticket)) return;
+        setSearchState({
+          scopeKey: resultScopeKey,
+          result: null,
+          loading: false,
+          error: messageFor(nextError),
+        });
+      })
+      .finally(() => {
+        finishSearchRequest(ticket);
+      });
+
+    return () => {
+      invalidateSearchRequest();
+    };
+  }, [
+    beginSearchRequest,
+    finishSearchRequest,
+    invalidateSearchRequest,
+    isSearchRequestCurrent,
+    resultScopeKey,
+    retryCount,
+    submittedKey,
+    submittedQuery,
+    submittedScope,
+  ]);
+
+  const runSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const href = searchSelectionHref({ q: query, scope });
+    if (!href) return;
+
+    const nextParams = new URLSearchParams(href.slice("/search?".length));
+    const nextKey = searchSelectionKey(
+      searchSelectionFromSearchParams(nextParams),
+    );
+    if (nextKey === submittedKey) {
+      setRetryCount((current) => current + 1);
+    } else {
+      // Each submitted search is navigable with the browser back button.
+      setSearchParams(nextParams);
+    }
+  };
+
+  const copySearchLink = async () => {
+    const href = searchSelectionHref({
+      q: submittedQuery,
+      scope: submittedScope,
+    });
+    if (!href) return;
 
     try {
-      const nextResult = await searchApi.search({ q, scope }, ticket.signal);
-      if (isSearchRequestCurrent(ticket)) {
-        setResult(nextResult);
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
       }
-    } catch (nextError) {
-      if (isSearchRequestCurrent(ticket)) {
-        setError(messageFor(nextError));
-      }
-    } finally {
-      if (finishSearchRequest(ticket)) {
-        setLoading(false);
-      }
+      await navigator.clipboard.writeText(
+        new URL(href, window.location.origin).toString(),
+      );
+      setCopyStatus({
+        scopeKey: resultScopeKey,
+        message: "Enlace copiado. Solo incluye la búsqueda y el filtro.",
+      });
+    } catch {
+      setCopyStatus({
+        scopeKey: resultScopeKey,
+        message:
+          "No pudimos copiar el enlace. Podés copiarlo desde la barra del navegador.",
+      });
     }
   };
 
@@ -127,8 +236,6 @@ const Search = () => {
             maxLength={120}
             value={query}
             onChange={(event) => {
-              invalidateSearchRequest();
-              setLoading(false);
               setQuery(event.target.value);
             }}
             placeholder="Ej. Base de Datos, Ana, resumen de SQL"
@@ -139,8 +246,6 @@ const Search = () => {
           <select
             value={scope}
             onChange={(event) => {
-              invalidateSearchRequest();
-              setLoading(false);
               setScope(event.target.value as SearchScope);
             }}
           >
@@ -150,15 +255,48 @@ const Search = () => {
             <option value="people">Personas</option>
           </select>
         </label>
-        <button type="submit" disabled={loading || query.trim().length < 2}>
+        <button
+          type="submit"
+          disabled={query.trim().length < 2 || query.trim().length > 120}
+        >
           {loading ? "Buscando…" : "Buscar"}
         </button>
       </form>
 
-      {error && (
+      {invalidLinkedSearch && (
         <p className="search-error" role="alert">
-          {error}
+          Este enlace de búsqueda no es válido. Ingresá entre 2 y 120 caracteres
+          y buscá nuevamente.
         </p>
+      )}
+      {error && (
+        <div className="search-error" role="alert">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => setRetryCount((count) => count + 1)}
+          >
+            Reintentar búsqueda
+          </button>
+        </div>
+      )}
+      {loading && submittedKey && (
+        <p role="status">Buscando recursos, materias y personas…</p>
+      )}
+
+      {submittedKey && (
+        <div className="search-share">
+          <p>
+            Esta búsqueda tiene un enlace propio. Podés retomarla o compartirla
+            sin perder el filtro.
+          </p>
+          <button type="button" onClick={() => void copySearchLink()}>
+            Copiar enlace de búsqueda
+          </button>
+          {copyStatus?.scopeKey === resultScopeKey && (
+            <p role="status">{copyStatus.message}</p>
+          )}
+        </div>
       )}
 
       {result && (
@@ -167,7 +305,7 @@ const Search = () => {
             Resultados para <strong>{result.query}</strong>
           </p>
 
-          {(scope === "all" || scope === "resources") && (
+          {(submittedScope === "all" || submittedScope === "resources") && (
             <section className="search-group">
               <h2>Apuntes y recursos</h2>
               {result.results.resources.length === 0 ? (
@@ -190,7 +328,13 @@ const Search = () => {
                         </small>
                       </div>
                       <Link
-                        to={`/resources?q=${encodeURIComponent(resource.title)}`}
+                        to={`/resources/${encodeURIComponent(resource.id)}`}
+                        state={{
+                          searchReturnTo: searchSelectionHref({
+                            q: submittedQuery,
+                            scope: submittedScope,
+                          }),
+                        }}
                       >
                         Ver recurso
                       </Link>
@@ -201,7 +345,7 @@ const Search = () => {
             </section>
           )}
 
-          {(scope === "all" || scope === "subjects") && (
+          {(submittedScope === "all" || submittedScope === "subjects") && (
             <section className="search-group">
               <h2>Materias</h2>
               {result.results.subjects.length === 0 ? (
@@ -216,7 +360,9 @@ const Search = () => {
                           <small>También: {subject.aliases.join(", ")}</small>
                         )}
                       </div>
-                      <Link to={`/resources?subjectId=${subject.id}`}>
+                      <Link
+                        to={`/resources?subjectId=${encodeURIComponent(subject.id)}`}
+                      >
                         Ver recursos
                       </Link>
                     </li>
@@ -226,7 +372,7 @@ const Search = () => {
             </section>
           )}
 
-          {(scope === "all" || scope === "people") && (
+          {(submittedScope === "all" || submittedScope === "people") && (
             <section className="search-group">
               <h2>Personas con identidad pública</h2>
               {result.results.people.length === 0 ? (
@@ -236,7 +382,9 @@ const Search = () => {
                   {result.results.people.map((person) => (
                     <li key={person.profileId}>
                       <strong>{person.displayName}</strong>
-                      <Link to={`/p/${person.profileId}`}>Ver perfil</Link>
+                      <Link to={`/p/${encodeURIComponent(person.profileId)}`}>
+                        Ver perfil
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -276,9 +424,14 @@ const Search = () => {
                       {bucket.resources.map((resource) => (
                         <li key={resource.id}>
                           <Link
-                            to={`/resources?q=${encodeURIComponent(
-                              resource.title,
-                            )}`}
+                            to={`/resources/${encodeURIComponent(resource.id)}`}
+                            state={{
+                              searchReturnTo:
+                                searchSelectionHref({
+                                  q: submittedQuery,
+                                  scope: submittedScope,
+                                }) ?? "/search",
+                            }}
                           >
                             {resource.title}
                           </Link>
