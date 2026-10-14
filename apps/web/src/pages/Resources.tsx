@@ -17,6 +17,7 @@ import {
   feedReturnHref,
   feedReturnRestoreState,
 } from "../features/feeds/feed-navigation.mjs";
+import { searchReturnHref } from "../features/search/search-navigation.mjs";
 import type {
   AcademicSubjectOption,
   ResourceView,
@@ -584,6 +585,8 @@ const Resources = () => {
   };
 
   const feedReturnTo = feedReturnHref(location.state) ?? "/resources";
+  const searchReturnTo = searchReturnHref(location.state);
+  const resourceReturnTo = searchReturnTo ?? feedReturnTo;
 
   const finishResourceActionUi = (ticket: AsyncAuthorityTicket) => {
     if (!finishResourceAction(ticket)) return;
@@ -1030,10 +1033,18 @@ const Resources = () => {
         {resourceId ? (
           <Link
             className="resources-back-link"
-            to={feedReturnTo}
-            state={feedReturnRestoreState(location.state)}
+            to={resourceReturnTo}
+            state={
+              searchReturnTo ? undefined : feedReturnRestoreState(location.state)
+            }
           >
-            {feedReturnTo === "/" ? "Volver a Inicio" : "Volver al feed"}
+            {searchReturnTo
+              ? "Volver a la búsqueda"
+              : feedReturnTo === "/"
+                ? "Volver a Inicio"
+                : feedReturnTo === "/resources"
+                  ? "Ver otros apuntes"
+                  : "Volver al feed"}
           </Link>
         ) : authenticated ? (
           <button
