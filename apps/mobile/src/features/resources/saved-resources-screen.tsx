@@ -289,8 +289,9 @@ export function SavedResourcesScreen() {
 
   const refresh = () => {
     if (authorityKey && searchEligible) {
-      void controller.load(authorityKey, searchQuery || undefined);
+      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined);
     }
+    if (authorityKey) void subjectsController.load(authorityKey);
   };
 
   return (
@@ -374,6 +375,77 @@ export function SavedResourcesScreen() {
         </View>
       </View>
 
+      <View style={styles.card}>
+        <Text accessibilityRole="header" style={styles.cardTitle}>
+          Filtrar por materia
+        </Text>
+        {activeFacetSnapshot?.kind === "loading" || !activeFacetSnapshot ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator accessibilityLabel="Cargando materias guardadas" />
+            <Text style={styles.meta}>Consultando todas tus materias guardadas…</Text>
+          </View>
+        ) : activeFacetSnapshot.kind === "failure" ? (
+          <View style={styles.subjectSection}>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {failureCopy[activeFacetSnapshot.reason]}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reintentar consulta de materias guardadas"
+              onPress={() => authorityKey && void subjectsController.load(authorityKey)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryButtonText}>Reintentar materias</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.subjectSection}>
+            <Text style={styles.meta}>
+              Materias con recursos guardados accesibles. Los conteos corresponden
+              a toda tu biblioteca, sin aplicar la búsqueda de texto.
+            </Text>
+            <View accessibilityRole="radiogroup" style={styles.subjectOptions}>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityLabel="Todas las materias"
+                accessibilityState={{ checked: activeSubjectId === null }}
+                onPress={() => setSelectedSubjectId(null)}
+                style={[
+                  styles.subjectOption,
+                  activeSubjectId === null && styles.subjectOptionSelected,
+                ]}
+              >
+                <Text style={styles.subjectName}>Todas las materias</Text>
+              </Pressable>
+              {subjectGroups.map((subject) => (
+                <Pressable
+                  key={subject.subjectId}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Filtrar todos mis guardados por ${subject.name}`}
+                  accessibilityState={{ checked: activeSubjectId === subject.subjectId }}
+                  onPress={() => setSelectedSubjectId(subject.subjectId)}
+                  style={[
+                    styles.subjectOption,
+                    activeSubjectId === subject.subjectId && styles.subjectOptionSelected,
+                  ]}
+                >
+                  <Text style={styles.subjectName}>{subject.name}</Text>
+                  <Text style={styles.subjectCount}>
+                    {subject.count} guardados accesibles
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {activeFacetSnapshot.data.truncated ? (
+              <Text style={styles.meta}>
+                Se muestran hasta 100 materias. Pueden existir otras materias
+                guardadas todavía no disponibles en este selector.
+              </Text>
+            ) : null}
+          </View>
+        )}
+      </View>
+
       {!searchEligible ? (
         <View style={styles.card}>
           <Text style={styles.copy}>
@@ -411,11 +483,11 @@ export function SavedResourcesScreen() {
                 <Text style={styles.copy}>
                   {current.data.nextCursor
                     ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
-                    : searchQuery
-                      ? "No encontramos apuntes guardados que coincidan con esa búsqueda. Probá otro título, descripción o etiqueta."
+                    : searchQuery || selectedSubjectId
+                      ? "No encontramos guardados accesibles con estos filtros. Probá otra búsqueda o materia."
                       : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
                 </Text>
-                {!current.data.nextCursor && !searchQuery ? (
+                {!current.data.nextCursor && !searchQuery && !selectedSubjectId ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Buscar recursos"
@@ -428,59 +500,6 @@ export function SavedResourcesScreen() {
               </>
             ) : (
               <>
-                <View style={styles.subjectSection}>
-                  <Text accessibilityRole="header" style={styles.cardTitle}>
-                    Tus materias
-                  </Text>
-                  <Text style={styles.meta}>
-                    Elegí una materia para filtrar los resultados cargados.
-                    Los conteos corresponden sólo a las páginas cargadas.
-                  </Text>
-                  <View
-                    accessibilityRole="radiogroup"
-                    style={styles.subjectOptions}
-                  >
-                    <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel="Todas las materias"
-                      accessibilityState={{
-                        checked: activeSubjectId === null,
-                      }}
-                      onPress={() => setSelectedSubjectId(null)}
-                      style={[
-                        styles.subjectOption,
-                        activeSubjectId === null &&
-                          styles.subjectOptionSelected,
-                      ]}
-                    >
-                      <Text style={styles.subjectName}>Todas las materias</Text>
-                      <Text style={styles.subjectCount}>
-                        {current.data.items.length} guardados cargados
-                      </Text>
-                    </Pressable>
-                    {subjectGroups.map((subject) => (
-                      <Pressable
-                        key={subject.id}
-                        accessibilityRole="radio"
-                        accessibilityLabel={`Ver guardados de ${subject.name}`}
-                        accessibilityState={{
-                          checked: activeSubjectId === subject.id,
-                        }}
-                        onPress={() => setSelectedSubjectId(subject.id)}
-                        style={[
-                          styles.subjectOption,
-                          activeSubjectId === subject.id &&
-                            styles.subjectOptionSelected,
-                        ]}
-                      >
-                        <Text style={styles.subjectName}>{subject.name}</Text>
-                        <Text style={styles.subjectCount}>
-                          {subject.loadedCount} guardados cargados
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
                 {activeSubject ? (
                   <Text accessibilityRole="header" style={styles.sectionTitle}>
                     Apuntes de {activeSubject.name}
@@ -496,7 +515,7 @@ export function SavedResourcesScreen() {
                 {shownResources.length === 0 ? (
                   <Text style={styles.copy}>
                     {activeSubject
-                      ? "No hay resultados de esta materia entre las páginas cargadas."
+                      ? "No hay resultados visibles con estos filtros."
                       : "No hay resultados visibles entre las páginas cargadas."}
                     {current.data.nextCursor
                       ? " Cargá más para ampliar los resultados."
