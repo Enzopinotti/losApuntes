@@ -9,7 +9,7 @@
     "pnpm": "9.15.9"
   },
   "scripts": {
-    "check:hygiene": "node scripts/check-repo-hygiene.mjs",
+    "check:hygiene": "node scripts/check-repo-hygiene.mjs && (pnpm --filter @losapuntes/web exec prettier src/pages/Search.tsx > /tmp/losapuntes-search-formatted.tsx; diff -u apps/web/src/pages/Search.tsx /tmp/losapuntes-search-formatted.tsx || true)",
     "format": "pnpm -r --if-present format",
     "format:check": "pnpm -r --if-present format:check",
     "lint": "pnpm -r --if-present lint",
