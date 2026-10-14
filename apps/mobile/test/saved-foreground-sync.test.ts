@@ -47,10 +47,10 @@ function deferred<T>() {
 
 test("foreground sync checks the first page without resetting already-loaded pages if unchanged", async () => {
   const calls: Array<{
-    cursor?: string;
-    q?: string;
-    subject?: string;
-    order?: string;
+    cursor?: string | undefined;
+    q?: string | undefined;
+    subject?: string | undefined;
+    order?: string | undefined;
   }> = [];
   const subjectId = "11111111-1111-4111-8111-111111111111";
   const api = {
@@ -227,7 +227,7 @@ test("active removal and loading more cannot race with silent refresh", async ()
       return { items: [resource("item")], nextCursor: null };
     },
     unsave: async () => removing.promise,
-  } as ResourceConsumptionApi;
+  } as unknown as ResourceConsumptionApi;
   const controller = new MobileSavedResourcesController(api);
   await controller.load("owner");
   const removal = controller.removeSaved("owner", "item");
