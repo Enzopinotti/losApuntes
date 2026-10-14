@@ -105,3 +105,18 @@ in [account-data-export-v2-study-collections](../security/account-data-export-v2
 The 32-section v3 contract and owner-only study progress projection are specified in [account-data-export-v3-study-progress](../security/account-data-export-v3-study-progress.md).
 Neither an export request nor a download grants new access to resources
 referenced by collections or study plans.
+
+## Web Security integration (feature-gated)
+
+The Web Security page includes an opt-in Exportar mis datos section behind the VITE_ACCOUNT_EXPORT_WEB_ENABLED=true flag. The example environment keeps this flag false by default. Production enablement still depends on the privacy/content review, provider/IAM/lifecycle checks and exact-main qualification tracked by #183, #82 and #83.
+
+When enabled, the Web flow:
+
+- requests an export through authenticated cookie POST without a request body;
+- retains only the current job public status in memory, fenced by user, session and auth state; reloading the page replays the server-side active job without a durable browser job identifier;
+- polls on a bounded 30-second cadence only while pending or processing and the document is visible, then revalidates when focused;
+- allows manual status refresh and a fresh request after failure or expiry, while backend CAS/deduplication remains authoritative;
+- starts downloads through ordinary browser attachment navigation to the same authenticated API, without a JavaScript Blob, object URL or signed storage URL;
+- relies on the backend to recheck account state, job ownership and expiry for every download.
+
+Only status records are shown in the Web interface. The versioned export contents remain subject to the documented domain-inclusion and privacy decisions. This feature flag does not waive production launch gates.
