@@ -355,7 +355,7 @@ export function ResourceDirectSharingPanel({
                     <Text style={styles.primaryLabel}>Conceder acceso</Text>
                   )}
                 </Pressable>
-              )>
+              )}
 
               <Pressable
                 accessibilityRole="checkbox"
