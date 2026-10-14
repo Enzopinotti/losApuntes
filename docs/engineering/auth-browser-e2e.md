@@ -6,6 +6,9 @@ The expired-session browser assertion temporarily pauses MongoDB's TTL monitor *
 
 The reversible TTL guard has deterministic tests covering successful execution, failed assertions, a monitor already disabled, failed pause, invalid state and failed restoration. Run `node --test scripts/test-auth-ttl-guard.mjs` without Docker; the full browser scenario still requires disposable Compose + Chromium.
 
+Before **any** browser account/session fixture is created, the runner inspects the effective Docker context and target Mongo container. It rejects remote TCP/SSH Docker connections (including `DOCKER_HOST` overrides), requires the container to have the exact repository `compose.local.yml` configuration label, and requires `HostConfig.Tmpfs[/data/db]` to exist. These read-only guards fail closed; even a loopback Web/API origin alone is not considered evidence of a local, disposable Mongo. They do not guarantee that a host exposing a local Docker Unix socket is isolated from other containers; run the smoke on a dedicated disposable machine and never share this Compose project with production. Unit tests: `node --test scripts/test-auth-local-compose-guard.mjs` (not executed as part of this accelerated merge).
+
+
 The runner starts and stops the Web Vite server. It refuses non-loopback Web or API origins and never prints credentials, verification tokens, or session cookie values. Run it only against the disposable local Compose stack; it is not a production probe and does not claim provider, device, or deployed-browser evidence.
 
 ```sh
