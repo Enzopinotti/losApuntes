@@ -17,6 +17,71 @@ describe('Mongo saved-library full-collection search', () => {
     return { store, aggregate, collation, option };
   }
 
+  it('checks saved-date continuation against an existing authorized bookmark', async () => {
+    const { store, aggregate, option, collation } = build([
+      { resourceId: '11111111-1111-4111-8111-111111111111', createdAt: new Date() },
+    ]);
+    const anchor = {
+      resourceId: '11111111-1111-4111-8111-111111111111',
+      createdAt: new Date('2026-10-14T13:00:00.000Z'),
+    };
+    await expect(store.isSavedSearchAnchorCurrent({
+      userId: 'viewer-a', q: 'algebra', after: anchor,
+    })).resolves.toBe(true);
+
+    const stages = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(stages[0]).toEqual({
+      $match: {
+        userId: 'viewer-a',
+        resourceId: anchor.resourceId,
+        createdAt: anchor.createdAt,
+      },
+    });
+    expect(stages[1]).toEqual({ $project: { _id: 0, resourceId: 1 } });
+    expect(JSON.stringify(stages)).toContain('"searchText"');
+    const authorizationIndex = stages.findIndex((stage) =>
+      '$match' in stage && JSON.stringify(stage).includes('__resource.visibility'));
+    const limitIndex = stages.findIndex((stage) => '$limit' in stage);
+    expect(authorizationIndex).toBeGreaterThan(0);
+    expect(limitIndex).toBeGreaterThan(authorizationIndex);
+    expect(stages[limitIndex]).toEqual({ $limit: 1 });
+    expect(option).toHaveBeenCalledWith({ maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS });
+    expect(collation).not.toHaveBeenCalled();
+  });
+
+  it('checks a title anchor with the same collation and Subject as sorted paging', async () => {
+    const { store, aggregate, collation } = build([
+      { resourceId: '11111111-1111-4111-8111-111111111111', createdAt: new Date() },
+    ]);
+    const subjectId = '22222222-2222-4222-8222-222222222222';
+    await expect(store.isSavedSearchAnchorCurrent({
+      userId: 'viewer-a',
+      subjectId,
+      titleAfter: { title: 'Álgebra', resourceId: '11111111-1111-4111-8111-111111111111' },
+    })).resolves.toBe(true);
+    expect(collation).toHaveBeenCalledWith({ locale: 'es', strength: 1 });
+    const stages = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const text = JSON.stringify(stages);
+    expect(text).toContain('"subjectId":"22222222-2222-4222-8222-222222222222"');
+    expect(text).toContain('"__resource.title":"Álgebra"');
+    expect(text).toContain('"localField":"resourceId","foreignField":"id"');
+    expect(text).toContain('"localField":"resourceId","foreignField":"resourceId"');
+  });
+
+  it('returns false for a removed or invisible anchor instead of inventing a next page', async () => {
+    const { store } = build([]);
+    expect(await store.isSavedSearchAnchorCurrent({
+      userId: 'viewer-a',
+      after: {
+        resourceId: '11111111-1111-4111-8111-111111111111',
+        createdAt: new Date('2026-10-14T13:00:00.000Z'),
+      },
+    })).toBe(false);
+    expect(await store.isSavedSearchAnchorCurrent({
+      userId: 'viewer-a',
+    })).toBe(false);
+  });
+
   it('sets a strict execution budget and spill allowance on title and date searches', async () => {
     const { store, option, collation } = build();
     await store.searchSavedResources({ userId: 'viewer-a', order: 'title', limit: 25 });

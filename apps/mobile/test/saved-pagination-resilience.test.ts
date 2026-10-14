@@ -164,3 +164,68 @@ test("Saved renders rows in ProductSurface FlatList and keeps pagination manual"
   assert.match(screen, /Reintentar carga/u);
   assert.doesNotMatch(screen, /onEndReached=/u);
 });
+
+test("stale search anchor preserves loaded rows and offers refresh rather than retrying the same cursor", async () => {
+  const cursors: Array<string | undefined> = [];
+  const api = {
+    saved: async (cursor?: string): Promise<ResourceSavedPage> => {
+      cursors.push(cursor);
+      if (!cursor) return { items: [resource("visible")], nextCursor: "anchor-1" };
+      throw new ApiRequestError(
+        "conflict", 409, "RESOURCE_SAVED_SEARCH_CURSOR_STALE", "Saved library changed",
+      );
+    },
+  } as ResourceConsumptionApi;
+  const controller = new MobileSavedResourcesController(api);
+  await controller.load("account-a", "algebra", undefined, "title");
+  await controller.loadMore("account-a");
+  const state = controller.getSnapshot();
+  assert.equal(state.kind, "ready");
+  if (state.kind !== "ready") return;
+  assert.equal(state.paginationStalled, true);
+  assert.equal(state.paginationResetReason, "data_changed");
+  assert.equal(state.failure, null);
+  assert.equal(state.data.nextCursor, null);
+  assert.deepEqual(state.data.items.map((item) => item.id), ["visible"]);
+  await controller.loadMore("account-a");
+  assert.deepEqual(cursors, [undefined, "anchor-1"]);
+
+  await controller.load("account-a", "algebra", undefined, "title");
+  const refreshed = controller.getSnapshot();
+  assert.equal(refreshed.kind, "ready");
+  if (refreshed.kind === "ready") {
+    assert.equal(refreshed.paginationStalled, false);
+    assert.equal(refreshed.paginationResetReason, undefined);
+    assert.equal(refreshed.data.nextCursor, "anchor-1");
+  }
+});
+
+test("a generic conflict is not mislabeled as a stale saved cursor", async () => {
+  const api = {
+    saved: async (cursor?: string): Promise<ResourceSavedPage> => {
+      if (!cursor) return { items: [resource("visible")], nextCursor: "next" };
+      throw new ApiRequestError("conflict", 409, "OTHER_CONFLICT", "Busy");
+    },
+  } as ResourceConsumptionApi;
+  const controller = new MobileSavedResourcesController(api);
+  await controller.load("account-a", "alg");
+  await controller.loadMore("account-a");
+  const state = controller.getSnapshot();
+  assert.equal(state.kind, "ready");
+  if (state.kind !== "ready") return;
+  assert.equal(state.paginationStalled, false);
+  assert.equal(state.paginationResetReason, undefined);
+  assert.equal(state.data.nextCursor, "next");
+  assert.equal(state.failure, "error");
+});
+
+test("concurrent-change copy is distinct from a cyclic cursor", () => {
+  const screen = readFileSync(
+    new URL("../src/features/resources/saved-resources-screen.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(screen, /current\.paginationResetReason === "data_changed"/u);
+  assert.match(screen, /Tus guardados o sus permisos cambiaron/u);
+  assert.match(screen, /cursor repetido/u);
+  assert.match(screen, /Reiniciar listado/u);
+});

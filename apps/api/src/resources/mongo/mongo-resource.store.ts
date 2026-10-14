@@ -577,6 +577,43 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
     };
   }
 
+  async isSavedSearchAnchorCurrent(
+    input: Parameters<SavedResourceSearchStore['isSavedSearchAnchorCurrent']>[0],
+  ): ReturnType<SavedResourceSearchStore['isSavedSearchAnchorCurrent']> {
+    const anchor = input.titleAfter ?? input.after;
+    if (!anchor) return false;
+
+    // Indexed (userId, resourceId) bookmark lookup. Filtering and current
+    // Resource/share permissions are checked BEFORE accepting continuation.
+    const stages: PipelineStage[] = [
+      {
+        $match: {
+          userId: input.userId,
+          resourceId: anchor.resourceId,
+          ...(input.after ? { createdAt: input.after.createdAt } : {}),
+        },
+      },
+      { $project: { _id: 0, resourceId: 1 } },
+      ...authorizedSavedJoinStages(input.userId, {
+        ...(input.q ? { searchRegex: savedMetadataRegex(input.q) } : {}),
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+      }),
+      ...(input.titleAfter
+        ? [{ $match: { '__resource.title': input.titleAfter.title } } as PipelineStage]
+        : []),
+      { $limit: 1 },
+      { $project: { _id: 0, resourceId: 1 } },
+    ];
+    const query = this.saves
+      .aggregate<{ resourceId: string }>(stages)
+      .option({ maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS });
+
+    const rows = input.titleAfter
+      ? await query.collation({ locale: 'es', strength: 1 }).exec()
+      : await query.exec();
+    return rows.length > 0;
+  }
+
   async listSavedSubjectFacets(
     userId: string,
   ): ReturnType<SavedResourceSearchStore['listSavedSubjectFacets']> {

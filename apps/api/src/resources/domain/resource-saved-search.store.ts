@@ -20,6 +20,18 @@ export interface SavedResourceSearchStore {
     after?: SavedResourceCursor;
     titleAfter?: SavedTitleCursor;
   }): Promise<SavedSearchPage>;
+  /**
+   * True only if the last emitted page anchor still belongs to the actor,
+   * matches the original filters and remains currently readable.
+   * The title position uses the same Mongo collation as keyset paging.
+   */
+  isSavedSearchAnchorCurrent(input: {
+    userId: string;
+    q?: string;
+    subjectId?: string;
+    after?: SavedResourceCursor;
+    titleAfter?: SavedTitleCursor;
+  }): Promise<boolean>;
   listSavedSubjectFacets(userId: string): Promise<{
     items: Array<{ subjectId: string; count: number }>;
     truncated: boolean;
