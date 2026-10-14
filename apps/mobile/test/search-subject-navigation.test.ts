@@ -162,7 +162,10 @@ test("all entry points reuse the same canonical exploration action without inven
   assert.match(parser, /subjectResourcesSearchRouteId\(params\.subjectId\)/u);
   assert.match(search, /onExploreSubject=\{exploreContextSubject\}/u);
   assert.match(search, /Explorar apuntes de esta materia/u);
-  assert.match(search, /Este enlace de búsqueda o su filtro de materia no es válido/u);
+  assert.match(
+    search,
+    /Este enlace de búsqueda o su filtro de materia no es válido/u,
+  );
 });
 
 test("subject exploration does not change existing Q&A route or grant publication", () => {
