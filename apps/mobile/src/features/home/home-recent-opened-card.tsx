@@ -130,7 +130,7 @@ export function HomeRecentOpenedCard({
                 onPress={() => setRecentScope("current")}
                 style={[styles.scopeChoice, recentScope === "current" && styles.scopeChoiceSelected]}
               >
-                <Text style={styles.buttonLabel}>Mi materia ({subjectItems.length})</Text>
+                <Text style={styles.buttonLabel}>Mi materia ({subjectItems.length} de esta vista)</Text>
               </Pressable>
             </View>
           ) : null}
@@ -150,7 +150,7 @@ export function HomeRecentOpenedCard({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Reintentar recursos abiertos recientemente"
-            onPress={() => void controller.load(authorityKey, sessionAuthorityKey)}
+            onPress={() => void controller.load(authorityKey, sessionAuthorityKey, preferredSubjectId)}
             style={styles.secondaryButton}
           >
             <Text style={styles.buttonLabel}>Reintentar</Text>
@@ -165,7 +165,9 @@ export function HomeRecentOpenedCard({
                 : "Todavía no hay apuntes abiertos disponibles en esta sesión. Entrá a un recurso desde Buscar o tus guardados para verlo acá."}
             </Text>
           ) : (
-            visibleItems.map((resource) => (
+            visibleItems.map((resource) => {
+              const questionsAction = savedSubjectQuestionsAction(resource);
+              return (
               <View key={resource.id} style={styles.recentRow}>
                 {preferredSubjectId === resource.academic.subject.id ? (
                   <Text style={styles.contextLabel}>De tu materia actual</Text>
@@ -190,19 +192,20 @@ export function HomeRecentOpenedCard({
                 </Text>
                 <Text style={styles.buttonLabel}>Volver al apunte</Text>
               </Pressable>
-              {savedSubjectQuestionsAction(resource) ? (
+              {questionsAction ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={savedSubjectQuestionsAction(resource)!.accessibilityLabel}
-                  accessibilityHint={savedSubjectQuestionsAction(resource)!.accessibilityHint}
-                  onPress={() => router.push(savedSubjectQuestionsAction(resource)!.href)}
+                  accessibilityLabel={questionsAction.accessibilityLabel}
+                  accessibilityHint={questionsAction.accessibilityHint}
+                  onPress={() => router.push(questionsAction.href)}
                   style={styles.questionButton}
                 >
                   <Text style={styles.buttonLabel}>Preguntas de esta materia</Text>
                 </Pressable>
               ) : null}
               </View>
-            ))
+              );
+            })
           )}
           {current.moreAvailable && recentScope === "all" ? (
             <Text style={styles.copy}>
@@ -218,7 +221,7 @@ export function HomeRecentOpenedCard({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Reintentar verificación de apuntes recientes"
-              onPress={() => void controller.load(authorityKey, sessionAuthorityKey)}
+              onPress={() => void controller.load(authorityKey, sessionAuthorityKey, preferredSubjectId)}
               style={styles.secondaryButton}
             >
               <Text style={styles.buttonLabel}>Volver a comprobar</Text>
