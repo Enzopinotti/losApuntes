@@ -7,7 +7,7 @@ const expectedSha256 = createHash('sha256').update(content).digest('hex');
 
 function chunks(parts: readonly Uint8Array[]) {
   return (async function* () {
-    for (const part of parts) yield part;
+    for (const part of parts) yield await Promise.resolve(part);
   })();
 }
 
@@ -119,9 +119,9 @@ describe('verifyAccountExportDownload', () => {
     let closed = false;
     async function* provider() {
       try {
-        yield content.subarray(0, 5);
+        yield await Promise.resolve(content.subarray(0, 5));
         controller.abort();
-        yield content.subarray(5);
+        yield await Promise.resolve(content.subarray(5));
       } finally {
         closed = true;
       }
