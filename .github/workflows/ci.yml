@@ -504,7 +504,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify Mobile Search source format
-        run: pnpm --filter @losapuntes/mobile exec prettier --check "src/features/search/search-deep-link.ts" "src/features/search/search-input-state.ts" "src/features/search/search-screen.tsx" "test/search-deep-link.test.ts"
+        run: pnpm --filter @losapuntes/mobile exec prettier --check "src/features/search/search-deep-link.ts" "src/features/search/search-input-state.ts" "src/features/search/search-screen.tsx" "test/search-deep-link.test.ts" "test/search-subject-navigation.test.ts"
 
       - name: Verify Mobile TypeScript contract
         run: pnpm --filter @losapuntes/mobile check:types
