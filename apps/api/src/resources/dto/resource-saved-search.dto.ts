@@ -5,16 +5,22 @@ import {
   IsString,
   Length,
   Matches,
+  IsUUID,
   Max,
   Min,
 } from 'class-validator';
 
 /** Metadata-only query over the authenticated account's saved resources. */
 export class ResourceSavedSearchDto {
+  @IsOptional()
   @IsString()
   @Length(2, 120)
   @Matches(/\S[\s\S]*\S/u, { message: 'Search requires at least two visible characters' })
-  q!: string;
+  q?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  subjectId?: string;
 
   @IsOptional()
   @Type(() => Number)
