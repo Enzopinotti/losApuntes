@@ -120,6 +120,31 @@ Container runtime smoke therefore covers the local Mongo/worker/object-store
 path end to end. It does not verify production-provider IAM, lifecycle
 readback, private-access configuration or physical deletion.
 
+## Lost-lease completed artifacts
+
+Every retry writes to a different private attempt generation
+(`exports/{jobId}/{claimId}.json`). The assembler commits bytes before
+the job store publishes its completed metadata, fenced by the active lease.
+If renewal reports that a lease was lost after the attempt object was
+committed, the worker now **explicitly deletes that exact attempt object**
+rather than calling multipart abort on an already-completed upload.
+It must not delete another claim's generation or treat an unowned
+attempt as successfully completed.
+
+An object-store outage during this best-effort deletion cannot be
+resolved by Mongo claim CAS because the old worker no longer owns the
+job. The worker reports the claim as stale; the isolated export bucket's
+`exports/` lifecycle rule provides eventual cleanup of an orphaned
+object. That backstop is **not** proof of immediate physical deletion:
+verify the provider's lifecycle, object versioning, replicas and
+noncurrent-version retention before production use.
+
+Regression specifications for both the successful removal and temporary
+delete failure are in
+`apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts`.
+They are written but **not executed** in the accelerated development
+lane.
+
 ## Retention limits
 
 Lifecycle processing can be delayed. In a versioned bucket, expiring the
