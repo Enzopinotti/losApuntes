@@ -89,7 +89,7 @@ test("resource transport sends the query on its saved endpoint without exposing 
       urls.push(url);
       return { items: [], nextCursor: null };
     },
-  } as MobileApiClient;
+  } as unknown as MobileApiClient;
   const transport = new MobileResourceConsumptionHttpTransport(fakeClient);
   await transport.saved("credential", "opaque+/page", undefined, "Álgebra");
   const parsed = new URL(urls[0]!, "https://api.example.invalid");
