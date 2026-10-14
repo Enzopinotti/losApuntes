@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import type { ResourceView } from "@losapuntes/contracts";
+import type { ResourceConsumptionApi, ResourceSavedPage } from "../src/features/resources/resource-consumption-api";
+import { MobileSavedResourcesController } from "../src/features/resources/resource-consumption-controller";
+
+const resource = (id: string) => ({
+  id,
+  title: id,
+  description: null,
+  tags: [],
+  visibility: "public",
+  author: null,
+  academic: { subject: { id: "subject-1", name: "Álgebra" }, courseOffering: null },
+  file: { id, filename: "file.pdf", mimeType: "application/pdf", byteSize: 512 },
+  capabilities: { edit: false, manageShares: false },
+  revision: 1,
+  createdAt: "2026-10-14T12:00:00.000Z",
+  updatedAt: "2026-10-14T12:00:00.000Z",
+}) as ResourceView;
+
+test("saved search keeps the same query across cursor pages", async () => {
+  const requests: Array<{ cursor?: string; q?: string }> = [];
+  const api = {
+    saved: async (cursor?: string, _signal?: AbortSignal, q?: string): Promise<ResourceSavedPage> => {
+      requests.push({ cursor, q });
+      return cursor
+        ? { items: [resource("older")], nextCursor: null }
+        : { items: [resource("recent")], nextCursor: "next-page" };
+    },
+  } as ResourceConsumptionApi;
+  const controller = new MobileSavedResourcesController(api);
+
+  await controller.load("session-a", "resumen");
+  await controller.loadMore("session-a");
+
+  const result = controller.getSnapshot();
+  assert.equal(result.kind, "ready");
+  if (result.kind === "ready") {
+    assert.equal(result.searchQuery, "resumen");
+    assert.deepEqual(result.data.items.map((r) => r.id), ["recent", "older"]);
+  }
+  assert.deepEqual(requests, [
+    { cursor: undefined, q: "resumen" },
+    { cursor: "next-page", q: "resumen" },
+  ]);
+});
