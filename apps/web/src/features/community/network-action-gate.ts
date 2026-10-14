@@ -15,7 +15,10 @@ export class NetworkActionGate {
   private current: NetworkActionLease | null = null;
   private sequence = 0;
 
-  tryAcquire(authorityScope: string, actionKey: string): NetworkActionLease | null {
+  tryAcquire(
+    authorityScope: string,
+    actionKey: string,
+  ): NetworkActionLease | null {
     if (!authorityScope || !actionKey) return null;
     if (this.current?.authorityScope === authorityScope) return null;
 
