@@ -447,6 +447,9 @@ export default function StudyWorkbench() {
               </form>
             </div>
             <div className="study-workbench-actions">
+              <Link to={`/study/session?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
+                Preparar sesión de estudio
+              </Link>
               <Link to={`/resources?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Explorar más apuntes
               </Link>
