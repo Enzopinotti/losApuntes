@@ -321,6 +321,61 @@ describe('AccountExportProcessor', () => {
     ]);
   });
 
+  it('deletes the committed attempt generation if the lease is lost after artifact assembly', async () => {
+    const f = fixture();
+    let resolveAssembly!: (value: AccountExportAssemblyResult) => void;
+    f.assembler.writeJsonV1.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveAssembly = resolve; }),
+    );
+    f.exports.renewLease.mockResolvedValueOnce(false);
+    jest.useFakeTimers().setSystemTime(now);
+
+    const iteration = f.processor.runIteration();
+    await jest.advanceTimersByTimeAsync(40_000);
+    expect(f.exports.renewLease).toHaveBeenCalledWith({
+      id: claim().id,
+      claimId: claim().claimId,
+    });
+    resolveAssembly(result);
+
+    await expect(iteration).resolves.toMatchObject({
+      stale: 1,
+      completed: 0,
+      failed: 0,
+    });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledTimes(1);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id,
+      claim().claimId,
+    );
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.sink.abort).not.toHaveBeenCalled();
+  });
+
+  it('keeps a stale lease result when deleting its committed orphan temporarily fails', async () => {
+    const f = fixture();
+    let resolveAssembly!: (value: AccountExportAssemblyResult) => void;
+    f.assembler.writeJsonV1.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveAssembly = resolve; }),
+    );
+    f.exports.renewLease.mockResolvedValueOnce(false);
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(
+      new Error('private provider cleanup failure'),
+    );
+    jest.useFakeTimers().setSystemTime(now);
+
+    const iteration = f.processor.runIteration();
+    await jest.advanceTimersByTimeAsync(40_000);
+    resolveAssembly(result);
+    await expect(iteration).resolves.toMatchObject({ stale: 1 });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id,
+      claim().claimId,
+    );
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.exports.reschedule).not.toHaveBeenCalled();
+  });
+
   it('retries expired artifact deletion without clearing its durable generation', async () => {
     const f = fixture({ job: null });
     const expiresAt = new Date(now.getTime() - 1);
