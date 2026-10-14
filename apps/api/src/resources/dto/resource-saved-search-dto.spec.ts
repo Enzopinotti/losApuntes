@@ -1,16 +1,16 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
-import { ResourceSavedListDto } from './resource.dto';
+import { ResourceSavedSearchDto } from './resource-saved-search.dto';
 
-describe('ResourceSavedListDto metadata search', () => {
+describe('ResourceSavedSearchDto metadata search', () => {
   const errorsFor = (q: unknown) =>
-    validateSync(plainToInstance(ResourceSavedListDto, { q })).flatMap(
+    validateSync(plainToInstance(ResourceSavedSearchDto, { q })).flatMap(
       (error) => Object.keys(error.constraints ?? {}),
     );
 
   it('accepts a bounded phrase or omitted query', () => {
-    expect(validateSync(plainToInstance(ResourceSavedListDto, {}))).toEqual([]);
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, {}))).toEqual([]);
     expect(errorsFor('base de datos')).toEqual([]);
     expect(errorsFor('Álgebra')).toEqual([]);
     expect(errorsFor('x'.repeat(120))).toEqual([]);
@@ -23,8 +23,8 @@ describe('ResourceSavedListDto metadata search', () => {
   });
 
   it('keeps the existing pagination limits', () => {
-    const query = plainToInstance(ResourceSavedListDto, { q: 'alg', limit: 51 });
+    const query = plainToInstance(ResourceSavedSearchDto, { q: 'alg', limit: 51 });
     expect(validateSync(query).length).toBeGreaterThan(0);
-    expect(plainToInstance(ResourceSavedListDto, {}).limit).toBe(25);
+    expect(plainToInstance(ResourceSavedSearchDto, {}).limit).toBe(25);
   });
 });
