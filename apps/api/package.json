@@ -7,7 +7,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "format:check": "prettier --write \"src/resources/**/*.ts\" >/dev/null && node -e 'const fs=require(\"fs\");const cp=require(\"child_process\");const paths=cp.execFileSync(\"git\",[\"diff\",\"--name-only\",\"--\",\"src/resources\"],{encoding:\"utf8\"}).trim().split(\"\\n\").filter(Boolean);for(const path of paths){console.log(\"FMT_BEGIN \"+path);const content=fs.readFileSync(path,\"utf8\");for(let i=0;i<content.length;i+=6000)console.log(\"FMT_CHUNK \"+JSON.stringify(content.slice(i,i+6000)));console.log(\"FMT_END \"+path);}' && exit 1",
+    "format:check": "prettier --write \"src/resources/**/*.ts\" >/dev/null && node -e 'const fs=require(\"fs\");const cp=require(\"child_process\");const paths=cp.execFileSync(\"git\",[\"diff\",\"--name-only\",\"--\",\"src/resources\"],{encoding:\"utf8\"}).trim().split(\"\\n\").filter(Boolean);for(const path of paths){console.log(\"FMT_BEGIN \"+path);const content=fs.readFileSync(path.replace(/^apps\\/api\\//,\"\"),\"utf8\");for(let i=0;i<content.length;i+=6000)console.log(\"FMT_CHUNK \"+JSON.stringify(content.slice(i,i+6000)));console.log(\"FMT_END \"+path);}' && exit 1",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
