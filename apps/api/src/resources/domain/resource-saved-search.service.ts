@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 
 import {
   SAVED_RESOURCE_SEARCH_STORE,
@@ -33,6 +33,12 @@ export class ResourceSavedSearchService {
 
   async search(userId: string, rawQuery: string, limit: number, cursor?: string) {
     const q = normalizeSavedQuery(rawQuery);
+    if (q.length < 2 || q.length > 120) {
+      throw new UnprocessableEntityException({
+        code: 'RESOURCE_SAVED_SEARCH_QUERY_INVALID',
+        message: 'Saved library search requires 2 to 120 characters',
+      });
+    }
     const after = decodeSavedSearchCursor(cursor, userId, q);
     const page = await this.store.searchSavedResources({
       userId,
