@@ -30,6 +30,13 @@ describe('saved global title cursor', () => {
     }
   });
 
+  it('handles maximum-length Unicode titles without exceeding the bounded cursor transport', () => {
+    const emoji = { ...row, title: '📚'.repeat(160) };
+    const cursor = encodeSavedTitleCursor(emoji, 'user-a', '');
+    expect(cursor.length).toBeLessThanOrEqual(2048);
+    expect(decodeSavedTitleCursor(cursor, 'user-a', '')).toEqual(emoji);
+  });
+
   it('rejects v1 saved-date cursors and malformed or extended payloads', () => {
     const encode = (value: unknown) =>
       Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
@@ -46,7 +53,7 @@ describe('saved global title cursor', () => {
       encode([]),
       encode(null),
       'not-json',
-      'x'.repeat(513),
+      'x'.repeat(2049),
     ];
     for (const token of invalid) {
       expect(() => decodeSavedTitleCursor(token, 'user-a', ''))
