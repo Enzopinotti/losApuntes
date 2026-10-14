@@ -274,7 +274,13 @@ export class AccountExportService {
       downloadable:
         downloadExpiresAt !== null &&
         job.artifactExpiresAt!.getTime() > now.getTime() &&
-        Boolean(job.artifactGeneration),
+        Boolean(job.artifactGeneration) &&
+        job.formatVersion === ACCOUNT_EXPORT_FORMAT_VERSION &&
+        job.artifactSectionCount === ACCOUNT_EXPORT_V1_SECTION_IDS.length &&
+        Number.isSafeInteger(job.artifactByteLength) &&
+        (job.artifactByteLength ?? 0) > 0 &&
+        typeof job.artifactSha256 === 'string' &&
+        /^[a-f0-9]{64}$/u.test(job.artifactSha256),
     };
   }
 
