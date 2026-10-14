@@ -5,6 +5,7 @@ import {
   searchSelectionFromSearchParams,
   searchSelectionHref,
   searchSelectionKey,
+  searchReturnHref,
 } from '../apps/web/src/features/search/search-navigation.mjs';
 
 const root = process.cwd();
@@ -69,6 +70,29 @@ assert.notEqual(
   'Changing the search category must invalidate prior result identity',
 );
 assert.equal(searchSelectionKey(null), null);
+assert.equal(searchReturnHref({ searchReturnTo: '/search' }), '/search');
+assert.equal(
+  searchReturnHref({ searchReturnTo: '/search?q=SQL&scope=resources' }),
+  '/search?q=SQL&scope=resources',
+);
+for (const returnTo of [
+  null,
+  '',
+  'https://attacker.example/search?q=SQL',
+  '//attacker.example/search?q=SQL',
+  '/resources/something',
+  '/search?q=SQL&scope=all',
+  '/search?q=SQL&scope=resources&token=secret',
+  '/search?q=SQL#private',
+  '/search?q=x',
+]) {
+  assert.equal(
+    searchReturnHref({ searchReturnTo: returnTo }),
+    null,
+    'Only canonical internal search links may be used as return targets',
+  );
+}
+assert.equal(searchReturnHref(null), null);
 
 const service = await read(
   'apps/web/src/features/search/services/searchService.ts',
@@ -118,6 +142,12 @@ assert.doesNotMatch(
   /\/resources\?q=\$\{encodeURIComponent\(resource\.title\)/u,
 );
 assert.match(page, /encodeURIComponent\(subject\.id\)/u);
+
+const resourcesPage = await read('apps/web/src/pages/Resources.tsx');
+assert.match(resourcesPage, /searchReturnHref\(location\.state\)/u);
+assert.match(resourcesPage, /resourceReturnTo/u);
+assert.match(resourcesPage, /Volver a la búsqueda/u);
+assert.match(page, /searchReturnTo:/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
