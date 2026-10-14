@@ -28,8 +28,8 @@ describe('saved query execution budgets', () => {
 
   it('never masks unrelated persistence failures or returns an empty page', async () => {
     const failure = new Error('database connection unavailable');
-    await expect(
-      boundedSavedQuery(() => Promise.reject(failure)),
-    ).rejects.toBe(failure);
+    await expect(boundedSavedQuery(() => Promise.reject(failure))).rejects.toBe(
+      failure,
+    );
   });
 });
