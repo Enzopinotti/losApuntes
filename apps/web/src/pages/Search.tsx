@@ -32,6 +32,7 @@ const Search = () => {
   const submittedKey = searchSelectionKey(submitted);
   const submittedQuery = submitted?.q ?? "";
   const submittedScope = submitted?.scope ?? "all";
+  const submittedSubjectId = submitted?.subjectId ?? "";
   const invalidLinkedSearch = searchParams.has("q") && submittedKey === null;
   const authorityScope = [
     status,
@@ -54,6 +55,7 @@ const Search = () => {
   );
   const [query, setQuery] = useState(submittedQuery);
   const [scope, setScope] = useState<SearchScope>(submittedScope);
+  const [subjectId, setSubjectId] = useState(submittedSubjectId);
   const [retryCount, setRetryCount] = useState(0);
   const resultScopeKey = JSON.stringify([authorityScope, submittedKey]);
   const [searchState, setSearchState] = useState<{
@@ -79,7 +81,8 @@ const Search = () => {
   useEffect(() => {
     setQuery(submittedQuery);
     setScope(submittedScope);
-  }, [submittedQuery, submittedScope]);
+    setSubjectId(submittedSubjectId);
+  }, [submittedQuery, submittedScope, submittedSubjectId]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -134,7 +137,14 @@ const Search = () => {
     });
 
     void searchApi
-      .search({ q: submittedQuery, scope: submittedScope }, ticket.signal)
+      .search(
+        {
+          q: submittedQuery,
+          scope: submittedScope,
+          subjectId: submittedSubjectId || undefined,
+        },
+        ticket.signal,
+      )
       .then((nextResult) => {
         if (!isSearchRequestCurrent(ticket)) return;
         setSearchState({
@@ -170,11 +180,16 @@ const Search = () => {
     submittedKey,
     submittedQuery,
     submittedScope,
+    submittedSubjectId,
   ]);
 
   const runSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const href = searchSelectionHref({ q: query, scope });
+    const href = searchSelectionHref({
+      q: query,
+      scope,
+      subjectId: subjectId || undefined,
+    });
     if (!href) return;
 
     const nextParams = new URLSearchParams(href.slice("/search?".length));
@@ -193,6 +208,7 @@ const Search = () => {
     const href = searchSelectionHref({
       q: submittedQuery,
       scope: submittedScope,
+      subjectId: submittedSubjectId || undefined,
     });
     if (!href) return;
 
@@ -246,7 +262,11 @@ const Search = () => {
           <select
             value={scope}
             onChange={(event) => {
-              setScope(event.target.value as SearchScope);
+              const nextScope = event.target.value as SearchScope;
+              setScope(nextScope);
+              if (nextScope !== "all" && nextScope !== "resources") {
+                setSubjectId("");
+              }
             }}
           >
             <option value="all">Todo</option>
@@ -255,6 +275,29 @@ const Search = () => {
             <option value="people">Personas</option>
           </select>
         </label>
+        {(scope === "all" || scope === "resources") &&
+          (authenticated || Boolean(subjectId)) && (
+            <label>
+              Materia (solo apuntes)
+              <select
+                value={subjectId}
+                onChange={(event) => setSubjectId(event.target.value)}
+              >
+                <option value="">Todas las materias</option>
+                {subjectId &&
+                  !contextual?.subjects.some(
+                    (bucket) => bucket.subject.id === subjectId,
+                  ) && (
+                    <option value={subjectId}>Materia del enlace</option>
+                  )}
+                {contextual?.subjects.map((bucket) => (
+                  <option key={bucket.subject.id} value={bucket.subject.id}>
+                    {bucket.subject.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         <button
           type="submit"
           disabled={query.trim().length < 2 || query.trim().length > 120}
@@ -303,6 +346,7 @@ const Search = () => {
         <section aria-live="polite" className="search-results">
           <p className="search-summary">
             Resultados para <strong>{result.query}</strong>
+            {submittedSubjectId && " · Apuntes filtrados por materia"}
           </p>
 
           {(submittedScope === "all" || submittedScope === "resources") && (
@@ -402,6 +446,10 @@ const Search = () => {
             <p>
               Esta sección usa únicamente materias marcadas como actuales y
               recencia. No es un feed personalizado.
+            </p>
+            <p>
+              Podés elegir una de estas materias en el filtro de arriba para
+              buscar apuntes dentro de esa cursada.
             </p>
           </div>
 
