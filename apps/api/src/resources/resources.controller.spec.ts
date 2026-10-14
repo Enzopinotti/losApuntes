@@ -1,4 +1,8 @@
-import { GUARDS_METADATA, HEADERS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import {
+  GUARDS_METADATA,
+  HEADERS_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
 
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
@@ -34,11 +38,12 @@ describe('owner-only resource share grants route', () => {
       user: { id: 'authenticated-owner' },
     } as AuthenticatedRequest;
 
-    await expect(controller.shares(
-      request,
-      '11111111-1111-4111-8111-111111111111',
-      { limit: 20, cursor: 'opaque-cursor' },
-    )).resolves.toEqual(listing);
+    await expect(
+      controller.shares(request, '11111111-1111-4111-8111-111111111111', {
+        limit: 20,
+        cursor: 'opaque-cursor',
+      }),
+    ).resolves.toEqual(listing);
     expect(listShareGrants).toHaveBeenCalledWith(
       'authenticated-owner',
       '11111111-1111-4111-8111-111111111111',
