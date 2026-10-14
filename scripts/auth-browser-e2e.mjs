@@ -225,6 +225,63 @@ function setSyntheticAccountStatus(email, status) {
   );
 }
 
+function mongoTtlMonitorCommand(script) {
+  return execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      "compose.local.yml",
+      "exec",
+      "-T",
+      "mongo",
+      "mongosh",
+      "--quiet",
+      "losapuntes_local",
+      "--eval",
+      script,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  ).trim();
+}
+
+function readMongoTtlMonitorEnabled() {
+  const output = mongoTtlMonitorCommand(
+    [
+      "const state = db.adminCommand({ getParameter: 1, ttlMonitorEnabled: 1 });",
+      'if (state.ok !== 1 || typeof state.ttlMonitorEnabled !== "boolean") throw new Error("TTL monitor state unavailable");',
+      'print(state.ttlMonitorEnabled ? "enabled" : "disabled");',
+    ].join("\n"),
+  );
+  assert.ok(["enabled", "disabled"].includes(output), "unexpected TTL monitor state");
+  return output === "enabled";
+}
+
+function setMongoTtlMonitorEnabled(enabled) {
+  mongoTtlMonitorCommand(
+    [
+      `const changed = db.adminCommand({ setParameter: 1, ttlMonitorEnabled: ${enabled ? "true" : "false"} });`,
+      'if (changed.ok !== 1) throw new Error("Cannot change local TTL monitor");',
+    ].join("\n"),
+  );
+  assert.equal(readMongoTtlMonitorEnabled(), enabled);
+}
+
+async function withLocalMongoTtlMonitorPaused(operation) {
+  // This scenario uses the disposable Compose Mongo only. No production
+  // TTL configuration, index or Auth behavior is changed.
+  const originallyEnabled = readMongoTtlMonitorEnabled();
+  try {
+    if (originallyEnabled) setMongoTtlMonitorEnabled(false);
+    await operation();
+  } finally {
+    if (originallyEnabled) setMongoTtlMonitorEnabled(true);
+  }
+}
 function expireSyntheticSession(sessionId) {
   const script = [
     "const result = db.auth_sessions.updateOne(",
@@ -1043,34 +1100,36 @@ async function run() {
       "authenticated Web snapshot should expose the expiring session id",
     );
 
-    expireSyntheticSession(expiringSessionId);
-    assertExpiredSyntheticSessionStillPresent(expiringSessionId);
-
-    const expiredBootstrapResponsePromise = page.waitForResponse((response) => {
-      const request = response.request();
-      return (
-        new URL(response.url()).pathname === "/auth/me" &&
-        request.method() === "GET"
+    await withLocalMongoTtlMonitorPaused(async () => {
+      expireSyntheticSession(expiringSessionId);
+      assertExpiredSyntheticSessionStillPresent(expiringSessionId);
+  
+      const expiredBootstrapResponsePromise = page.waitForResponse((response) => {
+        const request = response.request();
+        return (
+          new URL(response.url()).pathname === "/auth/me" &&
+          request.method() === "GET"
+        );
+      });
+      await page.reload();
+      const expiredBootstrapResponse = await expiredBootstrapResponsePromise;
+      assert.equal(
+        expiredBootstrapResponse.status(),
+        401,
+        "expired Web session should fail the next Auth bootstrap",
       );
+      const expiredBootstrapBody = await expiredBootstrapResponse.json();
+      assert.equal(
+        expiredBootstrapBody?.code,
+        "AUTHENTICATION_REQUIRED",
+        "expired Web session should preserve the stable anonymous Auth code",
+      );
+      assertExpiredSyntheticSessionStillPresent(expiringSessionId);
+      await page.waitForURL((url) => url.pathname === "/login");
+      await page
+        .getByRole("heading", { name: "Inicia sesión en tu cuenta", exact: true })
+        .waitFor();
     });
-    await page.reload();
-    const expiredBootstrapResponse = await expiredBootstrapResponsePromise;
-    assert.equal(
-      expiredBootstrapResponse.status(),
-      401,
-      "expired Web session should fail the next Auth bootstrap",
-    );
-    const expiredBootstrapBody = await expiredBootstrapResponse.json();
-    assert.equal(
-      expiredBootstrapBody?.code,
-      "AUTHENTICATION_REQUIRED",
-      "expired Web session should preserve the stable anonymous Auth code",
-    );
-    assertExpiredSyntheticSessionStillPresent(expiringSessionId);
-    await page.waitForURL((url) => url.pathname === "/login");
-    await page
-      .getByRole("heading", { name: "Inicia sesión en tu cuenta", exact: true })
-      .waitFor();
 
     assert.deepEqual(
       pageErrors,
