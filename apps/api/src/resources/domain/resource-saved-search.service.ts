@@ -1,9 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import {
-  RESOURCE_STORE,
-  type ResourceStore,
-} from './resource.store';
+  SAVED_RESOURCE_SEARCH_STORE,
+  type SavedResourceSearchStore,
+} from './resource-saved-search.store';
 import { ResourceService } from './resource.service';
 import {
   decodeSavedSearchCursor,
@@ -26,8 +26,8 @@ function normalizeSavedQuery(value: string): string {
 @Injectable()
 export class ResourceSavedSearchService {
   constructor(
-    @Inject(RESOURCE_STORE)
-    private readonly store: ResourceStore,
+    @Inject(SAVED_RESOURCE_SEARCH_STORE)
+    private readonly store: SavedResourceSearchStore,
     private readonly resources: ResourceService,
   ) {}
 
