@@ -32,6 +32,10 @@ function asset(overrides: Partial<FileAssetRecord> = {}): FileAssetRecord {
 
 function store(): jest.Mocked<FileAssetStore> {
   return {
+    listForAccountExport: jest.fn().mockResolvedValue({
+      items: [],
+      hasMore: false,
+    }),
     createOrReplayUpload: jest.fn((input) =>
       Promise.resolve({ ...input, createdAt: now, updatedAt: now }),
     ),
@@ -126,6 +130,86 @@ function storage(): jest.Mocked<ObjectStorage> {
 }
 
 describe('FileService', () => {
+  it('paginates own upload metadata with a section-bound cursor', async () => {
+    const fileStore = store();
+    const createdAt = new Date('2026-10-11T12:00:00.000Z');
+    fileStore.listForAccountExport.mockResolvedValueOnce({
+      items: [
+        {
+          id: 'asset-1',
+          originalFilename: 'apunte.pdf',
+          declaredMimeType: 'application/pdf',
+          expectedByteSize: 120,
+          actualByteSize: 100,
+          createdAt,
+        },
+      ],
+      hasMore: true,
+    });
+    const service = new FileService(fileStore, storage());
+
+    const first = await service.listForAccountExport({
+      userId: 'owner-user',
+      cursor: null,
+      limit: 1,
+    });
+
+    expect(first.items).toHaveLength(1);
+    expect(first.nextCursor).not.toBeNull();
+    expect(
+      JSON.parse(
+        Buffer.from(first.nextCursor ?? '', 'base64url').toString('utf8'),
+      ),
+    ).toEqual({ section: 'files.uploads', version: 1, id: 'asset-1' });
+
+    fileStore.listForAccountExport.mockResolvedValueOnce({
+      items: [],
+      hasMore: false,
+    });
+    await service.listForAccountExport({
+      userId: 'owner-user',
+      cursor: first.nextCursor,
+      limit: 1,
+    });
+
+    expect(fileStore.listForAccountExport.mock.calls[0]?.[0]).toEqual({
+      creatorUserId: 'owner-user',
+      limit: 1,
+      after: undefined,
+    });
+    expect(fileStore.listForAccountExport.mock.calls[1]?.[0].after).toEqual({
+      id: 'asset-1',
+    });
+  });
+
+  it('rejects a foreign section cursor and oversized page before reading', async () => {
+    const fileStore = store();
+    const service = new FileService(fileStore, storage());
+    const foreignCursor = Buffer.from(
+      JSON.stringify({ section: 'resources.authored', version: 1, id: 'x' }),
+    ).toString('base64url');
+
+    await expect(
+      service.listForAccountExport({
+        userId: 'owner-user',
+        cursor: foreignCursor,
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'FILE_ASSET_ACCOUNT_EXPORT_CURSOR_INVALID' },
+    });
+    await expect(
+      service.listForAccountExport({
+        userId: 'owner-user',
+        cursor: null,
+        limit: 101,
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'FILE_ASSET_ACCOUNT_EXPORT_LIMIT_INVALID' },
+    });
+    expect(fileStore.listForAccountExport.mock.calls).toHaveLength(0);
+  });
+
   it('creates a private upload intent without exposing object keys', async () => {
     const fileStore = store();
     const objectStorage = storage();

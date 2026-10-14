@@ -138,6 +138,17 @@ export type AcademicCatalogProposalRecord = {
   updatedAt: Date;
 };
 
+export type AcademicCatalogProposalExportRow = Pick<
+  AcademicCatalogProposalRecord,
+  | 'id'
+  | 'kind'
+  | 'proposedName'
+  | 'parentIds'
+  | 'evidenceUrl'
+  | 'notes'
+  | 'createdAt'
+>;
+
 export const ACADEMIC_AUDIT_EVENTS = [
   'academic.catalog.created',
   'academic.catalog.updated',

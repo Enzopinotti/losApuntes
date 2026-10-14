@@ -9,6 +9,9 @@ const validEnvironment = {
   FILES_S3_BUCKET: 'losapuntes-files',
   FILES_S3_ACCESS_KEY_ID: 'test-files',
   FILES_S3_SECRET_ACCESS_KEY: 'test-files-secret',
+  ACCOUNT_EXPORT_S3_BUCKET: 'losapuntes-account-exports',
+  ACCOUNT_EXPORT_S3_ACCESS_KEY_ID: 'test-account-export',
+  ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY: 'test-account-export-secret',
 };
 
 const validProductionEnvironment = {
@@ -21,6 +24,8 @@ const validProductionEnvironment = {
   FILES_S3_PUBLIC_ENDPOINT: 'https://files.losapuntes.example',
   FILES_S3_ACCESS_KEY_ID: 'prod-files-access',
   FILES_S3_SECRET_ACCESS_KEY: 'prod-files-secret-value',
+  ACCOUNT_EXPORT_S3_ACCESS_KEY_ID: 'prod-export-access',
+  ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY: 'prod-export-secret-value',
   AUTH_EMAIL_DELIVERY_MODE: 'smtp',
   AUTH_ACTION_BASE_URL: 'https://app.losapuntes.example',
   AUTH_EMAIL_FROM: 'Los Apuntes <no-reply@losapuntes.example>',
@@ -425,6 +430,7 @@ describe('validateRuntimeEnvironment', () => {
       FILES_S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
       FILES_S3_REGION: 'us-east-1',
       FILES_S3_BUCKET: 'losapuntes-files',
+      ACCOUNT_EXPORT_S3_BUCKET: 'losapuntes-account-exports',
       FILES_DOWNLOAD_URL_TTL_SECONDS: 300,
     });
   });
@@ -434,6 +440,27 @@ describe('validateRuntimeEnvironment', () => {
     delete incomplete.FILES_S3_BUCKET;
     expect(() => validateRuntimeEnvironment(incomplete)).toThrow(
       'FILES_S3_BUCKET is required',
+    );
+  });
+
+  it('requires a dedicated account export bucket', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        ACCOUNT_EXPORT_S3_BUCKET: 'losapuntes-files',
+      }),
+    ).toThrow('ACCOUNT_EXPORT_S3_BUCKET must be separate from FILES_S3_BUCKET');
+  });
+
+  it('requires distinct export credentials in production', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        ACCOUNT_EXPORT_S3_ACCESS_KEY_ID:
+          validProductionEnvironment.FILES_S3_ACCESS_KEY_ID,
+      }),
+    ).toThrow(
+      'Account export storage credentials must be separate from Files credentials in production',
     );
   });
 
@@ -493,6 +520,24 @@ describe('validateRuntimeEnvironment', () => {
       }),
     ).toThrow(
       'FILES_S3_SECRET_ACCESS_KEY must not use the local development credential in production',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        ACCOUNT_EXPORT_S3_ACCESS_KEY_ID: 'losapuntes-local',
+      }),
+    ).toThrow(
+      'ACCOUNT_EXPORT_S3_ACCESS_KEY_ID must not use the local development credential in production',
+    );
+
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY: 'losapuntes-local-files-secret',
+      }),
+    ).toThrow(
+      'ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY must not use the local development credential in production',
     );
   });
 

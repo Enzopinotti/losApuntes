@@ -26,6 +26,7 @@ function store(): jest.Mocked<QaStore> {
   return {
     listAuthoredQuestionsForExport: jest.fn(),
     listAuthoredAnswersForExport: jest.fn(),
+    listSubmittedReportsForExport: jest.fn(),
     createQuestion: jest.fn(),
     findQuestion: jest.fn(),
     searchQuestions: jest.fn(),
@@ -236,6 +237,116 @@ describe('QaService', () => {
       ],
       nextCursor: null,
     });
+  });
+
+  it('exports only the owner Q&A report submission and excludes moderation outcomes', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    const cursor = Buffer.from(
+      JSON.stringify({ id: 'report-before' }),
+    ).toString('base64url');
+    qaStore.listSubmittedReportsForExport.mockResolvedValue({
+      items: [
+        {
+          id: 'qa-report-1',
+          targetType: 'answer',
+          targetId: answerId,
+          reason: 'plagiarism',
+          details: 'This is my submitted explanation.',
+          createdAt: now,
+          status: 'resolved',
+          updatedAt: new Date('2026-09-24T15:00:00.000Z'),
+          reviewedByUserId: 'moderator-user',
+          reviewedAt: new Date('2026-09-24T16:00:00.000Z'),
+          reviewReason: 'Internal decision',
+          reviewAction: 'hide',
+        } as never,
+      ],
+      hasMore: true,
+    });
+
+    const page = await service(
+      qaStore,
+      academicApi,
+      profileApi,
+    ).listAccountExportSubmittedReports('owner-1', { limit: 1, cursor });
+
+    expect(qaStore.listSubmittedReportsForExport).toHaveBeenCalledWith({
+      reporterUserId: 'owner-1',
+      limit: 1,
+      afterId: 'report-before',
+    });
+    expect(page).toEqual({
+      items: [
+        {
+          id: 'qa-report-1',
+          targetType: 'answer',
+          targetId: answerId,
+          reason: 'plagiarism',
+          details: 'This is my submitted explanation.',
+          createdAt: now.toISOString(),
+        },
+      ],
+      nextCursor: Buffer.from(JSON.stringify({ id: 'qa-report-1' })).toString(
+        'base64url',
+      ),
+    });
+    for (const key of [
+      'reporterUserId',
+      'status',
+      'updatedAt',
+      'reviewedByUserId',
+      'reviewedAt',
+      'reviewReason',
+      'reviewAction',
+    ]) {
+      expect(page.items[0]).not.toHaveProperty(key);
+    }
+  });
+
+  it('normalizes absent report details and validates its account-export limit before reading', async () => {
+    const qaStore = store();
+    const academicApi = academic();
+    const profileApi = profiles();
+    qaStore.listSubmittedReportsForExport.mockResolvedValue({
+      items: [
+        {
+          id: 'qa-report-2',
+          targetType: 'question',
+          targetId: questionId,
+          reason: 'other',
+          details: undefined,
+          createdAt: now,
+        } as never,
+      ],
+      hasMore: false,
+    });
+
+    await expect(
+      service(
+        qaStore,
+        academicApi,
+        profileApi,
+      ).listAccountExportSubmittedReports('owner-1', {
+        limit: 10,
+        cursor: null,
+      }),
+    ).resolves.toMatchObject({
+      items: [{ id: 'qa-report-2', details: null }],
+      nextCursor: null,
+    });
+    await expect(
+      service(
+        qaStore,
+        academicApi,
+        profileApi,
+      ).listAccountExportSubmittedReports('owner-1', {
+        limit: 101,
+        cursor: null,
+      }),
+    ).rejects.toThrow('Q&A account export limit is invalid');
+    expect(qaStore.listSubmittedReportsForExport).toHaveBeenCalledTimes(1);
   });
 
   it.each([0, 1.5, 101])(

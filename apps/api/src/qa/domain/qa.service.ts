@@ -22,6 +22,7 @@ import type {
   AnswerCursor,
   AnswerAccountExportRow,
   AnswerRecord,
+  QaReportAccountExportRow,
   QuestionAccountExportRow,
   QuestionCursor,
   QuestionRecord,
@@ -211,6 +212,40 @@ export class QaService {
 
     return {
       items: page.items.map((row) => this.answerAccountExportProjection(row)),
+      nextCursor:
+        page.hasMore && last ? encodeAccountExportCursor(last.id) : null,
+    };
+  }
+
+  async listAccountExportSubmittedReports(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<
+      Pick<
+        QaReportAccountExportRow,
+        'id' | 'targetType' | 'targetId' | 'reason' | 'details'
+      > & { createdAt: string }
+    >;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const page = await this.store.listSubmittedReportsForExport({
+      reporterUserId: userId,
+      limit: input.limit,
+      afterId: decodeAccountExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row) => ({
+        id: row.id,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        reason: row.reason,
+        details: row.details ?? null,
+        createdAt: row.createdAt.toISOString(),
+      })),
       nextCursor:
         page.hasMore && last ? encodeAccountExportCursor(last.id) : null,
     };

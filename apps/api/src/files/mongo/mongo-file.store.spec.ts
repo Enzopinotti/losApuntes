@@ -4,16 +4,77 @@ import { FileAssetSchema } from './file.mongo-schema';
 describe('MongoFileAssetStore quarantine migration', () => {
   function query(rows: unknown[] = []) {
     const chain = {
+      select: jest.fn(),
       sort: jest.fn(),
       limit: jest.fn(),
       lean: jest.fn(),
       exec: jest.fn().mockResolvedValue(rows),
     };
+    chain.select.mockReturnValue(chain);
     chain.sort.mockReturnValue(chain);
     chain.limit.mockReturnValue(chain);
     chain.lean.mockReturnValue(chain);
     return chain;
   }
+
+  it('reads only the exact creator metadata with stable bounded keyset paging', async () => {
+    const createdAt = new Date('2026-10-11T12:00:00.000Z');
+    const first = {
+      id: 'asset-1',
+      originalFilename: 'apunte.pdf',
+      declaredMimeType: 'application/pdf' as const,
+      expectedByteSize: 128,
+      createdAt,
+    };
+    const chain = query([first, { ...first, id: 'asset-2' }]);
+    const find = jest.fn().mockReturnValue(chain);
+    const store = new MongoFileAssetStore({ find } as never);
+
+    await expect(
+      store.listForAccountExport({
+        creatorUserId: 'owner-user',
+        limit: 1,
+        after: { id: 'asset-0' },
+      }),
+    ).resolves.toEqual({ items: [first], hasMore: true });
+
+    expect(find).toHaveBeenCalledWith({
+      creatorUserId: 'owner-user',
+      id: { $gt: 'asset-0' },
+    });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      originalFilename: 1,
+      declaredMimeType: 1,
+      verifiedMimeType: 1,
+      expectedByteSize: 1,
+      actualByteSize: 1,
+      createdAt: 1,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(2);
+  });
+
+  it('caps file metadata export reads at the account export maximum', async () => {
+    const chain = query([]);
+    const find = jest.fn().mockReturnValue(chain);
+    const store = new MongoFileAssetStore({ find } as never);
+
+    await store.listForAccountExport({
+      creatorUserId: 'owner-user',
+      limit: 10_000,
+    });
+
+    expect(chain.limit).toHaveBeenCalledWith(101);
+  });
+
+  it('has the creator and export-order compound index', () => {
+    expect(FileAssetSchema.indexes()).toContainEqual([
+      { creatorUserId: 1, id: 1 },
+      { background: true },
+    ]);
+  });
 
   it('keeps claimed legacy ready assets eligible even without expiresAt', async () => {
     const chain = query([]);

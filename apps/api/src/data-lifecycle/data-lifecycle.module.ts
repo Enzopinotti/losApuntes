@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AcademicModule } from '../academic/academic.module';
 import { AuthModule } from '../auth/auth.module';
+import { FeedsModule } from '../feeds/feeds.module';
+import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import {
   OrganizationManager,
@@ -17,12 +21,20 @@ import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { AccountLifecycleController } from './account-lifecycle.controller';
+import { AccountExportController } from './account-export.controller';
 import {
   AcademicAffiliationsExportContributor,
   AcademicCurrentContextExportContributor,
   AcademicFollowsExportContributor,
   AcademicSubjectParticipationsExportContributor,
 } from './contributors/account-export-academic.contributors';
+import { AcademicProposalsExportContributor } from './contributors/account-export-academic-proposals.contributors';
+import { PilotActivityExportContributor } from './contributors/account-export-pilot-activity.contributors';
+import { FileUploadsExportContributor } from './contributors/account-export-file.contributors';
+import {
+  FeedFeedbackExportContributor,
+  FeedPreferencesExportContributor,
+} from './contributors/account-export-feed.contributors';
 import {
   AccountIdentityExportContributor,
   ProfileActivitiesExportContributor,
@@ -38,6 +50,7 @@ import {
   AuthoredQuestionsExportContributor,
 } from './contributors/account-export-qa.contributors';
 import { NotificationInboxExportContributor } from './contributors/account-export-notifications.contributors';
+import { GoogleExternalIdentitiesExportContributor } from './contributors/account-export-google-identities.contributors';
 import {
   OrganizationAuthoredEventsExportContributor,
   OrganizationAuthoredPostsExportContributor,
@@ -46,6 +59,14 @@ import { OrganizationFollowingExportContributor } from './contributors/account-e
 import { OrganizationManagementExportContributor } from './contributors/account-export-organization-management.contributors';
 import { OrganizationSubmittedReportsExportContributor } from './contributors/account-export-organization-reports.contributors';
 import {
+  OrganizationAuthoredLinksExportContributor,
+  OrganizationFeaturedResourcesExportContributor,
+} from './contributors/account-export-organization-curation.contributors';
+import {
+  QaSubmittedReportsExportContributor,
+  ResourceSubmittedReportsExportContributor,
+} from './contributors/account-export-submitted-reports.contributors';
+import {
   SocialConnectionsExportContributor,
   SocialFollowingExportContributor,
 } from './contributors/account-export-social.contributors';
@@ -53,9 +74,17 @@ import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
+  assertAccountExportV1Sections,
 } from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
+import { AccountExportProcessor } from './domain/account-export-processor';
 import { ACCOUNT_EXPORT_STORE } from './domain/account-export.store';
+import {
+  ACCOUNT_EXPORT_ARTIFACT_STORAGE,
+  S3AccountExportArtifactStorage,
+} from './storage/account-export-artifact-storage';
+import { createS3ObjectStorage } from '../files/storage/s3-object-storage';
+import { requireConfigString } from '../config/required-config';
 import { AccountLifecycleService } from './domain/account-lifecycle.service';
 import { ACCOUNT_LIFECYCLE_STORE } from './domain/account-lifecycle.store';
 import {
@@ -75,7 +104,10 @@ import {
   imports: [
     AcademicModule,
     AuthModule,
+    FeedsModule,
+    FilesModule,
     NotificationsModule,
+    PilotTelemetryModule,
     OrganizationsModule,
     UsersModule,
     ProfileModule,
@@ -91,11 +123,12 @@ import {
       { name: SecurityAudit.name, schema: SecurityAuditSchema },
     ]),
   ],
-  controllers: [AccountLifecycleController],
+  controllers: [AccountLifecycleController, AccountExportController],
   providers: [
     AccountLifecycleService,
     AccountExportService,
     AccountExportAssembler,
+    AccountExportProcessor,
     AccountIdentityExportContributor,
     ProfileExportContributor,
     ProfileActivitiesExportContributor,
@@ -103,19 +136,29 @@ import {
     AcademicSubjectParticipationsExportContributor,
     AcademicCurrentContextExportContributor,
     AcademicFollowsExportContributor,
+    AcademicProposalsExportContributor,
+    FeedPreferencesExportContributor,
+    FeedFeedbackExportContributor,
+    FileUploadsExportContributor,
     AuthoredResourcesExportContributor,
     SavedResourcesExportContributor,
     SharedResourceGrantsExportContributor,
     AuthoredQuestionsExportContributor,
     AuthoredAnswersExportContributor,
     NotificationInboxExportContributor,
+    GoogleExternalIdentitiesExportContributor,
     OrganizationAuthoredEventsExportContributor,
     OrganizationAuthoredPostsExportContributor,
+    OrganizationAuthoredLinksExportContributor,
+    OrganizationFeaturedResourcesExportContributor,
     OrganizationFollowingExportContributor,
     OrganizationManagementExportContributor,
     OrganizationSubmittedReportsExportContributor,
+    QaSubmittedReportsExportContributor,
+    ResourceSubmittedReportsExportContributor,
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
+    PilotActivityExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -126,20 +169,31 @@ import {
         academicParticipations: AcademicSubjectParticipationsExportContributor,
         academicContext: AcademicCurrentContextExportContributor,
         academicFollows: AcademicFollowsExportContributor,
+        academicProposals: AcademicProposalsExportContributor,
+        feedPreferences: FeedPreferencesExportContributor,
+        feedFeedback: FeedFeedbackExportContributor,
+        fileUploads: FileUploadsExportContributor,
         authoredResources: AuthoredResourcesExportContributor,
         savedResources: SavedResourcesExportContributor,
         sharedResourceGrants: SharedResourceGrantsExportContributor,
         authoredQuestions: AuthoredQuestionsExportContributor,
         authoredAnswers: AuthoredAnswersExportContributor,
         notificationInbox: NotificationInboxExportContributor,
+        googleExternalIdentities: GoogleExternalIdentitiesExportContributor,
         organizationAuthoredEvents: OrganizationAuthoredEventsExportContributor,
         organizationAuthoredPosts: OrganizationAuthoredPostsExportContributor,
+        organizationAuthoredLinks: OrganizationAuthoredLinksExportContributor,
+        organizationFeaturedResources: OrganizationFeaturedResourcesExportContributor,
         organizationFollowing: OrganizationFollowingExportContributor,
         organizationManagement: OrganizationManagementExportContributor,
         organizationSubmittedReports: OrganizationSubmittedReportsExportContributor,
+        qaSubmittedReports: QaSubmittedReportsExportContributor,
+        resourceSubmittedReports: ResourceSubmittedReportsExportContributor,
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
-      ) => [
+        pilotActivity: PilotActivityExportContributor,
+      ) => {
+        const contributors = [
         account,
         profile,
         activities,
@@ -147,20 +201,33 @@ import {
         academicParticipations,
         academicContext,
         academicFollows,
+        academicProposals,
+        feedPreferences,
+        feedFeedback,
+        fileUploads,
         authoredResources,
         savedResources,
         sharedResourceGrants,
         authoredQuestions,
         authoredAnswers,
         notificationInbox,
+        googleExternalIdentities,
         organizationAuthoredEvents,
         organizationAuthoredPosts,
+        organizationAuthoredLinks,
+        organizationFeaturedResources,
         organizationFollowing,
         organizationManagement,
         organizationSubmittedReports,
+        qaSubmittedReports,
+        resourceSubmittedReports,
         socialFollowing,
         socialConnections,
-      ],
+        pilotActivity,
+        ];
+        assertAccountExportV1Sections(contributors);
+        return contributors;
+      },
       inject: [
         AccountIdentityExportContributor,
         ProfileExportContributor,
@@ -169,19 +236,29 @@ import {
         AcademicSubjectParticipationsExportContributor,
         AcademicCurrentContextExportContributor,
         AcademicFollowsExportContributor,
+        AcademicProposalsExportContributor,
+        FeedPreferencesExportContributor,
+        FeedFeedbackExportContributor,
+        FileUploadsExportContributor,
         AuthoredResourcesExportContributor,
         SavedResourcesExportContributor,
         SharedResourceGrantsExportContributor,
         AuthoredQuestionsExportContributor,
         AuthoredAnswersExportContributor,
         NotificationInboxExportContributor,
+        GoogleExternalIdentitiesExportContributor,
         OrganizationAuthoredEventsExportContributor,
         OrganizationAuthoredPostsExportContributor,
+        OrganizationAuthoredLinksExportContributor,
+        OrganizationFeaturedResourcesExportContributor,
         OrganizationFollowingExportContributor,
         OrganizationManagementExportContributor,
         OrganizationSubmittedReportsExportContributor,
+        QaSubmittedReportsExportContributor,
+        ResourceSubmittedReportsExportContributor,
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
+        PilotActivityExportContributor,
       ],
     },
     AccountExportContributorRegistry,
@@ -195,12 +272,35 @@ import {
       provide: ACCOUNT_EXPORT_STORE,
       useExisting: MongoAccountExportStore,
     },
+    {
+      provide: ACCOUNT_EXPORT_ARTIFACT_STORAGE,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        new S3AccountExportArtifactStorage(
+          createS3ObjectStorage({
+            endpoint: requireConfigString(config, 'FILES_S3_ENDPOINT'),
+            region: requireConfigString(config, 'FILES_S3_REGION'),
+            bucket: requireConfigString(config, 'ACCOUNT_EXPORT_S3_BUCKET'),
+            accessKeyId: requireConfigString(
+              config,
+              'ACCOUNT_EXPORT_S3_ACCESS_KEY_ID',
+            ),
+            secretAccessKey: requireConfigString(
+              config,
+              'ACCOUNT_EXPORT_S3_SECRET_ACCESS_KEY',
+            ),
+            providerId: 's3',
+            configurationPrefix: 'ACCOUNT_EXPORT_S3',
+          }),
+        ),
+    },
   ],
   exports: [
     AccountLifecycleService,
     AccountExportService,
     AccountExportAssembler,
     AccountExportContributorRegistry,
+    ACCOUNT_EXPORT_ARTIFACT_STORAGE,
   ],
 })
 export class DataLifecycleModule {}

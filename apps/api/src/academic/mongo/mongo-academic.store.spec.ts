@@ -2,11 +2,13 @@ import { MongoAcademicStore } from './mongo-academic.store';
 
 function query<T>(rows: T[]) {
   const chain = {
+    select: jest.fn(),
     sort: jest.fn(),
     limit: jest.fn(),
     lean: jest.fn(),
     exec: jest.fn().mockResolvedValue(rows),
   };
+  chain.select.mockReturnValue(chain);
   chain.sort.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.lean.mockReturnValue(chain);
@@ -17,7 +19,9 @@ function store(input: {
   affiliations?: ReturnType<typeof query>;
   participations?: ReturnType<typeof query>;
   follows?: ReturnType<typeof query>;
+  proposals?: ReturnType<typeof query>;
 }) {
+  const catalog = { find: jest.fn() };
   const affiliations = {
     find: jest.fn().mockReturnValue(input.affiliations),
   };
@@ -27,21 +31,26 @@ function store(input: {
   const follows = {
     find: jest.fn().mockReturnValue(input.follows),
   };
+  const proposals = {
+    find: jest.fn().mockReturnValue(input.proposals),
+  };
 
   return {
     store: new MongoAcademicStore(
       {} as never,
-      {} as never,
+      catalog as never,
       affiliations as never,
       participations as never,
       {} as never,
       follows as never,
-      {} as never,
+      proposals as never,
       {} as never,
     ),
     affiliations,
     participations,
     follows,
+    proposals,
+    catalog,
   };
 }
 
@@ -210,6 +219,64 @@ describe('MongoAcademicStore bounded user inventories', () => {
     expect(chain.limit).toHaveBeenCalledWith(3);
     expect(result.items).toHaveLength(2);
     expect(result.hasMore).toBe(true);
+  });
+
+  it('exports owner proposals with an explicit submission-only projection', async () => {
+    const createdAt = new Date('2026-09-22T20:00:00.000Z');
+    const rows = [
+      {
+        id: 'proposal-002',
+        userId: 'user-1',
+        kind: 'program',
+        proposedName: 'Programa propuesto',
+        parentIds: ['institution-1'],
+        evidenceUrl: 'https://example.test/program',
+        notes: 'Owner-authored context',
+        createdAt,
+        status: 'accepted',
+        updatedAt: new Date('2026-09-23T20:00:00.000Z'),
+        reviewedByUserId: 'reviewer-user',
+        reviewedAt: new Date('2026-09-24T20:00:00.000Z'),
+        reviewReason: 'Internal decision',
+        canonicalTargetId: 'canonical-node',
+      },
+      {
+        id: 'proposal-003',
+        userId: 'user-1',
+        kind: 'subject',
+        proposedName: 'Materia propuesto',
+        parentIds: ['program-1'],
+        createdAt,
+      },
+    ];
+    const chain = query(rows);
+    const fixture = store({ proposals: chain });
+
+    const result = await fixture.store.listAcademicProposalsForExport({
+      userId: 'user-1',
+      limit: 1,
+      afterId: 'proposal-001',
+    });
+
+    expect(fixture.proposals.find).toHaveBeenCalledWith({
+      userId: 'user-1',
+      id: { $gt: 'proposal-001' },
+    });
+    expect(chain.select).toHaveBeenCalledWith({
+      _id: 0,
+      id: 1,
+      kind: 1,
+      proposedName: 1,
+      parentIds: 1,
+      evidenceUrl: 1,
+      notes: 1,
+      createdAt: 1,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ id: 1 });
+    expect(chain.limit).toHaveBeenCalledWith(2);
+    expect(result.items).toHaveLength(1);
+    expect(result.hasMore).toBe(true);
+    expect(fixture.catalog.find).not.toHaveBeenCalled();
   });
 
   it('bounds academic follows and keeps stable ordering', async () => {

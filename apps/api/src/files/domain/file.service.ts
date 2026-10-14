@@ -24,7 +24,13 @@ import {
 } from '../storage/file-mime';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage';
 import { FILE_ASSET_STORE, type FileAssetStore } from './file.store';
-import type { FileAssetRecord, PublicFileAsset } from './file.types';
+import {
+  FILE_ASSET_ACCOUNT_EXPORT_MAX_LIMIT,
+  type FileAssetAccountExportCursor,
+  type FileAssetAccountExportRecord,
+  type FileAssetRecord,
+  type PublicFileAsset,
+} from './file.types';
 
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 const PENDING_RECLAIM_MS = 30 * 60 * 1000;
@@ -36,6 +42,81 @@ const SCAN_RETRY_BASE_MS = 5 * 1000;
 const SCAN_RETRY_MAX_MS = 5 * 60 * 1000;
 const MAX_SCAN_ATTEMPTS = 5;
 const MIME_PREFIX_BYTES = 64;
+
+function encodeAccountExportCursor(
+  cursor: FileAssetAccountExportCursor,
+): string {
+  return Buffer.from(
+    JSON.stringify({ section: 'files.uploads', version: 1, id: cursor.id }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAccountExportCursor(
+  value: string | null,
+): FileAssetAccountExportCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    if (
+      value.length === 0 ||
+      value.length > 512 ||
+      !/^[A-Za-z0-9_-]+$/u.test(value)
+    ) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) {
+      throw new Error('noncanonical cursor encoding');
+    }
+
+    const parsed: unknown = JSON.parse(decoded.toString('utf8'));
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('invalid cursor payload');
+    }
+
+    const cursor = parsed as Record<string, unknown>;
+    const keys = Object.keys(cursor);
+    if (
+      keys.length !== 3 ||
+      !keys.includes('section') ||
+      !keys.includes('version') ||
+      !keys.includes('id') ||
+      cursor.section !== 'files.uploads' ||
+      cursor.version !== 1 ||
+      typeof cursor.id !== 'string' ||
+      cursor.id.length === 0 ||
+      cursor.id.length > 128
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    return { id: cursor.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'FILE_ASSET_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'File upload export cursor is invalid',
+    });
+  }
+}
+
+function assertAccountExportLimit(limit: number): void {
+  if (
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > FILE_ASSET_ACCOUNT_EXPORT_MAX_LIMIT
+  ) {
+    throw new UnprocessableEntityException({
+      code: 'FILE_ASSET_ACCOUNT_EXPORT_LIMIT_INVALID',
+      message: 'File upload export limit is invalid',
+    });
+  }
+}
 
 type ScanOutcome =
   | { kind: 'ready'; asset: FileAssetRecord }
@@ -125,6 +206,32 @@ export class FileService {
     scanner?: FileSafetyScanner,
   ) {
     this.scanner = scanner ?? directConstructionScanner();
+  }
+
+  async listForAccountExport(input: {
+    userId: string;
+    cursor: string | null;
+    limit: number;
+  }): Promise<{
+    items: FileAssetAccountExportRecord[];
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+
+    const page = await this.store.listForAccountExport({
+      creatorUserId: input.userId,
+      limit: input.limit,
+      after: decodeAccountExportCursor(input.cursor),
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items,
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportCursor({ id: last.id })
+          : null,
+    };
   }
 
   async createUploadIntent(

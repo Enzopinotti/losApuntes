@@ -132,6 +132,8 @@ function store(): jest.Mocked<OrganizationStore> {
     findEventById: jest.fn(),
     listEvents: jest.fn(),
     listAuthoredEventsForAccountExport: jest.fn(),
+    listAuthoredLinksForAccountExport: jest.fn(),
+    listFeaturedResourcesForAccountExport: jest.fn(),
     listLinks: jest.fn(),
     listFeaturedResources: jest.fn(),
     upsertPendingReport: jest.fn(),
@@ -470,6 +472,114 @@ describe('OrganizationService', () => {
     ]);
   });
 
+  it('exports authored links and featured Resource relations with stable cursors', async () => {
+    const organizationStore = store();
+    const dependencies = deps();
+    const link = {
+      id: 'link-1',
+      organizationId: orgId,
+      label: 'Community site',
+      url: 'https://example.test',
+      createdAt: now,
+      updatedAt: now,
+      createdByUserId: 'owner-user',
+    };
+    const featured = {
+      organizationId: orgId,
+      resourceId: 'resource-1',
+      createdAt: now,
+      updatedAt: now,
+      createdByUserId: 'owner-user',
+    };
+    organizationStore.listAuthoredLinksForAccountExport
+      .mockResolvedValueOnce({ items: [link], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    organizationStore.listFeaturedResourcesForAccountExport
+      .mockResolvedValueOnce({ items: [featured], hasMore: true })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    const instance = service(organizationStore, dependencies);
+
+    const links = await instance.listAccountExportAuthoredLinks('owner-user', {
+      limit: 1,
+      cursor: null,
+    });
+    expect(links.items).toEqual([
+      {
+        id: 'link-1',
+        organizationId: orgId,
+        label: 'Community site',
+        url: 'https://example.test',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+    ]);
+    expect(links.items[0]).not.toHaveProperty('createdByUserId');
+    expect(links.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.authoredLinks',
+          id: 'link-1',
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    await expect(
+      instance.listAccountExportAuthoredLinks('owner-user', {
+        limit: 1,
+        cursor: links.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listAuthoredLinksForAccountExport.mock.calls,
+    ).toEqual([
+      [{ userId: 'owner-user', limit: 1, after: undefined }],
+      [{ userId: 'owner-user', limit: 1, after: { id: 'link-1' } }],
+    ]);
+
+    const resources = await instance.listAccountExportFeaturedResources(
+      'owner-user',
+      { limit: 1, cursor: null },
+    );
+    expect(resources.items).toEqual([
+      {
+        organizationId: orgId,
+        resourceId: 'resource-1',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+    ]);
+    expect(resources.items[0]).not.toHaveProperty('createdByUserId');
+    expect(resources.items[0]).not.toHaveProperty('title');
+    expect(resources.nextCursor).toBe(
+      Buffer.from(
+        JSON.stringify({
+          section: 'organizations.featuredResources',
+          organizationId: orgId,
+          resourceId: 'resource-1',
+        }),
+        'utf8',
+      ).toString('base64url'),
+    );
+    await expect(
+      instance.listAccountExportFeaturedResources('owner-user', {
+        limit: 1,
+        cursor: resources.nextCursor,
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(
+      organizationStore.listFeaturedResourcesForAccountExport.mock.calls,
+    ).toEqual([
+      [{ userId: 'owner-user', limit: 1, after: undefined }],
+      [
+        {
+          userId: 'owner-user',
+          limit: 1,
+          after: { organizationId: orgId, resourceId: 'resource-1' },
+        },
+      ],
+    ]);
+  });
+
   it('exports current organization follows in stable bounded pages', async () => {
     const organizationStore = store();
     const dependencies = deps();
@@ -728,6 +838,28 @@ describe('OrganizationService', () => {
       instance.listAccountExportAuthoredPosts('owner-user', {
         limit: 100,
         cursor: crossReportCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+    const featuredCursor = Buffer.from(
+      JSON.stringify({
+        section: 'organizations.featuredResources',
+        organizationId: orgId,
+        resourceId: 'resource-id',
+      }),
+      'utf8',
+    ).toString('base64url');
+    await expectCode(
+      instance.listAccountExportAuthoredLinks('owner-user', {
+        limit: 100,
+        cursor: featuredCursor,
+      }),
+      'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+    );
+    await expectCode(
+      instance.listAccountExportFeaturedResources('owner-user', {
+        limit: 100,
+        cursor: crossSectionCursor,
       }),
       'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
     );

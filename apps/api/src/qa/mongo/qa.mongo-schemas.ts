@@ -146,3 +146,4 @@ QaReportSchema.index(
   { unique: true },
 );
 QaReportSchema.index({ status: 1, createdAt: 1, id: 1 });
+QaReportSchema.index({ reporterUserId: 1, id: 1 });

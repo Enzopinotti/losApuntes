@@ -31,6 +31,7 @@ import { VerifiedEmailGuard } from './guards/verified-email.guard';
 import { CsrfOriginGuard } from './guards/csrf-origin.guard';
 import { GoogleAuthController } from './google/google-auth.controller';
 import { GoogleAuthService } from './google/google-auth.service';
+import { GoogleIdentityAccountExportService } from './google/google-identity-account-export.service';
 import { GoogleIdentityService } from './google/google-identity.service';
 import { GoogleOAuthAttemptService } from './google/google-oauth-attempt.service';
 import {
@@ -89,6 +90,7 @@ import {
     OptionalAuthSessionGuard,
     VerifiedEmailGuard,
     GoogleAuthService,
+    GoogleIdentityAccountExportService,
     GoogleIdentityService,
     GoogleOAuthAttemptService,
     MongoAuthActionTokenStore,
@@ -142,6 +144,7 @@ import {
     AuthActionTokenService,
     PasswordService,
     AuthSessionService,
+    GoogleIdentityAccountExportService,
     AuthSessionGuard,
     OptionalAuthSessionGuard,
     VerifiedEmailGuard,

@@ -32,6 +32,7 @@
     "test:alumni:coverage": "jest --config ./jest.alumni-coverage.cjs --runInBand --coverage",
     "health:diagnostics": "node dist/health/health-diagnostics.cli.js",
     "files-worker:health": "node dist/files/files-cleanup.health.js",
+    "account-export:worker": "node dist/data-lifecycle/account-export.worker.js",
     "recovery:verify": "node dist/ops/recovery-verify.cli.js"
   },
   "dependencies": {

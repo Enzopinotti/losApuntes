@@ -1,23 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 
 import { AccountExportContributorRegistry } from './account-export-contributor.registry';
 import { AccountExportService } from './account-export.service';
 import {
+  type AccountExportAssemblyResult,
   ACCOUNT_EXPORT_FORMAT,
   ACCOUNT_EXPORT_FORMAT_VERSION,
 } from './account-export.types';
 
+export type { AccountExportAssemblyResult } from './account-export.types';
+
 export interface AccountExportArtifactSink {
   write(chunk: string): Promise<void>;
+  commit(result: AccountExportAssemblyResult): Promise<void>;
   abort(): Promise<void>;
 }
-
-export type AccountExportAssemblyResult = {
-  format: typeof ACCOUNT_EXPORT_FORMAT;
-  formatVersion: typeof ACCOUNT_EXPORT_FORMAT_VERSION;
-  sectionCount: number;
-  recordCount: number;
-};
 
 @Injectable()
 export class AccountExportAssembler {
@@ -29,18 +27,41 @@ export class AccountExportAssembler {
   async writeJsonV1(
     userId: string,
     sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
   ): Promise<AccountExportAssemblyResult> {
     const contributors = this.registry.list();
     let recordCount = 0;
+    let byteLength = 0;
+    const sha256 = createHash('sha256');
+
+    const assertClaim = async () => {
+      if (canContinue && !(await canContinue())) {
+        throw new Error('Account export worker claim is no longer active');
+      }
+    };
+
+    const writeChunk = async (chunk: string) => {
+      await assertClaim();
+      const chunkByteLength = Buffer.byteLength(chunk, 'utf8');
+      if (byteLength + chunkByteLength > Number.MAX_SAFE_INTEGER) {
+        throw new Error(
+          'Account export artifact exceeds supported byte length',
+        );
+      }
+
+      await sink.write(chunk);
+      sha256.update(chunk, 'utf8');
+      byteLength += chunkByteLength;
+    };
 
     try {
-      await sink.write(
+      await writeChunk(
         `{"format":${JSON.stringify(ACCOUNT_EXPORT_FORMAT)},"version":${ACCOUNT_EXPORT_FORMAT_VERSION},"sections":{`,
       );
 
       for (const [sectionIndex, contributor] of contributors.entries()) {
-        if (sectionIndex > 0) await sink.write(',');
-        await sink.write(`${JSON.stringify(contributor.sectionId)}:[`);
+        if (sectionIndex > 0) await writeChunk(',');
+        await writeChunk(`${JSON.stringify(contributor.sectionId)}:[`);
 
         let cursor: string | null = null;
         let isFirstRecord = true;
@@ -49,6 +70,7 @@ export class AccountExportAssembler {
         let cursorsSinceCheckpoint = 0;
 
         while (true) {
+          await assertClaim();
           const page = await this.exports.readContributorPage(
             contributor,
             userId,
@@ -63,8 +85,8 @@ export class AccountExportAssembler {
               );
             }
 
-            if (!isFirstRecord) await sink.write(',');
-            await sink.write(serialized);
+            if (!isFirstRecord) await writeChunk(',');
+            await writeChunk(serialized);
             isFirstRecord = false;
             recordCount += 1;
           }
@@ -100,16 +122,22 @@ export class AccountExportAssembler {
           cursor = nextCursor;
         }
 
-        await sink.write(']');
+        await writeChunk(']');
       }
 
-      await sink.write('}}');
-      return {
+      await writeChunk('}}');
+      const result: AccountExportAssemblyResult = {
         format: ACCOUNT_EXPORT_FORMAT,
         formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
         sectionCount: contributors.length,
         recordCount,
+        byteLength,
+        sha256: sha256.digest('hex'),
       };
+      await this.exports.assertActiveAccount(userId);
+      await assertClaim();
+      await sink.commit(result);
+      return result;
     } catch (error) {
       try {
         await sink.abort();

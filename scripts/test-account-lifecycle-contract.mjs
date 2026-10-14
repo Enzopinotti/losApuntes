@@ -11,9 +11,16 @@ const [
   profileStore,
   authSmoke,
   exportService,
+  exportTypes,
   exportStore,
   exportSchema,
+  exportController,
+  exportProcessor,
+  exportArtifactStorage,
+  exportWorker,
+  exportRuntimeEnvironment,
   exportDocs,
+  exportHttp,
   dataLifecycleModule,
   exportContributors,
   exportRegistry,
@@ -23,6 +30,12 @@ const [
   academicService,
   academicStore,
   academicSchemas,
+  exportLifecyclePolicyText,
+  exportRuntimePolicyText,
+  exportLifecycleOps,
+  exportRuntimeSmoke,
+  runtimePackage,
+  runtimeWorkflow,
 ] = await Promise.all([
   readFile(new URL('../apps/api/src/data-lifecycle/account-lifecycle.controller.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-lifecycle.service.ts', import.meta.url), 'utf8'),
@@ -33,9 +46,16 @@ const [
   readFile(new URL('../apps/api/src/profile/mongo/mongo-profile.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('./smoke-auth-lifecycle.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export.service.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export.types.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/mongo/mongo-account-export.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/mongo/account-export.mongo-schema.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/account-export.controller.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export-processor.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/storage/account-export-artifact-storage.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/data-lifecycle/account-export.worker.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../apps/api/src/config/runtime-environment.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/security/account-data-export-v1.md', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/contracts/account-export-http-v1.md', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/data-lifecycle.module.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/contributors/account-export-core.contributors.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts', import.meta.url), 'utf8'),
@@ -45,7 +65,66 @@ const [
   readFile(new URL('../apps/api/src/academic/domain/academic.service.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/academic/mongo/mongo-academic.store.ts', import.meta.url), 'utf8'),
   readFile(new URL('../apps/api/src/academic/mongo/academic.mongo-schemas.ts', import.meta.url), 'utf8'),
+  readFile(
+    new URL('../infra/storage/account-export-lifecycle.json', import.meta.url),
+    'utf8',
+  ),
+  readFile(
+    new URL(
+      '../infra/storage/account-export-runtime-policy.template.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+  readFile(
+    new URL('../docs/operations/account-export-artifacts.md', import.meta.url),
+    'utf8',
+  ),
+  readFile(new URL('../scripts/smoke-account-export-lifecycle.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'),
 ]);
+
+const exportLifecyclePolicy = JSON.parse(exportLifecyclePolicyText);
+const exportRuntimePolicy = JSON.parse(exportRuntimePolicyText);
+const publicStatusTypeBody = exportService.match(
+  /export type AccountExportStatus = \{([\s\S]*?)^\};/mu,
+)?.[1];
+const runtimeStatusFieldsBody = exportRuntimeSmoke.match(
+  /const PUBLIC_STATUS_FIELDS = \[([\s\S]*?)\];/u,
+)?.[1];
+const sourceJobStatesBody = exportTypes.match(
+  /export const ACCOUNT_EXPORT_JOB_STATES = \[([\s\S]*?)\] as const;/u,
+)?.[1];
+const runtimeJobStatesBody = exportRuntimeSmoke.match(
+  /const EXPORT_JOB_STATES = new Set\(\[([\s\S]*?)\]\);/u,
+)?.[1];
+const sourceFailureCodesBody = exportTypes.match(
+  /export const ACCOUNT_EXPORT_FAILURE_CODES = \[([\s\S]*?)\] as const;/u,
+)?.[1];
+const runtimeFailureCodesBody = exportRuntimeSmoke.match(
+  /const EXPORT_FAILURE_CODES = new Set\(\[([\s\S]*?)\]\);/u,
+)?.[1];
+const quotedValues = (value) =>
+  [...(value ?? '').matchAll(/['"]([^'"]+)['"]/gu)].map((match) => match[1]);
+assert.ok(publicStatusTypeBody);
+assert.ok(runtimeStatusFieldsBody);
+assert.ok(sourceJobStatesBody);
+assert.ok(runtimeJobStatesBody);
+assert.ok(sourceFailureCodesBody);
+assert.ok(runtimeFailureCodesBody);
+assert.deepEqual(
+  [...publicStatusTypeBody.matchAll(/^\s*(\w+):/gmu)].map((match) => match[1]).sort(),
+  quotedValues(runtimeStatusFieldsBody).sort(),
+);
+assert.deepEqual(
+  quotedValues(sourceJobStatesBody).sort(),
+  quotedValues(runtimeJobStatesBody).sort(),
+);
+assert.deepEqual(
+  quotedValues(sourceFailureCodesBody).sort(),
+  quotedValues(runtimeFailureCodesBody).sort(),
+);
 
 assert.match(controller, /@Get\('closure\/preflight'\)/u);
 assert.match(controller, /@Post\('closure'\)/u);
@@ -90,7 +169,120 @@ assert.match(exportStore, /active: true/u);
 assert.match(exportStore, /leaseExpiresAt: \{ \$lte: input\.now \}/u);
 assert.match(exportStore, /error.*code.*11000/su);
 assert.match(exportSchema, /partialFilterExpression: \{ active: true \}/u);
-assert.match(exportDocs, /does \*\*not\*\* expose a public request/iu);
+assert.doesNotMatch(
+  exportDocs,
+  /deliberately does \*\*not\*\* expose a public request/iu,
+  'current export contract must not describe the delivery routes as unimplemented',
+);
+assert.match(exportDocs, /private artifact, a lease-fenced worker/u);
+assert.match(exportDocs, /POST \/account\/exports/u);
+assert.match(exportDocs, /GET \/account\/exports\/\{exportId\}\/download/u);
+assert.match(exportDocs, /exactly seven days after `completedAt`/u);
+assert.match(exportDocs, /Bucket lifecycle defense in depth/u);
+assert.match(exportDocs, /infra\/storage\/account-export-lifecycle\.json/u);
+assert.deepEqual(exportLifecyclePolicy, {
+  Rules: [
+    {
+      ID: 'account-export-abort-incomplete-multipart-after-7-days',
+      Status: 'Enabled',
+      Filter: { Prefix: 'exports/' },
+      AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 },
+    },
+    {
+      ID: 'account-export-expire-after-8-days',
+      Status: 'Enabled',
+      Filter: { Prefix: 'exports/' },
+      Expiration: { Days: 8 },
+    },
+  ],
+});
+assert.deepEqual(exportRuntimePolicy, {
+  Version: '2012-10-17',
+  Statement: [
+    {
+      Sid: 'AccountExportArtifactsOnly',
+      Effect: 'Allow',
+      Action: [
+        's3:AbortMultipartUpload',
+        's3:DeleteObject',
+        's3:GetObject',
+        's3:PutObject',
+      ],
+      Resource: 'arn:aws:s3:::REPLACE_WITH_ACCOUNT_EXPORT_BUCKET/exports/*',
+    },
+  ],
+});
+assert.match(
+  exportLifecycleOps,
+  /PutBucketLifecycleConfiguration.*replaces/isu,
+);
+assert.match(
+  exportLifecycleOps,
+  /account-export-runtime-policy\.template\.json/u,
+);
+assert.match(
+  exportLifecycleOps,
+  /cannot list the bucket,\s*access\s*Files/u,
+);
+assert.match(exportLifecycleOps, /separate administrative identity/u);
+assert.match(exportLifecycleOps, /does\s+not configure bucket privacy/u);
+assert.match(exportLifecycleOps, /smoke-account-export-lifecycle\.mjs/u);
+assert.match(exportRuntimeSmoke, /runtime-smoke@example\.test/u);
+assert.match(exportRuntimeSmoke, /poll|waitForCompletion/u);
+assert.match(exportRuntimeSmoke, /replay\.body\.created === false/u);
+assert.match(exportRuntimeSmoke, /active_job_replayed/u);
+assert.match(exportRuntimeSmoke, /prior_job_completed_before_replay/u);
+assert.match(exportRuntimeSmoke, /assertPublicStatus/u);
+assert.match(exportRuntimeSmoke, /Object\.keys\(status\)\.sort\(\)/u);
+assert.match(exportRuntimeSmoke, /unauthenticatedRequest/u);
+assert.match(exportRuntimeSmoke, /unauthenticatedStatus/u);
+assert.match(exportRuntimeSmoke, /unauthenticatedDownload/u);
+assert.match(exportRuntimeSmoke, /AUTHENTICATION_REQUIRED/u);
+assert.match(exportRuntimeSmoke, /MAX_SMOKE_EXPORT_BYTES/u);
+assert.match(exportRuntimeSmoke, /Object\.entries\(artifact\.sections/u);
+assert.match(exportRuntimeSmoke, /sectionEntries\.length/u);
+assert.match(exportRuntimeSmoke, /Array\.isArray\(records\)/u);
+assert.match(exportRuntimeSmoke, /assertNoCredentialOrStorageFields/u);
+assert.match(runtimePackage, /"runtime:smoke"[\s\S]*smoke-account-export-lifecycle\.mjs/u);
+assert.match(runtimeWorkflow, /node scripts\/smoke-account-export-lifecycle\.mjs/u);
+assert.match(
+  exportLifecycleOps,
+  /not evidence that any remote provider is configured/u,
+);
+assert.match(exportLifecycleOps, /version history, backups, replicas/u);
+assert.match(exportHttp, /POST \/account\/exports/u);
+assert.match(exportHttp, /GET \/account\/exports\/\{exportId\}\/download/u);
+assert.match(exportHttp, /404 for a missing or foreign job id/u);
+assert.match(exportHttp, /410 `ACCOUNT_EXPORT_EXPIRED`/u);
+assert.match(exportHttp, /Cache-Control: private, no-store/u);
+assert.match(exportController, /@Controller\('account\/exports'\)/u);
+assert.match(exportController, /@UseGuards\(AuthSessionGuard\)/u);
+assert.match(exportController, /@Get\(':id\/download'\)/u);
+assert.match(exportProcessor, /LEASE_RENEWAL_INTERVAL_MS/u);
+assert.match(exportProcessor, /MAX_ATTEMPTS = 5/u);
+assert.match(exportArtifactStorage, /exports\/\$\{jobId\}\/\$\{generation\}\.json/u);
+assert.match(
+  exportArtifactStorage,
+  /export type AccountExportArtifactObjectStorage = Pick<[\s\S]*?'createMultipartWriter' \| 'readObjectChunks' \| 'deleteObject'/u,
+);
+assert.match(
+  exportArtifactStorage,
+  /constructor\(private readonly storage: AccountExportArtifactObjectStorage\)/u,
+);
+assert.match(exportArtifactStorage, /createMultipartWriter/u);
+assert.match(exportArtifactStorage, /this\.storage\.readObjectChunks/u);
+assert.match(exportArtifactStorage, /this\.storage\.deleteObject/u);
+assert.doesNotMatch(
+  exportArtifactStorage,
+  /createUploadIntent|createDownloadIntent/u,
+  'account export runtime permissions must not include Files delivery operations',
+);
+assert.match(exportWorker, /processor\.runIteration/u);
+assert.match(exportRuntimeEnvironment, /ACCOUNT_EXPORT_S3_BUCKET/u);
+assert.match(
+  exportRuntimeEnvironment,
+  /Account export storage credentials must be separate from Files credentials/u,
+);
 assert.match(exportDocs, /los-apuntes-account-export/u);
 assert.match(dataLifecycleModule, /AccountExportService/u);
 assert.match(dataLifecycleModule, /ACCOUNT_EXPORT_STORE/u);

@@ -188,6 +188,7 @@ export interface OrganizationIdAccountExportCursor {
   section:
     | 'organizations.authoredPosts'
     | 'organizations.authoredEvents'
+    | 'organizations.authoredLinks'
     | 'organizations.submittedReports';
   id: string;
 }
@@ -201,6 +202,11 @@ export interface OrganizationLinkRecord {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type OrganizationLinkAccountExportRow = Pick<
+  OrganizationLinkRecord,
+  'id' | 'organizationId' | 'label' | 'url' | 'createdAt' | 'updatedAt'
+>;
 
 export interface OrganizationReportRecord {
   id: string;
@@ -233,6 +239,16 @@ export interface OrganizationFeaturedResourceRecord {
   createdByUserId: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type OrganizationFeaturedResourceAccountExportRow = Pick<
+  OrganizationFeaturedResourceRecord,
+  'organizationId' | 'resourceId' | 'createdAt' | 'updatedAt'
+>;
+
+export interface OrganizationFeaturedResourceAccountExportCursor {
+  organizationId: string;
+  resourceId: string;
 }
 
 export interface OrganizationCursor {

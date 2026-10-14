@@ -78,6 +78,11 @@ export interface QaReportRecord {
   updatedAt: Date;
 }
 
+export type QaReportAccountExportRow = Pick<
+  QaReportRecord,
+  'id' | 'targetType' | 'targetId' | 'reason' | 'details' | 'createdAt'
+>;
+
 export interface QuestionCursor {
   updatedAt: Date;
   id: string;

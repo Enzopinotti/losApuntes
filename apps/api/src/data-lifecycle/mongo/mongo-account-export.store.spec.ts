@@ -1,4 +1,5 @@
 import { ACCOUNT_EXPORT_FORMAT_VERSION } from '../domain/account-export.types';
+import { AccountExportJobSchema } from './account-export.mongo-schema';
 import { MongoAccountExportStore } from './mongo-account-export.store';
 
 const now = new Date('2026-10-04T23:55:00.000Z');
@@ -6,6 +7,9 @@ const now = new Date('2026-10-04T23:55:00.000Z');
 function query<T>(value: T) {
   return {
     lean: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
     exec: jest.fn().mockResolvedValue(value),
   };
 }
@@ -13,14 +17,16 @@ function query<T>(value: T) {
 function fixture(input: { active?: unknown } = {}) {
   const upsertQuery = query(input.active ?? null);
   const findQuery = query(input.active ?? null);
+  const expiredQuery = query([]);
   const claimQuery = query(input.active ?? null);
-  const updateQuery = query({ modifiedCount: 1 });
+  const updateQuery = query({ matchedCount: 1, modifiedCount: 1 });
   const jobs = {
     findOneAndUpdate: jest
       .fn()
       .mockReturnValueOnce(upsertQuery)
       .mockReturnValue(claimQuery),
     findOne: jest.fn(() => findQuery),
+    find: jest.fn(() => expiredQuery),
     updateOne: jest.fn(() => updateQuery),
     exists: jest.fn().mockResolvedValue(null),
   };
@@ -31,6 +37,7 @@ function fixture(input: { active?: unknown } = {}) {
     jobs,
     upsertQuery,
     findQuery,
+    expiredQuery,
     claimQuery,
     updateQuery,
   };
@@ -49,6 +56,13 @@ function record(overrides: Record<string, unknown> = {}) {
     leaseExpiresAt: null,
     failureCode: null,
     failedAt: null,
+    completedAt: null,
+    artifactSectionCount: null,
+    artifactRecordCount: null,
+    artifactByteLength: null,
+    artifactSha256: null,
+    artifactGeneration: null,
+    artifactExpiresAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -84,6 +98,13 @@ describe('MongoAccountExportStore', () => {
           leaseExpiresAt: null,
           failureCode: null,
           failedAt: null,
+          completedAt: null,
+          artifactSectionCount: null,
+          artifactRecordCount: null,
+          artifactByteLength: null,
+          artifactSha256: null,
+          artifactGeneration: null,
+          artifactExpiresAt: null,
         },
       },
       { upsert: true, new: true },
@@ -157,6 +178,66 @@ describe('MongoAccountExportStore', () => {
     ]);
   });
 
+  it('renews only a current active claim and never shortens its lease', async () => {
+    const f = fixture();
+
+    await expect(
+      f.store.renewLease({
+        id: 'export-1',
+        claimId: 'claim-1',
+        now,
+        leaseExpiresAt: new Date(now.getTime() + 120_000),
+      }),
+    ).resolves.toBe(true);
+
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        active: true,
+        state: 'processing',
+        claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
+      },
+      {
+        $max: { leaseExpiresAt: new Date(now.getTime() + 120_000) },
+      },
+    );
+  });
+
+  it('rejects a renewal after the claim expires or changes', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({
+      matchedCount: 0,
+      modifiedCount: 0,
+    });
+
+    await expect(
+      f.store.renewLease({
+        id: 'export-1',
+        claimId: 'stale-claim',
+        now,
+        leaseExpiresAt: new Date(now.getTime() + 120_000),
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('rejects an unknown failure code before the Mongo update', async () => {
+    const f = fixture();
+
+    await expect(
+      f.store.reschedule({
+        id: 'export-1',
+        claimId: 'claim-1',
+        state: 'failed',
+        nextAttemptAt: now,
+        failureCode: 'private-user@example.com' as never,
+        now,
+      }),
+    ).rejects.toThrow('failure code is invalid');
+
+    expect(f.jobs.updateOne.mock.calls).toHaveLength(0);
+  });
+
   it('releases retryable claims but makes terminal failures inactive', async () => {
     const f = fixture();
 
@@ -167,15 +248,17 @@ describe('MongoAccountExportStore', () => {
         state: 'pending',
         nextAttemptAt: now,
         failureCode: 'EXPORT_ASSEMBLY_RETRY',
-        failedAt: null,
+        now,
       }),
     ).resolves.toBe(true);
 
     expect(f.jobs.updateOne).toHaveBeenLastCalledWith(
       {
         id: 'export-1',
+        active: true,
         state: 'processing',
         claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
       },
       {
         $set: {
@@ -184,6 +267,13 @@ describe('MongoAccountExportStore', () => {
           nextAttemptAt: now,
           failureCode: 'EXPORT_ASSEMBLY_RETRY',
           failedAt: null,
+          completedAt: null,
+          artifactSectionCount: null,
+          artifactRecordCount: null,
+          artifactByteLength: null,
+          artifactSha256: null,
+          artifactGeneration: null,
+          artifactExpiresAt: null,
           claimId: null,
           leaseExpiresAt: null,
         },
@@ -196,14 +286,16 @@ describe('MongoAccountExportStore', () => {
       state: 'failed',
       nextAttemptAt: now,
       failureCode: 'EXPORT_RETRY_EXHAUSTED',
-      failedAt: now,
+      now,
     });
 
     expect(f.jobs.updateOne).toHaveBeenLastCalledWith(
       {
         id: 'export-1',
+        active: true,
         state: 'processing',
         claimId: 'claim-2',
+        leaseExpiresAt: { $gt: now },
       },
       {
         $set: {
@@ -212,10 +304,191 @@ describe('MongoAccountExportStore', () => {
           nextAttemptAt: now,
           failureCode: 'EXPORT_RETRY_EXHAUSTED',
           failedAt: now,
+          completedAt: null,
+          artifactSectionCount: null,
+          artifactRecordCount: null,
+          artifactByteLength: null,
+          artifactSha256: null,
+          artifactGeneration: null,
+          artifactExpiresAt: null,
           claimId: null,
           leaseExpiresAt: null,
         },
       },
+    );
+  });
+
+  it('leaves an expired lease untouched during retry scheduling', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({ modifiedCount: 0 });
+
+    await expect(
+      f.store.reschedule({
+        id: 'export-1',
+        claimId: 'claim-1',
+        state: 'pending',
+        nextAttemptAt: now,
+        failureCode: 'EXPORT_ASSEMBLY_RETRY',
+        now,
+      }),
+    ).resolves.toBe(false);
+
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        active: true,
+        state: 'processing',
+        claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('completes through the current claim while its lease is still valid', async () => {
+    const f = fixture();
+    const result = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+      sectionCount: 3,
+      recordCount: 7,
+      byteLength: 512,
+      sha256: 'a'.repeat(64),
+    } as const;
+
+    await expect(
+      f.store.complete({
+        id: 'export-1',
+        claimId: 'claim-1',
+        artifactGeneration: 'claim-1',
+        completedAt: now,
+        artifactExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        result,
+      }),
+    ).resolves.toBe(true);
+
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        active: true,
+        state: 'processing',
+        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        claimId: 'claim-1',
+        leaseExpiresAt: { $gt: now },
+      },
+      {
+        $set: {
+          state: 'completed',
+          active: false,
+          claimId: null,
+          leaseExpiresAt: null,
+          failureCode: null,
+          failedAt: null,
+          completedAt: now,
+          artifactSectionCount: 3,
+          artifactRecordCount: 7,
+          artifactByteLength: 512,
+          artifactSha256: 'a'.repeat(64),
+          artifactGeneration: 'claim-1',
+          artifactExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        },
+      },
+    );
+  });
+
+  it('returns false for a stale claim without reporting completion', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({ modifiedCount: 0 });
+
+    await expect(
+      f.store.complete({
+        id: 'export-1',
+        claimId: 'stale-claim',
+        artifactGeneration: 'stale-claim',
+        completedAt: now,
+        artifactExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        result: {
+          format: 'los-apuntes-account-export',
+          formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+          sectionCount: 0,
+          recordCount: 0,
+          byteLength: 16,
+          sha256: 'b'.repeat(64),
+        },
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('stores only the internal completion summary on the job schema', () => {
+    const state = AccountExportJobSchema.path('state') as unknown as {
+      enumValues: string[];
+    };
+
+    expect(state.enumValues).toContain('completed');
+    expect(AccountExportJobSchema.path('completedAt')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactSectionCount')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactRecordCount')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactByteLength')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactSha256')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactGeneration')).toBeDefined();
+    expect(AccountExportJobSchema.path('artifactExpiresAt')).toBeDefined();
+    expect(AccountExportJobSchema.path('objectKey')).toBeUndefined();
+    expect(AccountExportJobSchema.path('downloadUrl')).toBeUndefined();
+  });
+
+  it('selects only due completed artifacts in bounded expiry order', async () => {
+    const expiresAt = new Date(now.getTime() - 1);
+    const f = fixture();
+    f.expiredQuery.exec.mockResolvedValueOnce([
+      {
+        id: 'export-1',
+        artifactGeneration: 'generation-1',
+        artifactExpiresAt: expiresAt,
+      },
+    ]);
+
+    await expect(
+      f.store.findExpiredArtifacts({ now, limit: 12 }),
+    ).resolves.toEqual([
+      { id: 'export-1', generation: 'generation-1', expiresAt },
+    ]);
+    expect(f.jobs.find).toHaveBeenCalledWith({
+      state: 'completed',
+      artifactGeneration: { $type: 'string' },
+      artifactExpiresAt: { $lte: now },
+    });
+    expect(f.expiredQuery.sort).toHaveBeenCalledWith({
+      artifactExpiresAt: 1,
+      id: 1,
+    });
+    expect(f.expiredQuery.limit).toHaveBeenCalledWith(12);
+    expect(f.expiredQuery.select).toHaveBeenCalledWith({
+      id: 1,
+      artifactGeneration: 1,
+      artifactExpiresAt: 1,
+    });
+  });
+
+  it('clears only the exact expired generation after object deletion', async () => {
+    const expiresAt = new Date(now.getTime() - 1);
+    const f = fixture();
+
+    await expect(
+      f.store.clearExpiredArtifact({
+        id: 'export-1',
+        generation: 'generation-1',
+        expiresAt,
+        now,
+      }),
+    ).resolves.toBe(true);
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      {
+        id: 'export-1',
+        state: 'completed',
+        artifactGeneration: 'generation-1',
+        artifactExpiresAt: { $eq: expiresAt, $lte: now },
+      },
+      { $set: { artifactGeneration: null } },
     );
   });
 

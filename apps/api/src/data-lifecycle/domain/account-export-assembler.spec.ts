@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { AccountExportAssembler } from './account-export-assembler';
 import { AccountExportContributorRegistry } from './account-export-contributor.registry';
 import { AccountExportService } from './account-export.service';
@@ -7,6 +9,7 @@ import type { AccountExportContributor } from './account-export.types';
 type SinkFixture = AccountExportArtifactSink & {
   chunks: string[];
   write: jest.Mock;
+  commit: jest.Mock;
   abort: jest.Mock;
 };
 
@@ -17,6 +20,7 @@ function sinkFixture(): SinkFixture {
       output.chunks.push(chunk);
       return Promise.resolve();
     }),
+    commit: jest.fn().mockResolvedValue(undefined),
     abort: jest.fn().mockResolvedValue(undefined),
   };
   return output;
@@ -29,15 +33,25 @@ function contributor(
   return { sectionId, readPage };
 }
 
-function assemblerFor(contributors: AccountExportContributor[]) {
+function assemblerFor(
+  contributors: AccountExportContributor[],
+  hasActiveAccount = jest.fn().mockResolvedValue(true),
+) {
   const registry = new AccountExportContributorRegistry(contributors);
-  const service = new AccountExportService({} as never);
+  const service = new AccountExportService(
+    {} as never,
+    { hasActiveAccount } as never,
+  );
   return new AccountExportAssembler(registry, service);
 }
 
 describe('AccountExportAssembler', () => {
   it('writes deterministic versioned JSON in registry order', async () => {
     const output = sinkFixture();
+    output.commit.mockImplementation(() => {
+      expect(output.chunks.join('').endsWith('}}')).toBe(true);
+      return Promise.resolve();
+    });
     const assembler = assemblerFor([
       contributor('profile', () =>
         Promise.resolve({
@@ -53,16 +67,91 @@ describe('AccountExportAssembler', () => {
       ),
     ]);
 
-    await expect(assembler.writeJsonV1('user-1', output)).resolves.toEqual({
+    const result = await assembler.writeJsonV1('user-1', output);
+    const artifact = output.chunks.join('');
+
+    expect(result).toEqual({
       format: 'los-apuntes-account-export',
       formatVersion: 1,
       sectionCount: 2,
       recordCount: 2,
+      byteLength: Buffer.byteLength(artifact, 'utf8'),
+      sha256: createHash('sha256').update(artifact, 'utf8').digest('hex'),
     });
 
-    expect(output.chunks.join('')).toBe(
+    expect(artifact).toBe(
       '{"format":"los-apuntes-account-export","version":1,"sections":{"account":[{"id":"user-1"}],"profile":[{"displayName":"Ada"}]}}',
     );
+    expect(artifact.endsWith('}}')).toBe(true);
+    expect(output.commit.mock.calls).toEqual([[result]]);
+  });
+
+  it('measures UTF-8 bytes and hashes the exact streamed envelope', async () => {
+    const output = sinkFixture();
+    const assembler = assemblerFor([
+      contributor('profile', () =>
+        Promise.resolve({
+          records: [{ displayName: 'Ada 🎓' }],
+          nextCursor: null,
+        }),
+      ),
+    ]);
+
+    const result = await assembler.writeJsonV1('user-1', output);
+    const artifact = output.chunks.join('');
+
+    expect(result.byteLength).toBe(Buffer.byteLength(artifact, 'utf8'));
+    expect(result.byteLength).toBeGreaterThan(artifact.length);
+    expect(result.sha256).toBe(
+      createHash('sha256').update(artifact, 'utf8').digest('hex'),
+    );
+  });
+
+  it('aborts staged output when the owner becomes inactive before commit', async () => {
+    const output = sinkFixture();
+    const hasActiveAccount = jest.fn().mockResolvedValue(false);
+    const assembler = assemblerFor(
+      [
+        contributor('profile', () =>
+          Promise.resolve({
+            records: [{ displayName: 'Ada' }],
+            nextCursor: null,
+          }),
+        ),
+      ],
+      hasActiveAccount,
+    );
+
+    await expect(assembler.writeJsonV1('user-1', output)).rejects.toMatchObject(
+      { response: { code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE' } },
+    );
+
+    expect(output.chunks.join('').endsWith('}}')).toBe(true);
+    expect(hasActiveAccount.mock.calls).toEqual([['user-1']]);
+    expect(output.commit.mock.calls).toHaveLength(0);
+    expect(output.abort.mock.calls).toEqual([[]]);
+  });
+
+  it('aborts staged output and preserves account-state read failures before commit', async () => {
+    const output = sinkFixture();
+    const readError = new Error('account state unavailable');
+    const hasActiveAccount = jest.fn().mockRejectedValue(readError);
+    const assembler = assemblerFor(
+      [
+        contributor('profile', () =>
+          Promise.resolve({ records: [], nextCursor: null }),
+        ),
+      ],
+      hasActiveAccount,
+    );
+
+    await expect(assembler.writeJsonV1('user-1', output)).rejects.toBe(
+      readError,
+    );
+
+    expect(hasActiveAccount.mock.calls).toEqual([['user-1']]);
+    expect(output.commit.mock.calls).toHaveLength(0);
+    expect(output.abort.mock.calls).toEqual([[]]);
   });
 
   it('streams every bounded page before asking the contributor for the next', async () => {
@@ -104,6 +193,98 @@ describe('AccountExportAssembler', () => {
     expect(output.chunks.join('')).toContain(
       '"profile.activities":[{"id":"first"},{"id":"second"}]',
     );
+  });
+
+  it('streams 10,000 records through bounded pages and a discarding sink', async () => {
+    const recordCount = 10_000;
+    const pageLimit = 100;
+    const expectedDigest = createHash('sha256');
+    let expectedByteLength = 0;
+    const addExpectedChunk = (chunk: string) => {
+      expectedDigest.update(chunk, 'utf8');
+      expectedByteLength += Buffer.byteLength(chunk, 'utf8');
+    };
+    const prefix =
+      '{"format":"los-apuntes-account-export","version":1,"sections":{"profile.activities":[';
+    addExpectedChunk(prefix);
+    const makeRecord = (id: number) => ({
+      id: `row-${String(id).padStart(5, '0')}`,
+      label: 'x'.repeat(48),
+    });
+    for (let index = 0; index < recordCount; index += 1) {
+      if (index > 0) addExpectedChunk(',');
+      addExpectedChunk(JSON.stringify(makeRecord(index)));
+    }
+    addExpectedChunk(']}}');
+
+    const streamedDigest = createHash('sha256');
+    let streamedByteLength = 0;
+    let writesInFlight = 0;
+    let maxWritesInFlight = 0;
+    let maxChunkBytes = 0;
+    let maxPageRecords = 0;
+    const pagesRead: Array<{ cursor: string | null; limit: number }> = [];
+    const commit = jest.fn().mockResolvedValue(undefined);
+    const abort = jest.fn().mockResolvedValue(undefined);
+    const sink: AccountExportArtifactSink = {
+      write: async (chunk) => {
+        writesInFlight += 1;
+        maxWritesInFlight = Math.max(maxWritesInFlight, writesInFlight);
+        const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+        maxChunkBytes = Math.max(maxChunkBytes, chunkBytes);
+        streamedDigest.update(chunk, 'utf8');
+        streamedByteLength += chunkBytes;
+        await Promise.resolve();
+        writesInFlight -= 1;
+      },
+      commit,
+      abort,
+    };
+    const readPage: AccountExportContributor['readPage'] = ({
+      cursor,
+      limit,
+    }) => {
+      pagesRead.push({ cursor, limit });
+      const pageIndex = cursor === null ? 0 : Number(cursor.slice(5));
+      const start = pageIndex * pageLimit;
+      const length = Math.min(limit, recordCount - start);
+      const records = Array.from({ length }, (_, offset) =>
+        makeRecord(start + offset),
+      );
+      maxPageRecords = Math.max(maxPageRecords, records.length);
+      return Promise.resolve({
+        records,
+        nextCursor:
+          start + length < recordCount ? `page-${pageIndex + 1}` : null,
+      });
+    };
+
+    const assembler = assemblerFor([
+      contributor('profile.activities', readPage),
+    ]);
+    const result = await assembler.writeJsonV1('user-1', sink);
+
+    expect(result).toEqual({
+      format: 'los-apuntes-account-export',
+      formatVersion: 1,
+      sectionCount: 1,
+      recordCount,
+      byteLength: expectedByteLength,
+      sha256: expectedDigest.digest('hex'),
+    });
+    expect(streamedByteLength).toBe(expectedByteLength);
+    expect(streamedDigest.digest('hex')).toBe(result.sha256);
+    expect(pagesRead).toHaveLength(recordCount / pageLimit);
+    expect(pagesRead[0]).toEqual({ cursor: null, limit: pageLimit });
+    expect(pagesRead.at(-1)).toEqual({
+      cursor: `page-${recordCount / pageLimit - 1}`,
+      limit: pageLimit,
+    });
+    expect(maxPageRecords).toBe(pageLimit);
+    expect(maxWritesInFlight).toBe(1);
+    expect(maxChunkBytes).toBeLessThan(256);
+    expect(commit.mock.calls).toEqual([[result]]);
+    expect(abort.mock.calls).toEqual([]);
   });
 
   it('waits for sink backpressure before reading any contributor page', async () => {
@@ -206,6 +387,24 @@ describe('AccountExportAssembler', () => {
     ]);
 
     await expect(assembler.writeJsonV1('user-1', output)).rejects.toBe(failure);
+    expect(output.abort.mock.calls).toEqual([[]]);
+    expect(output.commit.mock.calls).toHaveLength(0);
+  });
+
+  it('aborts and preserves the failure when the complete artifact cannot be committed', async () => {
+    const output = sinkFixture();
+    const failure = new Error('artifact commit failed');
+    output.commit.mockRejectedValue(failure);
+    const assembler = assemblerFor([
+      contributor('account', () =>
+        Promise.resolve({ records: [{ id: 'user-1' }], nextCursor: null }),
+      ),
+    ]);
+
+    await expect(assembler.writeJsonV1('user-1', output)).rejects.toBe(failure);
+
+    expect(output.chunks.join('').endsWith('}}')).toBe(true);
+    expect(output.commit.mock.calls).toHaveLength(1);
     expect(output.abort.mock.calls).toEqual([[]]);
   });
 });

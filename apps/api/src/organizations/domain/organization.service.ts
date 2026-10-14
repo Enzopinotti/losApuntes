@@ -43,6 +43,8 @@ import type {
   OrganizationEventCursor,
   OrganizationEventRecord,
   OrganizationEventAccountExportRow,
+  OrganizationFeaturedResourceAccountExportCursor,
+  OrganizationFeaturedResourceAccountExportRow,
   OrganizationIdAccountExportCursor,
   OrganizationFollowAccountExportCursor,
   OrganizationManagerAccountExportCursor,
@@ -52,6 +54,7 @@ import type {
   OrganizationPostCursor,
   OrganizationPostRecord,
   OrganizationPostAccountExportRow,
+  OrganizationLinkAccountExportRow,
   OrganizationReportAccountExportRow,
   OrganizationRecord,
 } from './organization.types';
@@ -249,6 +252,73 @@ function decodeAccountExportIdCursor(
     }
 
     return { section: expectedSection, id: cursor.id };
+  } catch {
+    throw new UnprocessableEntityException({
+      code: 'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
+      message: 'Organization account export cursor is invalid',
+    });
+  }
+}
+
+function encodeAccountExportFeaturedResourceCursor(
+  cursor: OrganizationFeaturedResourceAccountExportCursor,
+): string {
+  return Buffer.from(
+    JSON.stringify({
+      section: 'organizations.featuredResources',
+      organizationId: cursor.organizationId,
+      resourceId: cursor.resourceId,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAccountExportFeaturedResourceCursor(
+  value: string | null,
+): OrganizationFeaturedResourceAccountExportCursor | undefined {
+  if (value === null) return undefined;
+
+  try {
+    if (
+      value.length === 0 ||
+      value.length > 512 ||
+      !/^[A-Za-z0-9_-]+$/u.test(value)
+    ) {
+      throw new Error('invalid cursor encoding');
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) {
+      throw new Error('noncanonical cursor encoding');
+    }
+
+    const parsed: unknown = JSON.parse(decoded.toString('utf8'));
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('invalid cursor payload');
+    }
+
+    const cursor = parsed as Record<string, unknown>;
+    if (
+      Object.keys(cursor).length !== 3 ||
+      cursor.section !== 'organizations.featuredResources' ||
+      typeof cursor.organizationId !== 'string' ||
+      cursor.organizationId.length === 0 ||
+      cursor.organizationId.length > 128 ||
+      typeof cursor.resourceId !== 'string' ||
+      cursor.resourceId.length === 0 ||
+      cursor.resourceId.length > 128
+    ) {
+      throw new Error('invalid cursor fields');
+    }
+
+    return {
+      organizationId: cursor.organizationId,
+      resourceId: cursor.resourceId,
+    };
   } catch {
     throw new UnprocessableEntityException({
       code: 'ORGANIZATION_ACCOUNT_EXPORT_CURSOR_INVALID',
@@ -1029,6 +1099,91 @@ export class OrganizationService {
           ? encodeAccountExportIdCursor({
               section: 'organizations.authoredEvents',
               id: last.id,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportAuthoredLinks(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      organizationId: string;
+      label: string;
+      url: string;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const cursor = decodeAccountExportIdCursor(
+      input.cursor,
+      'organizations.authoredLinks',
+    );
+    const page = await this.store.listAuthoredLinksForAccountExport({
+      userId,
+      limit: input.limit,
+      after: cursor ? { id: cursor.id } : undefined,
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map((row: OrganizationLinkAccountExportRow) => ({
+        id: row.id,
+        organizationId: row.organizationId,
+        label: row.label,
+        url: row.url,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportIdCursor({
+              section: 'organizations.authoredLinks',
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
+  async listAccountExportFeaturedResources(
+    userId: string,
+    input: { limit: number; cursor: string | null },
+  ): Promise<{
+    items: Array<{
+      organizationId: string;
+      resourceId: string;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    assertAccountExportLimit(input.limit);
+    const cursor = decodeAccountExportFeaturedResourceCursor(input.cursor);
+    const page = await this.store.listFeaturedResourcesForAccountExport({
+      userId,
+      limit: input.limit,
+      after: cursor,
+    });
+    const last = page.items.at(-1);
+
+    return {
+      items: page.items.map(
+        (row: OrganizationFeaturedResourceAccountExportRow) => ({
+          organizationId: row.organizationId,
+          resourceId: row.resourceId,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        }),
+      ),
+      nextCursor:
+        page.hasMore && last
+          ? encodeAccountExportFeaturedResourceCursor({
+              organizationId: last.organizationId,
+              resourceId: last.resourceId,
             })
           : null,
     };
