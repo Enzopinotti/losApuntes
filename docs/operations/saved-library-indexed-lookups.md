@@ -151,7 +151,12 @@ ejecutaron.
 
 **Riesgos restantes:** búsquedas de texto con regex sin prefijo útil pueden
 seguir recorriendo múltiples saves; título global sigue requiriendo sort
-después del join. Proyectar documentos más chicos y usar igualdad con
+después del join. **Atención a colación:** la consulta de título aplica
+colación española con intensidad 1, mientras los índices simples de cadenas
+pueden tener otra colación. Mongo podría no usar algunos índices en esa ruta:
+revisar `indexesUsed` y `COLLSCAN` en el `explain` real antes de afirmar
+que el cambio acelera el orden por título. No introducir automáticamente un
+índice nuevo sin justificar cardinalidad, costo de escritura y colación. Proyectar documentos más chicos y usar igualdad con
 índices **no garantiza** mejora de p95 sin `explain` ni carga real.
 Las construcciones del helper requieren MongoDB 5.0 o superior: si cambia la
 matriz de despliegue, actualizar este contrato antes de ponerlo en producción.
