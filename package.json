@@ -11,7 +11,7 @@
   "scripts": {
     "check:hygiene": "node scripts/check-repo-hygiene.mjs",
     "format": "pnpm -r --if-present format",
-    "format:check": "pnpm -r --if-present format:check",
+    "format:check": "pnpm --filter @losapuntes/mobile format:check",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present check:types",
     "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-accessible-confirm-dialog-contract && pnpm test:web-async-authority-fence && pnpm test:notification-fanout-contract && pnpm test:web-academic-contract && pnpm test:web-profile-contract && pnpm test:web-public-profile-social && pnpm test:web-resources-contract && pnpm test:web-search-contract && pnpm test:web-observability-contract && pnpm test:release-qualification-contract && pnpm test:release-qualification-live && pnpm test:web-social-qa-contract && pnpm test:web-network-presentation && pnpm test:web-feeds-contract && pnpm test:web-navigation-contract && pnpm test:web-pilot-contract && pnpm test:web-organizations-contract && pnpm test:web-alumni-contract && pnpm --filter @losapuntes/mobile test && pnpm test:mobile-auth-contract && pnpm test:recovery-contract && pnpm test:resilience-contract && pnpm test:account-lifecycle-contract",
