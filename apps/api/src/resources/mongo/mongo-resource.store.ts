@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Types, type Connection, type FilterQuery, type Model } from 'mongoose';
+import { Types, type Connection, type FilterQuery, type Model, type PipelineStage } from 'mongoose';
 
 import type { FileAssetRecord } from '../../files/domain/file.types';
 import { FileAsset } from '../../files/mongo/file.mongo-schema';
@@ -500,93 +500,124 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
   async searchSavedResources(
     input: Parameters<SavedResourceSearchStore['searchSavedResources']>[0],
   ): ReturnType<SavedResourceSearchStore['searchSavedResources']> {
-    // Join only the saves owned by this authenticated account. Candidate
-    // visibility and metadata filtering MUST happen before $limit: otherwise
-    // an early page of inaccessible items hides later valid matches.
-    const candidates = await this.saves
-      .aggregate<{ resourceId: string; createdAt: Date }>([
-        {
-          $match: {
-            userId: input.userId,
-            ...(input.after
-              ? {
-                  $or: [
-                    { createdAt: { $lt: input.after.createdAt } },
-                    {
-                      createdAt: input.after.createdAt,
-                      resourceId: { $gt: input.after.resourceId },
-                    },
-                  ],
-                }
-              : {}),
-          },
-        },
-        { $sort: { createdAt: -1, resourceId: 1 } },
-        {
-          $lookup: {
-            from: 'resources',
-            let: { savedResourceId: '$resourceId' },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ['$id', '$$savedResourceId'] },
-                  moderationState: 'available',
-                  ...(input.q
-                    ? {
-                        searchText: {
-                          $regex: savedMetadataRegex(input.q),
-                          $options: 'i',
-                        },
-                      }
-                    : {}),
-                  ...(input.subjectId ? { subjectId: input.subjectId } : {}),
-                },
-              },
-              { $limit: 1 },
-            ],
-            as: '__resource',
-          },
-        },
-        { $unwind: '$__resource' },
-        {
-          $lookup: {
-            from: 'resource_shares',
-            let: { savedResourceId: '$resourceId' },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$resourceId', '$$savedResourceId'] },
-                      { $eq: ['$userId', input.userId] },
-                    ],
+    const byTitle = input.order === 'title';
+    // Only saves of the current viewer enter the pipeline. Metadata and
+    // authorization are resolved before either sort's final page limit.
+    const stages: PipelineStage[] = [
+      {
+        $match: {
+          userId: input.userId,
+          ...(!byTitle && input.after
+            ? {
+                $or: [
+                  { createdAt: { $lt: input.after.createdAt } },
+                  {
+                    createdAt: input.after.createdAt,
+                    resourceId: { $gt: input.after.resourceId },
                   },
+                ],
+              }
+            : {}),
+        },
+      },
+      ...(!byTitle
+        ? [{ $sort: { createdAt: -1, resourceId: 1 } } as PipelineStage]
+        : []),
+      {
+        $lookup: {
+          from: 'resources',
+          let: { savedResourceId: '$resourceId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$id', '$$savedResourceId'] },
+                moderationState: 'available',
+                ...(input.q
+                  ? {
+                      searchText: {
+                        $regex: savedMetadataRegex(input.q),
+                        $options: 'i',
+                      },
+                    }
+                  : {}),
+                ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: '__resource',
+        },
+      },
+      { $unwind: '$__resource' },
+      {
+        $lookup: {
+          from: 'resource_shares',
+          let: { savedResourceId: '$resourceId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$resourceId', '$$savedResourceId'] },
+                    { $eq: ['$userId', input.userId] },
+                  ],
                 },
               },
               { $limit: 1 },
-            ],
-            as: '__viewerShares',
-          },
+          ],
+          as: '__viewerShares',
         },
-        {
-          $match: {
-            $or: [
-              { '__resource.visibility': 'public' },
-              { '__resource.authorUserId': input.userId },
-              {
-                $and: [
-                  { '__resource.visibility': 'shared' },
-                  { '__viewerShares.0': { $exists: true } },
-                ],
-              },
-            ],
-          },
+      },
+      {
+        $match: {
+          $or: [
+            { '__resource.visibility': 'public' },
+            { '__resource.authorUserId': input.userId },
+            {
+              $and: [
+                { '__resource.visibility': 'shared' },
+                { '__viewerShares.0': { $exists: true } },
+              ],
+            },
+          ],
         },
-        { $limit: input.limit + 1 },
-        { $project: { _id: 0, resourceId: 1, createdAt: 1 } },
-      ])
-      .exec();
-
+      },
+      ...(byTitle && input.titleAfter
+        ? [{
+            $match: {
+              $or: [
+                { '__resource.title': { $gt: input.titleAfter.title } },
+                {
+                  '__resource.title': input.titleAfter.title,
+                  resourceId: { $gt: input.titleAfter.resourceId },
+                },
+              ],
+            },
+          } as PipelineStage]
+        : []),
+      ...(byTitle
+        ? [{ $sort: { '__resource.title': 1, resourceId: 1 } } as PipelineStage]
+        : []),
+      { $limit: input.limit + 1 },
+      {
+        $project: {
+          _id: 0,
+          resourceId: 1,
+          createdAt: 1,
+          ...(byTitle ? { title: '$__resource.title' } : {}),
+        },
+      },
+    ];
+    const aggregate = this.saves.aggregate<{
+      resourceId: string;
+      createdAt: Date;
+      title?: string;
+    }>(stages);
+    // Strength 1 applies Spanish case/accent-insensitive ordering to both
+    // $sort and title cursor comparisons. UUID is the stable tie-breaker.
+    const candidates = byTitle
+      ? await aggregate.collation({ locale: 'es', strength: 1 }).exec()
+      : await aggregate.exec();
     return {
       items: candidates.slice(0, input.limit),
       hasMore: candidates.length > input.limit,
@@ -605,7 +636,7 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ['$id', '$resourceId'] },
+                $expr: { $eq: ['$id', '$$resourceId'] },
                 moderationState: 'available',
               },
             },
@@ -624,7 +655,7 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ['$resourceId', '$resourceId'] },
+                    { $eq: ['$resourceId', '$$resourceId'] },
                     { $eq: ['$userId', userId] },
                   ],
                 },

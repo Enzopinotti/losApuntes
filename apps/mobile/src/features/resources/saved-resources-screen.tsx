@@ -241,19 +241,20 @@ export function SavedResourcesScreen() {
       return;
     }
     const timeout = setTimeout(() => {
-      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined);
+      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined, sort);
     }, searchQuery ? 300 : 0);
     return () => {
       clearTimeout(timeout);
       controller.invalidate(authorityKey);
     };
-  }, [authorityKey, controller, searchEligible, searchQuery, selectedSubjectId]);
+  }, [authorityKey, controller, searchEligible, searchQuery, selectedSubjectId, sort]);
 
   const current =
     snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey &&
     (snapshot.searchQuery ?? "") === searchQuery &&
-    (snapshot.subjectId ?? "") === (selectedSubjectId ?? "")
+    (snapshot.subjectId ?? "") === (selectedSubjectId ?? "") &&
+    (snapshot.order ?? "saved") === sort
       ? snapshot
       : null;
   const activeFacetSnapshot =
@@ -270,7 +271,7 @@ export function SavedResourcesScreen() {
       ? findLoadedSavedResources(
           current.data.items,
           "",
-          sort,
+          "saved",
           null,
         )
       : [];
@@ -289,7 +290,7 @@ export function SavedResourcesScreen() {
 
   const refresh = () => {
     if (authorityKey && searchEligible) {
-      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined);
+      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined, sort);
     }
     if (authorityKey) void subjectsController.load(authorityKey);
   };
@@ -361,7 +362,7 @@ export function SavedResourcesScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="radio"
-              accessibilityLabel="Ordenar por título"
+              accessibilityLabel="Ordenar globalmente por título"
               accessibilityState={{ checked: sort === "title" }}
               onPress={() => setSort("title")}
               style={[
@@ -372,6 +373,11 @@ export function SavedResourcesScreen() {
               <Text style={styles.sortLabel}>Título A–Z</Text>
             </Pressable>
           </View>
+          <Text style={styles.meta}>
+            {sort === "title"
+              ? "Título A–Z ordena toda la biblioteca desde el servidor, incluso las páginas todavía no cargadas."
+              : "Guardado muestra primero los apuntes guardados más recientemente."}
+          </Text>
         </View>
       </View>
 

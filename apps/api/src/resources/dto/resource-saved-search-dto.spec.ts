@@ -23,6 +23,15 @@ describe('ResourceSavedSearchDto metadata search', () => {
     }
   });
 
+  it('accepts global title ordering with or without metadata filters', () => {
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, { order: 'title' }))).toEqual([]);
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, { order: 'title', q: 'alg' }))).toEqual([]);
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, { order: 'saved', q: 'alg' }))).toEqual([]);
+    for (const order of ['random', '-1', 'date', 42]) {
+      expect(validateSync(plainToInstance(ResourceSavedSearchDto, { order })).length).toBeGreaterThan(0);
+    }
+  });
+
   it('rejects malformed subject IDs', () => {
     expect(validateSync(plainToInstance(ResourceSavedSearchDto, { subjectId: 'not-a-subject' })).length).toBeGreaterThan(0);
   });

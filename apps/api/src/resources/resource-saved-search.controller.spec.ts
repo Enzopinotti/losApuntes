@@ -29,7 +29,7 @@ describe('saved search HTTP authority', () => {
       cursor: 'opaque',
     };
     await controller.search(request, query);
-    expect(search).toHaveBeenCalledWith('authenticated-owner', 'algebra', 25, 'opaque', query.subjectId);
+    expect(search).toHaveBeenCalledWith('authenticated-owner', 'algebra', 25, 'opaque', query.subjectId, undefined);
   });
   it('keeps saved-subject facets behind session and private cache policy', async () => {
     const method = ResourceSavedSearchController.prototype.subjects;

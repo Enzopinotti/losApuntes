@@ -31,7 +31,7 @@ export interface ResourceConsumptionApi {
   ): Promise<ResourceAccessResponse>;
   save(resourceId: string, signal?: AbortSignal): Promise<{ saved: true }>;
   unsave(resourceId: string, signal?: AbortSignal): Promise<void>;
-  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string): Promise<ResourceSavedPage>;
+  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order?: 'saved' | 'title'): Promise<ResourceSavedPage>;
   update(
     resourceId: string,
     input: ResourceMetadataUpdateInput,
@@ -67,6 +67,7 @@ export interface MobileResourceConsumptionTransport {
     signal?: AbortSignal,
     q?: string,
     subjectId?: string,
+    order?: 'saved' | 'title',
   ): Promise<ResourceSavedPage>;
   report(
     credential: string,
@@ -136,14 +137,15 @@ export class MobileResourceConsumptionHttpTransport implements MobileResourceCon
     );
   }
 
-  saved(credential: string, cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string) {
+  saved(credential: string, cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order: 'saved' | 'title' = 'saved') {
     const query = new URLSearchParams({ limit: "25" });
     if (cursor) query.set("cursor", cursor);
     if (q) query.set("q", q);
     if (subjectId) query.set("subjectId", subjectId);
+    if (order === "title") query.set("order", "title");
 
     return this.client.request<ResourceSavedPage>(
-      `/resources/saved${q || subjectId ? "/search" : ""}?${query.toString()}`,
+      `/resources/saved${q || subjectId || order === "title" ? "/search" : ""}?${query.toString()}`,
       {
         credential,
         ...(signal ? { signal } : {}),
@@ -219,9 +221,9 @@ export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
     );
   }
 
-  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string) {
+  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order?: 'saved' | 'title') {
     return this.authorized((credential) =>
-      this.transport.saved(credential, cursor, signal, q, subjectId),
+      this.transport.saved(credential, cursor, signal, q, subjectId, order),
     );
   }
 

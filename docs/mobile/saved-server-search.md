@@ -24,8 +24,9 @@ cada Resource. En Mobile:
 - Falla de red/timeouts se muestra con retry; una respuesta anterior no se
   presenta como resultado de la consulta nueva.
 - Salir del foco, cerrar sesión o cambiar de cuenta invalida operaciones.
-- La selección de materia y orden por título siguen actuando sobre resultados
-  **ya cargados**: los conteos y los textos no afirman que sean facets globales.
+- **Actualizado en bloques 19 y 20:** el selector de materias refleja facetas
+autorizadas globales y el orden A–Z se calcula en el servidor. La cifra de
+filas visibles sigue describiendo solo las páginas ya cargadas.
 - Inicio conserva su preview de hasta tres guardados mediante
   `GET /resources/saved` sin `q`; su endpoint y cursor siguen compatibles.
 - No se almacenan consultas, URLs firmadas ni datos privados en el dispositivo.

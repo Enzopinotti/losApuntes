@@ -23,8 +23,8 @@ materias sin apuntes presentes en el primer lote sin filtrar.
 Las facetas tienen un ciclo de carga/fallo/reintento propio. El texto aclara
 que los conteos son de guardados **accesibles en toda la biblioteca**, sin
 aplicar la búsqueda de texto. Los nombres los resuelve Academic Graph.
-Los resultados por título ordenados A–Z siguen siendo solo las páginas
-cargadas; no se promete un orden global.
+**Actualización bloque 20:** «Título A–Z» se calcula globalmente en el servidor
+con paginación por clave (título + ID), conservando filtros por materia y texto.
 
 ## Seguridad y límites
 

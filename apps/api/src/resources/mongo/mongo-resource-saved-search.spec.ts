@@ -1,9 +1,10 @@
 import { MongoResourceStore, savedMetadataRegex } from './mongo-resource.store';
 
 describe('Mongo saved-library full-collection search', () => {
-  function build(result: Array<{ resourceId: string; createdAt: Date }> = []) {
+  function build(result: Array<{ resourceId: string; createdAt: Date; title?: string }> = []) {
     const exec = jest.fn().mockResolvedValue(result);
-    const aggregate = jest.fn().mockReturnValue({ exec });
+    const collation = jest.fn().mockReturnValue({ exec });
+    const aggregate = jest.fn().mockReturnValue({ exec, collation });
     const store = new MongoResourceStore(
       {} as never,
       {} as never,
@@ -12,7 +13,7 @@ describe('Mongo saved-library full-collection search', () => {
       {} as never,
       {} as never,
     );
-    return { store, aggregate };
+    return { store, aggregate, collation };
   }
 
   it('applies owner, save cursor, metadata, moderation and ACL before limiting', async () => {
@@ -43,8 +44,8 @@ describe('Mongo saved-library full-collection search', () => {
     expect(json).toContain('"from":"resources"');
     expect(json).toContain('"moderationState":"available"');
     expect(json).toContain('"from":"resource_shares"');
-    expect(json).toContain('"$eq":["$id","$savedResourceId"]');
-    expect(json).toContain('"$eq":["$resourceId","$savedResourceId"]');
+    expect(json).toContain('"$eq":["$id","$$savedResourceId"]');
+    expect(json).toContain('"$eq":["$resourceId","$$savedResourceId"]');
     expect(json).toContain('"__resource.visibility":"shared"');
     expect(json).toContain('"__resource.authorUserId":"owner-1"');
     expect(json).toContain('"__viewerShares.0"');
@@ -86,12 +87,56 @@ describe('Mongo saved-library full-collection search', () => {
     expect(text).toContain('"from":"resources"');
     expect(text).toContain('"from":"resource_shares"');
     expect(text).toContain('"moderationState":"available"');
-    expect(text).toContain('"$eq":["$id","$resourceId"]');
-    expect(text).toContain('"$eq":["$resourceId","$resourceId"]');
+    expect(text).toContain('"$eq":["$id","$$resourceId"]');
+    expect(text).toContain('"$eq":["$resourceId","$$resourceId"]');
     const authorized = stages.findIndex((stage) => JSON.stringify(stage).includes('__resource.visibility'));
     const group = stages.findIndex((stage) => '$group' in stage);
     expect(group).toBeGreaterThan(authorized);
     expect(stages).toContainEqual({ $limit: 101 });
+  });
+
+  it('sorts the full authorized collection by title using Spanish collation and keyset paging', async () => {
+    const { store, aggregate, collation } = build([
+      { resourceId: '22222222-2222-4222-8222-222222222222', createdAt: new Date(), title: 'Álgebra' },
+      { resourceId: '33333333-3333-4333-8333-333333333333', createdAt: new Date(), title: 'Álgebra' },
+    ]);
+    const after = { title: 'Álgebra', resourceId: '11111111-1111-4111-8111-111111111111' };
+    const page = await store.searchSavedResources({
+      userId: 'owner-1', order: 'title', limit: 1, titleAfter: after,
+    });
+    expect(page.hasMore).toBe(true);
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]?.title).toBe('Álgebra');
+    expect(collation).toHaveBeenCalledWith({ locale: 'es', strength: 1 });
+    const stages = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const aclIndex = stages.findIndex((stage) =>
+      '$match' in stage && JSON.stringify(stage).includes('__resource.visibility'));
+    const cursorIndex = stages.findIndex((stage) =>
+      '$match' in stage && JSON.stringify(stage).includes('__resource.title'));
+    const sortIndex = stages.findIndex((stage) =>
+      '$sort' in stage && JSON.stringify(stage).includes('__resource.title'));
+    const limitIndex = stages.findIndex((stage) => '$limit' in stage);
+    expect(aclIndex).toBeGreaterThan(0);
+    expect(cursorIndex).toBeGreaterThan(aclIndex);
+    expect(sortIndex).toBeGreaterThan(cursorIndex);
+    expect(limitIndex).toBeGreaterThan(sortIndex);
+    expect(stages[sortIndex]).toEqual({
+      $sort: { '__resource.title': 1, resourceId: 1 },
+    });
+    expect(stages.at(-1)).toEqual({
+      $project: { _id: 0, resourceId: 1, createdAt: 1, title: '$__resource.title' },
+    });
+    const cursorMatch = JSON.stringify(stages[cursorIndex]);
+    expect(cursorMatch).toContain('"resourceId":{"$gt":"11111111-1111-4111-8111-111111111111"}');
+    expect(cursorMatch).toContain('"__resource.title":"Álgebra"');
+  });
+
+  it('keeps saved-date ordering and avoids collation for legacy filtered pages', async () => {
+    const { store, aggregate, collation } = build();
+    await store.searchSavedResources({ userId: 'owner-1', q: 'alg', limit: 25 });
+    const stages = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(stages[1]).toEqual({ $sort: { createdAt: -1, resourceId: 1 } });
+    expect(collation).not.toHaveBeenCalled();
   });
 
   it('returns only a bounded page and signals more after filtering', async () => {
