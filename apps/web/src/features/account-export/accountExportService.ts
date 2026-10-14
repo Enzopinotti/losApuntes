@@ -11,7 +11,10 @@ import {
   type AccountExportStatus,
 } from "./accountExportContract";
 
-export type { AccountExportRequestResult, AccountExportStatus } from "./accountExportContract";
+export type {
+  AccountExportRequestResult,
+  AccountExportStatus,
+} from "./accountExportContract";
 
 function exportPath(id: string): string {
   if (!exportIdPattern.test(id)) {
