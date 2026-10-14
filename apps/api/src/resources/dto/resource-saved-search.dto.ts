@@ -16,7 +16,9 @@ export class ResourceSavedSearchDto {
   @IsOptional()
   @IsString()
   @Length(2, 120)
-  @Matches(/\S[\s\S]*\S/u, { message: 'Search requires at least two visible characters' })
+  @Matches(/\S[\s\S]*\S/u, {
+    message: 'Search requires at least two visible characters',
+  })
   q?: string;
 
   @IsOptional()
