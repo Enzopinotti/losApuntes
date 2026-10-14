@@ -25,11 +25,11 @@ import { StudyCollectionService } from './domain/study-collection.service';
 
 @Controller('study-collections')
 @UseGuards(AuthSessionGuard)
-@Header('Cache-Control', 'private, no-store')
 export class StudyCollectionsController {
   constructor(private readonly collections: StudyCollectionService) {}
 
   @Post()
+  @Header('Cache-Control', 'private, no-store')
   create(
     @Req() request: AuthenticatedRequest,
     @Body() dto: CreateStudyCollectionDto,
@@ -38,6 +38,7 @@ export class StudyCollectionsController {
   }
 
   @Get()
+  @Header('Cache-Control', 'private, no-store')
   list(
     @Req() request: AuthenticatedRequest,
     @Query() query: StudyCollectionListDto,
@@ -46,6 +47,7 @@ export class StudyCollectionsController {
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'private, no-store')
   get(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -54,6 +56,7 @@ export class StudyCollectionsController {
   }
 
   @Patch(':id')
+  @Header('Cache-Control', 'private, no-store')
   update(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -63,6 +66,7 @@ export class StudyCollectionsController {
   }
 
   @Delete(':id')
+  @Header('Cache-Control', 'private, no-store')
   delete(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -71,6 +75,7 @@ export class StudyCollectionsController {
   }
 
   @Get(':id/resources')
+  @Header('Cache-Control', 'private, no-store')
   resources(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -85,6 +90,7 @@ export class StudyCollectionsController {
   }
 
   @Put(':id/resources/:resourceId')
+  @Header('Cache-Control', 'private, no-store')
   addResource(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -94,6 +100,7 @@ export class StudyCollectionsController {
   }
 
   @Delete(':id/resources/:resourceId')
+  @Header('Cache-Control', 'private, no-store')
   removeResource(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

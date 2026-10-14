@@ -182,12 +182,11 @@ export class StudyCollectionService {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > STUDY_COLLECTION_MAX_PAGE) {
       return invalidCursor();
     }
+    const after = listCursor(cursor, ownerUserId);
     const result = await this.store.list({
       ownerUserId,
       limit,
-      ...(listCursor(cursor, ownerUserId)
-        ? { after: listCursor(cursor, ownerUserId) }
-        : {}),
+      ...(after ? { after } : {}),
     });
     const last = result.items.at(-1);
     return {
