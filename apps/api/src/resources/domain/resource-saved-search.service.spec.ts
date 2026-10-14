@@ -1,4 +1,7 @@
-import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 import type { SavedResourceSearchStore } from './resource-saved-search.store';
 import type { ResourceService } from './resource.service';
@@ -19,9 +22,7 @@ function harness() {
     resource: { id: first.resourceId, title: 'Álgebra' },
   });
   const facets = jest.fn().mockResolvedValue({
-    items: [
-      { subjectId: '11111111-1111-4111-8111-111111111111', count: 5 },
-    ],
+    items: [{ subjectId: '11111111-1111-4111-8111-111111111111', count: 5 }],
     truncated: false,
   });
   const getCatalogNode = jest.fn().mockResolvedValue({
@@ -57,7 +58,12 @@ describe('ResourceSavedSearchService', () => {
   it('preserves a cursor only for the original account and query', async () => {
     const { saved, service } = harness();
     const page = await service.search('account-a', 'algebra', 1);
-    await service.search('account-a', 'algebra', 1, page.nextCursor ?? undefined);
+    await service.search(
+      'account-a',
+      'algebra',
+      1,
+      page.nextCursor ?? undefined,
+    );
     expect(saved.mock.calls[1]?.[0]).toEqual({
       userId: 'account-a',
       q: 'algebra',
@@ -74,7 +80,9 @@ describe('ResourceSavedSearchService', () => {
   });
   it('removes unreadable resources after a concurrent privacy change', async () => {
     const { saved, get, service } = harness();
-    get.mockRejectedValueOnce(new NotFoundException({ code: 'RESOURCE_NOT_FOUND' }));
+    get.mockRejectedValueOnce(
+      new NotFoundException({ code: 'RESOURCE_NOT_FOUND' }),
+    );
     const page = await service.search('account-a', 'algebra', 25);
     expect(page.items).toEqual([]);
     expect(page.nextCursor).toEqual(expect.any(String));
@@ -84,18 +92,43 @@ describe('ResourceSavedSearchService', () => {
   it('supports global subject-only filtering with scoped pagination', async () => {
     const { saved, service } = harness();
     const subjectId = '11111111-1111-4111-8111-111111111111';
-    const page = await service.search('account-a', undefined, 25, undefined, subjectId);
+    const page = await service.search(
+      'account-a',
+      undefined,
+      25,
+      undefined,
+      subjectId,
+    );
     expect(saved).toHaveBeenCalledWith({
-      userId: 'account-a', subjectId, limit: 25,
+      userId: 'account-a',
+      subjectId,
+      limit: 25,
     });
     expect(page.nextCursor).toEqual(expect.any(String));
-    await service.search('account-a', undefined, 25, page.nextCursor ?? undefined, subjectId);
+    await service.search(
+      'account-a',
+      undefined,
+      25,
+      page.nextCursor ?? undefined,
+      subjectId,
+    );
     await expect(
-      service.search('account-a', undefined, 25, page.nextCursor ?? undefined,
-        '22222222-2222-4222-8222-222222222222'),
+      service.search(
+        'account-a',
+        undefined,
+        25,
+        page.nextCursor ?? undefined,
+        '22222222-2222-4222-8222-222222222222',
+      ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     await expect(
-      service.search('account-a', 'algebra', 25, page.nextCursor ?? undefined, subjectId),
+      service.search(
+        'account-a',
+        'algebra',
+        25,
+        page.nextCursor ?? undefined,
+        subjectId,
+      ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -103,9 +136,17 @@ describe('ResourceSavedSearchService', () => {
     const { service, facets, getCatalogNode } = harness();
     const response = await service.listSubjects('account-a');
     expect(facets).toHaveBeenCalledWith('account-a');
-    expect(getCatalogNode).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
+    expect(getCatalogNode).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+    );
     expect(response).toEqual({
-      items: [{ subjectId: '11111111-1111-4111-8111-111111111111', name: 'Álgebra', count: 5 }],
+      items: [
+        {
+          subjectId: '11111111-1111-4111-8111-111111111111',
+          name: 'Álgebra',
+          count: 5,
+        },
+      ],
       truncated: false,
     });
   });
@@ -117,12 +158,28 @@ describe('ResourceSavedSearchService', () => {
       title: 'Álgebra',
     };
     saved.mockResolvedValue({ items: [titleRow], hasMore: true });
-    const firstPage = await service.search('account-a', undefined, 1, undefined, undefined, 'title');
+    const firstPage = await service.search(
+      'account-a',
+      undefined,
+      1,
+      undefined,
+      undefined,
+      'title',
+    );
     expect(firstPage.nextCursor).toEqual(expect.any(String));
     expect(saved).toHaveBeenCalledWith({
-      userId: 'account-a', limit: 1, order: 'title',
+      userId: 'account-a',
+      limit: 1,
+      order: 'title',
     });
-    await service.search('account-a', undefined, 1, firstPage.nextCursor ?? undefined, undefined, 'title');
+    await service.search(
+      'account-a',
+      undefined,
+      1,
+      firstPage.nextCursor ?? undefined,
+      undefined,
+      'title',
+    );
     expect(saved).toHaveBeenLastCalledWith({
       userId: 'account-a',
       limit: 1,
@@ -139,9 +196,20 @@ describe('ResourceSavedSearchService', () => {
       items: [{ ...first, title: 'Bases de Datos' }],
       hasMore: true,
     });
-    const firstPage = await service.search('account-a', 'PARCIAL', 1, undefined, id, 'title');
+    const firstPage = await service.search(
+      'account-a',
+      'PARCIAL',
+      1,
+      undefined,
+      id,
+      'title',
+    );
     expect(saved).toHaveBeenCalledWith({
-      userId: 'account-a', q: 'parcial', subjectId: id, limit: 1, order: 'title',
+      userId: 'account-a',
+      q: 'parcial',
+      subjectId: id,
+      limit: 1,
+      order: 'title',
     });
     const cursor = firstPage.nextCursor ?? undefined;
     for (const [query, subject, order] of [
@@ -199,10 +267,24 @@ describe('ResourceSavedSearchService', () => {
       items: [{ ...first, title: 'Álgebra' }],
       hasMore: true,
     });
-    const initial = await service.search('account-a', 'resumen', 1, undefined, subject, 'title');
+    const initial = await service.search(
+      'account-a',
+      'resumen',
+      1,
+      undefined,
+      subject,
+      'title',
+    );
     checkAnchor.mockResolvedValueOnce(false);
     await expect(
-      service.search('account-a', 'resumen', 1, initial.nextCursor ?? undefined, subject, 'title'),
+      service.search(
+        'account-a',
+        'resumen',
+        1,
+        initial.nextCursor ?? undefined,
+        subject,
+        'title',
+      ),
     ).rejects.toMatchObject({
       response: { code: 'RESOURCE_SAVED_SEARCH_CURSOR_STALE' },
       status: 409,
@@ -219,7 +301,12 @@ describe('ResourceSavedSearchService', () => {
   it('checks a current continuation anchor before reading its next page', async () => {
     const { saved, checkAnchor, service } = harness();
     const initial = await service.search('account-a', 'algebra', 1);
-    await service.search('account-a', 'algebra', 1, initial.nextCursor ?? undefined);
+    await service.search(
+      'account-a',
+      'algebra',
+      1,
+      initial.nextCursor ?? undefined,
+    );
     expect(checkAnchor).toHaveBeenCalledTimes(1);
     expect(saved).toHaveBeenCalledTimes(2);
     expect(checkAnchor.mock.invocationCallOrder[0]).toBeLessThan(
@@ -234,5 +321,4 @@ describe('ResourceSavedSearchService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(saved).not.toHaveBeenCalled();
   });
-
 });
