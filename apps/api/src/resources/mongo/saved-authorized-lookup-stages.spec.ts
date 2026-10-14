@@ -78,9 +78,11 @@ describe('saved discovery indexed lookups', () => {
 
   it('retains only fields needed to count accessible subjects', () => {
     const stages = authorizedSavedJoinStages(actor, { facets: true });
-    const projection = (stages[0] as {
-      $lookup: { pipeline: Array<Record<string, unknown>> };
-    }).$lookup.pipeline[1];
+    const projection = (
+      stages[0] as unknown as {
+        $lookup: { pipeline: Array<Record<string, unknown>> };
+      }
+    ).$lookup.pipeline[1];
 
     expect(projection).toEqual({
       $project: {
@@ -100,21 +102,30 @@ describe('saved discovery indexed lookups', () => {
     const hasCompoundIndex = (
       indexes: ReturnType<typeof ResourceSaveSchema.indexes>,
       keys: Record<string, number>,
-    ) => indexes.some(([fields]) => JSON.stringify(fields) === JSON.stringify(keys));
+    ) =>
+      indexes.some(
+        ([fields]) => JSON.stringify(fields) === JSON.stringify(keys),
+      );
 
     expect(ResourceSchema.path('id').options.unique).toBe(true);
-    expect(hasCompoundIndex(ResourceShareSchema.indexes(), {
-      resourceId: 1,
-      userId: 1,
-    })).toBe(true);
-    expect(hasCompoundIndex(ResourceSaveSchema.indexes(), {
-      userId: 1,
-      createdAt: -1,
-      resourceId: 1,
-    })).toBe(true);
-    expect(hasCompoundIndex(ResourceSaveSchema.indexes(), {
-      userId: 1,
-      resourceId: 1,
-    })).toBe(true);
+    expect(
+      hasCompoundIndex(ResourceShareSchema.indexes(), {
+        resourceId: 1,
+        userId: 1,
+      }),
+    ).toBe(true);
+    expect(
+      hasCompoundIndex(ResourceSaveSchema.indexes(), {
+        userId: 1,
+        createdAt: -1,
+        resourceId: 1,
+      }),
+    ).toBe(true);
+    expect(
+      hasCompoundIndex(ResourceSaveSchema.indexes(), {
+        userId: 1,
+        resourceId: 1,
+      }),
+    ).toBe(true);
   });
 });

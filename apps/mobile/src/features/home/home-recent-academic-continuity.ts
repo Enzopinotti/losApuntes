@@ -66,6 +66,9 @@ export function prioritizeHomeRecentlyOpened(
   selectedSubjectId: string | null,
   limit: number,
 ): ResourceView[] {
-  const { current, other } = groupHomeRecentlyOpened(resources, selectedSubjectId);
+  const { current, other } = groupHomeRecentlyOpened(
+    resources,
+    selectedSubjectId,
+  );
   return [...current, ...other].slice(0, Math.max(0, Math.trunc(limit)));
 }

@@ -6,7 +6,9 @@ import { MobileSearchQuickSaveController } from "../src/features/search/search-q
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -59,7 +61,8 @@ test("timeout after sending PUT remains uncertain and prevents blind retries", a
   controller.setAuthority("a");
   assert.equal(await controller.save("a", "resource"), false);
   assert.deepEqual(controller.getSnapshot().items.resource, {
-    state: "uncertain", failure: "timeout",
+    state: "uncertain",
+    failure: "timeout",
   });
   assert.equal(await controller.save("a", "resource"), false);
   assert.equal(calls, 1);
@@ -67,7 +70,7 @@ test("timeout after sending PUT remains uncertain and prevents blind retries", a
 
 test("unexpected unacknowledged response does not masquerade as saved", async () => {
   const controller = new MobileSearchQuickSaveController({
-    save: async () => ({ saved: false } as unknown as { saved: true }),
+    save: async () => ({ saved: false }) as unknown as { saved: true },
   });
   controller.setAuthority("a");
   assert.equal(await controller.save("a", "resource"), false);
@@ -79,7 +82,8 @@ test("definite authorization failure shows error and can be retried manually", a
   const controller = new MobileSearchQuickSaveController({
     save: async () => {
       calls++;
-      if (calls === 1) throw new ApiRequestError("forbidden", 403, "FORBIDDEN", "Denied");
+      if (calls === 1)
+        throw new ApiRequestError("forbidden", 403, "FORBIDDEN", "Denied");
       return { saved: true };
     },
   });
@@ -123,7 +127,8 @@ test("leaving Search aborts pending operations and clears private status", async
   pending.resolve({ saved: true });
   assert.equal(await operation, false);
   assert.deepEqual(controller.getSnapshot(), {
-    authorityKey: null, items: {},
+    authorityKey: null,
+    items: {},
   });
 });
 

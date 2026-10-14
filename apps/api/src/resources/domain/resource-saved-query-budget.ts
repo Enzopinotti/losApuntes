@@ -11,7 +11,9 @@ function isMongoBudgetExceeded(error: unknown): boolean {
  * Never return an empty authorized page or expose Mongo internals as a
  * successful search. Non-timeout errors retain their original behavior.
  */
-export async function boundedSavedQuery<T>(execute: () => Promise<T>): Promise<T> {
+export async function boundedSavedQuery<T>(
+  execute: () => Promise<T>,
+): Promise<T> {
   try {
     return await execute();
   } catch (error) {

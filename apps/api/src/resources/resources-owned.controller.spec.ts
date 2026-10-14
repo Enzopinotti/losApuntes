@@ -1,4 +1,8 @@
-import { GUARDS_METADATA, HEADERS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import {
+  GUARDS_METADATA,
+  HEADERS_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
@@ -8,7 +12,7 @@ import { ResourcesController } from './resources.controller';
 
 describe('owner resources HTTP route', () => {
   it('requires an authenticated verified account and disables caching', () => {
-    const method = ResourcesController.prototype.mine;
+    const method = Reflect.get(ResourcesController.prototype, 'mine') as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine');
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
       AuthSessionGuard,
@@ -49,7 +53,9 @@ describe('owner resources HTTP route', () => {
   });
 
   it('forwards search subject and sort while preserving the session owner', async () => {
-    const listOwned = jest.fn().mockResolvedValue({ items: [], nextCursor: null });
+    const listOwned = jest
+      .fn()
+      .mockResolvedValue({ items: [], nextCursor: null });
     const controller = new ResourcesController({
       listOwned,
     } as unknown as ResourceService);
@@ -73,7 +79,10 @@ describe('owner resources HTTP route', () => {
   });
 
   it('protects owner subject facets with both guards and private caching', async () => {
-    const method = ResourcesController.prototype.ownedSubjects;
+    const method = Reflect.get(
+      ResourcesController.prototype,
+      'ownedSubjects',
+    ) as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine/subjects');
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
       AuthSessionGuard,
@@ -85,7 +94,8 @@ describe('owner resources HTTP route', () => {
     });
 
     const listOwnedSubjects = jest.fn().mockResolvedValue({
-      items: [], truncated: false,
+      items: [],
+      truncated: false,
     });
     const controller = new ResourcesController({
       listOwnedSubjects,
@@ -95,5 +105,4 @@ describe('owner resources HTTP route', () => {
     } as AuthenticatedRequest);
     expect(listOwnedSubjects).toHaveBeenCalledWith('session-owner');
   });
-
 });

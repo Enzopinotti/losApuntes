@@ -16,8 +16,12 @@ function setup(options: { session?: boolean; authoritative?: boolean } = {}) {
         ? null
         : { credential: "private-token", generation: 5 },
     isCredentialAuthoritative: () => options.authoritative !== false,
-    invalidateIfAuthoritative: async () => { invalidations += 1; },
-    restrictIfAuthoritative: async () => { restrictions += 1; },
+    invalidateIfAuthoritative: async () => {
+      invalidations += 1;
+    },
+    restrictIfAuthoritative: async () => {
+      restrictions += 1;
+    },
   } as unknown as SessionController;
   const client = {
     request: async (path: string, values: Record<string, unknown>) => {
@@ -44,10 +48,12 @@ test("fetches the authenticated owner stats without a user query parameter", asy
   const signal = new AbortController().signal;
   const value = await api.getStatistics(signal);
   assert.equal(value.publications.total, 0);
-  assert.deepEqual(calls, [{
-    path: "/resources/mine/stats",
-    options: { credential: "private-token", signal },
-  }]);
+  assert.deepEqual(calls, [
+    {
+      path: "/resources/mine/stats",
+      options: { credential: "private-token", signal },
+    },
+  ]);
 });
 
 test("unauthenticated callers cannot request private statistics", async () => {

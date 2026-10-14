@@ -8,7 +8,10 @@ import {
   resourceConsumptionFailure,
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
-import type { OwnedResourcesApi, OwnedResourcesQuery } from "./resource-owned-api";
+import type {
+  OwnedResourcesApi,
+  OwnedResourcesQuery,
+} from "./resource-owned-api";
 
 export type OwnedLibraryFilters = {
   visibility: ResourceVisibility | null;
@@ -56,7 +59,12 @@ function normalizeFilters(
 ): OwnedLibraryFilters {
   return {
     visibility,
-    q: query.q?.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("es-AR") || null,
+    q:
+      query.q
+        ?.normalize("NFKC")
+        .trim()
+        .replace(/\s+/gu, " ")
+        .toLocaleLowerCase("es-AR") || null,
     subjectId: query.subjectId || null,
     order: query.order ?? "newest",
   };
@@ -145,7 +153,12 @@ export class MobileOwnedResourcesController {
 
   async loadMore(authorityKey: string): Promise<void> {
     const current = this.ready(authorityKey);
-    if (!current || !current.data.nextCursor || current.loadingMore || this.active) {
+    if (
+      !current ||
+      !current.data.nextCursor ||
+      current.loadingMore ||
+      this.active
+    ) {
       return;
     }
 
@@ -193,7 +206,8 @@ export class MobileOwnedResourcesController {
       authorityKey &&
       this.snapshot.kind !== "idle" &&
       this.snapshot.authorityKey !== authorityKey
-    ) return;
+    )
+      return;
     this.cancel();
     this.publish({ kind: "idle" });
   }

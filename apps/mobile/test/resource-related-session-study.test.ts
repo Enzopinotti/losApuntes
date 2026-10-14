@@ -27,10 +27,18 @@ function resource(id: string, subjectId = subjectA): ResourceView {
     visibility: "public",
     author: null,
     academic: {
-      subject: { id: subjectId, name: subjectId === subjectA ? "Álgebra" : "Física" },
+      subject: {
+        id: subjectId,
+        name: subjectId === subjectA ? "Álgebra" : "Física",
+      },
       courseOffering: null,
     },
-    file: { id, filename: `${id}.pdf`, mimeType: "application/pdf", byteSize: 512 },
+    file: {
+      id,
+      filename: `${id}.pdf`,
+      mimeType: "application/pdf",
+      byteSize: 512,
+    },
     capabilities: { edit: false, manageShares: false },
     revision: 1,
     createdAt: "2026-10-14T12:00:00.000Z",
@@ -40,7 +48,10 @@ function resource(id: string, subjectId = subjectA): ResourceView {
 
 function make(
   memory: SessionRecentResourceOpens,
-  resolve: (id: string, signal?: AbortSignal) => Promise<{ resource: ResourceView }>,
+  resolve: (
+    id: string,
+    signal?: AbortSignal,
+  ) => Promise<{ resource: ResourceView }>,
 ) {
   return new ResourceRelatedSessionController(
     { resource: resolve } as Pick<ResourceConsumptionApi, "resource">,
@@ -50,7 +61,9 @@ function make(
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((yes) => { resolve = yes; });
+  const promise = new Promise<T>((yes) => {
+    resolve = yes;
+  });
   return { promise, resolve };
 }
 
@@ -69,15 +82,24 @@ test("only prior authorized opens in the same Subject appear, excluding the acti
   assert.equal(state.kind, "ready");
   if (state.kind !== "ready") return;
   assert.deepEqual(requests, ["a-newer", "b", "a-older"]);
-  assert.deepEqual(state.items.map((item) => item.id), ["a-newer", "a-older"]);
+  assert.deepEqual(
+    state.items.map((item) => item.id),
+    ["a-newer", "a-older"],
+  );
   assert.equal(state.partialFailure, null);
   assert.equal(state.moreAvailable, false);
-  assert.deepEqual(memory.read("user:session"), ["current", "a-newer", "b", "a-older"]);
+  assert.deepEqual(memory.read("user:session"), [
+    "current",
+    "a-newer",
+    "b",
+    "a-older",
+  ]);
 });
 
 test("bounded verified results preserve MRU and never exceed three displayed rows", async () => {
   const memory = new SessionRecentResourceOpens();
-  for (let i = 0; i < RECENT_OPENED_MEMORY_LIMIT; i++) memory.record("user:session", `r-${i}`);
+  for (let i = 0; i < RECENT_OPENED_MEMORY_LIMIT; i++)
+    memory.record("user:session", `r-${i}`);
   const checks: string[] = [];
   const related = make(memory, async (id) => {
     checks.push(id);
@@ -88,38 +110,68 @@ test("bounded verified results preserve MRU and never exceed three displayed row
   assert.equal(state.kind, "ready");
   if (state.kind !== "ready") return;
   assert.equal(RELATED_SESSION_STUDY_PREVIEW_LIMIT, 3);
-  assert.deepEqual(state.items.map((item) => item.id), ["r-6", "r-5", "r-4"]);
+  assert.deepEqual(
+    state.items.map((item) => item.id),
+    ["r-6", "r-5", "r-4"],
+  );
   assert.equal(state.moreAvailable, true);
   assert.equal(checks.length, RECENT_OPENED_MEMORY_LIMIT - 1);
 });
 
 test("revoked and deleted IDs are purged after authorized checks, but not silently rendered", async () => {
   const memory = new SessionRecentResourceOpens();
-  for (const id of ["valid", "revoked", "deleted", "current"]) memory.record("session", id);
+  for (const id of ["valid", "revoked", "deleted", "current"])
+    memory.record("session", id);
   const related = make(memory, async (id) => {
-    if (id === "revoked") throw new ApiRequestError("forbidden", 403, "RESOURCE_FORBIDDEN", "Forbidden");
-    if (id === "deleted") throw new ApiRequestError("unexpected", 404, "RESOURCE_NOT_FOUND", "Missing");
+    if (id === "revoked")
+      throw new ApiRequestError(
+        "forbidden",
+        403,
+        "RESOURCE_FORBIDDEN",
+        "Forbidden",
+      );
+    if (id === "deleted")
+      throw new ApiRequestError(
+        "unexpected",
+        404,
+        "RESOURCE_NOT_FOUND",
+        "Missing",
+      );
     return { resource: resource(id) };
   });
   await related.load("detail", "session", "current", subjectA);
   const state = related.getSnapshot();
   assert.equal(state.kind, "ready");
-  if (state.kind === "ready") assert.deepEqual(state.items.map((x) => x.id), ["valid"]);
+  if (state.kind === "ready")
+    assert.deepEqual(
+      state.items.map((x) => x.id),
+      ["valid"],
+    );
   assert.deepEqual(memory.read("session"), ["current", "valid"]);
 });
 
 test("partial network errors preserve IDs for retry and never render unverified metadata", async () => {
   const memory = new SessionRecentResourceOpens();
-  for (const id of ["valid", "offline", "current"]) memory.record("session", id);
+  for (const id of ["valid", "offline", "current"])
+    memory.record("session", id);
   const related = make(memory, async (id) => {
-    if (id === "offline") throw new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "Offline");
+    if (id === "offline")
+      throw new ApiRequestError(
+        "offline",
+        null,
+        "NETWORK_UNAVAILABLE",
+        "Offline",
+      );
     return { resource: resource(id) };
   });
   await related.load("detail", "session", "current", subjectA);
   const state = related.getSnapshot();
   assert.equal(state.kind, "ready");
   if (state.kind === "ready") {
-    assert.deepEqual(state.items.map((x) => x.id), ["valid"]);
+    assert.deepEqual(
+      state.items.map((x) => x.id),
+      ["valid"],
+    );
     assert.equal(state.partialFailure, "offline");
   }
   assert.deepEqual(memory.read("session"), ["current", "offline", "valid"]);
@@ -134,7 +186,9 @@ test("total failure is distinct from a genuinely empty related list", async () =
   });
   await related.load("detail", "session", "current", subjectA);
   assert.deepEqual(related.getSnapshot(), {
-    kind: "failure", authorityKey: "detail", reason: "timeout",
+    kind: "failure",
+    authorityKey: "detail",
+    reason: "timeout",
   });
   assert.deepEqual(memory.read("session"), ["current", "offline"]);
 
@@ -143,8 +197,11 @@ test("total failure is distinct from a genuinely empty related list", async () =
   memory.record("session", "current");
   await related.load("detail", "session", "current", subjectA);
   assert.deepEqual(related.getSnapshot(), {
-    kind: "ready", authorityKey: "detail", items: [],
-    moreAvailable: false, partialFailure: null,
+    kind: "ready",
+    authorityKey: "detail",
+    items: [],
+    moreAvailable: false,
+    partialFailure: null,
   });
 });
 
@@ -152,10 +209,14 @@ test("mismatched response IDs are not presented as verified related resources", 
   const memory = new SessionRecentResourceOpens();
   memory.record("session", "requested");
   memory.record("session", "current");
-  const related = make(memory, async () => ({ resource: resource("unexpected") }));
+  const related = make(memory, async () => ({
+    resource: resource("unexpected"),
+  }));
   await related.load("detail", "session", "current", subjectA);
   assert.deepEqual(related.getSnapshot(), {
-    kind: "failure", authorityKey: "detail", reason: "error",
+    kind: "failure",
+    authorityKey: "detail",
+    reason: "error",
   });
   assert.deepEqual(memory.read("session"), ["current", "requested"]);
 });
@@ -187,7 +248,10 @@ test("changing authority aborts old reads and prevents results or removals cross
   assert.equal(state.kind, "ready");
   if (state.kind === "ready") {
     assert.equal(state.authorityKey, "detail-b");
-    assert.deepEqual(state.items.map((x) => x.id), ["new-id"]);
+    assert.deepEqual(
+      state.items.map((x) => x.id),
+      ["new-id"],
+    );
   }
 });
 
@@ -216,16 +280,25 @@ test("Question CTA uses canonical Subject ID but does not grant publishing acces
     params: { subjectId: subjectA },
   });
   assert.match(action?.accessibilityHint ?? "", /servidor vuelve a validar/u);
-  assert.equal(savedSubjectQuestionsAction(resource("current", "invalid")), null);
+  assert.equal(
+    savedSubjectQuestionsAction(resource("current", "invalid")),
+    null,
+  );
 });
 
 test("panel is mounted only inside authorized detail and reuses existing routes", () => {
   const detail = readFileSync(
-    new URL("../src/features/resources/resource-details-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/resources/resource-details-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   const panel = readFileSync(
-    new URL("../src/features/resources/resource-related-session-panel.tsx", import.meta.url),
+    new URL(
+      "../src/features/resources/resource-related-session-panel.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   assert.match(detail, /<DetailState/u);
