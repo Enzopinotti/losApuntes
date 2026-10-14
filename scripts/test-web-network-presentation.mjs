@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { NetworkActionGate } from "../apps/web/src/features/community/network-action-gate.ts";
 import {
   groupNetworkConnections,
   networkConnectionStatusLabel,
@@ -65,6 +66,52 @@ assert.deepEqual(
   "Labels must correspond to server states, not inferred relationship",
 );
 
+
+const actionGate = new NetworkActionGate();
+assert.equal(actionGate.tryAcquire("", "accept:id"), null);
+assert.equal(actionGate.tryAcquire("session-a", ""), null);
+
+const firstLease = actionGate.tryAcquire("session-a", "accept:connection-1");
+assert.ok(firstLease, "The first action should acquire synchronously");
+assert.equal(
+  actionGate.tryAcquire("session-a", "decline:connection-1"),
+  null,
+  "An opposing action in the same session must not run concurrently",
+);
+assert.equal(
+  actionGate.tryAcquire("session-a", "following-more"),
+  null,
+  "Pagination must not race with a pending mutation",
+);
+assert.equal(
+  actionGate.release({ ...firstLease }),
+  false,
+  "A forged or stale lease must not release an active action",
+);
+assert.equal(actionGate.tryAcquire("session-a", "accept:connection-1"), null);
+
+const newSessionLease = actionGate.tryAcquire(
+  "session-b",
+  "connect:profile-2",
+);
+assert.ok(newSessionLease, "Session changes should not inherit an old lock");
+assert.equal(
+  actionGate.release(firstLease),
+  false,
+  "An old-session request must not release a newer session's lock",
+);
+assert.equal(actionGate.tryAcquire("session-b", "unfollow:profile-2"), null);
+assert.equal(actionGate.release(newSessionLease), true);
+
+const nextLease = actionGate.tryAcquire(
+  "session-b",
+  "following-more",
+);
+assert.ok(nextLease, "Finishing an action should allow the next one");
+assert.ok(nextLease.sequence > newSessionLease.sequence);
+assert.equal(actionGate.release(nextLease), true);
+assert.equal(actionGate.release(nextLease), false);
+
 const read = (relativePath) =>
   readFile(path.join(process.cwd(), relativePath), "utf8");
 const [page, styles, root] = await Promise.all([
@@ -72,6 +119,18 @@ const [page, styles, root] = await Promise.all([
   read("apps/web/src/pages/Community.scss"),
   read("package.json"),
 ]);
+assert.match(page, /actionGateRef\.current\.tryAcquire/u);
+assert.equal(
+  page.match(/actionGateRef\.current\.release\(lease\)/gu)?.length,
+  6,
+  "Every acquisition must release on early return and on completion",
+);
+assert.equal(
+  page.match(/disabled=\{Boolean\(busy\)\}/gu)?.length >= 5,
+  true,
+  "Network mutation and pagination buttons must share the busy state",
+);
+assert.doesNotMatch(page, /disabled=\{busy === `follow:/u);
 assert.match(page, /groupNetworkConnections\(connections\)/u);
 assert.match(page, /connectionGroups\.incomingRequests\.map/u);
 assert.match(page, /connectionGroups\.otherRelationships\.map/u);
