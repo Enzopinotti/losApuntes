@@ -326,3 +326,29 @@ test("cleanup never replaces another installed owner or throws on teardown", () 
   };
   assert.doesNotThrow(secondCleanup);
 });
+
+test("a failing diagnostic reporter still forwards a scrubbed fatal error exactly once", () => {
+  const forwarded: Array<{ error: Error; isFatal: boolean | undefined }> = [];
+  const predecessor: MobileGlobalErrorHandler = (error, isFatal) => {
+    forwarded.push({ error, isFatal });
+  };
+  let current: MobileGlobalErrorHandler = predecessor;
+  const utils: MobileErrorUtils = {
+    getGlobalHandler: () => current,
+    setGlobalHandler: (handler) => { current = handler; },
+  };
+  const cleanup = installMobileGlobalErrorHandler(utils, () => {
+    throw new Error("sensitive reporter failure");
+  });
+  const privateError = new TypeError("private token must not be forwarded");
+  privateError.stack = "private stack value";
+  current(privateError, true);
+
+  assert.equal(forwarded.length, 1);
+  assert.equal(forwarded[0]?.isFatal, true);
+  assert.equal(forwarded[0]?.error.name, "TypeError");
+  assert.equal(forwarded[0]?.error.message, "Client runtime failure");
+  assert.equal(forwarded[0]?.error.stack, "");
+  cleanup();
+  assert.equal(current, predecessor);
+});
