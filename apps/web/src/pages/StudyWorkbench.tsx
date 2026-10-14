@@ -113,7 +113,7 @@ export default function StudyWorkbench() {
   } | null>(null);
   const currentAction = actionState?.scope === dataScope ? actionState : null;
   const currentMessage = actionMessage?.scope === dataScope ? actionMessage : null;
-  const actionLocked = useRef(false);
+  const activeActionRef = useRef<{ scope: string; epoch: number } | null>(null);
 
   const {
     begin: beginContext,
@@ -153,7 +153,7 @@ export default function StudyWorkbench() {
     });
     try {
       const data = await searchApi.contextual(
-        { subjectLimit: 12, resourcesPerSubject: 1 },
+        { subjectLimit: 8, resourcesPerSubject: 1 },
         ticket.signal,
       );
       if (isContextCurrent(ticket)) {
@@ -305,10 +305,6 @@ export default function StudyWorkbench() {
     void loadQuestions();
   }, [subjectId, loadSaved, loadAvailable, loadQuestions]);
 
-  useEffect(() => {
-    actionLocked.current = false;
-  }, [dataScope]);
-
   const changeSubject = (subject: string) => {
     const href = studySubjectHref(subject);
     if (!href) return;
@@ -316,13 +312,16 @@ export default function StudyWorkbench() {
   };
 
   const saveResource = (resourceId: string, shouldSave: boolean) => {
-    if (actionLocked.current || status !== "authenticated" || !subjectId) return;
-    actionLocked.current = true;
-    const ticket = beginAction();
-    if (!isActionCurrent(ticket)) {
-      actionLocked.current = false;
+    if (
+      activeActionRef.current?.scope === dataScope ||
+      status !== "authenticated" ||
+      !subjectId
+    ) {
       return;
     }
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    activeActionRef.current = { scope: dataScope, epoch: ticket.epoch };
     setActionState({ scope: dataScope, resourceId });
     setActionMessage(null);
     void (async () => {
@@ -350,8 +349,13 @@ export default function StudyWorkbench() {
           });
         }
       } finally {
+        if (
+          activeActionRef.current?.scope === dataScope &&
+          activeActionRef.current.epoch === ticket.epoch
+        ) {
+          activeActionRef.current = null;
+        }
         if (finishAction(ticket)) setActionState(null);
-        actionLocked.current = false;
       }
     })();
   };
@@ -413,7 +417,7 @@ export default function StudyWorkbench() {
           </div>
         ) : result.kind === "unavailable" ? (
           <div className="study-workbench-alert" role="alert">
-            <p>Esta materia ya no forma parte de tu contexto académico disponible.</p>
+            <p>Esta materia no está entre las primeras ocho disponibles para esta vista. Revisá tu trayectoria y el contexto activo.</p>
             <Link to="/study">Elegir una materia actual</Link>
           </div>
         ) : result.kind === "no-context" ? (
@@ -426,7 +430,7 @@ export default function StudyWorkbench() {
         ) : selectedSubject ? (
           <>
             <div className="study-workbench-subjectbar">
-              <label htmlFor="study-subject">Materia para estudiar</label>
+              <label htmlFor="study-subject">Materia para estudiar (hasta ocho actuales)</label>
               <select
                 id="study-subject"
                 value={selectedSubject.id}

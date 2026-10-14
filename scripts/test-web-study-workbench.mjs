@@ -72,4 +72,4 @@ assert.deepEqual(
   ),
   { kind: "unavailable" },
 );
-console.log("Study Workbench navigation contract: PASS (14 assertions)");
+console.log("Study Workbench navigation contract: PASS (navigation and authority guards)");
