@@ -20,6 +20,7 @@ import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
+import { NetworkActionGate } from "../features/community/network-action-gate";
 import {
   groupNetworkConnections,
   networkConnectionStatusLabel,
@@ -138,6 +139,8 @@ const Network = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  // This lock is synchronous, so rapid clicks cannot race React's busy state.
+  const actionGateRef = useRef(new NetworkActionGate());
   const {
     begin: beginLoad,
     isCurrent: isLoadCurrent,
@@ -258,9 +261,17 @@ const Network = () => {
 
   const loadMoreFollowing = async () => {
     if (!followingNextCursor) return;
+    const lease = actionGateRef.current.tryAcquire(
+      authScopeKey,
+      "following-more",
+    );
+    if (!lease) return;
     const cursor = followingNextCursor;
     const ticket = beginAction();
-    if (!isActionCurrent(ticket)) return;
+    if (!isActionCurrent(ticket)) {
+      actionGateRef.current.release(lease);
+      return;
+    }
     setActionState({
       scopeKey: authScopeKey,
       busy: "following-more",
@@ -289,6 +300,7 @@ const Network = () => {
         feedback: null,
       });
     } finally {
+      actionGateRef.current.release(lease);
       if (finishAction(ticket)) {
         setActionState((current) =>
           current?.scopeKey === authScopeKey
@@ -301,9 +313,17 @@ const Network = () => {
 
   const loadMoreConnections = async () => {
     if (!connectionsNextCursor) return;
+    const lease = actionGateRef.current.tryAcquire(
+      authScopeKey,
+      "connections-more",
+    );
+    if (!lease) return;
     const cursor = connectionsNextCursor;
     const ticket = beginAction();
-    if (!isActionCurrent(ticket)) return;
+    if (!isActionCurrent(ticket)) {
+      actionGateRef.current.release(lease);
+      return;
+    }
     setActionState({
       scopeKey: authScopeKey,
       busy: "connections-more",
@@ -337,6 +357,7 @@ const Network = () => {
         feedback: null,
       });
     } finally {
+      actionGateRef.current.release(lease);
       if (finishAction(ticket)) {
         setActionState((current) =>
           current?.scopeKey === authScopeKey
@@ -400,8 +421,13 @@ const Network = () => {
     action: (signal: AbortSignal) => Promise<unknown>,
     success: string,
   ) => {
+    const lease = actionGateRef.current.tryAcquire(authScopeKey, key);
+    if (!lease) return;
     const ticket = beginAction();
-    if (!isActionCurrent(ticket)) return;
+    if (!isActionCurrent(ticket)) {
+      actionGateRef.current.release(lease);
+      return;
+    }
     setActionState({
       scopeKey: authScopeKey,
       busy: key,
@@ -427,6 +453,7 @@ const Network = () => {
         feedback: null,
       });
     } finally {
+      actionGateRef.current.release(lease);
       if (finishAction(ticket)) {
         setActionState((current) =>
           current?.scopeKey === authScopeKey
@@ -487,7 +514,7 @@ const Network = () => {
                 <div className="community-actions">
                   <button
                     type="button"
-                    disabled={busy === `follow:${person.profileId}`}
+                    disabled={Boolean(busy)}
                     onClick={() =>
                       void run(
                         `follow:${person.profileId}`,
@@ -502,7 +529,7 @@ const Network = () => {
                   <button
                     type="button"
                     className="secondary"
-                    disabled={busy === `connect:${person.profileId}`}
+                    disabled={Boolean(busy)}
                     onClick={() =>
                       void run(
                         `connect:${person.profileId}`,
@@ -552,7 +579,7 @@ const Network = () => {
                     <button
                       type="button"
                       className="secondary"
-                      disabled={busy === `unfollow:${item.profile.profileId}`}
+                      disabled={Boolean(busy)}
                       onClick={() =>
                         void run(
                           `unfollow:${item.profile.profileId}`,
@@ -574,7 +601,7 @@ const Network = () => {
                 <button
                   type="button"
                   className="secondary"
-                  disabled={busy === "following-more"}
+                  disabled={Boolean(busy)}
                   onClick={() => void loadMoreFollowing()}
                 >
                   {busy === "following-more" ? "Cargando…" : "Cargar más"}
@@ -643,7 +670,7 @@ const Network = () => {
                 <button
                   type="button"
                   className="secondary"
-                  disabled={busy === "connections-more"}
+                  disabled={Boolean(busy)}
                   onClick={() => void loadMoreConnections()}
                 >
                   {busy === "connections-more"
