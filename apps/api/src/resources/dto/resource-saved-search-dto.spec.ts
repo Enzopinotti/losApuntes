@@ -9,8 +9,8 @@ describe('ResourceSavedSearchDto metadata search', () => {
       (error) => Object.keys(error.constraints ?? {}),
     );
 
-  it('accepts a bounded phrase or omitted query', () => {
-    expect(validateSync(plainToInstance(ResourceSavedSearchDto, {}))).toEqual([]);
+  it('accepts a bounded phrase but requires an explicit query', () => {
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, {})).length).toBeGreaterThan(0);
     expect(errorsFor('base de datos')).toEqual([]);
     expect(errorsFor('Álgebra')).toEqual([]);
     expect(errorsFor('x'.repeat(120))).toEqual([]);
