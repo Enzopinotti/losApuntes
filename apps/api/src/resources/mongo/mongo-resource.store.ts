@@ -10,6 +10,7 @@ import {
   type ResourceStore,
   type UpdateResourceRecord,
 } from '../domain/resource.store';
+import type { SavedResourceSearchStore } from '../domain/resource-saved-search.store';
 import type {
   ResourceRecord,
   ResourceReportRecord,
@@ -97,7 +98,7 @@ export function savedMetadataRegex(query: string): string {
 }
 
 @Injectable()
-export class MongoResourceStore implements ResourceStore {
+export class MongoResourceStore implements ResourceStore, SavedResourceSearchStore {
   constructor(
     @InjectConnection()
     private readonly connection: Connection,
@@ -497,8 +498,8 @@ export class MongoResourceStore implements ResourceStore {
   }
 
   async searchSavedResources(
-    input: Parameters<ResourceStore['searchSavedResources']>[0],
-  ): ReturnType<ResourceStore['searchSavedResources']> {
+    input: Parameters<SavedResourceSearchStore['searchSavedResources']>[0],
+  ): ReturnType<SavedResourceSearchStore['searchSavedResources']> {
     // Join only the saves owned by this authenticated account. Candidate
     // visibility and metadata filtering MUST happen before $limit: otherwise
     // an early page of inaccessible items hides later valid matches.
