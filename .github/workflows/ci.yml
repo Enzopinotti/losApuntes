@@ -474,3 +474,40 @@ jobs:
       - name: Tear down runtime
         if: always()
         run: docker compose -f compose.local.yml -f compose.health.yml down --volumes --remove-orphans
+
+  mobile-search-critical-coverage:
+    name: Mobile Search critical coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install workspace from frozen lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Mobile Search source format
+        run: pnpm --filter @losapuntes/mobile exec prettier --check "src/features/search/search-deep-link.ts" "src/features/search/search-input-state.ts" "src/features/search/search-screen.tsx" "test/search-deep-link.test.ts"
+
+      - name: Verify Mobile TypeScript contract
+        run: pnpm --filter @losapuntes/mobile check:types
+
+      - name: Verify Mobile behavior and Search link regressions
+        run: pnpm --filter @losapuntes/mobile test
