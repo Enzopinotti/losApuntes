@@ -359,8 +359,9 @@ export function SavedResourcesScreen() {
               {current.paginationStalled ? (
                 <View style={styles.card}>
                   <Text accessibilityRole="alert" style={styles.error}>
-                    La paginación devolvió un cursor repetido. Para evitar
-                    resultados duplicados, reiniciá el listado.
+                    {current.paginationResetReason === "data_changed"
+                      ? "Tus guardados o sus permisos cambiaron mientras navegabas. Volvé a cargar para continuar con resultados actualizados."
+                      : "La paginación devolvió un cursor repetido. Para evitar resultados duplicados, reiniciá el listado."}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
@@ -580,7 +581,9 @@ export function SavedResourcesScreen() {
               <>
                 <Text style={styles.copy}>
                   {current.paginationStalled
-                    ? "La paginación se interrumpió. Reiniciá el listado para consultar tus guardados."
+                    ? current.paginationResetReason === "data_changed"
+                      ? "Tus guardados cambiaron mientras navegabas. Volvé a cargar para seguir consultando."
+                      : "La paginación se interrumpió. Reiniciá el listado para consultar tus guardados."
                     : current.data.nextCursor
                       ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
                     : searchQuery || selectedSubjectId
