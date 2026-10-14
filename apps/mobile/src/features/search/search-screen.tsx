@@ -796,9 +796,17 @@ export function SearchScreen() {
     if (session.kind === "authenticated") void retryAcademic();
   }, [retryAcademic, session.kind]);
 
-  // Do not flash results from the previous filter combination before the
-  // effect that cancels the old request has run.
+  // A newly opened external link supersedes even an otherwise valid
+  // previous query before React runs the restoration effect.
+  const incomingAuthorityKey = `${sessionAuthority}:${
+    incomingSearchKey ?? `invalid:${incomingRouteKey}`
+  }`;
+  const pendingIncomingRoute =
+    hasIncomingSearchParams &&
+    handledIncomingSearch.current !== incomingAuthorityKey;
+  // Do not flash results from another query, route or session.
   const currentSearch =
+    !pendingIncomingRoute &&
     searchInput &&
     search.kind !== "idle" &&
     search.authorityKey === authorityKey &&
