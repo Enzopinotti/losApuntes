@@ -67,9 +67,7 @@ export function AccountExportPanel() {
     session?.id ?? "no-session",
   ].join(":");
 
-  const [scoped, setScoped] = useState<Scoped<ExportPresentation> | null>(
-    null,
-  );
+  const [scoped, setScoped] = useState<Scoped<ExportPresentation> | null>(null);
   const current = scoped?.scopeKey === scopeKey ? scoped.value : initial;
   const { export: job, busy, refreshing, message, error } = current;
 
@@ -158,14 +156,7 @@ export function AccountExportPanel() {
         update((previous) => ({ ...previous, refreshing: false }));
       }
     }
-  }, [
-    beginStatus,
-    finishStatus,
-    job?.id,
-    status,
-    statusIsCurrent,
-    update,
-  ]);
+  }, [beginStatus, finishStatus, job?.id, status, statusIsCurrent, update]);
 
   const active = job?.state === "pending" || job?.state === "processing";
   useEffect(() => {
@@ -209,8 +200,8 @@ export function AccountExportPanel() {
     job.downloadable &&
     job.downloadExpiresAt !== null &&
     Date.parse(job.downloadExpiresAt) > Date.now();
-  const mayRequest = !job || job.state === "failed" ||
-    (job.state === "completed" && !available);
+  const mayRequest =
+    !job || job.state === "failed" || (job.state === "completed" && !available);
 
   if (status !== "authenticated") return null;
 
@@ -218,9 +209,9 @@ export function AccountExportPanel() {
     <section aria-labelledby="account-export-title">
       <h2 id="account-export-title">Exportar mis datos</h2>
       <p>
-        Podés solicitar una copia de tu información. La preparación es
-        asíncrona y el archivo puede contener datos personales y tus aportes.
-        Guardalo en un lugar privado.
+        Podés solicitar una copia de tu información. La preparación es asíncrona
+        y el archivo puede contener datos personales y tus aportes. Guardalo en
+        un lugar privado.
       </p>
       <p>
         La descarga requiere una sesión activa y se autoriza nuevamente al
@@ -233,9 +224,7 @@ export function AccountExportPanel() {
       {job && (
         <div aria-live="polite" aria-atomic="true">
           <p>{statusMessage(job)}</p>
-          <p>
-            Solicitado: {new Date(job.requestedAt).toLocaleString("es-AR")}
-          </p>
+          <p>Solicitado: {new Date(job.requestedAt).toLocaleString("es-AR")}</p>
           {job.downloadExpiresAt && (
             <p>
               Fecha límite de descarga:{" "}
@@ -252,8 +241,16 @@ export function AccountExportPanel() {
       )}
 
       {mayRequest && (
-        <button type="button" disabled={busy} onClick={() => void requestExport()}>
-          {busy ? "Solicitando…" : job ? "Solicitar otra copia" : "Solicitar mis datos"}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void requestExport()}
+        >
+          {busy
+            ? "Solicitando…"
+            : job
+              ? "Solicitar otra copia"
+              : "Solicitar mis datos"}
         </button>
       )}
 
