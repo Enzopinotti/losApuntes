@@ -328,6 +328,12 @@ const Search = () => {
                       </div>
                       <Link
                         to={`/resources/${encodeURIComponent(resource.id)}`}
+                        state={{
+                          searchReturnTo: searchSelectionHref({
+                            q: submittedQuery,
+                            scope: submittedScope,
+                          }),
+                        }}
                       >
                         Ver recurso
                       </Link>
@@ -414,6 +420,12 @@ const Search = () => {
                         <li key={resource.id}>
                           <Link
                             to={`/resources/${encodeURIComponent(resource.id)}`}
+                            state={{
+                              searchReturnTo: searchSelectionHref({
+                                q: submittedQuery,
+                                scope: submittedScope,
+                              }),
+                            }}
                           >
                             {resource.title}
                           </Link>
