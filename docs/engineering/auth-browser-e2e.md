@@ -4,6 +4,8 @@ The browser smoke exercises repo-owned Identity/Auth vNext journeys against real
 
 The expired-session browser assertion temporarily pauses MongoDB's TTL monitor **only inside the disposable local Compose Mongo**, after reading its original `ttlMonitorEnabled` state. It performs the synthetic expiry, asserts that the same session document exists with `expiresAt` in the past before and after the real `/auth/me` 401, and restores the monitor's original state in `finally` (including when any assertion fails). If querying/changing the TTL monitor is unsupported, the test fails closed rather than treating removal of the record as evidence. It does not modify production TTL indexes, auth rules or deployed Mongo settings.
 
+The reversible TTL guard has deterministic tests covering successful execution, failed assertions, a monitor already disabled, failed pause, invalid state and failed restoration. Run `node --test scripts/test-auth-ttl-guard.mjs` without Docker; the full browser scenario still requires disposable Compose + Chromium.
+
 The runner starts and stops the Web Vite server. It refuses non-loopback Web or API origins and never prints credentials, verification tokens, or session cookie values. Run it only against the disposable local Compose stack; it is not a production probe and does not claim provider, device, or deployed-browser evidence.
 
 ```sh
