@@ -217,14 +217,15 @@ Requires active session. Returns `Cache-Control: private, no-store`. Lists the s
 Requires active session. Returns `Cache-Control: private, no-store`.
 
 - `q` optional metadata query, 2–120 characters when present: title, description and tags, case-insensitive with Spanish accent variants. Author/Subject names are not indexed here.
-- `subjectId` optional canonical Subject UUIDv4. Supply at least one of `q` or `subjectId`; combining both applies an intersection before paginating.
-- `limit` 1–50, default 25; `cursor` is opaque.
+- `subjectId` optional canonical Subject UUIDv4. Supply `q` or `subjectId`, or use `order=title` to browse all saved resources. Text and Subject can be combined.
+- `order` optional: `saved` (default; newest save first, UUID tie-breaker) or `title` (global A–Z, Spanish collation strength 1, resource ID tie-breaker). For unfiltered default order, use the existing `/resources/saved` endpoint.
+- `limit` 1–50, default 25; `cursor` is opaque (up to 2048 characters for Unicode-safe title cursors).
 - Normal listing without `q` remains on `GET /resources/saved`; its legacy cursors remain unchanged.
-- With `q`, the server searches every saved relation for the current account and preserves descending save order, rather than filtering only an already-loaded client page.
+- With text, Subject, or `order=title`, the server searches every saved relation for the current account, not only previously downloaded pages. `order=saved` keeps descending save order; `order=title` sorts all accessible matches alphabetically before applying the page limit.
 - Search joins and filters current resource visibility, moderation and metadata before applying the page limit. The service rechecks readability during projection.
-- Filtered cursors are scoped to the actor, normalized query and selected Subject. Cross-query, cross-account and legacy-cursor mixing fails with `RESOURCE_SAVED_SEARCH_CURSOR_INVALID` (422).
+- Saved-date cursors (v1) remain compatible. Title cursors (v2) carry an exact last-title/UUID position and are scoped to authenticated actor, normalized query, selected Subject and title mode. Cross-query, cross-account, cross-Subject, cross-sort or legacy-cursor mixing fails with `RESOURCE_SAVED_SEARCH_CURSOR_INVALID` (422).
 - Access is never granted by a bookmark, search hit, cursor or previous signed URL.
-- Mobile subject chips and title ordering are local to loaded results and must be labeled accordingly.
+- Mobile's Subject facet counts cover all accessible saves (independent of text query), and title ordering is global when selected. The number of displayed rows remains a loaded-page count, not a total-match count. Changing order starts again from the first page.
 
 ### GET /resources/saved/subjects
 
