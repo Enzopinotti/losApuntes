@@ -93,8 +93,10 @@ test("inbound Subject selection uses the existing subject-only server search wit
   // The controller receives { scope:'resources', subjectId } with no q.
   // Text searches still use the existing minimum-two-character policy.
   const searchScreen = screen("../src/features/search/search-screen.tsx");
-  assert.match(searchScreen, /scope === "resources" && subjectId/u);
-  assert.match(searchScreen, /return \{ scope: "resources", subjectId \};/u);
+  const searchInput = screen("../src/features/search/search-input-state.ts");
+  assert.match(searchInput, /state\.scope === "resources" &&/u);
+  assert.match(searchInput, /return \{ scope: "resources", subjectId \};/u);
+  assert.match(searchScreen, /searchInputForState\(searchInputState\)/u);
   assert.match(
     searchScreen,
     /controller\.scheduleSearch\(authorityKey, searchInput\)/u,
@@ -153,7 +155,7 @@ test("all entry points reuse the same canonical exploration action without inven
   assert.match(search, /useLocalSearchParams/u);
   assert.match(
     search,
-    /subjectResourcesSearchRouteId\(routeParams\.subjectId\)/u,
+    /subjectResourcesSearchRouteId\(\s*routeParams\.subjectId,?\s*\)/u,
   );
   assert.match(search, /onExploreSubject=\{exploreContextSubject\}/u);
   assert.match(search, /Explorar apuntes de esta materia/u);
