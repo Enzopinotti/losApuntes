@@ -43,6 +43,8 @@ describe('Mongo saved-library full-collection search', () => {
     expect(json).toContain('"from":"resources"');
     expect(json).toContain('"moderationState":"available"');
     expect(json).toContain('"from":"resource_shares"');
+    expect(json).toContain('"$eq":["$id","$savedResourceId"]');
+    expect(json).toContain('"$eq":["$resourceId","$savedResourceId"]');
     expect(json).toContain('"__resource.visibility":"shared"');
     expect(json).toContain('"__resource.authorUserId":"owner-1"');
     expect(json).toContain('"__viewerShares.0"');
