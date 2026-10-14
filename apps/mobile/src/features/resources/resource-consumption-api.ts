@@ -141,7 +141,7 @@ export class MobileResourceConsumptionHttpTransport implements MobileResourceCon
     if (q) query.set("q", q);
 
     return this.client.request<ResourceSavedPage>(
-      `/resources/saved?${query.toString()}`,
+      `/resources/saved${q ? "/search" : ""}?${query.toString()}`,
       {
         credential,
         ...(signal ? { signal } : {}),
