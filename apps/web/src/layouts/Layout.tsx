@@ -27,6 +27,7 @@ const memberNavigation: NavigationDestination[] = [
 
 const memberMoreNavigation: NavigationDestination[] = [
   { to: "/questions", label: "Preguntas" },
+  { to: "/study-collections", label: "Mis colecciones" },
   { to: "/organizations", label: "Organizaciones" },
   { to: "/academic/lifecycle", label: "Mi trayectoria" },
   { to: "/profile", label: "Mi perfil" },

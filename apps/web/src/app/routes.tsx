@@ -18,6 +18,7 @@ import Profile from "../pages/Profile";
 import PublicProfile from "../pages/PublicProfile";
 import ResetPassword from "../pages/ResetPassword";
 import Resources from "../pages/Resources";
+import StudyCollections from "../pages/StudyCollections";
 import Search from "../pages/Search";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
@@ -41,6 +42,14 @@ export const routes: RouteObject[] = [
       { path: "p/:profileId", element: <PublicProfile /> },
       { path: "resources", element: <Resources /> },
       { path: "resources/:resourceId", element: <Resources /> },
+      {
+        path: "study-collections",
+        element: (
+          <PrivateRoute>
+            <StudyCollections />
+          </PrivateRoute>
+        ),
+      },
       { path: "search", element: <Search /> },
       { path: "questions", element: <Questions /> },
       { path: "organizations", element: <Organizations /> },
