@@ -17,7 +17,7 @@ export type SavedSubjectFacetsPage = {
 export type SavedSubjectFacetsSnapshot =
   | { kind: "idle" }
   | { kind: "loading"; authorityKey: string }
-  | { kind: "ready"; authorityKey: string; data: SavedSubjectFacetsPage }
+  | { kind: "ready"; authorityKey: string; data: SavedSubjectFacetsPage; refreshing?: boolean; refreshFailure?: ResourceConsumptionFailure | null }
   | { kind: "failure"; authorityKey: string; reason: ResourceConsumptionFailure };
 
 export interface SavedSubjectFacetsApi {
@@ -91,6 +91,40 @@ export class MobileSavedSubjectFacetsController {
     } catch (error) {
       if (!this.isCurrent(generation, controller, authorityKey)) return;
       this.publish({ kind: "failure", authorityKey, reason: resourceConsumptionFailure(error) });
+    } finally {
+      if (this.active === controller) this.active = null;
+    }
+  }
+
+  /**
+   * Refresh global Subject counts without replacing the chip selector with a
+   * spinner. Failed checks retain the previous counts and visibly disclose
+   * that they could be stale.
+   */
+  async sync(authorityKey: string): Promise<void> {
+    if (
+      this.snapshot.kind !== "ready" ||
+      this.snapshot.authorityKey !== authorityKey ||
+      this.active
+    ) return;
+    const controller = new AbortController();
+    const generation = ++this.generation;
+    this.active = controller;
+    this.publish({ ...this.snapshot, refreshing: true, refreshFailure: null });
+    try {
+      const data = await this.api.subjects(controller.signal);
+      if (!this.isCurrent(generation, controller, authorityKey)) return;
+      this.publish({ kind: "ready", authorityKey, data, refreshing: false, refreshFailure: null });
+    } catch (error) {
+      if (!this.isCurrent(generation, controller, authorityKey)) return;
+      const current = this.snapshot;
+      if (current.kind === "ready") {
+        this.publish({
+          ...current,
+          refreshing: false,
+          refreshFailure: resourceConsumptionFailure(error),
+        });
+      }
     } finally {
       if (this.active === controller) this.active = null;
     }
