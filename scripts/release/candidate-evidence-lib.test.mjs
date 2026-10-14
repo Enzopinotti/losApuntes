@@ -173,6 +173,11 @@ test("changing the CVE, version, path or ignore policy forces HOLD", () => {
   assert.ok(assess({ exceptionPolicy: changed }).reasonCodes.includes(
     "AUDIT_EXCEPTION_POLICY_UNEXPECTED",
   ));
+  const extendedDeadline = structuredClone(reviewedPolicy);
+  extendedDeadline.exceptions[0].expiresAt = "2026-11-30T00:00:00.000Z";
+  assert.ok(assess({ exceptionPolicy: extendedDeadline }).reasonCodes.includes(
+    "AUDIT_EXCEPTION_POLICY_UNEXPECTED",
+  ));
   const modifiedParents = structuredClone(reviewedPolicy);
   modifiedParents.exceptions[0].allowedSnapshotParentPrefixes = [
     "@expo/cli@", "unexpected@",
