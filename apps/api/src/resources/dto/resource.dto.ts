@@ -146,11 +146,6 @@ export class ResourceOwnedListDto {
 
 export class ResourceSavedListDto {
   @IsOptional()
-  @IsString()
-  @Length(2, 120)
-  q?: string;
-
-  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
