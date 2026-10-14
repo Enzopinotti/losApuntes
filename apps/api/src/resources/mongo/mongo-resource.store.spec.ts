@@ -50,9 +50,9 @@ describe('MongoResourceStore owned statistics', () => {
         },
       ],
     });
-    const pipeline = aggregate.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >;
+    const pipeline = (aggregate.mock.calls as unknown as Array<
+      [Array<Record<string, unknown>>]
+    >)[0]?.[0];
     expect(pipeline[0]).toEqual({
       $match: { authorUserId: 'owner-a', moderationState: 'available' },
     });
@@ -81,9 +81,9 @@ describe('MongoResourceStore owned statistics', () => {
     });
     const response = await store.getOwnedStatistics('owner-b');
     expect(response.activeShareGrants).toBe(0);
-    const pipeline = aggregate.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >;
+    const pipeline = (aggregate.mock.calls as unknown as Array<
+      [Array<Record<string, unknown>>]
+    >)[0]?.[0];
     const text = JSON.stringify(pipeline);
     expect(text).toContain('"$eq":["$$visibility","shared"]');
   });
@@ -170,9 +170,9 @@ describe('MongoResourceStore owned library advanced browsing', () => {
   it('limits subject facets to this author and at most fifty subjects', async () => {
     const { store, resources } = mockResources();
     await store.listOwnedSubjects('author-a');
-    const pipeline = resources.aggregate.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >;
+    const pipeline = (resources.aggregate.mock.calls as unknown as Array<
+      [Array<Record<string, unknown>>]
+    >)[0]?.[0];
     expect(pipeline[0]).toEqual({
       $match: { authorUserId: 'author-a', moderationState: 'available' },
     });
@@ -332,12 +332,12 @@ describe('MongoResourceStore owner share listing', () => {
         {
           shareId: '507f1f77bcf86cd799439010',
           userId: 'private-user-0',
-          createdAt: rows[0]!.createdAt,
+          createdAt: rows[0].createdAt,
         },
         {
           shareId: '507f1f77bcf86cd799439011',
           userId: 'private-user-1',
-          createdAt: rows[1]!.createdAt,
+          createdAt: rows[1].createdAt,
         },
       ],
       hasMore: true,
@@ -361,10 +361,13 @@ describe('MongoResourceStore owner share listing', () => {
       limit: 20,
       after: { shareId: '507f1f77bcf86cd799439011' },
     });
-    expect(shares.find).toHaveBeenCalledWith({
-      resourceId: 'resource-b',
-      _id: { $gt: expect.anything() },
-    });
+    const findCalls = shares.find.mock.calls as unknown as Array<
+      [{ resourceId: string; _id: { $gt: { toHexString(): string } } }]
+    >;
+    expect(findCalls[0]?.[0].resourceId).toBe('resource-b');
+    expect(findCalls[0]?.[0]._id.$gt.toHexString()).toBe(
+      '507f1f77bcf86cd799439011',
+    );
     expect(chain.limit).toHaveBeenCalledWith(21);
   });
 });
