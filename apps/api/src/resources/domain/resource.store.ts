@@ -111,6 +111,12 @@ export interface ResourceStore {
     limit: number;
     after?: SavedResourceCursor;
   }): Promise<SavedResourcePage>;
+  searchSavedResources(input: {
+    userId: string;
+    q: string;
+    limit: number;
+    after?: SavedResourceCursor;
+  }): Promise<SavedResourcePage>;
   searchAuthorized(input: {
     viewerUserId?: string;
     q?: string;
