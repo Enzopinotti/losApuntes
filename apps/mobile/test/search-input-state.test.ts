@@ -25,7 +25,7 @@ test("clearing a selected subject returns Search to its general state", () => {
   assert.deepEqual(cleared, initialSearchInputState);
 });
 
-test("typing clears the subject filter while preserving the selected scope", () => {
+test("typing refines the selected subject without silently broadening scope", () => {
   const scoped = searchInputReducer(initialSearchInputState, {
     type: "subjectSelected",
     subject: { id: "subject-a", name: "Álgebra" },
@@ -33,7 +33,7 @@ test("typing clears the subject filter while preserving the selected scope", () 
 
   assert.deepEqual(
     searchInputReducer(scoped, { type: "queryChanged", query: "álgebra" }),
-    { query: "álgebra", scope: "resources", selectedSubject: null },
+    { query: "álgebra", scope: "resources", selectedSubject: { id: "subject-a", name: "Álgebra" } },
   );
 });
 

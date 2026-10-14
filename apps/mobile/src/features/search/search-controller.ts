@@ -23,12 +23,14 @@ export type MobileSearchSnapshot =
       authorityKey: string;
       query: string;
       scope: MobileSearchInput["scope"];
+      subjectId?: string;
     }
   | {
       kind: "ready";
       authorityKey: string;
       query: string;
       scope: MobileSearchInput["scope"];
+      subjectId?: string;
       data: SearchResponse;
     }
   | FailureSnapshot;
@@ -105,6 +107,7 @@ export class MobileSearchController {
         authorityKey,
         query: input.q ?? "",
         scope: input.scope,
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
         data,
       };
       this.publish();
@@ -217,6 +220,7 @@ export class MobileSearchController {
       authorityKey,
       query: input.q ?? "",
       scope: input.scope,
+      ...(input.subjectId ? { subjectId: input.subjectId } : {}),
     };
     this.publish();
     return this.searchGeneration;

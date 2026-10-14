@@ -44,6 +44,7 @@ import {
 } from "./search-controller";
 import {
   initialSearchInputState,
+  searchInputForState,
   searchInputReducer,
 } from "./search-input-state";
 import {
@@ -526,19 +527,10 @@ export function SearchScreen() {
       ? quickSave
       : { authorityKey, items: {} };
   const normalizedQuery = query.trim();
-  const searchInput = useMemo<MobileSearchInput | null>(() => {
-    if (normalizedQuery.length >= 2) {
-      return {
-        q: normalizedQuery,
-        scope,
-        ...(subjectId ? { subjectId } : {}),
-      };
-    }
-    if (scope === "resources" && subjectId) {
-      return { scope: "resources", subjectId };
-    }
-    return null;
-  }, [normalizedQuery, scope, subjectId]);
+  const searchInput = useMemo<MobileSearchInput | null>(
+    () => searchInputForState(searchInputState),
+    [query, scope, subjectId],
+  );
 
   useEffect(
     () => quickSaveController.subscribe(setQuickSave),
@@ -729,8 +721,16 @@ export function SearchScreen() {
     if (session.kind === "authenticated") void retryAcademic();
   }, [retryAcademic, session.kind]);
 
+  // Do not flash results from the previous filter combination before the
+  // effect that cancels the old request has run.
   const currentSearch =
-    search.kind !== "idle" && search.authorityKey === authorityKey
+    searchInput &&
+    search.kind !== "idle" &&
+    search.authorityKey === authorityKey &&
+    (search.kind !== "ready" && search.kind !== "loading" ||
+      (search.query === (searchInput.q ?? "") &&
+        search.scope === searchInput.scope &&
+        (search.subjectId ?? null) === (searchInput.subjectId ?? null)))
       ? search
       : null;
   useEffect(() => {
@@ -770,11 +770,13 @@ export function SearchScreen() {
       subjects: data.results.subjects.length,
       people: data.results.people.length,
     };
-    const recoveryCopy = searchScopeRecoveryCopy(
-      counts,
-      resultScope,
-      data.query,
-    );
+    const scopedSubjectEmpty =
+      resultScope === "resources" &&
+      selectedSubject !== null &&
+      counts.resources === 0;
+    const recoveryCopy = selectedSubject
+      ? null
+      : searchScopeRecoveryCopy(counts, resultScope, data.query);
 
     return (
       <View style={styles.resultGroups}>
@@ -788,6 +790,44 @@ export function SearchScreen() {
         <Text style={styles.copy}>
           {searchResultSummary(counts, resultScope)}
         </Text>
+        {scopedSubjectEmpty ? (
+          <View style={styles.emptyRecovery}>
+            <Text style={styles.copy}>
+              No encontramos apuntes accesibles de {selectedSubject?.name ?? "esta materia"}
+              {normalizedQuery ? ` con “${normalizedQuery}”` : ""}.
+              Probá con otra palabra o ampliá la búsqueda.
+            </Text>
+            {normalizedQuery.length >= 2 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Buscar ${normalizedQuery} en todas las materias`}
+                onPress={clearSubjectFilter}
+                style={styles.searchActionButton}
+              >
+                <Text style={styles.searchActionLabel}>Buscar texto en todas las materias</Text>
+              </Pressable>
+            ) : null}
+            {normalizedQuery.length >= 2 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Ver apuntes de ${selectedSubject?.name ?? "esta materia"} sin palabras clave`}
+                onPress={() => setQueryText("")}
+                style={styles.searchActionButton}
+              >
+                <Text style={styles.searchActionLabel}>Ver materia sin texto</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Quitar filtro de materia y ampliar búsqueda"
+                onPress={clearSubjectFilter}
+                style={styles.searchActionButton}
+              >
+                <Text style={styles.searchActionLabel}>Quitar filtro de materia</Text>
+              </Pressable>
+            )}
+          </View>
+        ) : null}
         {recoveryCopy ? (
           <View style={styles.emptyRecovery}>
             <Text style={styles.copy}>{recoveryCopy.message}</Text>
@@ -863,7 +903,9 @@ export function SearchScreen() {
           value={query}
         />
         <Text style={styles.meta}>
-          La búsqueda por texto requiere entre 2 y 120 caracteres.
+          {selectedSubject
+            ? "Podés combinar esta materia con 2 a 120 caracteres. Sin texto se muestran sus apuntes accesibles."
+            : "La búsqueda por texto requiere entre 2 y 120 caracteres."}
         </Text>
         <View accessibilityRole="tablist" style={styles.scopeList}>
           {SEARCH_SCOPES.map((option) => (
@@ -952,7 +994,9 @@ export function SearchScreen() {
       {authorityKey && !searchInput ? (
         <View style={styles.card}>
           <Text style={styles.copy}>
-            Escribí al menos dos caracteres para buscar.
+            {selectedSubject && normalizedQuery.length === 1
+              ? "Escribí al menos dos caracteres para refinar esta materia, o borrá el texto para ver sus apuntes."
+              : "Escribí al menos dos caracteres para buscar."}
           </Text>
         </View>
       ) : null}
