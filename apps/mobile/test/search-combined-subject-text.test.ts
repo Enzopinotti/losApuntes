@@ -222,7 +222,7 @@ test("Subject deep links still target the same existing authorized search path",
   );
   assert.match(
     search,
-    /subjectResourcesSearchRouteId\(routeParams\.subjectId\)/u,
+    /subjectResourcesSearchRouteId\(\s*routeParams\.subjectId,?\s*\)/u,
   );
   assert.match(search, /dispatchSearchInput\(\{\s*type: "subjectSelected"/u);
   assert.match(
