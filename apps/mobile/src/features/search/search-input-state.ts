@@ -11,6 +11,7 @@ export type SearchInputAction =
   | { type: "queryChanged"; query: string }
   | { type: "scopeChanged"; scope: SearchScope }
   | { type: "sharedSearchOpened"; input: MobileSearchInput }
+  | { type: "invalidSharedSearchOpened" }
   | {
       type: "subjectSelected";
       subject: { id: string; name: string };
@@ -40,6 +41,10 @@ export function searchInputReducer(
       };
     case "scopeChanged":
       return { ...state, scope: action.scope, selectedSubject: null };
+    case "invalidSharedSearchOpened":
+      // Never keep another person's previous results when a malformed
+      // external route demands a different search scope.
+      return initialSearchInputState;
     case "sharedSearchOpened":
       // One atomic transition: never briefly search with the previous
       // person's subject or a stale draft while restoring an external link.
