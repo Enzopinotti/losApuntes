@@ -134,7 +134,7 @@ function SavedResourceRow({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${removalFailure ? "Reintentar quitar" : "Quitar"} ${resource.title} de guardados`
+        accessibilityLabel={`${removalFailure ? "Reintentar quitar" : "Quitar"} ${resource.title} de guardados`}
         accessibilityState={{ disabled: removalPending }}
         disabled={removalPending}
         onPress={onRemove}
