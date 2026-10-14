@@ -69,8 +69,8 @@ export function HomeSavedReturnCard({
         Retomá tus guardados
       </Text>
       <Text style={styles.copy}>
-        Abrí un apunte que guardaste o volvé a tu biblioteca. Cada apertura
-        vuelve a comprobar los permisos actuales.
+        Abrí un apunte guardado, consultá preguntas de su materia o explorá
+        tu biblioteca. El servidor vuelve a comprobar los permisos actuales.
       </Text>
 
       {!current || current.kind === "loading" ? (
