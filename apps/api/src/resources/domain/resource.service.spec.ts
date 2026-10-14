@@ -1148,6 +1148,33 @@ describe('ResourceService', () => {
     expect(resourceStore.listSavedResources.mock.calls).toHaveLength(0);
   });
 
+  it('scopes saved metadata search and rejects a changed query', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    projectionDeps(deps);
+    resourceStore.searchSavedResources.mockResolvedValue({
+      items: [{ resourceId: resource().id, createdAt: now }],
+      hasMore: true,
+    });
+    resourceStore.findManyByIds.mockResolvedValue([resource({ visibility: 'public' })]);
+
+    const instance = service(resourceStore, deps);
+    const first = await instance.listSaved('viewer-2', 1, undefined, ' SQL  AVANZADO ');
+    expect(first.nextCursor).toEqual(expect.any(String));
+    expect(resourceStore.searchSavedResources).toHaveBeenCalledWith({
+      userId: 'viewer-2', q: 'sql avanzado', limit: 1,
+    });
+
+    await expect(
+      instance.listSaved('viewer-2', 1, first.nextCursor ?? undefined, 'otro tema'),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      instance.listSaved('another-user', 1, first.nextCursor ?? undefined, 'sql avanzado'),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(resourceStore.searchSavedResources).toHaveBeenCalledTimes(1);
+    expect(resourceStore.listSavedResources).not.toHaveBeenCalled();
+  });
+
   it('search normalizes query and returns an opaque cursor', async () => {
     const resourceStore = store();
     const deps = dependencies();
