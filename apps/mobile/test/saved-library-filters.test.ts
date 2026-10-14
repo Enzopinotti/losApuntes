@@ -240,7 +240,7 @@ test("screen delegates metadata and subject search to the server", () => {
   assert.match(screen, /setQuery\(""\)/u);
   assert.match(screen, /setSort\("saved"\)/u);
   assert.match(screen, /Cargar más guardados/u);
-  assert.match(screen, /guardados cargados/u);
+  assert.match(screen, /guardados accesibles/u);
 });
 
 test("saved subjects group by academic ID with loaded counts and Spanish order", () => {
