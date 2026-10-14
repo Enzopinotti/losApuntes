@@ -154,7 +154,7 @@ test("screen uses global sort as request scope and keeps server order across loa
   assert.match(screen, /\(snapshot\.order \?\? "saved"\) === sort/u);
   assert.match(
     screen,
-    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*"saved",\s*null,/u,
+    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*"saved",\s*null,?\s*\)/u,
   );
   assert.match(
     screen,
