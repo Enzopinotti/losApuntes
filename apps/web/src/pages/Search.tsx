@@ -294,9 +294,7 @@ const Search = () => {
                 {subjectId &&
                   !contextual?.subjects.some(
                     (bucket) => bucket.subject.id === subjectId,
-                  ) && (
-                    <option value={subjectId}>Materia del enlace</option>
-                  )}
+                  ) && <option value={subjectId}>Materia del enlace</option>}
                 {contextual?.subjects.map((bucket) => (
                   <option key={bucket.subject.id} value={bucket.subject.id}>
                     {bucket.subject.name}
