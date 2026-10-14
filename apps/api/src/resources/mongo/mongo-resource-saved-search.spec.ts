@@ -66,12 +66,13 @@ describe('Mongo saved-library full-collection search', () => {
       },
     });
     expect(stages[1]).toEqual({ $sort: { createdAt: -1, resourceId: 1 } });
+    expect(stages[2]).toEqual({ $project: { _id: 0, resourceId: 1, createdAt: 1 } });
     const json = JSON.stringify(stages);
     expect(json).toContain('"from":"resources"');
     expect(json).toContain('"moderationState":"available"');
     expect(json).toContain('"from":"resource_shares"');
-    expect(json).toContain('"$eq":["$id","$$savedResourceId"]');
-    expect(json).toContain('"$eq":["$resourceId","$$savedResourceId"]');
+    expect(json).toContain('"localField":"resourceId","foreignField":"id"');
+    expect(json).toContain('"localField":"resourceId","foreignField":"resourceId"');
     expect(json).toContain('"__resource.visibility":"shared"');
     expect(json).toContain('"__resource.authorUserId":"owner-1"');
     expect(json).toContain('"__viewerShares.0"');
@@ -110,11 +111,12 @@ describe('Mongo saved-library full-collection search', () => {
     const stages = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
     const text = JSON.stringify(stages);
     expect(stages[0]).toEqual({ $match: { userId: 'owner-1' } });
+    expect(stages[1]).toEqual({ $project: { _id: 0, resourceId: 1 } });
     expect(text).toContain('"from":"resources"');
     expect(text).toContain('"from":"resource_shares"');
     expect(text).toContain('"moderationState":"available"');
-    expect(text).toContain('"$eq":["$id","$$resourceId"]');
-    expect(text).toContain('"$eq":["$resourceId","$$resourceId"]');
+    expect(text).toContain('"localField":"resourceId","foreignField":"id"');
+    expect(text).toContain('"localField":"resourceId","foreignField":"resourceId"');
     const authorized = stages.findIndex((stage) => JSON.stringify(stage).includes('__resource.visibility'));
     const group = stages.findIndex((stage) => '$group' in stage);
     expect(group).toBeGreaterThan(authorized);
