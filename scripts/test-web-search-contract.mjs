@@ -13,7 +13,6 @@ async function read(relativePath) {
   return readFile(path.join(root, relativePath), 'utf8');
 }
 
-
 const urlSelection = searchSelectionFromSearchParams(
   new URLSearchParams('q=Base+de+Datos&scope=subjects'),
 );
@@ -39,7 +38,7 @@ assert.deepEqual(
   { q: 'Python', scope: 'resources' },
   'Repeated query parameters must not append hidden terms',
 );
-for (const q of ['', 'a', ' '.repeat(3), 'x'.repeat(121), 'ok\\nprivate']) {
+for (const q of ['', 'a', ' '.repeat(3), 'x'.repeat(121), 'ok' + String.fromCharCode(10) + 'private']) {
   assert.equal(
     searchSelectionFromSearchParams(new URLSearchParams({ q })),
     null,
@@ -98,7 +97,6 @@ assert.match(page, /ticket\.signal/u);
 assert.doesNotMatch(page, /let\s+active\s*=\s*true/u);
 assert.doesNotMatch(page, /localStorage|sessionStorage/u);
 assert.doesNotMatch(page, /careerDiscoveryOptIn|recommendationSignals/u);
-
 
 assert.match(page, /useSearchParams/u);
 assert.match(page, /searchSelectionFromSearchParams\(searchParams\)/u);
