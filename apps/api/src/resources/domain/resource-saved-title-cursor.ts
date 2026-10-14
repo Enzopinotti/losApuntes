@@ -51,7 +51,7 @@ export function decodeSavedTitleCursor(
   if (!value) return undefined;
   try {
     // The DTO bounds the transport length. Protect direct service callers too.
-    if (value.length > 512 || value.length < 4) return invalid();
+    if (value.length > 2048 || value.length < 4) return invalid();
     const raw = Buffer.from(value, 'base64url').toString('utf8');
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return invalid();
