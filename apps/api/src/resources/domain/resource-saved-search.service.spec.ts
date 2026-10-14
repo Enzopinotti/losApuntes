@@ -65,6 +65,16 @@ describe('ResourceSavedSearchService', () => {
     expect(saved).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects a normalized one-character or blank query without reading saves', async () => {
+    const { saved, service } = harness();
+    for (const q of [' ', ' a ', '   ', '']) {
+      await expect(service.search('account-a', q, 25)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+    }
+    expect(saved).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid cursor without querying saved state', async () => {
     const { saved, service } = harness();
     await expect(
