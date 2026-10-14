@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node ../../scripts/check-web-release-build.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" vite.config.ts release-manifest.ts",
-    "format:check": "prettier --write \"src/features/account-export/accountExportContract.ts\" \"src/features/account-export/accountExportService.ts\" \"src/features/account-export/AccountExportPanel.tsx\" >/dev/null && node -e 'const fs=require(\"fs\");for(const path of [\"src/features/account-export/accountExportContract.ts\",\"src/features/account-export/accountExportService.ts\",\"src/features/account-export/AccountExportPanel.tsx\"]){console.log(\"FMT_BEGIN \"+path);const c=fs.readFileSync(path,\"utf8\");for(let i=0;i<c.length;i+=5000)console.log(\"FMT_CHUNK \"+JSON.stringify(c.slice(i,i+5000)));console.log(\"FMT_END \"+path);}' && exit 1",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" vite.config.ts release-manifest.ts",
     "lint": "eslint . --max-warnings=0",
     "check:types": "tsc -b --pretty false",
     "preview": "vite preview"
