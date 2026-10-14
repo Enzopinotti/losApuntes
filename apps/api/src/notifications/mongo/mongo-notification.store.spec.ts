@@ -123,4 +123,131 @@ describe('MongoNotificationStore fan-out persistence', () => {
     expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1, id: 1 });
     expect(chain.limit).toHaveBeenCalledWith(2);
   });
+  it('keeps the first read timestamp unchanged across retries', async () => {
+    const firstReadAt = new Date('2026-10-11T12:10:00.000Z');
+    const retryAt = new Date('2026-10-11T12:11:00.000Z');
+    const first = {
+      id: 'notification-1',
+      userId: 'user-1',
+      readAt: firstReadAt,
+    };
+    const updateQuery = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(null),
+    };
+    updateQuery.lean.mockReturnValue(updateQuery);
+    const existingQuery = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(first),
+    };
+    existingQuery.lean.mockReturnValue(existingQuery);
+    const notifications = {
+      findOneAndUpdate: jest.fn().mockReturnValue(updateQuery),
+      findOne: jest.fn().mockReturnValue(existingQuery),
+    };
+    const store = new MongoNotificationStore(
+      {} as never,
+      notifications as never,
+    );
+
+    await expect(
+      store.markRead('user-1', 'notification-1', firstReadAt),
+    ).resolves.toEqual(first);
+    await expect(
+      store.markRead('user-1', 'notification-1', retryAt),
+    ).resolves.toEqual(first);
+
+    expect(notifications.findOneAndUpdate.mock.calls).toEqual([
+      [
+        { id: 'notification-1', userId: 'user-1', readAt: null },
+        { $set: { readAt: firstReadAt } },
+        { new: true },
+      ],
+      [
+        { id: 'notification-1', userId: 'user-1', readAt: null },
+        { $set: { readAt: retryAt } },
+        { new: true },
+      ],
+    ]);
+    expect(notifications.findOne).toHaveBeenCalledTimes(1);
+    expect(notifications.findOne).toHaveBeenCalledWith({
+      id: 'notification-1',
+      userId: 'user-1',
+    });
+    expect(first.readAt).toBe(firstReadAt);
+  });
+
+  it('returns the winning read after losing a concurrent conditional update', async () => {
+    const winnerReadAt = new Date('2026-10-11T12:10:00.000Z');
+    const existing = {
+      id: 'notification-1',
+      userId: 'user-1',
+      readAt: winnerReadAt,
+    };
+    const updateQuery = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(null),
+    };
+    updateQuery.lean.mockReturnValue(updateQuery);
+    const existingQuery = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(existing),
+    };
+    existingQuery.lean.mockReturnValue(existingQuery);
+    const notifications = {
+      findOneAndUpdate: jest.fn().mockReturnValue(updateQuery),
+      findOne: jest.fn().mockReturnValue(existingQuery),
+    };
+    const store = new MongoNotificationStore(
+      {} as never,
+      notifications as never,
+    );
+
+    await expect(
+      store.markRead(
+        'user-1',
+        'notification-1',
+        new Date('2026-10-11T12:10:01.000Z'),
+      ),
+    ).resolves.toEqual(existing);
+    expect(existing.readAt).toBe(winnerReadAt);
+    expect(notifications.findOne).toHaveBeenCalledWith({
+      id: 'notification-1',
+      userId: 'user-1',
+    });
+  });
+
+  it('never broadens the fallback to a foreign or missing notification', async () => {
+    const updateQuery = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(null),
+    };
+    updateQuery.lean.mockReturnValue(updateQuery);
+    const existingQuery = {
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue(null),
+    };
+    existingQuery.lean.mockReturnValue(existingQuery);
+    const notifications = {
+      findOneAndUpdate: jest.fn().mockReturnValue(updateQuery),
+      findOne: jest.fn().mockReturnValue(existingQuery),
+    };
+    const store = new MongoNotificationStore(
+      {} as never,
+      notifications as never,
+    );
+
+    await expect(
+      store.markRead('foreign-user', 'notification-1', now),
+    ).resolves.toBeNull();
+    expect(notifications.findOneAndUpdate).toHaveBeenCalledWith(
+      { id: 'notification-1', userId: 'foreign-user', readAt: null },
+      { $set: { readAt: now } },
+      { new: true },
+    );
+    expect(notifications.findOne).toHaveBeenCalledWith({
+      id: 'notification-1',
+      userId: 'foreign-user',
+    });
+  });
 });
