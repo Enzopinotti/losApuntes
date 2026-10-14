@@ -10,7 +10,7 @@ Antes, la búsqueda local de Guardados examinaba únicamente las páginas ya
 cargadas. Una coincidencia antigua podía no mostrarse aunque estuviese guardada.
 
 Ahora la caja «Buscar en toda tu biblioteca» llama a
-`GET /resources/saved?q=...` (título, descripción, etiquetas). El servidor
+`GET /resources/saved/search?q=...` (título, descripción, etiquetas). El servidor
 filtra sobre **todos** los saves de la cuenta antes de paginar y reautoriza
 cada Resource. En Mobile:
 
@@ -26,8 +26,8 @@ cada Resource. En Mobile:
 - Salir del foco, cerrar sesión o cambiar de cuenta invalida operaciones.
 - La selección de materia y orden por título siguen actuando sobre resultados
   **ya cargados**: los conteos y los textos no afirman que sean facets globales.
-- Inicio conserva su preview de hasta tres guardados sin `q`; el endpoint
-  histórico y su cursor siguen siendo compatibles.
+- Inicio conserva su preview de hasta tres guardados mediante
+  `GET /resources/saved` sin `q`; su endpoint y cursor siguen compatibles.
 - No se almacenan consultas, URLs firmadas ni datos privados en el dispositivo.
 
 ## Backend y riesgo operativo
