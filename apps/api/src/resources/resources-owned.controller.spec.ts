@@ -12,7 +12,7 @@ import { ResourcesController } from './resources.controller';
 
 describe('owner resources HTTP route', () => {
   it('requires an authenticated verified account and disables caching', () => {
-    const method = ResourcesController.prototype.mine;
+    const method = Reflect.get(ResourcesController.prototype, 'mine') as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine');
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
       AuthSessionGuard,
@@ -79,7 +79,7 @@ describe('owner resources HTTP route', () => {
   });
 
   it('protects owner subject facets with both guards and private caching', async () => {
-    const method = ResourcesController.prototype.ownedSubjects;
+    const method = Reflect.get(ResourcesController.prototype, 'ownedSubjects') as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine/subjects');
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
       AuthSessionGuard,
