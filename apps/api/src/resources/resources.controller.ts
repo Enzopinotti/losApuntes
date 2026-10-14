@@ -79,11 +79,12 @@ export class ResourcesController {
 
   @UseGuards(AuthSessionGuard)
   @Get('saved')
+  @Header('Cache-Control', 'private, no-store')
   saved(
     @Req() request: AuthenticatedRequest,
     @Query() query: ResourceSavedListDto,
   ) {
-    return this.resources.listSaved(request.user.id, query.limit, query.cursor);
+    return this.resources.listSaved(request.user.id, query.limit, query.cursor, query.q);
   }
 
   @UseGuards(OptionalAuthSessionGuard)
