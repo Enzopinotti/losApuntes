@@ -79,7 +79,10 @@ describe('owner resources HTTP route', () => {
   });
 
   it('protects owner subject facets with both guards and private caching', async () => {
-    const method = Reflect.get(ResourcesController.prototype, 'ownedSubjects') as object;
+    const method = Reflect.get(
+      ResourcesController.prototype,
+      'ownedSubjects',
+    ) as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine/subjects');
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
       AuthSessionGuard,
