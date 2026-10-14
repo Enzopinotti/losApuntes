@@ -58,7 +58,7 @@ export function ResourceDirectSharingPanel({
     validSharePeopleQuery(query);
   const selectedHasAccess = Boolean(
     selected &&
-      current?.grants.some((grant) => grant.profileId === selected.profileId),
+    current?.grants.some((grant) => grant.profileId === selected.profileId),
   );
 
   useEffect(() => {
@@ -210,7 +210,9 @@ export function ResourceDirectSharingPanel({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Actualizar personas con acceso"
-            disabled={!authorityKey || busy || current?.grantsState === "loading"}
+            disabled={
+              !authorityKey || busy || current?.grantsState === "loading"
+            }
             onPress={() => {
               if (authorityKey) {
                 void controller.loadGrants(authorityKey, resource.id);
@@ -308,8 +310,8 @@ export function ResourceDirectSharingPanel({
               </Text>
               <Text style={styles.info}>
                 Conceder acceso permite abrir el apunte mientras siga
-                Compartido. Revocar acceso elimina el permiso de esta persona
-                si lo tenía.
+                Compartido. Revocar acceso elimina el permiso de esta persona si
+                lo tenía.
               </Text>
               {current?.outcome === "granted" ? (
                 <Text accessibilityRole="alert" style={styles.success}>
@@ -318,14 +320,15 @@ export function ResourceDirectSharingPanel({
               ) : null}
               {current?.outcome === "revoked" ? (
                 <Text accessibilityRole="alert" style={styles.success}>
-                  El servidor confirmó la revocación para {selected.displayName}.
+                  El servidor confirmó la revocación para {selected.displayName}
+                  .
                 </Text>
               ) : null}
               {current?.outcome === "uncertain" ? (
                 <Text accessibilityRole="alert" style={styles.error}>
-                  No pudimos confirmar el cambio de permiso. Esta pantalla
-                  no permite consultar los permisos históricos; verificá el
-                  acceso antes de repetir una operación.
+                  No pudimos confirmar el cambio de permiso. Esta pantalla no
+                  permite consultar los permisos históricos; verificá el acceso
+                  antes de repetir una operación.
                 </Text>
               ) : null}
               {current?.outcome === "error" && current.failure ? (
@@ -395,8 +398,8 @@ export function ResourceDirectSharingPanel({
           ) : current?.outcome === "visibility_changed" ? (
             <>
               <Text accessibilityRole="alert" style={styles.error}>
-                Cambió la visibilidad o la versión del apunte.
-                Actualizá el detalle y elegí nuevamente a la persona.
+                Cambió la visibilidad o la versión del apunte. Actualizá el
+                detalle y elegí nuevamente a la persona.
               </Text>
               <Pressable
                 accessibilityRole="button"
