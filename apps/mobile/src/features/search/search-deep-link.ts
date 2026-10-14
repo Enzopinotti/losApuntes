@@ -4,9 +4,9 @@ import { subjectResourcesSearchRouteId } from "./search-subject-navigation";
 import type { MobileSearchInput } from "./search-api";
 
 export type MobileSearchLinkParams = {
-  q?: string | string[];
-  scope?: string | string[];
-  subjectId?: string | string[];
+  q?: string | string[] | undefined;
+  scope?: string | string[] | undefined;
+  subjectId?: string | string[] | undefined;
 };
 
 const SCOPES = new Set<SearchScope>(["all", "resources", "subjects", "people"]);
