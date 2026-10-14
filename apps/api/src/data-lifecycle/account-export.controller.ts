@@ -22,6 +22,7 @@ import type { FastifyReply } from 'fastify';
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { AccountExportService } from './domain/account-export.service';
+import { verifyAccountExportDownload } from './storage/account-export-download-integrity';
 import { ACCOUNT_EXPORT_ARTIFACT_STORAGE } from './storage/account-export-artifact-storage';
 import { type AccountExportArtifactStorage } from './storage/account-export-artifact-storage';
 
@@ -71,7 +72,12 @@ export class AccountExportController {
       });
     }
 
-    if (!artifact.generation || !Number.isSafeInteger(artifact.byteLength)) {
+    if (
+      !artifact.generation ||
+      !Number.isSafeInteger(artifact.byteLength) ||
+      artifact.byteLength < 1 ||
+      !/^[a-f0-9]{64}$/u.test(artifact.sha256)
+    ) {
       throw new ForbiddenException();
     }
 
@@ -104,7 +110,12 @@ export class AccountExportController {
 
     return reply.send(
       Readable.from(
-        this.artifacts.readObjectChunks(id, artifact.generation, abort.signal),
+        verifyAccountExportDownload(
+          this.artifacts.readObjectChunks(id, artifact.generation, abort.signal),
+          artifact.byteLength,
+          artifact.sha256,
+          abort.signal,
+        ),
       ),
     );
   }
