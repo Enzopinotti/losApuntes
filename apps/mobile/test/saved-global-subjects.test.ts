@@ -3,8 +3,12 @@ import test from "node:test";
 
 import type { ResourceConsumptionApi, ResourceSavedPage } from "../src/features/resources/resource-consumption-api";
 import { MobileSavedResourcesController } from "../src/features/resources/resource-consumption-controller";
+import { MobileResourceConsumptionHttpTransport } from "../src/features/resources/resource-consumption-api";
+import type { MobileApiClient } from "../src/services/api/client";
+import type { SessionController } from "../src/features/session/session-controller";
 import {
   MobileSavedSubjectFacetsController,
+  MobileSavedSubjectFacetsApi,
   type SavedSubjectFacetsPage,
 } from "../src/features/resources/saved-subject-facets";
 
@@ -92,4 +96,41 @@ test("global facet controller cancels old account responses and never persists d
   }
   controller.invalidate("account-b");
   assert.deepEqual(controller.getSnapshot(), { kind: "idle" });
+});
+
+test("transport routes subject-only and compound filters without changing the legacy list", async () => {
+  const urls: string[] = [];
+  const fake = {
+    request: async (url: string) => {
+      urls.push(url);
+      return { items: [], nextCursor: null };
+    },
+  } as unknown as MobileApiClient;
+  const api = new MobileResourceConsumptionHttpTransport(fake);
+  await api.saved("credential", undefined, undefined, undefined, SUBJECT_A);
+  await api.saved("credential", "opaque", undefined, "parcial", SUBJECT_B);
+  await api.saved("credential");
+  assert.equal(new URL(urls[0]!, "https://example.test").pathname, "/resources/saved/search");
+  assert.equal(new URL(urls[0]!, "https://example.test").searchParams.get("subjectId"), SUBJECT_A);
+  assert.equal(new URL(urls[1]!, "https://example.test").searchParams.get("q"), "parcial");
+  assert.equal(new URL(urls[1]!, "https://example.test").searchParams.get("cursor"), "opaque");
+  assert.equal(new URL(urls[2]!, "https://example.test").pathname, "/resources/saved");
+});
+
+test("saved-subject API scopes facets to the authenticated credential", async () => {
+  const credentials: string[] = [];
+  const session = {
+    getCredentialSnapshot: () => ({ credential: "token-a", generation: 4 }),
+    isCredentialAuthoritative: (credential: string, generation: number) =>
+      credential === "token-a" && generation === 4,
+  } as unknown as SessionController;
+  const client = {
+    request: async (_path: string, input: { credential: string }) => {
+      credentials.push(input.credential);
+      return { items: [], truncated: false };
+    },
+  } as unknown as MobileApiClient;
+  const data = await new MobileSavedSubjectFacetsApi(session, client).subjects();
+  assert.deepEqual(data, { items: [], truncated: false });
+  assert.deepEqual(credentials, ["token-a"]);
 });
