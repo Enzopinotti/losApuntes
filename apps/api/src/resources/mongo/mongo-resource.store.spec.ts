@@ -53,7 +53,7 @@ describe('MongoResourceStore owned statistics', () => {
     const text = JSON.stringify(pipeline);
     expect(text).toContain('"from":"resource_saves"');
     expect(text).toContain('"from":"resource_shares"');
-    expect(text).toContain('"$eq":["$visibility","shared"]');
+    expect(text).toContain('"$eq":["$$visibility","shared"]');
     expect(text).toContain('"$limit":5');
     expect(text).not.toContain('profileId');
     expect(text).not.toContain('userId');
@@ -75,7 +75,7 @@ describe('MongoResourceStore owned statistics', () => {
     expect(response.activeShareGrants).toBe(0);
     const pipeline = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
     const text = JSON.stringify(pipeline);
-    expect(text).toContain('"$eq":["$visibility","shared"]');
+    expect(text).toContain('"$eq":["$$visibility","shared"]');
   });
 
   it('returns zero counts for a new author without any resources', async () => {
