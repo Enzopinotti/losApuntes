@@ -1,4 +1,8 @@
-import { GUARDS_METADATA, HEADERS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import {
+  GUARDS_METADATA,
+  HEADERS_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
@@ -49,7 +53,9 @@ describe('owner resources HTTP route', () => {
   });
 
   it('forwards search subject and sort while preserving the session owner', async () => {
-    const listOwned = jest.fn().mockResolvedValue({ items: [], nextCursor: null });
+    const listOwned = jest
+      .fn()
+      .mockResolvedValue({ items: [], nextCursor: null });
     const controller = new ResourcesController({
       listOwned,
     } as unknown as ResourceService);
@@ -85,7 +91,8 @@ describe('owner resources HTTP route', () => {
     });
 
     const listOwnedSubjects = jest.fn().mockResolvedValue({
-      items: [], truncated: false,
+      items: [],
+      truncated: false,
     });
     const controller = new ResourcesController({
       listOwnedSubjects,
@@ -95,5 +102,4 @@ describe('owner resources HTTP route', () => {
     } as AuthenticatedRequest);
     expect(listOwnedSubjects).toHaveBeenCalledWith('session-owner');
   });
-
 });
