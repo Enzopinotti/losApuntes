@@ -250,15 +250,17 @@ export class MobileResourceDetailController {
 
 export type MobileSavedResourcesSnapshot =
   | { kind: "idle" }
-  | { kind: "loading"; authorityKey: string }
+  | { kind: "loading"; authorityKey: string; searchQuery?: string }
   | {
       kind: "failure";
       authorityKey: string;
       failure: ResourceConsumptionFailure;
+      searchQuery?: string;
     }
   | {
       kind: "ready";
       authorityKey: string;
+      searchQuery?: string;
       data: ResourceSavedPage;
       loadingMore: boolean;
       failure: ResourceConsumptionFailure | null;
