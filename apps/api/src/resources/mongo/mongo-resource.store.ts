@@ -11,6 +11,7 @@ import {
   type UpdateResourceRecord,
 } from '../domain/resource.store';
 import type { SavedResourceSearchStore } from '../domain/resource-saved-search.store';
+import { authorizedSavedJoinStages } from './saved-authorized-lookup-stages';
 import type {
   ResourceRecord,
   ResourceReportRecord,
@@ -525,65 +526,10 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
       ...(!byTitle
         ? [{ $sort: { createdAt: -1, resourceId: 1 } } as PipelineStage]
         : []),
-      {
-        $lookup: {
-          from: 'resources',
-          let: { savedResourceId: '$resourceId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ['$id', '$$savedResourceId'] },
-                moderationState: 'available',
-                ...(input.q
-                  ? {
-                      searchText: {
-                        $regex: savedMetadataRegex(input.q),
-                        $options: 'i',
-                      },
-                    }
-                  : {}),
-                ...(input.subjectId ? { subjectId: input.subjectId } : {}),
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: '__resource',
-        },
-      },
-      { $unwind: '$__resource' },
-      {
-        $lookup: {
-          from: 'resource_shares',
-          let: { savedResourceId: '$resourceId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$resourceId', '$$savedResourceId'] },
-                    { $eq: ['$userId', input.userId] },
-                  ],
-                },
-              },
-              { $limit: 1 },
-          ],
-          as: '__viewerShares',
-        },
-      },
-      {
-        $match: {
-          $or: [
-            { '__resource.visibility': 'public' },
-            { '__resource.authorUserId': input.userId },
-            {
-              $and: [
-                { '__resource.visibility': 'shared' },
-                { '__viewerShares.0': { $exists: true } },
-              ],
-            },
-          ],
-        },
-      },
+      ...authorizedSavedJoinStages(input.userId, {
+        ...(input.q ? { searchRegex: savedMetadataRegex(input.q) } : {}),
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+      }),
       ...(byTitle && input.titleAfter
         ? [{
             $match: {
@@ -634,57 +580,7 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
   ): ReturnType<SavedResourceSearchStore['listSavedSubjectFacets']> {
     const rows = await this.saves.aggregate<{ subjectId: string; count: number }>([
       { $match: { userId } },
-      {
-        $lookup: {
-          from: 'resources',
-          let: { resourceId: '$resourceId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ['$id', '$$resourceId'] },
-                moderationState: 'available',
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: '__resource',
-        },
-      },
-      { $unwind: '$__resource' },
-      {
-        $lookup: {
-          from: 'resource_shares',
-          let: { resourceId: '$resourceId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$resourceId', '$$resourceId'] },
-                    { $eq: ['$userId', userId] },
-                  ],
-                },
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: '__viewerShares',
-        },
-      },
-      {
-        $match: {
-          $or: [
-            { '__resource.visibility': 'public' },
-            { '__resource.authorUserId': userId },
-            {
-              $and: [
-                { '__resource.visibility': 'shared' },
-                { '__viewerShares.0': { $exists: true } },
-              ],
-            },
-          ],
-        },
-      },
+      ...authorizedSavedJoinStages(userId, { facets: true }),
       { $group: { _id: '$__resource.subjectId', count: { $sum: 1 } } },
       { $sort: { count: -1, _id: 1 } },
       { $limit: 101 },
