@@ -216,14 +216,30 @@ Requires active session. Returns `Cache-Control: private, no-store`. Lists the s
 
 Requires active session. Returns `Cache-Control: private, no-store`.
 
-- `q` **required** metadata query, 2–120 characters: title, description and tags, with case-insensitive matching and Spanish accent variants. Author/Subject names are not indexed here.
+- `q` optional metadata query, 2–120 characters when present: title, description and tags, case-insensitive with Spanish accent variants. Author/Subject names are not indexed here.
+- `subjectId` optional canonical Subject UUIDv4. Supply at least one of `q` or `subjectId`; combining both applies an intersection before paginating.
 - `limit` 1–50, default 25; `cursor` is opaque.
 - Normal listing without `q` remains on `GET /resources/saved`; its legacy cursors remain unchanged.
 - With `q`, the server searches every saved relation for the current account and preserves descending save order, rather than filtering only an already-loaded client page.
 - Search joins and filters current resource visibility, moderation and metadata before applying the page limit. The service rechecks readability during projection.
-- Filtered cursors are scoped to the actor and normalized query. Cross-query, cross-account and legacy-cursor mixing fails with `RESOURCE_SAVED_SEARCH_CURSOR_INVALID` (422).
+- Filtered cursors are scoped to the actor, normalized query and selected Subject. Cross-query, cross-account and legacy-cursor mixing fails with `RESOURCE_SAVED_SEARCH_CURSOR_INVALID` (422).
 - Access is never granted by a bookmark, search hit, cursor or previous signed URL.
 - Mobile subject chips and title ordering are local to loaded results and must be labeled accordingly.
+
+### GET /resources/saved/subjects
+
+Requires an active session. Response: `Cache-Control: private, no-store`.
+
+Returns the accessible saved-resource count grouped by Subject ID, with display names resolved through Academic Graph. The query joins the actor's saves to currently available Resources, enforces current author/public/share permissions, and only then groups and counts; invisible resources must not contribute. Results are ordered by localized name in the response and bounded to **100** Subject groups with `truncated` indicating additional groups.
+
+```json
+{
+  "items": [{ "subjectId": "11111111-1111-4111-8111-111111111111", "name": "Álgebra", "count": 3 }],
+  "truncated": false
+}
+```
+
+The count is for all accessible saves in that Subject, not a count of the current text search's matches. Mobile must disclose if the Subject list is truncated. The Subject selection is a discovery filter, not academic enrolment or question publishing authority.
 
 Every returned row is reauthorized against current Resource visibility. Save possession never preserves access after privacy/share changes.
 
