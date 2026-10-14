@@ -130,7 +130,15 @@ export class AccountExportProcessor {
       clearInterval(heartbeat);
       await Promise.resolve(heartbeatInFlight);
       if (leaseLost) {
-        await sink.abort();
+        // The multipart upload has already been committed. Aborting its
+        // writer cannot reliably remove the completed object; explicitly
+        // delete only this claim's attempt-scoped generation.
+        try {
+          await this.artifacts.deleteArtifact(job.id, claimId);
+        } catch {
+          // A private-bucket lifecycle rule is the deletion backstop.
+          // No completed job can point at this lost-lease generation.
+        }
         return 'stale';
       }
 
