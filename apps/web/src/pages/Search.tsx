@@ -134,10 +134,7 @@ const Search = () => {
     });
 
     void searchApi
-      .search(
-        { q: submittedQuery, scope: submittedScope },
-        ticket.signal,
-      )
+      .search({ q: submittedQuery, scope: submittedScope }, ticket.signal)
       .then((nextResult) => {
         if (!isSearchRequestCurrent(ticket)) return;
         setSearchState({
@@ -274,7 +271,10 @@ const Search = () => {
       {error && (
         <div className="search-error" role="alert">
           <p>{error}</p>
-          <button type="button" onClick={() => setRetryCount((count) => count + 1)}>
+          <button
+            type="button"
+            onClick={() => setRetryCount((count) => count + 1)}
+          >
             Reintentar búsqueda
           </button>
         </div>
@@ -359,7 +359,9 @@ const Search = () => {
                           <small>También: {subject.aliases.join(", ")}</small>
                         )}
                       </div>
-                      <Link to={`/resources?subjectId=${encodeURIComponent(subject.id)}`}>
+                      <Link
+                        to={`/resources?subjectId=${encodeURIComponent(subject.id)}`}
+                      >
                         Ver recursos
                       </Link>
                     </li>
@@ -379,7 +381,9 @@ const Search = () => {
                   {result.results.people.map((person) => (
                     <li key={person.profileId}>
                       <strong>{person.displayName}</strong>
-                      <Link to={`/p/${encodeURIComponent(person.profileId)}`}>Ver perfil</Link>
+                      <Link to={`/p/${encodeURIComponent(person.profileId)}`}>
+                        Ver perfil
+                      </Link>
                     </li>
                   ))}
                 </ul>
