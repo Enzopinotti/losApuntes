@@ -220,6 +220,13 @@ assert.match(page, /contextual\?\.subjects\.map/u);
 assert.match(page, /Materia \(solo apuntes\)/u);
 assert.match(page, /Todas las materias/u);
 assert.match(page, /Materia del enlace/u);
+assert.match(page, /contextState\?\.scopeKey === authorityScope/u);
+assert.match(page, /setContextState\(\{ scopeKey: authorityScope, data: value \}\)/u);
+assert.doesNotMatch(
+  page,
+  /setContextual\(value\)/u,
+  'Suggestions from a different account must never be displayed unscoped',
+);
 assert.match(page, /setSubjectId\(""\)/u);
 assert.match(page, /copySearchLink/u);
 assert.match(page, /navigator\.clipboard\?\.writeText/u);
