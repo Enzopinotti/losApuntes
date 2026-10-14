@@ -8,6 +8,7 @@ import {
   normalizeMobileDiagnosticSurface,
   reportMobileDiagnostic,
   type MobileErrorUtils,
+  type MobileGlobalErrorHandler,
 } from "../src/features/observability/mobile-diagnostics";
 
 test("normalizes surfaces without query, hash or arbitrary path segments", () => {
@@ -247,4 +248,81 @@ test("falls back to a generated timestamp when an injected clock is malformed", 
 
   assert.match(envelope.timestamp, /^\d{4}-\d{2}-\d{2}T/u);
   assert.equal(envelope.timestamp.includes("example.test"), false);
+});
+
+test("does not install a report-only handler when the native predecessor is absent", () => {
+  let installations = 0;
+  const utils: MobileErrorUtils = {
+    getGlobalHandler: () => null,
+    setGlobalHandler: () => {
+      installations += 1;
+    },
+  };
+
+  const cleanup = installMobileGlobalErrorHandler(utils, () => {
+    throw new Error("must never intercept fatal errors without a predecessor");
+  });
+
+  assert.equal(installations, 0);
+  assert.doesNotThrow(cleanup);
+});
+
+test("global error diagnostics cannot crash startup when the native getter fails", () => {
+  let installations = 0;
+  const utils: MobileErrorUtils = {
+    getGlobalHandler: () => {
+      throw new Error("native handler unavailable");
+    },
+    setGlobalHandler: () => {
+      installations += 1;
+    },
+  };
+
+  let cleanup: () => void = () => undefined;
+  assert.doesNotThrow(() => {
+    cleanup = installMobileGlobalErrorHandler(utils, () => undefined);
+  });
+  assert.equal(installations, 0);
+  assert.doesNotThrow(cleanup);
+});
+
+test("global error diagnostics cannot crash startup when installation fails", () => {
+  const previous = () => undefined;
+  const utils: MobileErrorUtils = {
+    getGlobalHandler: () => previous,
+    setGlobalHandler: () => {
+      throw new Error("native setter unavailable");
+    },
+  };
+
+  let cleanup: () => void = () => undefined;
+  assert.doesNotThrow(() => {
+    cleanup = installMobileGlobalErrorHandler(utils, () => undefined);
+  });
+  assert.doesNotThrow(cleanup);
+});
+
+test("cleanup never replaces another installed owner or throws on teardown", () => {
+  const previous: MobileGlobalErrorHandler = () => undefined;
+  const other: MobileGlobalErrorHandler = () => undefined;
+  let current: MobileGlobalErrorHandler = previous;
+  const utils: MobileErrorUtils = {
+    getGlobalHandler: () => current,
+    setGlobalHandler: (handler) => {
+      current = handler;
+    },
+  };
+
+  const cleanup = installMobileGlobalErrorHandler(utils, () => undefined);
+  assert.notEqual(current, previous);
+
+  current = other;
+  cleanup();
+  assert.equal(current, other);
+
+  const secondCleanup = installMobileGlobalErrorHandler(utils, () => undefined);
+  utils.getGlobalHandler = () => {
+    throw new Error("native getter failed during cleanup");
+  };
+  assert.doesNotThrow(secondCleanup);
 });
