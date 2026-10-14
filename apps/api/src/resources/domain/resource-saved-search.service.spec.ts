@@ -1,6 +1,6 @@
 import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 
-import type { ResourceStore } from './resource.store';
+import type { SavedResourceSearchStore } from './resource-saved-search.store';
 import type { ResourceService } from './resource.service';
 import { ResourceSavedSearchService } from './resource-saved-search.service';
 
@@ -18,7 +18,7 @@ function harness() {
     resource: { id: first.resourceId, title: 'Álgebra' },
   });
   const service = new ResourceSavedSearchService(
-    { searchSavedResources: saved } as unknown as ResourceStore,
+    { searchSavedResources: saved } as unknown as SavedResourceSearchStore,
     { get } as unknown as ResourceService,
   );
   return { saved, get, service };
