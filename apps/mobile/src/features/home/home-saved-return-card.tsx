@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
+import { savedSubjectQuestionsAction } from "@/features/resources/saved-subject-questions-action";
 
 import {
   HomeSavedReturnController,
@@ -68,8 +69,8 @@ export function HomeSavedReturnCard({
         Retomá tus guardados
       </Text>
       <Text style={styles.copy}>
-        Abrí un apunte que guardaste o volvé a tu biblioteca. Cada apertura
-        vuelve a comprobar los permisos actuales.
+        Abrí un apunte guardado, consultá preguntas de su materia o explorá
+        tu biblioteca. El servidor vuelve a comprobar los permisos actuales.
       </Text>
 
       {!current || current.kind === "loading" ? (
@@ -111,32 +112,52 @@ export function HomeSavedReturnCard({
         </View>
       ) : (
         <View style={styles.items}>
-          {current.items.map((resource) => (
-            <Pressable
-              key={resource.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Volver a abrir ${resource.title}, ${resource.academic.subject.name}`}
-              accessibilityHint="Abre el detalle, que vuelve a validar la visibilidad y el acceso al archivo."
-              onPress={() =>
-                router.push({
-                  pathname: "/resources/[id]",
-                  params: { id: resource.id },
-                })
-              }
-              style={({ pressed }) => [
-                styles.resourceAction,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text numberOfLines={2} style={styles.resourceTitle}>
-                {resource.title}
-              </Text>
-              <Text numberOfLines={1} style={styles.resourceSubject}>
-                {resource.academic.subject.name}
-              </Text>
-              <Text style={styles.openLabel}>Abrir apunte</Text>
-            </Pressable>
-          ))}
+          {current.items.map((resource) => {
+            const questionsAction = savedSubjectQuestionsAction(resource);
+            return (
+              <View key={resource.id} style={styles.savedItem}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir ${resource.title}, ${resource.academic.subject.name}`}
+                  accessibilityHint="Abre el detalle, que vuelve a validar la visibilidad y el acceso al archivo."
+                  onPress={() =>
+                    router.push({
+                      pathname: "/resources/[id]",
+                      params: { id: resource.id },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    styles.resourceAction,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text numberOfLines={2} style={styles.resourceTitle}>
+                    {resource.title}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.resourceSubject}>
+                    {resource.academic.subject.name}
+                  </Text>
+                  <Text style={styles.openLabel}>Abrir apunte</Text>
+                </Pressable>
+                {questionsAction ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={questionsAction.accessibilityLabel}
+                    accessibilityHint={questionsAction.accessibilityHint}
+                    onPress={() => router.push(questionsAction.href)}
+                    style={({ pressed }) => [
+                      styles.subjectQuestionsAction,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.subjectQuestionsLabel}>
+                      Preguntas de la materia
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })}
           {current.moreAvailable ? (
             <Text style={styles.copy}>
               Se muestran hasta tres guardados disponibles de la primera
@@ -194,6 +215,9 @@ const styles = StyleSheet.create({
   items: {
     gap: 8,
   },
+  savedItem: {
+    gap: 6,
+  },
   resourceAction: {
     gap: 4,
     padding: 12,
@@ -202,6 +226,20 @@ const styles = StyleSheet.create({
     borderColor: "#e4e1eb",
     minHeight: 68,
     backgroundColor: "#faf9fd",
+  },
+  subjectQuestionsAction: {
+    minHeight: 44,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#f1eff8",
+  },
+  subjectQuestionsLabel: {
+    color: "#43376a",
+    fontSize: 14,
+    fontWeight: "700",
   },
   pressed: {
     backgroundColor: "#eeeaf8",
