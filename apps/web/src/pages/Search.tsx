@@ -210,7 +210,8 @@ const Search = () => {
     } catch {
       setCopyStatus({
         scopeKey: resultScopeKey,
-        message: "No pudimos copiar el enlace. Podés copiarlo desde la barra del navegador.",
+        message:
+          "No pudimos copiar el enlace. Podés copiarlo desde la barra del navegador.",
       });
     }
   };
@@ -264,8 +265,8 @@ const Search = () => {
 
       {invalidLinkedSearch && (
         <p className="search-error" role="alert">
-          Este enlace de búsqueda no es válido. Ingresá entre 2 y 120
-          caracteres y buscá nuevamente.
+          Este enlace de búsqueda no es válido. Ingresá entre 2 y 120 caracteres
+          y buscá nuevamente.
         </p>
       )}
       {error && (
