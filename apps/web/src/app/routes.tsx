@@ -20,6 +20,7 @@ import ResetPassword from "../pages/ResetPassword";
 import Resources from "../pages/Resources";
 import Search from "../pages/Search";
 import StudyWorkbench from "../pages/StudyWorkbench";
+import StudySession from "../pages/StudySession";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
 import VerificationPending from "../pages/VerificationPending";
@@ -49,6 +50,14 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <StudyWorkbench />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study/session",
+        element: (
+          <PrivateRoute>
+            <StudySession />
           </PrivateRoute>
         ),
       },
