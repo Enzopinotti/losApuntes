@@ -149,7 +149,7 @@ test("screen uses global sort as request scope and keeps server order across loa
   );
   assert.match(
     screen,
-    /controller\.load\(authorityKey, searchQuery \|\| undefined, selectedSubjectId \?\? undefined, sort\)/u,
+    /controller\.load\(\s*authorityKey,\s*searchQuery \|\| undefined,\s*selectedSubjectId \?\? undefined,\s*sort,?\s*\)/u,
   );
   assert.match(screen, /\(snapshot\.order \?\? "saved"\) === sort/u);
   assert.match(
