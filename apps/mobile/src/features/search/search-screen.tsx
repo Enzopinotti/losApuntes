@@ -511,7 +511,7 @@ export function SearchScreen() {
       : null;
   useEffect(() => {
     if (!authorityKey || !incomingSubjectId) return;
-    const key = `${authorityKey}:${incomingSubjectId}`;
+    const key = `${sessionAuthority}:${incomingSubjectId}`;
     if (handledIncomingSubject.current === key) return;
     handledIncomingSubject.current = key;
     controller.cancelSearch();
@@ -519,7 +519,7 @@ export function SearchScreen() {
       type: "subjectSelected",
       subject: { id: incomingSubjectId, name: "esta materia" },
     });
-  }, [authorityKey, controller, incomingSubjectId]);
+  }, [authorityKey, controller, incomingSubjectId, sessionAuthority]);
 
   const scopedQuickSave: SearchQuickSaveSnapshot =
     quickSave.authorityKey === authorityKey
@@ -841,6 +841,14 @@ export function SearchScreen() {
       onRefresh={session.kind === "authenticated" ? refresh : undefined}
       refreshing={academic.kind === "loading"}
     >
+      {routeParams.subjectId !== undefined && !incomingSubjectId ? (
+        <View style={styles.card}>
+          <Text accessibilityRole="alert" style={styles.error}>
+            El enlace de materia no es válido. Podés buscar recursos
+            normalmente o elegir una materia desde los resultados.
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.card}>
         <Text style={styles.label}>Buscar en Los Apuntes</Text>
         <TextInput
