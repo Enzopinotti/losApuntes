@@ -250,7 +250,7 @@ export class MobileResourceDetailController {
 
 export type MobileSavedResourcesSnapshot =
   | { kind: "idle" }
-  | { kind: "loading"; authorityKey: string; searchQuery?: string }
+  | { kind: "loading"; authorityKey: string; searchQuery?: string; subjectId?: string }
   | {
       kind: "failure";
       authorityKey: string;
