@@ -10,6 +10,7 @@ import {
   initialSearchInputState,
   searchInputReducer,
 } from "../src/features/search/search-input-state";
+import { parseMobileSearchLink } from "../src/features/search/search-deep-link";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const otherId = "22222222-2222-4222-8222-222222222222";
@@ -127,12 +128,14 @@ test("manual edits and clearing a routed filter do not restore a stale Subject",
   assert.equal(switched.selectedSubject?.id, otherId);
 
   const searchScreen = screen("../src/features/search/search-screen.tsx");
-  assert.match(searchScreen, /handledIncomingSubject\.current === key/u);
-  assert.match(searchScreen, /sessionAuthority.*incomingSubjectId/u);
-  assert.match(
-    searchScreen,
-    /routeParams\.subjectId !== undefined && !incomingSubjectId/u,
-  );
+  assert.match(searchScreen, /handledIncomingSearch\.current === key/u);
+  assert.match(searchScreen, /sessionAuthority/u);
+  assert.match(searchScreen, /hasIncomingSearchParams && !incomingSearch/u);
+  assert.deepEqual(parseMobileSearchLink({ subjectId: id }), {
+    scope: "resources",
+    subjectId: id,
+  });
+  assert.equal(parseMobileSearchLink({ subjectId: "invalid" }), null);
   assert.match(searchScreen, /controller\.cancelSearch\(\);/u);
   assert.match(searchScreen, /subjectFilterCleared/u);
 });
@@ -153,13 +156,13 @@ test("all entry points reuse the same canonical exploration action without inven
   assert.match(saved, /Explorar más apuntes de esta materia/u);
 
   assert.match(search, /useLocalSearchParams/u);
-  assert.match(
-    search,
-    /subjectResourcesSearchRouteId\(\s*routeParams\.subjectId,?\s*\)/u,
-  );
+  assert.match(search, /parseMobileSearchLink/u);
+  assert.match(search, /subjectId: routeParams\.subjectId/u);
+  const parser = screen("../src/features/search/search-deep-link.ts");
+  assert.match(parser, /subjectResourcesSearchRouteId\(params\.subjectId\)/u);
   assert.match(search, /onExploreSubject=\{exploreContextSubject\}/u);
   assert.match(search, /Explorar apuntes de esta materia/u);
-  assert.match(search, /El enlace de materia no es válido/u);
+  assert.match(search, /Este enlace de búsqueda o su filtro de materia no es válido/u);
 });
 
 test("subject exploration does not change existing Q&A route or grant publication", () => {
