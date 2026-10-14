@@ -234,6 +234,9 @@ export function installMobileGlobalErrorHandler(
   // Without a native predecessor there is no fatal path to preserve.
   // Installing a report-only handler here would silently swallow crashes.
   if (typeof previous !== "function") return () => undefined;
+  // Capture the exact native predecessor once. A later hook change must not
+  // affect the fatal path selected at installation time.
+  const nativePredecessor = previous;
 
   const handler: MobileGlobalErrorHandler = (error, isFatal) => {
     try {
@@ -246,7 +249,7 @@ export function installMobileGlobalErrorHandler(
     const safeError = new Error("Client runtime failure");
     safeError.name = safeErrorClass(error);
     safeError.stack = "";
-    previous(safeError, isFatal);
+    nativePredecessor(safeError, isFatal);
   };
 
   try {
@@ -260,7 +263,7 @@ export function installMobileGlobalErrorHandler(
     try {
       // Never replace a handler another owner installed after this one.
       if (errorUtils.getGlobalHandler() === handler) {
-        errorUtils.setGlobalHandler(previous);
+        errorUtils.setGlobalHandler(nativePredecessor);
       }
     } catch {
       // Cleanup must not crash unmount or hide the original UI failure.
