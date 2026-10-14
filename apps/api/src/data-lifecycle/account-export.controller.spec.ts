@@ -13,7 +13,8 @@ import type { AccountExportArtifactStorage } from './storage/account-export-arti
 import { AccountExportController } from './account-export.controller';
 
 const exportId = '123e4567-e89b-42d3-a456-426614174000';
-const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
+const digest = (bytes: Uint8Array | string) =>
+  createHash('sha256').update(bytes).digest('hex');
 
 function fixture() {
   const exports = {
