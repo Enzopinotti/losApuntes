@@ -6,6 +6,7 @@ import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
+  assertAccountExportV1Sections,
 } from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
 import type { AccountExportContributor } from './domain/account-export.types';
@@ -93,6 +94,32 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(registry.list().map(({ sectionId }) => sectionId)).toEqual(
       EXPECTED_V1_SECTION_IDS,
     );
+  });
+
+  it('fails the real Nest factory before generating an incomplete v1 export', () => {
+    const provider = contributorFactory();
+    const dependencies = provider.inject.map((Contributor) =>
+      new Contributor({} as never),
+    );
+    expect(dependencies).toHaveLength(EXPECTED_V1_SECTION_IDS.length);
+
+    const missing = dependencies.filter(
+      (contributor) => contributor.sectionId !== 'qa.submittedReports',
+    );
+    expect(() => assertAccountExportV1Sections(missing)).toThrow(
+      'inventory is incomplete or incompatible',
+    );
+    expect(() => assertAccountExportV1Sections([
+      ...dependencies,
+      { sectionId: 'private.unreviewed', readPage: () => Promise.resolve({
+        records: [], nextCursor: null,
+      }) },
+    ])).toThrow('inventory is incomplete or incompatible');
+    expect(() => assertAccountExportV1Sections([
+      ...dependencies.slice(0, -1),
+      dependencies[0]!,
+    ])).toThrow('inventory is incomplete or incompatible');
+    expect(() => assertAccountExportV1Sections(dependencies)).not.toThrow();
   });
 
   it('assembles every section with the exact owner and bounded page budget', async () => {
