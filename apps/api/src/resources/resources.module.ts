@@ -12,6 +12,7 @@ import { ResourceService } from './domain/resource.service';
 import { ResourceSavedSearchService } from './domain/resource-saved-search.service';
 import { RESOURCE_EXPORT_STORE } from './domain/resource-export.store';
 import { RESOURCE_STORE } from './domain/resource.store';
+import { SAVED_RESOURCE_SEARCH_STORE } from './domain/resource-saved-search.store';
 import { MongoResourceExportStore } from './mongo/mongo-resource-export.store';
 import { MongoResourceStore } from './mongo/mongo-resource.store';
 import {
@@ -54,6 +55,10 @@ import { ResourceSavedSearchController } from './resource-saved-search.controlle
     },
     {
       provide: RESOURCE_STORE,
+      useExisting: MongoResourceStore,
+    },
+    {
+      provide: SAVED_RESOURCE_SEARCH_STORE,
       useExisting: MongoResourceStore,
     },
   ],
