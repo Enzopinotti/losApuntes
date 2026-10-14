@@ -342,7 +342,7 @@ describe('AccountExportService', () => {
       const result = {
         format: ACCOUNT_EXPORT_FORMAT,
         formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-        sectionCount: 3,
+        sectionCount: 30,
         recordCount: 7,
         byteLength: 512,
         sha256: 'a'.repeat(64),
@@ -441,6 +441,8 @@ describe('AccountExportService', () => {
   it.each([
     { sha256: 'not-a-digest' },
     { sectionCount: -1 },
+    { sectionCount: 29 },
+    { sectionCount: 31 },
     { recordCount: Number.MAX_SAFE_INTEGER + 1 },
     { byteLength: 0 },
   ])(
@@ -450,7 +452,7 @@ describe('AccountExportService', () => {
       const result = {
         format: ACCOUNT_EXPORT_FORMAT,
         formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
-        sectionCount: 3,
+        sectionCount: 30,
         recordCount: 7,
         byteLength: 512,
         sha256: 'a'.repeat(64),
@@ -475,7 +477,7 @@ describe('AccountExportService', () => {
         state: 'completed',
         active: false,
         completedAt: now,
-        artifactSectionCount: 3,
+        artifactSectionCount: 30,
         artifactRecordCount: 7,
         artifactByteLength: 512,
         artifactSha256: 'a'.repeat(64),
@@ -510,6 +512,8 @@ describe('AccountExportService', () => {
           artifactGeneration: 'generation-1',
           artifactExpiresAt: expiresAt,
           artifactByteLength: 512,
+          artifactSectionCount: 30,
+          artifactSha256: 'a'.repeat(64),
         }),
       )
       .mockResolvedValueOnce(
@@ -519,6 +523,8 @@ describe('AccountExportService', () => {
           artifactGeneration: 'generation-1',
           artifactExpiresAt: now,
           artifactByteLength: 512,
+          artifactSectionCount: 30,
+          artifactSha256: 'a'.repeat(64),
         }),
       );
 
@@ -534,6 +540,7 @@ describe('AccountExportService', () => {
       kind: 'available',
       generation: 'generation-1',
       byteLength: 512,
+      sha256: 'a'.repeat(64),
     });
     await expect(
       f.service.download('user-1', 'export-1', now),
