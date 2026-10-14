@@ -1175,6 +1175,37 @@ describe('ResourceService', () => {
     expect(resourceStore.listSavedResources).not.toHaveBeenCalled();
   });
 
+  it('keeps saved-search cursor position and reauthorizes every joined hit', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    projectionDeps(deps);
+    const firstId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const nextId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    resourceStore.searchSavedResources
+      .mockResolvedValueOnce({
+        items: [{ resourceId: firstId, createdAt: now }],
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        items: [{ resourceId: nextId, createdAt: new Date(now.getTime() - 1000) }],
+        hasMore: false,
+      });
+    resourceStore.findManyByIds
+      .mockResolvedValueOnce([resource({ id: firstId, visibility: 'public' })])
+      .mockResolvedValueOnce([resource({ id: nextId, visibility: 'private' })]);
+
+    const instance = service(resourceStore, deps);
+    const first = await instance.listSaved('viewer-2', 1, undefined, 'BASE');
+    expect(first.items.map((item) => item.id)).toEqual([firstId]);
+    const second = await instance.listSaved('viewer-2', 1, first.nextCursor ?? undefined, 'base');
+    expect(second.items).toEqual([]);
+    expect(second.nextCursor).toBeNull();
+    expect(resourceStore.searchSavedResources.mock.calls[1]).toEqual([{
+      userId: 'viewer-2', q: 'base', limit: 1,
+      after: { createdAt: now, resourceId: firstId },
+    }]);
+  });
+
   it('search normalizes query and returns an opaque cursor', async () => {
     const resourceStore = store();
     const deps = dependencies();
