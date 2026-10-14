@@ -1,0 +1,59 @@
+import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+
+import type { ResourceStore } from './resource.store';
+import type { ResourceService } from './resource.service';
+import { ResourceSavedSearchService } from './resource-saved-search.service';
+
+const first = {
+  createdAt: new Date('2026-10-14T12:00:00.000Z'),
+  resourceId: '11111111-1111-4111-8111-111111111111',
+};
+
+function harness() {
+  const saved = jest.fn().mockResolvedValue({
+    items: [first],
+    hasMore: true,
+  });
+  const get = jest.fn().mockResolvedValue({
+    resource: { id: first.resourceId, title: 'Álgebra' },
+  });
+  const service = new ResourceSavedSearchService(
+    { searchSavedResources: saved } as unknown as ResourceStore,
+    { get } as unknown as ResourceService,
+  );
+  return { saved, get, service };
+}
+
+describe('ResourceSavedSearchService', () => {
+  it('normalizes filters and rechecks every result through ResourceService.get', async () => {
+    const { saved, get, service } = harness();
+    const page = await service.search('account-a', ' ÁLGEBRA   II ', 1);
+    expect(page.items).toEqual([{ id: first.resourceId, title: 'Álgebra' }]);
+    expect(page.nextCursor).toEqual(expect.any(String));
+    expect(saved).toHaveBeenCalledWith({
+      userId: 'account-a',
+      q: 'álgebra ii',
+      limit: 1,
+    });
+    expect(get).toHaveBeenCalledWith(first.resourceId, 'account-a');
+  });
+
+  it('preserves a cursor only for the original account and query', async () => {
+    const { saved, service } = harness();
+    const page = await service.search('account-a', 'algebra', 1);
+    await service.search('account-a', 'algebra', 1, page.nextCursor ?? undefined);
+    expect(saved.mock.calls[1]?.[0]).toEqual({
+      userId: 'account-a',
+      q: 'algebra',
+      limit: 1,
+      after: first,
+    });
+    await expect(
+      service.search('account-b', 'algebra', 1, page.nextCursor ?? undefined),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      service.search('account-a', 'fisica', 1, page.nextCursor ?? undefined),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(saved).toHaveBeenCalledTimes(2);
+  });
+});
