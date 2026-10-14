@@ -201,8 +201,14 @@ test("visibility options follow backend's private/shared/public contract", () =>
     ["private", "shared", "public"],
   );
   assert.equal(resourceVisibilityWarning("private", "private"), null);
-  assert.match(resourceVisibilityWarning("private", "public") ?? "", /cualquier persona/u);
-  assert.match(resourceVisibilityWarning("private", "shared") ?? "", /permisos explícitos/u);
+  assert.match(
+    resourceVisibilityWarning("private", "public") ?? "",
+    /cualquier persona/u,
+  );
+  assert.match(
+    resourceVisibilityWarning("private", "shared") ?? "",
+    /permisos explícitos/u,
+  );
 });
 
 test("leaving shared explicitly warns that individual grants are deleted", () => {
@@ -296,11 +302,7 @@ test("matching response must confirm visibility and a strictly newer revision", 
     false,
   );
   assert.equal(
-    resourceMetadataMatches(
-      { ...updated, revision: 4 },
-      original,
-      input,
-    ),
+    resourceMetadataMatches({ ...updated, revision: 4 }, original, input),
     false,
   );
 });

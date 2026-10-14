@@ -69,8 +69,7 @@ export function ResourceMetadataEditor({
     selectedVisibility,
   );
   const readyToSave =
-    validation.kind === "valid" &&
-    (!visibilityChanged || visibilityConfirmed);
+    validation.kind === "valid" && (!visibilityChanged || visibilityConfirmed);
   const busy = current?.busy !== null && current?.busy !== undefined;
 
   useEffect(() => {
@@ -90,7 +89,8 @@ export function ResourceMetadataEditor({
   if (!visible.capabilities.edit) return null;
 
   const start = () => {
-    if (!authorityKey || !current || busy || current.outcome === "uncertain") return;
+    if (!authorityKey || !current || busy || current.outcome === "uncertain")
+      return;
     setDraft(resourceMetadataDraft(current.resource));
     setVisibilityConfirmed(false);
     controller.clearOutcome(authorityKey, resource.id);
@@ -156,7 +156,9 @@ export function ResourceMetadataEditor({
             accessibilityLabel="Título del apunte"
             maxLength={RESOURCE_TITLE_MAX_LENGTH}
             value={draft.title}
-            onChangeText={(title) => setDraft((previous) => ({ ...previous, title }))}
+            onChangeText={(title) =>
+              setDraft((previous) => ({ ...previous, title }))
+            }
             style={styles.input}
           />
           <Text style={styles.label}>Descripción (opcional)</Text>
@@ -188,10 +190,7 @@ export function ResourceMetadataEditor({
           <Text style={styles.helper}>
             Visibilidad actual: {resourceVisibilityLabel(visible.visibility)}
           </Text>
-          <View
-            accessibilityRole="radiogroup"
-            style={styles.visibilityChoices}
-          >
+          <View accessibilityRole="radiogroup" style={styles.visibilityChoices}>
             {RESOURCE_VISIBILITY_OPTIONS.map((option) => (
               <Pressable
                 key={option.value}
@@ -233,13 +232,12 @@ export function ResourceMetadataEditor({
                   disabled: busy,
                 }}
                 disabled={busy}
-                onPress={() =>
-                  setVisibilityConfirmed((previous) => !previous)
-                }
+                onPress={() => setVisibilityConfirmed((previous) => !previous)}
                 style={styles.confirmRow}
               >
                 <Text style={styles.confirmText}>
-                  {visibilityConfirmed ? "☑" : "☐"} Entiendo y confirmo el cambio
+                  {visibilityConfirmed ? "☑" : "☐"} Entiendo y confirmo el
+                  cambio
                 </Text>
               </Pressable>
             </View>
@@ -293,9 +291,7 @@ export function ResourceMetadataEditor({
           onPress={start}
           style={[styles.button, busy && styles.disabled]}
         >
-          <Text style={styles.buttonText}>
-            Editar datos y visibilidad
-          </Text>
+          <Text style={styles.buttonText}>Editar datos y visibilidad</Text>
         </Pressable>
       )}
     </View>

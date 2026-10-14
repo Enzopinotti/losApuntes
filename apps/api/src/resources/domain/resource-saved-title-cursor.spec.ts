@@ -11,9 +11,23 @@ const row = {
 
 describe('saved global title cursor', () => {
   it('round-trips title and canonical resource ID under identical authority and filters', () => {
-    const token = encodeSavedTitleCursor(row, 'user-a', 'resumen', '22222222-2222-4222-8222-222222222222');
-    expect(decodeSavedTitleCursor(token, 'user-a', 'resumen', '22222222-2222-4222-8222-222222222222')).toEqual(row);
-    expect(decodeSavedTitleCursor(undefined, 'user-a', 'resumen')).toBeUndefined();
+    const token = encodeSavedTitleCursor(
+      row,
+      'user-a',
+      'resumen',
+      '22222222-2222-4222-8222-222222222222',
+    );
+    expect(
+      decodeSavedTitleCursor(
+        token,
+        'user-a',
+        'resumen',
+        '22222222-2222-4222-8222-222222222222',
+      ),
+    ).toEqual(row);
+    expect(
+      decodeSavedTitleCursor(undefined, 'user-a', 'resumen'),
+    ).toBeUndefined();
   });
 
   it('fails closed on changed account, text, Subject, or implicit order', () => {
@@ -25,8 +39,9 @@ describe('saved global title cursor', () => {
       ['user-a', 'resumen', undefined],
       ['user-a', 'resumen', '33333333-3333-4333-8333-333333333333'],
     ] as Array<[string, string, string | undefined]>) {
-      expect(() => decodeSavedTitleCursor(token, userId, q, subjectId))
-        .toThrow(UnprocessableEntityException);
+      expect(() => decodeSavedTitleCursor(token, userId, q, subjectId)).toThrow(
+        UnprocessableEntityException,
+      );
     }
   });
 
@@ -40,9 +55,12 @@ describe('saved global title cursor', () => {
   it('rejects v1 saved-date cursors and malformed or extended payloads', () => {
     const encode = (value: unknown) =>
       Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
-    const current = JSON.parse(Buffer.from(
-      encodeSavedTitleCursor(row, 'user-a', ''), 'base64url',
-    ).toString('utf8')) as Record<string, unknown>;
+    const current = JSON.parse(
+      Buffer.from(
+        encodeSavedTitleCursor(row, 'user-a', ''),
+        'base64url',
+      ).toString('utf8'),
+    ) as Record<string, unknown>;
     const invalid = [
       encode({ ...current, version: 1 }),
       encode({ ...current, order: 'saved' }),
@@ -56,8 +74,9 @@ describe('saved global title cursor', () => {
       'x'.repeat(2049),
     ];
     for (const token of invalid) {
-      expect(() => decodeSavedTitleCursor(token, 'user-a', ''))
-        .toThrow(UnprocessableEntityException);
+      expect(() => decodeSavedTitleCursor(token, 'user-a', '')).toThrow(
+        UnprocessableEntityException,
+      );
     }
   });
 });

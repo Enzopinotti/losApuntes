@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { OwnedResourceStatistics } from "@losapuntes/contracts";
-import {
-  MobileOwnerStatisticsController,
-} from "../src/features/resources/resource-owner-stats-controller";
+import { MobileOwnerStatisticsController } from "../src/features/resources/resource-owner-stats-controller";
 import type { OwnerStatisticsApi } from "../src/features/resources/resource-owner-stats-api";
 import { ApiRequestError } from "../src/services/api/client";
 
@@ -13,18 +11,22 @@ const example: OwnedResourceStatistics = {
   publications: { total: 2, private: 1, shared: 1, public: 0 },
   currentSaves: 3,
   activeShareGrants: 1,
-  topResources: [{
-    id: "r1",
-    title: "SQL",
-    visibility: "shared",
-    saves: 3,
-    shareGrants: 1,
-  }],
+  topResources: [
+    {
+      id: "r1",
+      title: "SQL",
+      visibility: "shared",
+      saves: 3,
+      shareGrants: 1,
+    },
+  ],
 };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -97,7 +99,10 @@ test("API failure is displayed without fabricating zero counts", async () => {
   const controller = new MobileOwnerStatisticsController({
     getStatistics: async () => {
       throw new ApiRequestError(
-        "offline", null, "NETWORK_UNAVAILABLE", "Offline",
+        "offline",
+        null,
+        "NETWORK_UNAVAILABLE",
+        "Offline",
       );
     },
   });

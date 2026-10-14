@@ -23,7 +23,12 @@ export class ResourceSavedSearchController {
     @Query() query: ResourceSavedSearchDto,
   ) {
     return this.savedSearch.search(
-      request.user.id, query.q, query.limit, query.cursor, query.subjectId, query.order,
+      request.user.id,
+      query.q,
+      query.limit,
+      query.cursor,
+      query.subjectId,
+      query.order,
     );
   }
 }

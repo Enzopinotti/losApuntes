@@ -33,7 +33,11 @@ test("typing refines the selected subject without silently broadening scope", ()
 
   assert.deepEqual(
     searchInputReducer(scoped, { type: "queryChanged", query: "álgebra" }),
-    { query: "álgebra", scope: "resources", selectedSubject: { id: "subject-a", name: "Álgebra" } },
+    {
+      query: "álgebra",
+      scope: "resources",
+      selectedSubject: { id: "subject-a", name: "Álgebra" },
+    },
   );
 });
 

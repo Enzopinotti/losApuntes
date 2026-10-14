@@ -234,7 +234,7 @@ test("screen delegates metadata, subject and ordering to the server", () => {
   );
   assert.match(
     screen,
-    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*"saved",\s*null,\s*\)/u,
+    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*"saved",\s*null,?\s*\)/u,
   );
   assert.match(screen, /sessionKey\]/u);
   assert.match(screen, /setQuery\(""\)/u);

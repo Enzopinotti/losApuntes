@@ -26,7 +26,12 @@ function resource(id: string): ResourceView {
       subject: { id: "11111111-1111-4111-8111-111111111111", name: "Álgebra" },
       courseOffering: null,
     },
-    file: { id, filename: `${id}.pdf`, mimeType: "application/pdf", byteSize: 512 },
+    file: {
+      id,
+      filename: `${id}.pdf`,
+      mimeType: "application/pdf",
+      byteSize: 512,
+    },
     capabilities: { edit: false, manageShares: false },
     revision: 1,
     createdAt: "2026-10-14T12:00:00.000Z",
@@ -54,7 +59,10 @@ test("repeated continuation cursor becomes an explicit terminal recovery state",
   if (snapshot.kind !== "ready") return;
   assert.equal(snapshot.paginationStalled, true);
   assert.equal(snapshot.data.nextCursor, null);
-  assert.deepEqual(snapshot.data.items.map((item) => item.id), ["a", "b"]);
+  assert.deepEqual(
+    snapshot.data.items.map((item) => item.id),
+    ["a", "b"],
+  );
   await controller.loadMore("owner-a");
   assert.deepEqual(calls, [undefined, "cursor-A"]);
 });
@@ -91,7 +99,12 @@ test("a transient network failure preserves its cursor for a true retry", async 
       if (!cursor) return { items: [resource("a")], nextCursor: "cursor-A" };
       attempt += 1;
       if (attempt === 1) {
-        throw new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "No network");
+        throw new ApiRequestError(
+          "offline",
+          null,
+          "NETWORK_UNAVAILABLE",
+          "No network",
+        );
       }
       return { items: [resource("b")], nextCursor: null };
     },
@@ -111,7 +124,10 @@ test("a transient network failure preserves its cursor for a true retry", async 
   if (recovered.kind !== "ready") return;
   assert.equal(recovered.failure, null);
   assert.equal(recovered.paginationStalled, false);
-  assert.deepEqual(recovered.data.items.map((item) => item.id), ["a", "b"]);
+  assert.deepEqual(
+    recovered.data.items.map((item) => item.id),
+    ["a", "b"],
+  );
   assert.deepEqual(calls, [undefined, "cursor-A", "cursor-A"]);
 });
 
@@ -120,7 +136,8 @@ test("changing an authority or search clears prior seen cursors", async () => {
   const api = {
     saved: async (cursor?: string): Promise<ResourceSavedPage> => {
       calls.push(cursor);
-      return !cursor ? { items: [], nextCursor: "cursor-A" }
+      return !cursor
+        ? { items: [], nextCursor: "cursor-A" }
         : { items: [], nextCursor: "cursor-A" };
     },
   } as ResourceConsumptionApi;
@@ -138,7 +155,12 @@ test("changing an authority or search clears prior seen cursors", async () => {
 test("the API timeout code is shown as a recoverable timeout, not a blank library", () => {
   assert.equal(
     resourceConsumptionFailure(
-      new ApiRequestError("unexpected", 408, "RESOURCE_SAVED_QUERY_TIMEOUT", "Slow query"),
+      new ApiRequestError(
+        "unexpected",
+        408,
+        "RESOURCE_SAVED_QUERY_TIMEOUT",
+        "Slow query",
+      ),
     ),
     "timeout",
   );
@@ -146,7 +168,10 @@ test("the API timeout code is shown as a recoverable timeout, not a blank librar
 
 test("Saved renders rows in ProductSurface FlatList and keeps pagination manual", () => {
   const screen = readFileSync(
-    new URL("../src/features/resources/saved-resources-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/resources/saved-resources-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   const surface = readFileSync(
@@ -170,9 +195,13 @@ test("stale search anchor preserves loaded rows and offers refresh rather than r
   const api = {
     saved: async (cursor?: string): Promise<ResourceSavedPage> => {
       cursors.push(cursor);
-      if (!cursor) return { items: [resource("visible")], nextCursor: "anchor-1" };
+      if (!cursor)
+        return { items: [resource("visible")], nextCursor: "anchor-1" };
       throw new ApiRequestError(
-        "conflict", 409, "RESOURCE_SAVED_SEARCH_CURSOR_STALE", "Saved library changed",
+        "conflict",
+        409,
+        "RESOURCE_SAVED_SEARCH_CURSOR_STALE",
+        "Saved library changed",
       );
     },
   } as ResourceConsumptionApi;
@@ -186,7 +215,10 @@ test("stale search anchor preserves loaded rows and offers refresh rather than r
   assert.equal(state.paginationResetReason, "data_changed");
   assert.equal(state.failure, null);
   assert.equal(state.data.nextCursor, null);
-  assert.deepEqual(state.data.items.map((item) => item.id), ["visible"]);
+  assert.deepEqual(
+    state.data.items.map((item) => item.id),
+    ["visible"],
+  );
   await controller.loadMore("account-a");
   assert.deepEqual(cursors, [undefined, "anchor-1"]);
 
@@ -221,7 +253,10 @@ test("a generic conflict is not mislabeled as a stale saved cursor", async () =>
 
 test("concurrent-change copy is distinct from a cyclic cursor", () => {
   const screen = readFileSync(
-    new URL("../src/features/resources/saved-resources-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/resources/saved-resources-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   assert.match(screen, /current\.paginationResetReason === "data_changed"/u);

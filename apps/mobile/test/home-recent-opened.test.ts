@@ -24,7 +24,12 @@ function resource(id: string): ResourceView {
       subject: { id: "11111111-1111-4111-8111-111111111111", name: "Análisis" },
       courseOffering: null,
     },
-    file: { id, filename: `${id}.pdf`, mimeType: "application/pdf", byteSize: 512 },
+    file: {
+      id,
+      filename: `${id}.pdf`,
+      mimeType: "application/pdf",
+      byteSize: 512,
+    },
     capabilities: { edit: false, manageShares: false },
     revision: 1,
     createdAt: "2026-10-14T12:00:00.000Z",
@@ -34,13 +39,18 @@ function resource(id: string): ResourceView {
 
 function deferred<T>() {
   let resolve!: (result: T) => void;
-  const promise = new Promise<T>((yes) => { resolve = yes; });
+  const promise = new Promise<T>((yes) => {
+    resolve = yes;
+  });
   return { promise, resolve };
 }
 
 function controller(
   memory: SessionRecentResourceOpens,
-  resolve: (id: string, signal?: AbortSignal) => Promise<{ resource: ResourceView }>,
+  resolve: (
+    id: string,
+    signal?: AbortSignal,
+  ) => Promise<{ resource: ResourceView }>,
 ) {
   const api = { resource: resolve } as Pick<ResourceConsumptionApi, "resource">;
   return new HomeRecentOpenedController(api, memory);
@@ -56,7 +66,10 @@ test("records IDs only, bounded to eight; reopens move IDs to the front", () => 
   assert.equal(memory.read("user:session").includes("r-0"), false);
   memory.record("user:session", "r-8");
   assert.deepEqual(memory.read("user:session").slice(0, 2), ["r-8", "r-10"]);
-  assert.equal(new Set(memory.read("user:session")).size, RECENT_OPENED_MEMORY_LIMIT);
+  assert.equal(
+    new Set(memory.read("user:session")).size,
+    RECENT_OPENED_MEMORY_LIMIT,
+  );
 });
 
 test("session switches delete previous IDs and null authority does not read content", () => {
@@ -87,7 +100,10 @@ test("Home reads every resource again before rendering a four-item preview", asy
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind !== "ready") return;
   assert.equal(RECENT_OPENED_PREVIEW_LIMIT, 4);
-  assert.deepEqual(snapshot.items.map((r) => r.id), ["r-5", "r-4", "r-3", "r-2"]);
+  assert.deepEqual(
+    snapshot.items.map((r) => r.id),
+    ["r-5", "r-4", "r-3", "r-2"],
+  );
   assert.equal(snapshot.moreAvailable, true);
   assert.equal(snapshot.partialFailure, null);
   assert.deepEqual(requested, ["r-5", "r-4", "r-3", "r-2", "r-1", "r-0"]);
@@ -95,17 +111,33 @@ test("Home reads every resource again before rendering a four-item preview", asy
 
 test("removed and no-longer-readable IDs are purged after authorization checks", async () => {
   const memory = new SessionRecentResourceOpens();
-  for (const id of ["readable", "revoked", "deleted"]) memory.record("account:session", id);
+  for (const id of ["readable", "revoked", "deleted"])
+    memory.record("account:session", id);
   const recent = controller(memory, async (id) => {
-    if (id === "revoked") throw new ApiRequestError("forbidden", 403, "RESOURCE_FORBIDDEN", "No access");
-    if (id === "deleted") throw new ApiRequestError("unexpected", 404, "RESOURCE_NOT_FOUND", "Not found");
+    if (id === "revoked")
+      throw new ApiRequestError(
+        "forbidden",
+        403,
+        "RESOURCE_FORBIDDEN",
+        "No access",
+      );
+    if (id === "deleted")
+      throw new ApiRequestError(
+        "unexpected",
+        404,
+        "RESOURCE_NOT_FOUND",
+        "Not found",
+      );
     return { resource: resource(id) };
   });
   await recent.load("home-context", "account:session");
   const snapshot = recent.getSnapshot();
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind === "ready") {
-    assert.deepEqual(snapshot.items.map((r) => r.id), ["readable"]);
+    assert.deepEqual(
+      snapshot.items.map((r) => r.id),
+      ["readable"],
+    );
     assert.equal(snapshot.moreAvailable, false);
   }
   assert.deepEqual(memory.read("account:session"), ["readable"]);
@@ -116,14 +148,23 @@ test("network errors do not erase IDs and partial results warn about incomplete 
   memory.record("account:session", "offline-id");
   memory.record("account:session", "valid-id");
   const recent = controller(memory, async (id) => {
-    if (id === "offline-id") throw new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "No network");
+    if (id === "offline-id")
+      throw new ApiRequestError(
+        "offline",
+        null,
+        "NETWORK_UNAVAILABLE",
+        "No network",
+      );
     return { resource: resource(id) };
   });
   await recent.load("home", "account:session");
   const snapshot = recent.getSnapshot();
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind === "ready") {
-    assert.deepEqual(snapshot.items.map((r) => r.id), ["valid-id"]);
+    assert.deepEqual(
+      snapshot.items.map((r) => r.id),
+      ["valid-id"],
+    );
     assert.equal(snapshot.partialFailure, "offline");
   }
   assert.deepEqual(memory.read("account:session"), ["valid-id", "offline-id"]);
@@ -137,7 +178,9 @@ test("all unreachable resources yield failure, not misleading empty state", asyn
   });
   await recent.load("home", "user:session");
   assert.deepEqual(recent.getSnapshot(), {
-    kind: "failure", authorityKey: "home", reason: "timeout",
+    kind: "failure",
+    authorityKey: "home",
+    reason: "timeout",
   });
   assert.deepEqual(memory.read("user:session"), ["a"]);
 });
@@ -145,10 +188,14 @@ test("all unreachable resources yield failure, not misleading empty state", asyn
 test("mismatched resource ID cannot be shown as a verified open", async () => {
   const memory = new SessionRecentResourceOpens();
   memory.record("user:session", "requested");
-  const recent = controller(memory, async () => ({ resource: resource("wrong") }));
+  const recent = controller(memory, async () => ({
+    resource: resource("wrong"),
+  }));
   await recent.load("home", "user:session");
   assert.deepEqual(recent.getSnapshot(), {
-    kind: "failure", authorityKey: "home", reason: "error",
+    kind: "failure",
+    authorityKey: "home",
+    reason: "error",
   });
 });
 
@@ -176,7 +223,11 @@ test("late replies after account/context changes cannot repaint Home or purge an
   assert.deepEqual(memory.read("user:b"), ["id-b"]);
   const snapshot = recent.getSnapshot();
   assert.equal(snapshot.kind, "ready");
-  if (snapshot.kind === "ready") assert.deepEqual(snapshot.items.map((r) => r.id), ["id-b"]);
+  if (snapshot.kind === "ready")
+    assert.deepEqual(
+      snapshot.items.map((r) => r.id),
+      ["id-b"],
+    );
 });
 
 test("clearing history does not touch saved resources or the server, and cancels its operation", async () => {
@@ -193,8 +244,11 @@ test("clearing history does not touch saved resources or the server, and cancels
   recent.clear("home", "session");
   assert.deepEqual(memory.read("session"), []);
   assert.deepEqual(recent.getSnapshot(), {
-    kind: "ready", authorityKey: "home", items: [],
-    moreAvailable: false, partialFailure: null,
+    kind: "ready",
+    authorityKey: "home",
+    items: [],
+    moreAvailable: false,
+    partialFailure: null,
   });
   await recent.load("home", "session");
   assert.equal(calls, 1);
@@ -202,7 +256,10 @@ test("clearing history does not touch saved resources or the server, and cancels
 
 test("Home and detail wiring gate recent openings on authenticated active detail", () => {
   const detail = readFileSync(
-    new URL("../src/features/resources/resource-details-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/resources/resource-details-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   const home = readFileSync(
@@ -210,16 +267,25 @@ test("Home and detail wiring gate recent openings on authenticated active detail
     "utf8",
   );
   const card = readFileSync(
-    new URL("../src/features/home/home-recent-opened-card.tsx", import.meta.url),
+    new URL(
+      "../src/features/home/home-recent-opened-card.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   assert.match(detail, /snapshot\.kind === "ready"/u);
   assert.match(detail, /snapshot\.authorityKey === authorityKey/u);
   assert.match(detail, /snapshot\.data\.resource\.id === resourceId/u);
-  assert.match(detail, /mobileSessionRecentResourceOpens\.record\(sessionAuthority, resourceId\)/u);
+  assert.match(
+    detail,
+    /mobileSessionRecentResourceOpens\.record\(sessionAuthority, resourceId\)/u,
+  );
   assert.match(home, /<HomeRecentOpenedCard/u);
   assert.match(home, /sessionAuthorityKey=\{sessionAuthority\}/u);
-  assert.match(card, /controller\.load\(authorityKey, sessionAuthorityKey, preferredSubjectId\)/u);
+  assert.match(
+    card,
+    /controller\.load\(authorityKey, sessionAuthorityKey, preferredSubjectId\)/u,
+  );
   assert.match(card, /controller\.clear\(authorityKey, sessionAuthorityKey\)/u);
   assert.match(card, /Los permisos se vuelven a comprobar/u);
 });

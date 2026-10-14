@@ -146,9 +146,11 @@ function ResourceResult({
       <View style={styles.quickSaveRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={quickSaveEntry?.state === "saved"
-            ? `${resource.title} ya está guardado`
-            : `Guardar ${resource.title} desde Buscar`}
+          accessibilityLabel={
+            quickSaveEntry?.state === "saved"
+              ? `${resource.title} ya está guardado`
+              : `Guardar ${resource.title} desde Buscar`
+          }
           accessibilityState={{
             disabled:
               quickSaveEntry?.state === "saving" ||
@@ -275,7 +277,9 @@ function SubjectGroup({
                   También: {subject.aliases.join(", ")}
                 </Text>
               ) : null}
-              <Text style={styles.actionLabel}>Ver apuntes de esta materia</Text>
+              <Text style={styles.actionLabel}>
+                Ver apuntes de esta materia
+              </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -396,7 +400,9 @@ function ContextualDiscovery({
                 onPress={() => onExploreSubject(bucket.subject)}
                 style={styles.searchActionButton}
               >
-                <Text style={styles.searchActionLabel}>Explorar apuntes de esta materia</Text>
+                <Text style={styles.searchActionLabel}>
+                  Explorar apuntes de esta materia
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -452,7 +458,9 @@ function ContextualDiscovery({
 export function SearchScreen() {
   const router = useRouter();
   const routeParams = useLocalSearchParams<{ subjectId?: string }>();
-  const incomingSubjectId = subjectResourcesSearchRouteId(routeParams.subjectId);
+  const incomingSubjectId = subjectResourcesSearchRouteId(
+    routeParams.subjectId,
+  );
   const handledIncomingSubject = useRef<string | null>(null);
   const isFocused = useIsFocused();
   const { snapshot: session } = useSession();
@@ -727,7 +735,7 @@ export function SearchScreen() {
     searchInput &&
     search.kind !== "idle" &&
     search.authorityKey === authorityKey &&
-    (search.kind !== "ready" && search.kind !== "loading" ||
+    ((search.kind !== "ready" && search.kind !== "loading") ||
       (search.query === (searchInput.q ?? "") &&
         search.scope === searchInput.scope &&
         (search.subjectId ?? null) === (searchInput.subjectId ?? null)))
@@ -793,9 +801,10 @@ export function SearchScreen() {
         {scopedSubjectEmpty ? (
           <View style={styles.emptyRecovery}>
             <Text style={styles.copy}>
-              No encontramos apuntes accesibles de {selectedSubject?.name ?? "esta materia"}
-              {normalizedQuery ? ` con “${normalizedQuery}”` : ""}.
-              Probá con otra palabra o ampliá la búsqueda.
+              No encontramos apuntes accesibles de{" "}
+              {selectedSubject?.name ?? "esta materia"}
+              {normalizedQuery ? ` con “${normalizedQuery}”` : ""}. Probá con
+              otra palabra o ampliá la búsqueda.
             </Text>
             {normalizedQuery.length >= 2 ? (
               <Pressable
@@ -804,7 +813,9 @@ export function SearchScreen() {
                 onPress={clearSubjectFilter}
                 style={styles.searchActionButton}
               >
-                <Text style={styles.searchActionLabel}>Buscar texto en todas las materias</Text>
+                <Text style={styles.searchActionLabel}>
+                  Buscar texto en todas las materias
+                </Text>
               </Pressable>
             ) : null}
             {normalizedQuery.length >= 2 ? (
@@ -814,7 +825,9 @@ export function SearchScreen() {
                 onPress={() => setQueryText("")}
                 style={styles.searchActionButton}
               >
-                <Text style={styles.searchActionLabel}>Ver materia sin texto</Text>
+                <Text style={styles.searchActionLabel}>
+                  Ver materia sin texto
+                </Text>
               </Pressable>
             ) : (
               <Pressable
@@ -823,7 +836,9 @@ export function SearchScreen() {
                 onPress={clearSubjectFilter}
                 style={styles.searchActionButton}
               >
-                <Text style={styles.searchActionLabel}>Quitar filtro de materia</Text>
+                <Text style={styles.searchActionLabel}>
+                  Quitar filtro de materia
+                </Text>
               </Pressable>
             )}
           </View>
@@ -884,8 +899,8 @@ export function SearchScreen() {
       {routeParams.subjectId !== undefined && !incomingSubjectId ? (
         <View style={styles.card}>
           <Text accessibilityRole="alert" style={styles.error}>
-            El enlace de materia no es válido. Podés buscar recursos
-            normalmente o elegir una materia desde los resultados.
+            El enlace de materia no es válido. Podés buscar recursos normalmente
+            o elegir una materia desde los resultados.
           </Text>
         </View>
       ) : null}

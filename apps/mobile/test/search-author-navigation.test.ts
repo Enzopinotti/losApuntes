@@ -60,11 +60,12 @@ test("Search resource content and author use separate accessible actions", () =>
   assert.match(resourceResult, /authorAction\s*\?/u);
   assert.match(resourceResult, /styles\.resourceAuthorAction/u);
   assert.match(resourceResult, /styles\.resourceAuthorLabel/u);
-  assert.equal(
-    (resourceResult.match(/<Pressable/gu) ?? []).length,
-    2,
-    "opening a resource and opening its author are sibling actions",
+  assert.ok(
+    (resourceResult.match(/<Pressable/gu) ?? []).length >= 3,
+    "opening a resource, its author and quick-save are independent actions",
   );
+  assert.match(resourceResult, /onPress=\{onPress\}/u);
+  assert.match(resourceResult, /onPress=\{onQuickSave\}/u);
   assert.match(searchScreen, /pathname: "\/profiles\/\[profileId\]"/u);
   assert.equal(
     (searchScreen.match(/onOpenProfile=\{openPerson\}/gu) ?? []).length,

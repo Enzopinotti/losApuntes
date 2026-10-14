@@ -54,11 +54,17 @@ test("missing, malformed or injected subject IDs cannot open the Q&A route", () 
 
 test("saved-resource row keeps resource, questions and unsave as distinct actions", () => {
   const screen = readFileSync(
-    new URL("../src/features/resources/saved-resources-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/resources/saved-resources-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   const questions = readFileSync(
-    new URL("../src/features/community/subject-questions-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/community/subject-questions-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
 
@@ -69,6 +75,9 @@ test("saved-resource row keeps resource, questions and unsave as distinct action
   assert.match(screen, /router\.push\(action\.href\)/u);
   assert.match(questions, /canComposeForSubject\(/u);
   assert.match(questions, /authority\.gate === "ready"/u);
-  assert.match(questions, /accessibilityLabel="Volver a la pantalla anterior"/u);
+  assert.match(
+    questions,
+    /accessibilityLabel="Volver a la pantalla anterior"/u,
+  );
   assert.doesNotMatch(screen, /setSubjectParticipation|autoEnroll/u);
 });

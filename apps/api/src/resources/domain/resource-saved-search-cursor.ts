@@ -12,7 +12,8 @@ function scopeHash(userId: string, q: string, subjectId?: string): string {
 function invalidCursor(): never {
   throw new UnprocessableEntityException({
     code: 'RESOURCE_SAVED_SEARCH_CURSOR_INVALID',
-    message: 'Saved resource search cursor is invalid or does not match filters',
+    message:
+      'Saved resource search cursor is invalid or does not match filters',
   });
 }
 
@@ -50,11 +51,8 @@ export function decodeSavedSearchCursor(
     const parsed: unknown = JSON.parse(
       Buffer.from(value, 'base64url').toString('utf8'),
     );
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      Array.isArray(parsed)
-    ) return invalidCursor();
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      return invalidCursor();
 
     const fields = parsed as Record<string, unknown>;
     if (
@@ -66,13 +64,15 @@ export function decodeSavedSearchCursor(
         fields.resourceId,
       ) ||
       fields.scope !== scopeHash(userId, q, subjectId)
-    ) return invalidCursor();
+    )
+      return invalidCursor();
 
     const createdAt = new Date(fields.createdAt);
     if (
       Number.isNaN(createdAt.getTime()) ||
       createdAt.toISOString() !== fields.createdAt
-    ) return invalidCursor();
+    )
+      return invalidCursor();
 
     return { createdAt, resourceId: fields.resourceId };
   } catch {

@@ -28,7 +28,10 @@ import {
   type MobileSavedResourcesSnapshot,
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
-import { mobileResourceConsumptionApi, mobileSavedSubjectFacetsApi } from "./resource-runtime";
+import {
+  mobileResourceConsumptionApi,
+  mobileSavedSubjectFacetsApi,
+} from "./resource-runtime";
 import {
   MobileSavedSubjectFacetsController,
   type SavedSubjectFacetsSnapshot,
@@ -134,7 +137,7 @@ function SavedResourceRow({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${removalFailure ? "Reintentar quitar" : "Quitar"} ${resource.title} de guardados`
+        accessibilityLabel={`${removalFailure ? "Reintentar quitar" : "Quitar"} ${resource.title} de guardados`}
         accessibilityState={{ disabled: removalPending }}
         disabled={removalPending}
         onPress={onRemove}
@@ -173,9 +176,8 @@ export function SavedResourcesScreen() {
     () => new MobileSavedSubjectFacetsController(mobileSavedSubjectFacetsApi),
     [],
   );
-  const [subjectSnapshot, setSubjectSnapshot] = useState<SavedSubjectFacetsSnapshot>(
-    subjectsController.getSnapshot(),
-  );
+  const [subjectSnapshot, setSubjectSnapshot] =
+    useState<SavedSubjectFacetsSnapshot>(subjectsController.getSnapshot());
   const [appState, setAppState] = useState(AppState.currentState);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SavedLibrarySort>("saved");
@@ -203,7 +205,10 @@ export function SavedResourcesScreen() {
   }, [sessionKey, query, selectedSubjectId, sort]);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
-  useEffect(() => subjectsController.subscribe(setSubjectSnapshot), [subjectsController]);
+  useEffect(
+    () => subjectsController.subscribe(setSubjectSnapshot),
+    [subjectsController],
+  );
 
   useEffect(() => {
     if (!authorityKey) {
@@ -250,14 +255,29 @@ export function SavedResourcesScreen() {
       controller.invalidate(authorityKey);
       return;
     }
-    const timeout = setTimeout(() => {
-      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined, sort);
-    }, searchQuery ? 300 : 0);
+    const timeout = setTimeout(
+      () => {
+        void controller.load(
+          authorityKey,
+          searchQuery || undefined,
+          selectedSubjectId ?? undefined,
+          sort,
+        );
+      },
+      searchQuery ? 300 : 0,
+    );
     return () => {
       clearTimeout(timeout);
       controller.invalidate(authorityKey);
     };
-  }, [authorityKey, controller, searchEligible, searchQuery, selectedSubjectId, sort]);
+  }, [
+    authorityKey,
+    controller,
+    searchEligible,
+    searchQuery,
+    selectedSubjectId,
+    sort,
+  ]);
 
   useEffect(() => {
     if (!authorityKey || !searchEligible) return;
@@ -285,22 +305,19 @@ export function SavedResourcesScreen() {
       ? snapshot
       : null;
   const activeFacetSnapshot =
-    subjectSnapshot.kind !== "idle" && subjectSnapshot.authorityKey === authorityKey
+    subjectSnapshot.kind !== "idle" &&
+    subjectSnapshot.authorityKey === authorityKey
       ? subjectSnapshot
       : null;
   const subjectGroups =
     activeFacetSnapshot?.kind === "ready" ? activeFacetSnapshot.data.items : [];
   const activeSubjectId = selectedSubjectId;
   const activeSubject =
-    subjectGroups.find((subject) => subject.subjectId === selectedSubjectId) ?? null;
+    subjectGroups.find((subject) => subject.subjectId === selectedSubjectId) ??
+    null;
   const shownResources =
     current?.kind === "ready"
-      ? findLoadedSavedResources(
-          current.data.items,
-          "",
-          "saved",
-          null,
-        )
+      ? findLoadedSavedResources(current.data.items, "", "saved", null)
       : [];
 
   const exploreSelectedSubject = activeSubject
@@ -324,7 +341,12 @@ export function SavedResourcesScreen() {
 
   const refresh = () => {
     if (authorityKey && searchEligible) {
-      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined, sort);
+      void controller.load(
+        authorityKey,
+        searchQuery || undefined,
+        selectedSubjectId ?? undefined,
+        sort,
+      );
     }
     if (authorityKey) void subjectsController.load(authorityKey);
   };
@@ -351,7 +373,9 @@ export function SavedResourcesScreen() {
                 resource={resource}
                 removing={current.removingResourceId === resource.id}
                 removalPending={
-                  current.removingResourceId !== null || current.loadingMore || current.syncing
+                  current.removingResourceId !== null ||
+                  current.loadingMore ||
+                  current.syncing
                 }
                 removalFailure={
                   current.removalFailure?.resourceId === resource.id
@@ -397,16 +421,20 @@ export function SavedResourcesScreen() {
                     onPress={refresh}
                     style={styles.secondaryButton}
                   >
-                    <Text style={styles.secondaryButtonText}>Reiniciar listado</Text>
+                    <Text style={styles.secondaryButtonText}>
+                      Reiniciar listado
+                    </Text>
                   </Pressable>
                 </View>
               ) : null}
               {current.data.nextCursor ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={current.failure
-                    ? "Reintentar cargar más guardados"
-                    : "Cargar más guardados"}
+                  accessibilityLabel={
+                    current.failure
+                      ? "Reintentar cargar más guardados"
+                      : "Cargar más guardados"
+                  }
                   accessibilityState={{ disabled: current.loadingMore }}
                   disabled={current.loadingMore}
                   onPress={() => void controller.loadMore(current.authorityKey)}
@@ -419,7 +447,9 @@ export function SavedResourcesScreen() {
                     <ActivityIndicator accessibilityLabel="Cargando más guardados" />
                   ) : (
                     <Text style={styles.secondaryButtonText}>
-                      {current.failure ? "Reintentar carga" : "Cargar más guardados"}
+                      {current.failure
+                        ? "Reintentar carga"
+                        : "Cargar más guardados"}
                     </Text>
                   )}
                 </Pressable>
@@ -460,15 +490,10 @@ export function SavedResourcesScreen() {
               onPress={() => setQuery("")}
               style={styles.clearSearchButton}
             >
-              <Text style={styles.clearSearchLabel}>
-                Limpiar búsqueda
-              </Text>
+              <Text style={styles.clearSearchLabel}>Limpiar búsqueda</Text>
             </Pressable>
           ) : null}
-          <View
-            accessibilityRole="radiogroup"
-            style={styles.sortOptions}
-          >
+          <View accessibilityRole="radiogroup" style={styles.sortOptions}>
             <Pressable
               accessibilityRole="radio"
               accessibilityLabel="Orden de guardado"
@@ -514,19 +539,22 @@ export function SavedResourcesScreen() {
                 ) : null}
                 {current.syncFailure ? (
                   <Text accessibilityRole="alert" style={styles.error}>
-                    No pudimos comprobar si cambiaron tus guardados.
-                    La lista podría estar desactualizada.
+                    No pudimos comprobar si cambiaron tus guardados. La lista
+                    podría estar desactualizada.
                   </Text>
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Comprobar cambios en mis guardados"
                   accessibilityState={{
-                    disabled: current.syncing || current.loadingMore ||
+                    disabled:
+                      current.syncing ||
+                      current.loadingMore ||
                       current.removingResourceId !== null,
                   }}
                   disabled={
-                    current.syncing || current.loadingMore ||
+                    current.syncing ||
+                    current.loadingMore ||
                     current.removingResourceId !== null
                   }
                   onPress={() => {
@@ -535,14 +563,18 @@ export function SavedResourcesScreen() {
                   }}
                   style={[
                     styles.secondaryButton,
-                    (current.syncing || current.loadingMore ||
-                      current.removingResourceId !== null) && styles.disabledButton,
+                    (current.syncing ||
+                      current.loadingMore ||
+                      current.removingResourceId !== null) &&
+                      styles.disabledButton,
                   ]}
                 >
                   {current.syncing ? (
                     <ActivityIndicator accessibilityLabel="Comprobando cambios en Guardados" />
                   ) : (
-                    <Text style={styles.secondaryButtonText}>Comprobar cambios</Text>
+                    <Text style={styles.secondaryButtonText}>
+                      Comprobar cambios
+                    </Text>
                   )}
                 </Pressable>
               </>
@@ -558,7 +590,9 @@ export function SavedResourcesScreen() {
         {activeFacetSnapshot?.kind === "loading" || !activeFacetSnapshot ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator accessibilityLabel="Cargando materias guardadas" />
-            <Text style={styles.meta}>Consultando todas tus materias guardadas…</Text>
+            <Text style={styles.meta}>
+              Consultando todas tus materias guardadas…
+            </Text>
           </View>
         ) : activeFacetSnapshot.kind === "failure" ? (
           <View style={styles.subjectSection}>
@@ -568,17 +602,22 @@ export function SavedResourcesScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Reintentar consulta de materias guardadas"
-              onPress={() => authorityKey && void subjectsController.load(authorityKey)}
+              onPress={() =>
+                authorityKey && void subjectsController.load(authorityKey)
+              }
               style={styles.secondaryButton}
             >
-              <Text style={styles.secondaryButtonText}>Reintentar materias</Text>
+              <Text style={styles.secondaryButtonText}>
+                Reintentar materias
+              </Text>
             </Pressable>
           </View>
         ) : (
           <View style={styles.subjectSection}>
             <Text style={styles.meta}>
-              Materias con recursos guardados accesibles. Los conteos corresponden
-              a toda tu biblioteca, sin aplicar la búsqueda de texto.
+              Materias con recursos guardados accesibles. Los conteos
+              corresponden a toda tu biblioteca, sin aplicar la búsqueda de
+              texto.
             </Text>
             <View accessibilityRole="radiogroup" style={styles.subjectOptions}>
               <Pressable
@@ -598,11 +637,14 @@ export function SavedResourcesScreen() {
                   key={subject.subjectId}
                   accessibilityRole="radio"
                   accessibilityLabel={`Filtrar todos mis guardados por ${subject.name}`}
-                  accessibilityState={{ checked: activeSubjectId === subject.subjectId }}
+                  accessibilityState={{
+                    checked: activeSubjectId === subject.subjectId,
+                  }}
                   onPress={() => setSelectedSubjectId(subject.subjectId)}
                   style={[
                     styles.subjectOption,
-                    activeSubjectId === subject.subjectId && styles.subjectOptionSelected,
+                    activeSubjectId === subject.subjectId &&
+                      styles.subjectOptionSelected,
                   ]}
                 >
                   <Text style={styles.subjectName}>{subject.name}</Text>
@@ -627,8 +669,8 @@ export function SavedResourcesScreen() {
             ) : null}
             {activeFacetSnapshot.refreshFailure ? (
               <Text accessibilityRole="alert" style={styles.error}>
-                No pudimos actualizar las materias guardadas.
-                Los conteos podrían estar desactualizados.
+                No pudimos actualizar las materias guardadas. Los conteos
+                podrían estar desactualizados.
               </Text>
             ) : null}
             {activeFacetSnapshot.data.truncated ? (
@@ -682,11 +724,14 @@ export function SavedResourcesScreen() {
                       : "La paginación se interrumpió. Reiniciá el listado para consultar tus guardados."
                     : current.data.nextCursor
                       ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
-                    : searchQuery || selectedSubjectId
-                      ? "No encontramos guardados accesibles con estos filtros. Probá otra búsqueda o materia."
-                      : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
+                      : searchQuery || selectedSubjectId
+                        ? "No encontramos guardados accesibles con estos filtros. Probá otra búsqueda o materia."
+                        : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
                 </Text>
-                {!current.paginationStalled && !current.data.nextCursor && !searchQuery && !selectedSubjectId ? (
+                {!current.paginationStalled &&
+                !current.data.nextCursor &&
+                !searchQuery &&
+                !selectedSubjectId ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Buscar recursos"
