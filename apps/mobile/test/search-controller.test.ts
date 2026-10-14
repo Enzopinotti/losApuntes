@@ -113,6 +113,7 @@ test("aborts and fences a late response after query, scope, and context change",
     authorityKey: "session-a:context-2",
     query: "base de datos",
     scope: "resources",
+    subjectId: "subject-a",
     data: response("base de datos"),
   });
 });
@@ -139,6 +140,7 @@ test("browses a selected subject without adding a text query", async () => {
     authorityKey: "session-a:context-1",
     query: "",
     scope: "resources",
+    subjectId: "subject-a",
     data: resourceResponse([]),
   });
 });
