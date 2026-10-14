@@ -105,6 +105,60 @@ describe('ResourceSavedSearchService', () => {
     });
   });
 
+  it('allows title-order browsing without text or Subject and preserves title cursor', async () => {
+    const { saved, service } = harness();
+    const titleRow = {
+      ...first,
+      title: 'Álgebra',
+    };
+    saved.mockResolvedValue({ items: [titleRow], hasMore: true });
+    const firstPage = await service.search('account-a', undefined, 1, undefined, undefined, 'title');
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+    expect(saved).toHaveBeenCalledWith({
+      userId: 'account-a', limit: 1, order: 'title',
+    });
+    await service.search('account-a', undefined, 1, firstPage.nextCursor ?? undefined, undefined, 'title');
+    expect(saved).toHaveBeenLastCalledWith({
+      userId: 'account-a',
+      limit: 1,
+      order: 'title',
+      titleAfter: { title: 'Álgebra', resourceId: first.resourceId },
+    });
+    expect(saved).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps title sort bound to subject and text and rejects switching back to saved date', async () => {
+    const { saved, service } = harness();
+    const id = '22222222-2222-4222-8222-222222222222';
+    saved.mockResolvedValue({
+      items: [{ ...first, title: 'Bases de Datos' }],
+      hasMore: true,
+    });
+    const firstPage = await service.search('account-a', 'PARCIAL', 1, undefined, id, 'title');
+    expect(saved).toHaveBeenCalledWith({
+      userId: 'account-a', q: 'parcial', subjectId: id, limit: 1, order: 'title',
+    });
+    const cursor = firstPage.nextCursor ?? undefined;
+    for (const [query, subject, order] of [
+      ['otro', id, 'title'],
+      ['PARCIAL', undefined, 'title'],
+      ['PARCIAL', id, 'saved'],
+    ] as const) {
+      await expect(
+        service.search('account-a', query, 1, cursor, subject, order),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    }
+    expect(saved).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not emit a broken title cursor if a store omits the sort key', async () => {
+    const { saved, service } = harness();
+    await expect(
+      service.search('account-a', 'resumen', 1, undefined, undefined, 'title'),
+    ).rejects.toThrow('Saved title pagination is unavailable');
+    expect(saved).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects a normalized one-character or blank query without reading saves', async () => {
     const { saved, service } = harness();
     for (const q of [' ', ' a ', '   ', '']) {
