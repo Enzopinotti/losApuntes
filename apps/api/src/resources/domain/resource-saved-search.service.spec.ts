@@ -34,7 +34,7 @@ function harness() {
       searchSavedResources: saved,
       listSavedSubjectFacets: facets,
       isSavedSearchAnchorCurrent: checkAnchor,
-    } as unknown as SavedResourceSearchStore,
+    },
     { get } as unknown as ResourceService,
     { getCatalogNode } as unknown as AcademicService,
   );
@@ -64,7 +64,10 @@ describe('ResourceSavedSearchService', () => {
       1,
       page.nextCursor ?? undefined,
     );
-    expect(saved.mock.calls[1]?.[0]).toEqual({
+    const savedCalls = saved.mock.calls as unknown as Array<
+      Parameters<SavedResourceSearchStore['searchSavedResources']>
+    >;
+    expect(savedCalls[1]?.[0]).toEqual({
       userId: 'account-a',
       q: 'algebra',
       limit: 1,
@@ -310,7 +313,7 @@ describe('ResourceSavedSearchService', () => {
     expect(checkAnchor).toHaveBeenCalledTimes(1);
     expect(saved).toHaveBeenCalledTimes(2);
     expect(checkAnchor.mock.invocationCallOrder[0]).toBeLessThan(
-      saved.mock.invocationCallOrder[1]!,
+      saved.mock.invocationCallOrder[1],
     );
   });
 
