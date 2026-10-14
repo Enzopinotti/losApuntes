@@ -44,8 +44,8 @@ describe('Mongo saved-library full-collection search', () => {
     expect(json).toContain('"from":"resources"');
     expect(json).toContain('"moderationState":"available"');
     expect(json).toContain('"from":"resource_shares"');
-    expect(json).toContain('"$eq":["$id","$savedResourceId"]');
-    expect(json).toContain('"$eq":["$resourceId","$savedResourceId"]');
+    expect(json).toContain('"$eq":["$id","$$savedResourceId"]');
+    expect(json).toContain('"$eq":["$resourceId","$$savedResourceId"]');
     expect(json).toContain('"__resource.visibility":"shared"');
     expect(json).toContain('"__resource.authorUserId":"owner-1"');
     expect(json).toContain('"__viewerShares.0"');
@@ -87,8 +87,8 @@ describe('Mongo saved-library full-collection search', () => {
     expect(text).toContain('"from":"resources"');
     expect(text).toContain('"from":"resource_shares"');
     expect(text).toContain('"moderationState":"available"');
-    expect(text).toContain('"$eq":["$id","$resourceId"]');
-    expect(text).toContain('"$eq":["$resourceId","$resourceId"]');
+    expect(text).toContain('"$eq":["$id","$$resourceId"]');
+    expect(text).toContain('"$eq":["$resourceId","$$resourceId"]');
     const authorized = stages.findIndex((stage) => JSON.stringify(stage).includes('__resource.visibility'));
     const group = stages.findIndex((stage) => '$group' in stage);
     expect(group).toBeGreaterThan(authorized);
