@@ -93,12 +93,13 @@ test("resource transport sends the query on its saved endpoint without exposing 
   const transport = new MobileResourceConsumptionHttpTransport(fakeClient);
   await transport.saved("credential", "opaque+/page", undefined, "Álgebra");
   const parsed = new URL(urls[0]!, "https://api.example.invalid");
-  assert.equal(parsed.pathname, "/resources/saved");
+  assert.equal(parsed.pathname, "/resources/saved/search");
   assert.equal(parsed.searchParams.get("cursor"), "opaque+/page");
   assert.equal(parsed.searchParams.get("q"), "Álgebra");
   assert.equal(parsed.searchParams.get("limit"), "25");
 
   await transport.saved("credential");
   const unfiltered = new URL(urls[1]!, "https://api.example.invalid");
+  assert.equal(unfiltered.pathname, "/resources/saved");
   assert.equal(unfiltered.searchParams.has("q"), false);
 });
