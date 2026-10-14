@@ -40,6 +40,10 @@ import {
   decodeOwnedResourceCursor,
   encodeOwnedResourceCursor,
 } from './resource-owned-cursor';
+import {
+  decodeSavedSearchCursor,
+  encodeSavedSearchCursor,
+} from './resource-saved-search-cursor';
 
 const RESOURCE_ACCOUNT_EXPORT_MAX_LIMIT = 100;
 
@@ -598,12 +602,22 @@ export class ResourceService {
     };
   }
 
-  async listSaved(userId: string, limit: number, cursor?: string) {
-    const page = await this.store.listSavedResources({
-      userId,
-      limit,
-      after: decodeSavedCursor(cursor),
-    });
+  async listSaved(userId: string, limit: number, cursor?: string, q?: string) {
+    const normalizedQuery = q ? normalized(q) : undefined;
+    const page = normalizedQuery
+      ? await this.store.searchSavedResources({
+          userId,
+          q: normalizedQuery,
+          limit,
+          ...(cursor
+            ? { after: decodeSavedSearchCursor(cursor, userId, normalizedQuery) }
+            : {}),
+        })
+      : await this.store.listSavedResources({
+          userId,
+          limit,
+          after: decodeSavedCursor(cursor),
+        });
     const ids = page.items.map((row) => row.resourceId);
     const rows = await this.store.findManyByIds(ids);
     const byId = new Map(rows.map((row) => [row.id, row]));
@@ -622,10 +636,16 @@ export class ResourceService {
       ),
       nextCursor:
         page.hasMore && last
-          ? encodeSavedCursor({
-              createdAt: last.createdAt,
-              resourceId: last.resourceId,
-            })
+          ? normalizedQuery
+            ? encodeSavedSearchCursor(
+                { createdAt: last.createdAt, resourceId: last.resourceId },
+                userId,
+                normalizedQuery,
+              )
+            : encodeSavedCursor({
+                createdAt: last.createdAt,
+                resourceId: last.resourceId,
+              })
           : null,
     };
   }
