@@ -530,7 +530,10 @@ describe('AccountExportService', () => {
       await expect(
         f.service.download('user-1', 'export-1', now),
       ).rejects.toThrow('artifact metadata is invalid');
-      expect(f.store.findOwned).toHaveBeenCalledWith('export-1', 'user-1');
+      expect(f.store.findOwned.mock.calls).toContainEqual([
+        'export-1',
+        'user-1',
+      ]);
     },
   );
 
