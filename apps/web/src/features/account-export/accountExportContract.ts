@@ -50,8 +50,16 @@ export function parseAccountExportStatus(value: unknown): AccountExportStatus {
   const data = record(value);
   if (!data) return invalidResponse();
 
-  const { id, format, formatVersion, state, requestedAt, failureCode,
-    downloadExpiresAt, downloadable } = data;
+  const {
+    id,
+    format,
+    formatVersion,
+    state,
+    requestedAt,
+    failureCode,
+    downloadExpiresAt,
+    downloadable,
+  } = data;
 
   if (
     typeof id !== "string" ||
