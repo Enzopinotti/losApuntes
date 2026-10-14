@@ -9,12 +9,7 @@ export type MobileSearchLinkParams = {
   subjectId?: string | string[];
 };
 
-const SCOPES = new Set<SearchScope>([
-  "all",
-  "resources",
-  "subjects",
-  "people",
-]);
+const SCOPES = new Set<SearchScope>(["all", "resources", "subjects", "people"]);
 
 const SEARCH_SCHEME = "losapuntes:///search";
 
@@ -48,11 +43,7 @@ export function parseMobileSearchLink(
   if (text !== undefined) {
     if (typeof text !== "string") return null;
     const q = text.trim();
-    if (
-      q.length < 2 ||
-      q.length > 120 ||
-      /[\u0000-\u001f\u007f]/u.test(q)
-    ) {
+    if (q.length < 2 || q.length > 120 || /[\u0000-\u001f\u007f]/u.test(q)) {
       return null;
     }
     return {
