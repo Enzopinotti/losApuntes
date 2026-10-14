@@ -98,8 +98,8 @@ describe('DataLifecycleModule account export wiring', () => {
 
   it('fails the real Nest factory before generating an incomplete v1 export', () => {
     const provider = contributorFactory();
-    const dependencies = provider.inject.map((Contributor) =>
-      new Contributor({} as never),
+    const dependencies = provider.inject.map(
+      (Contributor) => new Contributor({} as never),
     );
     expect(dependencies).toHaveLength(EXPECTED_V1_SECTION_IDS.length);
 
@@ -109,16 +109,25 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(() => assertAccountExportV1Sections(missing)).toThrow(
       'inventory is incomplete or incompatible',
     );
-    expect(() => assertAccountExportV1Sections([
-      ...dependencies,
-      { sectionId: 'private.unreviewed', readPage: () => Promise.resolve({
-        records: [], nextCursor: null,
-      }) },
-    ])).toThrow('inventory is incomplete or incompatible');
-    expect(() => assertAccountExportV1Sections([
-      ...dependencies.slice(0, -1),
-      dependencies[0]!,
-    ])).toThrow('inventory is incomplete or incompatible');
+    expect(() =>
+      assertAccountExportV1Sections([
+        ...dependencies,
+        {
+          sectionId: 'private.unreviewed',
+          readPage: () =>
+            Promise.resolve({
+              records: [],
+              nextCursor: null,
+            }),
+        },
+      ]),
+    ).toThrow('inventory is incomplete or incompatible');
+    expect(() =>
+      assertAccountExportV1Sections([
+        ...dependencies.slice(0, -1),
+        dependencies[0]!,
+      ]),
+    ).toThrow('inventory is incomplete or incompatible');
     expect(() => assertAccountExportV1Sections(dependencies)).not.toThrow();
   });
 
