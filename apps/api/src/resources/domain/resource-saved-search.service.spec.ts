@@ -27,12 +27,17 @@ function harness() {
   const getCatalogNode = jest.fn().mockResolvedValue({
     node: { id: '11111111-1111-4111-8111-111111111111', name: 'Álgebra' },
   });
+  const checkAnchor = jest.fn().mockResolvedValue(true);
   const service = new ResourceSavedSearchService(
-    { searchSavedResources: saved, listSavedSubjectFacets: facets } as unknown as SavedResourceSearchStore,
+    {
+      searchSavedResources: saved,
+      listSavedSubjectFacets: facets,
+      isSavedSearchAnchorCurrent: checkAnchor,
+    } as unknown as SavedResourceSearchStore,
     { get } as unknown as ResourceService,
     { getCatalogNode } as unknown as AcademicService,
   );
-  return { saved, get, facets, getCatalogNode, service };
+  return { saved, get, facets, getCatalogNode, checkAnchor, service };
 }
 
 describe('ResourceSavedSearchService', () => {
@@ -167,6 +172,59 @@ describe('ResourceSavedSearchService', () => {
       );
     }
     expect(saved).not.toHaveBeenCalled();
+  });
+
+  it('rejects an outdated saved-date anchor without querying the next page', async () => {
+    const { saved, checkAnchor, service } = harness();
+    const initial = await service.search('account-a', 'alg', 25);
+    checkAnchor.mockResolvedValueOnce(false);
+    await expect(
+      service.search('account-a', 'alg', 25, initial.nextCursor ?? undefined),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_SAVED_SEARCH_CURSOR_STALE' },
+      status: 409,
+    });
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(checkAnchor).toHaveBeenCalledWith({
+      userId: 'account-a',
+      q: 'alg',
+      after: first,
+    });
+  });
+
+  it('rejects a stale title anchor even when user, Subject and query are unchanged', async () => {
+    const { saved, checkAnchor, service } = harness();
+    const subject = '22222222-2222-4222-8222-222222222222';
+    saved.mockResolvedValue({
+      items: [{ ...first, title: 'Álgebra' }],
+      hasMore: true,
+    });
+    const initial = await service.search('account-a', 'resumen', 1, undefined, subject, 'title');
+    checkAnchor.mockResolvedValueOnce(false);
+    await expect(
+      service.search('account-a', 'resumen', 1, initial.nextCursor ?? undefined, subject, 'title'),
+    ).rejects.toMatchObject({
+      response: { code: 'RESOURCE_SAVED_SEARCH_CURSOR_STALE' },
+      status: 409,
+    });
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(checkAnchor).toHaveBeenCalledWith({
+      userId: 'account-a',
+      q: 'resumen',
+      subjectId: subject,
+      titleAfter: { title: 'Álgebra', resourceId: first.resourceId },
+    });
+  });
+
+  it('checks a current continuation anchor before reading its next page', async () => {
+    const { saved, checkAnchor, service } = harness();
+    const initial = await service.search('account-a', 'algebra', 1);
+    await service.search('account-a', 'algebra', 1, initial.nextCursor ?? undefined);
+    expect(checkAnchor).toHaveBeenCalledTimes(1);
+    expect(saved).toHaveBeenCalledTimes(2);
+    expect(checkAnchor.mock.invocationCallOrder[0]).toBeLessThan(
+      saved.mock.invocationCallOrder[1]!,
+    );
   });
 
   it('rejects an invalid cursor without querying saved state', async () => {
