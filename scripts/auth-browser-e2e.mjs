@@ -13,6 +13,7 @@ import {
   waitForMailpit,
 } from "./mailpit-smoke.mjs";
 import { withTtlMonitorPaused } from "./auth-ttl-guard.mjs";
+import { assertLocalAuthSmokeMongo } from "./auth-local-compose-guard.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WEB_ROOT = resolve(ROOT, "apps/web");
@@ -355,6 +356,7 @@ function assertExpiredSyntheticSessionStillPresent(sessionId) {
 }
 
 async function run() {
+  assertLocalAuthSmokeMongo(ROOT);
   const health = await fetch(new URL("/health/ready", API_ORIGIN), {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
