@@ -9,8 +9,9 @@ describe('ResourceSavedSearchDto metadata search', () => {
       (error) => Object.keys(error.constraints ?? {}),
     );
 
-  it('accepts a bounded phrase but requires an explicit query', () => {
-    expect(validateSync(plainToInstance(ResourceSavedSearchDto, {})).length).toBeGreaterThan(0);
+  it('accepts text, a subject-only filter, or both', () => {
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, {}))).toEqual([]);
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, { subjectId: '11111111-1111-4111-8111-111111111111' }))).toEqual([]);
     expect(errorsFor('base de datos')).toEqual([]);
     expect(errorsFor('Álgebra')).toEqual([]);
     expect(errorsFor('x'.repeat(120))).toEqual([]);
@@ -20,6 +21,10 @@ describe('ResourceSavedSearchDto metadata search', () => {
     for (const q of ['a', 'a ', '   ', 'x'.repeat(121), '', 1234, { x: 1 }]) {
       expect(errorsFor(q).length).toBeGreaterThan(0);
     }
+  });
+
+  it('rejects malformed subject IDs', () => {
+    expect(validateSync(plainToInstance(ResourceSavedSearchDto, { subjectId: 'not-a-subject' })).length).toBeGreaterThan(0);
   });
 
   it('keeps the existing pagination limits', () => {

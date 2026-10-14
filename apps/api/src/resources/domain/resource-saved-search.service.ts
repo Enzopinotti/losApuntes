@@ -5,6 +5,7 @@ import {
   type SavedResourceSearchStore,
 } from './resource-saved-search.store';
 import { ResourceService } from './resource.service';
+import { AcademicService } from '../../academic/domain/academic.service';
 import {
   decodeSavedSearchCursor,
   encodeSavedSearchCursor,
@@ -29,20 +30,33 @@ export class ResourceSavedSearchService {
     @Inject(SAVED_RESOURCE_SEARCH_STORE)
     private readonly store: SavedResourceSearchStore,
     private readonly resources: ResourceService,
+    private readonly academic: AcademicService,
   ) {}
 
-  async search(userId: string, rawQuery: string, limit: number, cursor?: string) {
-    const q = normalizeSavedQuery(rawQuery);
-    if (q.length < 2 || q.length > 120) {
+  async search(
+    userId: string,
+    rawQuery: string | undefined,
+    limit: number,
+    cursor?: string,
+    subjectId?: string,
+  ) {
+    const q = rawQuery === undefined ? '' : normalizeSavedQuery(rawQuery);
+    if (
+      (rawQuery !== undefined && (q.length < 2 || q.length > 120)) ||
+      (!q && !subjectId) ||
+      (subjectId !== undefined &&
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(subjectId))
+    ) {
       throw new UnprocessableEntityException({
         code: 'RESOURCE_SAVED_SEARCH_QUERY_INVALID',
-        message: 'Saved library search requires 2 to 120 characters',
+        message: 'Saved library search needs valid text or a Subject',
       });
     }
-    const after = decodeSavedSearchCursor(cursor, userId, q);
+    const after = decodeSavedSearchCursor(cursor, userId, q, subjectId);
     const page = await this.store.searchSavedResources({
       userId,
-      q,
+      ...(q ? { q } : {}),
+      ...(subjectId ? { subjectId } : {}),
       limit,
       ...(after ? { after } : {}),
     });
@@ -67,8 +81,31 @@ export class ResourceSavedSearchService {
       items,
       nextCursor:
         page.hasMore && last
-          ? encodeSavedSearchCursor(last, userId, q)
+          ? encodeSavedSearchCursor(last, userId, q, subjectId)
           : null,
     };
+  }
+
+  /** Returned counts apply only to resources currently visible to the actor. */
+  async listSubjects(userId: string) {
+    const page = await this.store.listSavedSubjectFacets(userId);
+    const readable = await Promise.all(page.items.map(async (row) => {
+      try {
+        const subject = await this.academic.getCatalogNode(row.subjectId);
+        return {
+          subjectId: row.subjectId,
+          name: subject.node.name,
+          count: row.count,
+        };
+      } catch (error) {
+        if (error instanceof NotFoundException) return null;
+        throw error;
+      }
+    }));
+    const items = readable.filter((item) => item !== null).sort(
+      (a, b) => a.name.localeCompare(b.name, 'es-AR', { sensitivity: 'base' }) ||
+        a.subjectId.localeCompare(b.subjectId),
+    );
+    return { items, truncated: page.truncated };
   }
 }

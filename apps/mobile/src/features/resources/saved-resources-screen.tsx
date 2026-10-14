@@ -26,15 +26,17 @@ import {
   type MobileSavedResourcesSnapshot,
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
-import { mobileResourceConsumptionApi } from "./resource-runtime";
+import { mobileResourceConsumptionApi, mobileSavedSubjectFacetsApi } from "./resource-runtime";
+import {
+  MobileSavedSubjectFacetsController,
+  type SavedSubjectFacetsSnapshot,
+} from "./saved-subject-facets";
 import {
   savedSubjectQuestionsAction,
   type SavedSubjectQuestionsAction,
 } from "./saved-subject-questions-action";
 import {
-  activeLoadedSavedSubject,
   findLoadedSavedResources,
-  loadedSavedLibrarySubjects,
   loadedSavedSearchSummary,
   SAVED_LIBRARY_QUERY_MAX_LENGTH,
   type SavedLibrarySort,
@@ -162,6 +164,13 @@ export function SavedResourcesScreen() {
   const [snapshot, setSnapshot] = useState<MobileSavedResourcesSnapshot>(
     controller.getSnapshot(),
   );
+  const subjectsController = useMemo(
+    () => new MobileSavedSubjectFacetsController(mobileSavedSubjectFacetsApi),
+    [],
+  );
+  const [subjectSnapshot, setSubjectSnapshot] = useState<SavedSubjectFacetsSnapshot>(
+    subjectsController.getSnapshot(),
+  );
   const [appState, setAppState] = useState(AppState.currentState);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SavedLibrarySort>("saved");
@@ -184,6 +193,16 @@ export function SavedResourcesScreen() {
   }, [sessionKey]);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
+  useEffect(() => subjectsController.subscribe(setSubjectSnapshot), [subjectsController]);
+
+  useEffect(() => {
+    if (!authorityKey) {
+      subjectsController.invalidate();
+      return;
+    }
+    void subjectsController.load(authorityKey);
+    return () => subjectsController.invalidate(authorityKey);
+  }, [authorityKey, subjectsController]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", setAppState);
@@ -222,52 +241,57 @@ export function SavedResourcesScreen() {
       return;
     }
     const timeout = setTimeout(() => {
-      void controller.load(authorityKey, searchQuery || undefined);
+      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined);
     }, searchQuery ? 300 : 0);
     return () => {
       clearTimeout(timeout);
       controller.invalidate(authorityKey);
     };
-  }, [authorityKey, controller, searchEligible, searchQuery]);
+  }, [authorityKey, controller, searchEligible, searchQuery, selectedSubjectId]);
 
   const current =
     snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey &&
-    (snapshot.searchQuery ?? "") === searchQuery
+    (snapshot.searchQuery ?? "") === searchQuery &&
+    (snapshot.subjectId ?? "") === (selectedSubjectId ?? "")
       ? snapshot
       : null;
+  const activeFacetSnapshot =
+    subjectSnapshot.kind !== "idle" && subjectSnapshot.authorityKey === authorityKey
+      ? subjectSnapshot
+      : null;
   const subjectGroups =
-    current?.kind === "ready"
-      ? loadedSavedLibrarySubjects(current.data.items)
-      : [];
-  const activeSubjectId = activeLoadedSavedSubject(
-    subjectGroups,
-    selectedSubjectId,
-  );
+    activeFacetSnapshot?.kind === "ready" ? activeFacetSnapshot.data.items : [];
+  const activeSubjectId = selectedSubjectId;
   const activeSubject =
-    subjectGroups.find((subject) => subject.id === activeSubjectId) ?? null;
+    subjectGroups.find((subject) => subject.subjectId === selectedSubjectId) ?? null;
   const shownResources =
     current?.kind === "ready"
       ? findLoadedSavedResources(
           current.data.items,
           "",
           sort,
-          activeSubjectId,
+          null,
         )
       : [];
 
   useEffect(() => {
-    if (selectedSubjectId && current?.kind === "ready" && !activeSubjectId) {
+    if (
+      selectedSubjectId &&
+      activeFacetSnapshot?.kind === "ready" &&
+      !subjectGroups.some((subject) => subject.subjectId === selectedSubjectId)
+    ) {
       setSelectedSubjectId(null);
     }
-  }, [activeSubjectId, current?.kind, selectedSubjectId]);
+  }, [activeFacetSnapshot, selectedSubjectId, subjectGroups]);
 
   if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
 
   const refresh = () => {
     if (authorityKey && searchEligible) {
-      void controller.load(authorityKey, searchQuery || undefined);
+      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined);
     }
+    if (authorityKey) void subjectsController.load(authorityKey);
   };
 
   return (
@@ -301,7 +325,6 @@ export function SavedResourcesScreen() {
             maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
             onChangeText={(value) => {
               setQuery(value);
-              setSelectedSubjectId(null);
             }}
             placeholder="Título, descripción o etiqueta"
             returnKeyType="search"
@@ -352,6 +375,77 @@ export function SavedResourcesScreen() {
         </View>
       </View>
 
+      <View style={styles.card}>
+        <Text accessibilityRole="header" style={styles.cardTitle}>
+          Filtrar por materia
+        </Text>
+        {activeFacetSnapshot?.kind === "loading" || !activeFacetSnapshot ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator accessibilityLabel="Cargando materias guardadas" />
+            <Text style={styles.meta}>Consultando todas tus materias guardadas…</Text>
+          </View>
+        ) : activeFacetSnapshot.kind === "failure" ? (
+          <View style={styles.subjectSection}>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {failureCopy[activeFacetSnapshot.reason]}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reintentar consulta de materias guardadas"
+              onPress={() => authorityKey && void subjectsController.load(authorityKey)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryButtonText}>Reintentar materias</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.subjectSection}>
+            <Text style={styles.meta}>
+              Materias con recursos guardados accesibles. Los conteos corresponden
+              a toda tu biblioteca, sin aplicar la búsqueda de texto.
+            </Text>
+            <View accessibilityRole="radiogroup" style={styles.subjectOptions}>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityLabel="Todas las materias"
+                accessibilityState={{ checked: activeSubjectId === null }}
+                onPress={() => setSelectedSubjectId(null)}
+                style={[
+                  styles.subjectOption,
+                  activeSubjectId === null && styles.subjectOptionSelected,
+                ]}
+              >
+                <Text style={styles.subjectName}>Todas las materias</Text>
+              </Pressable>
+              {subjectGroups.map((subject) => (
+                <Pressable
+                  key={subject.subjectId}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Filtrar todos mis guardados por ${subject.name}`}
+                  accessibilityState={{ checked: activeSubjectId === subject.subjectId }}
+                  onPress={() => setSelectedSubjectId(subject.subjectId)}
+                  style={[
+                    styles.subjectOption,
+                    activeSubjectId === subject.subjectId && styles.subjectOptionSelected,
+                  ]}
+                >
+                  <Text style={styles.subjectName}>{subject.name}</Text>
+                  <Text style={styles.subjectCount}>
+                    {subject.count} guardados accesibles
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {activeFacetSnapshot.data.truncated ? (
+              <Text style={styles.meta}>
+                Se muestran hasta 100 materias. Pueden existir otras materias
+                guardadas todavía no disponibles en este selector.
+              </Text>
+            ) : null}
+          </View>
+        )}
+      </View>
+
       {!searchEligible ? (
         <View style={styles.card}>
           <Text style={styles.copy}>
@@ -389,11 +483,11 @@ export function SavedResourcesScreen() {
                 <Text style={styles.copy}>
                   {current.data.nextCursor
                     ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
-                    : searchQuery
-                      ? "No encontramos apuntes guardados que coincidan con esa búsqueda. Probá otro título, descripción o etiqueta."
+                    : searchQuery || selectedSubjectId
+                      ? "No encontramos guardados accesibles con estos filtros. Probá otra búsqueda o materia."
                       : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
                 </Text>
-                {!current.data.nextCursor && !searchQuery ? (
+                {!current.data.nextCursor && !searchQuery && !selectedSubjectId ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Buscar recursos"
@@ -406,59 +500,6 @@ export function SavedResourcesScreen() {
               </>
             ) : (
               <>
-                <View style={styles.subjectSection}>
-                  <Text accessibilityRole="header" style={styles.cardTitle}>
-                    Tus materias
-                  </Text>
-                  <Text style={styles.meta}>
-                    Elegí una materia para filtrar los resultados cargados.
-                    Los conteos corresponden sólo a las páginas cargadas.
-                  </Text>
-                  <View
-                    accessibilityRole="radiogroup"
-                    style={styles.subjectOptions}
-                  >
-                    <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel="Todas las materias"
-                      accessibilityState={{
-                        checked: activeSubjectId === null,
-                      }}
-                      onPress={() => setSelectedSubjectId(null)}
-                      style={[
-                        styles.subjectOption,
-                        activeSubjectId === null &&
-                          styles.subjectOptionSelected,
-                      ]}
-                    >
-                      <Text style={styles.subjectName}>Todas las materias</Text>
-                      <Text style={styles.subjectCount}>
-                        {current.data.items.length} guardados cargados
-                      </Text>
-                    </Pressable>
-                    {subjectGroups.map((subject) => (
-                      <Pressable
-                        key={subject.id}
-                        accessibilityRole="radio"
-                        accessibilityLabel={`Ver guardados de ${subject.name}`}
-                        accessibilityState={{
-                          checked: activeSubjectId === subject.id,
-                        }}
-                        onPress={() => setSelectedSubjectId(subject.id)}
-                        style={[
-                          styles.subjectOption,
-                          activeSubjectId === subject.id &&
-                            styles.subjectOptionSelected,
-                        ]}
-                      >
-                        <Text style={styles.subjectName}>{subject.name}</Text>
-                        <Text style={styles.subjectCount}>
-                          {subject.loadedCount} guardados cargados
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
                 {activeSubject ? (
                   <Text accessibilityRole="header" style={styles.sectionTitle}>
                     Apuntes de {activeSubject.name}
@@ -467,14 +508,14 @@ export function SavedResourcesScreen() {
                 <Text accessibilityLiveRegion="polite" style={styles.meta}>
                   {loadedSavedSearchSummary(
                     shownResources.length,
-                    activeSubject?.loadedCount ?? current.data.items.length,
+                    current.data.items.length,
                     Boolean(current.data.nextCursor),
                   )}
                 </Text>
                 {shownResources.length === 0 ? (
                   <Text style={styles.copy}>
                     {activeSubject
-                      ? "No hay resultados de esta materia entre las páginas cargadas."
+                      ? "No hay resultados visibles con estos filtros."
                       : "No hay resultados visibles entre las páginas cargadas."}
                     {current.data.nextCursor
                       ? " Cargá más para ampliar los resultados."

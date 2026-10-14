@@ -24,10 +24,23 @@ describe('saved search HTTP authority', () => {
     const request = { user: { id: 'authenticated-owner' } } as AuthenticatedRequest;
     const query = {
       q: 'algebra',
+      subjectId: '11111111-1111-4111-8111-111111111111',
       limit: 25,
       cursor: 'opaque',
     };
     await controller.search(request, query);
-    expect(search).toHaveBeenCalledWith('authenticated-owner', 'algebra', 25, 'opaque');
+    expect(search).toHaveBeenCalledWith('authenticated-owner', 'algebra', 25, 'opaque', query.subjectId);
+  });
+  it('keeps saved-subject facets behind session and private cache policy', async () => {
+    const method = ResourceSavedSearchController.prototype.subjects;
+    expect(Reflect.getMetadata(GUARDS_METADATA, method)).toContain(AuthSessionGuard);
+    expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('subjects');
+    expect(Reflect.getMetadata(HEADERS_METADATA, method)).toContainEqual({
+      name: 'Cache-Control', value: 'private, no-store',
+    });
+    const listSubjects = jest.fn().mockResolvedValue({ items: [], truncated: false });
+    const controller = new ResourceSavedSearchController({ listSubjects } as unknown as ResourceSavedSearchService);
+    await controller.subjects({ user: { id: 'owner' } } as AuthenticatedRequest);
+    expect(listSubjects).toHaveBeenCalledWith('owner');
   });
 });

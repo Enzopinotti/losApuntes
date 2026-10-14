@@ -27,6 +27,15 @@ describe('saved library search cursor', () => {
     }
   });
 
+  it('does not accept a cursor from a different Subject', () => {
+    const idA = '11111111-1111-4111-8111-111111111111';
+    const idB = '22222222-2222-4222-8222-222222222222';
+    const token = encodeSavedSearchCursor(row, 'owner-a', 'algebra', idA);
+    expect(decodeSavedSearchCursor(token, 'owner-a', 'algebra', idA)).toEqual(row);
+    expect(() => decodeSavedSearchCursor(token, 'owner-a', 'algebra', idB)).toThrow(UnprocessableEntityException);
+    expect(() => decodeSavedSearchCursor(token, 'owner-a', 'algebra')).toThrow(UnprocessableEntityException);
+  });
+
   it('rejects legacy cursors, extra fields, invalid dates and malicious identities', () => {
     const cursor = encodeSavedSearchCursor(row, 'owner-a', 'algebra');
     const valid = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Record<string, unknown>;

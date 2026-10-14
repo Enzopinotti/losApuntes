@@ -59,6 +59,41 @@ describe('Mongo saved-library full-collection search', () => {
     });
   });
 
+  it('filters by Subject inside the joined Resource before the page limit', async () => {
+    const { store, aggregate } = build();
+    await store.searchSavedResources({
+      userId: 'owner-1',
+      subjectId: '11111111-1111-4111-8111-111111111111',
+      limit: 25,
+    });
+    const stages = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const text = JSON.stringify(stages);
+    expect(text).toContain('"subjectId":"11111111-1111-4111-8111-111111111111"');
+    expect(text).not.toContain('"$regex"');
+    const auth = stages.findIndex((stage) => JSON.stringify(stage).includes('__resource.visibility'));
+    const limit = stages.findIndex((stage) => '$limit' in stage);
+    expect(limit).toBeGreaterThan(auth);
+  });
+
+  it('aggregates global facet counts only after Resource visibility checks', async () => {
+    const { store, aggregate } = build([
+      { resourceId: '11111111-1111-4111-8111-111111111111', createdAt: new Date() },
+    ]);
+    await store.listSavedSubjectFacets('owner-1');
+    const stages = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const text = JSON.stringify(stages);
+    expect(stages[0]).toEqual({ $match: { userId: 'owner-1' } });
+    expect(text).toContain('"from":"resources"');
+    expect(text).toContain('"from":"resource_shares"');
+    expect(text).toContain('"moderationState":"available"');
+    expect(text).toContain('"$eq":["$id","$resourceId"]');
+    expect(text).toContain('"$eq":["$resourceId","$resourceId"]');
+    const authorized = stages.findIndex((stage) => JSON.stringify(stage).includes('__resource.visibility'));
+    const group = stages.findIndex((stage) => '$group' in stage);
+    expect(group).toBeGreaterThan(authorized);
+    expect(stages).toContainEqual({ $limit: 101 });
+  });
+
   it('returns only a bounded page and signals more after filtering', async () => {
     const now = new Date('2026-10-14T12:00:00.000Z');
     const rows = ['one', 'two', 'three'].map((resourceId) => ({
