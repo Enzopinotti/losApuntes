@@ -174,7 +174,7 @@ export function SavedResourcesScreen() {
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
   const authorityKey = isFocused && appState === "active" ? sessionKey : null;
-  const searchQuery = query.trim().replace(/\\s+/gu, " ");
+  const searchQuery = query.trim().replace(/\s+/gu, " ");
   const searchEligible = searchQuery.length === 0 || searchQuery.length >= 2;
 
   useEffect(() => {
@@ -291,7 +291,74 @@ export function SavedResourcesScreen() {
         <Text style={styles.backLabel}>Volver</Text>
       </Pressable>
 
-      {!current || current.kind === "loading" ? (
+      <View style={styles.card}>
+        <View style={styles.searchControls}>
+          <Text style={styles.fieldLabel}>Buscar en toda tu biblioteca</Text>
+          <TextInput
+            accessibilityLabel="Buscar entre todos mis guardados"
+            accessibilityHint="Busca en el servidor por título, descripción y etiquetas de todos tus apuntes guardados."
+            autoCapitalize="none"
+            maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
+            onChangeText={(value) => {
+            setQuery(value);
+            setSelectedSubjectId(null);
+          }}
+            placeholder="Título, descripción o etiqueta"
+            returnKeyType="search"
+            style={styles.searchInput}
+            value={query}
+          />
+          {query.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Limpiar búsqueda de guardados"
+              onPress={() => setQuery("")}
+              style={styles.clearSearchButton}
+            >
+              <Text style={styles.clearSearchLabel}>
+                Limpiar búsqueda
+              </Text>
+            </Pressable>
+          ) : null}
+          <View
+            accessibilityRole="radiogroup"
+            style={styles.sortOptions}
+          >
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityLabel="Orden de guardado"
+              accessibilityState={{ checked: sort === "saved" }}
+              onPress={() => setSort("saved")}
+              style={[
+                styles.sortButton,
+                sort === "saved" && styles.sortButtonSelected,
+              ]}
+            >
+              <Text style={styles.sortLabel}>Guardado</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityLabel="Ordenar por título"
+              accessibilityState={{ checked: sort === "title" }}
+              onPress={() => setSort("title")}
+              style={[
+                styles.sortButton,
+                sort === "title" && styles.sortButtonSelected,
+              ]}
+            >
+              <Text style={styles.sortLabel}>Título A–Z</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      {!searchEligible ? (
+        <View style={styles.card}>
+          <Text style={styles.copy}>
+            Escribí al menos dos caracteres para buscar en todos tus guardados.
+          </Text>
+        </View>
+      ) : !current || current.kind === "loading" ? (
         <View style={styles.card}>
           <View style={styles.loadingRow}>
             <ActivityIndicator accessibilityLabel="Cargando recursos guardados" />
@@ -388,61 +455,6 @@ export function SavedResourcesScreen() {
                         </Text>
                       </Pressable>
                     ))}
-                  </View>
-                </View>
-                <View style={styles.searchControls}>
-                  <Text style={styles.fieldLabel}>Buscar en tus guardados</Text>
-                  <TextInput
-                    accessibilityLabel="Buscar entre los guardados cargados"
-                    accessibilityHint="Busca por título, materia, autor o etiquetas entre los recursos ya cargados."
-                    autoCapitalize="none"
-                    maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
-                    onChangeText={setQuery}
-                    placeholder="Título, materia, autor o etiqueta"
-                    returnKeyType="search"
-                    style={styles.searchInput}
-                    value={query}
-                  />
-                  {query.length > 0 ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Limpiar búsqueda de guardados"
-                      onPress={() => setQuery("")}
-                      style={styles.clearSearchButton}
-                    >
-                      <Text style={styles.clearSearchLabel}>
-                        Limpiar búsqueda
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                  <View
-                    accessibilityRole="radiogroup"
-                    style={styles.sortOptions}
-                  >
-                    <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel="Orden de guardado"
-                      accessibilityState={{ checked: sort === "saved" }}
-                      onPress={() => setSort("saved")}
-                      style={[
-                        styles.sortButton,
-                        sort === "saved" && styles.sortButtonSelected,
-                      ]}
-                    >
-                      <Text style={styles.sortLabel}>Guardado</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel="Ordenar por título"
-                      accessibilityState={{ checked: sort === "title" }}
-                      onPress={() => setSort("title")}
-                      style={[
-                        styles.sortButton,
-                        sort === "title" && styles.sortButtonSelected,
-                      ]}
-                    >
-                      <Text style={styles.sortLabel}>Título A–Z</Text>
-                    </Pressable>
                   </View>
                 </View>
                 {activeSubject ? (
