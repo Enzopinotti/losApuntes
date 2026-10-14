@@ -174,6 +174,8 @@ export function SavedResourcesScreen() {
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
   const authorityKey = isFocused && appState === "active" ? sessionKey : null;
+  const searchQuery = query.trim().replace(/\s+/gu, " ");
+  const searchEligible = searchQuery.length === 0 || searchQuery.length >= 2;
 
   useEffect(() => {
     setQuery("");
@@ -215,14 +217,23 @@ export function SavedResourcesScreen() {
       return;
     }
 
-    void controller.load(authorityKey);
-    return () => controller.invalidate(authorityKey);
-  }, [authorityKey, controller]);
-
-  if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
+    if (!searchEligible) {
+      controller.invalidate(authorityKey);
+      return;
+    }
+    const timeout = setTimeout(() => {
+      void controller.load(authorityKey, searchQuery || undefined);
+    }, searchQuery ? 300 : 0);
+    return () => {
+      clearTimeout(timeout);
+      controller.invalidate(authorityKey);
+    };
+  }, [authorityKey, controller, searchEligible, searchQuery]);
 
   const current =
-    snapshot.kind !== "idle" && snapshot.authorityKey === authorityKey
+    snapshot.kind !== "idle" &&
+    snapshot.authorityKey === authorityKey &&
+    (snapshot.searchQuery ?? "") === searchQuery
       ? snapshot
       : null;
   const subjectGroups =
@@ -239,7 +250,7 @@ export function SavedResourcesScreen() {
     current?.kind === "ready"
       ? findLoadedSavedResources(
           current.data.items,
-          query,
+          "",
           sort,
           activeSubjectId,
         )
@@ -251,8 +262,12 @@ export function SavedResourcesScreen() {
     }
   }, [activeSubjectId, current?.kind, selectedSubjectId]);
 
+  if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
+
   const refresh = () => {
-    if (authorityKey) void controller.load(authorityKey);
+    if (authorityKey && searchEligible) {
+      void controller.load(authorityKey, searchQuery || undefined);
+    }
   };
 
   return (
@@ -269,14 +284,81 @@ export function SavedResourcesScreen() {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Volver a Perfil"
+        accessibilityLabel="Volver a la pantalla anterior"
         onPress={() => router.back()}
         style={styles.backButton}
       >
         <Text style={styles.backLabel}>Volver</Text>
       </Pressable>
 
-      {!current || current.kind === "loading" ? (
+      <View style={styles.card}>
+        <View style={styles.searchControls}>
+          <Text style={styles.fieldLabel}>Buscar en toda tu biblioteca</Text>
+          <TextInput
+            accessibilityLabel="Buscar entre todos mis guardados"
+            accessibilityHint="Busca en el servidor por título, descripción y etiquetas de todos tus apuntes guardados."
+            autoCapitalize="none"
+            maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
+            onChangeText={(value) => {
+              setQuery(value);
+              setSelectedSubjectId(null);
+            }}
+            placeholder="Título, descripción o etiqueta"
+            returnKeyType="search"
+            style={styles.searchInput}
+            value={query}
+          />
+          {query.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Limpiar búsqueda de guardados"
+              onPress={() => setQuery("")}
+              style={styles.clearSearchButton}
+            >
+              <Text style={styles.clearSearchLabel}>
+                Limpiar búsqueda
+              </Text>
+            </Pressable>
+          ) : null}
+          <View
+            accessibilityRole="radiogroup"
+            style={styles.sortOptions}
+          >
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityLabel="Orden de guardado"
+              accessibilityState={{ checked: sort === "saved" }}
+              onPress={() => setSort("saved")}
+              style={[
+                styles.sortButton,
+                sort === "saved" && styles.sortButtonSelected,
+              ]}
+            >
+              <Text style={styles.sortLabel}>Guardado</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityLabel="Ordenar por título"
+              accessibilityState={{ checked: sort === "title" }}
+              onPress={() => setSort("title")}
+              style={[
+                styles.sortButton,
+                sort === "title" && styles.sortButtonSelected,
+              ]}
+            >
+              <Text style={styles.sortLabel}>Título A–Z</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      {!searchEligible ? (
+        <View style={styles.card}>
+          <Text style={styles.copy}>
+            Escribí al menos dos caracteres para buscar en todos tus guardados.
+          </Text>
+        </View>
+      ) : !current || current.kind === "loading" ? (
         <View style={styles.card}>
           <View style={styles.loadingRow}>
             <ActivityIndicator accessibilityLabel="Cargando recursos guardados" />
@@ -306,10 +388,12 @@ export function SavedResourcesScreen() {
               <>
                 <Text style={styles.copy}>
                   {current.data.nextCursor
-                    ? "No quedan recursos en esta página. Cargá más para seguir viendo tus guardados."
-                    : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
+                    ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
+                    : searchQuery
+                      ? "No encontramos apuntes guardados que coincidan con esa búsqueda. Probá otro título, descripción o etiqueta."
+                      : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
                 </Text>
-                {!current.data.nextCursor ? (
+                {!current.data.nextCursor && !searchQuery ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Buscar recursos"
@@ -327,8 +411,8 @@ export function SavedResourcesScreen() {
                     Tus materias
                   </Text>
                   <Text style={styles.meta}>
-                    Elegí una materia para ver sus recursos guardados. Los
-                    conteos incluyen solo las páginas cargadas.
+                    Elegí una materia para filtrar los resultados cargados.
+                    Los conteos corresponden sólo a las páginas cargadas.
                   </Text>
                   <View
                     accessibilityRole="radiogroup"
@@ -375,61 +459,6 @@ export function SavedResourcesScreen() {
                     ))}
                   </View>
                 </View>
-                <View style={styles.searchControls}>
-                  <Text style={styles.fieldLabel}>Buscar en tus guardados</Text>
-                  <TextInput
-                    accessibilityLabel="Buscar entre los guardados cargados"
-                    accessibilityHint="Busca por título, materia, autor o etiquetas entre los recursos ya cargados."
-                    autoCapitalize="none"
-                    maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
-                    onChangeText={setQuery}
-                    placeholder="Título, materia, autor o etiqueta"
-                    returnKeyType="search"
-                    style={styles.searchInput}
-                    value={query}
-                  />
-                  {query.length > 0 ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Limpiar búsqueda de guardados"
-                      onPress={() => setQuery("")}
-                      style={styles.clearSearchButton}
-                    >
-                      <Text style={styles.clearSearchLabel}>
-                        Limpiar búsqueda
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                  <View
-                    accessibilityRole="radiogroup"
-                    style={styles.sortOptions}
-                  >
-                    <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel="Orden de guardado"
-                      accessibilityState={{ checked: sort === "saved" }}
-                      onPress={() => setSort("saved")}
-                      style={[
-                        styles.sortButton,
-                        sort === "saved" && styles.sortButtonSelected,
-                      ]}
-                    >
-                      <Text style={styles.sortLabel}>Guardado</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel="Ordenar por título"
-                      accessibilityState={{ checked: sort === "title" }}
-                      onPress={() => setSort("title")}
-                      style={[
-                        styles.sortButton,
-                        sort === "title" && styles.sortButtonSelected,
-                      ]}
-                    >
-                      <Text style={styles.sortLabel}>Título A–Z</Text>
-                    </Pressable>
-                  </View>
-                </View>
                 {activeSubject ? (
                   <Text accessibilityRole="header" style={styles.sectionTitle}>
                     Apuntes de {activeSubject.name}
@@ -445,11 +474,11 @@ export function SavedResourcesScreen() {
                 {shownResources.length === 0 ? (
                   <Text style={styles.copy}>
                     {activeSubject
-                      ? "No hay coincidencias en esta materia entre los guardados cargados."
-                      : "No hay coincidencias entre los guardados cargados."}
+                      ? "No hay resultados de esta materia entre las páginas cargadas."
+                      : "No hay resultados visibles entre las páginas cargadas."}
                     {current.data.nextCursor
-                      ? " Cargá más guardados para ampliar los resultados."
-                      : " Probá con otra palabra o seleccioná otra materia."}
+                      ? " Cargá más para ampliar los resultados."
+                      : " Probá otra búsqueda o seleccioná otra materia."}
                   </Text>
                 ) : (
                   shownResources.map((resource) => (

@@ -9,8 +9,10 @@ import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module'
 import { ProfileModule } from '../profile/profile.module';
 import { UsersModule } from '../users/users.module';
 import { ResourceService } from './domain/resource.service';
+import { ResourceSavedSearchService } from './domain/resource-saved-search.service';
 import { RESOURCE_EXPORT_STORE } from './domain/resource-export.store';
 import { RESOURCE_STORE } from './domain/resource.store';
+import { SAVED_RESOURCE_SEARCH_STORE } from './domain/resource-saved-search.store';
 import { MongoResourceExportStore } from './mongo/mongo-resource-export.store';
 import { MongoResourceStore } from './mongo/mongo-resource.store';
 import {
@@ -24,6 +26,7 @@ import {
   ResourceShareSchema,
 } from './mongo/resource.mongo-schemas';
 import { ResourcesController } from './resources.controller';
+import { ResourceSavedSearchController } from './resource-saved-search.controller';
 
 @Module({
   imports: [
@@ -43,6 +46,7 @@ import { ResourcesController } from './resources.controller';
   ],
   providers: [
     ResourceService,
+    ResourceSavedSearchService,
     MongoResourceExportStore,
     MongoResourceStore,
     {
@@ -53,8 +57,12 @@ import { ResourcesController } from './resources.controller';
       provide: RESOURCE_STORE,
       useExisting: MongoResourceStore,
     },
+    {
+      provide: SAVED_RESOURCE_SEARCH_STORE,
+      useExisting: MongoResourceStore,
+    },
   ],
-  controllers: [ResourcesController],
+  controllers: [ResourcesController, ResourceSavedSearchController],
   exports: [ResourceService],
 })
 export class ResourcesModule {}

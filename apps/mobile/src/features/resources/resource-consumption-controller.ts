@@ -250,15 +250,17 @@ export class MobileResourceDetailController {
 
 export type MobileSavedResourcesSnapshot =
   | { kind: "idle" }
-  | { kind: "loading"; authorityKey: string }
+  | { kind: "loading"; authorityKey: string; searchQuery?: string }
   | {
       kind: "failure";
       authorityKey: string;
       failure: ResourceConsumptionFailure;
+      searchQuery?: string;
     }
   | {
       kind: "ready";
       authorityKey: string;
+      searchQuery?: string;
       data: ResourceSavedPage;
       loadingMore: boolean;
       failure: ResourceConsumptionFailure | null;
@@ -296,6 +298,7 @@ export class MobileSavedResourcesController {
   private snapshot: MobileSavedResourcesSnapshot = { kind: "idle" };
   private listeners = new Set<SavedListener>();
   private authorityKey: string | null = null;
+  private activeSearchQuery: string | null = null;
   private generation = 0;
   private active: SavedOperation | null = null;
 
@@ -310,7 +313,7 @@ export class MobileSavedResourcesController {
     return () => this.listeners.delete(listener);
   }
 
-  async load(authorityKey: string): Promise<void> {
+  async load(authorityKey: string, query?: string): Promise<void> {
     if (
       this.active?.kind === "remove" &&
       this.active.authorityKey === authorityKey
@@ -319,15 +322,19 @@ export class MobileSavedResourcesController {
     }
 
     this.authorityKey = authorityKey;
+    const searchQuery = query?.trim() || null;
+    this.activeSearchQuery = searchQuery;
+    const scope = searchQuery ? { searchQuery } : {};
     const operation = this.begin(authorityKey, "load");
-    this.publish({ kind: "loading", authorityKey });
+    this.publish({ kind: "loading", authorityKey, ...scope });
 
     try {
-      const data = await this.api.saved(undefined, operation.controller.signal);
+      const data = await this.api.saved(undefined, operation.controller.signal, searchQuery ?? undefined);
       if (!this.isCurrent(operation)) return;
       this.publish({
         kind: "ready",
         authorityKey,
+        ...scope,
         data,
         loadingMore: false,
         failure: null,
@@ -340,6 +347,7 @@ export class MobileSavedResourcesController {
       this.publish({
         kind: "failure",
         authorityKey,
+        ...scope,
         failure: resourceConsumptionFailure(error),
       });
     } finally {
@@ -364,6 +372,7 @@ export class MobileSavedResourcesController {
       const next = await this.api.saved(
         current.data.nextCursor,
         operation.controller.signal,
+        this.activeSearchQuery ?? undefined,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
@@ -455,6 +464,7 @@ export class MobileSavedResourcesController {
     if (authorityKey && authorityKey !== this.authorityKey) return;
 
     this.authorityKey = null;
+    this.activeSearchQuery = null;
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;

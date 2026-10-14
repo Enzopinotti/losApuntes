@@ -10,6 +10,7 @@ import {
   type ResourceStore,
   type UpdateResourceRecord,
 } from '../domain/resource.store';
+import type { SavedResourceSearchStore } from '../domain/resource-saved-search.store';
 import type {
   ResourceRecord,
   ResourceReportRecord,
@@ -61,8 +62,43 @@ function escapeRegex(value: string): string {
     .join('');
 }
 
+const SAVED_ACCENT_GROUPS: Record<string, string> = {
+  a: '[aáàâä]',
+  á: '[aáàâä]',
+  à: '[aáàâä]',
+  â: '[aáàâä]',
+  ä: '[aáàâä]',
+  e: '[eéèêë]',
+  é: '[eéèêë]',
+  è: '[eéèêë]',
+  ê: '[eéèêë]',
+  ë: '[eéèêë]',
+  i: '[iíìîï]',
+  í: '[iíìîï]',
+  ì: '[iíìîï]',
+  î: '[iíìîï]',
+  ï: '[iíìîï]',
+  o: '[oóòôö]',
+  ó: '[oóòôö]',
+  ò: '[oóòôö]',
+  ô: '[oóòôö]',
+  ö: '[oóòôö]',
+  u: '[uúùûü]',
+  ú: '[uúùûü]',
+  ù: '[uúùûü]',
+  û: '[uúùûü]',
+  ü: '[uúùûü]',
+};
+
+/** Existing searchText is lowercased but retains accents; do not migrate it. */
+export function savedMetadataRegex(query: string): string {
+  return [...query].map((character) =>
+    SAVED_ACCENT_GROUPS[character] ?? escapeRegex(character),
+  ).join('');
+}
+
 @Injectable()
-export class MongoResourceStore implements ResourceStore {
+export class MongoResourceStore implements ResourceStore, SavedResourceSearchStore {
   constructor(
     @InjectConnection()
     private readonly connection: Connection,
@@ -458,6 +494,97 @@ export class MongoResourceStore implements ResourceStore {
     return {
       items: rows.slice(0, input.limit),
       hasMore: rows.length > input.limit,
+    };
+  }
+
+  async searchSavedResources(
+    input: Parameters<SavedResourceSearchStore['searchSavedResources']>[0],
+  ): ReturnType<SavedResourceSearchStore['searchSavedResources']> {
+    // Join only the saves owned by this authenticated account. Candidate
+    // visibility and metadata filtering MUST happen before $limit: otherwise
+    // an early page of inaccessible items hides later valid matches.
+    const candidates = await this.saves
+      .aggregate<{ resourceId: string; createdAt: Date }>([
+        {
+          $match: {
+            userId: input.userId,
+            ...(input.after
+              ? {
+                  $or: [
+                    { createdAt: { $lt: input.after.createdAt } },
+                    {
+                      createdAt: input.after.createdAt,
+                      resourceId: { $gt: input.after.resourceId },
+                    },
+                  ],
+                }
+              : {}),
+          },
+        },
+        { $sort: { createdAt: -1, resourceId: 1 } },
+        {
+          $lookup: {
+            from: 'resources',
+            let: { savedResourceId: '$resourceId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ['$id', '$$savedResourceId'] },
+                  moderationState: 'available',
+                  searchText: {
+                    $regex: savedMetadataRegex(input.q),
+                    $options: 'i',
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__resource',
+          },
+        },
+        { $unwind: '$__resource' },
+        {
+          $lookup: {
+            from: 'resource_shares',
+            let: { savedResourceId: '$resourceId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$resourceId', '$$savedResourceId'] },
+                      { $eq: ['$userId', input.userId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: '__viewerShares',
+          },
+        },
+        {
+          $match: {
+            $or: [
+              { '__resource.visibility': 'public' },
+              { '__resource.authorUserId': input.userId },
+              {
+                $and: [
+                  { '__resource.visibility': 'shared' },
+                  { '__viewerShares.0': { $exists: true } },
+                ],
+              },
+            ],
+          },
+        },
+        { $limit: input.limit + 1 },
+        { $project: { _id: 0, resourceId: 1, createdAt: 1 } },
+      ])
+      .exec();
+
+    return {
+      items: candidates.slice(0, input.limit),
+      hasMore: candidates.length > input.limit,
     };
   }
 
