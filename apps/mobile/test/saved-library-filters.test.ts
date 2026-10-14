@@ -224,7 +224,7 @@ test("loading more expands the search window, and removal updates results", asyn
   assert.deepEqual(removals, ["two"]);
 });
 
-test("screen presents loaded-page limitations and resets filters on account change", () => {
+test("screen delegates metadata search to the server and keeps loaded-page facets", () => {
   const screen = readFileSync(
     new URL(
       "../src/features/resources/saved-resources-screen.tsx",
@@ -234,7 +234,7 @@ test("screen presents loaded-page limitations and resets filters on account chan
   );
   assert.match(
     screen,
-    /findLoadedSavedResources\(\s*current\.data\.items,\s*query,\s*sort,\s*activeSubjectId,\s*\)/u,
+    /findLoadedSavedResources\(\s*current\.data\.items,\s*"",\s*sort,\s*activeSubjectId,\s*\)/u,
   );
   assert.match(screen, /sessionKey\]/u);
   assert.match(screen, /setQuery\(""\)/u);
