@@ -50,9 +50,9 @@ describe('MongoResourceStore owned statistics', () => {
         },
       ],
     });
-    const pipeline = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const pipeline = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     expect(pipeline[0]).toEqual({
       $match: { authorUserId: 'owner-a', moderationState: 'available' },
     });
@@ -81,9 +81,9 @@ describe('MongoResourceStore owned statistics', () => {
     });
     const response = await store.getOwnedStatistics('owner-b');
     expect(response.activeShareGrants).toBe(0);
-    const pipeline = (aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const pipeline = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     const text = JSON.stringify(pipeline);
     expect(text).toContain('"$eq":["$$visibility","shared"]');
   });
@@ -170,9 +170,11 @@ describe('MongoResourceStore owned library advanced browsing', () => {
   it('limits subject facets to this author and at most fifty subjects', async () => {
     const { store, resources } = mockResources();
     await store.listOwnedSubjects('author-a');
-    const pipeline = (resources.aggregate.mock.calls as unknown as Array<
-      [Array<Record<string, unknown>>]
-    >)[0]?.[0];
+    const pipeline = (
+      resources.aggregate.mock.calls as unknown as Array<
+        [Array<Record<string, unknown>>]
+      >
+    )[0]?.[0];
     expect(pipeline[0]).toEqual({
       $match: { authorUserId: 'author-a', moderationState: 'available' },
     });
