@@ -46,10 +46,11 @@ export function ResourceRelatedSessionPanel({
 }) {
   const router = useRouter();
   const controller = useMemo(
-    () => new ResourceRelatedSessionController(
-      mobileResourceConsumptionApi,
-      mobileSessionRecentResourceOpens,
-    ),
+    () =>
+      new ResourceRelatedSessionController(
+        mobileResourceConsumptionApi,
+        mobileSessionRecentResourceOpens,
+      ),
     [],
   );
   const [snapshot, setSnapshot] = useState<ResourceRelatedSessionSnapshot>(
@@ -76,7 +77,13 @@ export function ResourceRelatedSessionPanel({
       subjectId,
     );
     return () => controller.invalidate(authorityKey);
-  }, [controller, authorityKey, sessionAuthorityKey, currentResourceId, subjectId]);
+  }, [
+    controller,
+    authorityKey,
+    sessionAuthorityKey,
+    currentResourceId,
+    subjectId,
+  ]);
 
   if (!sessionAuthorityKey) return null;
   const current =
@@ -101,7 +108,9 @@ export function ResourceRelatedSessionPanel({
           onPress={() => router.push(exploreAction.href)}
           style={styles.questionsButton}
         >
-          <Text style={styles.buttonText}>Explorar otros apuntes de esta materia</Text>
+          <Text style={styles.buttonText}>
+            Explorar otros apuntes de esta materia
+          </Text>
         </Pressable>
       ) : null}
       {questionsAction ? (
@@ -129,12 +138,14 @@ export function ResourceRelatedSessionPanel({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Reintentar apuntes relacionados de esta sesión"
-            onPress={() => void controller.load(
-              authorityKey,
-              sessionAuthorityKey,
-              currentResourceId,
-              subjectId,
-            )}
+            onPress={() =>
+              void controller.load(
+                authorityKey,
+                sessionAuthorityKey,
+                currentResourceId,
+                subjectId,
+              )
+            }
             style={styles.secondaryButton}
           >
             <Text style={styles.buttonText}>Reintentar</Text>
@@ -144,29 +155,35 @@ export function ResourceRelatedSessionPanel({
         <View style={styles.content}>
           {current.items.length === 0 ? (
             <Text style={styles.description}>
-              Todavía no abriste otros apuntes de esta materia durante esta sesión.
+              Todavía no abriste otros apuntes de esta materia durante esta
+              sesión.
             </Text>
-          ) : current.items.map((related) => (
-            <Pressable
-              key={related.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Abrir apunte reciente de esta materia: ${related.title}`}
-              accessibilityHint="El detalle volverá a comprobar los permisos antes de mostrar el apunte."
-              onPress={() => router.push({
-                pathname: "/resources/[id]",
-                params: { id: related.id },
-              })}
-              style={styles.relatedButton}
-            >
-              <Text style={styles.relatedTitle} numberOfLines={2}>
-                {related.title}
-              </Text>
-              <Text style={styles.buttonText}>Volver al apunte</Text>
-            </Pressable>
-          ))}
+          ) : (
+            current.items.map((related) => (
+              <Pressable
+                key={related.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Abrir apunte reciente de esta materia: ${related.title}`}
+                accessibilityHint="El detalle volverá a comprobar los permisos antes de mostrar el apunte."
+                onPress={() =>
+                  router.push({
+                    pathname: "/resources/[id]",
+                    params: { id: related.id },
+                  })
+                }
+                style={styles.relatedButton}
+              >
+                <Text style={styles.relatedTitle} numberOfLines={2}>
+                  {related.title}
+                </Text>
+                <Text style={styles.buttonText}>Volver al apunte</Text>
+              </Pressable>
+            ))
+          )}
           {current.moreAvailable ? (
             <Text style={styles.description}>
-              Se muestran hasta tres apuntes abiertos previamente en esta sesión.
+              Se muestran hasta tres apuntes abiertos previamente en esta
+              sesión.
             </Text>
           ) : null}
           {current.partialFailure ? (
@@ -177,12 +194,14 @@ export function ResourceRelatedSessionPanel({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Volver a verificar apuntes recientes de esta materia"
-                onPress={() => void controller.load(
-                  authorityKey,
-                  sessionAuthorityKey,
-                  currentResourceId,
-                  subjectId,
-                )}
+                onPress={() =>
+                  void controller.load(
+                    authorityKey,
+                    sessionAuthorityKey,
+                    currentResourceId,
+                    subjectId,
+                  )
+                }
                 style={styles.secondaryButton}
               >
                 <Text style={styles.buttonText}>Volver a comprobar</Text>

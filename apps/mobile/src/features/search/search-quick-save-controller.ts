@@ -5,11 +5,7 @@ import {
   type ResourceConsumptionFailure,
 } from "../resources/resource-consumption-controller";
 
-export type QuickSaveState =
-  | "saving"
-  | "saved"
-  | "uncertain"
-  | "error";
+export type QuickSaveState = "saving" | "saved" | "uncertain" | "error";
 
 export type SearchQuickSaveEntry = {
   state: QuickSaveState;
@@ -22,10 +18,7 @@ export type SearchQuickSaveSnapshot = {
 };
 
 export interface SearchQuickSaveApi {
-  save(
-    resourceId: string,
-    signal?: AbortSignal,
-  ): Promise<{ saved: true }>;
+  save(resourceId: string, signal?: AbortSignal): Promise<{ saved: true }>;
 }
 
 type Listener = (snapshot: SearchQuickSaveSnapshot) => void;
@@ -68,14 +61,16 @@ export class MobileSearchQuickSaveController {
   }
 
   async save(authorityKey: string, resourceId: string): Promise<boolean> {
-    if (!resourceId || this.snapshot.authorityKey !== authorityKey) return false;
+    if (!resourceId || this.snapshot.authorityKey !== authorityKey)
+      return false;
     const existing = this.snapshot.items[resourceId];
     if (
       existing?.state === "saving" ||
       existing?.state === "saved" ||
       existing?.state === "uncertain" ||
       this.operations.has(resourceId)
-    ) return false;
+    )
+      return false;
 
     const operation: Operation = {
       authorityKey,

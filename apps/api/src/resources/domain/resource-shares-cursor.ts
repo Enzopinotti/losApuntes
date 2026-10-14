@@ -1,4 +1,7 @@
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 export type ShareGrantPageCursor = {
   resourceId: string;

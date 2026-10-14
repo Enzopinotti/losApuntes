@@ -10,7 +10,10 @@ import {
   searchInputReducer,
 } from "../src/features/search/search-input-state";
 import { MobileSearchController } from "../src/features/search/search-controller";
-import type { MobileSearchApi, MobileSearchInput } from "../src/features/search/search-api";
+import type {
+  MobileSearchApi,
+  MobileSearchInput,
+} from "../src/features/search/search-api";
 
 const subjectId = "11111111-1111-4111-8111-111111111111";
 const otherId = "22222222-2222-4222-8222-222222222222";
@@ -24,104 +27,133 @@ function selected() {
 
 function response(q: string): SearchResponse {
   return {
-    query: q, scope: "resources",
+    query: q,
+    scope: "resources",
     results: { resources: [], subjects: [], people: [] },
   };
 }
 
 test("Subject-only browsing continues to work without typing", () => {
   assert.deepEqual(searchInputForState(selected()), {
-    scope: "resources", subjectId,
+    scope: "resources",
+    subjectId,
   });
 });
 
 test("two or more characters narrow the Subject rather than removing it", () => {
   const state = searchInputReducer(selected(), {
-    type: "queryChanged", query: "  integrales  ",
+    type: "queryChanged",
+    query: "  integrales  ",
   });
   assert.deepEqual(state.selectedSubject, { id: subjectId, name: "Análisis" });
   assert.deepEqual(searchInputForState(state), {
-    q: "integrales", scope: "resources", subjectId,
+    q: "integrales",
+    scope: "resources",
+    subjectId,
   });
 });
 
 test("one character or spaces never silently fall back to the broad Subject result", () => {
   const tooShort = searchInputReducer(selected(), {
-    type: "queryChanged", query: " x ",
+    type: "queryChanged",
+    query: " x ",
   });
   assert.equal(searchInputForState(tooShort), null);
   const spaces = searchInputReducer(selected(), {
-    type: "queryChanged", query: "    ",
+    type: "queryChanged",
+    query: "    ",
   });
   assert.equal(searchInputForState(spaces), null);
-  assert.deepEqual(searchInputForState(searchInputReducer(spaces, {
-    type: "queryChanged", query: "",
-  })), { scope: "resources", subjectId });
+  assert.deepEqual(
+    searchInputForState(
+      searchInputReducer(spaces, {
+        type: "queryChanged",
+        query: "",
+      }),
+    ),
+    { scope: "resources", subjectId },
+  );
 });
 
 test("removing Subject preserves typed text for searching all resource Subjects", () => {
   const typed = searchInputReducer(selected(), {
-    type: "queryChanged", query: "  derivadas  ",
+    type: "queryChanged",
+    query: "  derivadas  ",
   });
   const broadened = searchInputReducer(typed, {
     type: "subjectFilterCleared",
   });
   assert.deepEqual(broadened, {
-    query: "  derivadas  ", scope: "resources", selectedSubject: null,
+    query: "  derivadas  ",
+    scope: "resources",
+    selectedSubject: null,
   });
   assert.deepEqual(searchInputForState(broadened), {
-    q: "derivadas", scope: "resources",
+    q: "derivadas",
+    scope: "resources",
   });
 });
 
 test("clearing only text preserves Subject and recovers the Subject-only results", () => {
   const typed = searchInputReducer(selected(), {
-    type: "queryChanged", query: "vectores",
+    type: "queryChanged",
+    query: "vectores",
   });
   const cleared = searchInputReducer(typed, {
-    type: "queryChanged", query: "",
+    type: "queryChanged",
+    query: "",
   });
   assert.deepEqual(searchInputForState(cleared), {
-    scope: "resources", subjectId,
+    scope: "resources",
+    subjectId,
   });
   assert.deepEqual(cleared.selectedSubject, selected().selectedSubject);
 });
 
 test("clearing Subject without typed text resets to the general unfiltered search", () => {
-  assert.deepEqual(searchInputReducer(selected(), {
-    type: "subjectFilterCleared",
-  }), initialSearchInputState);
+  assert.deepEqual(
+    searchInputReducer(selected(), {
+      type: "subjectFilterCleared",
+    }),
+    initialSearchInputState,
+  );
 });
 
 test("choosing another Subject clears stale text and replaces its academic filter", () => {
   const typed = searchInputReducer(selected(), {
-    type: "queryChanged", query: "integrales",
+    type: "queryChanged",
+    query: "integrales",
   });
   const changed = searchInputReducer(typed, {
     type: "subjectSelected",
     subject: { id: otherId, name: "Física" },
   });
   assert.deepEqual(searchInputForState(changed), {
-    scope: "resources", subjectId: otherId,
+    scope: "resources",
+    subjectId: otherId,
   });
   assert.equal(changed.query, "");
 });
 
 test("switching to general scope intentionally broadens results and retains keywords", () => {
   const typed = searchInputReducer(selected(), {
-    type: "queryChanged", query: "ondas",
+    type: "queryChanged",
+    query: "ondas",
   });
   const broadened = searchInputReducer(typed, {
-    type: "scopeChanged", scope: "all",
+    type: "scopeChanged",
+    scope: "all",
   });
   assert.deepEqual(searchInputForState(broadened), {
-    q: "ondas", scope: "all",
+    q: "ondas",
+    scope: "all",
   });
 });
 
 test("query maximum and minimum apply while Subject filter remains active", () => {
   const state = searchInputReducer(selected(), {
-    type: "queryChanged", query: "a".repeat(250),
+    type: "queryChanged",
+    query: "a".repeat(250),
   });
   assert.equal(state.query.length, 120);
   assert.equal(state.selectedSubject?.id, subjectId);
@@ -142,13 +174,17 @@ test("controller sends both filter dimensions and fences older cross-Subject ans
       return inputs.length === 1 ? stale : response(input.q ?? "");
     },
     contextualDiscovery: async () => ({ subjects: [] }),
-  } as MobileSearchApi;
+  } as unknown as MobileSearchApi;
   const controller = new MobileSearchController(api);
   const first = controller.search("user:session", {
-    q: "límites", scope: "resources", subjectId,
+    q: "límites",
+    scope: "resources",
+    subjectId,
   });
   await controller.search("user:session", {
-    q: "límites", scope: "resources", subjectId: otherId,
+    q: "límites",
+    scope: "resources",
+    subjectId: otherId,
   });
   replyOld(response("límites"));
   await first;
@@ -173,7 +209,10 @@ test("Search UI shows separate recovery actions and fences by q/scope/Subject", 
   assert.match(search, /Buscar texto en todas las materias/u);
   assert.match(search, /Ver materia sin texto/u);
   assert.match(search, /scopedSubjectEmpty/u);
-  assert.match(search, /selectedSubject\s*\?\s*null\s*:\s*searchScopeRecoveryCopy/u);
+  assert.match(
+    search,
+    /selectedSubject\s*\?\s*null\s*:\s*searchScopeRecoveryCopy/u,
+  );
 });
 
 test("Subject deep links still target the same existing authorized search path", () => {
@@ -181,7 +220,13 @@ test("Subject deep links still target the same existing authorized search path",
     new URL("../src/features/search/search-screen.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(search, /subjectResourcesSearchRouteId\(routeParams\.subjectId\)/u);
+  assert.match(
+    search,
+    /subjectResourcesSearchRouteId\(\s*routeParams\.subjectId,?\s*\)/u,
+  );
   assert.match(search, /dispatchSearchInput\(\{\s*type: "subjectSelected"/u);
-  assert.match(search, /controller\.scheduleSearch\(authorityKey, searchInput\)/u);
+  assert.match(
+    search,
+    /controller\.scheduleSearch\(authorityKey, searchInput\)/u,
+  );
 });

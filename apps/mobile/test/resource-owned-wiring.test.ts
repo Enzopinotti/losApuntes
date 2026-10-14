@@ -43,12 +43,8 @@ test("filters and next-page controls use the API rather than local-only filterin
 });
 
 test("owner endpoint uses verified identity and authorization before projection", () => {
-  const routes = file(
-    "../../api/src/resources/resources.controller.ts",
-  );
-  const store = file(
-    "../../api/src/resources/mongo/mongo-resource.store.ts",
-  );
+  const routes = file("../../api/src/resources/resources.controller.ts");
+  const store = file("../../api/src/resources/mongo/mongo-resource.store.ts");
   assert.match(routes, /@Get\('mine'\)/u);
   assert.match(routes, /@Header\('Cache-Control', 'private, no-store'\)/u);
   assert.match(store, /authorUserId: input.authorUserId/u);
@@ -60,7 +56,9 @@ test("owner endpoint uses verified identity and authorization before projection"
 
 test("owner search, subjects, chronological order and reset are server-backed", () => {
   const screen = file("../src/features/resources/owned-resources-screen.tsx");
-  const controller = file("../src/features/resources/resource-owned-controller.ts");
+  const controller = file(
+    "../src/features/resources/resource-owned-controller.ts",
+  );
   const api = file("../src/features/resources/resource-owned-api.ts");
   assert.match(screen, /Buscar en todas mis publicaciones/u);
   assert.match(screen, /onSubmitEditing/u);

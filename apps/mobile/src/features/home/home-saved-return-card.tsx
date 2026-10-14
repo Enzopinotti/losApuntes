@@ -20,7 +20,8 @@ const failureCopy: Record<
   Extract<HomeSavedReturnSnapshot, { kind: "failure" }>["reason"],
   string
 > = {
-  offline: "Sin conexión. Tus guardados se consultarán cuando vuelvas a tener red.",
+  offline:
+    "Sin conexión. Tus guardados se consultarán cuando vuelvas a tener red.",
   timeout: "La consulta tardó demasiado. Podés reintentar.",
   server_unavailable: "No pudimos consultar tus guardados ahora.",
   forbidden: "No se pudo revalidar el acceso a tus guardados.",
@@ -69,8 +70,8 @@ export function HomeSavedReturnCard({
         Retomá tus guardados
       </Text>
       <Text style={styles.copy}>
-        Abrí un apunte guardado, consultá preguntas de su materia o explorá
-        tu biblioteca. El servidor vuelve a comprobar los permisos actuales.
+        Abrí un apunte guardado, consultá preguntas de su materia o explorá tu
+        biblioteca. El servidor vuelve a comprobar los permisos actuales.
       </Text>
 
       {!current || current.kind === "loading" ? (
@@ -160,8 +161,8 @@ export function HomeSavedReturnCard({
           })}
           {current.moreAvailable ? (
             <Text style={styles.copy}>
-              Se muestran hasta tres guardados disponibles de la primera
-              página. Puede haber más en tu biblioteca.
+              Se muestran hasta tres guardados disponibles de la primera página.
+              Puede haber más en tu biblioteca.
             </Text>
           ) : null}
         </View>

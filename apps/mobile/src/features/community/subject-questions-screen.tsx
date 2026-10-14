@@ -16,9 +16,7 @@ import {
   type CommunityQuestionFeedSnapshot,
 } from "./community-controller";
 import { mobileCommunityApi } from "./community-runtime";
-import {
-  canComposeForSubject,
-} from "./subject-questions-policy";
+import { canComposeForSubject } from "./subject-questions-policy";
 import {
   useCommunityAuthority,
   type CommunityAuthorityGate,
@@ -43,11 +41,13 @@ function feedError(failure: CommunityFailure): string {
 
 function gateCopy(gate: CommunityAuthorityGate): string {
   if (gate === "restricted") return "La cuenta tiene restringido el acceso.";
-  if (gate === "auth_required") return "Iniciá sesión para consultar preguntas.";
+  if (gate === "auth_required")
+    return "Iniciá sesión para consultar preguntas.";
   if (gate === "offline") return "Sin conexión para revalidar el contexto.";
   if (gate === "timeout") return "Se agotó el tiempo al revalidar la sesión.";
   if (gate === "server_unavailable") return "El servidor no está disponible.";
-  if (gate === "authority_mismatch") return "Revalidando el contexto académico.";
+  if (gate === "authority_mismatch")
+    return "Revalidando el contexto académico.";
   if (gate === "error") return "No pudimos revalidar el contexto académico.";
   return "Preparando preguntas con tu sesión y contexto académico…";
 }
@@ -140,8 +140,7 @@ export function SubjectQuestionsScreen({
               ? "El contexto académico está desactualizado. Revalidalo antes de continuar."
               : gateCopy(authority.gate)}
           </Text>
-          {authority.gate !== "blurred" &&
-          authority.gate !== "suspended" ? (
+          {authority.gate !== "blurred" && authority.gate !== "suspended" ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Revalidar contexto académico"
@@ -159,9 +158,8 @@ export function SubjectQuestionsScreen({
               Preguntas relacionadas
             </Text>
             <Text style={styles.note}>
-              El servidor filtra por materia y aplica las reglas de
-              visibilidad. Podés leer preguntas aunque no sea tu materia
-              académica actual.
+              El servidor filtra por materia y aplica las reglas de visibilidad.
+              Podés leer preguntas aunque no sea tu materia académica actual.
             </Text>
             {canCompose ? (
               <Pressable
@@ -174,8 +172,8 @@ export function SubjectQuestionsScreen({
               </Pressable>
             ) : (
               <Text style={styles.note}>
-                Para publicar una pregunta, primero seleccioná esta materia
-                como contexto académico actual desde Inicio.
+                Para publicar una pregunta, primero seleccioná esta materia como
+                contexto académico actual desde Inicio.
               </Text>
             )}
           </View>
@@ -218,12 +216,10 @@ export function SubjectQuestionsScreen({
                     }
                     style={styles.question}
                   >
-                    <Text style={styles.questionTitle}>
-                      {question.title}
-                    </Text>
+                    <Text style={styles.questionTitle}>{question.title}</Text>
                     <Text style={styles.note}>
-                      {question.academic.subject.name} ·{" "}
-                      {question.answerCount} respuestas
+                      {question.academic.subject.name} · {question.answerCount}{" "}
+                      respuestas
                     </Text>
                     <Text style={styles.link}>Leer respuestas</Text>
                   </Pressable>

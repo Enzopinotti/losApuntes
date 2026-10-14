@@ -8,12 +8,13 @@ import { savedSubjectQuestionsAction } from "../src/features/resources/saved-sub
 
 const SUBJECT = "11111111-1111-4111-8111-111111111111";
 
-const resource = (id: string) => ({
-  academic: {
-    subject: { id, name: "Álgebra" },
-    courseOffering: null,
-  },
-}) as Pick<ResourceView, "academic">;
+const resource = (id: string) =>
+  ({
+    academic: {
+      subject: { id, name: "Álgebra" },
+      courseOffering: null,
+    },
+  }) as Pick<ResourceView, "academic">;
 
 function cardSource(): string {
   return readFileSync(
@@ -30,7 +31,12 @@ test("Home saved preview exposes an existing Q&A route only for a canonical Subj
   });
   assert.match(eligible?.accessibilityHint ?? "", /servidor vuelve a validar/u);
 
-  for (const id of ["", "wrong-subject", "../secret", SUBJECT + "?user=other"]) {
+  for (const id of [
+    "",
+    "wrong-subject",
+    "../secret",
+    SUBJECT + "?user=other",
+  ]) {
     assert.equal(savedSubjectQuestionsAction(resource(id)), null);
   }
 });
@@ -38,11 +44,23 @@ test("Home saved preview exposes an existing Q&A route only for a canonical Subj
 test("Home saved card keeps resource and Q&A as separate accessible actions", () => {
   const screen = cardSource();
   assert.match(screen, /savedSubjectQuestionsAction\(resource\)/u);
-  assert.match(screen, /<View key=\{resource\.id\} style=\{styles\.savedItem\}>/u);
+  assert.match(
+    screen,
+    /<View key=\{resource\.id\} style=\{styles\.savedItem\}>/u,
+  );
   assert.match(screen, /pathname: "\/resources\/\[id\]"/u);
-  assert.match(screen, /onPress=\{\(\) => router\.push\(questionsAction\.href\)\}/u);
-  assert.match(screen, /accessibilityLabel=\{questionsAction\.accessibilityLabel\}/u);
-  assert.match(screen, /accessibilityHint=\{questionsAction\.accessibilityHint\}/u);
+  assert.match(
+    screen,
+    /onPress=\{\(\) => router\.push\(questionsAction\.href\)\}/u,
+  );
+  assert.match(
+    screen,
+    /accessibilityLabel=\{questionsAction\.accessibilityLabel\}/u,
+  );
+  assert.match(
+    screen,
+    /accessibilityHint=\{questionsAction\.accessibilityHint\}/u,
+  );
   assert.match(screen, /minHeight: 44/u);
   assert.match(screen, /Preguntas de la materia/u);
   assert.match(screen, /\{questionsAction \? \(/u);
@@ -51,7 +69,10 @@ test("Home saved card keeps resource and Q&A as separate accessible actions", ()
 test("Q&A shortcut neither grants publishing rights nor skips reauthorization", () => {
   const screen = cardSource();
   const qna = readFileSync(
-    new URL("../src/features/community/subject-questions-screen.tsx", import.meta.url),
+    new URL(
+      "../src/features/community/subject-questions-screen.tsx",
+      import.meta.url,
+    ),
     "utf8",
   );
   assert.match(screen, /snapshot\.authorityKey === authorityKey/u);

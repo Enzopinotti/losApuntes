@@ -13,7 +13,8 @@ import {
 } from "./resource-consumption-controller";
 
 export type ShareAction = "grant" | "revoke";
-export type ShareOutcome = "granted" | "revoked" | "uncertain" | "error" | "visibility_changed";
+export type ShareOutcome =
+  "granted" | "revoked" | "uncertain" | "error" | "visibility_changed";
 export type ShareSearchState = "idle" | "loading" | "ready" | "error";
 
 export type ResourceDirectSharingSnapshot =
@@ -80,10 +81,14 @@ export class MobileResourceDirectSharingController {
 
   setScope(authorityKey: string, resource: ResourceView): void {
     const current = this.current(authorityKey, resource.id);
-    if (current && current.revision === resource.revision &&
-        current.visibility === resource.visibility &&
-        current.ownerProfileId === (resource.author?.profileId ?? null) &&
-        current.canManageShares === resource.capabilities.manageShares) return;
+    if (
+      current &&
+      current.revision === resource.revision &&
+      current.visibility === resource.visibility &&
+      current.ownerProfileId === (resource.author?.profileId ?? null) &&
+      current.canManageShares === resource.capabilities.manageShares
+    )
+      return;
     this.abortAll();
     this.publish({
       kind: "ready",
@@ -120,8 +125,10 @@ export class MobileResourceDirectSharingController {
       current.outcome === "visibility_changed" ||
       current.busy ||
       this.grantsOperation ||
-      (loadMore && (!current.grantsNextCursor || current.grantsState !== "ready"))
-    ) return;
+      (loadMore &&
+        (!current.grantsNextCursor || current.grantsState !== "ready"))
+    )
+      return;
 
     const operation = this.operation(authorityKey, resourceId);
     this.grantsOperation = operation;
@@ -134,7 +141,7 @@ export class MobileResourceDirectSharingController {
     try {
       const result = await this.api.listGrants(
         resourceId,
-        loadMore ? current.grantsNextCursor ?? undefined : undefined,
+        loadMore ? (current.grantsNextCursor ?? undefined) : undefined,
         operation.controller.signal,
       );
       if (!this.grantsCurrent(operation)) return;
@@ -152,12 +159,14 @@ export class MobileResourceDirectSharingController {
         return;
       }
       const seen = new Set<string>();
-      const items = [...(loadMore ? latest.grants : []), ...result.items]
-        .filter((grant) => {
-          if (seen.has(grant.profileId)) return false;
-          seen.add(grant.profileId);
-          return true;
-        });
+      const items = [
+        ...(loadMore ? latest.grants : []),
+        ...result.items,
+      ].filter((grant) => {
+        if (seen.has(grant.profileId)) return false;
+        seen.add(grant.profileId);
+        return true;
+      });
       this.publish({
         ...latest,
         grantsState: "ready",
@@ -197,8 +206,11 @@ export class MobileResourceDirectSharingController {
       current.busy ||
       current.grantsState !== "ready" ||
       current.outcome === "visibility_changed"
-    ) return false;
-    const person = current.grants.find((grant) => grant.profileId === profileId);
+    )
+      return false;
+    const person = current.grants.find(
+      (grant) => grant.profileId === profileId,
+    );
     if (!person) return false;
     this.publish({
       ...current,
@@ -213,7 +225,11 @@ export class MobileResourceDirectSharingController {
     return true;
   }
 
-  async search(authorityKey: string, resourceId: string, rawQuery: string): Promise<void> {
+  async search(
+    authorityKey: string,
+    resourceId: string,
+    rawQuery: string,
+  ): Promise<void> {
     const current = this.current(authorityKey, resourceId);
     if (
       !current ||
@@ -221,7 +237,8 @@ export class MobileResourceDirectSharingController {
       current.visibility !== "shared" ||
       current.outcome === "visibility_changed" ||
       current.busy
-    ) return;
+    )
+      return;
     const query = rawQuery.trim().slice(0, RESOURCE_SHARE_PEOPLE_QUERY_MAX);
     this.abortSearch();
     if (!validSharePeopleQuery(query)) {
@@ -250,7 +267,10 @@ export class MobileResourceDirectSharingController {
     });
 
     try {
-      const results = await this.api.searchPeople(query, operation.controller.signal);
+      const results = await this.api.searchPeople(
+        query,
+        operation.controller.signal,
+      );
       if (!this.searchCurrent(operation)) return;
       const ready = this.current(authorityKey, resourceId);
       if (!ready) return;
@@ -260,7 +280,8 @@ export class MobileResourceDirectSharingController {
           !person.profileId ||
           person.profileId === ready.ownerProfileId ||
           seen.has(person.profileId)
-        ) return false;
+        )
+          return false;
         seen.add(person.profileId);
         return true;
       });
@@ -284,7 +305,8 @@ export class MobileResourceDirectSharingController {
 
   clearSearch(authorityKey: string, resourceId: string): void {
     const current = this.current(authorityKey, resourceId);
-    if (!current || current.busy || current.outcome === "visibility_changed") return;
+    if (!current || current.busy || current.outcome === "visibility_changed")
+      return;
     this.abortSearch();
     this.publish({
       ...current,
@@ -299,8 +321,11 @@ export class MobileResourceDirectSharingController {
 
   select(authorityKey: string, resourceId: string, profileId: string): boolean {
     const current = this.current(authorityKey, resourceId);
-    if (!current || current.busy || current.searchState !== "ready") return false;
-    const selected = current.people.find((person) => person.profileId === profileId);
+    if (!current || current.busy || current.searchState !== "ready")
+      return false;
+    const selected = current.people.find(
+      (person) => person.profileId === profileId,
+    );
     if (!selected) return false;
     this.publish({ ...current, selected, outcome: null, failure: null });
     return true;
@@ -316,12 +341,13 @@ export class MobileResourceDirectSharingController {
       !current ||
       current.visibility !== "shared" ||
       !current.canManageShares ||
-      (current.outcome === "visibility_changed" ||
-        current.outcome === "uncertain") ||
+      current.outcome === "visibility_changed" ||
+      current.outcome === "uncertain" ||
       !current.selected ||
       current.busy ||
       this.mutationOperation
-    ) return false;
+    )
+      return false;
 
     this.abortSearch();
     this.abortGrants();
@@ -333,9 +359,8 @@ export class MobileResourceDirectSharingController {
       busy: action,
       outcome: null,
       failure: null,
-      grantsState: current.grantsState === "loading"
-        ? "idle"
-        : current.grantsState,
+      grantsState:
+        current.grantsState === "loading" ? "idle" : current.grantsState,
     });
     let writeStarted = false;
 
@@ -347,8 +372,11 @@ export class MobileResourceDirectSharingController {
         operation.controller.signal,
       );
       if (!this.mutationCurrent(operation)) return false;
-      if (!resource.capabilities.manageShares || resource.visibility !== "shared" ||
-          resource.revision !== current.revision) {
+      if (
+        !resource.capabilities.manageShares ||
+        resource.visibility !== "shared" ||
+        resource.revision !== current.revision
+      ) {
         this.abortMutation();
         const ready = this.current(authorityKey, resourceId);
         if (ready) {
@@ -389,7 +417,11 @@ export class MobileResourceDirectSharingController {
         if (!this.mutationCurrent(operation)) return false;
       }
 
-      this.finishMutation(operation, action === "grant" ? "granted" : "revoked", null);
+      this.finishMutation(
+        operation,
+        action === "grant" ? "granted" : "revoked",
+        null,
+      );
       const latest = this.current(authorityKey, resourceId);
       if (latest) {
         this.publish({
@@ -433,21 +465,27 @@ export class MobileResourceDirectSharingController {
 
   suspend(authorityKey: string): void {
     const current = this.snapshot;
-    if (current.kind !== "ready" || current.authorityKey !== authorityKey) return;
+    if (current.kind !== "ready" || current.authorityKey !== authorityKey)
+      return;
     this.abortAll();
     this.publish({
       ...current,
       busy: null,
-      searchState: current.searchState === "loading" ? "idle" : current.searchState,
-      grantsState: current.grantsState === "loading" ? "idle" : current.grantsState,
+      searchState:
+        current.searchState === "loading" ? "idle" : current.searchState,
+      grantsState:
+        current.grantsState === "loading" ? "idle" : current.grantsState,
       outcome: current.busy ? "uncertain" : current.outcome,
     });
   }
 
   invalidate(authorityKey?: string): void {
-    if (authorityKey &&
-        this.snapshot.kind === "ready" &&
-        this.snapshot.authorityKey !== authorityKey) return;
+    if (
+      authorityKey &&
+      this.snapshot.kind === "ready" &&
+      this.snapshot.authorityKey !== authorityKey
+    )
+      return;
     this.abortAll();
     this.publish({ kind: "idle" });
   }
@@ -456,7 +494,9 @@ export class MobileResourceDirectSharingController {
     const snapshot = this.snapshot;
     return snapshot.kind === "ready" &&
       snapshot.authorityKey === authorityKey &&
-      snapshot.resourceId === resourceId ? snapshot : null;
+      snapshot.resourceId === resourceId
+      ? snapshot
+      : null;
   }
 
   private operation(authorityKey: string, resourceId: string): Operation {
@@ -469,21 +509,27 @@ export class MobileResourceDirectSharingController {
   }
 
   private searchCurrent(operation: Operation): boolean {
-    return this.searchOperation === operation &&
+    return (
+      this.searchOperation === operation &&
       !operation.controller.signal.aborted &&
-      this.current(operation.authorityKey, operation.resourceId) !== null;
+      this.current(operation.authorityKey, operation.resourceId) !== null
+    );
   }
 
   private grantsCurrent(operation: Operation): boolean {
-    return this.grantsOperation === operation &&
+    return (
+      this.grantsOperation === operation &&
       !operation.controller.signal.aborted &&
-      this.current(operation.authorityKey, operation.resourceId) !== null;
+      this.current(operation.authorityKey, operation.resourceId) !== null
+    );
   }
 
   private mutationCurrent(operation: Operation): boolean {
-    return this.mutationOperation === operation &&
+    return (
+      this.mutationOperation === operation &&
       !operation.controller.signal.aborted &&
-      this.current(operation.authorityKey, operation.resourceId) !== null;
+      this.current(operation.authorityKey, operation.resourceId) !== null
+    );
   }
 
   private finishMutation(

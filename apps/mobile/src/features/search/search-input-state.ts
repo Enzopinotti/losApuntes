@@ -56,7 +56,9 @@ export function searchInputReducer(
  * A one-character refinement must NOT silently fall back to an unfiltered
  * Subject-only query (nor send an invalid too-short search).
  */
-export function searchInputForState(state: SearchInputState): MobileSearchInput | null {
+export function searchInputForState(
+  state: SearchInputState,
+): MobileSearchInput | null {
   const q = state.query.trim();
   const subjectId = state.selectedSubject?.id;
   if (q.length >= 2) {
@@ -66,7 +68,12 @@ export function searchInputForState(state: SearchInputState): MobileSearchInput 
       ...(state.scope === "resources" && subjectId ? { subjectId } : {}),
     };
   }
-  if (q.length === 0 && state.scope === "resources" && subjectId) {
+  if (
+    state.query.length === 0 &&
+    q.length === 0 &&
+    state.scope === "resources" &&
+    subjectId
+  ) {
     return { scope: "resources", subjectId };
   }
   return null;

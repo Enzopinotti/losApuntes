@@ -11,15 +11,29 @@ import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 import type { ResourceConsumptionApi } from "./resource-consumption-api";
 
 export interface ResourceDirectSharingApi {
-  searchPeople(query: string, signal?: AbortSignal): Promise<SearchPersonResult[]>;
+  searchPeople(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchPersonResult[]>;
   listGrants(
     resourceId: string,
     cursor?: string,
     signal?: AbortSignal,
   ): Promise<ResourceShareGrantsPage>;
-  resource(resourceId: string, signal?: AbortSignal): Promise<{ resource: ResourceView }>;
-  grant(resourceId: string, profileId: string, signal?: AbortSignal): Promise<{ shared: true }>;
-  revoke(resourceId: string, profileId: string, signal?: AbortSignal): Promise<void>;
+  resource(
+    resourceId: string,
+    signal?: AbortSignal,
+  ): Promise<{ resource: ResourceView }>;
+  grant(
+    resourceId: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<{ shared: true }>;
+  revoke(
+    resourceId: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }
 
 /**
@@ -35,8 +49,14 @@ export class MobileResourceDirectSharingApi implements ResourceDirectSharingApi 
     private readonly resources: Pick<ResourceConsumptionApi, "resource">,
   ) {}
 
-  async searchPeople(query: string, signal?: AbortSignal): Promise<SearchPersonResult[]> {
-    const result = await this.search.search({ q: query, scope: "people" }, signal);
+  async searchPeople(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchPersonResult[]> {
+    const result = await this.search.search(
+      { q: query, scope: "people" },
+      signal,
+    );
     return result.results.people;
   }
 

@@ -1,7 +1,9 @@
 import type { SavedResourceCursor } from './resource.store';
 import type { SavedTitleCursor } from './resource-saved-title-cursor';
 
-export const SAVED_RESOURCE_SEARCH_STORE = Symbol('SAVED_RESOURCE_SEARCH_STORE');
+export const SAVED_RESOURCE_SEARCH_STORE = Symbol(
+  'SAVED_RESOURCE_SEARCH_STORE',
+);
 
 export type SavedLibraryOrder = 'saved' | 'title';
 export interface SavedSearchPage {

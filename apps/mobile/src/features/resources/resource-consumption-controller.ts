@@ -251,28 +251,34 @@ export class MobileResourceDetailController {
 
 export type MobileSavedResourcesSnapshot =
   | { kind: "idle" }
-  | { kind: "loading"; authorityKey: string; searchQuery?: string; subjectId?: string; order?: "title" }
+  | {
+      kind: "loading";
+      authorityKey: string;
+      searchQuery?: string;
+      subjectId?: string;
+      order?: "title";
+    }
   | {
       kind: "failure";
       authorityKey: string;
       failure: ResourceConsumptionFailure;
       searchQuery?: string;
       subjectId?: string;
-      order?: 'title';
+      order?: "title";
     }
   | {
       kind: "ready";
       authorityKey: string;
       searchQuery?: string;
       subjectId?: string;
-      order?: 'title';
+      order?: "title";
       data: ResourceSavedPage;
       loadingMore: boolean;
       syncing: boolean;
       syncFailure: ResourceConsumptionFailure | null;
       syncNotice: "updated" | null;
       paginationStalled: boolean;
-      paginationResetReason?: 'cursor_cycle' | 'data_changed' | undefined;
+      paginationResetReason?: "cursor_cycle" | "data_changed" | undefined;
       failure: ResourceConsumptionFailure | null;
       removingResourceId: string | null;
       removalFailure: {
@@ -310,7 +316,7 @@ export class MobileSavedResourcesController {
   private authorityKey: string | null = null;
   private activeSearchQuery: string | null = null;
   private activeSubjectId: string | null = null;
-  private activeOrder: 'saved' | 'title' = 'saved';
+  private activeOrder: "saved" | "title" = "saved";
   private readonly usedPageCursors = new Set<string>();
   private firstPageLength = 0;
   private firstPageCursor: string | null = null;
@@ -328,7 +334,12 @@ export class MobileSavedResourcesController {
     return () => this.listeners.delete(listener);
   }
 
-  async load(authorityKey: string, query?: string, subjectId?: string, order: 'saved' | 'title' = 'saved'): Promise<void> {
+  async load(
+    authorityKey: string,
+    query?: string,
+    subjectId?: string,
+    order: "saved" | "title" = "saved",
+  ): Promise<void> {
     if (
       this.active?.kind === "remove" &&
       this.active.authorityKey === authorityKey
@@ -347,13 +358,19 @@ export class MobileSavedResourcesController {
     const scope = {
       ...(searchQuery ? { searchQuery } : {}),
       ...(subjectId ? { subjectId } : {}),
-      ...(order === 'title' ? { order: 'title' as const } : {}),
+      ...(order === "title" ? { order: "title" as const } : {}),
     };
     const operation = this.begin(authorityKey, "load");
     this.publish({ kind: "loading", authorityKey, ...scope });
 
     try {
-      const data = await this.api.saved(undefined, operation.controller.signal, searchQuery ?? undefined, subjectId, order);
+      const data = await this.api.saved(
+        undefined,
+        operation.controller.signal,
+        searchQuery ?? undefined,
+        subjectId,
+        order,
+      );
       if (!this.isCurrent(operation)) return;
       this.firstPageLength = data.items.length;
       this.firstPageCursor = data.nextCursor;
@@ -396,7 +413,13 @@ export class MobileSavedResourcesController {
    */
   async sync(authorityKey: string): Promise<void> {
     const previous = this.currentReady(authorityKey);
-    if (!previous || this.active || previous.syncing || previous.removingResourceId) return;
+    if (
+      !previous ||
+      this.active ||
+      previous.syncing ||
+      previous.removingResourceId
+    )
+      return;
 
     const operation = this.begin(authorityKey, "sync");
     this.publish({ ...previous, syncing: true, syncFailure: null });
@@ -475,7 +498,7 @@ export class MobileSavedResourcesController {
         ...current,
         data: { ...current.data, nextCursor: null },
         paginationStalled: true,
-        paginationResetReason: 'cursor_cycle',
+        paginationResetReason: "cursor_cycle",
         failure: null,
       });
       return;
@@ -495,8 +518,10 @@ export class MobileSavedResourcesController {
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (!latest) return;
-      const repeated = next.nextCursor !== null &&
-        (next.nextCursor === requestedCursor || this.usedPageCursors.has(next.nextCursor));
+      const repeated =
+        next.nextCursor !== null &&
+        (next.nextCursor === requestedCursor ||
+          this.usedPageCursors.has(next.nextCursor));
       this.usedPageCursors.add(requestedCursor);
       this.publish({
         ...latest,
@@ -506,7 +531,7 @@ export class MobileSavedResourcesController {
         },
         loadingMore: false,
         paginationStalled: repeated,
-        paginationResetReason: repeated ? 'cursor_cycle' : undefined,
+        paginationResetReason: repeated ? "cursor_cycle" : undefined,
         failure: null,
       });
     } catch (error) {
@@ -604,7 +629,7 @@ export class MobileSavedResourcesController {
     this.authorityKey = null;
     this.activeSearchQuery = null;
     this.activeSubjectId = null;
-    this.activeOrder = 'saved';
+    this.activeOrder = "saved";
     this.usedPageCursors.clear();
     this.firstPageLength = 0;
     this.firstPageCursor = null;

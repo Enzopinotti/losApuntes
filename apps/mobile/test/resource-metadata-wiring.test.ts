@@ -7,11 +7,18 @@ function source(path: string): string {
 }
 
 test("resource detail presents metadata editing only for server-authorized owners", () => {
-  const detail = source("../src/features/resources/resource-details-screen.tsx");
-  const editor = source("../src/features/resources/resource-metadata-editor.tsx");
+  const detail = source(
+    "../src/features/resources/resource-details-screen.tsx",
+  );
+  const editor = source(
+    "../src/features/resources/resource-metadata-editor.tsx",
+  );
 
   assert.match(detail, /resource\.capabilities\.edit \?/u);
-  assert.match(detail, /metadataController\.setScope\(scopeKey, snapshot\.data\.resource\)/u);
+  assert.match(
+    detail,
+    /metadataController\.setScope\(scopeKey, snapshot\.data\.resource\)/u,
+  );
   assert.match(editor, /if \(!visible\.capabilities\.edit\) return null/u);
   assert.match(editor, /Guardar cambios/u);
   assert.match(editor, /Cancelar/u);
@@ -19,9 +26,15 @@ test("resource detail presents metadata editing only for server-authorized owner
 });
 
 test("resource metadata update uses existing authorized and revisioned PATCH", () => {
-  const transport = source("../src/features/resources/resource-consumption-api.ts");
-  const policy = source("../src/features/resources/resource-metadata-policy.ts");
-  const controller = source("../src/features/resources/resource-metadata-controller.ts");
+  const transport = source(
+    "../src/features/resources/resource-consumption-api.ts",
+  );
+  const policy = source(
+    "../src/features/resources/resource-metadata-policy.ts",
+  );
+  const controller = source(
+    "../src/features/resources/resource-metadata-controller.ts",
+  );
 
   assert.match(transport, /method: "PATCH"/u);
   assert.match(
@@ -35,7 +48,9 @@ test("resource metadata update uses existing authorized and revisioned PATCH", (
 });
 
 test("resource editor changes visibility but not file, author or academic context", () => {
-  const policy = source("../src/features/resources/resource-metadata-policy.ts");
+  const policy = source(
+    "../src/features/resources/resource-metadata-policy.ts",
+  );
   assert.doesNotMatch(
     policy,
     /input\.(?:assetId|authorUserId|subjectId|courseOfferingId)\s*=/u,
@@ -47,8 +62,12 @@ test("resource editor changes visibility but not file, author or academic contex
 });
 
 test("visibility requires a separate user acknowledgement before enabling save", () => {
-  const editor = source("../src/features/resources/resource-metadata-editor.tsx");
-  const detail = source("../src/features/resources/resource-details-screen.tsx");
+  const editor = source(
+    "../src/features/resources/resource-metadata-editor.tsx",
+  );
+  const detail = source(
+    "../src/features/resources/resource-details-screen.tsx",
+  );
   assert.match(editor, /RESOURCE_VISIBILITY_OPTIONS\.map/u);
   assert.match(editor, /resourceVisibilityWarning\(/u);
   assert.match(editor, /accessibilityRole="radiogroup"/u);

@@ -260,6 +260,37 @@ describe('NotificationService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('acknowledges retrying an already-read owned notification', async () => {
+    const notificationStore = store();
+    const profileApi = profiles();
+    const originalReadAt = new Date('2026-10-11T12:10:00.000Z');
+    const alreadyRead = row({ readAt: originalReadAt });
+    notificationStore.markRead.mockResolvedValue(alreadyRead);
+    const service = new NotificationService(
+      notificationStore,
+      profileApi as unknown as ProfileService,
+    );
+
+    await expect(service.markRead('user-a', alreadyRead.id)).resolves.toEqual({
+      read: true,
+    });
+    await expect(service.markRead('user-a', alreadyRead.id)).resolves.toEqual({
+      read: true,
+    });
+
+    expect(notificationStore.markRead).toHaveBeenCalledTimes(2);
+    expect(notificationStore.markRead.mock.calls[0]?.slice(0, 2)).toEqual([
+      'user-a',
+      alreadyRead.id,
+    ]);
+    expect(notificationStore.markRead.mock.calls[1]?.slice(0, 2)).toEqual([
+      'user-a',
+      alreadyRead.id,
+    ]);
+    expect(alreadyRead.readAt).toBe(originalReadAt);
+    expect(profileApi.getAttributionForUser).not.toHaveBeenCalled();
+  });
+
   it('marks all unread notifications only through the acting user scope', async () => {
     const notificationStore = store();
     const profileApi = profiles();
