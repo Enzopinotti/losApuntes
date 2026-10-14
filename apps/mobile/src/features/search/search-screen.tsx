@@ -558,7 +558,10 @@ export function SearchScreen() {
     handledIncomingSearch.current = key;
     controller.cancelSearch();
     if (incomingSearch) {
-      dispatchSearchInput({ type: "sharedSearchOpened", input: incomingSearch });
+      dispatchSearchInput({
+        type: "sharedSearchOpened",
+        input: incomingSearch,
+      });
     } else {
       dispatchSearchInput({ type: "invalidSharedSearchOpened" });
     }
@@ -1038,8 +1041,8 @@ export function SearchScreen() {
           <View style={styles.sharePanel}>
             <Text style={styles.meta}>
               Compartí esta búsqueda con alguien que tenga Los Apuntes
-              instalado. El enlace incluye el término y el identificador
-              público de la materia, nunca datos de tu cuenta.
+              instalado. El enlace incluye el término y el identificador público
+              de la materia, nunca datos de tu cuenta.
             </Text>
             <Pressable
               accessibilityRole="button"
