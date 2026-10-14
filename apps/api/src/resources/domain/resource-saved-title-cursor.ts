@@ -61,8 +61,8 @@ export function decodeSavedTitleCursor(
       fields.version !== 2 ||
       fields.order !== 'title' ||
       typeof fields.title !== 'string' ||
-      fields.title.length < 1 ||
-      fields.title.length > 220 ||
+      Array.from(fields.title).length < 1 ||
+      Array.from(fields.title).length > 160 ||
       typeof fields.resourceId !== 'string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(fields.resourceId) ||
       fields.scope !== scopeHash(userId, query, subjectId)
