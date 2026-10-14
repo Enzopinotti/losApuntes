@@ -503,16 +503,6 @@ jobs:
       - name: Install workspace from frozen lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Diagnose Mobile Search formatter differences
-        run: |
-          for path in \
-            src/features/search/search-deep-link.ts \
-            src/features/search/search-input-state.ts \
-            src/features/search/search-screen.tsx \
-            test/search-deep-link.test.ts; do
-            pnpm --filter @losapuntes/mobile exec prettier "$path" | diff -u "apps/mobile/$path" - || true
-          done
-
       - name: Verify Mobile Search source format
         run: pnpm --filter @losapuntes/mobile exec prettier --check "src/features/search/search-deep-link.ts" "src/features/search/search-input-state.ts" "src/features/search/search-screen.tsx" "test/search-deep-link.test.ts"
 
