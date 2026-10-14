@@ -1,10 +1,11 @@
-import { MongoResourceStore, savedMetadataRegex } from './mongo-resource.store';
+import { MongoResourceStore, SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS, savedMetadataRegex } from './mongo-resource.store';
 
 describe('Mongo saved-library full-collection search', () => {
   function build(result: Array<{ resourceId: string; createdAt: Date; title?: string }> = []) {
     const exec = jest.fn().mockResolvedValue(result);
     const collation = jest.fn().mockReturnValue({ exec });
-    const aggregate = jest.fn().mockReturnValue({ exec, collation });
+    const option = jest.fn().mockReturnValue({ exec, collation });
+    const aggregate = jest.fn().mockReturnValue({ exec, collation, option });
     const store = new MongoResourceStore(
       {} as never,
       {} as never,
@@ -13,8 +14,33 @@ describe('Mongo saved-library full-collection search', () => {
       {} as never,
       {} as never,
     );
-    return { store, aggregate, collation };
+    return { store, aggregate, collation, option };
   }
+
+  it('sets a strict execution budget and spill allowance on title and date searches', async () => {
+    const { store, option, collation } = build();
+    await store.searchSavedResources({ userId: 'viewer-a', order: 'title', limit: 25 });
+    expect(option).toHaveBeenCalledWith({
+      allowDiskUse: true, maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+    });
+    expect(collation).toHaveBeenCalledWith({ locale: 'es', strength: 1 });
+    option.mockClear();
+    collation.mockClear();
+    await store.searchSavedResources({ userId: 'viewer-a', q: 'álgebra', limit: 25 });
+    expect(option).toHaveBeenCalledWith({
+      allowDiskUse: true, maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+    });
+    expect(collation).not.toHaveBeenCalled();
+    expect(SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS).toBeGreaterThan(0);
+  });
+
+  it('budgets the global Subject facet aggregation independently of title sorting', async () => {
+    const { store, option } = build();
+    await store.listSavedSubjectFacets('viewer-a');
+    expect(option).toHaveBeenCalledWith({
+      allowDiskUse: true, maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+    });
+  });
 
   it('applies owner, save cursor, metadata, moderation and ACL before limiting', async () => {
     const { store, aggregate } = build();
