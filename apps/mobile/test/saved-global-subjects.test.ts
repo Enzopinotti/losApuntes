@@ -31,8 +31,7 @@ test("selected Subject reaches every saved-search page with unchanged query", as
     cursor?: string | undefined;
     query?: string | undefined;
     subject?: string | undefined;
-  }> =
-    [];
+  }> = [];
   const api = {
     saved: async (
       cursor?: string,
