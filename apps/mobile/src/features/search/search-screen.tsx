@@ -484,6 +484,11 @@ export function SearchScreen() {
   const incomingSearchKey = incomingSearch
     ? mobileSearchLinkKey(incomingSearch)
     : null;
+  const incomingRouteKey = JSON.stringify([
+    routeParams.q ?? null,
+    routeParams.scope ?? null,
+    routeParams.subjectId ?? null,
+  ]);
   const handledIncomingSearch = useRef<string | null>(null);
   const isFocused = useIsFocused();
   const { snapshot: session } = useSession();
@@ -543,18 +548,28 @@ export function SearchScreen() {
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
   useEffect(() => {
-    if (!authorityKey || !incomingSearch || !incomingSearchKey) return;
-    const key = `${sessionAuthority}:${incomingSearchKey}`;
+    if (!hasIncomingSearchParams) {
+      handledIncomingSearch.current = null;
+      return;
+    }
+    if (!authorityKey) return;
+    const key = `${sessionAuthority}:${incomingSearchKey ?? `invalid:${incomingRouteKey}`}`;
     if (handledIncomingSearch.current === key) return;
     handledIncomingSearch.current = key;
 
     controller.cancelSearch();
-    dispatchSearchInput({ type: "sharedSearchOpened", input: incomingSearch });
+    if (incomingSearch) {
+      dispatchSearchInput({ type: "sharedSearchOpened", input: incomingSearch });
+    } else {
+      dispatchSearchInput({ type: "invalidSharedSearchOpened" });
+    }
   }, [
     authorityKey,
     controller,
+    hasIncomingSearchParams,
     incomingSearch,
     incomingSearchKey,
+    incomingRouteKey,
     sessionAuthority,
   ]);
 
