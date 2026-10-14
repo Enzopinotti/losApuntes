@@ -73,9 +73,26 @@ ResourceSchema.index({
 });
 ResourceSchema.index({ authorUserId: 1, updatedAt: -1, id: 1 });
 ResourceSchema.index({ authorUserId: 1, id: 1 });
-ResourceSchema.index({ authorUserId: 1, moderationState: 1, createdAt: -1, id: 1 });
-ResourceSchema.index({ authorUserId: 1, moderationState: 1, subjectId: 1, createdAt: -1, id: 1 });
-ResourceSchema.index({ authorUserId: 1, moderationState: 1, subjectId: 1, createdAt: 1, id: 1 });
+ResourceSchema.index({
+  authorUserId: 1,
+  moderationState: 1,
+  createdAt: -1,
+  id: 1,
+});
+ResourceSchema.index({
+  authorUserId: 1,
+  moderationState: 1,
+  subjectId: 1,
+  createdAt: -1,
+  id: 1,
+});
+ResourceSchema.index({
+  authorUserId: 1,
+  moderationState: 1,
+  subjectId: 1,
+  createdAt: 1,
+  id: 1,
+});
 ResourceSchema.index({ moderationState: 1, subjectId: 1 });
 
 @Schema({ collection: 'resource_shares', timestamps: true })
