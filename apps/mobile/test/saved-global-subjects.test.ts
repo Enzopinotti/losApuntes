@@ -27,7 +27,11 @@ function deferred<T>() {
 }
 
 test("selected Subject reaches every saved-search page with unchanged query", async () => {
-  const calls: Array<{ cursor?: string; query?: string; subject?: string }> =
+  const calls: Array<{
+    cursor?: string | undefined;
+    query?: string | undefined;
+    subject?: string | undefined;
+  }> =
     [];
   const api = {
     saved: async (
