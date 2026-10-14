@@ -16,3 +16,5 @@ export declare function searchSelectionHref(
 export declare function searchSelectionKey(
   selection: SharedSearchSelection | null,
 ): string | null;
+
+export declare function searchReturnHref(locationState: unknown): string | null;
