@@ -531,10 +531,15 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
                 $match: {
                   $expr: { $eq: ['$id', '$$savedResourceId'] },
                   moderationState: 'available',
-                  searchText: {
-                    $regex: savedMetadataRegex(input.q),
-                    $options: 'i',
-                  },
+                  ...(input.q
+                    ? {
+                        searchText: {
+                          $regex: savedMetadataRegex(input.q),
+                          $options: 'i',
+                        },
+                      }
+                    : {}),
+                  ...(input.subjectId ? { subjectId: input.subjectId } : {}),
                 },
               },
               { $limit: 1 },
@@ -586,6 +591,70 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
       items: candidates.slice(0, input.limit),
       hasMore: candidates.length > input.limit,
     };
+  }
+
+  async listSavedSubjectFacets(
+    userId: string,
+  ): ReturnType<SavedResourceSearchStore['listSavedSubjectFacets']> {
+    const rows = await this.saves.aggregate<{ subjectId: string; count: number }>([
+      { $match: { userId } },
+      {
+        $lookup: {
+          from: 'resources',
+          let: { resourceId: '$resourceId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$id', '$resourceId'] },
+                moderationState: 'available',
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: '__resource',
+        },
+      },
+      { $unwind: '$__resource' },
+      {
+        $lookup: {
+          from: 'resource_shares',
+          let: { resourceId: '$resourceId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$resourceId', '$resourceId'] },
+                    { $eq: ['$userId', userId] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: '__viewerShares',
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { '__resource.visibility': 'public' },
+            { '__resource.authorUserId': userId },
+            {
+              $and: [
+                { '__resource.visibility': 'shared' },
+                { '__viewerShares.0': { $exists: true } },
+              ],
+            },
+          ],
+        },
+      },
+      { $group: { _id: '$__resource.subjectId', count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+      { $limit: 101 },
+      { $project: { _id: 0, subjectId: '$_id', count: 1 } },
+    ]).exec();
+    return { items: rows.slice(0, 100), truncated: rows.length > 100 };
   }
 
   async searchAuthorized(input: {
