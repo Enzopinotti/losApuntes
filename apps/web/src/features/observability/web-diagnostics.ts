@@ -238,40 +238,53 @@ export function installWebGlobalDiagnosticHandlers(
   report: (error: unknown) => void,
 ): () => void {
   const onError: EventListener = (event) => {
-    const errorEvent = event as ErrorEvent;
     try {
-      report(errorEvent.error ?? new Error());
+      report((event as ErrorEvent).error ?? new Error());
     } catch {
-      // Reporting failures must not interfere with the browser error lifecycle.
-    } finally {
-      try {
-        event.preventDefault();
-      } catch {
-        // Ignore malformed or non-cancelable events.
-      }
+      // Reporting must not interrupt native error handling or other listeners.
     }
   };
 
   const onUnhandledRejection: EventListener = (event) => {
-    const rejectionEvent = event as PromiseRejectionEvent;
     try {
-      report(rejectionEvent.reason);
+      report((event as PromiseRejectionEvent).reason);
     } catch {
-      // Reporting failures must not interfere with the browser rejection lifecycle.
-    } finally {
-      try {
-        event.preventDefault();
-      } catch {
-        // Ignore malformed or non-cancelable events.
-      }
+      // Native rejection handling must remain active when reporting fails.
     }
   };
 
-  target.addEventListener("error", onError);
-  target.addEventListener("unhandledrejection", onUnhandledRejection);
+  // Observation is not ownership: never preventDefault() on native failures.
+  // If the second registration fails, undo the first before returning.
+  try {
+    target.addEventListener("error", onError);
+    target.addEventListener("unhandledrejection", onUnhandledRejection);
+  } catch {
+    try {
+      target.removeEventListener("error", onError);
+    } catch {
+      // Third-party event targets can throw during cleanup.
+    }
+    try {
+      target.removeEventListener("unhandledrejection", onUnhandledRejection);
+    } catch {
+      // Keep failed instrumentation from crashing the application.
+    }
+    return () => undefined;
+  }
 
+  let disposed = false;
   return () => {
-    target.removeEventListener("error", onError);
-    target.removeEventListener("unhandledrejection", onUnhandledRejection);
+    if (disposed) return;
+    disposed = true;
+    try {
+      target.removeEventListener("error", onError);
+    } catch {
+      // Always attempt to remove the second listener independently.
+    }
+    try {
+      target.removeEventListener("unhandledrejection", onUnhandledRejection);
+    } catch {
+      // Observability teardown must not break route or app unmount.
+    }
   };
 }
