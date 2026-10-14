@@ -3,13 +3,14 @@ import test from "node:test";
 
 import type { ResourceView } from "@losapuntes/contracts";
 
-import {
-  MobileOwnedResourcesController,
-} from "../src/features/resources/resource-owned-controller";
+import { MobileOwnedResourcesController } from "../src/features/resources/resource-owned-controller";
 import type { OwnedResourcesApi } from "../src/features/resources/resource-owned-api";
 import { ApiRequestError } from "../src/services/api/client";
 
-function resource(id: string, visibility: ResourceView["visibility"] = "private"): ResourceView {
+function resource(
+  id: string,
+  visibility: ResourceView["visibility"] = "private",
+): ResourceView {
   return {
     id,
     title: `Apunte ${id}`,
@@ -116,7 +117,10 @@ test("switching visibility aborts prior page and keeps filters isolated", async 
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind !== "ready") return;
   assert.equal(snapshot.visibility, "public");
-  assert.deepEqual(snapshot.data.items.map((item) => item.id), ["public-1"]);
+  assert.deepEqual(
+    snapshot.data.items.map((item) => item.id),
+    ["public-1"],
+  );
 });
 
 test("a previous session's late response cannot disclose owned resources", async () => {
@@ -182,10 +186,16 @@ test("a failed extra page keeps already-loaded resources and supports retry", as
   let fail = true;
   const controller = new MobileOwnedResourcesController({
     listOwned: async (query) => {
-      if (!query.cursor) return { items: [resource("first")], nextCursor: "next" };
+      if (!query.cursor)
+        return { items: [resource("first")], nextCursor: "next" };
       if (fail) {
         fail = false;
-        throw new ApiRequestError("offline", null, "NETWORK_UNAVAILABLE", "Offline");
+        throw new ApiRequestError(
+          "offline",
+          null,
+          "NETWORK_UNAVAILABLE",
+          "Offline",
+        );
       }
       return { items: [resource("second")], nextCursor: null };
     },
@@ -196,12 +206,18 @@ test("a failed extra page keeps already-loaded resources and supports retry", as
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind !== "ready") return;
   assert.equal(snapshot.failure, "offline");
-  assert.deepEqual(snapshot.data.items.map((item) => item.id), ["first"]);
+  assert.deepEqual(
+    snapshot.data.items.map((item) => item.id),
+    ["first"],
+  );
   await controller.loadMore("session-a");
   snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind !== "ready") return;
-  assert.deepEqual(snapshot.data.items.map((item) => item.id), ["first", "second"]);
+  assert.deepEqual(
+    snapshot.data.items.map((item) => item.id),
+    ["first", "second"],
+  );
   assert.equal(snapshot.failure, null);
 });
 
@@ -239,7 +255,10 @@ test("server-side search subject and oldest order persist across pagination", as
   const snap = controller.getSnapshot();
   assert.equal(snap.kind, "ready");
   if (snap.kind !== "ready") return;
-  assert.deepEqual(snap.data.items.map((row) => row.id), ["newer", "older"]);
+  assert.deepEqual(
+    snap.data.items.map((row) => row.id),
+    ["newer", "older"],
+  );
 });
 
 test("changing only subject or query aborts earlier results with same visibility", async () => {
@@ -258,10 +277,12 @@ test("changing only subject or query aborts earlier results with same visibility
     },
   });
   const earlier = controller.load("account", null, {
-    q: "parcial", subjectId: "subject-a",
+    q: "parcial",
+    subjectId: "subject-a",
   });
   await controller.load("account", null, {
-    q: "final", subjectId: "subject-b",
+    q: "final",
+    subjectId: "subject-b",
   });
   waiting.resolve({ items: [resource("stale")], nextCursor: null });
   await earlier;
@@ -271,14 +292,18 @@ test("changing only subject or query aborts earlier results with same visibility
   if (snap.kind !== "ready") return;
   assert.equal(snap.filters.q, "final");
   assert.equal(snap.filters.subjectId, "subject-b");
-  assert.deepEqual(snap.data.items.map((row) => row.id), ["other"]);
+  assert.deepEqual(
+    snap.data.items.map((row) => row.id),
+    ["other"],
+  );
 });
 
 test("changing chronological direction clears earlier pagination", async () => {
   const controller = new MobileOwnedResourcesController({
-    listOwned: async (query) => query.order === "oldest"
-      ? { items: [resource("old")], nextCursor: null }
-      : { items: [resource("new")], nextCursor: "page-next" },
+    listOwned: async (query) =>
+      query.order === "oldest"
+        ? { items: [resource("old")], nextCursor: null }
+        : { items: [resource("new")], nextCursor: "page-next" },
   });
   await controller.load("account");
   await controller.load("account", null, { order: "oldest" });
@@ -288,5 +313,8 @@ test("changing chronological direction clears earlier pagination", async () => {
   if (snap.kind !== "ready") return;
   assert.equal(snap.filters.order, "oldest");
   assert.equal(snap.data.nextCursor, null);
-  assert.deepEqual(snap.data.items.map((row) => row.id), ["old"]);
+  assert.deepEqual(
+    snap.data.items.map((row) => row.id),
+    ["old"],
+  );
 });
