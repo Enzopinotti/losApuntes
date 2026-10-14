@@ -118,7 +118,7 @@ export function HomeSavedReturnCard({
               <View key={resource.id} style={styles.savedItem}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Volver a abrir ${resource.title}, ${resource.academic.subject.name}`}
+                  accessibilityLabel={`Abrir ${resource.title}, ${resource.academic.subject.name}`}
                   accessibilityHint="Abre el detalle, que vuelve a validar la visibilidad y el acceso al archivo."
                   onPress={() =>
                     router.push({
