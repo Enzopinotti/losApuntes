@@ -125,7 +125,7 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(() =>
       assertAccountExportV1Sections([
         ...dependencies.slice(0, -1),
-        dependencies[0]!,
+        dependencies[0],
       ]),
     ).toThrow('inventory is incomplete or incompatible');
     expect(() => assertAccountExportV1Sections(dependencies)).not.toThrow();
