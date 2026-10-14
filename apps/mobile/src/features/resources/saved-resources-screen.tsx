@@ -26,15 +26,17 @@ import {
   type MobileSavedResourcesSnapshot,
   type ResourceConsumptionFailure,
 } from "./resource-consumption-controller";
-import { mobileResourceConsumptionApi } from "./resource-runtime";
+import { mobileResourceConsumptionApi, mobileSavedSubjectFacetsApi } from "./resource-runtime";
+import {
+  MobileSavedSubjectFacetsController,
+  type SavedSubjectFacetsSnapshot,
+} from "./saved-subject-facets";
 import {
   savedSubjectQuestionsAction,
   type SavedSubjectQuestionsAction,
 } from "./saved-subject-questions-action";
 import {
-  activeLoadedSavedSubject,
   findLoadedSavedResources,
-  loadedSavedLibrarySubjects,
   loadedSavedSearchSummary,
   SAVED_LIBRARY_QUERY_MAX_LENGTH,
   type SavedLibrarySort,
@@ -162,6 +164,13 @@ export function SavedResourcesScreen() {
   const [snapshot, setSnapshot] = useState<MobileSavedResourcesSnapshot>(
     controller.getSnapshot(),
   );
+  const subjectsController = useMemo(
+    () => new MobileSavedSubjectFacetsController(mobileSavedSubjectFacetsApi),
+    [],
+  );
+  const [subjectSnapshot, setSubjectSnapshot] = useState<SavedSubjectFacetsSnapshot>(
+    subjectsController.getSnapshot(),
+  );
   const [appState, setAppState] = useState(AppState.currentState);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SavedLibrarySort>("saved");
@@ -184,6 +193,16 @@ export function SavedResourcesScreen() {
   }, [sessionKey]);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
+  useEffect(() => subjectsController.subscribe(setSubjectSnapshot), [subjectsController]);
+
+  useEffect(() => {
+    if (!authorityKey) {
+      subjectsController.invalidate();
+      return;
+    }
+    void subjectsController.load(authorityKey);
+    return () => subjectsController.invalidate(authorityKey);
+  }, [authorityKey, subjectsController]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", setAppState);
@@ -222,45 +241,49 @@ export function SavedResourcesScreen() {
       return;
     }
     const timeout = setTimeout(() => {
-      void controller.load(authorityKey, searchQuery || undefined);
+      void controller.load(authorityKey, searchQuery || undefined, selectedSubjectId ?? undefined);
     }, searchQuery ? 300 : 0);
     return () => {
       clearTimeout(timeout);
       controller.invalidate(authorityKey);
     };
-  }, [authorityKey, controller, searchEligible, searchQuery]);
+  }, [authorityKey, controller, searchEligible, searchQuery, selectedSubjectId]);
 
   const current =
     snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey &&
-    (snapshot.searchQuery ?? "") === searchQuery
+    (snapshot.searchQuery ?? "") === searchQuery &&
+    (snapshot.subjectId ?? "") === (selectedSubjectId ?? "")
       ? snapshot
       : null;
+  const activeFacetSnapshot =
+    subjectSnapshot.kind !== "idle" && subjectSnapshot.authorityKey === authorityKey
+      ? subjectSnapshot
+      : null;
   const subjectGroups =
-    current?.kind === "ready"
-      ? loadedSavedLibrarySubjects(current.data.items)
-      : [];
-  const activeSubjectId = activeLoadedSavedSubject(
-    subjectGroups,
-    selectedSubjectId,
-  );
+    activeFacetSnapshot?.kind === "ready" ? activeFacetSnapshot.data.items : [];
+  const activeSubjectId = selectedSubjectId;
   const activeSubject =
-    subjectGroups.find((subject) => subject.id === activeSubjectId) ?? null;
+    subjectGroups.find((subject) => subject.subjectId === selectedSubjectId) ?? null;
   const shownResources =
     current?.kind === "ready"
       ? findLoadedSavedResources(
           current.data.items,
           "",
           sort,
-          activeSubjectId,
+          null,
         )
       : [];
 
   useEffect(() => {
-    if (selectedSubjectId && current?.kind === "ready" && !activeSubjectId) {
+    if (
+      selectedSubjectId &&
+      activeFacetSnapshot?.kind === "ready" &&
+      !subjectGroups.some((subject) => subject.subjectId === selectedSubjectId)
+    ) {
       setSelectedSubjectId(null);
     }
-  }, [activeSubjectId, current?.kind, selectedSubjectId]);
+  }, [activeFacetSnapshot, selectedSubjectId, subjectGroups]);
 
   if (session.kind !== "authenticated") return <Redirect href="/sign-in" />;
 
@@ -301,7 +324,6 @@ export function SavedResourcesScreen() {
             maxLength={SAVED_LIBRARY_QUERY_MAX_LENGTH}
             onChangeText={(value) => {
               setQuery(value);
-              setSelectedSubjectId(null);
             }}
             placeholder="Título, descripción o etiqueta"
             returnKeyType="search"
