@@ -12,7 +12,10 @@ import { ResourcesController } from './resources.controller';
 
 describe('owner-only resource share grants route', () => {
   it('uses session and verified-email guards, and disables caching', () => {
-    const method = Reflect.get(ResourcesController.prototype, 'shares') as object;
+    const method = Reflect.get(
+      ResourcesController.prototype,
+      'shares',
+    ) as object;
     const guards = Reflect.getMetadata(GUARDS_METADATA, method) as unknown[];
     const headers = Reflect.getMetadata(HEADERS_METADATA, method) as Array<{
       name: string;
