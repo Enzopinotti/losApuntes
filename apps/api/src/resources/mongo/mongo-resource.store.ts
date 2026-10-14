@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Types, type Connection, type FilterQuery, type Model, type PipelineStage } from 'mongoose';
+import {
+  Types,
+  type Connection,
+  type FilterQuery,
+  type Model,
+  type PipelineStage,
+} from 'mongoose';
 
 import type { FileAssetRecord } from '../../files/domain/file.types';
 import { FileAsset } from '../../files/mongo/file.mongo-schema';
@@ -93,15 +99,19 @@ const SAVED_ACCENT_GROUPS: Record<string, string> = {
 
 /** Existing searchText is lowercased but retains accents; do not migrate it. */
 export function savedMetadataRegex(query: string): string {
-  return [...query].map((character) =>
-    SAVED_ACCENT_GROUPS[character] ?? escapeRegex(character),
-  ).join('');
+  return [...query]
+    .map(
+      (character) => SAVED_ACCENT_GROUPS[character] ?? escapeRegex(character),
+    )
+    .join('');
 }
 
 export const SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS = 8_000;
 
 @Injectable()
-export class MongoResourceStore implements ResourceStore, SavedResourceSearchStore {
+export class MongoResourceStore
+  implements ResourceStore, SavedResourceSearchStore
+{
   constructor(
     @InjectConnection()
     private readonly connection: Connection,
@@ -395,9 +405,11 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
       public: 0,
     };
     for (const group of row?.publications ?? []) {
-      if (group._id === 'private' ||
-          group._id === 'shared' ||
-          group._id === 'public') {
+      if (
+        group._id === 'private' ||
+        group._id === 'shared' ||
+        group._id === 'public'
+      ) {
         counts[group._id] = group.count;
         counts.total += group.count;
       }
@@ -533,17 +545,19 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
         ...(input.subjectId ? { subjectId: input.subjectId } : {}),
       }),
       ...(byTitle && input.titleAfter
-        ? [{
-            $match: {
-              $or: [
-                { '__resource.title': { $gt: input.titleAfter.title } },
-                {
-                  '__resource.title': input.titleAfter.title,
-                  resourceId: { $gt: input.titleAfter.resourceId },
-                },
-              ],
-            },
-          } as PipelineStage]
+        ? [
+            {
+              $match: {
+                $or: [
+                  { '__resource.title': { $gt: input.titleAfter.title } },
+                  {
+                    '__resource.title': input.titleAfter.title,
+                    resourceId: { $gt: input.titleAfter.resourceId },
+                  },
+                ],
+              },
+            } as PipelineStage,
+          ]
         : []),
       ...(byTitle
         ? [{ $sort: { '__resource.title': 1, resourceId: 1 } } as PipelineStage]
@@ -558,14 +572,16 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
         },
       },
     ];
-    const aggregate = this.saves.aggregate<{
-      resourceId: string;
-      createdAt: Date;
-      title?: string;
-    }>(stages).option({
-      allowDiskUse: true,
-      maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
-    });
+    const aggregate = this.saves
+      .aggregate<{
+        resourceId: string;
+        createdAt: Date;
+        title?: string;
+      }>(stages)
+      .option({
+        allowDiskUse: true,
+        maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+      });
     // Strength 1 applies Spanish case/accent-insensitive ordering to both
     // $sort and title cursor comparisons. UUID is the stable tie-breaker.
     const candidates = byTitle
@@ -578,7 +594,9 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
   }
 
   async isSavedSearchAnchorCurrent(
-    input: Parameters<SavedResourceSearchStore['isSavedSearchAnchorCurrent']>[0],
+    input: Parameters<
+      SavedResourceSearchStore['isSavedSearchAnchorCurrent']
+    >[0],
   ): ReturnType<SavedResourceSearchStore['isSavedSearchAnchorCurrent']> {
     const anchor = input.titleAfter ?? input.after;
     if (!anchor) return false;
@@ -599,7 +617,11 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
         ...(input.subjectId ? { subjectId: input.subjectId } : {}),
       }),
       ...(input.titleAfter
-        ? [{ $match: { '__resource.title': input.titleAfter.title } } as PipelineStage]
+        ? [
+            {
+              $match: { '__resource.title': input.titleAfter.title },
+            } as PipelineStage,
+          ]
         : []),
       { $limit: 1 },
       { $project: { _id: 0, resourceId: 1 } },
@@ -617,18 +639,21 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
   async listSavedSubjectFacets(
     userId: string,
   ): ReturnType<SavedResourceSearchStore['listSavedSubjectFacets']> {
-    const rows = await this.saves.aggregate<{ subjectId: string; count: number }>([
-      { $match: { userId } },
-      { $project: { _id: 0, resourceId: 1 } },
-      ...authorizedSavedJoinStages(userId, { facets: true }),
-      { $group: { _id: '$__resource.subjectId', count: { $sum: 1 } } },
-      { $sort: { count: -1, _id: 1 } },
-      { $limit: 101 },
-      { $project: { _id: 0, subjectId: '$_id', count: 1 } },
-    ]).option({
-      allowDiskUse: true,
-      maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
-    }).exec();
+    const rows = await this.saves
+      .aggregate<{ subjectId: string; count: number }>([
+        { $match: { userId } },
+        { $project: { _id: 0, resourceId: 1 } },
+        ...authorizedSavedJoinStages(userId, { facets: true }),
+        { $group: { _id: '$__resource.subjectId', count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 101 },
+        { $project: { _id: 0, subjectId: '$_id', count: 1 } },
+      ])
+      .option({
+        allowDiskUse: true,
+        maxTimeMS: SAVED_LIBRARY_AGGREGATION_TIMEOUT_MS,
+      })
+      .exec();
     return { items: rows.slice(0, 100), truncated: rows.length > 100 };
   }
 
