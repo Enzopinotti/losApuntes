@@ -15,7 +15,9 @@ function invalid(): never {
 
 function scopeHash(userId: string, query: string, subjectId?: string): string {
   return createHash('sha256')
-    .update(JSON.stringify(['saved-title-v2', userId, query, subjectId ?? null]))
+    .update(
+      JSON.stringify(['saved-title-v2', userId, query, subjectId ?? null]),
+    )
     .digest('hex');
 }
 
@@ -54,7 +56,8 @@ export function decodeSavedTitleCursor(
     if (value.length > 2048 || value.length < 4) return invalid();
     const raw = Buffer.from(value, 'base64url').toString('utf8');
     const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return invalid();
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      return invalid();
     const fields = parsed as Record<string, unknown>;
     if (
       Object.keys(fields).length !== 5 ||
@@ -64,9 +67,12 @@ export function decodeSavedTitleCursor(
       Array.from(fields.title).length < 1 ||
       Array.from(fields.title).length > 160 ||
       typeof fields.resourceId !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(fields.resourceId) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        fields.resourceId,
+      ) ||
       fields.scope !== scopeHash(userId, query, subjectId)
-    ) return invalid();
+    )
+      return invalid();
     return { title: fields.title, resourceId: fields.resourceId };
   } catch {
     return invalid();

@@ -171,30 +171,38 @@ describe('ResourceService', () => {
         publications: { total: 3, private: 1, shared: 1, public: 1 },
         currentSaves: 7,
         activeShareGrants: 2,
-        topResources: [{
-          id: resource().id,
-          title: 'Base de Datos',
-          visibility: 'public',
-          saves: 5,
-          shareGrants: 0,
-        }],
+        topResources: [
+          {
+            id: resource().id,
+            title: 'Base de Datos',
+            visibility: 'public',
+            saves: 5,
+            shareGrants: 0,
+          },
+        ],
       });
 
-      const response = await service(resourceStore, deps)
-        .getOwnedStatistics('author-1');
-      expect(resourceStore.getOwnedStatistics)
-        .toHaveBeenCalledWith('author-1');
+      const response = await service(resourceStore, deps).getOwnedStatistics(
+        'author-1',
+      );
+      expect(resourceStore.getOwnedStatistics.mock.calls).toContainEqual([
+        'author-1',
+      ]);
       expect(response).toMatchObject({
         publications: { total: 3, private: 1, shared: 1, public: 1 },
         currentSaves: 7,
         activeShareGrants: 2,
-        topResources: [{
-          id: resource().id,
-          saves: 5,
-          shareGrants: 0,
-        }],
+        topResources: [
+          {
+            id: resource().id,
+            saves: 5,
+            shareGrants: 0,
+          },
+        ],
       });
-      expect(new Date(response.generatedAt).toISOString()).toBe(response.generatedAt);
+      expect(new Date(response.generatedAt).toISOString()).toBe(
+        response.generatedAt,
+      );
       expect(JSON.stringify(response)).not.toContain('authorUserId');
       expect(deps.profiles.getAttributionForUser).not.toHaveBeenCalled();
     });
@@ -208,8 +216,9 @@ describe('ResourceService', () => {
         activeShareGrants: 0,
         topResources: [],
       });
-      const response = await service(resourceStore, deps)
-        .getOwnedStatistics('author-2');
+      const response = await service(resourceStore, deps).getOwnedStatistics(
+        'author-2',
+      );
       expect(response.currentSaves).toBe(0);
       expect(response.activeShareGrants).toBe(0);
       expect(response.topResources).toEqual([]);
@@ -226,24 +235,23 @@ describe('ResourceService', () => {
         items: [item],
         hasMore: true,
       });
-      const first = await service(resourceStore, deps).listOwned(
-        'author-1',
-        {
-          limit: 2,
-          visibility: 'shared',
-          q: '  ÁLGEBRA   avanzada  ',
-          subjectId: item.subjectId,
-          order: 'oldest',
-        },
-      );
-      expect(resourceStore.listOwnedResources).toHaveBeenCalledWith({
-        authorUserId: 'author-1',
+      const first = await service(resourceStore, deps).listOwned('author-1', {
         limit: 2,
         visibility: 'shared',
-        q: 'álgebra avanzada',
+        q: '  ÁLGEBRA   avanzada  ',
         subjectId: item.subjectId,
         order: 'oldest',
       });
+      expect(resourceStore.listOwnedResources.mock.calls).toContainEqual([
+        {
+          authorUserId: 'author-1',
+          limit: 2,
+          visibility: 'shared',
+          q: 'álgebra avanzada',
+          subjectId: item.subjectId,
+          order: 'oldest',
+        },
+      ]);
       expect(first.nextCursor).toEqual(expect.any(String));
       await service(resourceStore, deps).listOwned('author-1', {
         limit: 2,
@@ -253,35 +261,41 @@ describe('ResourceService', () => {
         order: 'oldest',
         cursor: first.nextCursor!,
       });
-      expect(resourceStore.listOwnedResources).toHaveBeenLastCalledWith({
-        authorUserId: 'author-1',
-        limit: 2,
-        visibility: 'shared',
-        q: 'álgebra avanzada',
-        subjectId: item.subjectId,
-        order: 'oldest',
-        after: { createdAt: item.createdAt, id: item.id },
-      });
+      expect(resourceStore.listOwnedResources.mock.calls.at(-1)).toEqual([
+        {
+          authorUserId: 'author-1',
+          limit: 2,
+          visibility: 'shared',
+          q: 'álgebra avanzada',
+          subjectId: item.subjectId,
+          order: 'oldest',
+          after: { createdAt: item.createdAt, id: item.id },
+        },
+      ]);
     });
 
     it('rejects a cursor on different filters before querying Mongo', async () => {
       const resourceStore = store();
       const deps = dependencies();
-      const token = Buffer.from(JSON.stringify({
-        v: 2,
-        id: resource().id,
-        createdAt: now.toISOString(),
-        visibility: null,
-        q: 'álgebra',
-        subjectId: null,
-        order: 'newest',
-      })).toString('base64url');
-      await expect(service(resourceStore, deps).listOwned('author-1', {
-        q: 'química',
-        limit: 25,
-        cursor: token,
-      })).rejects.toThrow(UnprocessableEntityException);
-      expect(resourceStore.listOwnedResources).not.toHaveBeenCalled();
+      const token = Buffer.from(
+        JSON.stringify({
+          v: 2,
+          id: resource().id,
+          createdAt: now.toISOString(),
+          visibility: null,
+          q: 'álgebra',
+          subjectId: null,
+          order: 'newest',
+        }),
+      ).toString('base64url');
+      await expect(
+        service(resourceStore, deps).listOwned('author-1', {
+          q: 'química',
+          limit: 25,
+          cursor: token,
+        }),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(resourceStore.listOwnedResources.mock.calls).toHaveLength(0);
     });
 
     it('lists up to fifty subjects from only the author records with academic names', async () => {
@@ -294,18 +308,24 @@ describe('ResourceService', () => {
       deps.academic.getCatalogNode.mockResolvedValue({
         node: { name: 'Base de Datos' },
       } as never);
-      expect(await service(resourceStore, deps).listOwnedSubjects('author-1'))
-        .toEqual({
-          items: [{
+      expect(
+        await service(resourceStore, deps).listOwnedSubjects('author-1'),
+      ).toEqual({
+        items: [
+          {
             subjectId: resource().subjectId,
             name: 'Base de Datos',
             count: 8,
-          }],
-          truncated: false,
-        });
-      expect(resourceStore.listOwnedSubjects).toHaveBeenCalledWith('author-1');
-      expect(deps.academic.getCatalogNode)
-        .toHaveBeenCalledWith(resource().subjectId);
+          },
+        ],
+        truncated: false,
+      });
+      expect(resourceStore.listOwnedSubjects.mock.calls).toContainEqual([
+        'author-1',
+      ]);
+      expect(deps.academic.getCatalogNode).toHaveBeenCalledWith(
+        resource().subjectId,
+      );
     });
   });
 
@@ -328,10 +348,12 @@ describe('ResourceService', () => {
         { limit: 25 },
       );
 
-      expect(resourceStore.listOwnedResources).toHaveBeenCalledWith({
-        authorUserId: 'author-1',
-        limit: 25,
-      });
+      expect(resourceStore.listOwnedResources.mock.calls).toContainEqual([
+        {
+          authorUserId: 'author-1',
+          limit: 25,
+        },
+      ]);
       expect(response.items).toHaveLength(1);
       expect(response.items[0]).toMatchObject({
         id: owned.id,
@@ -362,24 +384,28 @@ describe('ResourceService', () => {
         visibility: 'shared',
         cursor: first.nextCursor!,
       });
-      expect(resourceStore.listOwnedResources).toHaveBeenNthCalledWith(2, {
-        authorUserId: 'author-1',
-        visibility: 'shared',
-        limit: 1,
-        after: { createdAt: item.createdAt, id: item.id },
-      });
+      expect(resourceStore.listOwnedResources.mock.calls[1]).toEqual([
+        {
+          authorUserId: 'author-1',
+          visibility: 'shared',
+          limit: 1,
+          after: { createdAt: item.createdAt, id: item.id },
+        },
+      ]);
       expect(second.items).toHaveLength(1);
     });
 
     it('refuses cross-filter cursors before querying data', async () => {
       const resourceStore = store();
       const deps = dependencies();
-      const token = Buffer.from(JSON.stringify({
-        v: 1,
-        id: resource().id,
-        createdAt: now.toISOString(),
-        visibility: 'public',
-      })).toString('base64url');
+      const token = Buffer.from(
+        JSON.stringify({
+          v: 1,
+          id: resource().id,
+          createdAt: now.toISOString(),
+          visibility: 'public',
+        }),
+      ).toString('base64url');
 
       await expect(
         service(resourceStore, deps).listOwned('author-1', {
@@ -388,7 +414,7 @@ describe('ResourceService', () => {
           cursor: token,
         }),
       ).rejects.toThrow(UnprocessableEntityException);
-      expect(resourceStore.listOwnedResources).not.toHaveBeenCalled();
+      expect(resourceStore.listOwnedResources.mock.calls).toHaveLength(0);
     });
 
     it('returns an empty page without projecting other authors', async () => {
@@ -413,37 +439,51 @@ describe('ResourceService', () => {
     it('rejects another user before querying or revealing recipients', async () => {
       const resourceStore = store();
       const deps = dependencies();
-      resourceStore.findById.mockResolvedValue(resource({
-        visibility: 'shared',
-      }));
+      resourceStore.findById.mockResolvedValue(
+        resource({
+          visibility: 'shared',
+        }),
+      );
 
       await expect(
-        service(resourceStore, deps).listShareGrants('intruder', resourceId, 20),
+        service(resourceStore, deps).listShareGrants(
+          'intruder',
+          resourceId,
+          20,
+        ),
       ).rejects.toThrow(NotFoundException);
-      expect(resourceStore.listShareGrants).not.toHaveBeenCalled();
+      expect(resourceStore.listShareGrants.mock.calls).toHaveLength(0);
       expect(deps.profiles.getAttributionsForUsers).not.toHaveBeenCalled();
     });
 
     it('blocks listing when resource is no longer shared', async () => {
       const resourceStore = store();
       const deps = dependencies();
-      resourceStore.findById.mockResolvedValue(resource({
-        visibility: 'private',
-      }));
+      resourceStore.findById.mockResolvedValue(
+        resource({
+          visibility: 'private',
+        }),
+      );
 
       await expect(
-        service(resourceStore, deps).listShareGrants('author-1', resourceId, 20),
+        service(resourceStore, deps).listShareGrants(
+          'author-1',
+          resourceId,
+          20,
+        ),
       ).rejects.toThrow(ConflictException);
-      expect(resourceStore.listShareGrants).not.toHaveBeenCalled();
+      expect(resourceStore.listShareGrants.mock.calls).toHaveLength(0);
     });
 
     it('returns public profile data only and hides internal user identifiers', async () => {
       const resourceStore = store();
       const deps = dependencies();
-      resourceStore.findById.mockResolvedValue(resource({
-        visibility: 'shared',
-        revision: 7,
-      }));
+      resourceStore.findById.mockResolvedValue(
+        resource({
+          visibility: 'shared',
+          revision: 7,
+        }),
+      );
       resourceStore.listShareGrants.mockResolvedValue({
         items: [
           {
@@ -459,24 +499,26 @@ describe('ResourceService', () => {
         ],
         hasMore: true,
       });
-      deps.profiles.getAttributionsForUsers.mockResolvedValue(new Map([
-        [
-          'internal-user-1',
-          {
-            profileId: 'public-profile-1',
-            displayName: 'Lucía',
-            avatarUrl: null,
-          },
-        ],
-        [
-          'internal-user-2',
-          {
-            profileId: 'public-profile-2',
-            displayName: 'Usuario de Los Apuntes',
-            avatarUrl: null,
-          },
-        ],
-      ]));
+      deps.profiles.getAttributionsForUsers.mockResolvedValue(
+        new Map([
+          [
+            'internal-user-1',
+            {
+              profileId: 'public-profile-1',
+              displayName: 'Lucía',
+              avatarUrl: null,
+            },
+          ],
+          [
+            'internal-user-2',
+            {
+              profileId: 'public-profile-2',
+              displayName: 'Usuario de Los Apuntes',
+              avatarUrl: null,
+            },
+          ],
+        ]),
+      );
 
       const result = await service(resourceStore, deps).listShareGrants(
         'author-1',
@@ -500,36 +542,47 @@ describe('ResourceService', () => {
       expect(result.resourceRevision).toBe(7);
       expect(result.nextCursor).toEqual(expect.any(String));
       expect(JSON.stringify(result)).not.toContain('internal-user');
-      expect(resourceStore.listShareGrants).toHaveBeenCalledWith({
-        resourceId,
-        limit: 2,
-      });
-      expect(deps.profiles.getAttributionsForUsers)
-        .toHaveBeenCalledWith(['internal-user-1', 'internal-user-2']);
+      expect(resourceStore.listShareGrants.mock.calls).toContainEqual([
+        {
+          resourceId,
+          limit: 2,
+        },
+      ]);
+      expect(deps.profiles.getAttributionsForUsers).toHaveBeenCalledWith([
+        'internal-user-1',
+        'internal-user-2',
+      ]);
     });
 
     it('resumes pagination by share document, not user identity', async () => {
       const resourceStore = store();
       const deps = dependencies();
-      resourceStore.findById.mockResolvedValue(resource({
-        visibility: 'shared',
-        revision: 2,
-      }));
+      resourceStore.findById.mockResolvedValue(
+        resource({
+          visibility: 'shared',
+          revision: 2,
+        }),
+      );
       resourceStore.listShareGrants.mockResolvedValue({
-        items: [{
-          shareId: '507f1f77bcf86cd799439013',
-          userId: 'internal-user-3',
-          createdAt: now,
-        }],
+        items: [
+          {
+            shareId: '507f1f77bcf86cd799439013',
+            userId: 'internal-user-3',
+            createdAt: now,
+          },
+        ],
         hasMore: false,
       });
       deps.profiles.getAttributionsForUsers.mockResolvedValue(new Map());
-      const cursor = Buffer.from(JSON.stringify({
-        v: 1,
-        resourceId,
-        resourceRevision: 2,
-        shareId: '507f1f77bcf86cd799439011',
-      }), 'utf8').toString('base64url');
+      const cursor = Buffer.from(
+        JSON.stringify({
+          v: 1,
+          resourceId,
+          resourceRevision: 2,
+          shareId: '507f1f77bcf86cd799439011',
+        }),
+        'utf8',
+      ).toString('base64url');
 
       const result = await service(resourceStore, deps).listShareGrants(
         'author-1',
@@ -537,11 +590,13 @@ describe('ResourceService', () => {
         10,
         cursor,
       );
-      expect(resourceStore.listShareGrants).toHaveBeenCalledWith({
-        resourceId,
-        limit: 10,
-        after: { shareId: '507f1f77bcf86cd799439011' },
-      });
+      expect(resourceStore.listShareGrants.mock.calls).toContainEqual([
+        {
+          resourceId,
+          limit: 10,
+          after: { shareId: '507f1f77bcf86cd799439011' },
+        },
+      ]);
       expect(result.items).toEqual([]);
       expect(result.nextCursor).toBeNull();
     });

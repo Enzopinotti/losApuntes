@@ -160,7 +160,8 @@ export class ResourceRelatedSessionController {
       authorityKey &&
       this.snapshot.kind !== "idle" &&
       this.snapshot.authorityKey !== authorityKey
-    ) return;
+    )
+      return;
     ++this.generation;
     this.active?.abort();
     this.active = null;

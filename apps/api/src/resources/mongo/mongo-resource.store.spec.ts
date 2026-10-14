@@ -25,35 +25,41 @@ describe('MongoResourceStore owned statistics', () => {
         { _id: 'public', count: 3 },
       ],
       totals: [{ saves: 13, shareGrants: 2 }],
-      topResources: [{
-        id: 'r1',
-        title: 'SQL',
-        visibility: 'shared',
-        saves: 9,
-        shareGrants: 2,
-      }],
+      topResources: [
+        {
+          id: 'r1',
+          title: 'SQL',
+          visibility: 'shared',
+          saves: 9,
+          shareGrants: 2,
+        },
+      ],
     });
     const response = await store.getOwnedStatistics('owner-a');
     expect(response).toEqual({
       publications: { total: 6, private: 1, shared: 2, public: 3 },
       currentSaves: 13,
       activeShareGrants: 2,
-      topResources: [{
-        id: 'r1',
-        title: 'SQL',
-        visibility: 'shared',
-        saves: 9,
-        shareGrants: 2,
-      }],
+      topResources: [
+        {
+          id: 'r1',
+          title: 'SQL',
+          visibility: 'shared',
+          saves: 9,
+          shareGrants: 2,
+        },
+      ],
     });
-    const pipeline = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const pipeline = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     expect(pipeline[0]).toEqual({
       $match: { authorUserId: 'owner-a', moderationState: 'available' },
     });
     const text = JSON.stringify(pipeline);
     expect(text).toContain('"from":"resource_saves"');
     expect(text).toContain('"from":"resource_shares"');
-    expect(text).toContain('"$eq":["$visibility","shared"]');
+    expect(text).toContain('"$eq":["$$visibility","shared"]');
     expect(text).toContain('"$limit":5');
     expect(text).not.toContain('profileId');
     expect(text).not.toContain('userId');
@@ -63,19 +69,23 @@ describe('MongoResourceStore owned statistics', () => {
     const { store, aggregate } = aggregateResult({
       publications: [{ _id: 'public', count: 1 }],
       totals: [{ saves: 2, shareGrants: 0 }],
-      topResources: [{
-        id: 'r2',
-        title: 'Público',
-        visibility: 'public',
-        saves: 2,
-        shareGrants: 0,
-      }],
+      topResources: [
+        {
+          id: 'r2',
+          title: 'Público',
+          visibility: 'public',
+          saves: 2,
+          shareGrants: 0,
+        },
+      ],
     });
     const response = await store.getOwnedStatistics('owner-b');
     expect(response.activeShareGrants).toBe(0);
-    const pipeline = aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const pipeline = (
+      aggregate.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    )[0]?.[0];
     const text = JSON.stringify(pipeline);
-    expect(text).toContain('"$eq":["$visibility","shared"]');
+    expect(text).toContain('"$eq":["$$visibility","shared"]');
   });
 
   it('returns zero counts for a new author without any resources', async () => {
@@ -160,7 +170,11 @@ describe('MongoResourceStore owned library advanced browsing', () => {
   it('limits subject facets to this author and at most fifty subjects', async () => {
     const { store, resources } = mockResources();
     await store.listOwnedSubjects('author-a');
-    const pipeline = resources.aggregate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const pipeline = (
+      resources.aggregate.mock.calls as unknown as Array<
+        [Array<Record<string, unknown>>]
+      >
+    )[0]?.[0];
     expect(pipeline[0]).toEqual({
       $match: { authorUserId: 'author-a', moderationState: 'available' },
     });
@@ -171,7 +185,8 @@ describe('MongoResourceStore owned library advanced browsing', () => {
   it('marks subject facets as truncated rather than claiming all are shown', async () => {
     const { store, resources } = mockResources();
     const rows = Array.from({ length: 51 }, (_, i) => ({
-      subjectId: `subject-${i}`, count: 51 - i,
+      subjectId: `subject-${i}`,
+      count: 51 - i,
     }));
     resources.aggregate.mockReturnValue({
       exec: jest.fn().mockResolvedValue(rows),
@@ -264,11 +279,13 @@ describe('MongoResourceStore owner publications library', () => {
 });
 
 describe('MongoResourceStore owner share listing', () => {
-  function shareQuery(rows: Array<{
-    _id: { toHexString(): string };
-    userId: string;
-    createdAt: Date;
-  }>) {
+  function shareQuery(
+    rows: Array<{
+      _id: { toHexString(): string };
+      userId: string;
+      createdAt: Date;
+    }>,
+  ) {
     const chain = {
       select: jest.fn(),
       sort: jest.fn(),
@@ -314,8 +331,16 @@ describe('MongoResourceStore owner share listing', () => {
     expect(chain.limit).toHaveBeenCalledWith(3);
     expect(page).toEqual({
       items: [
-        { shareId: '507f1f77bcf86cd799439010', userId: 'private-user-0', createdAt: rows[0]!.createdAt },
-        { shareId: '507f1f77bcf86cd799439011', userId: 'private-user-1', createdAt: rows[1]!.createdAt },
+        {
+          shareId: '507f1f77bcf86cd799439010',
+          userId: 'private-user-0',
+          createdAt: rows[0].createdAt,
+        },
+        {
+          shareId: '507f1f77bcf86cd799439011',
+          userId: 'private-user-1',
+          createdAt: rows[1].createdAt,
+        },
       ],
       hasMore: true,
     });
@@ -338,10 +363,13 @@ describe('MongoResourceStore owner share listing', () => {
       limit: 20,
       after: { shareId: '507f1f77bcf86cd799439011' },
     });
-    expect(shares.find).toHaveBeenCalledWith({
-      resourceId: 'resource-b',
-      _id: { $gt: expect.anything() },
-    });
+    const findCalls = shares.find.mock.calls as unknown as Array<
+      [{ resourceId: string; _id: { $gt: { toHexString(): string } } }]
+    >;
+    expect(findCalls[0]?.[0].resourceId).toBe('resource-b');
+    expect(findCalls[0]?.[0]._id.$gt.toHexString()).toBe(
+      '507f1f77bcf86cd799439011',
+    );
     expect(chain.limit).toHaveBeenCalledWith(21);
   });
 });

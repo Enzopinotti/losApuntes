@@ -467,14 +467,14 @@ const Resources = () => {
           : savedView
             ? await resourcesApi.saved(cursor, ticket.signal)
             : await resourcesApi.search(
-              {
-                q: query.trim() || undefined,
-                visibility: visibilityFilter || undefined,
-                subjectId: subjectIdFilter,
-                cursor,
-              },
-              ticket.signal,
-            );
+                {
+                  q: query.trim() || undefined,
+                  visibility: visibilityFilter || undefined,
+                  subjectId: subjectIdFilter,
+                  cursor,
+                },
+                ticket.signal,
+              );
 
         if (!isListRequestCurrent(ticket)) return;
         setListState((current) => {

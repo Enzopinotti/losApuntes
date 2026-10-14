@@ -464,12 +464,14 @@ export class ResourceService {
     const items = page.items.flatMap((grant) => {
       const profile = attributions.get(grant.userId);
       if (!profile) return [];
-      return [{
-        profileId: profile.profileId,
-        displayName: profile.displayName,
-        avatarUrl: profile.avatarUrl,
-        grantedAt: grant.createdAt.toISOString(),
-      }];
+      return [
+        {
+          profileId: profile.profileId,
+          displayName: profile.displayName,
+          avatarUrl: profile.avatarUrl,
+          grantedAt: grant.createdAt.toISOString(),
+        },
+      ];
     });
     const last = page.items.at(-1);
 

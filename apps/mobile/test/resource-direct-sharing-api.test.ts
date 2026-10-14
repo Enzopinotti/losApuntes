@@ -3,13 +3,18 @@ import test from "node:test";
 
 import type { ResourceView, SearchResponse } from "@losapuntes/contracts";
 
-import { ApiRequestError, type MobileApiClient } from "../src/services/api/client";
+import {
+  ApiRequestError,
+  type MobileApiClient,
+} from "../src/services/api/client";
 import type { SessionController } from "../src/features/session/session-controller";
 import type { MobileSearchApi } from "../src/features/search/search-api";
 import type { ResourceConsumptionApi } from "../src/features/resources/resource-consumption-api";
 import { MobileResourceDirectSharingApi } from "../src/features/resources/resource-direct-sharing-api";
 
-function setup(options: { authorized?: boolean; sessionChanged?: boolean } = {}) {
+function setup(
+  options: { authorized?: boolean; sessionChanged?: boolean } = {},
+) {
   const calls: Array<{ path: string; options: Record<string, unknown> }> = [];
   let invalidations = 0;
   const session = {
@@ -29,12 +34,14 @@ function setup(options: { authorized?: boolean; sessionChanged?: boolean } = {})
       if (requestOptions.method === "PUT") return { shared: true };
       if (requestOptions.method === undefined) {
         return {
-          items: [{
-            profileId: "recipient-profile",
-            displayName: "Ana",
-            avatarUrl: null,
-            grantedAt: "2026-10-12T00:00:00.000Z",
-          }],
+          items: [
+            {
+              profileId: "recipient-profile",
+              displayName: "Ana",
+              avatarUrl: null,
+              grantedAt: "2026-10-12T00:00:00.000Z",
+            },
+          ],
           nextCursor: null,
           resourceRevision: 4,
         };
@@ -43,7 +50,10 @@ function setup(options: { authorized?: boolean; sessionChanged?: boolean } = {})
     },
   } as unknown as MobileApiClient;
   const search = {
-    search: async (input: { q: string; scope: string }): Promise<SearchResponse> => ({
+    search: async (input: {
+      q: string;
+      scope: string;
+    }): Promise<SearchResponse> => ({
       query: input.q,
       scope: "people",
       results: {
@@ -82,10 +92,9 @@ test("recipient lookup delegates to the authenticated people-only search", async
 
 test("grant sends authenticated PUT to existing resource/profile route", async () => {
   const { api, calls } = setup();
-  assert.deepEqual(
-    await api.grant("resource-a", "person-id"),
-    { shared: true },
-  );
+  assert.deepEqual(await api.grant("resource-a", "person-id"), {
+    shared: true,
+  });
   assert.deepEqual(calls, [
     {
       path: "/resources/resource-a/shares/person-id",
@@ -109,27 +118,28 @@ test("recipient IDs are escaped and caller abort signals are forwarded", async (
   const { api, calls } = setup();
   const signal = new AbortController().signal;
   await api.grant("resource/a", "person/b", signal);
-  assert.equal(
-    calls[0]?.path,
-    "/resources/resource%2Fa/shares/person%2Fb",
-  );
+  assert.equal(calls[0]?.path, "/resources/resource%2Fa/shares/person%2Fb");
   assert.equal(calls[0]?.options.signal, signal);
 });
 
 test("missing session rejects share writes before requesting the network", async () => {
   const { api, calls } = setup({ authorized: false });
-  await assert.rejects(() => api.grant("r", "p"), (error: unknown) =>
-    error instanceof ApiRequestError &&
-    error.code === "AUTHENTICATION_REQUIRED",
+  await assert.rejects(
+    () => api.grant("r", "p"),
+    (error: unknown) =>
+      error instanceof ApiRequestError &&
+      error.code === "AUTHENTICATION_REQUIRED",
   );
   assert.deepEqual(calls, []);
 });
 
 test("a changed credential rejects a late acknowledgement", async () => {
   const { api, invalidations } = setup({ sessionChanged: true });
-  await assert.rejects(() => api.grant("r", "p"), (error: unknown) =>
-    error instanceof ApiRequestError &&
-    error.code === "STALE_SESSION_AUTHORITY",
+  await assert.rejects(
+    () => api.grant("r", "p"),
+    (error: unknown) =>
+      error instanceof ApiRequestError &&
+      error.code === "STALE_SESSION_AUTHORITY",
   );
   assert.equal(invalidations(), 1);
 });
@@ -139,10 +149,12 @@ test("owner grants listing uses authenticated paginated GET with an opaque curso
   const page = await api.listGrants("resource-a", "cursor-value");
   assert.equal(page.items[0]?.profileId, "recipient-profile");
   assert.equal(page.resourceRevision, 4);
-  assert.deepEqual(calls, [{
-    path: "/resources/resource-a/shares?limit=20&cursor=cursor-value",
-    options: { credential: "secret-token" },
-  }]);
+  assert.deepEqual(calls, [
+    {
+      path: "/resources/resource-a/shares?limit=20&cursor=cursor-value",
+      options: { credential: "secret-token" },
+    },
+  ]);
 });
 
 test("grants listing forwards abort signal and never requests without a session", async () => {

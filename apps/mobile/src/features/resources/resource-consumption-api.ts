@@ -31,7 +31,13 @@ export interface ResourceConsumptionApi {
   ): Promise<ResourceAccessResponse>;
   save(resourceId: string, signal?: AbortSignal): Promise<{ saved: true }>;
   unsave(resourceId: string, signal?: AbortSignal): Promise<void>;
-  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order?: 'saved' | 'title'): Promise<ResourceSavedPage>;
+  saved(
+    cursor?: string,
+    signal?: AbortSignal,
+    q?: string,
+    subjectId?: string,
+    order?: "saved" | "title",
+  ): Promise<ResourceSavedPage>;
   update(
     resourceId: string,
     input: ResourceMetadataUpdateInput,
@@ -67,7 +73,7 @@ export interface MobileResourceConsumptionTransport {
     signal?: AbortSignal,
     q?: string,
     subjectId?: string,
-    order?: 'saved' | 'title',
+    order?: "saved" | "title",
   ): Promise<ResourceSavedPage>;
   report(
     credential: string,
@@ -137,7 +143,14 @@ export class MobileResourceConsumptionHttpTransport implements MobileResourceCon
     );
   }
 
-  saved(credential: string, cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order: 'saved' | 'title' = 'saved') {
+  saved(
+    credential: string,
+    cursor?: string,
+    signal?: AbortSignal,
+    q?: string,
+    subjectId?: string,
+    order: "saved" | "title" = "saved",
+  ) {
     const query = new URLSearchParams({ limit: "25" });
     if (cursor) query.set("cursor", cursor);
     if (q) query.set("q", q);
@@ -221,7 +234,13 @@ export class MobileResourceConsumptionApi implements ResourceConsumptionApi {
     );
   }
 
-  saved(cursor?: string, signal?: AbortSignal, q?: string, subjectId?: string, order?: 'saved' | 'title') {
+  saved(
+    cursor?: string,
+    signal?: AbortSignal,
+    q?: string,
+    subjectId?: string,
+    order?: "saved" | "title",
+  ) {
     return this.authorized((credential) =>
       this.transport.saved(credential, cursor, signal, q, subjectId, order),
     );

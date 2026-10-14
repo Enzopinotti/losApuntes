@@ -49,4 +49,5 @@ export class SessionRecentResourceOpens {
   }
 }
 
-export const mobileSessionRecentResourceOpens = new SessionRecentResourceOpens();
+export const mobileSessionRecentResourceOpens =
+  new SessionRecentResourceOpens();

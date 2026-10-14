@@ -28,11 +28,17 @@ test("only canonical UUIDv4 subject IDs are accepted from the route", () => {
 
 test("the route does not authorize question creation without matching participation", () => {
   assert.equal(
-    canComposeForSubject(subjectA, "ready", { kind: "subject", subjectId: subjectA }),
+    canComposeForSubject(subjectA, "ready", {
+      kind: "subject",
+      subjectId: subjectA,
+    }),
     true,
   );
   assert.equal(
-    canComposeForSubject(subjectA, "ready", { kind: "subject", subjectId: subjectB }),
+    canComposeForSubject(subjectA, "ready", {
+      kind: "subject",
+      subjectId: subjectB,
+    }),
     false,
   );
   assert.equal(canComposeForSubject(subjectA, "ready", { kind: "all" }), false);
@@ -43,8 +49,11 @@ test("the route does not authorize question creation without matching participat
     }),
     false,
   );
-  assert.equal(canComposeForSubject(null, "ready", {
-    kind: "subject",
-    subjectId: subjectA,
-  }), false);
+  assert.equal(
+    canComposeForSubject(null, "ready", {
+      kind: "subject",
+      subjectId: subjectA,
+    }),
+    false,
+  );
 });

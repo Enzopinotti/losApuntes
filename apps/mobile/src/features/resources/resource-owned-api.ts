@@ -30,21 +30,20 @@ export interface OwnedResourcesApi {
  * Owner-scoped listing is intentionally distinct from search and saved items.
  * The identity is always taken from the authoritative session credential.
  */
-export class MobileOwnedResourcesApi implements OwnedResourcesApi, OwnedResourceSubjectsApi {
+export class MobileOwnedResourcesApi
+  implements OwnedResourcesApi, OwnedResourceSubjectsApi
+{
   constructor(
     private readonly session: SessionController,
     private readonly client: MobileApiClient,
   ) {}
 
   async listSubjects(signal?: AbortSignal): Promise<OwnedResourceSubjects> {
-    return this.withCredential(
-      (credential) => this.client.request<OwnedResourceSubjects>(
-        "/resources/mine/subjects",
-        {
-          credential,
-          ...(signal ? { signal } : {}),
-        },
-      ),
+    return this.withCredential((credential) =>
+      this.client.request<OwnedResourceSubjects>("/resources/mine/subjects", {
+        credential,
+        ...(signal ? { signal } : {}),
+      }),
     );
   }
 

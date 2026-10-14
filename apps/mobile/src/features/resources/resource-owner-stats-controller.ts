@@ -80,7 +80,8 @@ export class MobileOwnerStatisticsController {
       authorityKey &&
       this.snapshot.kind !== "idle" &&
       this.snapshot.authorityKey !== authorityKey
-    ) return;
+    )
+      return;
     this.abort();
     this.publish({ kind: "idle" });
   }
