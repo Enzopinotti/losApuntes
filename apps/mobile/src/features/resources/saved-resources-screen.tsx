@@ -43,6 +43,9 @@ import {
   type SavedLibrarySort,
 } from "./saved-library-filters";
 
+/** Check only while focused + active; never poll in the background. */
+export const SAVED_FOREGROUND_SYNC_INTERVAL_MS = 90_000;
+
 const failureCopy: Record<ResourceConsumptionFailure, string> = {
   offline:
     "No hay conexión. Tus guardados se cargarán cuando vuelvas a estar en línea.",
@@ -255,6 +258,21 @@ export function SavedResourcesScreen() {
     };
   }, [authorityKey, controller, searchEligible, searchQuery, selectedSubjectId, sort]);
 
+  useEffect(() => {
+    if (!authorityKey || !searchEligible) return;
+    const interval = setInterval(() => {
+      void controller.sync(authorityKey);
+      void subjectsController.sync(authorityKey);
+    }, SAVED_FOREGROUND_SYNC_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [authorityKey, controller, subjectsController, searchEligible]);
+
+  useEffect(() => {
+    if (snapshot.kind === "ready" && snapshot.syncNotice === "updated") {
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, [snapshot]);
+
   const current =
     snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey &&
@@ -323,7 +341,7 @@ export function SavedResourcesScreen() {
                 resource={resource}
                 removing={current.removingResourceId === resource.id}
                 removalPending={
-                  current.removingResourceId !== null || current.loadingMore
+                  current.removingResourceId !== null || current.loadingMore || current.syncing
                 }
                 removalFailure={
                   current.removalFailure?.resourceId === resource.id
@@ -471,6 +489,55 @@ export function SavedResourcesScreen() {
               ? "Título A–Z ordena toda la biblioteca desde el servidor, incluso las páginas todavía no cargadas."
               : "Guardado muestra primero los apuntes guardados más recientemente."}
           </Text>
+          <View style={styles.syncControls}>
+            <Text style={styles.meta}>
+              Los cambios realizados desde otro dispositivo se comprueban
+              mientras mantenés abierta esta pantalla.
+            </Text>
+            {current?.kind === "ready" ? (
+              <>
+                {current.syncNotice === "updated" ? (
+                  <Text accessibilityRole="alert" style={styles.success}>
+                    Tus guardados se actualizaron. Se reinició la paginación
+                    para mostrar los cambios más recientes.
+                  </Text>
+                ) : null}
+                {current.syncFailure ? (
+                  <Text accessibilityRole="alert" style={styles.error}>
+                    No pudimos comprobar si cambiaron tus guardados.
+                    La lista podría estar desactualizada.
+                  </Text>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Comprobar cambios en mis guardados"
+                  accessibilityState={{
+                    disabled: current.syncing || current.loadingMore ||
+                      current.removingResourceId !== null,
+                  }}
+                  disabled={
+                    current.syncing || current.loadingMore ||
+                    current.removingResourceId !== null
+                  }
+                  onPress={() => {
+                    void controller.sync(current.authorityKey);
+                    void subjectsController.sync(current.authorityKey);
+                  }}
+                  style={[
+                    styles.secondaryButton,
+                    (current.syncing || current.loadingMore ||
+                      current.removingResourceId !== null) && styles.disabledButton,
+                  ]}
+                >
+                  {current.syncing ? (
+                    <ActivityIndicator accessibilityLabel="Comprobando cambios en Guardados" />
+                  ) : (
+                    <Text style={styles.secondaryButtonText}>Comprobar cambios</Text>
+                  )}
+                </Pressable>
+              </>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -535,6 +602,12 @@ export function SavedResourcesScreen() {
                 </Pressable>
               ))}
             </View>
+            {activeFacetSnapshot.refreshFailure ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                No pudimos actualizar las materias guardadas.
+                Los conteos podrían estar desactualizados.
+              </Text>
+            ) : null}
             {activeFacetSnapshot.data.truncated ? (
               <Text style={styles.meta}>
                 Se muestran hasta 100 materias. Pueden existir otras materias
@@ -635,6 +708,10 @@ export function SavedResourcesScreen() {
 }
 
 const styles = StyleSheet.create({
+  syncControls: {
+    gap: 10,
+    alignItems: "flex-start",
+  },
   virtualizedRow: {
     marginBottom: 10,
   },
