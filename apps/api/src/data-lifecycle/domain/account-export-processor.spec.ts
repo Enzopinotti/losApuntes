@@ -325,7 +325,10 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     let resolveAssembly!: (value: AccountExportAssemblyResult) => void;
     f.assembler.writeJsonV1.mockImplementationOnce(
-      () => new Promise((resolve) => { resolveAssembly = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveAssembly = resolve;
+        }),
     );
     f.exports.renewLease.mockResolvedValueOnce(false);
     jest.useFakeTimers().setSystemTime(now);
@@ -356,7 +359,10 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     let resolveAssembly!: (value: AccountExportAssemblyResult) => void;
     f.assembler.writeJsonV1.mockImplementationOnce(
-      () => new Promise((resolve) => { resolveAssembly = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveAssembly = resolve;
+        }),
     );
     f.exports.renewLease.mockResolvedValueOnce(false);
     f.artifacts.deleteArtifact.mockRejectedValueOnce(
