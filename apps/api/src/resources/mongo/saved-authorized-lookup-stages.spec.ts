@@ -78,7 +78,7 @@ describe('saved discovery indexed lookups', () => {
 
   it('retains only fields needed to count accessible subjects', () => {
     const stages = authorizedSavedJoinStages(actor, { facets: true });
-    const projection = (stages[0] as {
+    const projection = (stages[0] as unknown as {
       $lookup: { pipeline: Array<Record<string, unknown>> };
     }).$lookup.pipeline[1];
 
