@@ -133,9 +133,7 @@ describe('MongoNotificationStore fan-out persistence', () => {
     };
     const updateQuery = {
       lean: jest.fn(),
-      exec: jest.fn()
-        .mockResolvedValueOnce(first)
-        .mockResolvedValueOnce(null),
+      exec: jest.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(null),
     };
     updateQuery.lean.mockReturnValue(updateQuery);
     const existingQuery = {
@@ -252,5 +250,4 @@ describe('MongoNotificationStore fan-out persistence', () => {
       userId: 'foreign-user',
     });
   });
-
 });
