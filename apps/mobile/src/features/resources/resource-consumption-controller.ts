@@ -269,7 +269,7 @@ export type MobileSavedResourcesSnapshot =
       data: ResourceSavedPage;
       loadingMore: boolean;
       paginationStalled: boolean;
-      paginationResetReason?: 'cursor_cycle' | 'data_changed';
+      paginationResetReason?: 'cursor_cycle' | 'data_changed' | undefined;
       failure: ResourceConsumptionFailure | null;
       removingResourceId: string | null;
       removalFailure: {
