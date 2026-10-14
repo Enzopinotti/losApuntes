@@ -9,6 +9,8 @@ import {
 } from "react-native";
 
 import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
+import { savedSubjectQuestionsAction } from "@/features/resources/saved-subject-questions-action";
+import type { HomeSelectedSubject } from "./home-recent-academic-continuity";
 import {
   mobileSessionRecentResourceOpens,
 } from "@/features/resources/recent-opened-memory";
@@ -38,11 +40,16 @@ const failureCopy: Record<
 export function HomeRecentOpenedCard({
   authorityKey,
   sessionAuthorityKey,
+  currentSubject,
 }: {
   authorityKey: string | null;
   sessionAuthorityKey: string | null;
+  currentSubject?: HomeSelectedSubject | null;
 }) {
   const router = useRouter();
+  const [recentScope, setRecentScope] = useState<"all" | "current">("all");
+  const preferredSubjectId = currentSubject?.subjectId ?? null;
+  useEffect(() => setRecentScope("all"), [sessionAuthorityKey]);
   const controller = useMemo(
     () => new HomeRecentOpenedController(
       mobileResourceConsumptionApi,
@@ -61,13 +68,25 @@ export function HomeRecentOpenedCard({
       controller.invalidate();
       return;
     }
-    void controller.load(authorityKey, sessionAuthorityKey);
+    void controller.load(authorityKey, sessionAuthorityKey, preferredSubjectId);
     return () => controller.invalidate(authorityKey);
-  }, [authorityKey, sessionAuthorityKey, controller]);
+  }, [authorityKey, sessionAuthorityKey, preferredSubjectId, controller]);
 
   if (!authorityKey || !sessionAuthorityKey) return null;
   const current = snapshot.kind !== "idle" &&
     snapshot.authorityKey === authorityKey ? snapshot : null;
+  const selectedQuestionsHref = currentSubject
+    ? {
+        pathname: "/questions/subjects/[subjectId]" as const,
+        params: { subjectId: currentSubject.subjectId },
+      }
+    : null;
+  const verifiedItems = current?.kind === "ready" ? current.items : [];
+  const subjectItems = preferredSubjectId
+    ? verifiedItems.filter((resource) => resource.academic.subject.id === preferredSubjectId)
+    : [];
+  const visibleItems =
+    recentScope === "current" && preferredSubjectId ? subjectItems : verifiedItems;
 
   return (
     <View style={styles.card}>
@@ -78,6 +97,45 @@ export function HomeRecentOpenedCard({
         Apuntes cuyo detalle abriste en esta sesión. No registra progreso ni
         lectura del archivo. Los permisos se vuelven a comprobar al mostrar cada uno.
       </Text>
+
+      {currentSubject && selectedQuestionsHref ? (
+        <View style={styles.contextSection}>
+          <Text style={styles.contextLabel}>
+            Materia actual: {currentSubject.name}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Ver preguntas de ${currentSubject.name}`}
+            accessibilityHint="Abre preguntas de la materia. El servidor vuelve a comprobar lectura y contexto."
+            onPress={() => router.push(selectedQuestionsHref)}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.buttonLabel}>Preguntas de mi materia</Text>
+          </Pressable>
+          {current?.kind === "ready" && current.items.length > 0 ? (
+            <View accessibilityRole="radiogroup" style={styles.scopeChoices}>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityLabel="Todos los apuntes abiertos recientemente"
+                accessibilityState={{ checked: recentScope === "all" }}
+                onPress={() => setRecentScope("all")}
+                style={[styles.scopeChoice, recentScope === "all" && styles.scopeChoiceSelected]}
+              >
+                <Text style={styles.buttonLabel}>Todos</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityLabel="Solo apuntes recientes de mi materia actual"
+                accessibilityState={{ checked: recentScope === "current" }}
+                onPress={() => setRecentScope("current")}
+                style={[styles.scopeChoice, recentScope === "current" && styles.scopeChoiceSelected]}
+              >
+                <Text style={styles.buttonLabel}>Mi materia ({subjectItems.length})</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {!current || current.kind === "loading" ? (
         <View style={styles.loading}>
@@ -100,15 +158,19 @@ export function HomeRecentOpenedCard({
         </View>
       ) : (
         <View style={styles.section}>
-          {current.items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <Text style={styles.copy}>
-              Todavía no hay apuntes abiertos disponibles en esta sesión.
-              Entrá a un recurso desde Buscar o tus guardados para verlo acá.
+              {recentScope === "current" && currentSubject
+                ? "Todavía no abriste apuntes de tu materia actual en esta sesión. Elegí Todos para ver otras materias."
+                : "Todavía no hay apuntes abiertos disponibles en esta sesión. Entrá a un recurso desde Buscar o tus guardados para verlo acá."}
             </Text>
           ) : (
-            current.items.map((resource) => (
+            visibleItems.map((resource) => (
+              <View key={resource.id} style={styles.recentRow}>
+                {preferredSubjectId === resource.academic.subject.id ? (
+                  <Text style={styles.contextLabel}>De tu materia actual</Text>
+                ) : null}
               <Pressable
-                key={resource.id}
                 accessibilityRole="button"
                 accessibilityLabel={`Volver a abrir ${resource.title}, ${resource.academic.subject.name}`}
                 accessibilityHint="El detalle volverá a validar tus permisos de lectura."
@@ -128,9 +190,21 @@ export function HomeRecentOpenedCard({
                 </Text>
                 <Text style={styles.buttonLabel}>Volver al apunte</Text>
               </Pressable>
+              {savedSubjectQuestionsAction(resource) ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={savedSubjectQuestionsAction(resource)!.accessibilityLabel}
+                  accessibilityHint={savedSubjectQuestionsAction(resource)!.accessibilityHint}
+                  onPress={() => router.push(savedSubjectQuestionsAction(resource)!.href)}
+                  style={styles.questionButton}
+                >
+                  <Text style={styles.buttonLabel}>Preguntas de esta materia</Text>
+                </Pressable>
+              ) : null}
+              </View>
             ))
           )}
-          {current.moreAvailable ? (
+          {current.moreAvailable && recentScope === "all" ? (
             <Text style={styles.copy}>
               Se muestran hasta cuatro apuntes de esta sesión.
             </Text>
@@ -188,6 +262,19 @@ const styles = StyleSheet.create({
     color: "#5b5b66",
   },
   section: { gap: 8 },
+  contextSection: { gap: 8 },
+  contextLabel: { fontSize: 13, fontWeight: "700", color: "#43376a" },
+  scopeChoices: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  scopeChoice: {
+    minHeight: 44, paddingHorizontal: 12, justifyContent: "center",
+    borderRadius: 10, borderWidth: 1, borderColor: "#b8b1cb",
+  },
+  scopeChoiceSelected: { backgroundColor: "#eeeaf8" },
+  recentRow: { gap: 6 },
+  questionButton: {
+    minHeight: 44, borderRadius: 10, backgroundColor: "#f1eff8",
+    paddingHorizontal: 12, justifyContent: "center", alignSelf: "flex-start",
+  },
   loading: { flexDirection: "row", alignItems: "center", gap: 10 },
   resourceButton: {
     gap: 4,
