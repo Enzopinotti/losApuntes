@@ -508,7 +508,7 @@ export function SavedResourcesScreen() {
                 <Text accessibilityLiveRegion="polite" style={styles.meta}>
                   {loadedSavedSearchSummary(
                     shownResources.length,
-                    activeSubject?.loadedCount ?? current.data.items.length,
+                    current.data.items.length,
                     Boolean(current.data.nextCursor),
                   )}
                 </Text>
