@@ -72,6 +72,7 @@ import {
 } from "./home-feed-presentation";
 import { useAcademicContext } from "../academic/academic-context-provider";
 import { HomeSavedReturnCard } from "./home-saved-return-card";
+import { HomeRecentOpenedCard } from "./home-recent-opened-card";
 
 const itemKindLabel = (item: FeedItem): string => {
   if (item.type === "resource") return "Apunte";
@@ -947,6 +948,10 @@ export function HomeScreen() {
           onNavigate={navigateFirstValueAction}
         />
       )}
+      <HomeRecentOpenedCard
+        authorityKey={activeHomeAuthority}
+        sessionAuthorityKey={sessionAuthority}
+      />
       <HomeSavedReturnCard authorityKey={activeHomeAuthority} />
       <Pressable
         accessibilityRole="button"
