@@ -526,6 +526,8 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
       ...(!byTitle
         ? [{ $sort: { createdAt: -1, resourceId: 1 } } as PipelineStage]
         : []),
+      // Discard Mongo _id/updatedAt before joining and sorting many saves.
+      { $project: { _id: 0, resourceId: 1, createdAt: 1 } },
       ...authorizedSavedJoinStages(input.userId, {
         ...(input.q ? { searchRegex: savedMetadataRegex(input.q) } : {}),
         ...(input.subjectId ? { subjectId: input.subjectId } : {}),
@@ -580,6 +582,7 @@ export class MongoResourceStore implements ResourceStore, SavedResourceSearchSto
   ): ReturnType<SavedResourceSearchStore['listSavedSubjectFacets']> {
     const rows = await this.saves.aggregate<{ subjectId: string; count: number }>([
       { $match: { userId } },
+      { $project: { _id: 0, resourceId: 1 } },
       ...authorizedSavedJoinStages(userId, { facets: true }),
       { $group: { _id: '$__resource.subjectId', count: { $sum: 1 } } },
       { $sort: { count: -1, _id: 1 } },
