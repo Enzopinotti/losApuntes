@@ -124,7 +124,9 @@ describe('owned resource listing cursor', () => {
 
   it('rejects injection-shaped and extra-field v2 cursor payloads', () => {
     const good = encodeOwnedResourceCursor(cursor, undefined, { q: 'álgebra' });
-    const payload = JSON.parse(Buffer.from(good, 'base64url').toString('utf8')) as unknown as Record<string, unknown>;
+    const payload = JSON.parse(
+      Buffer.from(good, 'base64url').toString('utf8'),
+    ) as unknown as Record<string, unknown>;
     for (const malformed of [
       { ...payload, q: { $gt: '' } },
       { ...payload, subjectId: { $ne: null } },
