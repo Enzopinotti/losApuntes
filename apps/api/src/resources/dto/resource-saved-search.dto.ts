@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -21,6 +22,10 @@ export class ResourceSavedSearchDto {
   @IsOptional()
   @IsUUID('4')
   subjectId?: string;
+
+  @IsOptional()
+  @IsIn(['saved', 'title'])
+  order?: 'saved' | 'title';
 
   @IsOptional()
   @Type(() => Number)
