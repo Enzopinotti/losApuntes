@@ -1,4 +1,11 @@
-import { ConflictException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 import {
   SAVED_RESOURCE_SEARCH_STORE,
@@ -7,7 +14,10 @@ import {
 import { ResourceService } from './resource.service';
 import { boundedSavedQuery } from './resource-saved-query-budget';
 import { AcademicService } from '../../academic/domain/academic.service';
-import { decodeSavedTitleCursor, encodeSavedTitleCursor } from './resource-saved-title-cursor';
+import {
+  decodeSavedTitleCursor,
+  encodeSavedTitleCursor,
+} from './resource-saved-title-cursor';
 import type { SavedLibraryOrder } from './resource-saved-search.store';
 import {
   decodeSavedSearchCursor,
@@ -50,27 +60,33 @@ export class ResourceSavedSearchService {
       (!q && !subjectId && order !== 'title') ||
       (order !== 'title' && order !== 'saved') ||
       (subjectId !== undefined &&
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(subjectId))
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+          subjectId,
+        ))
     ) {
       throw new UnprocessableEntityException({
         code: 'RESOURCE_SAVED_SEARCH_QUERY_INVALID',
         message: 'Saved library search needs valid text or a Subject',
       });
     }
-    const after = order === 'saved'
-      ? decodeSavedSearchCursor(cursor, userId, q, subjectId)
-      : undefined;
-    const titleAfter = order === 'title'
-      ? decodeSavedTitleCursor(cursor, userId, q, subjectId)
-      : undefined;
+    const after =
+      order === 'saved'
+        ? decodeSavedSearchCursor(cursor, userId, q, subjectId)
+        : undefined;
+    const titleAfter =
+      order === 'title'
+        ? decodeSavedTitleCursor(cursor, userId, q, subjectId)
+        : undefined;
     if (after || titleAfter) {
-      const fresh = await boundedSavedQuery(() => this.store.isSavedSearchAnchorCurrent({
-        userId,
-        ...(q ? { q } : {}),
-        ...(subjectId ? { subjectId } : {}),
-        ...(after ? { after } : {}),
-        ...(titleAfter ? { titleAfter } : {}),
-      }));
+      const fresh = await boundedSavedQuery(() =>
+        this.store.isSavedSearchAnchorCurrent({
+          userId,
+          ...(q ? { q } : {}),
+          ...(subjectId ? { subjectId } : {}),
+          ...(after ? { after } : {}),
+          ...(titleAfter ? { titleAfter } : {}),
+        }),
+      );
       if (!fresh) {
         throw new ConflictException({
           code: 'RESOURCE_SAVED_SEARCH_CURSOR_STALE',
@@ -78,15 +94,17 @@ export class ResourceSavedSearchService {
         });
       }
     }
-    const page = await boundedSavedQuery(() => this.store.searchSavedResources({
-      userId,
-      ...(q ? { q } : {}),
-      ...(subjectId ? { subjectId } : {}),
-      limit,
-      ...(order === 'title' ? { order } : {}),
-      ...(after ? { after } : {}),
-      ...(titleAfter ? { titleAfter } : {}),
-    }));
+    const page = await boundedSavedQuery(() =>
+      this.store.searchSavedResources({
+        userId,
+        ...(q ? { q } : {}),
+        ...(subjectId ? { subjectId } : {}),
+        limit,
+        ...(order === 'title' ? { order } : {}),
+        ...(after ? { after } : {}),
+        ...(titleAfter ? { titleAfter } : {}),
+      }),
+    );
 
     // Availability can change between Mongo's snapshot and HTTP projection.
     // Keep a second fail-closed read on the existing resource authority.
@@ -103,8 +121,15 @@ export class ResourceSavedSearchService {
     );
     const items = projected.filter((item) => item !== null);
     const last = page.items.at(-1);
-    if (page.hasMore && last && order === 'title' && typeof last.title !== 'string') {
-      throw new InternalServerErrorException('Saved title pagination is unavailable');
+    if (
+      page.hasMore &&
+      last &&
+      order === 'title' &&
+      typeof last.title !== 'string'
+    ) {
+      throw new InternalServerErrorException(
+        'Saved title pagination is unavailable',
+      );
     }
 
     return {
@@ -114,7 +139,9 @@ export class ResourceSavedSearchService {
           ? order === 'title'
             ? encodeSavedTitleCursor(
                 { title: last.title!, resourceId: last.resourceId },
-                userId, q, subjectId,
+                userId,
+                q,
+                subjectId,
               )
             : encodeSavedSearchCursor(last, userId, q, subjectId)
           : null,
@@ -123,24 +150,31 @@ export class ResourceSavedSearchService {
 
   /** Returned counts apply only to resources currently visible to the actor. */
   async listSubjects(userId: string) {
-    const page = await boundedSavedQuery(() => this.store.listSavedSubjectFacets(userId));
-    const readable = await Promise.all(page.items.map(async (row) => {
-      try {
-        const subject = await this.academic.getCatalogNode(row.subjectId);
-        return {
-          subjectId: row.subjectId,
-          name: subject.node.name,
-          count: row.count,
-        };
-      } catch (error) {
-        if (error instanceof NotFoundException) return null;
-        throw error;
-      }
-    }));
-    const items = readable.filter((item) => item !== null).sort(
-      (a, b) => a.name.localeCompare(b.name, 'es-AR', { sensitivity: 'base' }) ||
-        a.subjectId.localeCompare(b.subjectId),
+    const page = await boundedSavedQuery(() =>
+      this.store.listSavedSubjectFacets(userId),
     );
+    const readable = await Promise.all(
+      page.items.map(async (row) => {
+        try {
+          const subject = await this.academic.getCatalogNode(row.subjectId);
+          return {
+            subjectId: row.subjectId,
+            name: subject.node.name,
+            count: row.count,
+          };
+        } catch (error) {
+          if (error instanceof NotFoundException) return null;
+          throw error;
+        }
+      }),
+    );
+    const items = readable
+      .filter((item) => item !== null)
+      .sort(
+        (a, b) =>
+          a.name.localeCompare(b.name, 'es-AR', { sensitivity: 'base' }) ||
+          a.subjectId.localeCompare(b.subjectId),
+      );
     return { items, truncated: page.truncated };
   }
 }
