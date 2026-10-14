@@ -3,6 +3,8 @@ import test from "node:test";
 
 import type { ResourceView } from "@losapuntes/contracts";
 import type { ResourceConsumptionApi, ResourceSavedPage } from "../src/features/resources/resource-consumption-api";
+import { MobileResourceConsumptionHttpTransport } from "../src/features/resources/resource-consumption-api";
+import type { MobileApiClient } from "../src/services/api/client";
 import { MobileSavedResourcesController } from "../src/features/resources/resource-consumption-controller";
 
 const resource = (id: string) => ({
@@ -78,4 +80,25 @@ test("switching search query cancels stale results and keeps the current page", 
   }
   controller.invalidate("session-a");
   assert.deepEqual(controller.getSnapshot(), { kind: "idle" });
+});
+
+test("resource transport sends the query on its saved endpoint without exposing it in persistent state", async () => {
+  const urls: string[] = [];
+  const fakeClient = {
+    request: async (url: string) => {
+      urls.push(url);
+      return { items: [], nextCursor: null };
+    },
+  } as MobileApiClient;
+  const transport = new MobileResourceConsumptionHttpTransport(fakeClient);
+  await transport.saved("credential", "opaque+/page", undefined, "Álgebra");
+  const parsed = new URL(urls[0]!, "https://api.example.invalid");
+  assert.equal(parsed.pathname, "/resources/saved");
+  assert.equal(parsed.searchParams.get("cursor"), "opaque+/page");
+  assert.equal(parsed.searchParams.get("q"), "Álgebra");
+  assert.equal(parsed.searchParams.get("limit"), "25");
+
+  await transport.saved("credential");
+  const unfiltered = new URL(urls[1]!, "https://api.example.invalid");
+  assert.equal(unfiltered.searchParams.has("q"), false);
 });
