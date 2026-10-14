@@ -30,8 +30,10 @@ describe('owned resource listing cursor', () => {
 
   it('does not embed internal author identity or credentials', () => {
     const data = JSON.parse(
-      Buffer.from(encodeOwnedResourceCursor(cursor, 'private'), 'base64url')
-        .toString('utf8'),
+      Buffer.from(
+        encodeOwnedResourceCursor(cursor, 'private'),
+        'base64url',
+      ).toString('utf8'),
     );
     expect(data).toEqual({
       v: 1,
@@ -74,16 +76,17 @@ describe('owned resource listing cursor', () => {
     };
     const token = encodeOwnedResourceCursor(cursor, 'shared', filters);
     expect(decodeOwnedResourceCursor(token, 'shared', filters)).toEqual(cursor);
-    expect(JSON.parse(Buffer.from(token, 'base64url').toString('utf8')))
-      .toEqual({
-        v: 2,
-        id: cursor.id,
-        createdAt: cursor.createdAt.toISOString(),
-        visibility: 'shared',
-        q: filters.q,
-        subjectId: filters.subjectId,
-        order: 'oldest',
-      });
+    expect(
+      JSON.parse(Buffer.from(token, 'base64url').toString('utf8')),
+    ).toEqual({
+      v: 2,
+      id: cursor.id,
+      createdAt: cursor.createdAt.toISOString(),
+      visibility: 'shared',
+      q: filters.q,
+      subjectId: filters.subjectId,
+      order: 'oldest',
+    });
   });
 
   it('rejects reusing pages with a different query, subject or order', () => {
@@ -98,20 +101,25 @@ describe('owned resource listing cursor', () => {
       { ...filters, subjectId: '33333333-3333-4333-8333-333333333333' },
       { ...filters, order: 'newest' as const },
     ]) {
-      expect(() => decodeOwnedResourceCursor(token, 'private', altered))
-        .toThrow(UnprocessableEntityException);
+      expect(() =>
+        decodeOwnedResourceCursor(token, 'private', altered),
+      ).toThrow(UnprocessableEntityException);
     }
-    expect(() => decodeOwnedResourceCursor(token, 'private'))
-      .toThrow(UnprocessableEntityException);
+    expect(() => decodeOwnedResourceCursor(token, 'private')).toThrow(
+      UnprocessableEntityException,
+    );
   });
 
   it('keeps old default pagination tokens valid for existing clients', () => {
     const token = encodeOwnedResourceCursor(cursor, 'public');
-    expect(decodeOwnedResourceCursor(token, 'public', { order: 'newest' }))
-      .toEqual(cursor);
-    expect(() => decodeOwnedResourceCursor(token, 'public', {
-      q: 'álgebra',
-    })).toThrow(UnprocessableEntityException);
+    expect(
+      decodeOwnedResourceCursor(token, 'public', { order: 'newest' }),
+    ).toEqual(cursor);
+    expect(() =>
+      decodeOwnedResourceCursor(token, 'public', {
+        q: 'álgebra',
+      }),
+    ).toThrow(UnprocessableEntityException);
   });
 
   it('rejects injection-shaped and extra-field v2 cursor payloads', () => {
@@ -122,11 +130,14 @@ describe('owned resource listing cursor', () => {
       { ...payload, subjectId: { $ne: null } },
       { ...payload, extra: 'untrusted' },
     ]) {
-      const token = Buffer.from(JSON.stringify(malformed)).toString('base64url');
-      expect(() => decodeOwnedResourceCursor(token, undefined, {
-        q: 'álgebra',
-      })).toThrow(UnprocessableEntityException);
+      const token = Buffer.from(JSON.stringify(malformed)).toString(
+        'base64url',
+      );
+      expect(() =>
+        decodeOwnedResourceCursor(token, undefined, {
+          q: 'álgebra',
+        }),
+      ).toThrow(UnprocessableEntityException);
     }
   });
-
 });
