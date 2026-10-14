@@ -56,4 +56,21 @@ describe('ResourceSavedSearchService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(saved).toHaveBeenCalledTimes(2);
   });
+  it('removes unreadable resources after a concurrent privacy change', async () => {
+    const { saved, get, service } = harness();
+    get.mockRejectedValueOnce(new NotFoundException({ code: 'RESOURCE_NOT_FOUND' }));
+    const page = await service.search('account-a', 'algebra', 25);
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toEqual(expect.any(String));
+    expect(saved).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid cursor without querying saved state', async () => {
+    const { saved, service } = harness();
+    await expect(
+      service.search('account-a', 'algebra', 25, 'not-a-valid-cursor'),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(saved).not.toHaveBeenCalled();
+  });
+
 });
