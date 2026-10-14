@@ -233,7 +233,7 @@ assert.match(page, /navigator\.clipboard\?\.writeText/u);
 assert.match(page, /role="status"/u);
 assert.match(
   page,
-  /to=\{\`\/resources\/\$\{encodeURIComponent\(resource\.id\)\}\`\}/u,
+  /to=\{`\/resources\/\$\{encodeURIComponent\(resource\.id\)\}`\}/u,
   'Search hits must open a specific resource, never rerun a title query',
 );
 assert.doesNotMatch(

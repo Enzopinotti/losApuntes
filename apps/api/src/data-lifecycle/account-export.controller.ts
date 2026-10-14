@@ -111,7 +111,11 @@ export class AccountExportController {
     return reply.send(
       Readable.from(
         verifyAccountExportDownload(
-          this.artifacts.readObjectChunks(id, artifact.generation, abort.signal),
+          this.artifacts.readObjectChunks(
+            id,
+            artifact.generation,
+            abort.signal,
+          ),
           artifact.byteLength,
           artifact.sha256,
           abort.signal,

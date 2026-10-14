@@ -335,7 +335,9 @@ test("a failing diagnostic reporter still forwards a scrubbed fatal error exactl
   let current: MobileGlobalErrorHandler = predecessor;
   const utils: MobileErrorUtils = {
     getGlobalHandler: () => current,
-    setGlobalHandler: (handler) => { current = handler; },
+    setGlobalHandler: (handler) => {
+      current = handler;
+    },
   };
   const cleanup = installMobileGlobalErrorHandler(utils, () => {
     throw new Error("sensitive reporter failure");

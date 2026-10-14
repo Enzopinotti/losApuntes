@@ -198,10 +198,12 @@ assert.match(
   itemContextStyles,
   /\.feed-item-byline \.feed-source-link:focus-visible/u,
 );
+assert.match(resourcesPage, /const resourceReturnState = searchReturnTo/u);
 assert.match(
   resourcesPage,
-  /state=\{feedReturnRestoreState\(location\.state\)\}/u,
+  /: feedReturnRestoreState\(location\.state\)/u,
 );
+assert.match(resourcesPage, /state=\{resourceReturnState\}/u);
 assert.match(
   questionsPage,
   /state=\{feedReturnRestoreState\(location\.state\)\}/u,

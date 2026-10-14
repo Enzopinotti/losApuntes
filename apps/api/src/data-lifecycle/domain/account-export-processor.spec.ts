@@ -325,17 +325,19 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     let resolveAssembly!: (value: AccountExportAssemblyResult) => void;
     f.assembler.writeJsonV1.mockImplementationOnce(
-      () => new Promise((resolve) => { resolveAssembly = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveAssembly = resolve;
+        }),
     );
     f.exports.renewLease.mockResolvedValueOnce(false);
     jest.useFakeTimers().setSystemTime(now);
 
     const iteration = f.processor.runIteration();
     await jest.advanceTimersByTimeAsync(40_000);
-    expect(f.exports.renewLease).toHaveBeenCalledWith({
-      id: claim().id,
-      claimId: claim().claimId,
-    });
+    expect(f.exports.renewLease.mock.calls).toContainEqual([
+      { id: claim().id, claimId: claim().claimId },
+    ]);
     resolveAssembly(result);
 
     await expect(iteration).resolves.toMatchObject({
@@ -343,20 +345,23 @@ describe('AccountExportProcessor', () => {
       completed: 0,
       failed: 0,
     });
-    expect(f.artifacts.deleteArtifact).toHaveBeenCalledTimes(1);
-    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+    expect(f.artifacts.deleteArtifact.mock.calls).toHaveLength(1);
+    expect(f.artifacts.deleteArtifact.mock.calls).toContainEqual([
       claim().id,
       claim().claimId,
-    );
-    expect(f.exports.complete).not.toHaveBeenCalled();
-    expect(f.sink.abort).not.toHaveBeenCalled();
+    ]);
+    expect(f.exports.complete.mock.calls).toHaveLength(0);
+    expect(f.sink.abort.mock.calls).toHaveLength(0);
   });
 
   it('keeps a stale lease result when deleting its committed orphan temporarily fails', async () => {
     const f = fixture();
     let resolveAssembly!: (value: AccountExportAssemblyResult) => void;
     f.assembler.writeJsonV1.mockImplementationOnce(
-      () => new Promise((resolve) => { resolveAssembly = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveAssembly = resolve;
+        }),
     );
     f.exports.renewLease.mockResolvedValueOnce(false);
     f.artifacts.deleteArtifact.mockRejectedValueOnce(
@@ -368,12 +373,12 @@ describe('AccountExportProcessor', () => {
     await jest.advanceTimersByTimeAsync(40_000);
     resolveAssembly(result);
     await expect(iteration).resolves.toMatchObject({ stale: 1 });
-    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+    expect(f.artifacts.deleteArtifact.mock.calls).toContainEqual([
       claim().id,
       claim().claimId,
-    );
-    expect(f.exports.complete).not.toHaveBeenCalled();
-    expect(f.exports.reschedule).not.toHaveBeenCalled();
+    ]);
+    expect(f.exports.complete.mock.calls).toHaveLength(0);
+    expect(f.exports.reschedule.mock.calls).toHaveLength(0);
   });
 
   it('retries expired artifact deletion without clearing its durable generation', async () => {
