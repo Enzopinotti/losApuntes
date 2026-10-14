@@ -20,6 +20,7 @@ export function resourceConsumptionFailure(
 ): ResourceConsumptionFailure {
   if (!(error instanceof ApiRequestError)) return "error";
   if (error.code === "ACCOUNT_RESTRICTED") return "restricted";
+  if (error.code === "RESOURCE_SAVED_QUERY_TIMEOUT") return "timeout";
   if (error.kind === "offline") return "offline";
   if (error.kind === "timeout") return "timeout";
   if (error.kind === "server_unavailable") return "server_unavailable";
