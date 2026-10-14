@@ -1,5 +1,16 @@
 const allowedScopes = new Set(["all", "resources", "subjects", "people"]);
 const MAX_QUERY_LENGTH = 120;
+// The search endpoint accepts only UUID v4 subject identifiers.
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+function validSubjectId(value) {
+  if (typeof value !== "string" || !UUID_V4.test(value)) return null;
+  return value.toLowerCase();
+}
+
+function canFilterResources(scope) {
+  return scope === "all" || scope === "resources";
+}
 
 function validQuery(query) {
   if (typeof query !== "string") return null;
@@ -23,10 +34,22 @@ export function searchSelectionFromSearchParams(params) {
   if (!query) return null;
 
   const requestedScope = params.get("scope");
-  return {
-    q: query,
-    scope: allowedScopes.has(requestedScope) ? requestedScope : "all",
-  };
+  const scope = allowedScopes.has(requestedScope) ? requestedScope : "all";
+  const requestedSubjectId = params.get("subjectId");
+  const subjectId = requestedSubjectId
+    ? validSubjectId(requestedSubjectId)
+    : null;
+  // Invalid, duplicate or non-resource subject filters must never silently
+  // broaden a search that the sender intended to scope.
+  if (
+    (params.has("subjectId") &&
+      (params.getAll("subjectId").length !== 1 || !subjectId)) ||
+    (subjectId && !canFilterResources(scope))
+  ) {
+    return null;
+  }
+
+  return { q: query, scope, ...(subjectId ? { subjectId } : {}) };
 }
 
 /** URLs contain only the explicitly submitted query and public search scope. */
@@ -34,14 +57,28 @@ export function searchSelectionHref(selection) {
   const query = validQuery(selection?.q);
   if (!query) return null;
   const scope = allowedScopes.has(selection.scope) ? selection.scope : "all";
+  const subjectId =
+    selection.subjectId == null || selection.subjectId === ""
+      ? null
+      : validSubjectId(selection.subjectId);
+  if (
+    (selection.subjectId && !subjectId) ||
+    (subjectId && !canFilterResources(scope))
+  ) {
+    return null;
+  }
+
   const params = new URLSearchParams({ q: query });
   if (scope !== "all") params.set("scope", scope);
+  if (subjectId) params.set("subjectId", subjectId);
   return `/search?${params.toString()}`;
 }
 
 /** A scoped identity for distinguishing results from previous sessions. */
 export function searchSelectionKey(selection) {
-  return selection ? JSON.stringify([selection.q, selection.scope]) : null;
+  return selection
+    ? JSON.stringify([selection.q, selection.scope, selection.subjectId ?? null])
+    : null;
 }
 
 /**
