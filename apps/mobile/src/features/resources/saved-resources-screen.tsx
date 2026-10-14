@@ -4,6 +4,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   AppState,
+  type FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -178,6 +179,7 @@ export function SavedResourcesScreen() {
     null,
   );
   const announcedRemoval = useRef<number | null>(null);
+  const listRef = useRef<FlatList<ResourceView> | null>(null);
   const sessionKey =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
@@ -191,6 +193,10 @@ export function SavedResourcesScreen() {
     setSort("saved");
     setSelectedSubjectId(null);
   }, [sessionKey]);
+
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [sessionKey, query, selectedSubjectId, sort]);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
   useEffect(() => subjectsController.subscribe(setSubjectSnapshot), [subjectsController]);
@@ -307,6 +313,7 @@ export function SavedResourcesScreen() {
       }
       refreshing={current?.kind === "loading"}
       flatList={{
+        ref: listRef,
         data: shownResources,
         keyExtractor: (resource) => resource.id,
         renderItem: ({ item: resource }) =>
@@ -572,13 +579,15 @@ export function SavedResourcesScreen() {
             {current.data.items.length === 0 ? (
               <>
                 <Text style={styles.copy}>
-                  {current.data.nextCursor
-                    ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
+                  {current.paginationStalled
+                    ? "La paginación se interrumpió. Reiniciá el listado para consultar tus guardados."
+                    : current.data.nextCursor
+                      ? "Esta página no contiene resultados visibles. Podés cargar más guardados."
                     : searchQuery || selectedSubjectId
                       ? "No encontramos guardados accesibles con estos filtros. Probá otra búsqueda o materia."
                       : "Todavía no guardaste recursos. Podés hacerlo desde cualquier detalle de recurso."}
                 </Text>
-                {!current.data.nextCursor && !searchQuery && !selectedSubjectId ? (
+                {!current.paginationStalled && !current.data.nextCursor && !searchQuery && !selectedSubjectId ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Buscar recursos"
@@ -616,8 +625,6 @@ export function SavedResourcesScreen() {
               </>
             )}
           </View>
-
-
         </>
       )}
     </ProductSurface>
