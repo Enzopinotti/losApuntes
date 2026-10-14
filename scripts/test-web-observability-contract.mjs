@@ -179,8 +179,99 @@ assert.deepEqual(
   reported.map((value) => value.name),
   ["TypeError", "RangeError", "TypeError", "RangeError"],
 );
-assert.deepEqual(prevented, ["error", "unhandledrejection"]);
+assert.deepEqual(
+  prevented,
+  [],
+  "Diagnostics must not suppress native errors or unhandled rejections",
+);
 
+// A failing reporter must not cancel the browser's native error lifecycle.
+const throwingListeners = new Map();
+const throwingTarget = {
+  addEventListener(type, listener) {
+    throwingListeners.set(type, listener);
+  },
+  removeEventListener(type, listener) {
+    if (throwingListeners.get(type) === listener) {
+      throwingListeners.delete(type);
+    }
+  },
+};
+const disposeThrowing = installWebGlobalDiagnosticHandlers(
+  throwingTarget,
+  () => {
+    throw new Error("telemetry provider unavailable");
+  },
+);
+const nativeEvents = [];
+assert.doesNotThrow(() =>
+  throwingListeners.get("error")?.({
+    error: new Error("runtime secret"),
+    preventDefault() {
+      nativeEvents.push("error");
+    },
+  }),
+);
+assert.doesNotThrow(() =>
+  throwingListeners.get("unhandledrejection")?.({
+    reason: new Error("rejection secret"),
+    preventDefault() {
+      nativeEvents.push("unhandledrejection");
+    },
+  }),
+);
+assert.deepEqual(nativeEvents, []);
+disposeThrowing();
+assert.equal(throwingListeners.size, 0);
+
+// Partial installation must not leave a stale error observer attached.
+const partialListeners = new Map();
+const partialTarget = {
+  addEventListener(type, listener) {
+    if (type === "unhandledrejection") {
+      throw new Error("second registration rejected");
+    }
+    partialListeners.set(type, listener);
+  },
+  removeEventListener(type, listener) {
+    if (partialListeners.get(type) === listener) {
+      partialListeners.delete(type);
+    }
+  },
+};
+assert.doesNotThrow(() => {
+  const disposePartial = installWebGlobalDiagnosticHandlers(
+    partialTarget,
+    () => undefined,
+  );
+  disposePartial();
+});
+assert.equal(partialListeners.size, 0);
+
+// One faulty removal should never prevent cleanup of the other listener.
+const cleanupListeners = new Map();
+const cleanupTarget = {
+  addEventListener(type, listener) {
+    cleanupListeners.set(type, listener);
+  },
+  removeEventListener(type, listener) {
+    if (type === "error") {
+      throw new Error("listener removal failed");
+    }
+    if (cleanupListeners.get(type) === listener) {
+      cleanupListeners.delete(type);
+    }
+  },
+};
+const disposeCleanup = installWebGlobalDiagnosticHandlers(
+  cleanupTarget,
+  () => undefined,
+);
+assert.doesNotThrow(disposeCleanup);
+assert.equal(cleanupListeners.has("unhandledrejection"), false);
+assert.doesNotThrow(disposeCleanup, "Unmount cleanup must be idempotent");
+
+cleanup();
 cleanup();
 assert.equal(listeners.size, 0);
 
