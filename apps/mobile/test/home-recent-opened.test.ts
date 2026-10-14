@@ -221,5 +221,5 @@ test("Home and detail wiring gate recent openings on authenticated active detail
   assert.match(home, /sessionAuthorityKey=\{sessionAuthority\}/u);
   assert.match(card, /controller\.load\(authorityKey, sessionAuthorityKey\)/u);
   assert.match(card, /controller\.clear\(authorityKey, sessionAuthorityKey\)/u);
-  assert.match(card, /Recurso/u); // Re-authorized resource detail copy
+  assert.match(card, /Los permisos se vuelven a comprobar/u);
 });
