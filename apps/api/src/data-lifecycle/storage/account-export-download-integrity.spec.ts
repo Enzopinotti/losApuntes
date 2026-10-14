@@ -44,13 +44,18 @@ describe('verifyAccountExportDownload', () => {
   it('rejects an overlong chunk before delivering bytes beyond the allowed length', async () => {
     const received: Uint8Array[] = [];
     const stream = verifyAccountExportDownload(
-      chunks([content.subarray(0, 8), Buffer.concat([content, Buffer.from('x')])]),
+      chunks([
+        content.subarray(0, 8),
+        Buffer.concat([content, Buffer.from('x')]),
+      ]),
       content.byteLength,
       expectedSha256,
     );
-    await expect((async () => {
-      for await (const part of stream) received.push(part);
-    })()).rejects.toThrow('exceeds its committed length');
+    await expect(
+      (async () => {
+        for await (const part of stream) received.push(part);
+      })(),
+    ).rejects.toThrow('exceeds its committed length');
     expect(Buffer.concat(received)).toEqual(content.subarray(0, 8));
   });
 
@@ -58,33 +63,55 @@ describe('verifyAccountExportDownload', () => {
     const tampered = Buffer.from(content);
     tampered[3] = tampered[3] === 0x61 ? 0x62 : 0x61;
     await expect(
-      consume(verifyAccountExportDownload(
-        chunks([tampered]),
-        content.byteLength,
-        expectedSha256,
-      )),
+      consume(
+        verifyAccountExportDownload(
+          chunks([tampered]),
+          content.byteLength,
+          expectedSha256,
+        ),
+      ),
     ).rejects.toThrow('integrity check failed');
   });
 
   it('fails closed on missing, invalid and unsafe-length metadata', async () => {
-    for (const byteLength of [0, -1, Number.NaN, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
-      await expect(consume(
-        verifyAccountExportDownload(chunks([content]), byteLength, expectedSha256),
-      )).rejects.toThrow('integrity metadata is invalid');
+    for (const byteLength of [
+      0,
+      -1,
+      Number.NaN,
+      1.5,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      await expect(
+        consume(
+          verifyAccountExportDownload(
+            chunks([content]),
+            byteLength,
+            expectedSha256,
+          ),
+        ),
+      ).rejects.toThrow('integrity metadata is invalid');
     }
-    await expect(consume(
-      verifyAccountExportDownload(chunks([content]), content.byteLength, 'invalid'),
-    )).rejects.toThrow('integrity metadata is invalid');
+    await expect(
+      consume(
+        verifyAccountExportDownload(
+          chunks([content]),
+          content.byteLength,
+          'invalid',
+        ),
+      ),
+    ).rejects.toThrow('integrity metadata is invalid');
   });
 
   it('rejects non-binary chunks without exposing their values', async () => {
-    await expect(consume(
-      verifyAccountExportDownload(
-        chunks(['private-not-binary' as unknown as Uint8Array]),
-        content.byteLength,
-        expectedSha256,
+    await expect(
+      consume(
+        verifyAccountExportDownload(
+          chunks(['private-not-binary' as unknown as Uint8Array]),
+          content.byteLength,
+          expectedSha256,
+        ),
       ),
-    )).rejects.toThrow('invalid chunk');
+    ).rejects.toThrow('invalid chunk');
   });
 
   it('rejects an abort in flight and propagates cleanup to the provider iterator', async () => {
@@ -99,11 +126,16 @@ describe('verifyAccountExportDownload', () => {
         closed = true;
       }
     }
-    await expect(consume(
-      verifyAccountExportDownload(
-        provider(), content.byteLength, expectedSha256, controller.signal,
+    await expect(
+      consume(
+        verifyAccountExportDownload(
+          provider(),
+          content.byteLength,
+          expectedSha256,
+          controller.signal,
+        ),
       ),
-    )).rejects.toThrow('cancelled');
+    ).rejects.toThrow('cancelled');
     expect(closed).toBe(true);
   });
 
@@ -113,10 +145,14 @@ describe('verifyAccountExportDownload', () => {
       await Promise.reject(failure);
       yield content;
     }
-    await expect(consume(
-      verifyAccountExportDownload(
-        failedProvider(), content.byteLength, expectedSha256,
+    await expect(
+      consume(
+        verifyAccountExportDownload(
+          failedProvider(),
+          content.byteLength,
+          expectedSha256,
+        ),
       ),
-    )).rejects.toBe(failure);
+    ).rejects.toBe(failure);
   });
 });
