@@ -23,7 +23,7 @@ import {
   readStudySession,
   serializeStudySession,
   STUDY_SESSION_MAX_TASKS,
-  studySessionStats,
+  STUDY_SESSION_MAX_MINUTES,
   type StudySession,
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
@@ -491,8 +491,13 @@ export default function StudySession() {
     return row?.title ?? null;
   });
   // Live completion count is local, never a gamified public metric.
-  const stats = plan && plan.title.trim()
-    ? studySessionStats({ ...plan, startsAt: null }) : null;
+  // Keep incomplete drafts renderable. The schema is validated only when
+  // importing, verifying or exporting a completed plan.
+  const totalMinutes = activeTasks.reduce((total, task) => total + task.minutes, 0);
+  const reviewedMinutes = activeTasks.reduce(
+    (total, task) => total + (task.done ? task.minutes : 0), 0,
+  );
+  const overBudget = totalMinutes > STUDY_SESSION_MAX_MINUTES;
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const chosen = event.target.files?.[0];
@@ -561,12 +566,17 @@ export default function StudySession() {
                 />
               </label>
               <div className="study-session-summary" aria-live="polite">
-                <strong>{stats?.totalTasks ?? activeTasks.length} actividades</strong>
-                <span>{stats?.totalMinutes ?? 0} minutos previstos</span>
-                <span>{stats?.doneTasks ?? 0} revisadas</span>
-                <span>{stats?.remainingMinutes ?? 0} minutos pendientes</span>
+                <strong>{activeTasks.length} actividades</strong>
+                <span>{totalMinutes} minutos previstos</span>
+                <span>{activeTasks.filter((task) => task.done).length} revisadas</span>
+                <span>{totalMinutes - reviewedMinutes} minutos pendientes</span>
               </div>
               <p className="study-session-info">Los tiempos y casillas son autodeclarados: no representan asistencia ni resultados de examen.</p>
+              {overBudget && (
+                <p className="study-session-alert" role="alert">
+                  El plan supera el máximo de 1.200 minutos. Ajustá las duraciones antes de exportar.
+                </p>
+              )}
               <h3>Actividades en orden</h3>
               {activeTasks.length === 0 ? (
                 <p>Agregá apuntes o preguntas desde las listas de la derecha.</p>
@@ -671,9 +681,9 @@ export default function StudySession() {
             <h2 id="study-session-export-title">3. Guardá o retomá tu plan</h2>
             <p>Esta sesión vive únicamente en memoria. Exportá JSON para retomarla en otro dispositivo, Markdown para estudiar sin conexión o un evento .ics para tu calendario. El archivo JSON no incluye títulos ajenos: al importarlo se revalidan todas las referencias.</p>
             <div className="study-session-export-actions">
-              <button type="button" disabled={isBusy} onClick={() => void exportFile("json")}>Exportar plan JSON</button>
-              <button type="button" disabled={isBusy || activeTasks.length === 0} onClick={() => void exportFile("markdown")}>Exportar lista Markdown</button>
-              <button type="button" disabled={isBusy || activeTasks.length === 0 || !plan.startsAt} onClick={() => void exportFile("calendar")}>Agregar a calendario (.ics)</button>
+              <button type="button" disabled={isBusy || overBudget} onClick={() => void exportFile("json")}>Exportar plan JSON</button>
+              <button type="button" disabled={isBusy || overBudget || activeTasks.length === 0} onClick={() => void exportFile("markdown")}>Exportar lista Markdown</button>
+              <button type="button" disabled={isBusy || overBudget || activeTasks.length === 0 || !plan.startsAt} onClick={() => void exportFile("calendar")}>Agregar a calendario (.ics)</button>
               <button type="button" disabled={isBusy || activeTasks.length === 0} onClick={() => void checkAccess()}>Revalidar accesos</button>
               <label className="study-session-import">
                 Importar un plan JSON
