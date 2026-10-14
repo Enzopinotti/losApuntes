@@ -12,6 +12,7 @@ import {
   waitForMail,
   waitForMailpit,
 } from "./mailpit-smoke.mjs";
+import { withTtlMonitorPaused } from "./auth-ttl-guard.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WEB_ROOT = resolve(ROOT, "apps/web");
@@ -257,7 +258,10 @@ function readMongoTtlMonitorEnabled() {
       'print(state.ttlMonitorEnabled ? "enabled" : "disabled");',
     ].join("\n"),
   );
-  assert.ok(["enabled", "disabled"].includes(output), "unexpected TTL monitor state");
+  assert.ok(
+    ["enabled", "disabled"].includes(output),
+    "unexpected TTL monitor state",
+  );
   return output === "enabled";
 }
 
@@ -274,13 +278,13 @@ function setMongoTtlMonitorEnabled(enabled) {
 async function withLocalMongoTtlMonitorPaused(operation) {
   // This scenario uses the disposable Compose Mongo only. No production
   // TTL configuration, index or Auth behavior is changed.
-  const originallyEnabled = readMongoTtlMonitorEnabled();
-  try {
-    if (originallyEnabled) setMongoTtlMonitorEnabled(false);
-    await operation();
-  } finally {
-    if (originallyEnabled) setMongoTtlMonitorEnabled(true);
-  }
+  return withTtlMonitorPaused(
+    {
+      readEnabled: readMongoTtlMonitorEnabled,
+      setEnabled: setMongoTtlMonitorEnabled,
+    },
+    operation,
+  );
 }
 function expireSyntheticSession(sessionId) {
   const script = [
