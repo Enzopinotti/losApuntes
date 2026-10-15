@@ -17,6 +17,7 @@ import { ProfileModule } from '../profile/profile.module';
 import { QaModule } from '../qa/qa.module';
 import { ResourcesModule } from '../resources/resources.module';
 import { SocialModule } from '../social/social.module';
+import { StudyCollectionsExportReadModule } from '../study-collections/mongo/study-collections-export-read.module';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -70,11 +71,12 @@ import {
   SocialConnectionsExportContributor,
   SocialFollowingExportContributor,
 } from './contributors/account-export-social.contributors';
+import { StudyCollectionsExportContributor } from './contributors/account-export-study-collections.contributor';
 import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
-  assertAccountExportV1Sections,
+  assertAccountExportSections,
 } from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
 import { AccountExportProcessor } from './domain/account-export-processor';
@@ -114,6 +116,7 @@ import {
     QaModule,
     ResourcesModule,
     SocialModule,
+    StudyCollectionsExportReadModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
@@ -159,6 +162,7 @@ import {
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
     PilotActivityExportContributor,
+    StudyCollectionsExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -192,6 +196,7 @@ import {
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
         pilotActivity: PilotActivityExportContributor,
+        studyCollections: StudyCollectionsExportContributor,
       ) => {
         const contributors = [
           account,
@@ -224,8 +229,9 @@ import {
           socialFollowing,
           socialConnections,
           pilotActivity,
+          studyCollections,
         ];
-        assertAccountExportV1Sections(contributors);
+        assertAccountExportSections(contributors, 2);
         return contributors;
       },
       inject: [
@@ -259,6 +265,7 @@ import {
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
         PilotActivityExportContributor,
+        StudyCollectionsExportContributor,
       ],
     },
     AccountExportContributorRegistry,
