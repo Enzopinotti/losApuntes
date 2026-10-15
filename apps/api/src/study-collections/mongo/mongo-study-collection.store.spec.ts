@@ -29,6 +29,16 @@ function fixture(active: boolean) {
     ),
   };
   const collections = {
+    findOne: jest.fn().mockReturnValue({
+      session: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({
+        ...input, resourceIds: [], revision: 1,
+      }),
+    }),
+    deleteOne: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue({ deletedCount: 1 }),
+    }),
     findOneAndUpdate: jest.fn().mockReturnValue(
       makeQuery({
         ...input, resourceIds: [], revision: 1,
@@ -71,4 +81,111 @@ describe('MongoStudyCollectionStore closure serialization', () => {
     expect(f.collections.findOneAndUpdate).not.toHaveBeenCalled();
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
+  const operations = [
+    {
+      label: 'edit collection',
+      run: (f: ReturnType<typeof fixture>) => f.store.updateOwned({
+        id: input.id, ownerUserId: owner, expectedRevision: 1,
+        patch: { title: 'Actualizado' },
+      }),
+    },
+    {
+      label: 'add resource',
+      run: (f: ReturnType<typeof fixture>) =>
+        f.store.addResource(input.id, owner, '33333333-3333-4333-8333-333333333333'),
+    },
+    {
+      label: 'remove resource',
+      run: (f: ReturnType<typeof fixture>) =>
+        f.store.removeResource(input.id, owner, '33333333-3333-4333-8333-333333333333'),
+    },
+    {
+      label: 'delete collection',
+      run: (f: ReturnType<typeof fixture>) =>
+        f.store.deleteOwned(input.id, owner),
+    },
+  ];
+
+  it.each(operations)(
+    'rejects $label for a closed owner before any private Mongo write',
+    async ({ run }) => {
+      const f = fixture(false);
+      await expect(run(f)).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_ACCOUNT_INACTIVE' },
+      });
+      expect(f.users.findOneAndUpdate).toHaveBeenCalledTimes(1);
+      expect(f.collections.findOneAndUpdate).not.toHaveBeenCalled();
+      expect(f.collections.deleteOne).not.toHaveBeenCalled();
+      expect(f.collections.findOne).not.toHaveBeenCalled();
+      expect(f.session.withTransaction).toHaveBeenCalledTimes(1);
+      expect(f.session.endSession).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(operations)(
+    'serializes $label via the same owner-revision write and session',
+    async ({ run }) => {
+      const f = fixture(true);
+      await run(f);
+      expect(f.users.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          _id: owner,
+          $or: [
+            { account_status: 'active' },
+            { account_status: { $exists: false } },
+          ],
+        },
+        { $inc: { account_lifecycle_revision: 1 } },
+        { new: false, session: f.session },
+      );
+      if (f.collections.deleteOne.mock.calls.length) {
+        expect(f.collections.deleteOne).toHaveBeenCalledWith(
+          { id: input.id, ownerUserId: owner },
+          { session: f.session },
+        );
+      } else {
+        const call = f.collections.findOneAndUpdate.mock.calls[0];
+        expect(call[0]).toMatchObject({ id: input.id, ownerUserId: owner });
+        expect(call[2]).toMatchObject({ new: true, session: f.session });
+      }
+      expect(f.session.withTransaction).toHaveBeenCalledTimes(1);
+      expect(f.session.endSession).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('reads add/remove idempotent fallbacks inside the same session', async () => {
+    const resourceId = '33333333-3333-4333-8333-333333333333';
+    for (const operation of ['add', 'remove'] as const) {
+      const f = fixture(true);
+      f.collections.findOneAndUpdate.mockReturnValueOnce(makeQuery(null));
+      if (operation === 'add') {
+        await f.store.addResource(input.id, owner, resourceId);
+      } else {
+        await f.store.removeResource(input.id, owner, resourceId);
+      }
+      expect(f.collections.findOne).toHaveBeenCalledWith({
+        id: input.id, ownerUserId: owner,
+      });
+      const query = f.collections.findOne.mock.results[0]?.value as {
+        session: jest.Mock;
+      };
+      expect(query.session).toHaveBeenCalledWith(f.session);
+      expect(f.session.endSession).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('closes the session when Mongo rejects a private collection write', async () => {
+    const f = fixture(true);
+    const failure = new Error('write conflict');
+    f.collections.findOneAndUpdate.mockReturnValueOnce({
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockRejectedValue(failure),
+    });
+    await expect(f.store.updateOwned({
+      id: input.id, ownerUserId: owner, expectedRevision: 1,
+      patch: { title: 'New' },
+    })).rejects.toBe(failure);
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
 });
