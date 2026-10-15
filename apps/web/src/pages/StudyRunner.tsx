@@ -425,16 +425,27 @@ export default function StudyRunner() {
     setNoticeState(null);
     try {
       const freshLabels: Record<string, string | null> = {};
-      const permitted: string[] = [];
-      for (const candidate of reviewItems) {
-        if (!reviewCurrent(ticket)) return;
-        const key = keyOf(candidate);
-        const result = await verifiedTaskLabel(runner.plan, candidate, ticket.signal);
-        if (!reviewCurrent(ticket)) return;
-        freshLabels[key] = result;
-        if (result !== null) permitted.push(key);
-      }
+      let cursor = 0;
+      // Fixed maximum concurrency: at most four live requests even for a
+      // 24-activity review. No request broadening and no silent error skips.
+      const workers = Array.from(
+        { length: Math.min(4, reviewItems.length) },
+        async () => {
+          while (cursor < reviewItems.length) {
+            if (!reviewCurrent(ticket)) return;
+            const candidate = reviewItems[cursor++];
+            if (!candidate) return;
+            const value = await verifiedTaskLabel(runner.plan, candidate, ticket.signal);
+            if (!reviewCurrent(ticket)) return;
+            freshLabels[keyOf(candidate)] = value;
+          }
+        },
+      );
+      await Promise.all(workers);
       if (!reviewCurrent(ticket)) return;
+      const permitted = reviewItems
+        .filter((candidate) => freshLabels[keyOf(candidate)] !== null)
+        .map(keyOf);
       setRunnerState((previous) => previous?.scope === scope
         ? { ...previous, labels: { ...previous.labels, ...freshLabels } }
         : previous);
