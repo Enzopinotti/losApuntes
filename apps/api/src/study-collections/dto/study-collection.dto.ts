@@ -52,3 +52,12 @@ export class StudyCollectionListDto {
   @Length(4, 512)
   cursor?: string;
 }
+
+/** Optional optimistic precondition for safe, owner-initiated clean-up. */
+export class RemoveStudyCollectionResourceDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision?: number;
+}

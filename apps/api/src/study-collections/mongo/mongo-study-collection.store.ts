@@ -214,11 +214,17 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
     id: string,
     ownerUserId: string,
     resourceId: string,
+    expectedRevision?: number,
   ): Promise<StudyCollectionRecord | null> {
     return this.withActiveOwnerTransaction(ownerUserId, async (session) => {
       const updated = await this.collections
         .findOneAndUpdate(
-          { id, ownerUserId, resourceIds: resourceId },
+          {
+            id,
+            ownerUserId,
+            resourceIds: resourceId,
+            ...(expectedRevision === undefined ? {} : { revision: expectedRevision }),
+          },
           { $pull: { resourceIds: resourceId }, $inc: { revision: 1 } },
           { new: true, session },
         )
