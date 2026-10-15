@@ -513,7 +513,14 @@ export default function StudySession() {
           <h1 id="study-session-title">Preparar una sesión</h1>
           <p>Elegí qué repasar, cuánto tiempo dedicarle y qué ya resolviste. No hay cronómetros compulsivos ni calificaciones inventadas.</p>
         </div>
-        <Link to={subjectId ? studySubjectHref(subjectId) ?? "/study" : "/study"}>Volver a la Mesa</Link>
+        <div className="study-session-quick-actions">
+          {subjectId && (
+            <Link to={`/study/practice?subjectId=${encodeURIComponent(subjectId)}`}>
+              Practicar preguntas
+            </Link>
+          )}
+          <Link to={subjectId ? studySubjectHref(subjectId) ?? "/study" : "/study"}>Volver a la Mesa</Link>
+        </div>
       </header>
       {status !== "authenticated" || !context || context.loading ? (
         <p role="status">Preparando tus materias…</p>

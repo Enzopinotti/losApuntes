@@ -450,6 +450,9 @@ export default function StudyWorkbench() {
               <Link to={`/study/session?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Preparar sesión de estudio
               </Link>
+              <Link to={`/study/practice?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
+                Practicar preguntas
+              </Link>
               <Link to={`/resources?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Explorar más apuntes
               </Link>
