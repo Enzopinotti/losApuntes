@@ -1,0 +1,253 @@
+import { randomUUID } from 'node:crypto';
+import { createConnection, type Connection, type Model } from 'mongoose';
+
+import {
+  MongoAccountLifecycleStore,
+} from '../../data-lifecycle/mongo/mongo-account-lifecycle.store';
+import {
+  AccountOffboardingJob,
+  AccountOffboardingJobSchema,
+  SecurityAudit,
+  SecurityAuditSchema,
+} from '../../data-lifecycle/mongo/data-lifecycle.mongo-schemas';
+import {
+  OrganizationManager,
+  OrganizationManagerSchema,
+} from '../../organizations/mongo/organization.mongo-schemas';
+import { Profile, ProfileSchema } from '../../profile/mongo/profile.mongo-schemas';
+import { User, UserSchema } from '../../users/schemas/user.schema';
+import {
+  StudyCollection,
+  StudyCollectionSchema,
+} from './study-collection.mongo-schema';
+import { MongoStudyCollectionStore } from './mongo-study-collection.store';
+
+/**
+ * Explicit opt-in only. Never run against a shared or production database:
+ * this suite creates and drops its own uniquely named scratch database.
+ *
+ * Example (with an existing local replica set):
+ * STUDY_COLLECTIONS_TEST_MONGO_URI=mongodb://127.0.0.1:27017/?replicaSet=rs0 \
+ *   pnpm --filter @losapuntes/api test -- --runInBand \
+ *   study-collection-lifecycle.mongo-int.spec.ts
+ */
+const uri = process.env.STUDY_COLLECTIONS_TEST_MONGO_URI;
+const runMongo = uri ? describe : describe.skip;
+const localHosts = new Set(['localhost', '127.0.0.1', 'mongo']);
+const uniqueDbName = `losapuntes_b50_${randomUUID().replace(/-/gu, '')}`;
+
+type Models = {
+  users: Model<User>;
+  collections: Model<StudyCollection>;
+  profiles: Model<Profile>;
+  managers: Model<OrganizationManager>;
+  jobs: Model<AccountOffboardingJob>;
+  audits: Model<SecurityAudit>;
+};
+
+runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => {
+  let connection: Connection;
+  let models: Models;
+  let collections: MongoStudyCollectionStore;
+  let lifecycle: MongoAccountLifecycleStore;
+
+  beforeAll(async () => {
+    if (!uri) throw new Error('Local test Mongo URI is required');
+    let parsed: URL;
+    try {
+      parsed = new URL(uri);
+    } catch {
+      throw new Error('Local test Mongo URI is malformed');
+    }
+    if (
+      !['mongodb:', 'mongodb+srv:'].includes(parsed.protocol) ||
+      !parsed.hostname ||
+      !localHosts.has(parsed.hostname) ||
+      parsed.username ||
+      parsed.password ||
+      !parsed.searchParams.get('replicaSet')
+    ) {
+      throw new Error(
+        'B50 Mongo acceptance requires an uncredentialed local replica-set URI',
+      );
+    }
+    connection = await createConnection(uri, {
+      dbName: uniqueDbName,
+      serverSelectionTimeoutMS: 8_000,
+    }).asPromise();
+    const hello = await connection.db!.admin().command({ hello: 1 });
+    if (
+      typeof hello.setName !== 'string' ||
+      hello.isWritablePrimary !== true
+    ) {
+      throw new Error('B50 requires an initialized primary replica set');
+    }
+    models = {
+      users: connection.model(User.name, UserSchema),
+      collections: connection.model(StudyCollection.name, StudyCollectionSchema),
+      profiles: connection.model(Profile.name, ProfileSchema),
+      managers: connection.model(OrganizationManager.name, OrganizationManagerSchema),
+      jobs: connection.model(AccountOffboardingJob.name, AccountOffboardingJobSchema),
+      audits: connection.model(SecurityAudit.name, SecurityAuditSchema),
+    };
+    await Promise.all(Object.values(models).map((model) => model.init()));
+    collections = new MongoStudyCollectionStore(
+      models.collections, connection, models.users,
+    );
+    lifecycle = new MongoAccountLifecycleStore(
+      connection,
+      models.users,
+      models.profiles,
+      models.managers,
+      models.jobs,
+      models.audits,
+      models.collections,
+    );
+  }, 30_000);
+
+  afterAll(async () => {
+    if (connection?.readyState === 1) {
+      // The name is generated above, never taken from the environment.
+      await connection.dropDatabase();
+    }
+    await connection?.close();
+  }, 30_000);
+
+  async function owner() {
+    const user = await models.users.create({
+      email: `b50-${randomUUID()}@example.invalid`,
+      role: 'user',
+      account_status: 'active',
+      credential_version: 1,
+    });
+    return user.id;
+  }
+
+  async function create(ownerUserId: string, operationKey = randomUUID()) {
+    return collections.create({
+      id: randomUUID(),
+      ownerUserId,
+      operationKey,
+      title: 'Repaso de Algebra',
+      description: 'Temas para el parcial',
+    });
+  }
+
+  async function close(ownerUserId: string) {
+    return lifecycle.closeAccount({
+      userId: ownerUserId,
+      expectedCredentialVersion: 1,
+      now: new Date(),
+      auditId: randomUUID(),
+      cleanupJobId: randomUUID(),
+    });
+  }
+
+  it('commits all five mutation paths before closure and deletes owner data at closure', async () => {
+    const userId = await owner();
+    const first = await create(userId);
+    const duplicate = await collections.create({
+      id: randomUUID(), ownerUserId: userId,
+      operationKey: first.operationKey,
+      title: first.title, description: first.description,
+    });
+    expect(duplicate.id).toBe(first.id);
+
+    const updated = await collections.updateOwned({
+      id: first.id, ownerUserId: userId, expectedRevision: first.revision,
+      patch: { title: 'Repaso actualizado' },
+    });
+    expect(updated?.title).toBe('Repaso actualizado');
+
+    const resourceId = randomUUID();
+    const added = await collections.addResource(first.id, userId, resourceId);
+    expect(added?.resourceIds).toContain(resourceId);
+    const removed = await collections.removeResource(first.id, userId, resourceId);
+    expect(removed?.resourceIds).not.toContain(resourceId);
+
+    const second = await create(userId);
+    await expect(collections.deleteOwned(second.id, userId))
+      .resolves.toBe(true);
+
+    await expect(close(userId)).resolves.toMatchObject({ status: 'closed' });
+    expect(await models.collections.countDocuments({
+      ownerUserId: userId,
+    })).toBe(0);
+    const saved = await models.users.findById(userId);
+    expect(saved?.account_status).toBe('closed');
+  }, 30_000);
+
+  it('refuses every mutation when account closure wins first', async () => {
+    const userId = await owner();
+    const existing = await create(userId);
+    await expect(close(userId)).resolves.toMatchObject({ status: 'closed' });
+
+    const actions = [
+      () => create(userId),
+      () => collections.updateOwned({
+        id: existing.id, ownerUserId: userId,
+        expectedRevision: existing.revision,
+        patch: { title: 'Should not write' },
+      }),
+      () => collections.addResource(existing.id, userId, randomUUID()),
+      () => collections.removeResource(existing.id, userId, randomUUID()),
+      () => collections.deleteOwned(existing.id, userId),
+    ];
+    for (const attempt of actions) {
+      await expect(attempt()).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_ACCOUNT_INACTIVE' },
+      });
+    }
+    expect(await models.collections.countDocuments({
+      ownerUserId: userId,
+    })).toBe(0);
+  }, 30_000);
+
+  it('never resurrects a collection when creation and closure start together', async () => {
+    const userId = await owner();
+    const [createResult, closeResult] = await Promise.allSettled([
+      create(userId),
+      close(userId),
+    ]);
+    const closed = await models.users.findById(userId);
+    const documents = await models.collections.countDocuments({
+      ownerUserId: userId,
+    });
+    if (closed?.account_status === 'closed') {
+      expect(documents).toBe(0);
+    }
+    if (createResult.status === 'fulfilled' && closeResult.status === 'fulfilled') {
+      expect(closeResult.value.status).toBe('closed');
+      expect(documents).toBe(0);
+    }
+    // An unresolved write conflict is NOT hidden. Inspect results if neither
+    // transaction closed the user; that is a legitimate integration failure.
+    expect(
+      closed?.account_status === 'closed' ||
+      (createResult.status === 'fulfilled' &&
+        closeResult.status === 'rejected'),
+    ).toBe(true);
+  }, 30_000);
+
+  it('rolls back both closure and collection deletion when audit persistence fails', async () => {
+    const userId = await owner();
+    const first = await create(userId);
+    const faulted = new MongoAccountLifecycleStore(
+      connection, models.users, models.profiles, models.managers,
+      models.jobs,
+      { create: async () => { throw new Error('audit unavailable'); } } as never,
+      models.collections,
+    );
+    await expect(faulted.closeAccount({
+      userId,
+      expectedCredentialVersion: 1,
+      now: new Date(),
+      auditId: randomUUID(),
+      cleanupJobId: randomUUID(),
+    })).rejects.toThrow('audit unavailable');
+    expect((await models.users.findById(userId))?.account_status).toBe('active');
+    expect(await models.collections.exists({
+      id: first.id, ownerUserId: userId,
+    })).not.toBeNull();
+  }, 30_000);
+});
