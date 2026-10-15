@@ -4,6 +4,7 @@ import type { AccountExportArtifactSink } from './account-export-assembler';
 import type { AccountExportAssembler } from './account-export-assembler';
 import { AccountExportService } from './account-export.service';
 import type { AccountExportStore } from './account-export.store';
+import type { AccountExportOrphanCleanupStore } from './account-export-orphan-cleanup.store';
 import type {
   AccountExportAssemblyResult,
   AccountExportJobRecord,
