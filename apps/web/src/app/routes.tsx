@@ -24,6 +24,7 @@ import StudySession from "../pages/StudySession";
 import StudyPractice from "../pages/StudyPractice";
 import StudyKits from "../pages/StudyKits";
 import StudyCollections from "../pages/StudyCollections";
+import StudyCollectionsRecovery from "../pages/StudyCollectionsRecovery";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
 import VerificationPending from "../pages/VerificationPending";
@@ -85,6 +86,14 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <StudyCollections />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study-collections/recovery",
+        element: (
+          <PrivateRoute>
+            <StudyCollectionsRecovery />
           </PrivateRoute>
         ),
       },
