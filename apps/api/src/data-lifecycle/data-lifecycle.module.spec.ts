@@ -286,4 +286,55 @@ describe('DataLifecycleModule account export wiring', () => {
         args: [ownerId, { limit: 100, cursor: null }],
       });
   });
+  it('assembles 32 sections including owner progress with bounded reader arguments', async () => {
+    const ownerId = 'owner-sentinel';
+    const calls: Array<{ method: string; args: unknown[] }> = [];
+    const domain = new Proxy({}, {
+      get: (_, method) => (...args: unknown[]) => {
+        calls.push({ method: String(method), args });
+        if (method === 'getAccountExportProjection') {
+          return Promise.resolve({
+            id: ownerId, email: 'owner@example.test', username: 'owner',
+            emailVerifiedAt: null, accountStatus: 'active', accountClosedAt: null,
+            fullName: null, avatarUrl: null, bio: null, careerId: null,
+            cohortYear: null, createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          });
+        }
+        if (String(method).startsWith('get') || String(method).startsWith('find')) {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve({ items: [], nextCursor: null });
+      },
+    });
+    const registry = new AccountExportContributorRegistry(wiredContributors(domain));
+    const assembler = new AccountExportAssembler(
+      registry,
+      new AccountExportService({} as never, {
+        hasActiveAccount: jest.fn().mockResolvedValue(true),
+      } as never),
+    );
+    const chunks: string[] = [];
+    const sink: AccountExportArtifactSink = {
+      write: (chunk) => { chunks.push(chunk); return Promise.resolve(); },
+      commit: jest.fn().mockResolvedValue(undefined),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const result = await assembler.writeJsonV3(ownerId, sink);
+    const output = JSON.parse(chunks.join('')) as {
+      version: number; sections: Record<string, unknown[]>;
+    };
+    expect(result.sectionCount).toBe(32);
+    expect(result.formatVersion).toBe(3);
+    expect(output.version).toBe(3);
+    expect(Object.keys(output.sections)).toEqual(EXPECTED_V3_SECTION_IDS);
+    expect(output.sections['study.progress']).toEqual([]);
+    expect(calls).toHaveLength(32);
+    expect(calls.find(({ method }) => method === 'listAccountExportProgress'))
+      .toEqual({
+        method: 'listAccountExportProgress',
+        args: [ownerId, { limit: 100, cursor: null }],
+      });
+  });
+
 });
