@@ -330,7 +330,7 @@ export default function StudyRunner() {
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !subjectId || busy) return;
+    if (!file || !subjectId || busy || remoteBusy) return;
     if (file.size > 64000) {
       setNoticeState({ scope, error: true, text: "El archivo supera los 64 KB permitidos." });
       return;
@@ -347,7 +347,7 @@ export default function StudyRunner() {
   };
 
   const move = (index: number) => {
-    if (!runner || busy || index < 0 || index >= runner.plan.tasks.length) return;
+    if (!runner || busy || remoteBusy || index < 0 || index >= runner.plan.tasks.length) return;
     setRunnerState((old) => {
       if (old?.scope !== scope) return old;
       const active = old.plan.tasks[old.index];
@@ -363,7 +363,7 @@ export default function StudyRunner() {
   };
 
   const changeClock = (operation: "toggle" | "reset") => {
-    if (!runner || !activeKey || !task || !label || busy || task.done || document.hidden) return;
+    if (!runner || !activeKey || !task || !label || busy || remoteBusy || task.done || document.hidden) return;
     const instant = Date.now();
     setRunnerState((old) => {
       if (old?.scope !== scope) return old;
@@ -382,7 +382,7 @@ export default function StudyRunner() {
   };
 
   const confirmDone = async () => {
-    if (!runner || !task || !activeKey || !label || !subjectId || busy) return;
+    if (!runner || !task || !activeKey || !label || !subjectId || busy || remoteBusy) return;
     const ticket = beginConfirm();
     if (!confirmCurrent(ticket)) return;
     setBusyState({ scope, kind: "confirm", key: activeKey });
@@ -427,7 +427,7 @@ export default function StudyRunner() {
   };
 
   const rateCurrent = (rating: ReviewMark | null) => {
-    if (!runner || !task || !activeKey || !label || busy) return;
+    if (!runner || !task || !activeKey || !label || busy || remoteBusy) return;
     setRunnerState((previous) => {
       if (previous?.scope !== scope) return previous;
       const current = previous.plan.tasks[previous.index];
@@ -445,7 +445,7 @@ export default function StudyRunner() {
   };
 
   const createNextReview = async (destination: "download" | "planner") => {
-    if (!runner || !subjectId || status !== "authenticated" || busy || !reviewItems.length) {
+    if (!runner || !subjectId || status !== "authenticated" || busy || remoteBusy || !reviewItems.length) {
       return;
     }
     const ticket = beginReview();
@@ -693,16 +693,16 @@ export default function StudyRunner() {
                   type="file"
                   accept=".json,application/json"
                   onChange={(event) => void onFile(event)}
-                  disabled={Boolean(busy)}
+                  disabled={Boolean(busy) || remoteBusy || remoteBusy}
                 />
               </label>
               {runner && (
                 <>
-                  <button type="button" disabled={Boolean(busy)}
+                  <button type="button" disabled={Boolean(busy) || remoteBusy || remoteBusy}
                     onClick={() => void loadPlan(runner.plan, false)}>
                     Verificar accesos otra vez
                   </button>
-                  <button type="button" disabled={Boolean(busy)} onClick={exportUpdated}>
+                  <button type="button" disabled={Boolean(busy) || remoteBusy || remoteBusy} onClick={exportUpdated}>
                     Exportar progreso JSON
                   </button>
                 </>
@@ -716,6 +716,56 @@ export default function StudyRunner() {
               </p>
             )}
           </section>
+          {STUDY_PROGRESS_VISIBLE && (
+            <section className="study-runner-panel study-runner-cloud"
+              aria-labelledby="study-runner-cloud-title">
+              <h2 id="study-runner-cloud-title">Continuar entre dispositivos</h2>
+              <p>
+                Guardá una copia privada de tu sesión en tu cuenta o recuperá la
+                última que hayas guardado desde otro dispositivo. Nunca sobrescribimos
+                versiones más nuevas: primero consultá el estado del servidor.
+              </p>
+              <div className="study-runner-actions">
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy || remoteBusy}
+                  onClick={() => void inspectRemote()}>
+                  Consultar mi guardado
+                </button>
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy || !runner || !remote}
+                  onClick={() => void saveRemote()}>
+                  Guardar sesión en mi cuenta
+                </button>
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy || !remote?.plan}
+                  onClick={() => void restoreRemote()}>
+                  Recuperar sesión guardada
+                </button>
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy || !remote?.plan}
+                  onClick={() => void deleteRemote()}>
+                  Eliminar guardado de mi cuenta
+                </button>
+              </div>
+              {remoteBusy && <p role="status">Consultando tu progreso privado…</p>}
+              {remote && (
+                <p className="study-runner-help" role="status">
+                  {remote.plan
+                    ? "Guardado: " + remote.plan.title + " · " +
+                      remote.plan.tasks.length + " actividades · revisión " +
+                      remote.revision + " · actualizado " +
+                      new Date(remote.updatedAt!).toLocaleString("es-AR")
+                    : "Todavía no hay una sesión guardada en esta materia."}
+                </p>
+              )}
+              <p className="study-runner-help">
+                Las valoraciones personales y los cronómetros no se sincronizan.
+                Solo se guarda el plan v1 y las actividades realizadas. Para
+                recuperar un guardado, sus recursos se verifican nuevamente.
+                El archivo JSON sigue disponible como copia independiente.
+              </p>
+            </section>
+          )}
           {!runner ? (
             <div className="study-runner-panel">
               <h2>No hay una sesión activa</h2>
@@ -758,18 +808,18 @@ export default function StudyRunner() {
                           : "Temporizador en marcha. Se pausa al ocultar la pestaña."}
                     </p>
                     <div className="study-runner-actions">
-                      <button type="button" disabled={Boolean(busy) || !label || task.done || remainingMs === 0}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || !label || task.done || remainingMs === 0}
                         onClick={() => changeClock("toggle")}>
                         {activeClock?.startedAt === null ? "Iniciar o reanudar" : "Pausar"}
                       </button>
-                      <button type="button" disabled={Boolean(busy) || !label || task.done}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || !label || task.done}
                         onClick={() => changeClock("reset")}>Reiniciar tiempo</button>
-                      <button type="button" disabled={Boolean(busy) || !label}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || !label}
                         onClick={() => void confirmDone()}>
                         {task.done ? "Marcar pendiente" : "Marcar como realizada"}
                       </button>
                     </div>
-                    <fieldset className="study-runner-ratings" disabled={Boolean(busy) || !label}>
+                    <fieldset className="study-runner-ratings" disabled={Boolean(busy) || remoteBusy || !label}>
                       <legend>¿Cómo te resultó esta actividad?</legend>
                       <p className="study-runner-help">
                         Es una valoración personal: no cambia «realizada» ni implica una calificación.
@@ -791,7 +841,7 @@ export default function StudyRunner() {
                           Lo tengo claro
                         </button>
                         <button type="button"
-                          disabled={Boolean(busy) || !label || !runner.reviews[activeKey ?? ""]}
+                          disabled={Boolean(busy) || remoteBusy || !label || !runner.reviews[activeKey ?? ""]}
                           onClick={() => rateCurrent(null)}>
                           Quitar valoración
                         </button>
@@ -799,9 +849,9 @@ export default function StudyRunner() {
                     </fieldset>
                     {busy?.kind === "confirm" && <p role="status">Comprobando acceso antes de guardar la marca…</p>}
                     <div className="study-runner-navigation">
-                      <button type="button" disabled={Boolean(busy) || runner.index === 0}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || runner.index === 0}
                         onClick={() => move(runner.index - 1)}>Anterior</button>
-                      <button type="button" disabled={Boolean(busy) || runner.index === runner.plan.tasks.length - 1}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || runner.index === runner.plan.tasks.length - 1}
                         onClick={() => move(runner.index + 1)}>Siguiente</button>
                     </div>
                   </div>
@@ -815,7 +865,7 @@ export default function StudyRunner() {
                     const itemLabel = runner.labels[key];
                     return (
                       <li key={key}>
-                        <button type="button" disabled={Boolean(busy)}
+                        <button type="button" disabled={Boolean(busy) || remoteBusy || remoteBusy}
                           aria-current={index === runner.index ? "step" : undefined}
                           onClick={() => move(index)}>
                           <span>{index + 1}. {itemLabel ?? "Sin acceso"}</span>
@@ -857,7 +907,7 @@ export default function StudyRunner() {
                 </div>
                 <label className="study-runner-review-filter">
                   Qué incluir en el próximo plan
-                  <select value={reviewMode} disabled={Boolean(busy)}
+                  <select value={reviewMode} disabled={Boolean(busy) || remoteBusy || remoteBusy}
                     onChange={(event) => setReviewModeState({
                       scope, mode: event.target.value as ReviewMode,
                     })}>
@@ -892,12 +942,12 @@ export default function StudyRunner() {
                 </p>
                 <div className="study-runner-actions">
                   <button type="button"
-                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    disabled={Boolean(busy) || remoteBusy || reviewItems.length === 0}
                     onClick={() => void createNextReview("planner")}>
                     Pasar al Planificador
                   </button>
                   <button type="button"
-                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    disabled={Boolean(busy) || remoteBusy || reviewItems.length === 0}
                     onClick={() => void createNextReview("download")}>
                     Exportar próximo repaso JSON
                   </button>
