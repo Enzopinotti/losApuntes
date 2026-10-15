@@ -74,7 +74,7 @@ export class AccountExportController {
 
     if (
       !artifact.generation ||
-      ![1, 2].includes(artifact.formatVersion) ||
+      ![1, 2, 3].includes(artifact.formatVersion) ||
       !Number.isSafeInteger(artifact.byteLength) ||
       artifact.byteLength < 1 ||
       !/^[a-f0-9]{64}$/u.test(artifact.sha256)
