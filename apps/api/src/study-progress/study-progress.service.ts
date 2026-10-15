@@ -1,5 +1,6 @@
 import {
   ConflictException, ForbiddenException, Injectable, NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, Model } from 'mongoose';
@@ -96,6 +97,16 @@ export class StudyProgressService {
     try {
       const record = await this.mutateActive(ownerUserId, async (session) => {
         if (expectedRevision === 0) {
+          // The User lifecycle write fence serializes owner mutations. This
+          // bounds storage even if a client submits arbitrary subject UUIDs.
+          const slots = await this.progress
+            .countDocuments({ ownerUserId }).session(session).exec();
+          if (slots >= 16) {
+            throw new UnprocessableEntityException({
+              code: 'STUDY_PROGRESS_LIMIT_REACHED',
+              message: 'Maximum 16 saved subjects per account',
+            });
+          }
           // Unique owner+subject key makes first-write race safe. A replay
           // of revision zero must conflict, never overwrite another device.
           const created = await this.progress.findOneAndUpdate(
