@@ -23,6 +23,7 @@ import StudyWorkbench from "../pages/StudyWorkbench";
 import StudySession from "../pages/StudySession";
 import StudyPractice from "../pages/StudyPractice";
 import StudyKits from "../pages/StudyKits";
+import StudyCollections from "../pages/StudyCollections";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
 import VerificationPending from "../pages/VerificationPending";
@@ -76,6 +77,14 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <StudyKits />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study-collections",
+        element: (
+          <PrivateRoute>
+            <StudyCollections />
           </PrivateRoute>
         ),
       },

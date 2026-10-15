@@ -1,4 +1,5 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
 import { UsersService } from '../../users/users.service';
@@ -78,6 +79,7 @@ export class AccountExportService {
     @Inject(ACCOUNT_EXPORT_STORE)
     private readonly store: AccountExportStore,
     private readonly users: UsersService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   async request(
@@ -89,10 +91,24 @@ export class AccountExportService {
     const result = await this.store.requestActive({
       id: randomUUID(),
       userId,
-      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+      formatVersion:
+        this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true
+          ? 2
+          : ACCOUNT_EXPORT_FORMAT_VERSION,
       now,
     });
 
+    // A pre-activation v1 job can still be active during a rollout. Do not
+    // reuse it as though it contained newly persisted private collections.
+    if (
+      this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true &&
+      result.job.formatVersion !== 2
+    ) {
+      throw new ConflictException({
+        code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
+        message: 'A previous export is still processing. Retry after it completes.',
+      });
+    }
     return {
       created: result.created,
       export: this.publicStatus(result.job, now),

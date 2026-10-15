@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 
 import type { AccountExportStore } from './account-export.store';
 import {
@@ -715,6 +715,39 @@ describe('AccountExportService', () => {
       });
     await expect(f.service.download('user-1','export-2',now))
       .rejects.toThrow('artifact metadata is invalid');
+  });
+
+  it('requests v2 when persistent collections are enabled', async () => {
+    const f = fixture();
+    const service = new AccountExportService(f.store, f.users, {
+      get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
+    } as never);
+    f.store.requestActive.mockImplementation(async (input) => ({
+      created: true,
+      job: job({
+        id: input.id,
+        userId: input.userId,
+        formatVersion: input.formatVersion,
+      }),
+    }));
+    const output = await service.request('user-1', now);
+    expect(output.export.formatVersion).toBe(2);
+    expect(f.store.requestActive).toHaveBeenCalledWith(expect.objectContaining({
+      formatVersion: 2,
+    }));
+  });
+
+  it('does not reuse a pre-activation v1 job for newly persisted private collections', async () => {
+    const f = fixture();
+    const service = new AccountExportService(f.store, f.users, {
+      get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
+    } as never);
+    f.store.requestActive.mockResolvedValue({
+      created: false,
+      job: job({ formatVersion: 1 }),
+    });
+    await expect(service.request('user-1', now))
+      .rejects.toBeInstanceOf(ConflictException);
   });
 
 });
