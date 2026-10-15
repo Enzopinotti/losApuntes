@@ -74,10 +74,23 @@ const StudyCollections = () => {
   const [listState, setListState] = useState<CollectionList | null>(null);
   const [detailState, setDetailState] = useState<CollectionDetail | null>(null);
   const [searchState, setSearchState] = useState<SearchState | null>(null);
-  const [query, setQuery] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [editing, setEditing] = useState(false);
+  const [searchDraft, setSearchDraft] = useState<{
+    scope: string;
+    value: string;
+  } | null>(null);
+  const query = searchDraft?.scope === detailScope ? searchDraft.value : "";
+  const setQuery = (value: string) => setSearchDraft({ scope: detailScope, value });
+  const [createDraft, setCreateDraft] = useState<{
+    scope: string; title: string; description: string;
+  } | null>(null);
+  const title = createDraft?.scope === authScope ? createDraft.title : "";
+  const description = createDraft?.scope === authScope ? createDraft.description : "";
+  const setTitle = (value: string) =>
+    setCreateDraft({ scope: authScope, title: value, description });
+  const setDescription = (value: string) =>
+    setCreateDraft({ scope: authScope, title, description: value });
+  const [editingAt, setEditingAt] = useState<string | null>(null);
+  const editing = editingAt === detailScope;
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [actionError, setActionError] = useState<{ scope: string; message: string } | null>(null);
@@ -213,7 +226,7 @@ const StudyCollections = () => {
     void loadDetail();
   }, [loadDetail]);
   useEffect(() => {
-    setEditing(false);
+    setEditingAt(null);
     setQuery("");
     actionLock.current = false;
   }, [detailScope]);
@@ -307,7 +320,7 @@ const StudyCollections = () => {
         signal,
       );
       if (signal.aborted) return;
-      setEditing(false);
+      setEditingAt(null);
       void loadList();
       void loadDetail();
       setNotice({ scope: detailScope, message: "Cambios guardados." });
@@ -446,7 +459,9 @@ const StudyCollections = () => {
                       <button type="button" className="secondary" disabled={busy} onClick={() => {
                         setEditTitle(collection.title);
                         setEditDescription(collection.description ?? "");
-                        setEditing((value) => !value);
+                        setEditingAt((current) =>
+                          current === detailScope ? null : detailScope,
+                        );
                       }}>Editar</button>
                       <button type="button" className="secondary" disabled={busy} onClick={removeCollection}>Eliminar</button>
                     </div>
