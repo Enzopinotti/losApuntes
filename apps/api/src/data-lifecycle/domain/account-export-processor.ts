@@ -103,7 +103,13 @@ export class AccountExportProcessor {
     };
 
     await this.deleteExpiredArtifacts(result);
-    await this.drainOrphanCleanup(result);
+    try {
+      await this.drainOrphanCleanup(result);
+    } catch {
+      // Orphan-queue storage faults are surfaced in the aggregate but must
+      // not block unrelated fresh exports from being processed.
+      result.orphanRetries += 1;
+    }
     for (let index = 0; index < maxJobs; index += 1) {
       const job = await this.exports.claimNext();
       if (!job) break;
