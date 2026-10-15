@@ -749,6 +749,9 @@ export default function StudySession() {
                 className="study-session-secondary"
                 disabled={isBusy}
                 onClick={() => {
+                  // The academic context can change between render and click.
+                  // Do not create a draft for a missing or revoked subject.
+                  if (!subjectId) return;
                   if (!window.confirm("¿Vaciar el borrador temporal? Se perderán sus notas y actividades.")) return;
                   setDraftState({
                     scope, plan: emptyStudySession(subjectId), labels: {},
