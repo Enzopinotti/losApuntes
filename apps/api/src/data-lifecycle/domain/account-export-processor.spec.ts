@@ -58,6 +58,17 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     reschedule: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportService>;
   const assembler = {
+    writeJsonV3: jest.fn<
+      Promise<AccountExportAssemblyResult>,
+      Parameters<AccountExportAssembler['writeJsonV3']>
+    >().mockImplementation(async (_userId: string, targetSink: AccountExportArtifactSink) => {
+      const v3Result: AccountExportAssemblyResult = {
+        ...result, formatVersion: 3, sectionCount: 32,
+      };
+      await targetSink.write('export-v3');
+      await targetSink.commit(v3Result);
+      return v3Result;
+    }),
     writeJsonV2: jest.fn<
       Promise<AccountExportAssemblyResult>,
       Parameters<AccountExportAssembler['writeJsonV2']>
@@ -426,6 +437,25 @@ describe('AccountExportProcessor', () => {
     });
   });
 
+  it('routes persisted v3 jobs to the v3 assembler without modifying legacy claims', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, completed: 1, retryScheduled: 0,
+    });
+    expect(f.assembler.writeJsonV1).not.toHaveBeenCalled();
+    expect(f.assembler.writeJsonV2).not.toHaveBeenCalled();
+    expect(f.assembler.writeJsonV3).toHaveBeenCalledWith(
+      'owner-1', f.sink, expect.any(Function),
+    );
+    expect(f.exports.complete).toHaveBeenCalledWith({
+      id: claim().id,
+      claimId: claim().claimId,
+      result: expect.objectContaining({
+        formatVersion: 3, sectionCount: 32,
+      }),
+    });
+  });
+
   it('fails closed on unsupported persisted versions before publishing a file', async () => {
     const f = fixture({ job: claim({ formatVersion: 99 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
@@ -433,6 +463,7 @@ describe('AccountExportProcessor', () => {
     });
     expect(f.assembler.writeJsonV1).not.toHaveBeenCalled();
     expect(f.assembler.writeJsonV2).not.toHaveBeenCalled();
+    expect(f.assembler.writeJsonV3).not.toHaveBeenCalled();
     expect(f.sink.abort).toHaveBeenCalled();
     expect(f.exports.complete).not.toHaveBeenCalled();
   });
