@@ -686,6 +686,8 @@ export default function StudySession() {
                   <p className="study-session-info">
                     Al sumar, se conservan tus notas, tiempos y actividades
                     revisadas. Las referencias repetidas no se agregan dos veces.
+                    Si querés volver a realizar actividades ya incluidas y
+                    marcadas, elegí «Reemplazar por el repaso» para dejarlas pendientes.
                   </p>
                 </>
               ) : (
