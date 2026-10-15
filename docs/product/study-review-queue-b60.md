@@ -46,4 +46,4 @@ QA pendiente: ejecutar el script con Node, TypeScript/Prettier del frontend y un
 
 ## Coordinación de PR paralelos
 
-La rama se basa en B59 fusionado en `main@4b006a672e29f7c2754c18079fe4f4209aa2b549`. Solo cambia archivos nuevos de B59 y agrega un módulo y un test. No modifica `StudySession.tsx` (afectado por los PR en draft #344 y #333), Colecciones, Auth, API, auditoría, lockfile ni variables de despliegue. Los bloqueos de dependencias #133 y #141 continúan visibles e independientes.
+La rama se basa en B59 fusionado en `main@4b006a672e29f7c2754c18079fe4f4209aa2b549`. Cambia el Runner de B59, incorpora módulo y tests nuevos, y ajusta **solo textos de transferencia** en `StudySession.tsx` para admitir apuntes y preguntas. Los PR draft #344 (formato) y #333 (tipado histórico) deberán reconciliar explícitamente esos textos. No modifica Colecciones, Auth, API, auditoría, lockfile ni variables de despliegue. Los bloqueos de dependencias #133 y #141 continúan visibles e independientes.
