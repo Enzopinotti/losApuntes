@@ -2,7 +2,7 @@ import {
   useCallback, useEffect, useRef, useState,
   type ChangeEvent,
 } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../contexts/useAuth";
 import type { QuestionView } from "../features/community/interfaces";
@@ -27,6 +27,16 @@ import {
   type StudySession,
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
+import {
+  recallStudyDraft,
+  rememberStudyDraft,
+} from "../features/study/study-session-draft.mjs";
+import {
+  finishStudyHandoff,
+  inspectStudyHandoff,
+  isStudyHandoffRouteState,
+  mergeStudySessionHandoff,
+} from "../features/study/study-session-handoff.mjs";
 import {
   resolveStudySubject,
   studySubjectHref,
@@ -141,6 +151,8 @@ async function verifyTaskLabels(
 
 export default function StudySession() {
   const { status, user, session } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const selection = studySubjectSelectionFromParams(params);
   const authScope = [status, user?.id ?? "anonymous", session?.id ?? "none"].join(":");
@@ -152,6 +164,10 @@ export default function StudySession() {
   const subject = resolution?.kind === "ready" ? resolution.subject : null;
   const subjectId = subject?.id ?? null;
   const scope = `${authScope}:${subjectId ?? "none"}`;
+  const incomingHandoff = subjectId
+    ? inspectStudyHandoff(location.state, scope, subjectId)
+    : null;
+  const hasRouteHandoff = isStudyHandoffRouteState(location.state);
 
   const [savedState, setSavedState] = useState<Catalog<ResourceView> | null>(null);
   const [foundState, setFoundState] = useState<Catalog<ResourceView> | null>(null);
@@ -161,13 +177,26 @@ export default function StudySession() {
   const questions = questionState?.scope === scope ? questionState : null;
 
   const [draftState, setDraftState] = useState<Draft | null>(null);
+  // Restore only this exact user/session/subject, never a former account.
+  const resumedPlan = subjectId ? recallStudyDraft(scope, subjectId) : null;
   const plan = subjectId
     ? (draftState?.scope === scope
       ? draftState.plan
-      : emptyStudySession(subjectId))
+      : resumedPlan ?? emptyStudySession(subjectId))
     : null;
   const labels: Record<string, string | null> =
     draftState?.scope === scope ? draftState.labels : {};
+  useEffect(() => {
+    if (
+      status === "authenticated" &&
+      subjectId &&
+      draftState?.scope === scope
+    ) {
+      // Only user-authored fields/opaque IDs. No cached server resource titles.
+      rememberStudyDraft(scope, draftState.plan);
+    }
+  }, [status, subjectId, scope, draftState]);
+
   const [feedback, setFeedback] = useState<Status | null>(null);
   const [busy, setBusy] = useState<Status | null>(null);
   const currentFeedback = feedback?.scope === scope ? feedback : null;
@@ -318,7 +347,7 @@ export default function StudySession() {
     if (!subjectId || isBusy) return;
     setDraftState((old) => {
       const draft = old?.scope === scope ? old : {
-        scope, plan: emptyStudySession(subjectId), labels: {},
+        scope, plan: plan ?? emptyStudySession(subjectId), labels: {},
       };
       return { ...draft, plan: transform(draft.plan) };
     });
@@ -330,7 +359,7 @@ export default function StudySession() {
     const key = taskKey(task);
     setDraftState((old) => {
       const draft = old?.scope === scope ? old : {
-        scope, plan: emptyStudySession(subjectId), labels: {},
+        scope, plan: plan ?? emptyStudySession(subjectId), labels: {},
       };
       if (
         draft.plan.tasks.length >= STUDY_SESSION_MAX_TASKS ||
@@ -408,6 +437,69 @@ export default function StudySession() {
     } finally {
       finishActionSafely(ticket);
     }
+  };
+
+  const applyDirectHandoff = async (mode: "append" | "replace") => {
+    if (!subjectId || !plan || !incomingHandoff || isBusy) return;
+    if (
+      mode === "replace" &&
+      (plan.tasks.length > 0 || plan.notes.trim().length > 0) &&
+      !window.confirm(
+        "¿Reemplazar el plan actual? Se perderán tus actividades y notas temporales.",
+      )
+    ) return;
+
+    const ticket = startAction();
+    if (!ticket) return;
+    try {
+      // Route state carries only a nonce. Re-inspect after the action starts:
+      // another account/session or an expired handoff must not be consumed.
+      const incoming = inspectStudyHandoff(location.state, scope, subjectId);
+      if (!incoming) throw new Error("STUDY_HANDOFF_EXPIRED");
+      const candidate = mode === "append"
+        ? mergeStudySessionHandoff(plan, incoming)
+        : { plan: normalizeStudySession(incoming), added: incoming.tasks.length };
+      if (!actionCurrent(ticket)) return;
+      const verified = await verifyTaskLabels(candidate.plan, ticket.signal);
+      if (!actionCurrent(ticket)) return;
+      updateTaskAuthorities(candidate.plan, verified);
+      const missing = Object.values(verified).filter((value) => value === null).length;
+      finishStudyHandoff(location.state, scope);
+      navigate(location.pathname + location.search, {
+        replace: true,
+        state: null,
+      });
+      setFeedback({
+        scope,
+        error: missing > 0,
+        text: missing > 0
+          ? `Se incorporaron ${candidate.added} actividades, pero hay ${missing} referencias sin acceso vigente. Podés quitarlas.`
+          : candidate.added === 0
+            ? "Las preguntas ya estaban en el plan. Se actualizaron los permisos."
+            : `Se incorporaron ${candidate.added} preguntas verificadas. Podés continuar planificando.`,
+      });
+    } catch (error) {
+      if (actionCurrent(ticket)) {
+        setFeedback({
+          scope, error: true,
+          text: error instanceof Error && error.message === "STUDY_HANDOFF_TASK_LIMIT"
+            ? "El plan superaría las 24 actividades. Quitá algunas antes de agregar."
+            : error instanceof Error && error.message === "STUDY_HANDOFF_TIME_LIMIT"
+              ? "El plan superaría 1.200 minutos. Ajustá los tiempos antes de agregar."
+              : error instanceof Error && error.message === "STUDY_HANDOFF_EXPIRED"
+                ? "La transferencia venció o pertenece a otra sesión. Volvé a Práctica."
+                : apiError(error),
+        });
+      }
+    } finally {
+      finishActionSafely(ticket);
+    }
+  };
+
+  const dismissDirectHandoff = () => {
+    if (isBusy) return;
+    finishStudyHandoff(location.state, scope);
+    navigate(location.pathname + location.search, { replace: true, state: null });
   };
 
   const checkAccess = async () => {
@@ -515,7 +607,13 @@ export default function StudySession() {
         </div>
         <div className="study-session-quick-actions">
           {subjectId && (
-            <Link to={`/study/practice?subjectId=${encodeURIComponent(subjectId)}`}>
+            <Link
+              to={`/study/practice?subjectId=${encodeURIComponent(subjectId)}`}
+              onClick={() => {
+                // Snapshot before route unmount, including the last edited key.
+                if (plan) rememberStudyDraft(scope, plan);
+              }}
+            >
               Practicar preguntas
             </Link>
           )}
@@ -541,6 +639,60 @@ export default function StudySession() {
             <strong>Materia: {subject.name}</strong>
             <span>Plan temporal: no se guarda en servidores ni en este navegador.</span>
           </div>
+          {hasRouteHandoff && (
+            <section
+              className="study-session-panel study-session-handoff"
+              aria-labelledby="study-session-handoff-title"
+            >
+              <h2 id="study-session-handoff-title">Continuar desde Práctica</h2>
+              {incomingHandoff ? (
+                <>
+                  <p>
+                    Hay {incomingHandoff.tasks.length} preguntas de repaso listas
+                    para incorporar a esta materia. Antes de mostrarlas, el
+                    servidor volverá a verificar sus permisos.
+                  </p>
+                  <div className="study-session-export-actions">
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => void applyDirectHandoff("append")}
+                    >
+                      Sumar preguntas sin perder mi plan
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => void applyDirectHandoff("replace")}
+                    >
+                      Reemplazar por el repaso
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={dismissDirectHandoff}
+                    >
+                      Descartar transferencia
+                    </button>
+                  </div>
+                  <p className="study-session-info">
+                    Al sumar, se conservan tus notas, tiempos y actividades
+                    revisadas. Las preguntas repetidas no se agregan dos veces.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="study-session-info" role="status">
+                    Este pase directo ya venció o pertenece a otra sesión.
+                    Podés volver a Práctica o importar el JSON descargado.
+                  </p>
+                  <button type="button" onClick={dismissDirectHandoff}>
+                    Cerrar aviso
+                  </button>
+                </>
+              )}
+            </section>
+          )}
           <div className="study-session-grid">
             <section className="study-session-panel" aria-labelledby="study-session-editor">
               <h2 id="study-session-editor">1. Definí tu sesión</h2>
@@ -579,6 +731,28 @@ export default function StudySession() {
                 <span>{totalMinutes - reviewedMinutes} minutos pendientes</span>
               </div>
               <p className="study-session-info">Los tiempos y casillas son autodeclarados: no representan asistencia ni resultados de examen.</p>
+              <p className="study-session-info">
+                El borrador se recuerda mientras navegás entre Práctica y el
+                Planificador en esta pestaña (máximo 30 minutos). Recargar
+                descarta esa memoria. Para guardarlo, exportá JSON.
+              </p>
+              <button
+                type="button"
+                className="study-session-secondary"
+                disabled={isBusy}
+                onClick={() => {
+                  if (!window.confirm("¿Vaciar el borrador temporal? Se perderán sus notas y actividades.")) return;
+                  setDraftState({
+                    scope, plan: emptyStudySession(subjectId), labels: {},
+                  });
+                  setFeedback({
+                    scope, error: false,
+                    text: "Borrador temporal vaciado.",
+                  });
+                }}
+              >
+                Vaciar mi borrador
+              </button>
               {overBudget && (
                 <p className="study-session-alert" role="alert">
                   El plan supera el máximo de 1.200 minutos. Ajustá las duraciones antes de exportar.
