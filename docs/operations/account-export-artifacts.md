@@ -224,3 +224,34 @@ tests before production.
 
 See `docs/engineering/account-export-reconciliation-b66.md` for the proof
 model, failure matrix, and remaining acceptance requirements.
+
+
+## B67 — Durable orphan cleanup queue
+
+If deletion of a **proven orphaned** generation fails, the export worker
+persists an idempotent task in the private Mongo collection
+`account_export_orphan_cleanup`, uniquely keyed by the exact job and
+generation. A new worker can recover the task after process restart or
+lease expiry. No user-facing API exposes that queue.
+
+Each iteration drains at most ten due tasks, verifying the job's recorded
+owner, status, active lease and referenced artifact generation **before**
+attempting to remove `exports/{jobId}/{generation}.json`. A completed job
+that still references that generation is preserved. A live matching claim is
+deferred. Only the exact attempt generation may be deleted, never an entire
+prefix. A successful delete is followed by claim-fenced queue ACK; storage
+errors get a bounded-backoff durable retry with no automatic attempt cap.
+
+The worker's structured iteration output reports `orphanDeleted`,
+`orphanPreserved` and `orphanRetries`. Monitor persistent nonzero retries,
+the Mongo queue age and S3 lifecycle behavior. Counters do not identify a
+user or include private payload content.
+
+This system handles **known** failed deletions; it does not crawl S3 for
+objects created before queue deployment. If both Mongo and S3 fail during
+enqueuing, lifecycle expiry remains the fallback. Actual physical deletion
+may be delayed by provider retention, version history and replicas: audit
+the bucket policy separately before lifting the production release hold.
+
+See `docs/engineering/account-export-orphan-cleanup-b67.md` for
+constraints and the opt-in replica-set acceptance suite.
