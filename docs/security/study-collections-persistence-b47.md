@@ -10,6 +10,13 @@ El producto Web suma `/study-collections` como ruta privada. Permite alta, lista
 
 La experiencia **portátil temporal** de B44 `/study/kits` se mantiene como alternativa independiente; no se migra ni se borra ningún kit portable.
 
+> **Actualización B49 (octubre de 2026):** desactivar el flag no desactiva
+> la portabilidad de datos que ya existen. Una nueva exportación sigue
+> siendo v2 cuando el propietario conserva colecciones privadas, incluso
+> si el CRUD se deshabilitó por rollback. Los archivos y trabajos v1
+> preexistentes conservan su versión original. Ver
+> [política de rollback](account-export-b49-rollback-portability.md).
+
 ## Activación coordinada y segura
 
 La nueva variable API `STUDY_COLLECTIONS_ENABLED` se valida estrictamente como booleano y es **false por defecto**. Si no es exactamente `true` en el servidor, `StudyCollectionsFeatureGuard` rechaza todo el controlador persistente. El frontend oculta el enlace a sincronización cuando `VITE_STUDY_COLLECTIONS_ENABLED` no es `"true"`. El frontend por sí solo **no autoriza** ningún endpoint.
@@ -47,7 +54,7 @@ La creación de una colección adquiere un conflicto de escritura sobre el mismo
 1. Ejecutar `pnpm` / Jest/TypeScript/ESLint/Prettier y Web build contra el checkout exacto de PR B47.
 2. Levantar Mongo Replica Set para pruebas de transacción real: carrera crear/cerrar en ambos órdenes, rollback ante error de borrado, idempotencia y aislamiento entre dos usuarios.
 3. E2E autenticación, CRUD de Colecciones, 403/404 por recursos retirados, conflictos de revisión, paginación y múltiples dispositivos.
-4. Ejecutar solicitudes Account Export con flag off (v1 30 secciones) y flag on (v2 31); probar trabajo v1 activo en el corte y worker restart.
+4. Ejecutar la matriz completa de Account Export: con flag off y sin colecciones (v1, 30 secciones); flag on (v2, 31); **flag off con colecciones privadas preexistentes (v2, 31)**; Mongo inaccesible (no crear v1); trabajo v1 activo (409); reinicio del worker. Véase [B49](account-export-b49-rollback-portability.md).
 5. Verificar el cierre de cuenta que borra colecciones del propietario y no las de otra cuenta, la limpieza diferida de sesiones/tokens y los errores del worker.
 6. Documentar retención/erasure/backups y evidencia de S3 antes del corte real. No inferir certificación a partir de tests fuente aislados.
 
