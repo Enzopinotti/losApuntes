@@ -576,6 +576,7 @@ describe('AccountExportService', () => {
       f.service.download('user-1', 'export-1', now),
     ).resolves.toEqual({
       kind: 'available',
+      formatVersion: 1,
       generation: 'generation-1',
       byteLength: 512,
       sha256: 'a'.repeat(64),
