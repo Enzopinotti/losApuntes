@@ -135,9 +135,7 @@ function fixture() {
   };
   const audits = { create: jest.fn().mockResolvedValue([]) };
   const studyCollections = {
-    deleteMany: jest.fn(() =>
-      transactionQuery(() => ({ deletedCount: 0 })),
-    ),
+    deleteMany: jest.fn(() => transactionQuery(() => ({ deletedCount: 0 }))),
   };
 
   return {
