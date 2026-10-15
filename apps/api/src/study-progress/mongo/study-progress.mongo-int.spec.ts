@@ -12,6 +12,7 @@ import { StudyCollection, StudyCollectionSchema } from '../../study-collections/
 import { User, UserSchema } from '../../users/schemas/user.schema';
 import { StudyProgressService } from '../study-progress.service';
 import { StudyProgress, StudyProgressSchema } from './study-progress.schema';
+import { StudyProgressExportReader } from './study-progress-export.reader';
 
 const uri = process.env.STUDY_PROGRESS_TEST_MONGO_URI;
 const runMongo = uri ? describe : describe.skip;
@@ -28,6 +29,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
   let progress: Model<StudyProgress>;
   let users: Model<User>;
   let service: StudyProgressService;
+  let exportReader: StudyProgressExportReader;
   let lifecycle: MongoAccountLifecycleStore;
   let verifiedReplica = false;
 
@@ -69,6 +71,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     await Promise.all([users, progress, profiles, managers, jobs, audits, collections]
       .map((model) => model.init()));
     service = new StudyProgressService(progress, users, connection);
+    exportReader = new StudyProgressExportReader(progress);
     lifecycle = new MongoAccountLifecycleStore(
       connection, users, profiles, managers, jobs, audits, collections, progress,
     );
@@ -147,6 +150,36 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     await expect(service.save(userId, extra, 0, planFor(extra)))
       .resolves.toMatchObject({ progress: { revision: 1 } });
   }, 60_000);
+
+  it('exports only the owner projection before closure and no rows after closure', async () => {
+    const ownerId = await owner();
+    const secondOwner = await owner();
+    const subjectId = randomUUID();
+    const secondSubject = randomUUID();
+    await service.save(ownerId, subjectId, 0, planFor(subjectId));
+    await service.save(secondOwner, secondSubject, 0, planFor(secondSubject));
+    expect(await exportReader.hasOwnedProgress(ownerId)).toBe(true);
+    const rows = await exportReader.listAccountExportProgress(ownerId, {
+      cursor: null, limit: 100,
+    });
+    expect(rows.items).toHaveLength(1);
+    expect(rows.items[0]?.subjectId).toBe(subjectId);
+    expect(rows.items[0]?.plan.subjectId).toBe(subjectId);
+    expect(rows.nextCursor).toBeNull();
+    expect(Object.keys(rows.items[0] ?? {}).sort()).toEqual([
+      'createdAt', 'plan', 'revision', 'subjectId', 'updatedAt',
+    ]);
+    const result = await lifecycle.closeAccount({
+      userId: ownerId, expectedCredentialVersion: 1,
+      now: new Date(), cleanupJobId: randomUUID(), auditId: randomUUID(),
+    });
+    expect(result.status).toBe('closed');
+    expect(await exportReader.hasOwnedProgress(ownerId)).toBe(false);
+    expect((await exportReader.listAccountExportProgress(ownerId, {
+      cursor: null, limit: 100,
+    })).items).toHaveLength(0);
+    expect(await exportReader.hasOwnedProgress(secondOwner)).toBe(true);
+  }, 30_000);
 
   it('purges progress in account closure transaction and blocks later mutations', async () => {
     const userId = await owner();

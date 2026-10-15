@@ -49,6 +49,56 @@ describe('S3AccountExportArtifactStorage', () => {
     expect(writer.abort).not.toHaveBeenCalled();
   });
 
+  it('commits valid v2 and v3 artifacts while preserving integrity checks', async () => {
+    for (const [formatVersion, sectionCount] of [[2, 31], [3, 32]] as const) {
+      const writer = {
+        write: jest.fn().mockResolvedValue(undefined),
+        complete: jest.fn().mockResolvedValue(undefined),
+        abort: jest.fn().mockResolvedValue(undefined),
+      };
+      const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+        createMultipartWriter: jest.fn().mockReturnValue(writer),
+        readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
+        deleteObject: jest.fn().mockResolvedValue(undefined),
+      };
+      const artifact = new S3AccountExportArtifactStorage(storage);
+      const sink = artifact.createSink(jobId, generation);
+      const value = '{"export":true}';
+      await sink.write(value);
+      await sink.commit({
+        format: 'los-apuntes-account-export',
+        formatVersion, sectionCount, recordCount: 0,
+        byteLength: Buffer.byteLength(value),
+        sha256: createHash('sha256').update(value).digest('hex'),
+      });
+      expect(writer.complete).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('refuses an invalid section count before final S3 publish', async () => {
+    const writer = {
+      write: jest.fn().mockResolvedValue(undefined),
+      complete: jest.fn().mockResolvedValue(undefined),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn().mockReturnValue(writer),
+      readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+    };
+    const sink = new S3AccountExportArtifactStorage(storage)
+      .createSink(jobId, generation);
+    const value = 'artifact';
+    await sink.write(value);
+    await expect(sink.commit({
+      format: 'los-apuntes-account-export',
+      formatVersion: 3, sectionCount: 31, recordCount: 0,
+      byteLength: Buffer.byteLength(value),
+      sha256: createHash('sha256').update(value).digest('hex'),
+    })).rejects.toThrow('integrity check failed');
+    expect(writer.complete).not.toHaveBeenCalled();
+  });
+
   it('rejects mismatched byte length or digest before publishing', async () => {
     const writer = {
       write: jest.fn().mockResolvedValue(undefined),

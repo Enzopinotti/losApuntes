@@ -40,7 +40,7 @@ El servidor exige esquema **Study Session v1** cerrado: `format`, `version`, `su
 
 `validateRuntimeEnvironment` **rechaza** `STUDY_PROGRESS_ENABLED=true` en `DEPLOYMENT_PROFILE=production`. Se permite habilitar localmente para test controlado, nunca como autorización de producción.
 
-**Antes de liberar**: incluir `study_progress` en la exportación privada de cuenta y la revisión de inventario de datos; definir política de retención, backups/restore y posibles límites operativos; ejecutar TS/Jest y test Mongo real; probar sesiones cruzadas, cierre de cuenta y revocación de acceso; documentar gestión legal. No agregar excepciones de auditoría de dependencias #133/#141.
+**B62 incorpora en código** `study.progress` a una exportación privada v3 de 32 secciones, sin cambiar v1/v2. **Antes de liberar** sigue siendo obligatorio verificar esa cobertura con Jest, Mongo/S3/HTTP reales, además de definir política de retención, backups/restore y límites operativos, probar sesiones cruzadas, cierre de cuenta y revocación de acceso, y documentar gestión legal. El bloqueo de producción sigue vigente. No agregar excepciones de auditoría de dependencias #133/#141.
 
 ## Verificación
 
