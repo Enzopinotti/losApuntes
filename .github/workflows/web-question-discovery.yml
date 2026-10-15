@@ -58,12 +58,6 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
-      - name: Diagnose edited Web formatting (temporary)
-        run: |
-          for file in src/pages/Questions.tsx src/features/community/QuestionDiscoverySubjectPicker.tsx; do
-            pnpm --filter @losapuntes/web exec prettier "$file" | diff -u "apps/web/$file" - || true
-          done
-
       - name: Check edited Web source formatting
         run: pnpm --filter @losapuntes/web exec prettier --check src/pages/Questions.tsx src/features/community/QuestionDiscoverySubjectPicker.tsx
 
