@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+
+import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
 import { createConnection, type Connection, type Model } from 'mongoose';
 
 import {
@@ -21,6 +23,7 @@ import {
   StudyCollectionSchema,
 } from './study-collection.mongo-schema';
 import { MongoStudyCollectionStore } from './mongo-study-collection.store';
+import { StudyCollectionExportReader } from './study-collection-export.reader';
 
 /**
  * Explicit opt-in only. Never run against a shared or production database:
@@ -50,6 +53,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
   let models: Models;
   let collections: MongoStudyCollectionStore;
   let lifecycle: MongoAccountLifecycleStore;
+  let exportReader: StudyCollectionExportReader;
   let verifiedLocalReplica = false;
 
   beforeAll(async () => {
@@ -112,6 +116,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     collections = new MongoStudyCollectionStore(
       models.collections, connection, models.users,
     );
+    exportReader = new StudyCollectionExportReader(models.collections);
     lifecycle = new MongoAccountLifecycleStore(
       connection,
       models.users,
@@ -360,6 +365,99 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     expect(await models.collections.countDocuments({
       ownerUserId: userId, operationKey,
     })).toBe(1);
+  }, 30_000);
+
+  it('exports only the owner collections with bounded stable pages and no internal fields', async () => {
+    const alice = await owner();
+    const bob = await owner();
+    const a = await create(alice);
+    const b = await create(alice);
+    const foreign = await create(bob);
+
+    await expect(exportReader.hasOwnedCollections(alice)).resolves.toBe(true);
+    await expect(exportReader.hasOwnedCollections(bob)).resolves.toBe(true);
+    const first = await exportReader.listAccountExportCollections(alice, {
+      limit: 1, cursor: null,
+    });
+    expect(first.items).toHaveLength(1);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    const second = await exportReader.listAccountExportCollections(alice, {
+      limit: 1, cursor: first.nextCursor,
+    });
+    expect(second.items).toHaveLength(1);
+    expect(second.nextCursor).toBeNull();
+    const ids = [...first.items, ...second.items].map((row) => row.id);
+    expect(ids).toEqual([a.id, b.id].sort());
+    expect(ids).not.toContain(foreign.id);
+    const serialized = JSON.stringify([...first.items, ...second.items]);
+    expect(serialized).not.toContain(alice);
+    expect(serialized).not.toContain(bob);
+    expect(serialized).not.toContain('operationKey');
+    expect(serialized).not.toContain('_id');
+    await expect(exportReader.listAccountExportCollections(bob, {
+      limit: 10, cursor: first.nextCursor,
+    })).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_EXPORT_CURSOR_INVALID' },
+    });
+  }, 30_000);
+
+  it('retains v2 account portability after rollback and erases closed-owner exports', async () => {
+    const alice = await owner();
+    const bob = await owner();
+    const owned = await create(alice);
+    const foreign = await create(bob);
+    const versions: Array<{ ownerUserId: string; version: number }> = [];
+    const fakeStore = {
+      requestActive: async (input: {
+        id: string;
+        userId: string;
+        formatVersion: 1 | 2;
+        now: Date;
+      }) => {
+        versions.push({
+          ownerUserId: input.userId,
+          version: input.formatVersion,
+        });
+        return {
+          created: true,
+          job: {
+            id: input.id,
+            userId: input.userId,
+            formatVersion: input.formatVersion,
+            state: 'pending',
+            createdAt: input.now,
+            failureCode: null,
+            artifactExpiresAt: null,
+            artifactGeneration: null,
+          },
+        };
+      },
+    };
+    const request = new AccountExportService(
+      fakeStore as never,
+      { hasActiveAccount: async () => true } as never,
+      { get: () => false } as never,
+      exportReader,
+    );
+
+    const before = await request.request(alice);
+    expect(before.export.formatVersion).toBe(2);
+    expect(versions).toContainEqual({ ownerUserId: alice, version: 2 });
+    await expect(close(alice)).resolves.toMatchObject({ status: 'closed' });
+    await expect(exportReader.hasOwnedCollections(alice)).resolves.toBe(false);
+    const after = await exportReader.listAccountExportCollections(alice, {
+      limit: 10, cursor: null,
+    });
+    expect(after.items).toEqual([]);
+
+    const bobExport = await exportReader.listAccountExportCollections(bob, {
+      limit: 10, cursor: null,
+    });
+    expect(bobExport.items.map((row) => row.id)).toEqual([foreign.id]);
+    expect(bobExport.items.map((row) => row.id)).not.toContain(owned.id);
+    const otherAccount = await request.request(bob);
+    expect(otherAccount.export.formatVersion).toBe(2);
+    expect(versions).toContainEqual({ ownerUserId: bob, version: 2 });
   }, 30_000);
 
   it('rolls back both closure and collection deletion when audit persistence fails', async () => {
