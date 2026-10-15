@@ -794,6 +794,21 @@ describe('AccountExportService', () => {
     expect(f.store.requestActive).toHaveBeenCalledTimes(1);
   });
 
+  it('B63: rejects an unsupported durable format instead of mislabelling it', async () => {
+    const f = fixture();
+    const service = new AccountExportService(
+      f.store, f.users,
+      { get: () => false } as never,
+      { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
+      { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
+    );
+    f.store.requestActive.mockResolvedValue({
+      created: false, job: job({ formatVersion: 99 }),
+    });
+    await expect(service.request('user-1', now))
+      .rejects.toThrow('unsupported format version');
+  });
+
   it('B63: permits replay of a higher-version historical job, never downgrading it', async () => {
     const f = fixture();
     const service = new AccountExportService(
