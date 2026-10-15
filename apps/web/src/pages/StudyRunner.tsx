@@ -232,6 +232,21 @@ export default function StudyRunner() {
   }, [activeClock?.startedAt, activeKey]);
 
   useEffect(() => {
+    if (!activeKey || !activeClock || activeClock.startedAt === null || remainingMs > 0) return;
+    setRunnerState((previous) => {
+      if (previous?.scope !== scope) return previous;
+      const current = previous.plan.tasks[previous.index];
+      if (!current || keyOf(current) !== activeKey) return previous;
+      const clock = previous.clocks[activeKey];
+      if (!clock || clock.startedAt === null) return previous;
+      return {
+        ...previous,
+        clocks: { ...previous.clocks, [activeKey]: pauseTaskClock(clock, Date.now()) },
+      };
+    });
+  }, [scope, activeKey, activeClock, remainingMs]);
+
+  useEffect(() => {
     const onHidden = () => {
       if (!document.hidden) return;
       setRunnerState((previous) => {
