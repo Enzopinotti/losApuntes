@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AccountExportAssembler } from './account-export-assembler';
+import { AccountExportEpochConflictError } from './account-export-epoch-conflict.error';
 import { AccountExportService } from './account-export.service';
 import {
   ACCOUNT_EXPORT_STORE,
