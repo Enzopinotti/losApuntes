@@ -16,6 +16,9 @@ export interface AccountExportStore {
 
   findOwned(id: string, userId: string): Promise<AccountExportJobRecord | null>;
 
+  /** Internal cleanup authority probe: read the durable owner by job ID. */
+  findForOrphanCleanup(id: string): Promise<AccountExportJobRecord | null>;
+
   claimNext(input: {
     now: Date;
     claimId: string;
