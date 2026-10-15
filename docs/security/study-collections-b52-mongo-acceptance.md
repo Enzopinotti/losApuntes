@@ -34,7 +34,7 @@ STUDY_COLLECTIONS_TEST_MONGO_URI="mongodb://127.0.0.1:27017/?replicaSet=rs0" \
   node scripts/run-study-collections-mongo-acceptance.mjs
 ```
 
-El ejecutor llama a Jest con `--runInBand --runTestsByPath` y archivo de reporte JSON temporal, valida todos los casos requeridos y borra su reporte al finalizar. La propia suite genera `losapuntes_b50_<uuid>`, verifica el primario y elimina **solo esa base temporal**. Si Jest falta, Mongo falla o una prueba se saltea, el proceso termina con código de error.
+El ejecutor llama a Jest con `--runInBand --runTestsByPath` y archivo de reporte JSON temporal, valida todos los casos requeridos y borra su reporte al finalizar. La propia suite genera `losapuntes_b50_<uuid>`, verifica el primario **y que todos los miembros anunciados por el replica set sean locales**, y elimina **solo esa base temporal**. Si esa validación falla, no intenta borrar ninguna base. Si Jest falta, Mongo falla o una prueba se saltea, el proceso termina con código de error.
 
 Verificación del validador **sin Mongo**:
 ```sh
