@@ -65,6 +65,25 @@ describe('B67 durable account export orphan cleanup', () => {
     expect(f.model.updateOne).not.toHaveBeenCalled();
   });
 
+  it('B69 clears only an unclaimed pending intent after successful S3 deletion', async () => {
+    const f = fixture();
+    await expect(f.store.clearPending({ jobId, generation }))
+      .resolves.toBe(true);
+    expect(f.model.deleteOne).toHaveBeenCalledWith({
+      jobId, generation, state: 'pending', claimId: null,
+    });
+  });
+
+  it('B69 cannot cancel another worker\'s processing claim', async () => {
+    const f = fixture();
+    f.remove.exec.mockResolvedValueOnce({ deletedCount: 0 });
+    await expect(f.store.clearPending({ jobId, generation }))
+      .resolves.toBe(false);
+    expect(f.model.deleteOne).toHaveBeenCalledWith({
+      jobId, generation, state: 'pending', claimId: null,
+    });
+  });
+
   it('claims pending work or an expired worker lease using one CAS', async () => {
     const f = fixture();
     const until = new Date(now.getTime() + 120_000);
