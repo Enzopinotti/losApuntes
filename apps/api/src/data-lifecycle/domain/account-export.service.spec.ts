@@ -48,6 +48,7 @@ function fixture() {
   } as unknown as jest.Mocked<AccountExportStore>;
   const users = {
     hasActiveAccount: jest.fn().mockResolvedValue(true),
+    getStudyProgressExportEpoch: jest.fn().mockResolvedValue(5),
   } as unknown as jest.Mocked<UsersService>;
 
   return {
@@ -58,6 +59,30 @@ function fixture() {
 }
 
 describe('AccountExportService', () => {
+  it('B64 validates a stable owner revision and rejects concurrent updates', async () => {
+    const f = fixture();
+    await expect(f.service.captureStudyProgressExportEpoch('user-1'))
+      .resolves.toBe(5);
+    await expect(f.service.assertStudyProgressExportEpoch('user-1', 5))
+      .resolves.toBeUndefined();
+    f.users.getStudyProgressExportEpoch.mockResolvedValueOnce(6);
+    await expect(f.service.assertStudyProgressExportEpoch('user-1', 5))
+      .rejects.toThrow('Study progress changed during account export');
+    expect(f.users.getStudyProgressExportEpoch).toHaveBeenCalledWith('user-1');
+  });
+
+  it('B64 fails closed on invalid owner epochs or source outages', async () => {
+    const f = fixture();
+    for (const invalid of [-1, Number.NaN, 0.5]) {
+      await expect(f.service.assertStudyProgressExportEpoch('user-1', invalid))
+        .rejects.toThrow('epoch is invalid');
+    }
+    const failure = new Error('epoch database unavailable');
+    f.users.getStudyProgressExportEpoch.mockRejectedValueOnce(failure);
+    await expect(f.service.captureStudyProgressExportEpoch('user-1'))
+      .rejects.toBe(failure);
+  });
+
   it('creates one active export request and returns only public status fields', async () => {
     const f = fixture();
     f.store.requestActive.mockImplementation((input) =>
