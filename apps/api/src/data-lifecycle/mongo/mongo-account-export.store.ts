@@ -4,6 +4,7 @@ import type { Connection, Model } from 'mongoose';
 import { User } from '../../users/schemas/user.schema';
 
 import type { AccountExportStore } from '../domain/account-export.store';
+import { AccountExportEpochConflictError } from '../domain/account-export-epoch-conflict.error';
 import {
   isAccountExportFailureCode,
   type AccountExportJobRecord,
