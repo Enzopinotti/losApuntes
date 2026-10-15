@@ -19,6 +19,7 @@ import { ResourcesModule } from '../resources/resources.module';
 import { SocialModule } from '../social/social.module';
 import { StudyCollectionsExportReadModule } from '../study-collections/mongo/study-collections-export-read.module';
 import { StudyCollection, StudyCollectionSchema } from '../study-collections/mongo/study-collection.mongo-schema';
+import { StudyProgress, StudyProgressSchema } from '../study-progress/mongo/study-progress.schema';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -126,6 +127,7 @@ import {
       { name: AccountExportJob.name, schema: AccountExportJobSchema },
       { name: SecurityAudit.name, schema: SecurityAuditSchema },
       { name: StudyCollection.name, schema: StudyCollectionSchema },
+      { name: StudyProgress.name, schema: StudyProgressSchema },
     ]),
   ],
   controllers: [AccountLifecycleController, AccountExportController],

@@ -6,6 +6,7 @@ import type { OrganizationManagerRecord } from '../../organizations/domain/organ
 import { OrganizationManager } from '../../organizations/mongo/organization.mongo-schemas';
 import { Profile } from '../../profile/mongo/profile.mongo-schemas';
 import { StudyCollection } from '../../study-collections/mongo/study-collection.mongo-schema';
+import { StudyProgress } from '../../study-progress/mongo/study-progress.schema';
 import { User } from '../../users/schemas/user.schema';
 import type { AccountLifecycleStore } from '../domain/account-lifecycle.store';
 import type {
@@ -49,6 +50,8 @@ export class MongoAccountLifecycleStore implements AccountLifecycleStore {
     private readonly audits: Model<SecurityAudit>,
     @InjectModel(StudyCollection.name)
     private readonly studyCollections: Model<StudyCollection>,
+    @InjectModel(StudyProgress.name)
+    private readonly studyProgress: Model<StudyProgress>,
   ) {}
 
   async listManagementBlockers(
@@ -122,6 +125,11 @@ export class MongoAccountLifecycleStore implements AccountLifecycleStore {
         // Remove private study collections in the same transaction that
         // marks the owner closed. On transaction failure neither action commits.
         await this.studyCollections
+          .deleteMany({ ownerUserId: input.userId }, { session })
+          .exec();
+        // Remove account-owned study plans in the SAME closure transaction.
+        // StudyProgress mutations fence against this User record revision.
+        await this.studyProgress
           .deleteMany({ ownerUserId: input.userId }, { session })
           .exec();
 

@@ -13,6 +13,11 @@ import {
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
 import { recallStudyDraft } from "../features/study/study-session-draft.mjs";
+import { STUDY_PROGRESS_VISIBLE } from "../features/study/studyProgressFlags";
+import {
+  isStudyProgressApiError,
+  studyProgressApi,
+} from "../features/study/studyProgressApi";
 import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
 import {
   buildReviewSession,
@@ -55,6 +60,12 @@ type Runner = {
   index: number;
 };
 type Notice = { scope: string; text: string; error: boolean };
+type RemoteSnapshot = {
+  scope: string;
+  revision: number;
+  plan: StudySession | null;
+  updatedAt: string | null;
+};
 type Busy = { scope: string; kind: "load" | "confirm" | "review"; key?: string };
 
 function keyOf(task: Pick<StudySessionTask, "kind" | "id">): string {
@@ -62,6 +73,18 @@ function keyOf(task: Pick<StudySessionTask, "kind" | "id">): string {
 }
 
 function errorText(error: unknown): string {
+  if (isStudyProgressApiError(error)) {
+    if (error.status === 409) {
+      return "El progreso cambió en otro dispositivo. No se sobrescribió nada. Consultá nuevamente antes de guardar.";
+    }
+    if (error.status === 503) {
+      return "La sincronización todavía no está habilitada en el servidor.";
+    }
+    if (error.status === 401 || error.status === 403) {
+      return "Tu sesión no puede acceder a este guardado.";
+    }
+    return error.message;
+  }
   if (isResourcesApiError(error) || isCommunityApiError(error) || isSearchApiError(error)) {
     if (error.status === 401) return "La sesión de tu cuenta venció.";
     if (error.status === 403 || error.status === 404) {
@@ -155,6 +178,10 @@ export default function StudyRunner() {
   const busy = busyState?.scope === scope ? busyState : null;
   const [noticeState, setNoticeState] = useState<Notice | null>(null);
   const notice = noticeState?.scope === scope ? noticeState : null;
+  const [remoteSnapshot, setRemoteSnapshot] = useState<RemoteSnapshot | null>(null);
+  const remote = remoteSnapshot?.scope === scope ? remoteSnapshot : null;
+  const [remoteBusyState, setRemoteBusyState] = useState<string | null>(null);
+  const remoteBusy = remoteBusyState === scope;
 
   const { begin: beginContext, isCurrent: contextCurrent, finish: finishContext } =
     useAsyncAuthorityFence("study-run-context:" + authScope);
@@ -164,6 +191,8 @@ export default function StudyRunner() {
     useAsyncAuthorityFence("study-run-confirm:" + scope + ":" + (activeKey ?? "none"));
   const { begin: beginReview, isCurrent: reviewCurrent, finish: finishReview } =
     useAsyncAuthorityFence("study-run-review:" + scope);
+  const { begin: beginRemote, isCurrent: remoteCurrent, finish: finishRemote } =
+    useAsyncAuthorityFence("study-run-remote:" + scope);
 
   const loadContext = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -301,7 +330,7 @@ export default function StudyRunner() {
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !subjectId || busy) return;
+    if (!file || !subjectId || busy || remoteBusy) return;
     if (file.size > 64000) {
       setNoticeState({ scope, error: true, text: "El archivo supera los 64 KB permitidos." });
       return;
@@ -318,7 +347,7 @@ export default function StudyRunner() {
   };
 
   const move = (index: number) => {
-    if (!runner || busy || index < 0 || index >= runner.plan.tasks.length) return;
+    if (!runner || busy || remoteBusy || index < 0 || index >= runner.plan.tasks.length) return;
     setRunnerState((old) => {
       if (old?.scope !== scope) return old;
       const active = old.plan.tasks[old.index];
@@ -334,7 +363,7 @@ export default function StudyRunner() {
   };
 
   const changeClock = (operation: "toggle" | "reset") => {
-    if (!runner || !activeKey || !task || !label || busy || task.done || document.hidden) return;
+    if (!runner || !activeKey || !task || !label || busy || remoteBusy || task.done || document.hidden) return;
     const instant = Date.now();
     setRunnerState((old) => {
       if (old?.scope !== scope) return old;
@@ -353,7 +382,7 @@ export default function StudyRunner() {
   };
 
   const confirmDone = async () => {
-    if (!runner || !task || !activeKey || !label || !subjectId || busy) return;
+    if (!runner || !task || !activeKey || !label || !subjectId || busy || remoteBusy) return;
     const ticket = beginConfirm();
     if (!confirmCurrent(ticket)) return;
     setBusyState({ scope, kind: "confirm", key: activeKey });
@@ -398,7 +427,7 @@ export default function StudyRunner() {
   };
 
   const rateCurrent = (rating: ReviewMark | null) => {
-    if (!runner || !task || !activeKey || !label || busy) return;
+    if (!runner || !task || !activeKey || !label || busy || remoteBusy) return;
     setRunnerState((previous) => {
       if (previous?.scope !== scope) return previous;
       const current = previous.plan.tasks[previous.index];
@@ -416,7 +445,7 @@ export default function StudyRunner() {
   };
 
   const createNextReview = async (destination: "download" | "planner") => {
-    if (!runner || !subjectId || status !== "authenticated" || busy || !reviewItems.length) {
+    if (!runner || !subjectId || status !== "authenticated" || busy || remoteBusy || !reviewItems.length) {
       return;
     }
     const ticket = beginReview();
@@ -499,6 +528,147 @@ export default function StudyRunner() {
     }
   };
 
+  const inspectRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || status !== "authenticated" ||
+      busy || remoteBusy) return;
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      const found = await studyProgressApi.get(subjectId, ticket.signal);
+      if (!remoteCurrent(ticket)) return;
+      setRemoteSnapshot({
+        scope, revision: found.revision, plan: found.plan, updatedAt: found.updatedAt,
+      });
+      setNoticeState({
+        scope, error: false,
+        text: "Encontramos un plan privado guardado. Podés recuperarlo o actualizarlo con tu trabajo actual.",
+      });
+    } catch (error) {
+      if (!remoteCurrent(ticket)) return;
+      if (isStudyProgressApiError(error) && error.status === 404) {
+        setRemoteSnapshot({ scope, revision: 0, plan: null, updatedAt: null });
+        setNoticeState({
+          scope, error: false,
+          text: "Todavía no guardaste una sesión de esta materia en tu cuenta.",
+        });
+      } else {
+        setRemoteSnapshot(null);
+        setNoticeState({ scope, error: true, text: errorText(error) });
+      }
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
+  };
+
+  const saveRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || !runner || !remote ||
+      status !== "authenticated" || busy || remoteBusy) return;
+    if (remote.revision > 0 && !window.confirm(
+      "¿Actualizar el guardado de tu cuenta con este plan? " +
+      "Si el otro dispositivo lo modificó, el servidor rechazará esta versión.",
+    )) return;
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      const saved = await studyProgressApi.save(
+        subjectId, runner.plan, remote.revision, ticket.signal,
+      );
+      if (!remoteCurrent(ticket)) return;
+      setRemoteSnapshot({
+        scope, plan: saved.plan, revision: saved.revision, updatedAt: saved.updatedAt,
+      });
+      setNoticeState({
+        scope, error: false,
+        text: "Progreso guardado en tu cuenta. Podés recuperarlo desde otro dispositivo.",
+      });
+    } catch (error) {
+      if (!remoteCurrent(ticket)) return;
+      if (isStudyProgressApiError(error) && error.status === 409) {
+        setRemoteSnapshot(null);
+      }
+      setNoticeState({ scope, error: true, text: errorText(error) });
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
+  };
+
+  const restoreRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || !remote?.plan ||
+      status !== "authenticated" || busy || remoteBusy) return;
+    if (runner && !window.confirm(
+      "¿Reemplazar la sesión local por el guardado de tu cuenta? " +
+      "El tiempo y las valoraciones de esta pestaña se perderán. " +
+      "Podés exportar primero tu JSON.",
+    )) return;
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      // A device may have saved again since the first consultation.
+      // Recheck the exact remote revision before discarding local work.
+      const latest = await studyProgressApi.get(subjectId, ticket.signal);
+      if (!remoteCurrent(ticket)) return;
+      if (latest.revision !== remote.revision) {
+        setRemoteSnapshot({
+          scope, plan: latest.plan, revision: latest.revision,
+          updatedAt: latest.updatedAt,
+        });
+        setNoticeState({
+          scope, error: true,
+          text: "El guardado cambió en otro dispositivo. Revisá su nueva fecha y volvé a confirmar la recuperación.",
+        });
+        return;
+      }
+      await loadPlan(latest.plan);
+    } catch (error) {
+      if (remoteCurrent(ticket)) {
+        if (isStudyProgressApiError(error) && error.status === 404) {
+          setRemoteSnapshot({ scope, revision: 0, plan: null, updatedAt: null });
+        }
+        setNoticeState({ scope, error: true, text: errorText(error) });
+      }
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
+  };
+
+  const deleteRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || !remote ||
+      remote.revision === 0 || status !== "authenticated" ||
+      busy || remoteBusy) return;
+    if (!window.confirm(
+      "¿Eliminar el plan guardado en tu cuenta para esta materia? " +
+      "Tu sesión local y tus archivos JSON no se borrarán.",
+    )) return;
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      await studyProgressApi.remove(subjectId, remote.revision, ticket.signal);
+      if (!remoteCurrent(ticket)) return;
+      setRemoteSnapshot({ scope, revision: 0, plan: null, updatedAt: null });
+      setNoticeState({ scope, error: false, text: "Se eliminó el guardado de tu cuenta." });
+    } catch (error) {
+      if (!remoteCurrent(ticket)) return;
+      if (isStudyProgressApiError(error) && (error.status === 409 || error.status === 404)) {
+        setRemoteSnapshot(null);
+      }
+      setNoticeState({ scope, error: true, text: errorText(error) });
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
+  };
+
   const exportUpdated = () => {
     if (!runner || busy) return;
     downloadPlan(runner.plan);
@@ -554,16 +724,16 @@ export default function StudyRunner() {
                   type="file"
                   accept=".json,application/json"
                   onChange={(event) => void onFile(event)}
-                  disabled={Boolean(busy)}
+                  disabled={Boolean(busy) || remoteBusy}
                 />
               </label>
               {runner && (
                 <>
-                  <button type="button" disabled={Boolean(busy)}
+                  <button type="button" disabled={Boolean(busy) || remoteBusy}
                     onClick={() => void loadPlan(runner.plan, false)}>
                     Verificar accesos otra vez
                   </button>
-                  <button type="button" disabled={Boolean(busy)} onClick={exportUpdated}>
+                  <button type="button" disabled={Boolean(busy) || remoteBusy} onClick={exportUpdated}>
                     Exportar progreso JSON
                   </button>
                 </>
@@ -577,6 +747,56 @@ export default function StudyRunner() {
               </p>
             )}
           </section>
+          {STUDY_PROGRESS_VISIBLE && (
+            <section className="study-runner-panel study-runner-cloud"
+              aria-labelledby="study-runner-cloud-title">
+              <h2 id="study-runner-cloud-title">Continuar entre dispositivos</h2>
+              <p>
+                Guardá una copia privada de tu sesión en tu cuenta o recuperá la
+                última que hayas guardado desde otro dispositivo. Nunca sobrescribimos
+                versiones más nuevas: primero consultá el estado del servidor.
+              </p>
+              <div className="study-runner-actions">
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy}
+                  onClick={() => void inspectRemote()}>
+                  Consultar mi guardado
+                </button>
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy || !runner || !remote}
+                  onClick={() => void saveRemote()}>
+                  Guardar sesión en mi cuenta
+                </button>
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy || !remote?.plan}
+                  onClick={() => void restoreRemote()}>
+                  Recuperar sesión guardada
+                </button>
+                <button type="button"
+                  disabled={Boolean(busy) || remoteBusy || !remote?.plan}
+                  onClick={() => void deleteRemote()}>
+                  Eliminar guardado de mi cuenta
+                </button>
+              </div>
+              {remoteBusy && <p role="status">Consultando tu progreso privado…</p>}
+              {remote && (
+                <p className="study-runner-help" role="status">
+                  {remote.plan
+                    ? "Guardado: " + remote.plan.title + " · " +
+                      remote.plan.tasks.length + " actividades · revisión " +
+                      remote.revision + " · actualizado " +
+                      new Date(remote.updatedAt!).toLocaleString("es-AR")
+                    : "Todavía no hay una sesión guardada en esta materia."}
+                </p>
+              )}
+              <p className="study-runner-help">
+                Las valoraciones personales y los cronómetros no se sincronizan.
+                Solo se guarda el plan v1 y las actividades realizadas. Para
+                recuperar un guardado, sus recursos se verifican nuevamente.
+                El archivo JSON sigue disponible como copia independiente.
+              </p>
+            </section>
+          )}
           {!runner ? (
             <div className="study-runner-panel">
               <h2>No hay una sesión activa</h2>
@@ -619,18 +839,18 @@ export default function StudyRunner() {
                           : "Temporizador en marcha. Se pausa al ocultar la pestaña."}
                     </p>
                     <div className="study-runner-actions">
-                      <button type="button" disabled={Boolean(busy) || !label || task.done || remainingMs === 0}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || !label || task.done || remainingMs === 0}
                         onClick={() => changeClock("toggle")}>
                         {activeClock?.startedAt === null ? "Iniciar o reanudar" : "Pausar"}
                       </button>
-                      <button type="button" disabled={Boolean(busy) || !label || task.done}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || !label || task.done}
                         onClick={() => changeClock("reset")}>Reiniciar tiempo</button>
-                      <button type="button" disabled={Boolean(busy) || !label}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || !label}
                         onClick={() => void confirmDone()}>
                         {task.done ? "Marcar pendiente" : "Marcar como realizada"}
                       </button>
                     </div>
-                    <fieldset className="study-runner-ratings" disabled={Boolean(busy) || !label}>
+                    <fieldset className="study-runner-ratings" disabled={Boolean(busy) || remoteBusy || !label}>
                       <legend>¿Cómo te resultó esta actividad?</legend>
                       <p className="study-runner-help">
                         Es una valoración personal: no cambia «realizada» ni implica una calificación.
@@ -652,7 +872,7 @@ export default function StudyRunner() {
                           Lo tengo claro
                         </button>
                         <button type="button"
-                          disabled={Boolean(busy) || !label || !runner.reviews[activeKey ?? ""]}
+                          disabled={Boolean(busy) || remoteBusy || !label || !runner.reviews[activeKey ?? ""]}
                           onClick={() => rateCurrent(null)}>
                           Quitar valoración
                         </button>
@@ -660,9 +880,9 @@ export default function StudyRunner() {
                     </fieldset>
                     {busy?.kind === "confirm" && <p role="status">Comprobando acceso antes de guardar la marca…</p>}
                     <div className="study-runner-navigation">
-                      <button type="button" disabled={Boolean(busy) || runner.index === 0}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || runner.index === 0}
                         onClick={() => move(runner.index - 1)}>Anterior</button>
-                      <button type="button" disabled={Boolean(busy) || runner.index === runner.plan.tasks.length - 1}
+                      <button type="button" disabled={Boolean(busy) || remoteBusy || runner.index === runner.plan.tasks.length - 1}
                         onClick={() => move(runner.index + 1)}>Siguiente</button>
                     </div>
                   </div>
@@ -676,7 +896,7 @@ export default function StudyRunner() {
                     const itemLabel = runner.labels[key];
                     return (
                       <li key={key}>
-                        <button type="button" disabled={Boolean(busy)}
+                        <button type="button" disabled={Boolean(busy) || remoteBusy}
                           aria-current={index === runner.index ? "step" : undefined}
                           onClick={() => move(index)}>
                           <span>{index + 1}. {itemLabel ?? "Sin acceso"}</span>
@@ -718,7 +938,7 @@ export default function StudyRunner() {
                 </div>
                 <label className="study-runner-review-filter">
                   Qué incluir en el próximo plan
-                  <select value={reviewMode} disabled={Boolean(busy)}
+                  <select value={reviewMode} disabled={Boolean(busy) || remoteBusy}
                     onChange={(event) => setReviewModeState({
                       scope, mode: event.target.value as ReviewMode,
                     })}>
@@ -753,12 +973,12 @@ export default function StudyRunner() {
                 </p>
                 <div className="study-runner-actions">
                   <button type="button"
-                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    disabled={Boolean(busy) || remoteBusy || reviewItems.length === 0}
                     onClick={() => void createNextReview("planner")}>
                     Pasar al Planificador
                   </button>
                   <button type="button"
-                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    disabled={Boolean(busy) || remoteBusy || reviewItems.length === 0}
                     onClick={() => void createNextReview("download")}>
                     Exportar próximo repaso JSON
                   </button>
