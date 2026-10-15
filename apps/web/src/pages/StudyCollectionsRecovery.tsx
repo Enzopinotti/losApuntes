@@ -70,7 +70,7 @@ export default function StudyCollectionsRecovery() {
   const lockRef = useRef<string | null>(null);
   const list = listState?.scope === ownerScope ? listState : null;
   const current = state?.scope === scope ? state : null;
-  const busy = actionLock === scope;
+  const busy = actionLock !== null;
   const {
     begin: beginList,
     isCurrent: listCurrent,
@@ -256,7 +256,7 @@ export default function StudyCollectionsRecovery() {
         <h2>Elegí una colección</h2>
         {list?.error && <p role="alert">{list.error}</p>}
         {list?.busy && <p role="status">Cargando colecciones…</p>}
-        {!list?.busy && !list?.error && list?.items.length === 0 && (
+        {list && !list.busy && !list.error && list.items.length === 0 && (
           <p>No hay Colecciones en las páginas cargadas.</p>
         )}
         <ul className="collections-recovery-selector">
