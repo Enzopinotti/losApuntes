@@ -123,9 +123,22 @@ export class AccountExportProcessor {
     heartbeat.unref();
 
     try {
-      const assembly = await this.assembler.writeJsonV1(job.userId, sink, () =>
-        Promise.resolve(!leaseLost),
-      );
+      // The version stored at request time is immutable for this claim.
+      // Reject unknown values before staging an artifact.
+      if (job.formatVersion !== 1 && job.formatVersion !== 2) {
+        throw new Error('Unsupported account export format version');
+      }
+      const assembly = job.formatVersion === 1
+        ? await this.assembler.writeJsonV1(
+            job.userId,
+            sink,
+            () => Promise.resolve(!leaseLost),
+          )
+        : await this.assembler.writeJsonV2(
+            job.userId,
+            sink,
+            () => Promise.resolve(!leaseLost),
+          );
       artifactCommitted = true;
       clearInterval(heartbeat);
       await Promise.resolve(heartbeatInFlight);

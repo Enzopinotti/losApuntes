@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { AccountExportContributorRegistry } from './account-export-contributor.registry';
+import {
+  AccountExportContributorRegistry,
+  accountExportSectionIds,
+  assertAccountExportSections,
+} from './account-export-contributor.registry';
 import { AccountExportService } from './account-export.service';
 import {
   type AccountExportAssemblyResult,
+  type AccountExportFormatVersion,
   ACCOUNT_EXPORT_FORMAT,
-  ACCOUNT_EXPORT_FORMAT_VERSION,
 } from './account-export.types';
 
 export type { AccountExportAssemblyResult } from './account-export.types';
@@ -29,7 +33,31 @@ export class AccountExportAssembler {
     sink: AccountExportArtifactSink,
     canContinue?: () => Promise<boolean>,
   ): Promise<AccountExportAssemblyResult> {
-    const contributors = this.registry.list();
+    return this.writeJsonForVersion(1, userId, sink, canContinue);
+  }
+
+  async writeJsonV2(
+    userId: string,
+    sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
+  ): Promise<AccountExportAssemblyResult> {
+    return this.writeJsonForVersion(2, userId, sink, canContinue);
+  }
+
+  private async writeJsonForVersion(
+    version: AccountExportFormatVersion,
+    userId: string,
+    sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
+  ): Promise<AccountExportAssemblyResult> {
+    const expected = accountExportSectionIds(version);
+    const contributors = expected.map((id) => this.registry.require(id));
+    // V2 is fail-closed against every mounted contributor. For old V1 jobs,
+    // select the legacy thirty even after a future v2 deployment.
+    assertAccountExportSections(
+      version === 2 ? this.registry.list() : contributors,
+      version,
+    );
     let recordCount = 0;
     let byteLength = 0;
     const sha256 = createHash('sha256');
@@ -56,7 +84,7 @@ export class AccountExportAssembler {
 
     try {
       await writeChunk(
-        `{"format":${JSON.stringify(ACCOUNT_EXPORT_FORMAT)},"version":${ACCOUNT_EXPORT_FORMAT_VERSION},"sections":{`,
+        `{"format":${JSON.stringify(ACCOUNT_EXPORT_FORMAT)},"version":${version},"sections":{`,
       );
 
       for (const [sectionIndex, contributor] of contributors.entries()) {
@@ -128,7 +156,7 @@ export class AccountExportAssembler {
       await writeChunk('}}');
       const result: AccountExportAssemblyResult = {
         format: ACCOUNT_EXPORT_FORMAT,
-        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        formatVersion: version,
         sectionCount: contributors.length,
         recordCount,
         byteLength,
