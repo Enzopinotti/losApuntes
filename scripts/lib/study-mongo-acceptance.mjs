@@ -17,6 +17,7 @@ const EXPECTED = Object.freeze([
   "rolls back both closure and collection deletion when audit persistence fails",
   "exports only the owner collections with bounded stable pages and no internal fields",
   "retains v2 account portability after rollback and erases closed-owner exports",
+  "returns stale revision conflict after concurrent removal shrinks a resource page",
 ]);
 
 export const REQUIRED_STUDY_MONGO_TEST_NAMES = EXPECTED;

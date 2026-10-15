@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
+import { StudyCollectionService } from '../domain/study-collection.service';
 import { createConnection, type Connection, type Model } from 'mongoose';
 
 import {
@@ -166,6 +167,36 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     });
   }
 
+  /**
+   * After a deliberately concurrent write, the first close may lose a
+   * Mongo transaction conflict. Retry it only after both racers have
+   * settled and REQUIRE a committed closure before checking for leftovers.
+   * Bounded retries prevent accepting a permanent database failure.
+   */
+  async function committedClosureAfterRace(
+    userId: string,
+    initial: PromiseSettledResult<Awaited<ReturnType<typeof close>>>,
+  ) {
+    if (initial.status === 'fulfilled' && initial.value.status === 'closed') {
+      return initial.value;
+    }
+    let lastError: unknown = initial.status === 'rejected'
+      ? initial.reason
+      : new Error('Account closure was not committed');
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const outcome = await close(userId);
+        if (outcome.status === 'closed') return outcome;
+        lastError = new Error(`Account closure status: ${outcome.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error('Concurrent account closure never committed', {
+      cause: lastError,
+    });
+  }
+
   it('commits all five mutation paths before closure and deletes owner data at closure', async () => {
     const userId = await owner();
     const first = await create(userId);
@@ -252,24 +283,19 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       create(userId),
       close(userId),
     ]);
-    const closed = await models.users.findById(userId);
+    // Unlike the old test, an aborted initial close is NOT accepted as
+    // success just because the other racer created a collection.
+    const committed = await committedClosureAfterRace(userId, closeResult);
+    expect(committed.status).toBe('closed');
+    const account = await models.users.findById(userId);
     const documents = await models.collections.countDocuments({
       ownerUserId: userId,
     });
-    if (closed?.account_status === 'closed') {
-      expect(documents).toBe(0);
+    expect(account?.account_status).toBe('closed');
+    expect(documents).toBe(0);
+    if (createResult.status === 'rejected') {
+      expect(createResult.reason).toBeTruthy();
     }
-    if (createResult.status === 'fulfilled' && closeResult.status === 'fulfilled') {
-      expect(closeResult.value.status).toBe('closed');
-      expect(documents).toBe(0);
-    }
-    // An unresolved write conflict is NOT hidden. Inspect results if neither
-    // transaction closed the user; that is a legitimate integration failure.
-    expect(
-      closed?.account_status === 'closed' ||
-      (createResult.status === 'fulfilled' &&
-        closeResult.status === 'rejected'),
-    ).toBe(true);
   }, 30_000);
 
   /**
@@ -329,17 +355,8 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
         perform(userId, row),
         close(userId),
       ]);
-      // A write conflict may reject one concurrent closure; after both
-      // operations settle, retry that closure and REQUIRE a real commit.
-      // The suite must not pass merely because a transaction was rejected.
-      if (closure.status === 'rejected') {
-        expect(closure.reason).toBeTruthy();
-      }
-      const completed = closure.status === 'fulfilled' &&
-        closure.value.status === 'closed'
-        ? closure.value
-        : await close(userId);
-      expect(completed.status).toBe('closed');
+      const committed = await committedClosureAfterRace(userId, closure);
+      expect(committed.status).toBe('closed');
 
       const user = await models.users.findById(userId);
       const remaining = await models.collections.countDocuments({
@@ -458,6 +475,36 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     const otherAccount = await request.request(bob);
     expect(otherAccount.export.formatVersion).toBe(2);
     expect(versions).toContainEqual({ ownerUserId: bob, version: 2 });
+  }, 30_000);
+
+  it('returns stale revision conflict after concurrent removal shrinks a resource page', async () => {
+    const userId = await owner();
+    const saved = await create(userId);
+    const firstId = randomUUID();
+    const secondId = randomUUID();
+    await collections.addResource(saved.id, userId, firstId);
+    await collections.addResource(saved.id, userId, secondId);
+
+    const service = new StudyCollectionService(
+      collections,
+      {
+        get: async (resourceId: string) => ({
+          resource: { id: resourceId, title: 'Test resource' },
+        }),
+      } as never,
+    );
+    const firstPage = await service.listResources(userId, saved.id, 1);
+    expect(firstPage.items).toHaveLength(1);
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+
+    // A different client removes the resource that occupied the cursor
+    // position: its index no longer exists in the current revision.
+    await collections.removeResource(saved.id, userId, secondId);
+    await expect(service.listResources(
+      userId, saved.id, 1, firstPage.nextCursor ?? undefined,
+    )).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_STALE' },
+    });
   }, 30_000);
 
   it('rolls back both closure and collection deletion when audit persistence fails', async () => {

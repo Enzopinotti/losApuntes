@@ -5,7 +5,7 @@ import {
   validateStudyMongoJestReport,
 } from "./lib/study-mongo-acceptance.mjs";
 
-assert.equal(REQUIRED_STUDY_MONGO_TEST_NAMES.length, 12);
+assert.equal(REQUIRED_STUDY_MONGO_TEST_NAMES.length, 13);
 for (const uri of [
   "mongodb://127.0.0.1:27017/?replicaSet=rs0",
   "mongodb://localhost:27017/?replicaSet=rs0",
@@ -40,7 +40,7 @@ const complete = {
   numTotalTestSuites: 1,
   testResults: [{ name, assertionResults: assertions }],
 };
-assert.equal(validateStudyMongoJestReport(complete).passed, 12);
+assert.equal(validateStudyMongoJestReport(complete).passed, 13);
 for (const report of [
   null,
   { ...complete, success: false },
