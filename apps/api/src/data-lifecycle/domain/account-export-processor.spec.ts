@@ -107,6 +107,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     enqueue: jest.fn().mockResolvedValue(undefined),
     claimNext: jest.fn().mockResolvedValue(null),
     renewLease: jest.fn().mockResolvedValue(true),
+    clearPending: jest.fn().mockResolvedValue(true),
     acknowledge: jest.fn().mockResolvedValue(true),
     retry: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportOrphanCleanupStore>;
@@ -1022,11 +1023,16 @@ describe('AccountExportProcessor', () => {
     expect(f.orphans.retry).not.toHaveBeenCalled();
   });
 
-  it('B67 never queues an object when cleanup succeeded', async () => {
+  it('B69 clears a pending intent after successful S3 deletion', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
     await f.processor.runIteration();
-    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: claim().id, generation: claim().claimId,
+    }));
+    expect(f.orphans.clearPending).toHaveBeenCalledWith({
+      jobId: claim().id, generation: claim().claimId,
+    });
   });
 
 });
