@@ -15,6 +15,6 @@ El estudiante puede abrir la conversación original o continuar usando la selecc
 - No se añaden endpoints, datos persistidos, rankings, calificaciones oficiales ni acceso a respuestas privadas.
 
 ## Pruebas
-`node scripts/test-web-focused-practice-contract.mjs` valida parser, duplicate rejection, roundtrip, rechazo de cross-subject y vinculaciones de seguridad. El gate específico del SHA comprueba Prettier/TypeScript Web/contrato y no requiere iniciar servidor o navegador.
+`node scripts/test-web-focused-practice-contract.mjs` valida parser, duplicate rejection, roundtrip, rechazo de cross-subject y vinculaciones de seguridad. El script valida la lógica de enlaces y sus vínculos de seguridad. El workflow propuesto por el PR original **no fue incorporado en B58**; las comprobaciones Prettier/TypeScript quedan pendientes de ejecución en un checkout completo.
 
 **Pendiente para aceptación general:** navegación desde Mesa de estudio, ronda real en un navegador, caducidad de sesión, cambio de materia en otra pestaña, pregunta borrada, links inválidos/repetidos, botón Volver, accesibilidad con teclado/lector de pantalla, mobile responsive y handoff a Planificador. No se realizará hasta la fase integral de pruebas acordada.
