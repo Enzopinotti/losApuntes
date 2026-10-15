@@ -326,24 +326,48 @@ export class AccountExportProcessor {
   }
 
   /**
-   * Enqueue ONLY a proven orphan: lost claim, confirmed owner-epoch
-   * rejection or successful retry CAS. Never enqueue uncertain completions.
+   * Only proven orphans enter the queue. Persist the cleanup intent BEFORE
+   * S3 deletion: a crash after an S3 error can then be recovered by another
+   * worker rather than silently losing the retry opportunity.
+   *
+   * An uncertain Mongo completion never calls this method. If enqueue
+   * itself fails, an immediate best-effort delete is still permitted by
+   * the caller's proven-orphan authority; bucket lifecycle is the backstop.
    */
   private async deleteOrEnqueueProvenOrphan(
     job: AccountExportJobRecord,
     generation: string,
   ): Promise<void> {
+    let queued = false;
+    try {
+      await this.orphans.enqueue({
+        jobId: job.id,
+        ownerUserId: job.userId,
+        generation,
+        now: new Date(),
+      });
+      queued = true;
+    } catch {
+      // Keep the best-effort S3 fast path available when Mongo is down.
+    }
     try {
       await this.artifacts.deleteArtifact(job.id, generation);
     } catch {
+      // The durable task survives a failure or a crash after S3 rejection.
+      // If Mongo was also down, isolated-bucket lifecycle is the backstop.
+      return;
+    }
+    if (queued) {
       try {
-        await this.orphans.enqueue({
-          jobId: job.id, ownerUserId: job.userId,
-          generation, now: new Date(),
+        // Do not remove a task another worker already claimed. That
+        // worker will safely reconcile the exact idempotent generation.
+        await this.orphans.clearPending({
+          jobId: job.id,
+          generation,
         });
       } catch {
-        // The isolated bucket lifecycle remains the final safety net.
-        // Never change a durable job result due to cleanup-store outage.
+        // The queued retry is safe and will detect an already-deleted
+        // generation; it must not change the source job's outcome.
       }
     }
   }
