@@ -91,6 +91,12 @@ export class AccountExportAssembler {
     };
 
     try {
+      // Only v3 contains private Study Progress. The lifecycle epoch is
+      // incremented transactionally by every supported progress mutation.
+      // A v3 artifact assembled across different epochs must never publish.
+      const studyProgressEpoch = version === 3
+        ? await this.exports.captureStudyProgressExportEpoch(userId)
+        : null;
       await writeChunk(
         `{"format":${JSON.stringify(ACCOUNT_EXPORT_FORMAT)},"version":${version},"sections":{`,
       );
@@ -171,6 +177,12 @@ export class AccountExportAssembler {
         sha256: sha256.digest('hex'),
       };
       await this.exports.assertActiveAccount(userId);
+      await assertClaim();
+      if (studyProgressEpoch !== null) {
+        await this.exports.assertStudyProgressExportEpoch(
+          userId, studyProgressEpoch,
+        );
+      }
       await assertClaim();
       await sink.commit(result);
       return result;
