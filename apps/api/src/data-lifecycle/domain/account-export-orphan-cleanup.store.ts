@@ -1,0 +1,39 @@
+/** Server-only queue for proven orphaned account-export S3 generations. */
+export const ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE = Symbol(
+  'ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE',
+);
+
+export interface AccountExportOrphanCleanupRecord {
+  jobId: string;
+  ownerUserId: string;
+  generation: string;
+  attempts: number;
+  claimId: string;
+}
+
+export interface AccountExportOrphanCleanupStore {
+  enqueue(input: {
+    jobId: string;
+    ownerUserId: string;
+    generation: string;
+    now: Date;
+  }): Promise<void>;
+  claimNext(input: {
+    now: Date;
+    claimId: string;
+    leaseExpiresAt: Date;
+  }): Promise<AccountExportOrphanCleanupRecord | null>;
+  acknowledge(input: {
+    jobId: string;
+    generation: string;
+    claimId: string;
+    now: Date;
+  }): Promise<boolean>;
+  retry(input: {
+    jobId: string;
+    generation: string;
+    claimId: string;
+    nextAttemptAt: Date;
+    now: Date;
+  }): Promise<boolean>;
+}
