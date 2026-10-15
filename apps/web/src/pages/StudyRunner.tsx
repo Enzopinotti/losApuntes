@@ -306,8 +306,11 @@ export default function StudyRunner() {
     if (!runner || !activeKey || !task || !label || busy || task.done || document.hidden) return;
     const instant = Date.now();
     setRunnerState((old) => {
-      if (old?.scope !== scope || keyOf(old.plan.tasks[old.index]) !== activeKey) return old;
+      if (old?.scope !== scope) return old;
+      const current = old.plan.tasks[old.index];
+      if (!current || keyOf(current) !== activeKey) return old;
       const oldClock = old.clocks[activeKey];
+      if (!oldClock) return old;
       const next = operation === "reset"
         ? createTaskClock(task.minutes)
         : oldClock.startedAt === null
