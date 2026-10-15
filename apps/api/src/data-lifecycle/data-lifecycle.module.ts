@@ -98,6 +98,9 @@ import {
   AccountExportJobSchema,
 } from './mongo/account-export.mongo-schema';
 import { MongoAccountExportStore } from './mongo/mongo-account-export.store';
+import { ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE } from './domain/account-export-orphan-cleanup.store';
+import { AccountExportOrphanCleanup, AccountExportOrphanCleanupSchema } from './mongo/account-export-orphan-cleanup.schema';
+import { MongoAccountExportOrphanCleanupStore } from './mongo/mongo-account-export-orphan-cleanup.store';
 import { MongoAccountLifecycleStore } from './mongo/mongo-account-lifecycle.store';
 import {
   AccountOffboardingJob,
@@ -128,6 +131,7 @@ import {
       { name: OrganizationManager.name, schema: OrganizationManagerSchema },
       { name: AccountOffboardingJob.name, schema: AccountOffboardingJobSchema },
       { name: AccountExportJob.name, schema: AccountExportJobSchema },
+      { name: AccountExportOrphanCleanup.name, schema: AccountExportOrphanCleanupSchema },
       { name: SecurityAudit.name, schema: SecurityAuditSchema },
       { name: StudyCollection.name, schema: StudyCollectionSchema },
       { name: StudyProgress.name, schema: StudyProgressSchema },
@@ -282,6 +286,11 @@ import {
     AccountExportContributorRegistry,
     MongoAccountLifecycleStore,
     MongoAccountExportStore,
+    MongoAccountExportOrphanCleanupStore,
+    {
+      provide: ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE,
+      useExisting: MongoAccountExportOrphanCleanupStore,
+    },
     {
       provide: ACCOUNT_LIFECYCLE_STORE,
       useExisting: MongoAccountLifecycleStore,
