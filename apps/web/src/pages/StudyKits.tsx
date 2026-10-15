@@ -20,7 +20,6 @@ import {
   deleteStudyKit,
   emptyStudyKitArchive,
   moveStudyKitResource,
-  normalizeStudyKitArchive,
   readStudyKitArchive,
   removeStudyKitResource,
   serializeStudyKitArchive,
