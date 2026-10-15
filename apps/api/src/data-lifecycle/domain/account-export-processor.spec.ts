@@ -891,6 +891,33 @@ describe('AccountExportProcessor', () => {
     }));
   });
 
+  it('B67 rejects inconsistent owner authority before deleting any object', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findOwned.mockResolvedValueOnce(claim({
+      userId: 'another-owner', state: 'failed',
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanRetries: 1, orphanDeleted: 0,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('B67 does not mark a completed generation preserved if queue ACK lost', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.orphans.acknowledge.mockResolvedValueOnce(false);
+    f.store.findOwned.mockResolvedValueOnce(claim({
+      state: 'completed', active: false,
+      artifactGeneration: orphan.generation,
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanPreserved: 0, orphanRetries: 1,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
   it('B67 retries deletion errors without losing durable cleanup claim', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
