@@ -813,4 +813,111 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.complete).not.toHaveBeenCalled();
   });
 
+}
+  const orphan = {
+    jobId: claim().id,
+    ownerUserId: 'owner-1',
+    generation: claim().claimId!,
+    claimId: '77777777-7777-4777-8777-777777777777',
+    attempts: 1,
+  };
+
+  it('B67 schedules durable orphan cleanup on confirmed stale S3 deletion failure', async () => {
+    const f = fixture();
+    f.exports.complete.mockResolvedValueOnce(false);
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 down'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      stale: 1, completed: 0,
+    });
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: claim().id, ownerUserId: 'owner-1', generation: claim().claimId,
+    }));
+  });
+
+  it('B67 never queues deletion for an uncertain Mongo completion', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('unknown commit'));
+    f.exports.reschedule.mockResolvedValueOnce(false);
+    await f.processor.runIteration();
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B67 drains only a confirmed orphan generation and acknowledges it', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findOwned.mockResolvedValueOnce(claim({
+      state: 'pending', active: true, claimId: null,
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(f.store.findOwned).toHaveBeenCalledWith(orphan.jobId, orphan.ownerUserId);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      orphan.jobId, orphan.generation,
+    );
+    expect(f.orphans.acknowledge).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: orphan.jobId, generation: orphan.generation, claimId: orphan.claimId,
+    }));
+  });
+
+  it('B67 preserves a generation referenced by a completed job', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findOwned.mockResolvedValueOnce(claim({
+      state: 'completed', active: false,
+      artifactGeneration: orphan.generation,
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanPreserved: 1, orphanDeleted: 0,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).toHaveBeenCalledTimes(1);
+  });
+
+  it('B67 waits for a still-live matching claim instead of deleting S3', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findOwned.mockResolvedValueOnce(claim({
+      claimId: orphan.generation,
+      leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanRetries: 1, orphanDeleted: 0,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: orphan.jobId, generation: orphan.generation,
+    }));
+  });
+
+  it('B67 retries deletion errors without losing durable cleanup claim', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findOwned.mockResolvedValueOnce(null);
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 offline'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanRetries: 1, orphanDeleted: 0,
+    });
+    expect(f.orphans.retry).toHaveBeenCalledTimes(1);
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+  });
+
+  it('B67 leaves a claimed orphan recoverable after failed acknowledgement', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.orphans.acknowledge.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanRetries: 1, orphanDeleted: 0,
+    });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(orphan.jobId, orphan.generation);
+  });
+
+  it('B67 never queues an object when cleanup succeeded', async () => {
+    const f = fixture();
+    f.exports.complete.mockResolvedValueOnce(false);
+    await f.processor.runIteration();
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+  });
+
 });
