@@ -144,6 +144,20 @@ describe('MongoAccountExportStore', () => {
     });
   });
 
+  it('B68 checks durable orphan ownership by job ID without hiding foreign owners', async () => {
+    const foreignJob = record({ id: 'export-foreign', userId: 'foreign-owner' });
+    const f = fixture();
+    f.findQuery.exec.mockResolvedValueOnce(foreignJob);
+    await expect(f.store.findForOrphanCleanup('export-foreign'))
+      .resolves.toEqual(foreignJob);
+    expect(f.jobs.findOne).toHaveBeenCalledWith({ id: 'export-foreign' });
+    // Unlike findOwned, this private method must reveal the actual owner
+    // to the cleanup worker so a corrupt queue row cannot authorize delete.
+    expect(f.jobs.findOne).not.toHaveBeenCalledWith({
+      id: 'export-foreign', userId: 'wrong-owner',
+    });
+  });
+
   it('claims pending work or an expired processing lease with one CAS', async () => {
     const claimed = record({
       state: 'processing',
