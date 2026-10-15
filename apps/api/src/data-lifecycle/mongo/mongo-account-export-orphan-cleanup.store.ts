@@ -53,6 +53,18 @@ implements AccountExportOrphanCleanupStore {
     }
   }
 
+  async clearPending(
+    input: Parameters<AccountExportOrphanCleanupStore['clearPending']>[0],
+  ): Promise<boolean> {
+    const result = await this.cleanup.deleteOne({
+      jobId: input.jobId,
+      generation: input.generation,
+      state: 'pending',
+      claimId: null,
+    }).exec();
+    return result.deletedCount === 1;
+  }
+
   async claimNext(
     input: Parameters<AccountExportOrphanCleanupStore['claimNext']>[0],
   ): Promise<AccountExportOrphanCleanupRecord | null> {
