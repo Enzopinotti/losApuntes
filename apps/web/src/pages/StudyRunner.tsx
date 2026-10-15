@@ -13,6 +13,11 @@ import {
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
 import { recallStudyDraft } from "../features/study/study-session-draft.mjs";
+import { STUDY_PROGRESS_VISIBLE } from "../features/study/studyProgressFlags";
+import {
+  isStudyProgressApiError,
+  studyProgressApi,
+} from "../features/study/studyProgressApi";
 import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
 import {
   buildReviewSession,
@@ -55,6 +60,12 @@ type Runner = {
   index: number;
 };
 type Notice = { scope: string; text: string; error: boolean };
+type RemoteSnapshot = {
+  scope: string;
+  revision: number;
+  plan: StudySession | null;
+  updatedAt: string | null;
+};
 type Busy = { scope: string; kind: "load" | "confirm" | "review"; key?: string };
 
 function keyOf(task: Pick<StudySessionTask, "kind" | "id">): string {
@@ -62,6 +73,18 @@ function keyOf(task: Pick<StudySessionTask, "kind" | "id">): string {
 }
 
 function errorText(error: unknown): string {
+  if (isStudyProgressApiError(error)) {
+    if (error.status === 409) {
+      return "El progreso cambió en otro dispositivo. No se sobrescribió nada. Consultá nuevamente antes de guardar.";
+    }
+    if (error.status === 503) {
+      return "La sincronización todavía no está habilitada en el servidor.";
+    }
+    if (error.status === 401 || error.status === 403) {
+      return "Tu sesión no puede acceder a este guardado.";
+    }
+    return error.message;
+  }
   if (isResourcesApiError(error) || isCommunityApiError(error) || isSearchApiError(error)) {
     if (error.status === 401) return "La sesión de tu cuenta venció.";
     if (error.status === 403 || error.status === 404) {
@@ -155,6 +178,10 @@ export default function StudyRunner() {
   const busy = busyState?.scope === scope ? busyState : null;
   const [noticeState, setNoticeState] = useState<Notice | null>(null);
   const notice = noticeState?.scope === scope ? noticeState : null;
+  const [remoteSnapshot, setRemoteSnapshot] = useState<RemoteSnapshot | null>(null);
+  const remote = remoteSnapshot?.scope === scope ? remoteSnapshot : null;
+  const [remoteBusyState, setRemoteBusyState] = useState<string | null>(null);
+  const remoteBusy = remoteBusyState === scope;
 
   const { begin: beginContext, isCurrent: contextCurrent, finish: finishContext } =
     useAsyncAuthorityFence("study-run-context:" + authScope);
@@ -164,6 +191,8 @@ export default function StudyRunner() {
     useAsyncAuthorityFence("study-run-confirm:" + scope + ":" + (activeKey ?? "none"));
   const { begin: beginReview, isCurrent: reviewCurrent, finish: finishReview } =
     useAsyncAuthorityFence("study-run-review:" + scope);
+  const { begin: beginRemote, isCurrent: remoteCurrent, finish: finishRemote } =
+    useAsyncAuthorityFence("study-run-remote:" + scope);
 
   const loadContext = useCallback(async () => {
     if (status !== "authenticated") return;
