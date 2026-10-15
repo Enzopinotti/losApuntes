@@ -23,6 +23,13 @@ export interface AccountExportOrphanCleanupStore {
     claimId: string;
     leaseExpiresAt: Date;
   }): Promise<AccountExportOrphanCleanupRecord | null>;
+  renewLease(input: {
+    jobId: string;
+    generation: string;
+    claimId: string;
+    now: Date;
+    leaseExpiresAt: Date;
+  }): Promise<boolean>;
   acknowledge(input: {
     jobId: string;
     generation: string;
