@@ -544,4 +544,14 @@ describe('validateRuntimeEnvironment', () => {
   it('does not require the removed legacy JWT secret', () => {
     expect(() => validateRuntimeEnvironment(validEnvironment)).not.toThrow();
   });
+  it('keeps persistent collections disabled until explicitly opted in', () => {
+    expect(validateRuntimeEnvironment(validEnvironment).STUDY_COLLECTIONS_ENABLED).toBe(false);
+    expect(validateRuntimeEnvironment({
+      ...validEnvironment, STUDY_COLLECTIONS_ENABLED: 'true',
+    }).STUDY_COLLECTIONS_ENABLED).toBe(true);
+    expect(() => validateRuntimeEnvironment({
+      ...validEnvironment, STUDY_COLLECTIONS_ENABLED: 'yes',
+    })).toThrow('STUDY_COLLECTIONS_ENABLED must be true or false');
+  });
+
 });
