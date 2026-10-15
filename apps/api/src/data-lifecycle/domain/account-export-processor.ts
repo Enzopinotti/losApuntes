@@ -178,6 +178,7 @@ export class AccountExportProcessor {
         );
       }
 
+      durableCompletionAttempted = true;
       const completed = await this.exports.complete({
         id: job.id,
         claimId,
