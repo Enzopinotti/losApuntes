@@ -50,6 +50,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
   let models: Models;
   let collections: MongoStudyCollectionStore;
   let lifecycle: MongoAccountLifecycleStore;
+  let verifiedLocalReplica = false;
 
   beforeAll(async () => {
     if (!uri) throw new Error('Local test Mongo URI is required');
@@ -76,12 +77,29 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       serverSelectionTimeoutMS: 8_000,
     }).asPromise();
     const hello = await connection.db!.admin().command({ hello: 1 });
+    const reportedMembers: unknown[] = [
+      ...(Array.isArray(hello.hosts) ? hello.hosts : []),
+      ...(Array.isArray(hello.passives) ? hello.passives : []),
+      ...(Array.isArray(hello.arbiters) ? hello.arbiters : []),
+      hello.me,
+    ].filter((value) => value !== undefined);
+    const membersLocal = reportedMembers.length > 0 &&
+      reportedMembers.every((entry) => {
+        if (typeof entry !== 'string') return false;
+        const [host, port, extra] = entry.split(':');
+        return !extra && localHosts.has(host ?? '') &&
+          (port === undefined || /^[0-9]{1,5}$/u.test(port));
+      });
     if (
       typeof hello.setName !== 'string' ||
-      hello.isWritablePrimary !== true
+      hello.isWritablePrimary !== true ||
+      !membersLocal
     ) {
-      throw new Error('B50 requires an initialized primary replica set');
+      throw new Error('B52 requires an initialized exclusively local replica set');
     }
+    // Mark this connection safe to clean up only after verifying all
+    // advertised replica members; a failed safety check must NEVER drop DBs.
+    verifiedLocalReplica = true;
     models = {
       users: connection.model(User.name, UserSchema),
       collections: connection.model(StudyCollection.name, StudyCollectionSchema),
@@ -106,7 +124,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
   }, 30_000);
 
   afterAll(async () => {
-    if (connection?.readyState === 1) {
+    if (verifiedLocalReplica && connection?.readyState === 1) {
       // The name is generated above, never taken from the environment.
       await connection.dropDatabase();
     }
@@ -247,6 +265,101 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       (createResult.status === 'fulfilled' &&
         closeResult.status === 'rejected'),
     ).toBe(true);
+  }, 30_000);
+
+  /**
+   * Simulate each remaining private write racing with account closure.
+   * Mongo may abort one transaction with a transient write conflict. The
+   * invariant is stronger: after a confirmed closure, owner data is gone.
+   * A failed closure is never silently reported as an accepted close.
+   */
+  const competingMutations = [
+    {
+      label: 'edit',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.updateOwned({
+          id: row.id,
+          ownerUserId: userId,
+          expectedRevision: row.revision,
+          patch: { title: 'Concurrent revision' },
+        }),
+    },
+    {
+      label: 'add resource',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.addResource(row.id, userId, randomUUID()),
+    },
+    {
+      label: 'remove resource',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.removeResource(row.id, userId, row.resourceIds[0]!),
+    },
+    {
+      label: 'delete',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.deleteOwned(row.id, userId),
+    },
+  ];
+
+  it.each(competingMutations)(
+    'never leaves owner documents after $label races a successful closure',
+    async ({ label, perform }) => {
+      const userId = await owner();
+      const saved = await create(userId);
+      // A valid pre-existing reference is needed for removal; the mutation
+      // itself is performed under the same owner-revision transaction.
+      const reference = randomUUID();
+      await collections.addResource(saved.id, userId, reference);
+      const fresh = await models.collections.findOne({
+        id: saved.id, ownerUserId: userId,
+      });
+      expect(fresh).not.toBeNull();
+      const revision = fresh!.revision;
+      const row = {
+        ...saved,
+        revision,
+        resourceIds: [reference],
+      };
+      const [mutation, closure] = await Promise.allSettled([
+        perform(userId, row),
+        close(userId),
+      ]);
+      // A write conflict may reject one concurrent closure; after both
+      // operations settle, retry that closure and REQUIRE a real commit.
+      // The suite must not pass merely because a transaction was rejected.
+      if (closure.status === 'rejected') {
+        expect(closure.reason).toBeTruthy();
+      }
+      const completed = closure.status === 'fulfilled' &&
+        closure.value.status === 'closed'
+        ? closure.value
+        : await close(userId);
+      expect(completed.status).toBe('closed');
+
+      const user = await models.users.findById(userId);
+      const remaining = await models.collections.countDocuments({
+        ownerUserId: userId,
+      });
+      expect(user?.account_status).toBe('closed');
+      expect(remaining).toBe(0);
+      if (mutation.status === 'rejected') {
+        expect(mutation.reason).toBeTruthy();
+      }
+      expect(label.length).toBeGreaterThan(0);
+    },
+    30_000,
+  );
+
+  it('keeps the same idempotency key and original collection on replay', async () => {
+    const userId = await owner();
+    const operationKey = randomUUID();
+    const first = await create(userId, operationKey);
+    const second = await create(userId, operationKey);
+    expect(second.id).toBe(first.id);
+    expect(second.revision).toBe(first.revision);
+    expect(await models.collections.countDocuments({
+      ownerUserId: userId, operationKey,
+    })).toBe(1);
   }, 30_000);
 
   it('rolls back both closure and collection deletion when audit persistence fails', async () => {
