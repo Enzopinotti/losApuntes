@@ -139,6 +139,122 @@ describe('StudyCollectionService', () => {
     );
   });
 
+  describe('B57 conditional recovery removals', () => {
+    it('vetoes deleting a reference if the server can read it', async () => {
+      const { service, store, get } = setup();
+      await expect(service.removeResource(
+        ownerId, collectionId, resourceId, 2,
+      )).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_REFERENCE_ACCESSIBLE' },
+      });
+      expect(get).toHaveBeenCalledWith(resourceId, ownerId);
+      expect(store.removeResource).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      () => new NotFoundException(),
+      () => new ForbiddenException(),
+    ])('conditionally removes only a confirmed inaccessible reference', async (exception) => {
+      const { service, store, get } = setup();
+      get.mockRejectedValueOnce(exception());
+      store.removeResource.mockResolvedValueOnce(collection({
+        revision: 3,
+        resourceIds: [nextId],
+      }));
+      const result = await service.removeResource(
+        ownerId, collectionId, resourceId, 2,
+      );
+      expect(result.collection.revision).toBe(3);
+      expect(result.collection.resourceCount).toBe(1);
+      expect(store.removeResource).toHaveBeenCalledWith(
+        collectionId, ownerId, resourceId, 2,
+      );
+    });
+
+    it('rejects stale revisions without looking up the referenced Resource', async () => {
+      const { service, store, get } = setup();
+      await expect(service.removeResource(
+        ownerId, collectionId, resourceId, 1,
+      )).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
+      });
+      expect(store.removeResource).not.toHaveBeenCalled();
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it('rejects changed reference sets before the secondary permission check', async () => {
+      const { service, store, get } = setup(collection({
+        revision: 2, resourceIds: [nextId],
+      }));
+      await expect(service.removeResource(
+        ownerId, collectionId, resourceId, 2,
+      )).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_REFERENCE_CHANGED' },
+      });
+      expect(store.removeResource).not.toHaveBeenCalled();
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it('rejects an intervening Mongo revision change atomically', async () => {
+      const { service, store, get } = setup();
+      get.mockRejectedValueOnce(new NotFoundException());
+      store.removeResource.mockResolvedValueOnce(collection({
+        revision: 3,
+        resourceIds: [resourceId, nextId],
+      }));
+      await expect(service.removeResource(
+        ownerId, collectionId, resourceId, 2,
+      )).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
+      });
+      expect(store.removeResource).toHaveBeenCalledWith(
+        collectionId, ownerId, resourceId, 2,
+      );
+    });
+
+    it('propagates unexpected Resource failures without removing references', async () => {
+      const { service, store, get } = setup();
+      const failure = new Error('resource backend unavailable');
+      get.mockRejectedValueOnce(failure);
+      await expect(service.removeResource(
+        ownerId, collectionId, resourceId, 2,
+      )).rejects.toBe(failure);
+      expect(store.removeResource).not.toHaveBeenCalled();
+    });
+
+    it.each([0, -2, 1.25, Number.MAX_SAFE_INTEGER + 1])(
+      'rejects an invalid optimistic revision %s',
+      async (revision) => {
+        const { service, store, get } = setup();
+        await expect(service.removeResource(
+          ownerId, collectionId, resourceId, revision,
+        )).rejects.toMatchObject({
+          response: { code: 'STUDY_COLLECTION_REVISION_INVALID' },
+        });
+        expect(store.removeResource).not.toHaveBeenCalled();
+        expect(get).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects a foreign collection before checking referenced Resource details', async () => {
+      const { service, store, get } = setup();
+      await expect(service.removeResource(
+        'intruder', collectionId, resourceId, 2,
+      )).rejects.toBeInstanceOf(NotFoundException);
+      expect(store.removeResource).not.toHaveBeenCalled();
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it('preserves backward-compatible unconditional user removal', async () => {
+      const { service, store, get } = setup();
+      await service.removeResource(ownerId, collectionId, resourceId);
+      expect(get).not.toHaveBeenCalled();
+      expect(store.removeResource).toHaveBeenCalledWith(
+        collectionId, ownerId, resourceId,
+      );
+    });
+  });
+
   it('returns private placeholders instead of leaking revoked Resource metadata', async () => {
     const { service, get } = setup();
     get.mockRejectedValueOnce(new NotFoundException());

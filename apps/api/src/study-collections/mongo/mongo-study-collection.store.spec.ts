@@ -174,6 +174,31 @@ describe('MongoStudyCollectionStore closure serialization', () => {
     }
   });
 
+  it('adds a revision predicate inside the same Mongo transaction for recovery removal', async () => {
+    const f = fixture(true);
+    const id = '33333333-3333-4333-8333-333333333333';
+    await f.store.removeResource(input.id, owner, id, 7);
+    expect(f.collections.findOneAndUpdate).toHaveBeenCalledWith(
+      { id: input.id, ownerUserId: owner, resourceIds: id, revision: 7 },
+      { $pull: { resourceIds: id }, $inc: { revision: 1 } },
+      { new: true, session: f.session },
+    );
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('a stale conditional removal never retries outside its transaction', async () => {
+    const f = fixture(true);
+    f.collections.findOneAndUpdate.mockReturnValueOnce(makeQuery(null));
+    await f.store.removeResource(
+      input.id, owner, '33333333-3333-4333-8333-333333333333', 7,
+    );
+    expect(f.collections.findOne).toHaveBeenCalledWith({
+      id: input.id, ownerUserId: owner,
+    });
+    expect(f.collections.findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
   it('closes the session when Mongo rejects a private collection write', async () => {
     const f = fixture(true);
     const failure = new Error('write conflict');
