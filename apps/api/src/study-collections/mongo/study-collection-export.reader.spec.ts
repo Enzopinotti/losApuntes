@@ -36,12 +36,17 @@ function fixture(rows: ReturnType<typeof document>[]) {
     lean: jest.fn().mockReturnThis(),
     exec: jest.fn().mockResolvedValue(rows),
   };
+  const existsQuery = {
+    exec: jest.fn().mockResolvedValue(null),
+  };
   const model = {
     find: jest.fn().mockReturnValue(query),
+    exists: jest.fn().mockReturnValue(existsQuery),
   };
   return {
     query,
     model,
+    existsQuery,
     reader: new StudyCollectionExportReader(
       model as unknown as Model<StudyCollection>,
     ),
@@ -165,4 +170,29 @@ describe('StudyCollectionExportReader: B46 owner-only projection', () => {
       limit: 5,cursor:null,
     })).rejects.toThrow('row is invalid');
   });
+  it('checks only the active owner for pre-existing collections after rollback', async () => {
+    const f = fixture([]);
+    f.existsQuery.exec.mockResolvedValueOnce({ _id: 'private-document' })
+      .mockResolvedValueOnce(null);
+    await expect(f.reader.hasOwnedCollections(owner)).resolves.toBe(true);
+    await expect(f.reader.hasOwnedCollections(second)).resolves.toBe(false);
+    expect(f.model.exists.mock.calls).toEqual([
+      [{ ownerUserId: owner }],
+      [{ ownerUserId: second }],
+    ]);
+    expect(f.model.find).not.toHaveBeenCalled();
+    expect(f.query.exec).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for unknown owner or Mongo errors during rollback detection', async () => {
+    const f = fixture([]);
+    await expect(f.reader.hasOwnedCollections(' '))
+      .rejects.toThrow('owner is required');
+    expect(f.model.exists).not.toHaveBeenCalled();
+    const failed = new Error('Mongo unavailable');
+    f.existsQuery.exec.mockRejectedValueOnce(failed);
+    await expect(f.reader.hasOwnedCollections(owner)).rejects.toBe(failed);
+    expect(f.model.find).not.toHaveBeenCalled();
+  });
+
 });
