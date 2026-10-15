@@ -48,9 +48,9 @@ for (const invalid of [
 checks += 1;
 assert.throws(() => validateStudyKitSyncInput(kit, "bad"));
 checks += 1;
-assert.throws(() => syncStudyKitToCollection(
+await assert.rejects(syncStudyKitToCollection(
   { kit, subjectId }, {}, fresh,
-));
+), /STUDY_KIT_SYNC_API_INVALID/u);
 
 const calls = [];
 const updates = [];
