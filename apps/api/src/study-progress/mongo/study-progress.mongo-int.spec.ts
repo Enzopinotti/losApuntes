@@ -2,6 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createConnection, type Connection, type Model } from 'mongoose';
 
 import { MongoAccountLifecycleStore } from '../../data-lifecycle/mongo/mongo-account-lifecycle.store';
+import { MongoAccountExportStore } from '../../data-lifecycle/mongo/mongo-account-export.store';
+import { AccountExportJob, AccountExportJobSchema } from '../../data-lifecycle/mongo/account-export.mongo-schema';
 import { AccountExportAssembler, type AccountExportArtifactSink } from '../../data-lifecycle/domain/account-export-assembler';
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
 import {
@@ -40,6 +42,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
   let service: StudyProgressService;
   let exportReader: StudyProgressExportReader;
   let lifecycle: MongoAccountLifecycleStore;
+  let exportJobs: Model<AccountExportJob>;
   let verifiedReplica = false;
 
   beforeAll(async () => {
@@ -77,7 +80,8 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     const jobs = connection.model(AccountOffboardingJob.name, AccountOffboardingJobSchema);
     const audits = connection.model(SecurityAudit.name, SecurityAuditSchema);
     const collections = connection.model(StudyCollection.name, StudyCollectionSchema);
-    await Promise.all([users, progress, profiles, managers, jobs, audits, collections]
+    exportJobs = connection.model(AccountExportJob.name, AccountExportJobSchema);
+    await Promise.all([users, progress, profiles, managers, jobs, audits, collections, exportJobs]
       .map((model) => model.init()));
     service = new StudyProgressService(progress, users, connection);
     exportReader = new StudyProgressExportReader(progress);
@@ -322,6 +326,133 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       .toBe(originalEpoch + 1);
     expect(commit).not.toHaveBeenCalled();
     expect(abort).toHaveBeenCalledTimes(1);
+  }, 30_000);
+
+  it('B65 completes a real v3 export atomically with the owner epoch', async () => {
+    const ownerId = await owner();
+    const subjectId = randomUUID();
+    await service.save(ownerId, subjectId, 0, planFor(subjectId));
+    const account = new UsersService(users as never);
+    const original = await account.getStudyProgressExportEpoch(ownerId);
+    const id = randomUUID();
+    const claimId = randomUUID();
+    const startedAt = new Date();
+    await exportJobs.create({
+      id, userId: ownerId, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: startedAt,
+      claimId, leaseExpiresAt: new Date(startedAt.getTime() + 120_000),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    const result = await store.complete({
+      id, claimId, ownerUserId: ownerId, expectedProgressEpoch: original,
+      completedAt: new Date(), artifactGeneration: claimId,
+      artifactExpiresAt: new Date(Date.now() + 86_400_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 1, byteLength: 128,
+        sha256: 'a'.repeat(64),
+      },
+    });
+    expect(result).toBe(true);
+    const committed = await exportJobs.findOne({ id }).lean().exec();
+    expect(committed?.state).toBe('completed');
+    expect(committed?.artifactGeneration).toBe(claimId);
+    expect(await account.getStudyProgressExportEpoch(ownerId))
+      .toBe(original + 1);
+  }, 30_000);
+
+  it('B65 rejects a v3 epoch made stale by another real progress save', async () => {
+    const ownerId = await owner();
+    const subjectId = randomUUID();
+    await service.save(ownerId, subjectId, 0, planFor(subjectId));
+    const account = new UsersService(users as never);
+    const staleEpoch = await account.getStudyProgressExportEpoch(ownerId);
+    const id = randomUUID();
+    const claimId = randomUUID();
+    await exportJobs.create({
+      id, userId: ownerId, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: new Date(),
+      claimId, leaseExpiresAt: new Date(Date.now() + 120_000),
+    });
+    await service.save(ownerId, subjectId, 1, {
+      ...planFor(subjectId), title: 'Actualización concurrente',
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    const finish = (expectedProgressEpoch: number) => store.complete({
+      id, claimId, ownerUserId: ownerId, expectedProgressEpoch,
+      completedAt: new Date(), artifactGeneration: claimId,
+      artifactExpiresAt: new Date(Date.now() + 86_400_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 1, byteLength: 128,
+        sha256: 'a'.repeat(64),
+      },
+    });
+    await expect(finish(staleEpoch))
+      .rejects.toThrow('Study progress changed during account export');
+    expect((await exportJobs.findOne({ id }).lean().exec())?.state)
+      .toBe('processing');
+    expect(await account.getStudyProgressExportEpoch(ownerId))
+      .toBe(staleEpoch + 1);
+    await expect(finish(staleEpoch + 1)).resolves.toBe(true);
+  }, 30_000);
+
+  it('B65 cannot publish owner A job with owner B epoch authority', async () => {
+    const ownerA = await owner();
+    const ownerB = await owner();
+    const reader = new UsersService(users as never);
+    const epochA = await reader.getStudyProgressExportEpoch(ownerA);
+    const epochB = await reader.getStudyProgressExportEpoch(ownerB);
+    const id = randomUUID();
+    const claimId = randomUUID();
+    await exportJobs.create({
+      id, userId: ownerA, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: new Date(),
+      claimId, leaseExpiresAt: new Date(Date.now() + 120_000),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    await expect(store.complete({
+      id, claimId, ownerUserId: ownerB, expectedProgressEpoch: epochB,
+      completedAt: new Date(), artifactGeneration: claimId,
+      artifactExpiresAt: new Date(Date.now() + 86_400_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 128,
+        sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(false);
+    expect((await exportJobs.findOne({ id }).lean().exec())?.state)
+      .toBe('processing');
+    expect(await reader.getStudyProgressExportEpoch(ownerA)).toBe(epochA);
+    expect(await reader.getStudyProgressExportEpoch(ownerB)).toBe(epochB);
+  }, 30_000);
+
+  it('B65 does not increment owner epoch if a v3 claim has expired', async () => {
+    const ownerId = await owner();
+    const account = new UsersService(users as never);
+    const epoch = await account.getStudyProgressExportEpoch(ownerId);
+    const id = randomUUID();
+    const claimId = randomUUID();
+    const expired = new Date(Date.now() - 10_000);
+    await exportJobs.create({
+      id, userId: ownerId, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: expired,
+      claimId, leaseExpiresAt: expired,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    await expect(store.complete({
+      id, claimId, ownerUserId: ownerId, expectedProgressEpoch: epoch,
+      completedAt: new Date(), artifactGeneration: claimId,
+      artifactExpiresAt: new Date(Date.now() + 86_400_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 128,
+        sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(false);
+    expect(await account.getStudyProgressExportEpoch(ownerId)).toBe(epoch);
+    expect((await exportJobs.findOne({ id }).lean().exec())?.state)
+      .toBe('processing');
   }, 30_000);
 
   it('purges progress in account closure transaction and blocks later mutations', async () => {

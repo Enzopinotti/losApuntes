@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AccountExportAssembler } from './account-export-assembler';
+import { AccountExportEpochConflictError } from './account-export-epoch-conflict.error';
 import { AccountExportService } from './account-export.service';
 import {
   ACCOUNT_EXPORT_STORE,
@@ -105,6 +106,10 @@ export class AccountExportProcessor {
     const sink = this.artifacts.createSink(job.id, claimId);
     let leaseLost = false;
     let artifactCommitted = false;
+    let durableCompletionAttempted = false;
+    // The assembler checks its own epoch before S3 commit. This separate
+    // owner snapshot also fences the S3-completed -> durable-complete gap.
+    let progressEpoch: number | null = null;
     let heartbeatInFlight: Promise<void> | null = null;
     const heartbeat = setInterval(() => {
       if (heartbeatInFlight || leaseLost) return;
@@ -127,6 +132,9 @@ export class AccountExportProcessor {
       // Reject unknown values before staging an artifact.
       if (job.formatVersion !== 1 && job.formatVersion !== 2 && job.formatVersion !== 3) {
         throw new Error('Unsupported account export format version');
+      }
+      if (job.formatVersion === 3) {
+        progressEpoch = await this.exports.captureStudyProgressExportEpoch(job.userId);
       }
       const assembly = job.formatVersion === 1
         ? await this.assembler.writeJsonV1(
@@ -161,10 +169,23 @@ export class AccountExportProcessor {
         return 'stale';
       }
 
+      // A progress mutation may land *during* S3 multipart completion.
+      // Reject that attempt before the job can become downloadable.
+      // On failure the catch path removes this claim-scoped generation.
+      if (progressEpoch !== null) {
+        await this.exports.assertStudyProgressExportEpoch(
+          job.userId, progressEpoch,
+        );
+      }
+
+      durableCompletionAttempted = true;
       const completed = await this.exports.complete({
         id: job.id,
         claimId,
         result: assembly,
+        ...(progressEpoch !== null
+          ? { ownerUserId: job.userId, expectedProgressEpoch: progressEpoch }
+          : {}),
       });
       if (!completed) {
         await this.artifacts.deleteArtifact(job.id, claimId);
@@ -175,9 +196,22 @@ export class AccountExportProcessor {
       clearInterval(heartbeat);
       await Promise.resolve(heartbeatInFlight);
       try {
-        if (!artifactCommitted) await sink.abort();
+        if (!artifactCommitted) {
+          await sink.abort();
+        } else if (!durableCompletionAttempted ||
+          error instanceof AccountExportEpochConflictError) {
+          // A known rejected epoch cannot have a durable completion. Delete
+          // only this attempt's generation; never delete a shared object.
+          await this.artifacts.deleteArtifact(job.id, claimId);
+        }
+        // An error after attempting the Mongo completion is ambiguous:
+        // the transaction may have committed before the reply was lost.
+        // Do NOT delete its possibly referenced S3 object. The lease/CAS
+        // prevents false job completion; private bucket retention is the
+        // backstop for any unreferenced generation.
       } catch {
-        // The next iteration and bucket lifecycle handle cleanup retries.
+        // Orphan cleanup has a bucket-lifecycle backstop. Do not mask the
+        // original consistency/lease failure or manufacture a completed job.
       }
       if (leaseLost) return 'stale';
 

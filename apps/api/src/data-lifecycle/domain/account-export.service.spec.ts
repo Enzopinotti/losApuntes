@@ -699,6 +699,35 @@ describe('AccountExportService', () => {
     })).rejects.toThrow('completion metadata is invalid');
   });
 
+  it('B65 refuses an unfenced v3 completion and passes owner epoch to Mongo CAS', async () => {
+    const f = fixture();
+    const v3 = {
+      format: ACCOUNT_EXPORT_FORMAT, formatVersion: 3 as const,
+      sectionCount: 32, recordCount: 1, byteLength: 1000,
+      sha256: 'b'.repeat(64),
+    };
+    await expect(f.service.complete({
+      id: 'export-3', claimId: 'claim-3', result: v3,
+    })).rejects.toThrow('owner epoch authority');
+    expect(f.store.complete).not.toHaveBeenCalled();
+    f.store.complete.mockResolvedValueOnce(true);
+    await expect(f.service.complete({
+      id: 'export-3', claimId: 'claim-3', result: v3,
+      ownerUserId: 'owner-1', expectedProgressEpoch: 7,
+    })).resolves.toBe(true);
+    expect(f.store.complete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        result: v3, ownerUserId: 'owner-1',
+        expectedProgressEpoch: 7,
+      }),
+    );
+    await expect(f.service.complete({
+      id: 'export-3', claimId: 'claim-3', result: v3,
+      ownerUserId: 'owner-1', expectedProgressEpoch: -1,
+    })).rejects.toThrow('owner epoch authority');
+    expect(f.store.complete).toHaveBeenCalledTimes(1);
+  });
+
   it('validates v2 artifact metadata without accepting a 30-section v1 artifact', async () => {
     const f = fixture();
     const expiresAt = new Date(now.getTime() + 60_000);

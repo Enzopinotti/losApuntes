@@ -30,11 +30,24 @@ function fixture(input: { active?: unknown } = {}) {
     updateOne: jest.fn(() => updateQuery),
     exists: jest.fn().mockResolvedValue(null),
   };
-  const store = new MongoAccountExportStore(jobs as never);
+  const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
+  const users = { updateOne: jest.fn(() => ownerUpdate) };
+  const session = {
+    withTransaction: jest.fn(async (callback: () => Promise<void>) => callback()),
+    endSession: jest.fn().mockResolvedValue(undefined),
+  };
+  const connection = { startSession: jest.fn().mockResolvedValue(session) };
+  const store = new MongoAccountExportStore(
+    jobs as never, users as never, connection as never,
+  );
 
   return {
     store,
     jobs,
+    users,
+    ownerUpdate,
+    session,
+    connection,
     upsertQuery,
     findQuery,
     expiredQuery,
@@ -417,6 +430,113 @@ describe('MongoAccountExportStore', () => {
         },
       }),
     ).resolves.toBe(false);
+  });
+
+  it('B65 atomically fences v3 owner epoch and completed claim', async () => {
+    const f = fixture();
+    const result = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: 3 as const,
+      sectionCount: 32, recordCount: 1, byteLength: 1024,
+      sha256: 'b'.repeat(64),
+    };
+    await expect(f.store.complete({
+      id: 'export-1', claimId: 'claim-1', artifactGeneration: 'claim-1',
+      ownerUserId: 'user-1', expectedProgressEpoch: 7,
+      completedAt: now, artifactExpiresAt: new Date(now.getTime() + 120_000),
+      result,
+    })).resolves.toBe(true);
+    expect(f.connection.startSession).toHaveBeenCalledTimes(1);
+    expect(f.users.updateOne).toHaveBeenCalledWith({
+      _id: 'user-1',
+      $and: [
+        { $or: [
+          { account_status: 'active' },
+          { account_status: { $exists: false } },
+        ] },
+        { account_lifecycle_revision: 7 },
+      ],
+    }, { $inc: { account_lifecycle_revision: 1 } }, { session: f.session });
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'export-1', claimId: 'claim-1', formatVersion: 3, userId: 'user-1',
+      }),
+      expect.objectContaining({
+        $set: expect.objectContaining({ state: 'completed', artifactSectionCount: 32 }),
+      }),
+      { session: f.session },
+    );
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B65 rejects concurrent progress edits without completing a v3 job', async () => {
+    const f = fixture();
+    f.ownerUpdate.exec.mockResolvedValueOnce({ matchedCount: 0, modifiedCount: 0 });
+    const result = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: 3 as const,
+      sectionCount: 32, recordCount: 0, byteLength: 12, sha256: 'a'.repeat(64),
+    };
+    await expect(f.store.complete({
+      id: 'export-1', claimId: 'claim-1', artifactGeneration: 'claim-1',
+      ownerUserId: 'user-1', expectedProgressEpoch: 9,
+      completedAt: now, artifactExpiresAt: new Date(now.getTime() + 120_000),
+      result,
+    })).rejects.toThrow('Study progress changed during account export');
+    expect(f.jobs.updateOne).not.toHaveBeenCalled();
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B65 supports a legacy zero epoch only for absent or zero revisions', async () => {
+    const f = fixture();
+    await f.store.complete({
+      id: 'export-1', claimId: 'claim-1', artifactGeneration: 'claim-1',
+      ownerUserId: 'user-1', expectedProgressEpoch: 0,
+      completedAt: now, artifactExpiresAt: new Date(now.getTime() + 120_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 12, sha256: 'a'.repeat(64),
+      },
+    });
+    expect(f.users.updateOne.mock.calls[0]?.[0]).toMatchObject({
+      $and: [
+        expect.anything(),
+        { $or: [
+          { account_lifecycle_revision: 0 },
+          { account_lifecycle_revision: { $exists: false } },
+        ] },
+      ],
+    });
+  });
+
+  it('B65 rolls back the owner fence if the export claim expired', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({ modifiedCount: 0 });
+    await expect(f.store.complete({
+      id: 'export-1', claimId: 'stale-claim', artifactGeneration: 'stale-claim',
+      ownerUserId: 'user-1', expectedProgressEpoch: 2,
+      completedAt: now, artifactExpiresAt: new Date(now.getTime() + 120_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 12, sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(false);
+    expect(f.session.withTransaction).toHaveBeenCalled();
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B65 refuses an unfenced v3 durable completion', async () => {
+    const f = fixture();
+    await expect(f.store.complete({
+      id: 'export-1', claimId: 'claim-1', artifactGeneration: 'claim-1',
+      completedAt: now, artifactExpiresAt: new Date(now.getTime() + 120_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 12, sha256: 'a'.repeat(64),
+      },
+    })).rejects.toThrow('owner epoch is required');
+    expect(f.jobs.updateOne).not.toHaveBeenCalled();
+    expect(f.connection.startSession).not.toHaveBeenCalled();
   });
 
   it('stores only the internal completion summary on the job schema', () => {
