@@ -106,13 +106,13 @@ export class AccountExportService {
     // The version on any persisted job remains immutable; a mismatched job
     // returns the stable legacy-job conflict until that job finishes.
     const currentRequiredVersion = await this.requiredExportVersion(userId);
-    if (
-      ![1, 2, 3].includes(result.job.formatVersion) ||
-      currentRequiredVersion > result.job.formatVersion
-    ) {
+    if (![1, 2, 3].includes(result.job.formatVersion)) {
+      throw new Error('Account export active job has unsupported format version');
+    }
+    if (currentRequiredVersion > result.job.formatVersion) {
       throw new ConflictException({
         code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
-        message: 'A previous export is still processing. Retry after it completes.',
+        message: 'The active export cannot include new private data. Retry after it completes.',
       });
     }
     return {
