@@ -180,6 +180,9 @@ export class AccountExportProcessor {
         id: job.id,
         claimId,
         result: assembly,
+        ...(progressEpoch !== null
+          ? { ownerUserId: job.userId, expectedProgressEpoch: progressEpoch }
+          : {}),
       });
       if (!completed) {
         await this.artifacts.deleteArtifact(job.id, claimId);
