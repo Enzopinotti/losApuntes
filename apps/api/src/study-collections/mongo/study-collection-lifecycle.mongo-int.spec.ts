@@ -218,11 +218,16 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     expect(added?.resourceIds).toContain(resourceId);
     // A stale conditional deletion cannot remove the reference or advance
     // the revision; this uses the real Mongo store on the replica set.
-    const stale = await collections.removeResource(
+    await expect(collections.removeResource(
       first.id, userId, resourceId, (added?.revision ?? 2) - 1,
-    );
-    expect(stale?.resourceIds).toContain(resourceId);
-    expect(stale?.revision).toBe(added?.revision);
+    )).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
+    });
+    const unchanged = await models.collections.findOne({
+      id: first.id, ownerUserId: userId,
+    });
+    expect(unchanged?.resourceIds).toContain(resourceId);
+    expect(unchanged?.revision).toBe(added?.revision);
     const removed = await collections.removeResource(
       first.id, userId, resourceId, added!.revision,
     );

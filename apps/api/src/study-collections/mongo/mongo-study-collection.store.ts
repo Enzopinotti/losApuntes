@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, Model } from 'mongoose';
 
@@ -230,6 +230,14 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
         )
         .lean<StudyCollectionRecord>()
         .exec();
+      if (expectedRevision !== undefined && !updated) {
+        // Do not reinterpret another writer's successful revision bump as
+        // this DELETE succeeding. No optimistic match means no removal.
+        throw new ConflictException({
+          code: 'STUDY_COLLECTION_REVISION_CONFLICT',
+          message: 'Collection changed; inspect it again before removing a link',
+        });
+      }
       return updated ?? this.collections
         .findOne({ id, ownerUserId })
         .session(session)

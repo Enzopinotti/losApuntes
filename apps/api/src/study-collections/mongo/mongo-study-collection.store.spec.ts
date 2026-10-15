@@ -186,15 +186,15 @@ describe('MongoStudyCollectionStore closure serialization', () => {
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
 
-  it('a stale conditional removal never retries outside its transaction', async () => {
+  it('fails closed when the conditional predicate did not match', async () => {
     const f = fixture(true);
     f.collections.findOneAndUpdate.mockReturnValueOnce(makeQuery(null));
-    await f.store.removeResource(
+    await expect(f.store.removeResource(
       input.id, owner, '33333333-3333-4333-8333-333333333333', 7,
-    );
-    expect(f.collections.findOne).toHaveBeenCalledWith({
-      id: input.id, ownerUserId: owner,
+    )).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
     });
+    expect(f.collections.findOne).not.toHaveBeenCalled();
     expect(f.collections.findOneAndUpdate).toHaveBeenCalledTimes(1);
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
