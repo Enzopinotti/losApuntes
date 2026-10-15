@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AnswerView,
@@ -24,6 +24,7 @@ import {
   type RecallOutcomes,
 } from "../features/study/study-active-recall.mjs";
 import { serializeStudySession } from "../features/study/study-session-plan.mjs";
+import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
 import {
   resolveStudySubject,
   studySubjectHref,
@@ -100,6 +101,7 @@ function downloadReviewPlan(contents: string): void {
 
 export default function StudyPractice() {
   const { status, user, session } = useAuth();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const selection = studySubjectSelectionFromParams(params);
   const authScope = [status, user?.id ?? "anonymous", session?.id ?? "none"].join(":");
@@ -430,6 +432,32 @@ export default function StudyPractice() {
     }
   };
 
+  const openPendingInPlanner = () => {
+    if (!subjectId || !round || !summary?.review || status !== "authenticated") {
+      return;
+    }
+    // Navigating away necessarily discards memory-only practice reflections.
+    if (
+      Object.values(round.reflections).some((value) => value.trim().length > 0) &&
+      !window.confirm(
+        "Los intentos escritos son temporales y se perderán al salir. ¿Pasar las preguntas para repasar al Planificador?",
+      )
+    ) return;
+    try {
+      const plan = recallToStudySession(subjectId, round.ids, round.outcomes);
+      if (!plan) return;
+      const handoff = createStudyHandoff(plan, scope);
+      navigate(`/study/session?subjectId=${encodeURIComponent(subjectId)}`, {
+        state: handoff,
+      });
+    } catch {
+      setFeedbackState({
+        scope, error: true,
+        message: "No pudimos pasar las preguntas al Planificador. Podés exportar el JSON.",
+      });
+    }
+  };
+
   const resetRound = () => {
     if (!round) return;
     if (!window.confirm("¿Salir de la ronda? Las notas y marcas temporales se perderán.")) {
@@ -682,10 +710,16 @@ export default function StudyPractice() {
                 </ol>
                 <h3>Continuar en el planificador</h3>
                 <p>Exportá las preguntas marcadas para repasar como un plan JSON. El archivo incluye solo IDs; la Mesa vuelve a comprobar su acceso al importarlo.</p>
-                <button type="button" disabled={!summary?.review} onClick={exportPending}>
-                  Exportar preguntas para repasar
-                </button>
-                <p><Link to={`/study/session?subjectId=${encodeURIComponent(subject.id)}`}>Ir al planificador de estudio</Link></p>
+                <div className="study-practice-actions">
+                  <button type="button" disabled={!summary?.review} onClick={openPendingInPlanner}>
+                    Pasar pendientes al Planificador
+                  </button>
+                  <button type="button" disabled={!summary?.review} onClick={exportPending}>
+                    Descargar plan JSON
+                  </button>
+                </div>
+                <p>El pase directo solo dura diez minutos en esta pestaña y no guarda tus intentos. La descarga JSON sirve para otro dispositivo.</p>
+                <p><Link to={`/study/session?subjectId=${encodeURIComponent(subject.id)}`}>Abrir planificador sin importar preguntas</Link></p>
               </aside>
             </div>
           )}
