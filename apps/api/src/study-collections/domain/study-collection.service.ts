@@ -315,7 +315,13 @@ export class StudyCollectionService {
           id, ownerUserId, resourceId, expectedRevision,
         );
         if (!removed) this.notFound();
-        if (removed.revision !== expectedRevision + 1) {
+        // A post-write revision increment alone does not prove the target
+        // reference was removed. Reject inconsistent storage outcomes rather
+        // than reporting a successful recovery while the link still exists.
+        if (
+          removed.revision !== expectedRevision + 1 ||
+          removed.resourceIds.includes(resourceId)
+        ) {
           throw new ConflictException({
             code: 'STUDY_COLLECTION_REVISION_CONFLICT',
             message: 'Collection changed; inspect it again before removing a link',
