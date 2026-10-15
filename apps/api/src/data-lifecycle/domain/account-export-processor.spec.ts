@@ -58,17 +58,23 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     reschedule: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportService>;
   const assembler = {
-    writeJsonV2: jest.fn<
-      Promise<AccountExportAssemblyResult>,
-      Parameters<AccountExportAssembler['writeJsonV2']>
-    >().mockImplementation(async (_userId: string, targetSink: AccountExportArtifactSink) => {
-      const v2Result: AccountExportAssemblyResult = {
-        ...result, formatVersion: 2, sectionCount: 31,
-      };
-      await targetSink.write('export-v2');
-      await targetSink.commit(v2Result);
-      return v2Result;
-    }),
+    writeJsonV2: jest
+      .fn<
+        Promise<AccountExportAssemblyResult>,
+        Parameters<AccountExportAssembler['writeJsonV2']>
+      >()
+      .mockImplementation(
+        async (_userId: string, targetSink: AccountExportArtifactSink) => {
+          const v2Result: AccountExportAssemblyResult = {
+            ...result,
+            formatVersion: 2,
+            sectionCount: 31,
+          };
+          await targetSink.write('export-v2');
+          await targetSink.commit(v2Result);
+          return v2Result;
+        },
+      ),
     writeJsonV1: jest
       .fn<
         Promise<AccountExportAssemblyResult>,
@@ -411,17 +417,22 @@ describe('AccountExportProcessor', () => {
   it('routes a persisted v2 job to the v2 assembler without rewriting its format', async () => {
     const f = fixture({ job: claim({ formatVersion: 2 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, completed: 1, retryScheduled: 0,
+      claimed: 1,
+      completed: 1,
+      retryScheduled: 0,
     });
     expect(f.assembler.writeJsonV1).not.toHaveBeenCalled();
     expect(f.assembler.writeJsonV2).toHaveBeenCalledWith(
-      'owner-1', f.sink, expect.any(Function),
+      'owner-1',
+      f.sink,
+      expect.any(Function),
     );
     expect(f.exports.complete).toHaveBeenCalledWith({
       id: claim().id,
       claimId: claim().claimId,
       result: expect.objectContaining({
-        formatVersion: 2, sectionCount: 31,
+        formatVersion: 2,
+        sectionCount: 31,
       }),
     });
   });
@@ -429,12 +440,13 @@ describe('AccountExportProcessor', () => {
   it('fails closed on unsupported persisted versions before publishing a file', async () => {
     const f = fixture({ job: claim({ formatVersion: 99 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.assembler.writeJsonV1).not.toHaveBeenCalled();
     expect(f.assembler.writeJsonV2).not.toHaveBeenCalled();
     expect(f.sink.abort).toHaveBeenCalled();
     expect(f.exports.complete).not.toHaveBeenCalled();
   });
-
 });

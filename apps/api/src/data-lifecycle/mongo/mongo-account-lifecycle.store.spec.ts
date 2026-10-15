@@ -168,7 +168,8 @@ describe('MongoAccountLifecycleStore', () => {
       { new: true, session: f.activeSession },
     );
     expect(f.studyCollections.deleteMany).toHaveBeenCalledWith(
-      { ownerUserId: userId }, { session: f.activeSession },
+      { ownerUserId: userId },
+      { session: f.activeSession },
     );
     expect(f.profiles.updateOne).toHaveBeenCalledWith(
       { userId },

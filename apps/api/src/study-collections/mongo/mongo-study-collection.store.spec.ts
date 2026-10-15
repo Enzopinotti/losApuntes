@@ -17,23 +17,27 @@ function makeQuery(value: unknown) {
 }
 function fixture(active: boolean) {
   const session = {
-    withTransaction: jest.fn(async (callback: () => Promise<void>) => callback()),
+    withTransaction: jest.fn(async (callback: () => Promise<void>) =>
+      callback(),
+    ),
     endSession: jest.fn().mockResolvedValue(undefined),
   };
   const connection = {
     startSession: jest.fn().mockResolvedValue(session),
   };
   const users = {
-    findOneAndUpdate: jest.fn().mockReturnValue(
-      makeQuery(active ? { _id: owner } : null),
-    ),
+    findOneAndUpdate: jest
+      .fn()
+      .mockReturnValue(makeQuery(active ? { _id: owner } : null)),
   };
   const collections = {
     findOne: jest.fn().mockReturnValue({
       session: jest.fn().mockReturnThis(),
       lean: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue({
-        ...input, resourceIds: [], revision: 1,
+        ...input,
+        resourceIds: [],
+        revision: 1,
       }),
     }),
     deleteOne: jest.fn().mockReturnValue({
@@ -41,13 +45,18 @@ function fixture(active: boolean) {
     }),
     findOneAndUpdate: jest.fn().mockReturnValue(
       makeQuery({
-        ...input, resourceIds: [], revision: 1,
-        createdAt: new Date(), updatedAt: new Date(),
+        ...input,
+        resourceIds: [],
+        revision: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       }),
     ),
   };
   const store = new MongoStudyCollectionStore(
-    collections as never, connection as never, users as never,
+    collections as never,
+    connection as never,
+    users as never,
   );
   return { store, users, collections, connection, session };
 }
@@ -55,7 +64,8 @@ describe('MongoStudyCollectionStore closure serialization', () => {
   it('touches the owner lifecycle revision in the same transaction as upsert', async () => {
     const f = fixture(true);
     await expect(f.store.create(input)).resolves.toMatchObject({
-      ownerUserId: owner, operationKey: input.operationKey,
+      ownerUserId: owner,
+      operationKey: input.operationKey,
     });
     expect(f.users.findOneAndUpdate).toHaveBeenCalledWith(
       {
@@ -77,27 +87,40 @@ describe('MongoStudyCollectionStore closure serialization', () => {
   });
   it('rejects a closed account before writing even if an old session reached the store', async () => {
     const f = fixture(false);
-    await expect(f.store.create(input)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(f.store.create(input)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(f.collections.findOneAndUpdate).not.toHaveBeenCalled();
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
   const operations = [
     {
       label: 'edit collection',
-      run: (f: ReturnType<typeof fixture>) => f.store.updateOwned({
-        id: input.id, ownerUserId: owner, expectedRevision: 1,
-        patch: { title: 'Actualizado' },
-      }),
+      run: (f: ReturnType<typeof fixture>) =>
+        f.store.updateOwned({
+          id: input.id,
+          ownerUserId: owner,
+          expectedRevision: 1,
+          patch: { title: 'Actualizado' },
+        }),
     },
     {
       label: 'add resource',
       run: (f: ReturnType<typeof fixture>) =>
-        f.store.addResource(input.id, owner, '33333333-3333-4333-8333-333333333333'),
+        f.store.addResource(
+          input.id,
+          owner,
+          '33333333-3333-4333-8333-333333333333',
+        ),
     },
     {
       label: 'remove resource',
       run: (f: ReturnType<typeof fixture>) =>
-        f.store.removeResource(input.id, owner, '33333333-3333-4333-8333-333333333333'),
+        f.store.removeResource(
+          input.id,
+          owner,
+          '33333333-3333-4333-8333-333333333333',
+        ),
     },
     {
       label: 'delete collection',
@@ -164,7 +187,8 @@ describe('MongoStudyCollectionStore closure serialization', () => {
         await f.store.removeResource(input.id, owner, resourceId);
       }
       expect(f.collections.findOne).toHaveBeenCalledWith({
-        id: input.id, ownerUserId: owner,
+        id: input.id,
+        ownerUserId: owner,
       });
       const query = f.collections.findOne.mock.results[0]?.value as {
         session: jest.Mock;
@@ -189,9 +213,14 @@ describe('MongoStudyCollectionStore closure serialization', () => {
   it('fails closed when the conditional predicate did not match', async () => {
     const f = fixture(true);
     f.collections.findOneAndUpdate.mockReturnValueOnce(makeQuery(null));
-    await expect(f.store.removeResource(
-      input.id, owner, '33333333-3333-4333-8333-333333333333', 7,
-    )).rejects.toMatchObject({
+    await expect(
+      f.store.removeResource(
+        input.id,
+        owner,
+        '33333333-3333-4333-8333-333333333333',
+        7,
+      ),
+    ).rejects.toMatchObject({
       response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
     });
     expect(f.collections.findOne).not.toHaveBeenCalled();
@@ -206,11 +235,14 @@ describe('MongoStudyCollectionStore closure serialization', () => {
       lean: jest.fn().mockReturnThis(),
       exec: jest.fn().mockRejectedValue(failure),
     });
-    await expect(f.store.updateOwned({
-      id: input.id, ownerUserId: owner, expectedRevision: 1,
-      patch: { title: 'New' },
-    })).rejects.toBe(failure);
+    await expect(
+      f.store.updateOwned({
+        id: input.id,
+        ownerUserId: owner,
+        expectedRevision: 1,
+        patch: { title: 'New' },
+      }),
+    ).rejects.toBe(failure);
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
-
 });

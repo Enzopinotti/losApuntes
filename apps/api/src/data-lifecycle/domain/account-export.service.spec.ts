@@ -658,69 +658,94 @@ describe('AccountExportService', () => {
       byteLength: 1024,
       sha256: 'b'.repeat(64),
     };
-    await expect(f.service.complete({
-      id: 'export-2', claimId: 'claim-2', result: v2,
-    })).resolves.toBe(true);
+    await expect(
+      f.service.complete({
+        id: 'export-2',
+        claimId: 'claim-2',
+        result: v2,
+      }),
+    ).resolves.toBe(true);
     expect(f.store.complete).toHaveBeenCalledWith(
       expect.objectContaining({ result: v2 }),
     );
-    await expect(f.service.complete({
-      id: 'export-2', claimId: 'claim-2',
-      result: { ...v2, sectionCount: 30 },
-    })).rejects.toThrow('completion metadata is invalid');
-    await expect(f.service.complete({
-      id: 'export-2', claimId: 'claim-2',
-      result: { ...v2, formatVersion: 3 as 2 },
-    })).rejects.toThrow('completion metadata is invalid');
+    await expect(
+      f.service.complete({
+        id: 'export-2',
+        claimId: 'claim-2',
+        result: { ...v2, sectionCount: 30 },
+      }),
+    ).rejects.toThrow('completion metadata is invalid');
+    await expect(
+      f.service.complete({
+        id: 'export-2',
+        claimId: 'claim-2',
+        result: { ...v2, formatVersion: 3 as 2 },
+      }),
+    ).rejects.toThrow('completion metadata is invalid');
   });
 
   it('validates v2 artifact metadata without accepting a 30-section v1 artifact', async () => {
     const f = fixture();
     const expiresAt = new Date(now.getTime() + 60_000);
-    f.store.findOwned.mockResolvedValueOnce(job({
-      state: 'completed',
-      active: false,
-      formatVersion: 2,
-      artifactSectionCount: 31,
-      artifactByteLength: 1024,
-      artifactSha256: 'b'.repeat(64),
-      artifactGeneration: 'generation-v2',
-      artifactExpiresAt: expiresAt,
-    })).mockResolvedValueOnce(job({
-      state: 'completed',
-      active: false,
-      formatVersion: 2,
-      artifactSectionCount: 31,
-      artifactByteLength: 1024,
-      artifactSha256: 'b'.repeat(64),
-      artifactGeneration: 'generation-v2',
-      artifactExpiresAt: expiresAt,
-    })).mockResolvedValueOnce(job({
-      state: 'completed',
-      active: false,
-      formatVersion: 2,
-      artifactSectionCount: 30,
-      artifactByteLength: 1024,
-      artifactSha256: 'b'.repeat(64),
-      artifactGeneration: 'generation-v2',
-      artifactExpiresAt: expiresAt,
-    }));
-    const publicStatus = await f.service.status('user-1','export-2',now);
+    f.store.findOwned
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          formatVersion: 2,
+          artifactSectionCount: 31,
+          artifactByteLength: 1024,
+          artifactSha256: 'b'.repeat(64),
+          artifactGeneration: 'generation-v2',
+          artifactExpiresAt: expiresAt,
+        }),
+      )
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          formatVersion: 2,
+          artifactSectionCount: 31,
+          artifactByteLength: 1024,
+          artifactSha256: 'b'.repeat(64),
+          artifactGeneration: 'generation-v2',
+          artifactExpiresAt: expiresAt,
+        }),
+      )
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          formatVersion: 2,
+          artifactSectionCount: 30,
+          artifactByteLength: 1024,
+          artifactSha256: 'b'.repeat(64),
+          artifactGeneration: 'generation-v2',
+          artifactExpiresAt: expiresAt,
+        }),
+      );
+    const publicStatus = await f.service.status('user-1', 'export-2', now);
     expect(publicStatus?.downloadable).toBe(true);
     expect(publicStatus?.formatVersion).toBe(2);
-    await expect(f.service.download('user-1','export-2',now))
-      .resolves.toEqual({
-        kind: 'available', formatVersion: 2, generation: 'generation-v2',
-        byteLength: 1024, sha256: 'b'.repeat(64),
-      });
-    await expect(f.service.download('user-1','export-2',now))
-      .rejects.toThrow('artifact metadata is invalid');
+    await expect(
+      f.service.download('user-1', 'export-2', now),
+    ).resolves.toEqual({
+      kind: 'available',
+      formatVersion: 2,
+      generation: 'generation-v2',
+      byteLength: 1024,
+      sha256: 'b'.repeat(64),
+    });
+    await expect(f.service.download('user-1', 'export-2', now)).rejects.toThrow(
+      'artifact metadata is invalid',
+    );
   });
 
   it('requests v2 when persistent collections are enabled', async () => {
     const f = fixture();
     const service = new AccountExportService(f.store, f.users, {
-      get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
+      get: (key: string) =>
+        key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
     } as never);
     f.store.requestActive.mockImplementation(async (input) => ({
       created: true,
@@ -732,22 +757,26 @@ describe('AccountExportService', () => {
     }));
     const output = await service.request('user-1', now);
     expect(output.export.formatVersion).toBe(2);
-    expect(f.store.requestActive).toHaveBeenCalledWith(expect.objectContaining({
-      formatVersion: 2,
-    }));
+    expect(f.store.requestActive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        formatVersion: 2,
+      }),
+    );
   });
 
   it('does not reuse a pre-activation v1 job for newly persisted private collections', async () => {
     const f = fixture();
     const service = new AccountExportService(f.store, f.users, {
-      get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
+      get: (key: string) =>
+        key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
     } as never);
     f.store.requestActive.mockResolvedValue({
       created: false,
       job: job({ formatVersion: 1 }),
     });
-    await expect(service.request('user-1', now))
-      .rejects.toBeInstanceOf(ConflictException);
+    await expect(service.request('user-1', now)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   describe('B49 rollback-safe account portability', () => {
@@ -766,7 +795,10 @@ describe('AccountExportService', () => {
       const f = fixture();
       const ownedReader = reader(true);
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, ownedReader as never,
+        f.store,
+        f.users,
+        disabled as never,
+        ownedReader as never,
       );
       f.store.requestActive.mockImplementation(async (input) => ({
         created: true,
@@ -788,7 +820,10 @@ describe('AccountExportService', () => {
       const f = fixture();
       const emptyReader = reader(false);
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, emptyReader as never,
+        f.store,
+        f.users,
+        disabled as never,
+        emptyReader as never,
       );
       f.store.requestActive.mockImplementation(async (input) => ({
         created: true,
@@ -802,15 +837,18 @@ describe('AccountExportService', () => {
     it('rejects a stale active v1 job if private collections require v2 during rollback', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, reader(true) as never,
+        f.store,
+        f.users,
+        disabled as never,
+        reader(true) as never,
       );
       f.store.requestActive.mockResolvedValueOnce({
-        created: false, job: job({ formatVersion: 1 }),
+        created: false,
+        job: job({ formatVersion: 1 }),
       });
-      await expect(service.request('user-1', now))
-        .rejects.toMatchObject({
-          response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
-        });
+      await expect(service.request('user-1', now)).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
+      });
       expect(f.store.requestActive).toHaveBeenCalledWith(
         expect.objectContaining({ formatVersion: 2 }),
       );
@@ -822,7 +860,10 @@ describe('AccountExportService', () => {
       const error = new Error('Mongo read unavailable');
       unavailable.hasOwnedCollections.mockRejectedValueOnce(error);
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, unavailable as never,
+        f.store,
+        f.users,
+        disabled as never,
+        unavailable as never,
       );
       await expect(service.request('user-1', now)).rejects.toBe(error);
       expect(f.store.requestActive).not.toHaveBeenCalled();
@@ -831,10 +872,13 @@ describe('AccountExportService', () => {
     it('fails closed on missing reader wiring whenever real configuration is present', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store, f.users, disabled as never,
+        f.store,
+        f.users,
+        disabled as never,
       );
-      await expect(service.request('user-1', now))
-        .rejects.toThrow('export reader is not wired');
+      await expect(service.request('user-1', now)).rejects.toThrow(
+        'export reader is not wired',
+      );
       expect(f.store.requestActive).not.toHaveBeenCalled();
     });
 
@@ -843,7 +887,10 @@ describe('AccountExportService', () => {
       const ownedReader = reader(false);
       const enabled = { get: () => true };
       const service = new AccountExportService(
-        f.store, f.users, enabled as never, ownedReader as never,
+        f.store,
+        f.users,
+        enabled as never,
+        ownedReader as never,
       );
       f.store.requestActive.mockImplementation(async (input) => ({
         created: true,
@@ -854,5 +901,4 @@ describe('AccountExportService', () => {
       expect(ownedReader.hasOwnedCollections).not.toHaveBeenCalled();
     });
   });
-
 });

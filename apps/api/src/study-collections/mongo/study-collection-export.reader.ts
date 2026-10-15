@@ -38,17 +38,17 @@ function parseCursor(cursor: string | null, userId: string): string | null {
   if (cursor === null) return null;
   if (
     typeof cursor !== 'string' ||
-    cursor.length < 1 || cursor.length > 512 ||
+    cursor.length < 1 ||
+    cursor.length > 512 ||
     !/^[A-Za-z0-9_-]+$/u.test(cursor)
-  ) return invalidCursor();
+  )
+    return invalidCursor();
 
   let value: unknown;
   try {
     const bytes = Buffer.from(cursor, 'base64url');
-    if (
-      bytes.length > 256 ||
-      bytes.toString('base64url') !== cursor
-    ) return invalidCursor();
+    if (bytes.length > 256 || bytes.toString('base64url') !== cursor)
+      return invalidCursor();
     value = JSON.parse(bytes.toString('utf8')) as unknown;
   } catch {
     return invalidCursor();
@@ -63,7 +63,8 @@ function parseCursor(cursor: string | null, userId: string): string | null {
     parsed.ownerUserId !== userId ||
     typeof parsed.afterId !== 'string' ||
     !UUID_V4.test(parsed.afterId)
-  ) return invalidCursor();
+  )
+    return invalidCursor();
   return parsed.afterId;
 }
 
@@ -86,7 +87,9 @@ function project(row: DatabaseRow): StudyCollectionExportRow {
     (typeof row.description === 'string' && row.description.length > 500) ||
     !Array.isArray(row.resourceIds) ||
     row.resourceIds.length > 100 ||
-    !row.resourceIds.every((id) => typeof id === 'string' && UUID_V4.test(id)) ||
+    !row.resourceIds.every(
+      (id) => typeof id === 'string' && UUID_V4.test(id),
+    ) ||
     new Set(row.resourceIds).size !== row.resourceIds.length ||
     !(row.createdAt instanceof Date) ||
     !Number.isFinite(row.createdAt.getTime()) ||
@@ -131,9 +134,7 @@ export class StudyCollectionExportReader {
     if (typeof ownerUserId !== 'string' || ownerUserId.trim().length === 0) {
       throw new Error('Account export owner is required');
     }
-    const found = await this.collections
-      .exists({ ownerUserId })
-      .exec();
+    const found = await this.collections.exists({ ownerUserId }).exec();
     return found !== null;
   }
 
@@ -174,9 +175,10 @@ export class StudyCollectionExportReader {
     const page = documents.slice(0, input.limit);
     return {
       items: page.map(project),
-      nextCursor: documents.length > input.limit && page.length > 0
-        ? nextCursor(ownerUserId, page[page.length - 1]!.id)
-        : null,
+      nextCursor:
+        documents.length > input.limit && page.length > 0
+          ? nextCursor(ownerUserId, page[page.length - 1]!.id)
+          : null,
     };
   }
 }

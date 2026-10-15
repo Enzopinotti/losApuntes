@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
@@ -100,13 +106,11 @@ export class AccountExportService {
 
     // A v1 job can remain active after rollout or rollback. If the
     // requested version needs private collections, never replay that v1 job.
-    if (
-      requestedFormatVersion === 2 &&
-      result.job.formatVersion !== 2
-    ) {
+    if (requestedFormatVersion === 2 && result.job.formatVersion !== 2) {
       throw new ConflictException({
         code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
-        message: 'A previous export is still processing. Retry after it completes.',
+        message:
+          'A previous export is still processing. Retry after it completes.',
       });
     }
     return {
