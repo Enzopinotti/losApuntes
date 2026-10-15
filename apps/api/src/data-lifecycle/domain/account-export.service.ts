@@ -100,9 +100,15 @@ export class AccountExportService {
       now,
     });
 
-    // An older active job must not be presented as a complete newer export.
+    // The owner can save private data between the first existence probe
+    // and the durable requestActive upsert. Recheck AFTER the Mongo write:
+    // never acknowledge a v1/v2 job as complete when v3 is already required.
+    // The version on any persisted job remains immutable; a mismatched job
+    // returns the stable legacy-job conflict until that job finishes.
+    const currentRequiredVersion = await this.requiredExportVersion(userId);
     if (
-      requestedFormatVersion > result.job.formatVersion
+      ![1, 2, 3].includes(result.job.formatVersion) ||
+      currentRequiredVersion > result.job.formatVersion
     ) {
       throw new ConflictException({
         code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
