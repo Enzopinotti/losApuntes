@@ -19,6 +19,7 @@ import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { StudyCollectionsFeatureGuard } from './study-collections-feature.guard';
 import {
   CreateStudyCollectionDto,
+  RemoveStudyCollectionResourceDto,
   StudyCollectionListDto,
   UpdateStudyCollectionDto,
 } from './dto/study-collection.dto';
@@ -106,7 +107,10 @@ export class StudyCollectionsController {
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Param('resourceId', new ParseUUIDPipe({ version: '4' })) resourceId: string,
+    @Query() query: RemoveStudyCollectionResourceDto,
   ) {
-    return this.collections.removeResource(request.user.id, id, resourceId);
+    return this.collections.removeResource(
+      request.user.id, id, resourceId, query.expectedRevision,
+    );
   }
 }

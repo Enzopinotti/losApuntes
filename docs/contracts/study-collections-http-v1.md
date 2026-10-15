@@ -29,7 +29,25 @@ Todos bajo `/study-collections`, con `AuthSessionGuard`, `Cache-Control: private
 | DELETE | /:id | 200 sin cuerpo; segunda eliminación: 404 |
 | GET | /:id/resources?limit=20&cursor= | `{items,nextCursor,revision}` |
 | PUT | /:id/resources/:resourceId | `{collection}` idempotente |
-| DELETE | /:id/resources/:resourceId | `{collection}` idempotente |
+| DELETE | /:id/resources/:resourceId | `{collection}` sin condición (compatible) |\n| DELETE | /:id/resources/:resourceId?expectedRevision=N | `{collection}` condicionado por revisión y accesibilidad; 409 si hay cambios |
+
+**B57 — Eliminación condicional para recuperación:** `expectedRevision` es
+opcional y debe ser un entero positivo seguro. Cuando está presente, el
+servicio comprueba que la colección pertenezca al actor, que su revisión y
+referencia coincidan y que `ResourceService.get` rechace con 403/404 antes
+de permitir quitar el vínculo. Mongo exige la revisión **dentro del mismo
+`findOneAndUpdate` transaccional**. Si falla la precondición, responde
+409 `STUDY_COLLECTION_REVISION_CONFLICT` o
+`STUDY_COLLECTION_REFERENCE_CHANGED`, sin eliminar otra referencia.
+Si el apunte sigue siendo accesible, responde 409
+`STUDY_COLLECTION_REFERENCE_ACCESSIBLE`. Los errores de lectura diferentes
+de 403/404 se propagan sin tratarse como falta de acceso. Los `DELETE`
+sin `expectedRevision` conservan su semántica normal idempotente.
+
+Este control elimina la carrera por **revisión de Colección**, pero no
+convierte la comprobación de permisos del recurso en una operación atómica
+entre servicios. La revalidación de permisos se realiza en el backend
+inmediatamente antes del CAS; no se habilita ninguna limpieza automática.
 
 `collection` = id,title,description,resourceCount,revision,createdAt,updatedAt.  
 `items[]` = `{resourceId,resource:ResourceView|null}`; null obliga a UI a ofrecer quitar sin abrir.  

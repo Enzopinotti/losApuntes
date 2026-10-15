@@ -44,10 +44,15 @@ el feature flag de Colecciones está activado.
   no se presupone su resultado: se obliga a volver a analizar.
 - No persiste diagnósticos en localStorage/sessionStorage; no incluye
   contenido o nombres de apuntes inaccesibles.
-- B56 **no soluciona** una autorización revocada/restituida en el instante
-  entre el GET y el DELETE. No existe una operación atómica de verificación
-  + eliminación; esto requiere un eventual contrato condicional del backend
-  antes de cualquier funcionalidad de auto-limpieza sin confirmación.
+- **Actualización B57:** la recuperación envía
+  `expectedRevision` en cada DELETE. El servidor vuelve a comprobar
+  propietario y acceso; Mongo exige la revisión en la misma transacción.
+  Si otro dispositivo modificó la colección entre el GET y el DELETE,
+  responde 409 y no borra la referencia.
+- **Límite restante:** un cambio de visibilidad del propio Resource entre
+  el chequeo del backend y la escritura de la Colección todavía puede
+  competir; las dos entidades no comparten una precondición atómica de
+  autorización. Sigue requiriéndose confirmación y no existe auto-limpieza.
 
 ## QA y publicación
 

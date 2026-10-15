@@ -49,6 +49,7 @@ export interface StudyCollectionStore {
     id: string,
     ownerUserId: string,
     resourceId: string,
+    expectedRevision?: number,
   ): Promise<StudyCollectionRecord | null>;
   deleteOwned(id: string, ownerUserId: string): Promise<boolean>;
 }

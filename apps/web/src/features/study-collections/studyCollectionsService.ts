@@ -154,9 +154,17 @@ export const studyCollectionsApi = {
       { method: "PUT", signal },
     );
   },
-  remove(id: string, resourceId: string, signal?: AbortSignal) {
+  remove(
+    id: string,
+    resourceId: string,
+    signal?: AbortSignal,
+    expectedRevision?: number,
+  ) {
+    const conditional = expectedRevision === undefined
+      ? ""
+      : `?expectedRevision=${encodeURIComponent(String(expectedRevision))}`;
     return request<{ collection: StudyCollection }>(
-      `study-collections/${encode(id)}/resources/${encode(resourceId)}`,
+      `study-collections/${encode(id)}/resources/${encode(resourceId)}${conditional}`,
       { method: "DELETE", signal },
     );
   },

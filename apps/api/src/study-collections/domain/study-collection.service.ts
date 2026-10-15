@@ -274,8 +274,64 @@ export class StudyCollectionService {
     return { collection: projection(row) };
   }
 
-  async removeResource(ownerUserId: string, id: string, resourceId: string) {
-    // Removing an inaccessible reference is always allowed for the owner.
+  async removeResource(
+    ownerUserId: string,
+    id: string,
+    resourceId: string,
+    expectedRevision?: number,
+  ) {
+    if (expectedRevision !== undefined) {
+      if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
+        throw new UnprocessableEntityException({
+          code: 'STUDY_COLLECTION_REVISION_INVALID',
+          message: 'Expected revision must be a positive safe integer',
+        });
+      }
+      // Conditional clean-up must verify ownership before looking at a
+      // referenced Resource. A successful Resource GET vetoes removal.
+      const current = await this.requireOwned(id, ownerUserId);
+      if (current.revision !== expectedRevision) {
+        throw new ConflictException({
+          code: 'STUDY_COLLECTION_REVISION_CONFLICT',
+          message: 'Collection changed; inspect it again before removing a link',
+        });
+      }
+      if (!current.resourceIds.includes(resourceId)) {
+        throw new ConflictException({
+          code: 'STUDY_COLLECTION_REFERENCE_CHANGED',
+          message: 'Reference was already changed; inspect the collection again',
+        });
+      }
+      try {
+        await this.resources.get(resourceId, ownerUserId);
+      } catch (error) {
+        // Only confirmed authorization / not-found failures permit removing
+        // a broken reference. Any other error (including network/5xx)
+        // stops recovery rather than treating the Resource as absent.
+        if (!(error instanceof NotFoundException) &&
+            !(error instanceof ForbiddenException)) throw error;
+        // The Mongo mutation below checks revision again atomically.
+        const removed = await this.store.removeResource(
+          id, ownerUserId, resourceId, expectedRevision,
+        );
+        if (!removed) this.notFound();
+        if (removed.revision !== expectedRevision + 1) {
+          throw new ConflictException({
+            code: 'STUDY_COLLECTION_REVISION_CONFLICT',
+            message: 'Collection changed; inspect it again before removing a link',
+          });
+        }
+        return { collection: projection(removed) };
+      }
+      // The Resource regained visibility after the client scanned. Do not
+      // delete it or disclose its content as part of this response.
+      throw new ConflictException({
+        code: 'STUDY_COLLECTION_REFERENCE_ACCESSIBLE',
+        message: 'Reference is accessible; run the inspection again',
+      });
+    }
+    // Ordinary user-initiated removal remains backward-compatible and is
+    // allowed even if the original resource can no longer be accessed.
     const row = await this.store.removeResource(id, ownerUserId, resourceId);
     if (!row) this.notFound();
     return { collection: projection(row) };
