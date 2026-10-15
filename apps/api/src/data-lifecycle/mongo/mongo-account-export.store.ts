@@ -90,6 +90,13 @@ export class MongoAccountExportStore implements AccountExportStore {
       .exec();
   }
 
+  async findForOrphanCleanup(id: string): Promise<AccountExportJobRecord | null> {
+    return this.jobs
+      .findOne({ id })
+      .lean<AccountExportJobRecord>()
+      .exec();
+  }
+
   async claimNext(
     input: Parameters<AccountExportStore['claimNext']>[0],
   ): ReturnType<AccountExportStore['claimNext']> {

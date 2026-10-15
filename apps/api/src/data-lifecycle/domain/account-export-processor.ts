@@ -368,14 +368,17 @@ export class AccountExportProcessor {
         claimId: candidate.claimId,
       };
       try {
-        const job = await this.store.findOwned(candidate.jobId, candidate.ownerUserId);
+        // Unlike findOwned(id, owner), the internal authority lookup MUST
+        // return a job even if its durable owner differs from the queue.
+        // An owner-scoped miss could mistake a corrupt/misbound task for
+        // an absent job and delete somebody else's completed S3 artifact.
+        const job = await this.store.findForOrphanCleanup(candidate.jobId);
         if (job && (job.id !== candidate.jobId ||
           job.userId !== candidate.ownerUserId)) {
           throw new Error('Export orphan cleanup authority mismatch');
         }
         if (job && job.artifactGeneration === candidate.generation &&
           job.state === 'completed') {
-          // An ambiguous completion was resolved to a live artifact.
           const acknowledged = await this.orphans.acknowledge({
             ...ref, now: new Date(),
           });
@@ -389,8 +392,61 @@ export class AccountExportProcessor {
           job.leaseExpiresAt.getTime() > Date.now()) {
           throw new Error('Export attempt is still leased');
         }
-        await this.artifacts.deleteArtifact(candidate.jobId, candidate.generation);
-        const acked = await this.orphans.acknowledge({ ...ref, now: new Date() });
+
+        // A slow Mongo read can outlive the initial lease. Prove ownership
+        // once more immediately before S3, then renew during the deletion.
+        const refreshedAt = new Date();
+        const owned = await this.orphans.renewLease({
+          ...ref,
+          now: refreshedAt,
+          leaseExpiresAt: new Date(
+            refreshedAt.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+          ),
+        });
+        if (!owned) {
+          result.orphanRetries += 1;
+          continue;
+        }
+
+        let leaseLost = false;
+        let renewalInFlight: Promise<void> | null = null;
+        const renewal = setInterval(() => {
+          if (leaseLost || renewalInFlight) return;
+          const renewalAt = new Date();
+          renewalInFlight = this.orphans.renewLease({
+            ...ref,
+            now: renewalAt,
+            leaseExpiresAt: new Date(
+              renewalAt.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+            ),
+          }).then((current) => {
+            if (!current) leaseLost = true;
+          }).catch(() => {
+            leaseLost = true;
+          }).finally(() => {
+            renewalInFlight = null;
+          });
+        }, LEASE_RENEWAL_INTERVAL_MS);
+        renewal.unref();
+        try {
+          await this.artifacts.deleteArtifact(
+            candidate.jobId, candidate.generation,
+          );
+        } finally {
+          clearInterval(renewal);
+          await Promise.resolve(renewalInFlight);
+        }
+
+        if (leaseLost) {
+          // A second worker may have reclaimed the queue task. S3 delete
+          // is attempt-scoped/idempotent, but only the current claimant may
+          // acknowledge durable cleanup.
+          result.orphanRetries += 1;
+          continue;
+        }
+        const acked = await this.orphans.acknowledge({
+          ...ref, now: new Date(),
+        });
         if (acked) result.orphanDeleted += 1;
         else result.orphanRetries += 1;
       } catch {

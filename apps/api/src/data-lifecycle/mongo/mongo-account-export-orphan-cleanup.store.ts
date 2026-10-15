@@ -72,6 +72,22 @@ implements AccountExportOrphanCleanupStore {
     return row ?? null;
   }
 
+  async renewLease(
+    input: Parameters<AccountExportOrphanCleanupStore['renewLease']>[0],
+  ): Promise<boolean> {
+    const result = await this.cleanup.updateOne(
+      {
+        jobId: input.jobId,
+        generation: input.generation,
+        state: 'processing',
+        claimId: input.claimId,
+        leaseExpiresAt: { $gt: input.now },
+      },
+      { $max: { leaseExpiresAt: input.leaseExpiresAt } },
+    ).exec();
+    return result.matchedCount === 1;
+  }
+
   async acknowledge(
     input: Parameters<AccountExportOrphanCleanupStore['acknowledge']>[0],
   ): Promise<boolean> {

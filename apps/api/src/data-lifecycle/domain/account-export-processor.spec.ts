@@ -99,12 +99,14 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
   } as unknown as jest.Mocked<AccountExportAssembler>;
   const store = {
     findOwned: jest.fn().mockResolvedValue(null),
+    findForOrphanCleanup: jest.fn().mockResolvedValue(null),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     clearExpiredArtifact: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportStore>;
   const orphans = {
     enqueue: jest.fn().mockResolvedValue(undefined),
     claimNext: jest.fn().mockResolvedValue(null),
+    renewLease: jest.fn().mockResolvedValue(true),
     acknowledge: jest.fn().mockResolvedValue(true),
     retry: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportOrphanCleanupStore>;
@@ -846,13 +848,13 @@ describe('AccountExportProcessor', () => {
   it('B67 drains only a confirmed orphan generation and acknowledges it', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findOwned.mockResolvedValueOnce(claim({
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
       state: 'pending', active: true, claimId: null,
     }));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanDeleted: 1, orphanRetries: 0,
     });
-    expect(f.store.findOwned).toHaveBeenCalledWith(orphan.jobId, orphan.ownerUserId);
+    expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId, orphan.ownerUserId);
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
       orphan.jobId, orphan.generation,
     );
@@ -864,7 +866,7 @@ describe('AccountExportProcessor', () => {
   it('B67 preserves a generation referenced by a completed job', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findOwned.mockResolvedValueOnce(claim({
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
       state: 'completed', active: false,
       artifactGeneration: orphan.generation,
     }));
@@ -878,7 +880,7 @@ describe('AccountExportProcessor', () => {
   it('B67 waits for a still-live matching claim instead of deleting S3', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findOwned.mockResolvedValueOnce(claim({
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
       claimId: orphan.generation,
       leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
     }));
@@ -894,7 +896,7 @@ describe('AccountExportProcessor', () => {
   it('B67 rejects inconsistent owner authority before deleting any object', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findOwned.mockResolvedValueOnce(claim({
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
       userId: 'another-owner', state: 'failed',
     }));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
@@ -908,7 +910,7 @@ describe('AccountExportProcessor', () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
     f.orphans.acknowledge.mockResolvedValueOnce(false);
-    f.store.findOwned.mockResolvedValueOnce(claim({
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
       state: 'completed', active: false,
       artifactGeneration: orphan.generation,
     }));
@@ -921,7 +923,7 @@ describe('AccountExportProcessor', () => {
   it('B67 retries deletion errors without losing durable cleanup claim', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findOwned.mockResolvedValueOnce(null);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
     f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 offline'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanRetries: 1, orphanDeleted: 0,
@@ -938,6 +940,87 @@ describe('AccountExportProcessor', () => {
       orphanRetries: 1, orphanDeleted: 0,
     });
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(orphan.jobId, orphan.generation);
+  });
+
+  it('B68 rechecks ownership after a slow authority lookup before touching S3', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    f.orphans.renewLease.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(f.orphans.renewLease).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+        claimId: orphan.claimId,
+      }),
+    );
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+  });
+
+  it('B68 renews the orphan claim BEFORE starting S3 and then acknowledges', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(f.orphans.renewLease.mock.invocationCallOrder[0])
+      .toBeLessThan(f.artifacts.deleteArtifact.mock.invocationCallOrder[0]);
+    expect(f.artifacts.deleteArtifact.mock.invocationCallOrder[0])
+      .toBeLessThan(f.orphans.acknowledge.mock.invocationCallOrder[0]);
+  });
+
+  it('B68 renews its cleanup lease while S3 deletion is still running', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-15T20:00:00.000Z'));
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    let finishDelete: (() => void) | undefined;
+    const blocked = new Promise<void>((resolve) => {
+      finishDelete = resolve;
+    });
+    f.artifacts.deleteArtifact.mockImplementationOnce(() => blocked);
+    const running = f.processor.runIteration();
+    // Let the candidate be loaded, refreshed and S3 deletion start.
+    await jest.advanceTimersByTimeAsync(1);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(
+      Math.floor(ACCOUNT_EXPORT_LEASE_DURATION_MS / 3),
+    );
+    expect(f.orphans.renewLease.mock.calls.length).toBeGreaterThanOrEqual(2);
+    finishDelete?.();
+    await expect(running).resolves.toMatchObject({
+      orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(f.orphans.acknowledge).toHaveBeenCalledTimes(1);
+  });
+
+  it('B68 does not acknowledge a generation after heartbeat loses its claim', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-15T20:00:00.000Z'));
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.orphans.renewLease
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    let finishDelete: (() => void) | undefined;
+    const blocked = new Promise<void>((resolve) => {
+      finishDelete = resolve;
+    });
+    f.artifacts.deleteArtifact.mockImplementationOnce(() => blocked);
+    const running = f.processor.runIteration();
+    await jest.advanceTimersByTimeAsync(1);
+    await jest.advanceTimersByTimeAsync(
+      Math.floor(ACCOUNT_EXPORT_LEASE_DURATION_MS / 3),
+    );
+    finishDelete?.();
+    await expect(running).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+    expect(f.orphans.retry).not.toHaveBeenCalled();
   });
 
   it('B67 never queues an object when cleanup succeeded', async () => {

@@ -53,12 +53,14 @@ verify('orphan cleanup is a separate dependency wired by Nest', () => {
 });
 verify('no deletion before confirming generation is not referenced', () => {
   const drain = worker.slice(worker.indexOf('  private async drainOrphanCleanup('));
-  const find = drain.indexOf('this.store.findOwned(candidate.jobId, candidate.ownerUserId)');
+  const find = drain.indexOf('this.store.findForOrphanCleanup(candidate.jobId)');
   const guard = drain.indexOf("job.state === 'completed'");
   const active = drain.indexOf("job.state === 'processing'");
-  const remove = drain.indexOf('this.artifacts.deleteArtifact(candidate.jobId, candidate.generation)');
+  const remove = drain.indexOf('this.artifacts.deleteArtifact(');
   assert.ok(find >= 0 && guard > find && active > guard && remove > active);
   assert.match(drain, /job\.artifactGeneration === candidate\.generation/u);
+  assert.match(drain, /job\.userId !== candidate\.ownerUserId/u);
+  assert.match(drain, /await this\.orphans\.renewLease\(/u);
 });
 verify('only proven orphan deletion failures are queued', () => {
   assert.match(worker, /deleteOrEnqueueProvenOrphan\(/u);

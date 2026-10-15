@@ -694,6 +694,89 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(second).toMatchObject({ attempts: 2 });
   }, 30_000);
 
+  it('B68 fences two Mongo orphan workers to one current cleanup claim', async () => {
+    // All tests share only this disposable local database. Isolate due tasks.
+    await orphanJobs.deleteMany({});
+    const ownerId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const queueA = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const queueB = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const now = new Date();
+    await queueA.enqueue({ jobId: id, generation, ownerUserId: ownerId, now });
+
+    const firstId = randomUUID();
+    const secondId = randomUUID();
+    const expires = new Date(now.getTime() + 120_000);
+    const [first, second] = await Promise.all([
+      queueA.claimNext({ now, claimId: firstId, leaseExpiresAt: expires }),
+      queueB.claimNext({ now, claimId: secondId, leaseExpiresAt: expires }),
+    ]);
+    const winners = [first, second].filter((candidate) => candidate !== null);
+    expect(winners).toHaveLength(1);
+    const winner = winners[0]!;
+    const loserClaim = winner.claimId === firstId ? secondId : firstId;
+
+    const extended = new Date(now.getTime() + 180_000);
+    await expect(queueA.renewLease({
+      jobId: id, generation, claimId: winner.claimId,
+      now, leaseExpiresAt: extended,
+    })).resolves.toBe(true);
+    await expect(queueB.renewLease({
+      jobId: id, generation, claimId: loserClaim,
+      now, leaseExpiresAt: extended,
+    })).resolves.toBe(false);
+    await expect(queueB.acknowledge({
+      jobId: id, generation, claimId: loserClaim, now,
+    })).resolves.toBe(false);
+    await expect(queueA.acknowledge({
+      jobId: id, generation, claimId: winner.claimId, now,
+    })).resolves.toBe(true);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B68 reads the true durable owner and rejects a mismatched cleanup task', async () => {
+    await orphanJobs.deleteMany({});
+    const realOwner = await owner();
+    const foreignOwner = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId: realOwner,
+      state: 'completed', active: false, formatVersion: 3,
+      attempts: 1, nextAttemptAt: now,
+      claimId: null, leaseExpiresAt: null,
+      completedAt: now,
+      artifactGeneration: generation,
+      artifactSectionCount: 32, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+      artifactExpiresAt: new Date(now.getTime() + 86_400_000),
+    });
+    const jobsStore = new MongoAccountExportStore(exportJobs, users, connection);
+    expect(await jobsStore.findOwned(id, foreignOwner)).toBeNull();
+    expect((await jobsStore.findForOrphanCleanup(id))?.userId).toBe(realOwner);
+
+    const cleanupStore = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await cleanupStore.enqueue({
+      jobId: id, generation, ownerUserId: foreignOwner, now,
+    });
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const exporter = {
+      claimNext: jest.fn().mockResolvedValue(null),
+    } as unknown as AccountExportService;
+    const assembler = {} as AccountExportAssembler;
+    const artifacts = { deleteArtifact } as unknown as AccountExportArtifactStorage;
+    const processor = new AccountExportProcessor(
+      exporter, assembler, jobsStore, artifacts, cleanupStore,
+    );
+    await expect(processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanPreserved: 0, orphanRetries: 1,
+    });
+    expect(deleteArtifact).not.toHaveBeenCalled();
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+  }, 30_000);
+
   it('purges progress in account closure transaction and blocks later mutations', async () => {
     const userId = await owner();
     const subjectId = randomUUID();
