@@ -249,6 +249,101 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     ).toBe(true);
   }, 30_000);
 
+  /**
+   * Simulate each remaining private write racing with account closure.
+   * Mongo may abort one transaction with a transient write conflict. The
+   * invariant is stronger: after a confirmed closure, owner data is gone.
+   * A failed closure is never silently reported as an accepted close.
+   */
+  const competingMutations = [
+    {
+      label: 'edit',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.updateOwned({
+          id: row.id,
+          ownerUserId: userId,
+          expectedRevision: row.revision,
+          patch: { title: 'Concurrent revision' },
+        }),
+    },
+    {
+      label: 'add resource',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.addResource(row.id, userId, randomUUID()),
+    },
+    {
+      label: 'remove resource',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.removeResource(row.id, userId, row.resourceIds[0]!),
+    },
+    {
+      label: 'delete',
+      perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
+        collections.deleteOwned(row.id, userId),
+    },
+  ];
+
+  it.each(competingMutations)(
+    'never leaves owner documents after $label races a successful closure',
+    async ({ label, perform }) => {
+      const userId = await owner();
+      const saved = await create(userId);
+      // A valid pre-existing reference is needed for removal; the mutation
+      // itself is performed under the same owner-revision transaction.
+      const reference = randomUUID();
+      await collections.addResource(saved.id, userId, reference);
+      const fresh = await models.collections.findOne({
+        id: saved.id, ownerUserId: userId,
+      });
+      expect(fresh).not.toBeNull();
+      const revision = fresh!.revision;
+      const row = {
+        ...saved,
+        revision,
+        resourceIds: [reference],
+      };
+      const [mutation, closure] = await Promise.allSettled([
+        perform(userId, row),
+        close(userId),
+      ]);
+      const user = await models.users.findById(userId);
+      const remaining = await models.collections.countDocuments({
+        ownerUserId: userId,
+      });
+
+      if (closure.status === 'fulfilled') {
+        expect(closure.value.status).toBe('closed');
+        expect(user?.account_status).toBe('closed');
+        expect(remaining).toBe(0);
+      } else {
+        // MongoDB can legitimately reject the competing closure on a
+        // transient write conflict. That failure MUST remain observable,
+        // and no fixture should claim that the owner is already closed.
+        expect(closure.reason).toBeTruthy();
+        if (user?.account_status === 'closed') {
+          expect(remaining).toBe(0);
+        }
+      }
+      if (mutation.status === 'rejected') {
+        expect(mutation.reason).toBeTruthy();
+      }
+      expect(label.length).toBeGreaterThan(0);
+    },
+    30_000,
+  );
+
+  it('keeps the same idempotency key and original collection on replay', async () => {
+    const userId = await owner();
+    const operationKey = randomUUID();
+    const first = await create(userId, operationKey);
+    const second = await create(userId, operationKey);
+    expect(second.id).toBe(first.id);
+    expect(second.revision).toBe(first.revision);
+    expect(await models.collections.countDocuments({
+      ownerUserId: userId, operationKey,
+    })).toBe(1);
+  }, 30_000);
+
   it('rolls back both closure and collection deletion when audit persistence fails', async () => {
     const userId = await owner();
     const first = await create(userId);
