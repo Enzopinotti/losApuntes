@@ -693,16 +693,16 @@ export default function StudyRunner() {
                   type="file"
                   accept=".json,application/json"
                   onChange={(event) => void onFile(event)}
-                  disabled={Boolean(busy) || remoteBusy || remoteBusy}
+                  disabled={Boolean(busy) || remoteBusy}
                 />
               </label>
               {runner && (
                 <>
-                  <button type="button" disabled={Boolean(busy) || remoteBusy || remoteBusy}
+                  <button type="button" disabled={Boolean(busy) || remoteBusy}
                     onClick={() => void loadPlan(runner.plan, false)}>
                     Verificar accesos otra vez
                   </button>
-                  <button type="button" disabled={Boolean(busy) || remoteBusy || remoteBusy} onClick={exportUpdated}>
+                  <button type="button" disabled={Boolean(busy) || remoteBusy} onClick={exportUpdated}>
                     Exportar progreso JSON
                   </button>
                 </>
@@ -727,7 +727,7 @@ export default function StudyRunner() {
               </p>
               <div className="study-runner-actions">
                 <button type="button"
-                  disabled={Boolean(busy) || remoteBusy || remoteBusy}
+                  disabled={Boolean(busy) || remoteBusy}
                   onClick={() => void inspectRemote()}>
                   Consultar mi guardado
                 </button>
@@ -865,7 +865,7 @@ export default function StudyRunner() {
                     const itemLabel = runner.labels[key];
                     return (
                       <li key={key}>
-                        <button type="button" disabled={Boolean(busy) || remoteBusy || remoteBusy}
+                        <button type="button" disabled={Boolean(busy) || remoteBusy}
                           aria-current={index === runner.index ? "step" : undefined}
                           onClick={() => move(index)}>
                           <span>{index + 1}. {itemLabel ?? "Sin acceso"}</span>
@@ -907,7 +907,7 @@ export default function StudyRunner() {
                 </div>
                 <label className="study-runner-review-filter">
                   Qué incluir en el próximo plan
-                  <select value={reviewMode} disabled={Boolean(busy) || remoteBusy || remoteBusy}
+                  <select value={reviewMode} disabled={Boolean(busy) || remoteBusy}
                     onChange={(event) => setReviewModeState({
                       scope, mode: event.target.value as ReviewMode,
                     })}>
