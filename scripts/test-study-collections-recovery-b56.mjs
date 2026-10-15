@@ -29,12 +29,13 @@ async function failWith(action, message) {
 function apiFor({ initialIds = ids, inaccessible = [ids[0], ids[30]], revision = 5 } = {}) {
   const read = [];
   const removed = [];
+  const removeRevisions = [];
   const pages = [];
   let rev = revision;
   let current = initialIds.slice();
   const denied = new Set(inaccessible);
   return {
-    read, removed, pages, denied,
+    read, removed, removeRevisions, pages, denied,
     async get() {
       return { collection: { id: collectionId, resourceCount: current.length, revision: rev } };
     },
@@ -60,7 +61,13 @@ function apiFor({ initialIds = ids, inaccessible = [ids[0], ids[30]], revision =
       }
       return { resource: { id: resourceId } };
     },
-    async remove(_, resourceId) {
+    async remove(_, resourceId, _signal, expectedRevision) {
+      removeRevisions.push(expectedRevision);
+      if (expectedRevision !== rev) {
+        throw Object.assign(new Error("STUDY_COLLECTION_REVISION_CONFLICT"), {
+          code: "STUDY_COLLECTION_REVISION_CONFLICT", status: 409,
+        });
+      }
       removed.push(resourceId);
       current = current.filter((id) => id !== resourceId);
       rev += 1;
@@ -136,6 +143,7 @@ equal(repair.removed, 1);
 equal(repair.restored, 1);
 equal(repair.revision, 6);
 equal(revoked.removed, [ids[0]]);
+equal(revoked.removeRevisions, [5]);
 equal(revoked.read, [ids[0], ids[30]]);
 equal(progress.length, 2);
 equal(report.missingIds, [ids[0], ids[30]]);
@@ -152,8 +160,8 @@ const beforeChange = await inspectCollectionHealth(collectionId, changing);
 let changedDuring = false;
 const changingApi = {
   ...changing,
-  async remove(id, rid) {
-    const response = await changing.remove(id, rid);
+  async remove(id, rid, signal, expectedRevision) {
+    const response = await changing.remove(id, rid, signal, expectedRevision);
     if (!changedDuring) {
       changedDuring = true;
       changing.changeRevision();
@@ -169,6 +177,46 @@ assert.ok(partial instanceof CollectionRecoveryError);
 equal(partial.progress.removed, 1);
 equal(partial.progress.processed, 1);
 equal(changing.removed, [ids[0]]);
+
+// An edit can race after the GET but before Mongo's conditional DELETE.
+const writeConflict = apiFor();
+const conflictReport = await inspectCollectionHealth(collectionId, writeConflict);
+const raceInMongo = {
+  ...writeConflict,
+  async remove(id, rid, signal, expectedRevision) {
+    writeConflict.changeRevision();
+    return writeConflict.remove(id, rid, signal, expectedRevision);
+  },
+};
+let conflict;
+try { await repairMissingReferences(conflictReport, raceInMongo); }
+catch (error) { conflict = error; }
+checks += 1;
+assert.ok(conflict instanceof CollectionRecoveryError);
+equal(conflict.progress.removed, 0);
+equal(conflict.progress.processed, 0);
+equal(writeConflict.removed, []);
+equal(writeConflict.removeRevisions, [5]);
+
+// The server may find access restored even if the immediately preceding
+// client read saw 404. Server-side veto always wins.
+const restoredOnServer = apiFor();
+const restoredReport = await inspectCollectionHealth(collectionId, restoredOnServer);
+const lateRestoration = {
+  ...restoredOnServer,
+  async remove() {
+    throw Object.assign(new Error("STUDY_COLLECTION_REFERENCE_ACCESSIBLE"), {
+      code: "STUDY_COLLECTION_REFERENCE_ACCESSIBLE", status: 409,
+    });
+  },
+};
+let veto;
+try { await repairMissingReferences(restoredReport, lateRestoration); }
+catch (error) { veto = error; }
+checks += 1;
+assert.ok(veto instanceof CollectionRecoveryError);
+equal(veto.progress.removed, 0);
+equal(restoredOnServer.removed, []);
 
 const network = apiFor();
 const networkReport = await inspectCollectionHealth(collectionId, network);
