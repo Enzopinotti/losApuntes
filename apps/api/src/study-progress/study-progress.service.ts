@@ -97,6 +97,10 @@ export class StudyProgressService {
     try {
       const record = await this.mutateActive(ownerUserId, async (session) => {
         if (expectedRevision === 0) {
+          const exists = await this.progress
+            .findOne({ ownerUserId, subjectId: subject })
+            .session(session).select({ revision: 1 }).lean().exec();
+          if (exists) return conflict();
           // The User lifecycle write fence serializes owner mutations. This
           // bounds storage even if a client submits arbitrary subject UUIDs.
           const slots = await this.progress
