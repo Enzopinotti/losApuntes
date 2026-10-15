@@ -369,11 +369,18 @@ export class AccountExportProcessor {
       };
       try {
         const job = await this.store.findOwned(candidate.jobId, candidate.ownerUserId);
+        if (job && (job.id !== candidate.jobId ||
+          job.userId !== candidate.ownerUserId)) {
+          throw new Error('Export orphan cleanup authority mismatch');
+        }
         if (job && job.artifactGeneration === candidate.generation &&
           job.state === 'completed') {
           // An ambiguous completion was resolved to a live artifact.
-          await this.orphans.acknowledge({ ...ref, now: new Date() });
-          result.orphanPreserved += 1;
+          const acknowledged = await this.orphans.acknowledge({
+            ...ref, now: new Date(),
+          });
+          if (acknowledged) result.orphanPreserved += 1;
+          else result.orphanRetries += 1;
           continue;
         }
         if (job && job.state === 'processing' &&
