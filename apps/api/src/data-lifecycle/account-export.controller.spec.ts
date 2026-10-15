@@ -9,6 +9,7 @@ import { Readable } from 'node:stream';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import type { AccountExportService } from './domain/account-export.service';
+import type { AccountExportFormatVersion } from './domain/account-export.types';
 import type { AccountExportArtifactStorage } from './storage/account-export-artifact-storage';
 import { AccountExportController } from './account-export.controller';
 
@@ -276,7 +277,9 @@ describe('AccountExportController', () => {
     const f = fixture();
     f.exports.download.mockResolvedValueOnce({
       kind: 'available',
-      formatVersion: 99,
+      // Deliberately violate the persisted-format contract to prove that the
+      // controller fails closed before reading private storage.
+      formatVersion: 99 as unknown as AccountExportFormatVersion,
       generation: '123e4567-e89b-42d3-a456-426614174001',
       byteLength: 512,
       sha256: 'a'.repeat(64),
