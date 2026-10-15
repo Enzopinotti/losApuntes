@@ -6,39 +6,13 @@ import {
   resourcesApi,
 } from "../resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../../shared/useAsyncAuthorityFence";
+import { searchSaveFailure } from "./search-save-outcome.mjs";
 
 type SaveState =
   | { scopeKey: string; kind: "saving" }
   | { scopeKey: string; kind: "saved" }
   | { scopeKey: string; kind: "uncertain" }
   | { scopeKey: string; kind: "error"; message: string };
-
-function outcomeFor(
-  error: unknown,
-): { kind: "uncertain" } | { kind: "error"; message: string } {
-  if (!isResourcesApiError(error) || error.status === 0 || error.status >= 500) {
-    // The server may have committed the PUT before the connection failed.
-    // Never claim success or silently repeat an ambiguous write.
-    return { kind: "uncertain" };
-  }
-
-  if (error.status === 401) {
-    return {
-      kind: "error",
-      message: "La sesión venció. Iniciá sesión nuevamente para guardar.",
-    };
-  }
-  if (error.status === 403 || error.status === 404) {
-    return {
-      kind: "error",
-      message: "Este apunte ya no está disponible para guardar.",
-    };
-  }
-  return {
-    kind: "error",
-    message: "No pudimos guardar este apunte. Revisá el acceso e intentá otra vez.",
-  };
-}
 
 /**
  * Explicit owner action against the existing idempotent resource save API.
@@ -81,7 +55,9 @@ export function SearchQuickSaveAction({
       }
     } catch (error) {
       if (isCurrent(ticket)) {
-        const outcome = outcomeFor(error);
+        const outcome = searchSaveFailure(
+          isResourcesApiError(error) ? error.status : null,
+        );
         setState({ scopeKey, ...outcome });
       }
     } finally {
