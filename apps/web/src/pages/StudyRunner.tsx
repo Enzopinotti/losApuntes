@@ -528,6 +528,116 @@ export default function StudyRunner() {
     }
   };
 
+  const inspectRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || status !== "authenticated" ||
+      busy || remoteBusy) return;
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      const found = await studyProgressApi.get(subjectId, ticket.signal);
+      if (!remoteCurrent(ticket)) return;
+      setRemoteSnapshot({
+        scope, revision: found.revision, plan: found.plan, updatedAt: found.updatedAt,
+      });
+      setNoticeState({
+        scope, error: false,
+        text: "Encontramos un plan privado guardado. Podés recuperarlo o actualizarlo con tu trabajo actual.",
+      });
+    } catch (error) {
+      if (!remoteCurrent(ticket)) return;
+      if (isStudyProgressApiError(error) && error.status === 404) {
+        setRemoteSnapshot({ scope, revision: 0, plan: null, updatedAt: null });
+        setNoticeState({
+          scope, error: false,
+          text: "Todavía no guardaste una sesión de esta materia en tu cuenta.",
+        });
+      } else {
+        setRemoteSnapshot(null);
+        setNoticeState({ scope, error: true, text: errorText(error) });
+      }
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
+  };
+
+  const saveRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || !runner || !remote ||
+      status !== "authenticated" || busy || remoteBusy) return;
+    if (remote.revision > 0 && !window.confirm(
+      "¿Actualizar el guardado de tu cuenta con este plan? " +
+      "Si el otro dispositivo lo modificó, el servidor rechazará esta versión.",
+    )) return;
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      const saved = await studyProgressApi.save(
+        subjectId, runner.plan, remote.revision, ticket.signal,
+      );
+      if (!remoteCurrent(ticket)) return;
+      setRemoteSnapshot({
+        scope, plan: saved.plan, revision: saved.revision, updatedAt: saved.updatedAt,
+      });
+      setNoticeState({
+        scope, error: false,
+        text: "Progreso guardado en tu cuenta. Podés recuperarlo desde otro dispositivo.",
+      });
+    } catch (error) {
+      if (!remoteCurrent(ticket)) return;
+      if (isStudyProgressApiError(error) && error.status === 409) {
+        setRemoteSnapshot(null);
+      }
+      setNoticeState({ scope, error: true, text: errorText(error) });
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
+  };
+
+  const restoreRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || !remote?.plan ||
+      status !== "authenticated" || busy || remoteBusy) return;
+    if (runner && !window.confirm(
+      "¿Reemplazar la sesión local por el guardado de tu cuenta? " +
+      "El tiempo y las valoraciones de esta pestaña se perderán. " +
+      "Podés exportar primero tu JSON.",
+    )) return;
+    await loadPlan(remote.plan);
+  };
+
+  const deleteRemote = async () => {
+    if (!STUDY_PROGRESS_VISIBLE || !subjectId || !remote ||
+      remote.revision === 0 || status !== "authenticated" ||
+      busy || remoteBusy) return;
+    if (!window.confirm(
+      "¿Eliminar el plan guardado en tu cuenta para esta materia? " +
+      "Tu sesión local y tus archivos JSON no se borrarán.",
+    )) return;
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      await studyProgressApi.remove(subjectId, remote.revision, ticket.signal);
+      if (!remoteCurrent(ticket)) return;
+      setRemoteSnapshot({ scope, revision: 0, plan: null, updatedAt: null });
+      setNoticeState({ scope, error: false, text: "Se eliminó el guardado de tu cuenta." });
+    } catch (error) {
+      if (!remoteCurrent(ticket)) return;
+      if (isStudyProgressApiError(error) && (error.status === 409 || error.status === 404)) {
+        setRemoteSnapshot(null);
+      }
+      setNoticeState({ scope, error: true, text: errorText(error) });
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
+  };
+
   const exportUpdated = () => {
     if (!runner || busy) return;
     downloadPlan(runner.plan);
