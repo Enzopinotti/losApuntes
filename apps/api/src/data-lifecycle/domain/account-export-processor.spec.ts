@@ -437,6 +437,39 @@ describe('AccountExportProcessor', () => {
     });
   });
 
+  it('B64 retries a stale v3 progress snapshot without publishing', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.assembler.writeJsonV3.mockRejectedValueOnce(
+      new Error('Study progress changed during account export'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0,
+    });
+    expect(f.sink.abort).toHaveBeenCalled();
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.exports.reschedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'pending', failureCode: 'EXPORT_ASSEMBLY_RETRY',
+      }),
+    );
+  });
+
+  it('B64 exhausts stale v3 snapshots without publishing a partial artifact', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3, attempts: 5 }) });
+    f.assembler.writeJsonV3.mockRejectedValueOnce(
+      new Error('Study progress changed during account export'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 0, failed: 1, completed: 0,
+    });
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.exports.reschedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'failed', failureCode: 'EXPORT_RETRY_EXHAUSTED',
+      }),
+    );
+  });
+
   it('routes persisted v3 jobs to the v3 assembler without modifying legacy claims', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
