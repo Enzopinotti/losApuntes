@@ -680,7 +680,17 @@ export default function StudyRunner() {
                           aria-current={index === runner.index ? "step" : undefined}
                           onClick={() => move(index)}>
                           <span>{index + 1}. {itemLabel ?? "Sin acceso"}</span>
-                          <small>{item.done ? "Realizada" : itemLabel ? "Pendiente" : "Requiere acceso"} · {item.minutes} min</small>
+                          <small>
+                            {item.done ? "Realizada" : itemLabel ? "Pendiente" : "Requiere acceso"}
+                            {" · "}{item.minutes} min
+                            {runner.reviews[key] === "repeat"
+                              ? " · Necesito repasar"
+                              : runner.reviews[key] === "reinforce"
+                                ? " · Quiero reforzar"
+                                : runner.reviews[key] === "confident"
+                                  ? " · Lo tengo claro"
+                                  : ""}
+                          </small>
                         </button>
                       </li>
                     );
