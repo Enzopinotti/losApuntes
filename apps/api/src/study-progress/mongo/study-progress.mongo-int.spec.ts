@@ -529,6 +529,10 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     } as unknown as AccountExportService;
     const processor = new AccountExportProcessor(
       workerService, assembler, store, artifacts,
+      {
+        enqueue: jest.fn(), claimNext: jest.fn().mockResolvedValue(null),
+        acknowledge: jest.fn(), retry: jest.fn(),
+      } as unknown as AccountExportOrphanCleanupStore,
     );
     await expect(processor.runIteration()).resolves.toMatchObject({
       claimed: 1, completed: 1, stale: 0, retryScheduled: 0,
@@ -601,6 +605,10 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     } as unknown as AccountExportAssembler;
     const processor = new AccountExportProcessor(
       workerService, assembler, store, artifacts,
+      {
+        enqueue: jest.fn(), claimNext: jest.fn().mockResolvedValue(null),
+        acknowledge: jest.fn(), retry: jest.fn(),
+      } as unknown as AccountExportOrphanCleanupStore,
     );
     await expect(processor.runIteration()).resolves.toMatchObject({
       claimed: 1, retryScheduled: 1, completed: 0,
