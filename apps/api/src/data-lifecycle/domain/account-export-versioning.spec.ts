@@ -75,6 +75,8 @@ function fixture(registry: AccountExportContributorRegistry) {
         provider.readPage({ userId, cursor, limit: 100 }),
     ),
     assertActiveAccount: jest.fn().mockResolvedValue(undefined),
+    captureStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
+    assertStudyProgressExportEpoch: jest.fn().mockResolvedValue(undefined),
   };
   const assembler = new AccountExportAssembler(
     registry,
