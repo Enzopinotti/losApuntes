@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { type Model } from 'mongoose';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { type Connection, type Model } from 'mongoose';
+
+import { User } from '../../users/schemas/user.schema';
 
 import {
   STUDY_COLLECTION_MAX_ITEMS,
@@ -14,8 +16,17 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
   constructor(
     @InjectModel(StudyCollection.name)
     private readonly collections: Model<StudyCollection>,
+    @InjectConnection()
+    private readonly connection: Connection,
+    @InjectModel(User.name)
+    private readonly users: Model<User>,
   ) {}
 
+  /**
+   * Serialize first creation with account closure through a write on the
+   * user's lifecycle revision. Both transactions contend on the same User.
+   * A request that loses this race cannot recreate private collections.
+   */
   async create(
     input: Parameters<StudyCollectionStore['create']>[0],
   ): Promise<StudyCollectionRecord> {
@@ -23,23 +34,48 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
       ownerUserId: input.ownerUserId,
       operationKey: input.operationKey,
     };
+    const session = await this.connection.startSession();
     try {
-      const row = await this.collections
-        .findOneAndUpdate(
-          filter,
-          {
-            $setOnInsert: {
-              ...input,
-              resourceIds: [],
-              revision: 1,
+      let output: StudyCollectionRecord | null = null;
+      await session.withTransaction(async () => {
+        const activeUser = await this.users
+          .findOneAndUpdate(
+            {
+              _id: input.ownerUserId,
+              $or: [
+                { account_status: 'active' },
+                { account_status: { $exists: false } },
+              ],
             },
-          },
-          { upsert: true, new: true },
-        )
-        .lean<StudyCollectionRecord>()
-        .exec();
-      if (!row) throw new Error('Study collection upsert returned no row');
-      return row;
+            { $inc: { account_lifecycle_revision: 1 } },
+            { new: false, session },
+          )
+          .lean()
+          .exec();
+        if (!activeUser) {
+          throw new ForbiddenException({
+            code: 'STUDY_COLLECTION_ACCOUNT_INACTIVE',
+            message: 'Cannot create collections for a closed account',
+          });
+        }
+        output = await this.collections
+          .findOneAndUpdate(
+            filter,
+            {
+              $setOnInsert: {
+                ...input,
+                resourceIds: [],
+                revision: 1,
+              },
+            },
+            { upsert: true, new: true, session },
+          )
+          .lean<StudyCollectionRecord>()
+          .exec();
+        if (!output) throw new Error('Study collection upsert returned no row');
+      });
+      if (!output) throw new Error('Study collection create transaction did not commit');
+      return output;
     } catch (error) {
       if (
         typeof error !== 'object' ||
@@ -55,6 +91,8 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
         .exec();
       if (!existing) throw error;
       return existing;
+    } finally {
+      await session.endSession();
     }
   }
 
