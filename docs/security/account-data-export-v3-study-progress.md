@@ -60,6 +60,8 @@ No contiene `ownerUserId`, `_id`, credenciales, títulos de terceros, URLs de ar
 
 `StudyProgressExportReader` es un módulo exclusivamente de lectura; no habilita el controlador CRUD de B61. Usa el índice compuesto único ya existente `{ownerUserId:1,subjectId:1}`, orden `subjectId ASC` y cursor opaco v1 con `ownerUserId` y `afterSubjectId`. Se verifica codificación base64url canónica, tamaño y estructura exacta del cursor, identidad del propietario y límite de página de 1 a 100. No se amplían referencias ni se materializa contenido de terceros. La API usa páginas de 100, por lo que el límite de 16 materias de B61 cabe en una página en condiciones habituales.
 
+La corrección transversal del B62 permite a `S3AccountExportArtifactStorage.commit` aceptar v1, v2 y v3 sin perder validación de SHA-256, longitud ni **sección esperada para esa versión**. Antes la escritura estaba restringida literalmente a v1, lo que también bloqueaba v2. El smoke de exportación usa los conteos 30/31/32 en función de la versión efectiva.
+
 Un registro persistido con plan inválido, revisión malformada, fecha inválida o un fallo de Mongo debe **abortar todo el armado**; no se transforma en un resultado vacío. El ensamblador conserva `abort`, control del dueño activo, verificación de claim, SHA-256 y longitud de descarga de los formatos anteriores. El archivo expira conforme a la política ya existente de siete días.
 
 ## Cierre de cuenta y retención
