@@ -106,6 +106,7 @@ export class AccountExportProcessor {
     const sink = this.artifacts.createSink(job.id, claimId);
     let leaseLost = false;
     let artifactCommitted = false;
+    let durableCompletionAttempted = false;
     // The assembler checks its own epoch before S3 commit. This separate
     // owner snapshot also fences the S3-completed -> durable-complete gap.
     let progressEpoch: number | null = null;
