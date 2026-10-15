@@ -81,6 +81,7 @@ describe('AccountExportController', () => {
     const content = Buffer.from('{"portable":true}', 'utf8');
     f.exports.download.mockResolvedValueOnce({
       kind: 'available',
+      formatVersion: 1,
       generation: '123e4567-e89b-42d3-a456-426614174001',
       byteLength: content.byteLength,
       sha256: digest(content),
@@ -138,6 +139,7 @@ describe('AccountExportController', () => {
     const f = fixture();
     f.exports.download.mockResolvedValueOnce({
       kind: 'available',
+      formatVersion: 1,
       generation: '123e4567-e89b-42d3-a456-426614174001',
       byteLength: 64,
       sha256: 'a'.repeat(64),
@@ -190,6 +192,7 @@ describe('AccountExportController', () => {
     const f = fixture();
     f.exports.download.mockResolvedValueOnce({
       kind: 'available',
+      formatVersion: 1,
       generation: '123e4567-e89b-42d3-a456-426614174001',
       byteLength: 1,
       sha256: digest('x'),
@@ -241,4 +244,51 @@ describe('AccountExportController', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
   });
+  it('names an owner-authorized v2 artifact as v2, not legacy v1', async () => {
+    const f = fixture();
+    const content = Buffer.from('{"format":"los-apuntes-account-export","version":2}', 'utf8');
+    f.exports.download.mockResolvedValueOnce({
+      kind: 'available',
+      formatVersion: 2,
+      generation: '123e4567-e89b-42d3-a456-426614174001',
+      byteLength: content.byteLength,
+      sha256: digest(content),
+    });
+    f.artifacts.readObjectChunks.mockReturnValueOnce(
+      (async function* () { yield content; })(),
+    );
+    const raw = Object.assign(new EventEmitter(), { writableFinished: true });
+    const reply = {
+      raw,
+      header: jest.fn<unknown,[name:string,value:string|number]>().mockReturnThis(),
+      send: jest.fn<unknown,[payload:unknown]>().mockReturnThis(),
+    };
+    await f.controller.download(f.request, exportId, reply as never);
+    expect(reply.header).toHaveBeenCalledWith(
+      'content-disposition',
+      'attachment; filename="los-apuntes-account-export-v2.json"',
+    );
+    expect(reply.header).toHaveBeenCalledWith('cache-control', 'private, no-store');
+    raw.emit('finish');
+  });
+
+  it('refuses malformed artifact versions before reading private storage', async () => {
+    const f = fixture();
+    f.exports.download.mockResolvedValueOnce({
+      kind: 'available',
+      formatVersion: 99,
+      generation: '123e4567-e89b-42d3-a456-426614174001',
+      byteLength: 512,
+      sha256: 'a'.repeat(64),
+    });
+    const reply = {
+      header: jest.fn<unknown,[name:string,value:string|number]>().mockReturnThis(),
+      send: jest.fn<unknown,[payload:unknown]>().mockReturnThis(),
+    };
+    await expect(
+      f.controller.download(f.request, exportId, reply as never),
+    ).rejects.toThrow();
+    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+  });
+
 });
