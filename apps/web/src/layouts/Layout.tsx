@@ -32,7 +32,10 @@ const memberMoreNavigation: NavigationDestination[] = [
   { to: "/organizations", label: "Organizaciones" },
   { to: "/academic/lifecycle", label: "Mi trayectoria" },
   ...(PERSISTENT_COLLECTIONS_VISIBLE
-    ? [{ to: "/study-collections", label: "Colecciones sincronizadas" }]
+    ? [
+        { to: "/study-collections", label: "Colecciones sincronizadas" },
+        { to: "/study-collections/recovery", label: "Revisar mis Colecciones" },
+      ]
     : []),
   { to: "/profile", label: "Mi perfil" },
   { to: "/dashboard", label: "Panel" },
