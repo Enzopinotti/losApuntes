@@ -59,30 +59,23 @@ verify("v3 completion, status and download metadata are validated", () => {
   assert.match(controller, /\[1, 2, 3\]\.includes\(artifact\.formatVersion\)/u);
   assert.match(controller, /verifyAccountExportDownload\(/u);
 });
-verify("all owner reads use immutable indexed and bounded cursor", () => {
+verify("owner reads use indexed immutable pagination", () => {
   assert.match(reader, /\.find\(\{\s*ownerUserId,/u);
   assert.match(reader, /subjectId: \{ \$gt: afterSubjectId \}/u);
   assert.match(reader, /\.sort\(\{ subjectId: 1 \}\)/u);
   assert.match(reader, /\.limit\(input\.limit \+ 1\)/u);
   assert.match(schema, /ownerUserId: 1, subjectId: 1.*unique: true/u);
-  assert.match(reader, /row\.ownerUserId/u) === false;
 });
-verify("bounded rows and owner-bound replay-safe cursor", () => {
+verify("owner cursor is bounded, canonical and isolated across accounts", () => {
   assert.match(reader, /STUDY_PROGRESS_EXPORT_PAGE_LIMIT = 100/u);
-  assert.match(reader, /row\.ownerUserId !== ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
+  assert.match(reader, /row\.ownerUserId !== ownerUserId/u);
+  assert.match(reader, /buffer\.toString\('base64url'\) !== cursor/u);
+  assert.match(reader, /Object\.keys\(row\)\.sort\(\)\.join\(','\)/u);
 });
-verify("owner cursor and projection reject malformed private records", () => {
-  assert.match(reader, /row\.ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
-  assert.match(reader, /row\.ownerUserId/u) === false;
+verify("database projections are allowlisted and validated", () => {
+  assert.match(reader, /_id: 0, subjectId: 1, plan: 1, revision: 1/u);
   assert.match(reader, /parseStudyProgressPlan\(row\.plan, row\.subjectId\)/u);
-  assert.match(reader, /ownerUserId !== ownerUserId/u) === false;
+  assert.doesNotMatch(reader, /operationKey|accessToken|signedUrl/u);
 });
 verify("new contributor uses reader and emits bounded allowlist", () => {
   assert.match(contributor, /sectionId = 'study\.progress'/u);
