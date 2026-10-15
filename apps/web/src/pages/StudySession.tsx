@@ -873,6 +873,24 @@ export default function StudySession() {
             <h2 id="study-session-export-title">3. Guardá o retomá tu plan</h2>
             <p>Esta sesión vive únicamente en memoria. Exportá JSON para retomarla en otro dispositivo, Markdown para estudiar sin conexión o un evento .ics para tu calendario. El archivo JSON no incluye títulos ajenos: al importarlo se revalidan todas las referencias.</p>
             <div className="study-session-export-actions">
+              <button
+                type="button"
+                disabled={isBusy || overBudget || activeTasks.length === 0}
+                onClick={() => {
+                  if (!subjectId || !plan) return;
+                  try {
+                    const portable = normalizeStudySession(plan);
+                    if (!rememberStudyDraft(scope, portable)) {
+                      throw new Error("STUDY_SESSION_DRAFT_UNAVAILABLE");
+                    }
+                    navigate("/study/run?subjectId=" + encodeURIComponent(subjectId));
+                  } catch (error) {
+                    setFeedback({ scope, error: true, text: apiError(error) });
+                  }
+                }}
+              >
+                Realizar esta sesión
+              </button>
               <button type="button" disabled={isBusy || overBudget} onClick={() => void exportFile("json")}>Exportar plan JSON</button>
               <button type="button" disabled={isBusy || overBudget || activeTasks.length === 0} onClick={() => void exportFile("markdown")}>Exportar lista Markdown</button>
               <button type="button" disabled={isBusy || overBudget || activeTasks.length === 0 || !plan.startsAt} onClick={() => void exportFile("calendar")}>Agregar a calendario (.ics)</button>
