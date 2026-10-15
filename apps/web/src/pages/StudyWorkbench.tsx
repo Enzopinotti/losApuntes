@@ -28,6 +28,7 @@ import {
   studySubjectHref,
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
+import { practiceQuestionHref } from "../features/study/study-practice-question-link.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import "./StudyWorkbench.scss";
@@ -583,6 +584,14 @@ export default function StudyWorkbench() {
                       </Link>
                       <small>{item.answerCount} respuestas · {item.author?.displayName ?? "Estudiante"}</small>
                       <span className="study-workbench-open">Abierta</span>
+                      {practiceQuestionHref(selectedSubject.id, item.id) && (
+                        <Link
+                          to={practiceQuestionHref(selectedSubject.id, item.id)!}
+                          className="study-workbench-secondary"
+                        >
+                          Practicar esta pregunta
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>
