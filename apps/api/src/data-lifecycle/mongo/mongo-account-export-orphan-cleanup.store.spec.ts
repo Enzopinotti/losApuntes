@@ -82,6 +82,29 @@ describe('B67 durable account export orphan cleanup', () => {
     );
   });
 
+  it('B68 renews only its own active claim using a monotonic max lease', async () => {
+    const f = fixture();
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
+    const expires = new Date(now.getTime() + 180_000);
+    await expect(f.store.renewLease({
+      jobId, generation, claimId, now, leaseExpiresAt: expires,
+    })).resolves.toBe(true);
+    expect(f.model.updateOne).toHaveBeenLastCalledWith({
+      jobId, generation, state: 'processing', claimId,
+      leaseExpiresAt: { $gt: now },
+    }, { $max: { leaseExpiresAt: expires } });
+  });
+
+  it('B68 refuses to renew a stolen or expired cleanup claim', async () => {
+    const f = fixture();
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
+    f.retry.exec.mockResolvedValueOnce({ matchedCount: 0, modifiedCount: 0 });
+    await expect(f.store.renewLease({
+      jobId, generation, claimId: 'stolen-claim', now,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).resolves.toBe(false);
+  });
+
   it('acknowledges deletion using exact generation, claim and unexpired lease', async () => {
     const f = fixture();
     await expect(f.store.acknowledge({ jobId, generation, claimId, now }))
