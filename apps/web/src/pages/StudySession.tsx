@@ -475,8 +475,8 @@ export default function StudySession() {
         text: missing > 0
           ? `Se incorporaron ${candidate.added} actividades, pero hay ${missing} referencias sin acceso vigente. Podés quitarlas.`
           : candidate.added === 0
-            ? "Las preguntas ya estaban en el plan. Se actualizaron los permisos."
-            : `Se incorporaron ${candidate.added} preguntas verificadas. Podés continuar planificando.`,
+            ? "Las actividades ya estaban en el plan. Se actualizaron los permisos."
+            : `Se incorporaron ${candidate.added} actividades verificadas. Podés continuar planificando.`,
       });
     } catch (error) {
       if (actionCurrent(ticket)) {
@@ -652,11 +652,11 @@ export default function StudySession() {
               className="study-session-panel study-session-handoff"
               aria-labelledby="study-session-handoff-title"
             >
-              <h2 id="study-session-handoff-title">Continuar desde Práctica</h2>
+              <h2 id="study-session-handoff-title">Continuar desde otra herramienta de estudio</h2>
               {incomingHandoff ? (
                 <>
                   <p>
-                    Hay {incomingHandoff.tasks.length} preguntas de repaso listas
+                    Hay {incomingHandoff.tasks.length} actividades de repaso listas
                     para incorporar a esta materia. Antes de mostrarlas, el
                     servidor volverá a verificar sus permisos.
                   </p>
@@ -666,7 +666,7 @@ export default function StudySession() {
                       disabled={isBusy}
                       onClick={() => void applyDirectHandoff("append")}
                     >
-                      Sumar preguntas sin perder mi plan
+                      Sumar actividades sin perder mi plan
                     </button>
                     <button
                       type="button"
@@ -685,14 +685,14 @@ export default function StudySession() {
                   </div>
                   <p className="study-session-info">
                     Al sumar, se conservan tus notas, tiempos y actividades
-                    revisadas. Las preguntas repetidas no se agregan dos veces.
+                    revisadas. Las referencias repetidas no se agregan dos veces.
                   </p>
                 </>
               ) : (
                 <>
                   <p className="study-session-info" role="status">
                     Este pase directo ya venció o pertenece a otra sesión.
-                    Podés volver a Práctica o importar el JSON descargado.
+                    Podés volver a la herramienta anterior o importar el JSON descargado.
                   </p>
                   <button type="button" onClick={dismissDirectHandoff}>
                     Cerrar aviso
