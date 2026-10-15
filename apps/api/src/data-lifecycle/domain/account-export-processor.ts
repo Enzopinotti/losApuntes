@@ -196,14 +196,19 @@ export class AccountExportProcessor {
       clearInterval(heartbeat);
       await Promise.resolve(heartbeatInFlight);
       try {
-        if (artifactCommitted) {
-          // sink.abort() is ineffective after completed multipart upload.
-          // Never let a rejected epoch leave a published generation
-          // referenced by a completed job; delete only this claim's object.
-          await this.artifacts.deleteArtifact(job.id, claimId);
-        } else {
+        if (!artifactCommitted) {
           await sink.abort();
+        } else if (!durableCompletionAttempted ||
+          error instanceof AccountExportEpochConflictError) {
+          // A known rejected epoch cannot have a durable completion. Delete
+          // only this attempt's generation; never delete a shared object.
+          await this.artifacts.deleteArtifact(job.id, claimId);
         }
+        // An error after attempting the Mongo completion is ambiguous:
+        // the transaction may have committed before the reply was lost.
+        // Do NOT delete its possibly referenced S3 object. The lease/CAS
+        // prevents false job completion; private bucket retention is the
+        // backstop for any unreferenced generation.
       } catch {
         // Orphan cleanup has a bucket-lifecycle backstop. Do not mask the
         // original consistency/lease failure or manufacture a completed job.
