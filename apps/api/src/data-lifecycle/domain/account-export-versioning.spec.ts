@@ -3,6 +3,7 @@ import { AccountExportAssembler } from './account-export-assembler';
 import {
   ACCOUNT_EXPORT_V1_SECTION_IDS,
   ACCOUNT_EXPORT_V2_SECTION_IDS,
+  ACCOUNT_EXPORT_V3_SECTION_IDS,
   AccountExportContributorRegistry,
   accountExportSectionIds,
   assertAccountExportSections,
@@ -74,6 +75,8 @@ function fixture(registry: AccountExportContributorRegistry) {
         provider.readPage({ userId, cursor, limit: 100 }),
     ),
     assertActiveAccount: jest.fn().mockResolvedValue(undefined),
+    captureStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
+    assertStudyProgressExportEpoch: jest.fn().mockResolvedValue(undefined),
   };
   const assembler = new AccountExportAssembler(
     registry,
@@ -93,13 +96,17 @@ describe('Account export v2 compatibility — B45', () => {
     )).toEqual([SECTION]);
     expect(accountExportSectionIds(1)).toEqual(ACCOUNT_EXPORT_V1_SECTION_IDS);
     expect(accountExportSectionIds(2)).toEqual(ACCOUNT_EXPORT_V2_SECTION_IDS);
-    expect(() => accountExportSectionIds(3)).toThrow('Unsupported');
+    expect(accountExportSectionIds(3)).toEqual(ACCOUNT_EXPORT_V3_SECTION_IDS);
+    expect(ACCOUNT_EXPORT_V3_SECTION_IDS).toHaveLength(32);
+    expect(() => accountExportSectionIds(4)).toThrow('Unsupported');
     expect(() => assertAccountExportSections(mounted(false).contributors, 1))
       .not.toThrow();
     expect(() => assertAccountExportSections(mounted(false).contributors, 2))
       .toThrow('inventory is incomplete');
     expect(() => assertAccountExportSections(mounted(true).contributors, 2))
       .not.toThrow();
+    expect(() => assertAccountExportSections(mounted(true).contributors, 3))
+      .toThrow('inventory is incomplete');
     expect(() => assertAccountExportSections([
       ...mounted(true).contributors,
       contributor('unreviewed.private'),
@@ -142,6 +149,117 @@ describe('Account export v2 compatibility — B45', () => {
     expect(commit).toHaveBeenCalledTimes(1);
     expect(service.assertActiveAccount).toHaveBeenCalledWith(OWNER);
     expect(service.readContributorPage).toHaveBeenCalledTimes(31);
+  });
+
+  it('writes the exact 32-section v3 while preserving legacy assembly', async () => {
+    const all = ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+      contributor(sectionId, sectionId === 'study.progress'
+        ? [{
+            subjectId: '11111111-1111-4111-8111-111111111111',
+            plan: {
+              format: 'losapuntes.study-session',
+              version: 1,
+              subjectId: '11111111-1111-4111-8111-111111111111',
+              title: 'Estudio', notes: '', startsAt: null, tasks: [],
+            },
+            revision: 1,
+            createdAt: '2026-10-15T12:00:00.000Z',
+            updatedAt: '2026-10-15T12:00:00.000Z',
+          }]
+        : [],
+      ),
+    );
+    const mountedV3 = new AccountExportContributorRegistry(all);
+    const v3 = fixture(mountedV3);
+    const assembled = await v3.assembler.writeJsonV3(OWNER, v3.sink);
+    const json = JSON.parse(v3.chunks.join('')) as {
+      version: number; sections: Record<string, unknown[]>;
+    };
+    expect(json.version).toBe(3);
+    expect(Object.keys(json.sections)).toEqual(ACCOUNT_EXPORT_V3_SECTION_IDS);
+    expect(json.sections['study.progress']).toHaveLength(1);
+    expect(assembled.sectionCount).toBe(32);
+    expect(assembled.recordCount).toBe(1);
+    expect(v3.commit).toHaveBeenCalledTimes(1);
+
+    for (const [version, expectedIds] of [
+      [1, ACCOUNT_EXPORT_V1_SECTION_IDS],
+      [2, ACCOUNT_EXPORT_V2_SECTION_IDS],
+    ] as const) {
+      const legacy = fixture(mountedV3);
+      if (version === 1) {
+        await legacy.assembler.writeJsonV1(OWNER, legacy.sink);
+      } else {
+        await legacy.assembler.writeJsonV2(OWNER, legacy.sink);
+      }
+      const payload = JSON.parse(legacy.chunks.join('')) as {
+        version: number; sections: Record<string, unknown[]>;
+      };
+      expect(payload.version).toBe(version);
+      expect(Object.keys(payload.sections)).toEqual(expectedIds);
+      expect(payload.sections).not.toHaveProperty('study.progress');
+    }
+  });
+
+  it('B64: aborts v3 if owner progress changes while streaming', async () => {
+    const all = ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+      contributor(sectionId),
+    );
+    const f = fixture(new AccountExportContributorRegistry(all));
+    f.service.captureStudyProgressExportEpoch.mockResolvedValue(7);
+    f.service.assertStudyProgressExportEpoch.mockRejectedValue(
+      new Error('Study progress changed during account export'),
+    );
+    await expect(f.assembler.writeJsonV3(OWNER, f.sink))
+      .rejects.toThrow('Study progress changed during account export');
+    expect(f.service.captureStudyProgressExportEpoch)
+      .toHaveBeenCalledWith(OWNER);
+    expect(f.service.assertStudyProgressExportEpoch)
+      .toHaveBeenCalledWith(OWNER, 7);
+    expect(f.commit).not.toHaveBeenCalled();
+    expect(f.abort).toHaveBeenCalledTimes(1);
+  });
+
+  it('B64: exports a stable v3 revision and checks before artifact commit', async () => {
+    const all = ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+      contributor(sectionId),
+    );
+    const f = fixture(new AccountExportContributorRegistry(all));
+    const order: string[] = [];
+    f.service.captureStudyProgressExportEpoch.mockResolvedValue(9);
+    f.service.assertStudyProgressExportEpoch.mockImplementation(async (
+      userId: string, expected: number,
+    ) => {
+      expect(userId).toBe(OWNER);
+      expect(expected).toBe(9);
+      order.push('recheck');
+    });
+    f.sink.commit = jest.fn().mockImplementation(async () => {
+      order.push('commit');
+    });
+    await f.assembler.writeJsonV3(OWNER, f.sink);
+    expect(order).toEqual(['recheck', 'commit']);
+  });
+
+  it('B64: never probes new private epochs for legacy v1/v2 jobs', async () => {
+    const all = ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+      contributor(sectionId),
+    );
+    for (const version of [1, 2] as const) {
+      const f = fixture(new AccountExportContributorRegistry(all));
+      if (version === 1) await f.assembler.writeJsonV1(OWNER, f.sink);
+      else await f.assembler.writeJsonV2(OWNER, f.sink);
+      expect(f.service.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
+      expect(f.service.assertStudyProgressExportEpoch).not.toHaveBeenCalled();
+      expect(f.commit).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('rejects v3 without study progress contributor before committing', async () => {
+    const old = fixture(mounted(true).registry);
+    await expect(old.assembler.writeJsonV3(OWNER, old.sink))
+      .rejects.toThrow('Unknown account export section: study.progress');
+    expect(old.commit).not.toHaveBeenCalled();
   });
 
   it('does not publish v2 when its contributor is missing or the inventory is altered', async () => {

@@ -49,7 +49,7 @@
     "resilience:compose-env": "node scripts/resilience/render-compose-env.mjs",
     "test:resilience-contract": "node --test scripts/resilience/resilience-lib.test.mjs && node scripts/test-production-resilience-contract.mjs && pnpm security:audit-exceptions && node --test scripts/security/check-api-runtime-dependency-boundary.test.mjs",
     "security:audit-exceptions": "node scripts/security/check-audit-exceptions.mjs",
-    "test:account-lifecycle-contract": "node scripts/test-account-lifecycle-contract.mjs",
+    "test:account-lifecycle-contract": "node scripts/test-account-lifecycle-contract.mjs && node scripts/test-account-export-b63-consistency.mjs && node scripts/test-account-export-b64-epoch-fence.mjs && node scripts/test-account-export-b65-atomic-completion.mjs && node scripts/test-account-export-b66-reconciliation.mjs",
     "test:web-observability-contract": "node scripts/test-web-observability-contract.mjs",
     "test:release-qualification-contract": "node --experimental-strip-types scripts/test-release-qualification-contract.mjs",
     "release:qualify-live": "node scripts/release/qualify-live.mjs",

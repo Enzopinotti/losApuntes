@@ -20,6 +20,7 @@ import { QaModule } from './qa/qa.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
 import { StudyCollectionsModule } from './study-collections/study-collections.module';
+import { StudyProgressModule } from './study-progress/study-progress.module';
 import { SocialModule } from './social/social.module';
 import { UsersModule } from './users/users.module';
 
@@ -45,6 +46,7 @@ import { UsersModule } from './users/users.module';
     ResourcesModule,
     SearchDiscoveryModule,
     StudyCollectionsModule,
+    StudyProgressModule,
     FeedsModule,
     NotificationsModule,
     OrganizationsModule,

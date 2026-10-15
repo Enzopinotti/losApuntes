@@ -44,6 +44,14 @@ export class AccountExportAssembler {
     return this.writeJsonForVersion(2, userId, sink, canContinue);
   }
 
+  async writeJsonV3(
+    userId: string,
+    sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
+  ): Promise<AccountExportAssemblyResult> {
+    return this.writeJsonForVersion(3, userId, sink, canContinue);
+  }
+
   private async writeJsonForVersion(
     version: AccountExportFormatVersion,
     userId: string,
@@ -52,10 +60,10 @@ export class AccountExportAssembler {
   ): Promise<AccountExportAssemblyResult> {
     const expected = accountExportSectionIds(version);
     const contributors = expected.map((id) => this.registry.require(id));
-    // V2 is fail-closed against every mounted contributor. For old V1 jobs,
-    // select the legacy thirty even after a future v2 deployment.
+    // Legacy jobs select precisely their own versioned manifest even after
+    // v3 deployment. The real Nest module enforces the complete v3 inventory.
     assertAccountExportSections(
-      version === 2 ? this.registry.list() : contributors,
+      version === 3 ? this.registry.list() : contributors,
       version,
     );
     let recordCount = 0;
@@ -83,6 +91,12 @@ export class AccountExportAssembler {
     };
 
     try {
+      // Only v3 contains private Study Progress. The lifecycle epoch is
+      // incremented transactionally by every supported progress mutation.
+      // A v3 artifact assembled across different epochs must never publish.
+      const studyProgressEpoch = version === 3
+        ? await this.exports.captureStudyProgressExportEpoch(userId)
+        : null;
       await writeChunk(
         `{"format":${JSON.stringify(ACCOUNT_EXPORT_FORMAT)},"version":${version},"sections":{`,
       );
@@ -163,6 +177,12 @@ export class AccountExportAssembler {
         sha256: sha256.digest('hex'),
       };
       await this.exports.assertActiveAccount(userId);
+      await assertClaim();
+      if (studyProgressEpoch !== null) {
+        await this.exports.assertStudyProgressExportEpoch(
+          userId, studyProgressEpoch,
+        );
+      }
       await assertClaim();
       await sink.commit(result);
       return result;

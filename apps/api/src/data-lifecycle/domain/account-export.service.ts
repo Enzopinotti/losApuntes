@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 import { UsersService } from '../../users/users.service';
 import { StudyCollectionExportReader } from '../../study-collections/mongo/study-collection-export.reader';
+import { StudyProgressExportReader } from '../../study-progress/mongo/study-progress-export.reader';
 import { accountExportSectionIds } from './account-export-contributor.registry';
 import {
   ACCOUNT_EXPORT_STORE,
@@ -39,7 +40,7 @@ export type AccountExportDownload =
   | { kind: 'expired' }
   | {
       kind: 'available';
-      formatVersion: 1 | 2;
+      formatVersion: 1 | 2 | 3;
       generation: string;
       byteLength: number;
       sha256: string;
@@ -82,6 +83,7 @@ export class AccountExportService {
     private readonly users: UsersService,
     @Optional() private readonly config?: ConfigService,
     @Optional() private readonly collections?: StudyCollectionExportReader,
+    @Optional() private readonly progress?: StudyProgressExportReader,
   ) {}
 
   async request(
@@ -98,15 +100,19 @@ export class AccountExportService {
       now,
     });
 
-    // A v1 job can remain active after rollout or rollback. If the
-    // requested version needs private collections, never replay that v1 job.
-    if (
-      requestedFormatVersion === 2 &&
-      result.job.formatVersion !== 2
-    ) {
+    // The owner can save private data between the first existence probe
+    // and the durable requestActive upsert. Recheck AFTER the Mongo write:
+    // never acknowledge a v1/v2 job as complete when v3 is already required.
+    // The version on any persisted job remains immutable; a mismatched job
+    // returns the stable legacy-job conflict until that job finishes.
+    const currentRequiredVersion = await this.requiredExportVersion(userId);
+    if (![1, 2, 3].includes(result.job.formatVersion)) {
+      throw new Error('Account export active job has unsupported format version');
+    }
+    if (currentRequiredVersion > result.job.formatVersion) {
       throw new ConflictException({
         code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
-        message: 'A previous export is still processing. Retry after it completes.',
+        message: 'The active export cannot include new private data. Retry after it completes.',
       });
     }
     return {
@@ -123,19 +129,45 @@ export class AccountExportService {
    * Old unit fixtures may omit all Nest dependencies. In an actual Nest
    * runtime with ConfigService present, missing reader wiring fails closed.
    */
-  private async requiredExportVersion(userId: string): Promise<1 | 2> {
+  private async requiredExportVersion(userId: string): Promise<1 | 2 | 3> {
+    // Read-only probes continue after feature rollback. Persisted private
+    // data must never disappear from a newly requested account export.
+    if (this.config && (!this.collections || !this.progress)) {
+      throw new Error('Private account export readers are not fully wired');
+    }
+    if (this.config?.get<boolean>('STUDY_PROGRESS_ENABLED') === true) {
+      return 3;
+    }
+    if (this.progress && await this.progress.hasOwnedProgress(userId)) {
+      return 3;
+    }
     if (this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true) {
       return 2;
     }
-    if (!this.collections) {
-      if (this.config) {
-        throw new Error('Study collections export reader is not wired');
-      }
-      return ACCOUNT_EXPORT_FORMAT_VERSION;
+    return this.collections && await this.collections.hasOwnedCollections(userId)
+      ? 2 : ACCOUNT_EXPORT_FORMAT_VERSION;
+  }
+
+  /**
+   * Progress mutations share the account_lifecycle_revision write fence.
+   * A v3 export starts and ends on the same owner epoch or aborts before
+   * publishing. A changed epoch is retryable; it is never a valid snapshot.
+   */
+  async captureStudyProgressExportEpoch(userId: string): Promise<number> {
+    return this.users.getStudyProgressExportEpoch(userId);
+  }
+
+  async assertStudyProgressExportEpoch(
+    userId: string,
+    expectedEpoch: number,
+  ): Promise<void> {
+    if (!Number.isSafeInteger(expectedEpoch) || expectedEpoch < 0) {
+      throw new Error('Study progress export epoch is invalid');
     }
-    return (await this.collections.hasOwnedCollections(userId))
-      ? 2
-      : ACCOUNT_EXPORT_FORMAT_VERSION;
+    const actual = await this.users.getStudyProgressExportEpoch(userId);
+    if (actual !== expectedEpoch) {
+      throw new Error('Study progress changed during account export');
+    }
   }
 
   async status(
@@ -178,7 +210,7 @@ export class AccountExportService {
 
     return {
       kind: 'available',
-      formatVersion: job.formatVersion as 1 | 2,
+      formatVersion: job.formatVersion as 1 | 2 | 3,
       generation: job.artifactGeneration,
       byteLength: job.artifactByteLength,
       sha256: job.artifactSha256,
@@ -235,6 +267,8 @@ export class AccountExportService {
     id: string;
     claimId: string;
     result: AccountExportAssemblyResult;
+    ownerUserId?: string;
+    expectedProgressEpoch?: number;
   }): Promise<boolean> {
     if (
       typeof input.id !== 'string' ||
@@ -249,6 +283,12 @@ export class AccountExportService {
 
     const completedAt = new Date();
     assertCompletionResult(input.result, completedAt);
+    if (input.result.formatVersion === 3 &&
+      (typeof input.ownerUserId !== 'string' || !input.ownerUserId.trim() ||
+        !Number.isSafeInteger(input.expectedProgressEpoch) ||
+        (input.expectedProgressEpoch as number) < 0)) {
+      throw new Error('Account export v3 completion requires owner epoch authority');
+    }
     return this.store.complete({
       ...input,
       artifactGeneration: input.claimId,

@@ -167,6 +167,35 @@ export class UsersService {
     };
   }
 
+  /**
+   * Monotonic owner write epoch used to reject mixed Study Progress exports.
+   * Every StudyProgressService.save/remove and account closure increments this
+   * number inside its Mongo transaction. It is NOT a permissions grant.
+   */
+  async getStudyProgressExportEpoch(userId: string): Promise<number> {
+    if (typeof userId !== 'string' || !userId.trim()) {
+      throw new Error('Study progress export owner is required');
+    }
+    const row = await this.userModel
+      .findOne({
+        _id: userId,
+        $or: [
+          { account_status: 'active' },
+          { account_status: { $exists: false } },
+        ],
+      })
+      .select('+account_lifecycle_revision')
+      .lean<{ account_lifecycle_revision?: unknown }>()
+      .exec();
+    if (!row) throw new Error('Study progress export owner is not active');
+    // Legacy records may predate the field. New records default to zero.
+    const epoch = row.account_lifecycle_revision ?? 0;
+    if (!Number.isSafeInteger(epoch) || (epoch as number) < 0) {
+      throw new Error('Study progress export owner epoch is invalid');
+    }
+    return epoch as number;
+  }
+
   async hasPlatformPermission(
     userId: string,
     permission: string,

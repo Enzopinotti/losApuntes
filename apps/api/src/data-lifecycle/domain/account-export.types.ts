@@ -1,10 +1,10 @@
 export const ACCOUNT_EXPORT_FORMAT = 'los-apuntes-account-export' as const;
 /**
- * Keep v1 as the current new-job version until the v2 private collections
- * contributor is deployed. Existing durable jobs always retain their version.
+ * Default to v1 only when no private data requires a newer format.
+ * A persisted export job always retains its original version.
  */
 export const ACCOUNT_EXPORT_FORMAT_VERSION = 1;
-export type AccountExportFormatVersion = 1 | 2;
+export type AccountExportFormatVersion = 1 | 2 | 3;
 export const ACCOUNT_EXPORT_PAGE_LIMIT = 100;
 export const ACCOUNT_EXPORT_LEASE_DURATION_MS = 2 * 60 * 1000;
 export const ACCOUNT_EXPORT_ARTIFACT_TTL_MS = 7 * 24 * 60 * 60 * 1000;

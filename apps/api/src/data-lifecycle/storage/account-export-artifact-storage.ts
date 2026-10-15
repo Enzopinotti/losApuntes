@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type { AccountExportArtifactSink } from '../domain/account-export-assembler';
 import type { AccountExportAssemblyResult } from '../domain/account-export.types';
+import { accountExportSectionIds } from '../domain/account-export-contributor.registry';
 import type { S3ObjectStorage } from '../../files/storage/s3-object-storage';
 
 export type AccountExportArtifactObjectStorage = Pick<
@@ -65,7 +66,8 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
           result.byteLength !== byteLength ||
           result.sha256 !== actualDigest ||
           result.format !== 'los-apuntes-account-export' ||
-          result.formatVersion !== 1
+          ![1, 2, 3].includes(result.formatVersion) ||
+          result.sectionCount !== accountExportSectionIds(result.formatVersion).length
         ) {
           throw new Error('Account export artifact integrity check failed');
         }

@@ -18,7 +18,9 @@ import { QaModule } from '../qa/qa.module';
 import { ResourcesModule } from '../resources/resources.module';
 import { SocialModule } from '../social/social.module';
 import { StudyCollectionsExportReadModule } from '../study-collections/mongo/study-collections-export-read.module';
+import { StudyProgressExportReadModule } from '../study-progress/mongo/study-progress-export-read.module';
 import { StudyCollection, StudyCollectionSchema } from '../study-collections/mongo/study-collection.mongo-schema';
+import { StudyProgress, StudyProgressSchema } from '../study-progress/mongo/study-progress.schema';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -73,6 +75,7 @@ import {
   SocialFollowingExportContributor,
 } from './contributors/account-export-social.contributors';
 import { StudyCollectionsExportContributor } from './contributors/account-export-study-collections.contributor';
+import { StudyProgressExportContributor } from './contributors/account-export-study-progress.contributor';
 import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
@@ -118,6 +121,7 @@ import {
     ResourcesModule,
     SocialModule,
     StudyCollectionsExportReadModule,
+    StudyProgressExportReadModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
@@ -126,6 +130,7 @@ import {
       { name: AccountExportJob.name, schema: AccountExportJobSchema },
       { name: SecurityAudit.name, schema: SecurityAuditSchema },
       { name: StudyCollection.name, schema: StudyCollectionSchema },
+      { name: StudyProgress.name, schema: StudyProgressSchema },
     ]),
   ],
   controllers: [AccountLifecycleController, AccountExportController],
@@ -165,6 +170,7 @@ import {
     SocialConnectionsExportContributor,
     PilotActivityExportContributor,
     StudyCollectionsExportContributor,
+    StudyProgressExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -199,6 +205,7 @@ import {
         socialConnections: SocialConnectionsExportContributor,
         pilotActivity: PilotActivityExportContributor,
         studyCollections: StudyCollectionsExportContributor,
+        studyProgress: StudyProgressExportContributor,
       ) => {
         const contributors = [
           account,
@@ -232,8 +239,9 @@ import {
           socialConnections,
           pilotActivity,
           studyCollections,
+          studyProgress,
         ];
-        assertAccountExportSections(contributors, 2);
+        assertAccountExportSections(contributors, 3);
         return contributors;
       },
       inject: [
@@ -268,6 +276,7 @@ import {
         SocialConnectionsExportContributor,
         PilotActivityExportContributor,
         StudyCollectionsExportContributor,
+        StudyProgressExportContributor,
       ],
     },
     AccountExportContributorRegistry,

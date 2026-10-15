@@ -24,6 +24,7 @@ import {
   StudyCollectionSchema,
 } from './study-collection.mongo-schema';
 import { MongoStudyCollectionStore } from './mongo-study-collection.store';
+import { StudyProgress, StudyProgressSchema } from '../../study-progress/mongo/study-progress.schema';
 import { StudyCollectionExportReader } from './study-collection-export.reader';
 
 /**
@@ -43,6 +44,7 @@ const uniqueDbName = `losapuntes_b50_${randomUUID().replace(/-/gu, '')}`;
 type Models = {
   users: Model<User>;
   collections: Model<StudyCollection>;
+  progress: Model<StudyProgress>;
   profiles: Model<Profile>;
   managers: Model<OrganizationManager>;
   jobs: Model<AccountOffboardingJob>;
@@ -108,6 +110,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     models = {
       users: connection.model(User.name, UserSchema),
       collections: connection.model(StudyCollection.name, StudyCollectionSchema),
+      progress: connection.model(StudyProgress.name, StudyProgressSchema),
       profiles: connection.model(Profile.name, ProfileSchema),
       managers: connection.model(OrganizationManager.name, OrganizationManagerSchema),
       jobs: connection.model(AccountOffboardingJob.name, AccountOffboardingJobSchema),
@@ -126,6 +129,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       models.jobs,
       models.audits,
       models.collections,
+      models.progress,
     );
   }, 30_000);
 
@@ -530,6 +534,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       models.jobs,
       { create: async () => { throw new Error('audit unavailable'); } } as never,
       models.collections,
+      models.progress,
     );
     await expect(faulted.closeAccount({
       userId,

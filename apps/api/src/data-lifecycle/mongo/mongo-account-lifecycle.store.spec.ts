@@ -62,6 +62,8 @@ function fixture(
     deleteMany: jest.fn(() => query({ deletedCount: 2 })),
   };
 
+  const studyProgress = { deleteMany: jest.fn(() => query({ deletedCount: 1 })) };
+
   const store = new MongoAccountLifecycleStore(
     connection as never,
     users as never,
@@ -70,6 +72,7 @@ function fixture(
     jobs as never,
     audits as never,
     studyCollections as never,
+    studyProgress as never,
   );
 
   return {
@@ -81,6 +84,7 @@ function fixture(
     jobs,
     audits,
     studyCollections,
+    studyProgress,
   };
 }
 
@@ -130,6 +134,7 @@ describe('MongoAccountLifecycleStore', () => {
     expect(f.jobs.updateOne).not.toHaveBeenCalled();
     expect(f.audits.create).not.toHaveBeenCalled();
     expect(f.studyCollections.deleteMany).not.toHaveBeenCalled();
+    expect(f.studyProgress.deleteMany).not.toHaveBeenCalled();
   });
 
   it('commits authority shutdown, profile tombstone, durable job and audit together', async () => {
@@ -168,6 +173,9 @@ describe('MongoAccountLifecycleStore', () => {
       { new: true, session: f.activeSession },
     );
     expect(f.studyCollections.deleteMany).toHaveBeenCalledWith(
+      { ownerUserId: userId }, { session: f.activeSession },
+    );
+    expect(f.studyProgress.deleteMany).toHaveBeenCalledWith(
       { ownerUserId: userId }, { session: f.activeSession },
     );
     expect(f.profiles.updateOne).toHaveBeenCalledWith(
