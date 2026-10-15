@@ -119,7 +119,8 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     assembler,
     store,
     artifacts,
-    processor: new AccountExportProcessor(exports, assembler, store, artifacts),
+    orphans,
+    processor: new AccountExportProcessor(exports, assembler, store, artifacts, orphans),
   };
 }
 
