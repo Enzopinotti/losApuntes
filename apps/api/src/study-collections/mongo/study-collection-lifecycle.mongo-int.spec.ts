@@ -306,24 +306,24 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
         perform(userId, row),
         close(userId),
       ]);
+      // A write conflict may reject one concurrent closure; after both
+      // operations settle, retry that closure and REQUIRE a real commit.
+      // The suite must not pass merely because a transaction was rejected.
+      if (closure.status === 'rejected') {
+        expect(closure.reason).toBeTruthy();
+      }
+      const completed = closure.status === 'fulfilled' &&
+        closure.value.status === 'closed'
+        ? closure.value
+        : await close(userId);
+      expect(completed.status).toBe('closed');
+
       const user = await models.users.findById(userId);
       const remaining = await models.collections.countDocuments({
         ownerUserId: userId,
       });
-
-      if (closure.status === 'fulfilled') {
-        expect(closure.value.status).toBe('closed');
-        expect(user?.account_status).toBe('closed');
-        expect(remaining).toBe(0);
-      } else {
-        // MongoDB can legitimately reject the competing closure on a
-        // transient write conflict. That failure MUST remain observable,
-        // and no fixture should claim that the owner is already closed.
-        expect(closure.reason).toBeTruthy();
-        if (user?.account_status === 'closed') {
-          expect(remaining).toBe(0);
-        }
-      }
+      expect(user?.account_status).toBe('closed');
+      expect(remaining).toBe(0);
       if (mutation.status === 'rejected') {
         expect(mutation.reason).toBeTruthy();
       }
