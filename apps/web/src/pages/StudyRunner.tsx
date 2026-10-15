@@ -606,7 +606,38 @@ export default function StudyRunner() {
       "El tiempo y las valoraciones de esta pestaña se perderán. " +
       "Podés exportar primero tu JSON.",
     )) return;
-    await loadPlan(remote.plan);
+    const ticket = beginRemote();
+    if (!remoteCurrent(ticket)) return;
+    setRemoteBusyState(scope);
+    setNoticeState(null);
+    try {
+      // A device may have saved again since the first consultation.
+      // Recheck the exact remote revision before discarding local work.
+      const latest = await studyProgressApi.get(subjectId, ticket.signal);
+      if (!remoteCurrent(ticket)) return;
+      if (latest.revision !== remote.revision) {
+        setRemoteSnapshot({
+          scope, plan: latest.plan, revision: latest.revision,
+          updatedAt: latest.updatedAt,
+        });
+        setNoticeState({
+          scope, error: true,
+          text: "El guardado cambió en otro dispositivo. Revisá su nueva fecha y volvé a confirmar la recuperación.",
+        });
+        return;
+      }
+      await loadPlan(latest.plan);
+    } catch (error) {
+      if (remoteCurrent(ticket)) {
+        if (isStudyProgressApiError(error) && error.status === 404) {
+          setRemoteSnapshot({ scope, revision: 0, plan: null, updatedAt: null });
+        }
+        setNoticeState({ scope, error: true, text: errorText(error) });
+      }
+    } finally {
+      if (remoteCurrent(ticket)) setRemoteBusyState(null);
+      finishRemote(ticket);
+    }
   };
 
   const deleteRemote = async () => {
