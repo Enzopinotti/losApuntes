@@ -11,6 +11,7 @@ import {
   StudyCollectionSchema,
 } from './mongo/study-collection.mongo-schema';
 import { StudyCollectionsController } from './study-collections.controller';
+import { StudyCollectionsFeatureGuard } from './study-collections-feature.guard';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { StudyCollectionsController } from './study-collections.controller';
   ],
   providers: [
     StudyCollectionService,
+    StudyCollectionsFeatureGuard,
     MongoStudyCollectionStore,
     {
       provide: STUDY_COLLECTION_STORE,

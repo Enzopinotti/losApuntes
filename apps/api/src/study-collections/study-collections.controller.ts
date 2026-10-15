@@ -16,6 +16,7 @@ import {
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
+import { StudyCollectionsFeatureGuard } from './study-collections-feature.guard';
 import {
   CreateStudyCollectionDto,
   StudyCollectionListDto,
@@ -24,7 +25,7 @@ import {
 import { StudyCollectionService } from './domain/study-collection.service';
 
 @Controller('study-collections')
-@UseGuards(AuthSessionGuard)
+@UseGuards(AuthSessionGuard, StudyCollectionsFeatureGuard)
 export class StudyCollectionsController {
   constructor(private readonly collections: StudyCollectionService) {}
 
