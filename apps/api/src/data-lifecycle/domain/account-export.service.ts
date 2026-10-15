@@ -267,6 +267,8 @@ export class AccountExportService {
     id: string;
     claimId: string;
     result: AccountExportAssemblyResult;
+    ownerUserId?: string;
+    expectedProgressEpoch?: number;
   }): Promise<boolean> {
     if (
       typeof input.id !== 'string' ||
@@ -281,6 +283,12 @@ export class AccountExportService {
 
     const completedAt = new Date();
     assertCompletionResult(input.result, completedAt);
+    if (input.result.formatVersion === 3 &&
+      (typeof input.ownerUserId !== 'string' || !input.ownerUserId.trim() ||
+        !Number.isSafeInteger(input.expectedProgressEpoch) ||
+        (input.expectedProgressEpoch as number) < 0)) {
+      throw new Error('Account export v3 completion requires owner epoch authority');
+    }
     return this.store.complete({
       ...input,
       artifactGeneration: input.claimId,
