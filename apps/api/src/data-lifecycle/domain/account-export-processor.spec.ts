@@ -240,6 +240,7 @@ describe('AccountExportProcessor', () => {
       f.assembler,
       store,
       f.artifacts,
+      f.orphans,
     );
 
     await expect(restartedProcessor.runIteration()).resolves.toMatchObject({
