@@ -40,6 +40,50 @@ describe('StudyProgressExportContributor v3', () => {
     expect(JSON.stringify(page.records)).not.toContain('excluded');
   });
 
+  it('projects portable tasks explicitly without leaking extra nested fields', async () => {
+    const reader = {
+      listAccountExportProgress: jest.fn().mockResolvedValue({
+        items: [{
+          subjectId, revision: 3,
+          plan: {
+            format: 'losapuntes.study-session', version: 1, subjectId,
+            title: 'Preparar final', notes: 'Repaso', startsAt: null,
+            tasks: [{
+              kind: 'resource',
+              id: '22222222-2222-4222-8222-222222222222',
+              minutes: 25, done: false,
+              internalCache: 'not-portable',
+            }],
+            serverInternal: 'not-portable',
+          },
+          createdAt: '2026-10-01T12:00:00.000Z',
+          updatedAt: '2026-10-02T12:00:00.000Z',
+        }],
+        nextCursor: null,
+      }),
+    };
+    const adapter = new StudyProgressExportContributor(
+      reader as unknown as StudyProgressExportReader,
+    );
+    const page = await adapter.readPage({
+      userId: 'owner-sentinel', cursor: null, limit: 100,
+    });
+    expect(page.records).toEqual([{
+      subjectId, revision: 3,
+      plan: {
+        format: 'losapuntes.study-session', version: 1, subjectId,
+        title: 'Preparar final', notes: 'Repaso', startsAt: null,
+        tasks: [{
+          kind: 'resource', id: '22222222-2222-4222-8222-222222222222',
+          minutes: 25, done: false,
+        }],
+      },
+      createdAt: '2026-10-01T12:00:00.000Z',
+      updatedAt: '2026-10-02T12:00:00.000Z',
+    }]);
+    expect(JSON.stringify(page)).not.toContain('not-portable');
+  });
+
   it('propagates reader errors rather than emitting a partial section', async () => {
     const reader = {
       listAccountExportProgress: jest.fn().mockRejectedValue(
