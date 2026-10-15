@@ -74,6 +74,7 @@ export class AccountExportController {
 
     if (
       !artifact.generation ||
+      ![1, 2].includes(artifact.formatVersion ?? 1) ||
       !Number.isSafeInteger(artifact.byteLength) ||
       artifact.byteLength < 1 ||
       !/^[a-f0-9]{64}$/u.test(artifact.sha256)
@@ -85,7 +86,7 @@ export class AccountExportController {
       .header('content-type', 'application/json; charset=utf-8')
       .header(
         'content-disposition',
-        'attachment; filename="los-apuntes-account-export-v1.json"',
+        `attachment; filename="los-apuntes-account-export-v${artifact.formatVersion ?? 1}.json"`,
       )
       .header('cache-control', 'private, no-store')
       .header('x-content-type-options', 'nosniff')

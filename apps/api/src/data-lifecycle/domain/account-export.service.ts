@@ -2,7 +2,7 @@ import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { UsersService } from '../../users/users.service';
-import { ACCOUNT_EXPORT_V1_SECTION_IDS } from './account-export-contributor.registry';
+import { accountExportSectionIds } from './account-export-contributor.registry';
 import {
   ACCOUNT_EXPORT_STORE,
   type AccountExportStore,
@@ -37,10 +37,19 @@ export type AccountExportDownload =
   | { kind: 'expired' }
   | {
       kind: 'available';
+      formatVersion: 1 | 2;
       generation: string;
       byteLength: number;
       sha256: string;
     };
+
+function safeSectionCount(version: number): number | null {
+  try {
+    return accountExportSectionIds(version).length;
+  } catch {
+    return null;
+  }
+}
 
 function assertCompletionResult(
   result: AccountExportAssemblyResult,
@@ -48,9 +57,9 @@ function assertCompletionResult(
 ): void {
   if (
     result.format !== ACCOUNT_EXPORT_FORMAT ||
-    result.formatVersion !== ACCOUNT_EXPORT_FORMAT_VERSION ||
+    safeSectionCount(result.formatVersion) === null ||
     !Number.isSafeInteger(result.sectionCount) ||
-    result.sectionCount !== ACCOUNT_EXPORT_V1_SECTION_IDS.length ||
+    result.sectionCount !== safeSectionCount(result.formatVersion) ||
     !Number.isSafeInteger(result.recordCount) ||
     result.recordCount < 0 ||
     !Number.isSafeInteger(result.byteLength) ||
@@ -122,14 +131,15 @@ export class AccountExportService {
       job.artifactByteLength < 1 ||
       typeof job.artifactSha256 !== 'string' ||
       !/^[a-f0-9]{64}$/u.test(job.artifactSha256) ||
-      job.formatVersion !== ACCOUNT_EXPORT_FORMAT_VERSION ||
-      job.artifactSectionCount !== ACCOUNT_EXPORT_V1_SECTION_IDS.length
+      safeSectionCount(job.formatVersion) === null ||
+      job.artifactSectionCount !== safeSectionCount(job.formatVersion)
     ) {
       throw new Error('Account export artifact metadata is invalid');
     }
 
     return {
       kind: 'available',
+      formatVersion: job.formatVersion as 1 | 2,
       generation: job.artifactGeneration,
       byteLength: job.artifactByteLength,
       sha256: job.artifactSha256,
@@ -280,8 +290,8 @@ export class AccountExportService {
         downloadExpiresAt !== null &&
         job.artifactExpiresAt!.getTime() > now.getTime() &&
         Boolean(job.artifactGeneration) &&
-        job.formatVersion === ACCOUNT_EXPORT_FORMAT_VERSION &&
-        job.artifactSectionCount === ACCOUNT_EXPORT_V1_SECTION_IDS.length &&
+        safeSectionCount(job.formatVersion) !== null &&
+        job.artifactSectionCount === safeSectionCount(job.formatVersion) &&
         Number.isSafeInteger(job.artifactByteLength) &&
         (job.artifactByteLength ?? 0) > 0 &&
         typeof job.artifactSha256 === 'string' &&
