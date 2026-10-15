@@ -286,7 +286,7 @@ export class AccountExportProcessor {
    * Reconcile an unknown Mongo completion result with the durable record.
    * Only the precise attempt, owner, artifact digest, format and counters
    * prove the S3 object is actually referenced by a completed job.
-   * Read failures are surfaced; never guess success or delete on ambiguity.
+   * Read failures remain unknown; never guess success or delete on ambiguity.
    */
   private async isConfirmedCompletion(
     job: AccountExportJobRecord,
@@ -296,19 +296,19 @@ export class AccountExportProcessor {
     try {
       const current = await this.store.findOwned(job.id, job.userId);
       return Boolean(
-      current &&
-      current.userId === job.userId &&
-      current.id === job.id &&
-      current.state === 'completed' &&
-      current.active === false &&
-      current.artifactGeneration === claimId &&
-      current.formatVersion === assembly.formatVersion &&
-      current.artifactSectionCount === assembly.sectionCount &&
-      current.artifactRecordCount === assembly.recordCount &&
-      current.artifactByteLength === assembly.byteLength &&
-      current.artifactSha256 === assembly.sha256 &&
-      current.completedAt instanceof Date &&
-      Number.isFinite(current.completedAt.getTime()),
+        current &&
+        current.userId === job.userId &&
+        current.id === job.id &&
+        current.state === 'completed' &&
+        current.active === false &&
+        current.artifactGeneration === claimId &&
+        current.formatVersion === assembly.formatVersion &&
+        current.artifactSectionCount === assembly.sectionCount &&
+        current.artifactRecordCount === assembly.recordCount &&
+        current.artifactByteLength === assembly.byteLength &&
+        current.artifactSha256 === assembly.sha256 &&
+        current.completedAt instanceof Date &&
+        Number.isFinite(current.completedAt.getTime()),
       );
     } catch {
       // No durable evidence available: do not infer success. A subsequent
