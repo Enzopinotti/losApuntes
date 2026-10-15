@@ -64,7 +64,7 @@ function encodeCursor(value: Record<string, unknown>): string {
 }
 
 function parseCursor(value?: string): Record<string, unknown> | null {
-  if (!value) return null;
+  if (value === undefined) return null;
   try {
     if (value.length > 512 || !/^[A-Za-z0-9_-]+$/.test(value)) {
       return invalidCursor();
@@ -128,15 +128,22 @@ function itemsCursor(
     parsed.collectionId !== collection.id ||
     !Number.isSafeInteger(parsed.index) ||
     (parsed.index as number) < 0 ||
-    (parsed.index as number) >= collection.resourceIds.length
+    !Number.isSafeInteger(parsed.revision) ||
+    (parsed.revision as number) < 1
   ) {
     return invalidCursor();
   }
+  // A valid cursor bound to the current owner/collection identifies a
+  // previous revision. Detect it before checking its old index against the
+  // new array length: removing items must produce STALE (409), not 422.
   if (parsed.revision !== collection.revision) {
     throw new ConflictException({
       code: 'STUDY_COLLECTION_CURSOR_STALE',
       message: 'Study collection changed; reload from the first page',
     });
+  }
+  if ((parsed.index as number) >= collection.resourceIds.length) {
+    return invalidCursor();
   }
   return parsed.index as number;
 }
