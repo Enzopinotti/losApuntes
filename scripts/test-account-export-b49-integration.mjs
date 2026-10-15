@@ -20,7 +20,7 @@ assert.match(service, /@Optional\(\) private readonly collections\?: StudyCollec
 assert.match(service, /await this\.assertActiveAccount\(userId\);[\s\S]*?await this\.requiredExportVersion\(userId\)/u);
 assert.match(service, /if \(this\.config\?\.get<boolean>\('STUDY_COLLECTIONS_ENABLED'\) === true\)/u);
 assert.match(service, /this\.collections\.hasOwnedCollections\(userId\)/u);
-assert.match(service, /requestedFormatVersion > result\.job\.formatVersion/u);
+assert.match(service, /currentRequiredVersion > result\.job\.formatVersion/u);
 assert.match(service, /result\.job\.formatVersion/u);
 assert.match(service, /ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE/u);
 assert.match(service, /export readers are not fully wired/u);
