@@ -50,13 +50,17 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
-      - name: Diagnose exact canonical API formatting diff
+      - name: Verify canonical API formatting without rewriting checkout
+        run: pnpm --filter @losapuntes/api format:check
+
+      - name: Verify API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+
+      - name: Verify owner-export and collection unit regressions
         run: |
-          pnpm --filter @losapuntes/api format
-          echo "FORMAT_PATCH_BEGIN"
-          git --no-pager diff --no-ext-diff --unified=3 -- apps/api/src apps/api/test
-          echo "FORMAT_PATCH_END"
-          git diff --exit-code --quiet -- apps/api/src apps/api/test || {
-            echo "Canonical API format differs from HEAD; apply only the exact verified diff."
-            exit 1
-          }
+          pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath \
+            src/data-lifecycle/domain/account-export.service.spec.ts \
+            src/data-lifecycle/domain/account-export-assembler.spec.ts \
+            src/study-collections/domain/study-collection.service.spec.ts \
+            src/study-collections/mongo/mongo-study-collection.store.spec.ts \
+            src/study-collections/study-collections-feature.guard.spec.ts
