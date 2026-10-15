@@ -28,6 +28,10 @@ import {
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
 import {
+  recallStudyDraft,
+  rememberStudyDraft,
+} from "../features/study/study-session-draft.mjs";
+import {
   finishStudyHandoff,
   inspectStudyHandoff,
   isStudyHandoffRouteState,
@@ -173,13 +177,26 @@ export default function StudySession() {
   const questions = questionState?.scope === scope ? questionState : null;
 
   const [draftState, setDraftState] = useState<Draft | null>(null);
+  // Restore only this exact user/session/subject, never a former account.
+  const resumedPlan = subjectId ? recallStudyDraft(scope, subjectId) : null;
   const plan = subjectId
     ? (draftState?.scope === scope
       ? draftState.plan
-      : emptyStudySession(subjectId))
+      : resumedPlan ?? emptyStudySession(subjectId))
     : null;
   const labels: Record<string, string | null> =
     draftState?.scope === scope ? draftState.labels : {};
+  useEffect(() => {
+    if (
+      status === "authenticated" &&
+      subjectId &&
+      draftState?.scope === scope
+    ) {
+      // Only user-authored fields/opaque IDs. No cached server resource titles.
+      rememberStudyDraft(scope, draftState.plan);
+    }
+  }, [status, subjectId, scope, draftState]);
+
   const [feedback, setFeedback] = useState<Status | null>(null);
   const [busy, setBusy] = useState<Status | null>(null);
   const currentFeedback = feedback?.scope === scope ? feedback : null;
@@ -330,7 +347,7 @@ export default function StudySession() {
     if (!subjectId || isBusy) return;
     setDraftState((old) => {
       const draft = old?.scope === scope ? old : {
-        scope, plan: emptyStudySession(subjectId), labels: {},
+        scope, plan: plan ?? emptyStudySession(subjectId), labels: {},
       };
       return { ...draft, plan: transform(draft.plan) };
     });
@@ -342,7 +359,7 @@ export default function StudySession() {
     const key = taskKey(task);
     setDraftState((old) => {
       const draft = old?.scope === scope ? old : {
-        scope, plan: emptyStudySession(subjectId), labels: {},
+        scope, plan: plan ?? emptyStudySession(subjectId), labels: {},
       };
       if (
         draft.plan.tasks.length >= STUDY_SESSION_MAX_TASKS ||
@@ -708,6 +725,28 @@ export default function StudySession() {
                 <span>{totalMinutes - reviewedMinutes} minutos pendientes</span>
               </div>
               <p className="study-session-info">Los tiempos y casillas son autodeclarados: no representan asistencia ni resultados de examen.</p>
+              <p className="study-session-info">
+                El borrador se recuerda mientras navegás entre Práctica y el
+                Planificador en esta pestaña (máximo 30 minutos). Recargar
+                descarta esa memoria. Para guardarlo, exportá JSON.
+              </p>
+              <button
+                type="button"
+                className="study-session-secondary"
+                disabled={isBusy}
+                onClick={() => {
+                  if (!window.confirm("¿Vaciar el borrador temporal? Se perderán sus notas y actividades.")) return;
+                  setDraftState({
+                    scope, plan: emptyStudySession(subjectId), labels: {},
+                  });
+                  setFeedback({
+                    scope, error: false,
+                    text: "Borrador temporal vaciado.",
+                  });
+                }}
+              >
+                Vaciar mi borrador
+              </button>
               {overBudget && (
                 <p className="study-session-alert" role="alert">
                   El plan supera el máximo de 1.200 minutos. Ajustá las duraciones antes de exportar.

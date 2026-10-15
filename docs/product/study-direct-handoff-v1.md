@@ -17,6 +17,8 @@ La página de práctica utiliza `recallToStudySession` para crear un `StudySessi
 - La página receptora compara exactamente sesión y materia. Un nonce de otro usuario/sesión/materia, expirado, malformado o ya consumido no presenta plan ni habilita su incorporación. El pase se consume solo después de verificar.
 - Cambios de cuenta, sesión o Subject invalidan las continuaciones asíncronas por `useAsyncAuthorityFence`; las respuestas no pueden instalar el borrador en otra cuenta.
 - Recarga del documento descarta la transferencia temporal. Para otra pestaña/dispositivo se mantiene el intercambio mediante JSON v1.
+- El borrador del Planificador se recuerda también en `study-session-draft.mjs`, exclusivamente durante navegación entre rutas en la **misma pestaña y la misma cuenta/sesión/materia** (máximo 30 minutos, cinco ámbitos). Solo conserva campos del estudiante e IDs opacos; **no** guarda títulos de terceros, cuerpos, permisos ni URLs privadas. La acción «Vaciar mi borrador» reinicia el plan. Recargar el documento borra este estado volátil.
+- El Planificador mantiene un mecanismo de revalidación del contenido al exportar Markdown/.ics o al recibir preguntas: los títulos no se reutilizan del borrador porque no se cachean fuera de la página.
 - La memoria del módulo no contiene contraseñas, cookies, tokens ni URLs firmadas. El nonce de ruta no concede acceso a API ni a Resources.
 
 ## Experiencia de recepción
@@ -38,10 +40,12 @@ B43 **no** habilita los datos persistentes privados del PR #316. El export globa
 ## Matriz de aceptación
 
 - [ ] Ejecución de `node scripts/test-web-study-session-handoff.mjs` en checkout real.
+- [ ] Ejecución de `node scripts/test-web-study-session-draft.mjs` en checkout real.
 - [ ] Ejecución de `node scripts/test-web-study-handoff-integration.mjs` en checkout real.
 - [ ] Main Web typecheck/lint/format/build con dependencias instaladas.
 - [ ] Practicar > marcar dos para repaso > pase directo a Planificador > suma y reemplazo.
-- [ ] Conservación de 1 tarea ya revisada frente a una pregunta duplicada.
+- [ ] Conservación de 1 tarea ya revisada frente a una pregunta duplicada, incluyendo navegar de Planificador a Práctica y volver.
+- [ ] Recarga elimina el borrador; otra cuenta/sesión/Subject no lo recupera; vencimiento 30 minutos; vaciado explícito.
 - [ ] Límite 24 y 1.200 minutos en combinación, sin modificación parcial.
 - [ ] Subject incorrecto, sesión/usuario distinto, nonce manipulado/expirado o pestaña recargada.
 - [ ] Revocación de acceso antes de sumar, incluyendo fallos 403/404 y red interrumpida.
