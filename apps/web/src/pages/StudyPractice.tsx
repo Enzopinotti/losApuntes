@@ -104,7 +104,11 @@ export default function StudyPractice() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const selection = studySubjectSelectionFromParams(params);
-  const authScope = [status, user?.id ?? "anonymous", session?.id ?? "none"].join(":");
+  const authScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "none",
+  ].join(":");
 
   const [contextState, setContextState] = useState<ContextState | null>(null);
   const context = contextState?.scope === authScope ? contextState : null;
@@ -169,7 +173,12 @@ export default function StudyPractice() {
     if (status !== "authenticated") return;
     const ticket = beginContext();
     if (!contextCurrent(ticket)) return;
-    setContextState({ scope: authScope, loading: true, data: null, error: null });
+    setContextState({
+      scope: authScope,
+      loading: true,
+      data: null,
+      error: null,
+    });
     try {
       const result = await searchApi.contextual(
         { subjectLimit: 8, resourcesPerSubject: 1 },
@@ -177,13 +186,18 @@ export default function StudyPractice() {
       );
       if (contextCurrent(ticket)) {
         setContextState({
-          scope: authScope, loading: false, data: result, error: null,
+          scope: authScope,
+          loading: false,
+          data: result,
+          error: null,
         });
       }
     } catch (error) {
       if (contextCurrent(ticket)) {
         setContextState({
-          scope: authScope, loading: false, data: null,
+          scope: authScope,
+          loading: false,
+          data: null,
           error: messageFor(error),
         });
       }
@@ -192,47 +206,51 @@ export default function StudyPractice() {
     }
   }, [status, authScope, beginContext, contextCurrent, finishContext]);
 
-  const loadQuestions = useCallback(async (cursor?: string) => {
-    if (!subjectId) return;
-    const ticket = beginList();
-    if (!listCurrent(ticket)) return;
-    setListState((previous) => ({
-      scope,
-      loading: true,
-      items: cursor && previous?.scope === scope ? previous.items : [],
-      nextCursor: null,
-      error: null,
-    }));
-    try {
-      const response = await communityApi.questions(
-        { subjectId, limit: 25, cursor },
-        ticket.signal,
-      );
-      if (listCurrent(ticket)) {
-        setListState((previous) => ({
-          scope,
-          loading: false,
-          items: cursor && previous?.scope === scope
-            ? addUnique(previous.items, response.items)
-            : response.items,
-          nextCursor: response.nextCursor,
-          error: null,
-        }));
+  const loadQuestions = useCallback(
+    async (cursor?: string) => {
+      if (!subjectId) return;
+      const ticket = beginList();
+      if (!listCurrent(ticket)) return;
+      setListState((previous) => ({
+        scope,
+        loading: true,
+        items: cursor && previous?.scope === scope ? previous.items : [],
+        nextCursor: null,
+        error: null,
+      }));
+      try {
+        const response = await communityApi.questions(
+          { subjectId, limit: 25, cursor },
+          ticket.signal,
+        );
+        if (listCurrent(ticket)) {
+          setListState((previous) => ({
+            scope,
+            loading: false,
+            items:
+              cursor && previous?.scope === scope
+                ? addUnique(previous.items, response.items)
+                : response.items,
+            nextCursor: response.nextCursor,
+            error: null,
+          }));
+        }
+      } catch (error) {
+        if (listCurrent(ticket)) {
+          setListState((previous) => ({
+            scope,
+            loading: false,
+            items: cursor && previous?.scope === scope ? previous.items : [],
+            nextCursor: null,
+            error: messageFor(error),
+          }));
+        }
+      } finally {
+        finishList(ticket);
       }
-    } catch (error) {
-      if (listCurrent(ticket)) {
-        setListState((previous) => ({
-          scope,
-          loading: false,
-          items: cursor && previous?.scope === scope ? previous.items : [],
-          nextCursor: null,
-          error: messageFor(error),
-        }));
-      }
-    } finally {
-      finishList(ticket);
-    }
-  }, [subjectId, scope, beginList, listCurrent, finishList]);
+    },
+    [subjectId, scope, beginList, listCurrent, finishList],
+  );
 
   const loadDetail = useCallback(async () => {
     if (!currentId || !subjectId) return;
@@ -240,8 +258,12 @@ export default function StudyPractice() {
     if (!detailCurrent(ticket)) return;
     setDetailState({
       key: detailKey,
-      loading: true, loadingMore: false, question: null, answers: [],
-      nextCursor: null, error: null,
+      loading: true,
+      loadingMore: false,
+      question: null,
+      answers: [],
+      nextCursor: null,
+      error: null,
     });
     try {
       const response = await communityApi.question(currentId, ticket.signal);
@@ -251,7 +273,8 @@ export default function StudyPractice() {
       if (detailCurrent(ticket)) {
         setDetailState({
           key: detailKey,
-          loading: false, loadingMore: false,
+          loading: false,
+          loadingMore: false,
           question: response.question,
           answers: response.answers,
           nextCursor: response.answersNextCursor,
@@ -262,14 +285,25 @@ export default function StudyPractice() {
       if (detailCurrent(ticket)) {
         setDetailState({
           key: detailKey,
-          loading: false, loadingMore: false, question: null,
-          answers: [], nextCursor: null, error: messageFor(error),
+          loading: false,
+          loadingMore: false,
+          question: null,
+          answers: [],
+          nextCursor: null,
+          error: messageFor(error),
         });
       }
     } finally {
       finishDetail(ticket);
     }
-  }, [currentId, subjectId, detailKey, beginDetail, detailCurrent, finishDetail]);
+  }, [
+    currentId,
+    subjectId,
+    detailKey,
+    beginDetail,
+    detailCurrent,
+    finishDetail,
+  ]);
 
   const revealAnswers = async () => {
     if (!currentId || !subjectId || !detail?.question || revealStatus?.busy) {
@@ -303,7 +337,9 @@ export default function StudyPractice() {
     } catch (error) {
       if (revealCurrent(ticket)) {
         setRevealState({
-          key: detailKey, busy: false, error: messageFor(error),
+          key: detailKey,
+          busy: false,
+          error: messageFor(error),
         });
       }
     } finally {
@@ -313,9 +349,12 @@ export default function StudyPractice() {
 
   const loadMoreAnswers = async () => {
     if (
-      !currentId || !detail?.question || !detail.nextCursor ||
+      !currentId ||
+      !detail?.question ||
+      !detail.nextCursor ||
       detail.loadingMore
-    ) return;
+    )
+      return;
     const cursor = detail.nextCursor;
     const ticket = beginMore();
     if (!moreCurrent(ticket)) return;
@@ -326,7 +365,10 @@ export default function StudyPractice() {
     );
     try {
       const response = await communityApi.answers(
-        currentId, cursor, 25, ticket.signal,
+        currentId,
+        cursor,
+        25,
+        ticket.signal,
       );
       if (moreCurrent(ticket)) {
         setDetailState((previous) =>
@@ -372,7 +414,8 @@ export default function StudyPractice() {
       if (items.includes(id)) {
         return { scope, ids: items.filter((item) => item !== id) };
       }
-      if (items.length >= ACTIVE_RECALL_MAX_QUESTIONS) return { scope, ids: items };
+      if (items.length >= ACTIVE_RECALL_MAX_QUESTIONS)
+        return { scope, ids: items };
       return { scope, ids: [...items, id] };
     });
   };
@@ -392,7 +435,9 @@ export default function StudyPractice() {
       setFeedbackState(null);
     } catch {
       setFeedbackState({
-        scope, error: true, message: "La selección tiene preguntas inválidas.",
+        scope,
+        error: true,
+        message: "La selección tiene preguntas inválidas.",
       });
     }
   };
@@ -408,7 +453,10 @@ export default function StudyPractice() {
     changeRound((previous) => ({
       ...previous,
       outcomes: nextRecallOutcomes(
-        previous.ids, previous.outcomes, currentId, outcome,
+        previous.ids,
+        previous.outcomes,
+        currentId,
+        outcome,
       ),
     }));
   };
@@ -416,33 +464,43 @@ export default function StudyPractice() {
   const exportPending = () => {
     if (!subjectId || !round || !summary?.review) return;
     try {
-      const plan = recallToStudySession(
-        subjectId, round.ids, round.outcomes,
-      );
+      const plan = recallToStudySession(subjectId, round.ids, round.outcomes);
       if (!plan) return;
       downloadReviewPlan(serializeStudySession(plan));
       setFeedbackState({
-        scope, error: false,
-        message: "Se preparó un plan JSON con las preguntas pendientes. Importalo desde Preparar una sesión.",
+        scope,
+        error: false,
+        message:
+          "Se preparó un plan JSON con las preguntas pendientes. Importalo desde Preparar una sesión.",
       });
     } catch {
       setFeedbackState({
-        scope, error: true, message: "No pudimos generar el archivo.",
+        scope,
+        error: true,
+        message: "No pudimos generar el archivo.",
       });
     }
   };
 
   const openPendingInPlanner = () => {
-    if (!subjectId || !round || !summary?.review || status !== "authenticated") {
+    if (
+      !subjectId ||
+      !round ||
+      !summary?.review ||
+      status !== "authenticated"
+    ) {
       return;
     }
     // Navigating away necessarily discards memory-only practice reflections.
     if (
-      Object.values(round.reflections).some((value) => value.trim().length > 0) &&
+      Object.values(round.reflections).some(
+        (value) => value.trim().length > 0,
+      ) &&
       !window.confirm(
         "Los intentos escritos son temporales y se perderán al salir. ¿Pasar las preguntas para repasar al Planificador?",
       )
-    ) return;
+    )
+      return;
     try {
       const plan = recallToStudySession(subjectId, round.ids, round.outcomes);
       if (!plan) return;
@@ -452,15 +510,21 @@ export default function StudyPractice() {
       });
     } catch {
       setFeedbackState({
-        scope, error: true,
-        message: "No pudimos pasar las preguntas al Planificador. Podés exportar el JSON.",
+        scope,
+        error: true,
+        message:
+          "No pudimos pasar las preguntas al Planificador. Podés exportar el JSON.",
       });
     }
   };
 
   const resetRound = () => {
     if (!round) return;
-    if (!window.confirm("¿Salir de la ronda? Las notas y marcas temporales se perderán.")) {
+    if (
+      !window.confirm(
+        "¿Salir de la ronda? Las notas y marcas temporales se perderán.",
+      )
+    ) {
       return;
     }
     setRoundState(null);
@@ -468,9 +532,10 @@ export default function StudyPractice() {
   };
 
   const question = detail?.question ?? null;
-  const shownAnswers = revealed ? detail?.answers ?? [] : [];
+  const shownAnswers = revealed ? (detail?.answers ?? []) : [];
   const acceptedNotLoaded = Boolean(
-    revealed && question?.acceptedAnswerId &&
+    revealed &&
+    question?.acceptedAnswerId &&
     !shownAnswers.some((answer) => answer.id === question.acceptedAnswerId),
   );
 
@@ -480,9 +545,15 @@ export default function StudyPractice() {
         <div>
           <p className="study-practice-kicker">Estudio activo</p>
           <h1 id="study-practice-title">Practicar preguntas</h1>
-          <p>Intentá responder antes de comparar con la comunidad. La evaluación es tuya: una respuesta aceptada por su autor no es una corrección oficial.</p>
+          <p>
+            Intentá responder antes de comparar con la comunidad. La evaluación
+            es tuya: una respuesta aceptada por su autor no es una corrección
+            oficial.
+          </p>
         </div>
-        <Link to={subjectId ? studySubjectHref(subjectId) ?? "/study" : "/study"}>
+        <Link
+          to={subjectId ? (studySubjectHref(subjectId) ?? "/study") : "/study"}
+        >
           Volver a Mesa de estudio
         </Link>
       </header>
@@ -492,12 +563,17 @@ export default function StudyPractice() {
       ) : context.error ? (
         <div className="study-practice-error" role="alert">
           <p>{context.error}</p>
-          <button type="button" onClick={() => void loadContext()}>Reintentar</button>
+          <button type="button" onClick={() => void loadContext()}>
+            Reintentar
+          </button>
         </div>
       ) : !subject || resolution?.kind !== "ready" ? (
         <div className="study-practice-empty">
           <h2>Elegí una materia actual</h2>
-          <p>Solo se admiten identificadores válidos dentro de las primeras ocho materias del contexto. La selección no concede acceso a contenido.</p>
+          <p>
+            Solo se admiten identificadores válidos dentro de las primeras ocho
+            materias del contexto. La selección no concede acceso a contenido.
+          </p>
           <Link to="/study">Elegir materia</Link>
         </div>
       ) : (
@@ -507,27 +583,60 @@ export default function StudyPractice() {
             <span>Sin notas persistidas ni calificaciones públicas.</span>
           </div>
           {!round ? (
-            <section className="study-practice-panel" aria-labelledby="study-practice-choose">
-              <h2 id="study-practice-choose">1. Elegí las preguntas de tu ronda</h2>
-              <p>Podés practicar hasta {ACTIVE_RECALL_MAX_QUESTIONS} preguntas. La lista corresponde a las páginas cargadas, no al total de la materia.</p>
+            <section
+              className="study-practice-panel"
+              aria-labelledby="study-practice-choose"
+            >
+              <h2 id="study-practice-choose">
+                1. Elegí las preguntas de tu ronda
+              </h2>
+              <p>
+                Podés practicar hasta {ACTIVE_RECALL_MAX_QUESTIONS} preguntas.
+                La lista corresponde a las páginas cargadas, no al total de la
+                materia.
+              </p>
               <div className="study-practice-actions">
-                <button type="button" disabled={chosen.length === 0} onClick={() => startRound(chosen)}>
+                <button
+                  type="button"
+                  disabled={chosen.length === 0}
+                  onClick={() => startRound(chosen)}
+                >
                   Practicar {chosen.length} seleccionadas
                 </button>
-                <button type="button" disabled={!list?.items.length} onClick={() => startRound(
-                  (list?.items ?? []).slice(0, 5).map((item) => item.id),
-                )}>
+                <button
+                  type="button"
+                  disabled={!list?.items.length}
+                  onClick={() =>
+                    startRound(
+                      (list?.items ?? []).slice(0, 5).map((item) => item.id),
+                    )
+                  }
+                >
                   Practicar las primeras 5
                 </button>
-                <button type="button" disabled={list?.loading} onClick={() => void loadQuestions()}>
+                <button
+                  type="button"
+                  disabled={list?.loading}
+                  onClick={() => void loadQuestions()}
+                >
                   Actualizar preguntas
                 </button>
               </div>
-              {list?.error && <p className="study-practice-error" role="alert">{list.error}</p>}
-              {list?.loading && <p role="status">Consultando preguntas…</p>}
-              {list && !list.loading && !list.error && list.items.length === 0 && (
-                <p>No hay preguntas visibles para esta materia. Podés <Link to="/questions">abrir una consulta</Link>.</p>
+              {list?.error && (
+                <p className="study-practice-error" role="alert">
+                  {list.error}
+                </p>
               )}
+              {list?.loading && <p role="status">Consultando preguntas…</p>}
+              {list &&
+                !list.loading &&
+                !list.error &&
+                list.items.length === 0 && (
+                  <p>
+                    No hay preguntas visibles para esta materia. Podés{" "}
+                    <Link to="/questions">abrir una consulta</Link>.
+                  </p>
+                )}
               <ul className="study-practice-choices">
                 {(list?.items ?? []).map((item) => {
                   const selected = chosen.includes(item.id);
@@ -535,12 +644,18 @@ export default function StudyPractice() {
                     <li key={item.id}>
                       <div>
                         <strong>{item.title}</strong>
-                        <small>{item.state === "open" ? "Abierta" : "Cerrada"} · {item.answerCount} respuestas</small>
+                        <small>
+                          {item.state === "open" ? "Abierta" : "Cerrada"} ·{" "}
+                          {item.answerCount} respuestas
+                        </small>
                       </div>
                       <button
                         type="button"
                         aria-pressed={selected}
-                        disabled={!selected && chosen.length >= ACTIVE_RECALL_MAX_QUESTIONS}
+                        disabled={
+                          !selected &&
+                          chosen.length >= ACTIVE_RECALL_MAX_QUESTIONS
+                        }
                         onClick={() => toggleChoice(item.id)}
                       >
                         {selected ? "Quitar" : "Elegir"}
@@ -550,22 +665,35 @@ export default function StudyPractice() {
                 })}
               </ul>
               {list?.nextCursor && (
-                <button type="button" disabled={list.loading} onClick={() => void loadQuestions(list.nextCursor ?? undefined)}>
+                <button
+                  type="button"
+                  disabled={list.loading}
+                  onClick={() =>
+                    void loadQuestions(list.nextCursor ?? undefined)
+                  }
+                >
                   Cargar más preguntas
                 </button>
               )}
             </section>
           ) : (
             <div className="study-practice-workspace">
-              <section className="study-practice-panel" aria-labelledby="study-practice-round">
+              <section
+                className="study-practice-panel"
+                aria-labelledby="study-practice-round"
+              >
                 <div className="study-practice-round-top">
                   <div>
-                    <h2 id="study-practice-round">
-                      2. Ronda de práctica
-                    </h2>
-                    <p>Pregunta {round.position + 1} de {round.ids.length}</p>
+                    <h2 id="study-practice-round">2. Ronda de práctica</h2>
+                    <p>
+                      Pregunta {round.position + 1} de {round.ids.length}
+                    </p>
                   </div>
-                  <button type="button" className="study-practice-secondary" onClick={resetRound}>
+                  <button
+                    type="button"
+                    className="study-practice-secondary"
+                    onClick={resetRound}
+                  >
                     Salir de la ronda
                   </button>
                 </div>
@@ -574,7 +702,9 @@ export default function StudyPractice() {
                 ) : detail.error && !question ? (
                   <div role="alert" className="study-practice-error">
                     <p>{detail.error}</p>
-                    <button type="button" onClick={() => void loadDetail()}>Reintentar</button>
+                    <button type="button" onClick={() => void loadDetail()}>
+                      Reintentar
+                    </button>
                     <p>Podés avanzar sin calificarla.</p>
                   </div>
                 ) : question ? (
@@ -583,7 +713,11 @@ export default function StudyPractice() {
                       <p className="study-practice-kicker">Tu desafío</p>
                       <h3>{question.title}</h3>
                       <p className="study-practice-body">{question.body}</p>
-                      <Link to={`/questions?id=${encodeURIComponent(question.id)}`}>Abrir conversación completa</Link>
+                      <Link
+                        to={`/questions?id=${encodeURIComponent(question.id)}`}
+                      >
+                        Abrir conversación completa
+                      </Link>
                     </article>
                     <label className="study-practice-reflection">
                       Tu intento de respuesta (solo en esta pestaña)
@@ -596,7 +730,10 @@ export default function StudyPractice() {
                           if (!currentId) return;
                           changeRound((previous) => ({
                             ...previous,
-                            reflections: { ...previous.reflections, [currentId]: answer },
+                            reflections: {
+                              ...previous.reflections,
+                              [currentId]: answer,
+                            },
                           }));
                         }}
                         placeholder="Escribí una explicación, cálculo o pasos antes de comparar."
@@ -622,39 +759,74 @@ export default function StudyPractice() {
                     ) : (
                       <div className="study-practice-answers">
                         <h3>Compará con respuestas disponibles</h3>
-                        <p>Las respuestas representan aportes de usuarios; pueden ser incompletas o estar equivocadas.</p>
-                        {shownAnswers.length === 0 && <p>Esta pregunta todavía no tiene respuestas cargadas.</p>}
+                        <p>
+                          Las respuestas representan aportes de usuarios; pueden
+                          ser incompletas o estar equivocadas.
+                        </p>
+                        {shownAnswers.length === 0 && (
+                          <p>
+                            Esta pregunta todavía no tiene respuestas cargadas.
+                          </p>
+                        )}
                         <ol>
                           {shownAnswers.map((answer) => (
                             <li key={answer.id}>
                               {question.acceptedAnswerId === answer.id && (
-                                <strong>Respuesta aceptada por quien preguntó</strong>
+                                <strong>
+                                  Respuesta aceptada por quien preguntó
+                                </strong>
                               )}
-                              <p className="study-practice-body">{answer.body}</p>
-                              <small>{answer.author?.displayName ?? "Participante"}</small>
+                              <p className="study-practice-body">
+                                {answer.body}
+                              </p>
+                              <small>
+                                {answer.author?.displayName ?? "Participante"}
+                              </small>
                             </li>
                           ))}
                         </ol>
-                        {acceptedNotLoaded && <p>La respuesta aceptada, si sigue disponible, puede estar en otra página.</p>}
-                        {detail.error && <p className="study-practice-error" role="alert">{detail.error}</p>}
+                        {acceptedNotLoaded && (
+                          <p>
+                            La respuesta aceptada, si sigue disponible, puede
+                            estar en otra página.
+                          </p>
+                        )}
+                        {detail.error && (
+                          <p className="study-practice-error" role="alert">
+                            {detail.error}
+                          </p>
+                        )}
                         {detail.nextCursor && (
-                          <button type="button" disabled={detail.loadingMore} onClick={() => void loadMoreAnswers()}>
-                            {detail.loadingMore ? "Cargando…" : "Ver más respuestas"}
+                          <button
+                            type="button"
+                            disabled={detail.loadingMore}
+                            onClick={() => void loadMoreAnswers()}
+                          >
+                            {detail.loadingMore
+                              ? "Cargando…"
+                              : "Ver más respuestas"}
                           </button>
                         )}
                         <h3>Mi revisión</h3>
-                        <p>Marcá cómo te sentís con el tema. No se genera una nota automática.</p>
+                        <p>
+                          Marcá cómo te sentís con el tema. No se genera una
+                          nota automática.
+                        </p>
                         <div className="study-practice-actions">
                           <button
                             type="button"
-                            aria-pressed={round.outcomes[currentId ?? ""] === "review"}
+                            aria-pressed={
+                              round.outcomes[currentId ?? ""] === "review"
+                            }
                             onClick={() => markOutcome("review")}
                           >
                             Necesito repasar
                           </button>
                           <button
                             type="button"
-                            aria-pressed={round.outcomes[currentId ?? ""] === "understood"}
+                            aria-pressed={
+                              round.outcomes[currentId ?? ""] === "understood"
+                            }
                             onClick={() => markOutcome("understood")}
                           >
                             Lo pude explicar
@@ -665,66 +837,131 @@ export default function StudyPractice() {
                   </>
                 ) : null}
                 <div className="study-practice-pagination">
-                  <button type="button" disabled={round.position === 0} onClick={() => changeRound((previous) => ({
-                    ...previous, position: previous.position - 1,
-                  }))}>
+                  <button
+                    type="button"
+                    disabled={round.position === 0}
+                    onClick={() =>
+                      changeRound((previous) => ({
+                        ...previous,
+                        position: previous.position - 1,
+                      }))
+                    }
+                  >
                     Anterior
                   </button>
                   <button
                     type="button"
                     disabled={round.position >= round.ids.length - 1}
-                    onClick={() => changeRound((previous) => ({
-                      ...previous, position: previous.position + 1,
-                    }))}
+                    onClick={() =>
+                      changeRound((previous) => ({
+                        ...previous,
+                        position: previous.position + 1,
+                      }))
+                    }
                   >
                     Siguiente
                   </button>
                 </div>
               </section>
-              <aside className="study-practice-panel" aria-labelledby="study-practice-summary">
+              <aside
+                className="study-practice-panel"
+                aria-labelledby="study-practice-summary"
+              >
                 <h2 id="study-practice-summary">Tu propio repaso</h2>
-                <p>Estas marcas son privadas y temporales: no son una puntuación académica.</p>
+                <p>
+                  Estas marcas son privadas y temporales: no son una puntuación
+                  académica.
+                </p>
                 <div className="study-practice-stats" aria-live="polite">
-                  <span><strong>{summary?.completed ?? 0}</strong> revisadas</span>
-                  <span><strong>{summary?.review ?? 0}</strong> para repasar</span>
-                  <span><strong>{summary?.understood ?? 0}</strong> explicadas</span>
-                  <span><strong>{summary?.pending ?? 0}</strong> sin clasificar</span>
+                  <span>
+                    <strong>{summary?.completed ?? 0}</strong> revisadas
+                  </span>
+                  <span>
+                    <strong>{summary?.review ?? 0}</strong> para repasar
+                  </span>
+                  <span>
+                    <strong>{summary?.understood ?? 0}</strong> explicadas
+                  </span>
+                  <span>
+                    <strong>{summary?.pending ?? 0}</strong> sin clasificar
+                  </span>
                 </div>
                 <ol className="study-practice-outline">
                   {round.ids.map((id, index) => (
                     <li key={id}>
                       <button
                         type="button"
-                        className={index === round.position ? "study-practice-current" : ""}
-                        aria-current={index === round.position ? "step" : undefined}
-                        onClick={() => changeRound((previous) => ({
-                          ...previous, position: index,
-                        }))}
+                        className={
+                          index === round.position
+                            ? "study-practice-current"
+                            : ""
+                        }
+                        aria-current={
+                          index === round.position ? "step" : undefined
+                        }
+                        onClick={() =>
+                          changeRound((previous) => ({
+                            ...previous,
+                            position: index,
+                          }))
+                        }
                       >
-                        Pregunta {index + 1} · {round.outcomes[id] === "review"
+                        Pregunta {index + 1} ·{" "}
+                        {round.outcomes[id] === "review"
                           ? "Repasar"
-                          : round.outcomes[id] === "understood" ? "Explicada" : "Pendiente"}
+                          : round.outcomes[id] === "understood"
+                            ? "Explicada"
+                            : "Pendiente"}
                       </button>
                     </li>
                   ))}
                 </ol>
                 <h3>Continuar en el planificador</h3>
-                <p>Exportá las preguntas marcadas para repasar como un plan JSON. El archivo incluye solo IDs; la Mesa vuelve a comprobar su acceso al importarlo.</p>
+                <p>
+                  Exportá las preguntas marcadas para repasar como un plan JSON.
+                  El archivo incluye solo IDs; la Mesa vuelve a comprobar su
+                  acceso al importarlo.
+                </p>
                 <div className="study-practice-actions">
-                  <button type="button" disabled={!summary?.review} onClick={openPendingInPlanner}>
+                  <button
+                    type="button"
+                    disabled={!summary?.review}
+                    onClick={openPendingInPlanner}
+                  >
                     Pasar pendientes al Planificador
                   </button>
-                  <button type="button" disabled={!summary?.review} onClick={exportPending}>
+                  <button
+                    type="button"
+                    disabled={!summary?.review}
+                    onClick={exportPending}
+                  >
                     Descargar plan JSON
                   </button>
                 </div>
-                <p>El pase directo solo dura diez minutos en esta pestaña y no guarda tus intentos. La descarga JSON sirve para otro dispositivo.</p>
-                <p><Link to={`/study/session?subjectId=${encodeURIComponent(subject.id)}`}>Abrir planificador sin importar preguntas</Link></p>
+                <p>
+                  El pase directo solo dura diez minutos en esta pestaña y no
+                  guarda tus intentos. La descarga JSON sirve para otro
+                  dispositivo.
+                </p>
+                <p>
+                  <Link
+                    to={`/study/session?subjectId=${encodeURIComponent(subject.id)}`}
+                  >
+                    Abrir planificador sin importar preguntas
+                  </Link>
+                </p>
               </aside>
             </div>
           )}
           {feedback && (
-            <p className={feedback.error ? "study-practice-error" : "study-practice-feedback"} role={feedback.error ? "alert" : "status"}>
+            <p
+              className={
+                feedback.error
+                  ? "study-practice-error"
+                  : "study-practice-feedback"
+              }
+              role={feedback.error ? "alert" : "status"}
+            >
               {feedback.message}
             </p>
           )}
