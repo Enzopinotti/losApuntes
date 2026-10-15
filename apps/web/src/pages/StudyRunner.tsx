@@ -397,6 +397,97 @@ export default function StudyRunner() {
     }
   };
 
+  const rateCurrent = (rating: ReviewMark | null) => {
+    if (!runner || !task || !activeKey || !label || busy) return;
+    setRunnerState((previous) => {
+      if (previous?.scope !== scope) return previous;
+      const current = previous.plan.tasks[previous.index];
+      if (!current || keyOf(current) !== activeKey || !previous.labels[activeKey]) {
+        return previous;
+      }
+      return {
+        ...previous,
+        reviews: updateReviewMarks(
+          previous.plan, previous.reviews, current.kind, current.id, rating,
+        ),
+      };
+    });
+    setNoticeState(null);
+  };
+
+  const createNextReview = async (destination: "download" | "planner") => {
+    if (!runner || !subjectId || status !== "authenticated" || busy || !reviewItems.length) {
+      return;
+    }
+    const ticket = beginReview();
+    if (!reviewCurrent(ticket)) return;
+    setBusyState({ scope, kind: "review" });
+    setNoticeState(null);
+    try {
+      const freshLabels: Record<string, string | null> = {};
+      const permitted: string[] = [];
+      for (const candidate of reviewItems) {
+        if (!reviewCurrent(ticket)) return;
+        const key = keyOf(candidate);
+        const result = await verifiedTaskLabel(runner.plan, candidate, ticket.signal);
+        if (!reviewCurrent(ticket)) return;
+        freshLabels[key] = result;
+        if (result !== null) permitted.push(key);
+      }
+      if (!reviewCurrent(ticket)) return;
+      setRunnerState((previous) => previous?.scope === scope
+        ? { ...previous, labels: { ...previous.labels, ...freshLabels } }
+        : previous);
+
+      const omitted = reviewItems.length - permitted.length;
+      if (!permitted.length) {
+        setNoticeState({
+          scope, error: true,
+          text: "Ninguna actividad seleccionada conserva acceso confirmado. Revisá tu plan.",
+        });
+        return;
+      }
+      if (omitted > 0 && !window.confirm(
+        "Hay " + omitted + " actividades sin acceso vigente. ¿Crear el nuevo repaso sólo con las " +
+        permitted.length + " verificadas?",
+      )) {
+        setNoticeState({
+          scope, error: true,
+          text: "No se generó el repaso: había referencias sin acceso confirmado.",
+        });
+        return;
+      }
+      if (!reviewCurrent(ticket)) return;
+      const next = buildReviewSession(
+        runner.plan, runner.reviews, reviewMode, permitted,
+      );
+      if (!next) throw new Error("STUDY_REVIEW_EMPTY");
+      if (destination === "download") {
+        downloadPlan(next, "los-apuntes-proximo-repaso.json");
+        setNoticeState({
+          scope, error: false,
+          text: "Se exportó el repaso con " + next.tasks.length +
+            " actividades verificadas" + (omitted ? " (se omitieron " + omitted + ")." : "."),
+        });
+      } else {
+        // The Planner accepts a nonce, not a plan in the URL. It verifies every
+        // reference once more before offering append/replace.
+        const handoff = createStudyHandoff(next, scope);
+        if (!reviewCurrent(ticket)) return;
+        navigate("/study/session?subjectId=" + encodeURIComponent(subjectId), {
+          state: handoff,
+        });
+      }
+    } catch (error) {
+      if (reviewCurrent(ticket)) {
+        setNoticeState({ scope, error: true, text: errorText(error) });
+      }
+    } finally {
+      if (reviewCurrent(ticket)) setBusyState(null);
+      finishReview(ticket);
+    }
+  };
+
   const exportUpdated = () => {
     if (!runner || busy) return;
     downloadPlan(runner.plan);
