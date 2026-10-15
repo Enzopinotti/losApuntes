@@ -40,6 +40,8 @@ verify("unique per-owner per-subject document and CAS", () => {
   assert.match(service, /\$inc: \{ revision: 1 \}/u);
   assert.match(service, /expectedRevision === 0/u);
   assert.match(service, /duplicate\(error\)/u);
+  assert.match(service, /slots >= 16/u);
+  assert.match(service, /STUDY_PROGRESS_LIMIT_REACHED/u);
   assert.match(service, /STUDY_PROGRESS_REVISION_CONFLICT/u);
 });
 verify("closed accounts cannot mutate progress and closure purges it", () => {
