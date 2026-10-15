@@ -453,6 +453,9 @@ export default function StudyWorkbench() {
               <Link to={`/study/practice?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Practicar preguntas
               </Link>
+              <Link to={`/study/kits?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
+                Organizar colecciones portátiles
+              </Link>
               <Link to={`/resources?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Explorar más apuntes
               </Link>
