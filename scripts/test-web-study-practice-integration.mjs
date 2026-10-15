@@ -31,7 +31,7 @@ assert.match(practice, /!revealed \?/u);
 assert.match(practice, /const shownAnswers = revealed \?/u);
 assert.match(practice, /const revealAnswers = async/u);
 assert.match(practice, /practice-reveal/u);
-assert.match(practice, /revealCurrent\\(ticket\\)/u);
+assert.match(practice, /revealCurrent\(ticket\)/u);
 assert.match(practice, /Las respuestas siguen ocultas/u);
 assert.match(practice, /aria-pressed=/u);
 assert.match(practice, /const acceptedNotLoaded/u);

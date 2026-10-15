@@ -784,7 +784,7 @@ describe('AccountExportService', () => {
       expect(ownedReader.hasOwnedCollections).toHaveBeenCalledWith('user-1');
     });
 
-    it('keeps v1 only if the owner's private collection set is empty', async () => {
+    it("keeps v1 only if the owner\'s private collection set is empty", async () => {
       const f = fixture();
       const emptyReader = reader(false);
       const service = new AccountExportService(
