@@ -480,6 +480,15 @@ export function validateRuntimeEnvironment(
     );
   }
 
+  if (
+    deploymentProfile === 'production' &&
+    parseBoolean(source.STUDY_PROGRESS_ENABLED, 'STUDY_PROGRESS_ENABLED', false)
+  ) {
+    throw new Error(
+      'STUDY_PROGRESS_ENABLED must remain false in production until account export coverage is implemented',
+    );
+  }
+
   const result: Record<string, unknown> = {
     ...source,
     NODE_ENV: nodeEnv,
