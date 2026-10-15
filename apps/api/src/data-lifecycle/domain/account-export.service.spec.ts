@@ -646,4 +646,74 @@ describe('AccountExportService', () => {
       f.service.readContributorPage(oversized, 'user-1', null),
     ).rejects.toThrow('exceeded the page limit');
   });
+
+  it('accepts v2 completion only with the exact 31-section manifest', async () => {
+    const f = fixture();
+    const v2 = {
+      format: ACCOUNT_EXPORT_FORMAT,
+      formatVersion: 2 as const,
+      sectionCount: 31,
+      recordCount: 4,
+      byteLength: 1024,
+      sha256: 'b'.repeat(64),
+    };
+    await expect(f.service.complete({
+      id: 'export-2', claimId: 'claim-2', result: v2,
+    })).resolves.toBe(true);
+    expect(f.store.complete).toHaveBeenCalledWith(
+      expect.objectContaining({ result: v2 }),
+    );
+    await expect(f.service.complete({
+      id: 'export-2', claimId: 'claim-2',
+      result: { ...v2, sectionCount: 30 },
+    })).rejects.toThrow('completion metadata is invalid');
+    await expect(f.service.complete({
+      id: 'export-2', claimId: 'claim-2',
+      result: { ...v2, formatVersion: 3 as 2 },
+    })).rejects.toThrow('completion metadata is invalid');
+  });
+
+  it('validates v2 artifact metadata without accepting a 30-section v1 artifact', async () => {
+    const f = fixture();
+    const expiresAt = new Date(now.getTime() + 60_000);
+    f.store.findOwned.mockResolvedValueOnce(job({
+      state: 'completed',
+      active: false,
+      formatVersion: 2,
+      artifactSectionCount: 31,
+      artifactByteLength: 1024,
+      artifactSha256: 'b'.repeat(64),
+      artifactGeneration: 'generation-v2',
+      artifactExpiresAt: expiresAt,
+    })).mockResolvedValueOnce(job({
+      state: 'completed',
+      active: false,
+      formatVersion: 2,
+      artifactSectionCount: 31,
+      artifactByteLength: 1024,
+      artifactSha256: 'b'.repeat(64),
+      artifactGeneration: 'generation-v2',
+      artifactExpiresAt: expiresAt,
+    })).mockResolvedValueOnce(job({
+      state: 'completed',
+      active: false,
+      formatVersion: 2,
+      artifactSectionCount: 30,
+      artifactByteLength: 1024,
+      artifactSha256: 'b'.repeat(64),
+      artifactGeneration: 'generation-v2',
+      artifactExpiresAt: expiresAt,
+    }));
+    const publicStatus = await f.service.status('user-1','export-2',now);
+    expect(publicStatus?.downloadable).toBe(true);
+    expect(publicStatus?.formatVersion).toBe(2);
+    await expect(f.service.download('user-1','export-2',now))
+      .resolves.toEqual({
+        kind: 'available', formatVersion: 2, generation: 'generation-v2',
+        byteLength: 1024, sha256: 'b'.repeat(64),
+      });
+    await expect(f.service.download('user-1','export-2',now))
+      .rejects.toThrow('artifact metadata is invalid');
+  });
+
 });
