@@ -115,10 +115,9 @@ const Questions = () => {
     message: string;
     error: boolean;
   } | null>(null);
-  const listScopeKey = [
-    viewerScopeKey,
-    selectionKey ?? "invalid-filters",
-  ].join(":");
+  const listScopeKey = [viewerScopeKey, selectionKey ?? "invalid-filters"].join(
+    ":",
+  );
   const {
     begin: beginList,
     isCurrent: isListCurrent,
@@ -437,7 +436,8 @@ const Questions = () => {
     if (!href) return;
     const key = `${listScopeKey}:${questionId ?? "list"}`;
     try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      if (!navigator.clipboard?.writeText)
+        throw new Error("Clipboard unavailable");
       await navigator.clipboard.writeText(
         new URL(href, window.location.origin).toString(),
       );
@@ -804,10 +804,7 @@ const Questions = () => {
           <option value="open">Abiertas</option>
           <option value="closed">Cerradas</option>
         </select>
-        <button
-          type="submit"
-          disabled={query.trim().length > 120 || loading}
-        >
+        <button type="submit" disabled={query.trim().length > 120 || loading}>
           Buscar
         </button>
       </form>
@@ -841,7 +838,11 @@ const Questions = () => {
             Tocá Buscar para aplicar el cambio de materia.
           </p>
         )}
-        {filterError && <p className="community-error" role="alert">{filterError}</p>}
+        {filterError && (
+          <p className="community-error" role="alert">
+            {filterError}
+          </p>
+        )}
         {invalidFilters && (
           <p className="community-error" role="alert">
             El enlace de búsqueda contiene filtros inválidos. Limpiá los filtros
@@ -851,14 +852,16 @@ const Questions = () => {
         {copyState?.key === `${listScopeKey}:list` && (
           <p
             role={copyState.error ? "alert" : "status"}
-            className={copyState.error ? "community-error" : "community-success"}
+            className={
+              copyState.error ? "community-error" : "community-success"
+            }
           >
             {copyState.message}
           </p>
         )}
         <p className="community-note">
-          Los enlaces incluyen el texto de búsqueda y el identificador público de
-          la materia. No compartas consultas sensibles.
+          Los enlaces incluyen el texto de búsqueda y el identificador público
+          de la materia. No compartas consultas sensibles.
         </p>
       </div>
 
@@ -1003,10 +1006,13 @@ const Questions = () => {
                     Copiar enlace a esta pregunta
                   </button>
                 </div>
-                {copyState?.key === `${listScopeKey}:${selected.question.id}` && (
+                {copyState?.key ===
+                  `${listScopeKey}:${selected.question.id}` && (
                   <p
                     role={copyState.error ? "alert" : "status"}
-                    className={copyState.error ? "community-error" : "community-success"}
+                    className={
+                      copyState.error ? "community-error" : "community-success"
+                    }
                   >
                     {copyState.message}
                   </p>
