@@ -21,6 +21,7 @@ import Resources from "../pages/Resources";
 import Search from "../pages/Search";
 import StudyWorkbench from "../pages/StudyWorkbench";
 import StudySession from "../pages/StudySession";
+import StudyRunner from "../pages/StudyRunner";
 import StudyPractice from "../pages/StudyPractice";
 import StudyKits from "../pages/StudyKits";
 import StudyCollections from "../pages/StudyCollections";
@@ -62,6 +63,14 @@ export const routes: RouteObject[] = [
         element: (
           <PrivateRoute>
             <StudySession />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study/run",
+        element: (
+          <PrivateRoute>
+            <StudyRunner />
           </PrivateRoute>
         ),
       },
