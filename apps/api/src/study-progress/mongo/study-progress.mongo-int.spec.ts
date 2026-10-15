@@ -777,6 +777,102 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
   }, 30_000);
 
+  it('B69 recovers write-ahead orphan intent across two workers after S3 rejects the first delete', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 1, attempts: 1, nextAttemptAt: now,
+      claimId: generation, leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    const exportsStore = new MongoAccountExportStore(exportJobs, users, connection);
+    const orphans = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const job = await exportsStore.findOwned(id, userId) as AccountExportJobRecord;
+    const assembly = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: 1 as const,
+      sectionCount: 30, recordCount: 0, byteLength: 128,
+      sha256: 'a'.repeat(64),
+    };
+    const deleteArtifact = jest.fn()
+      .mockRejectedValueOnce(new Error('S3 transient deletion outage'))
+      .mockResolvedValue(undefined);
+    const artifacts = {
+      createSink: jest.fn().mockReturnValue({
+        write: jest.fn().mockResolvedValue(undefined),
+        commit: jest.fn().mockResolvedValue(undefined),
+        abort: jest.fn().mockResolvedValue(undefined),
+      }),
+      deleteArtifact,
+    } as unknown as AccountExportArtifactStorage;
+    const assembler = {
+      writeJsonV1: async (_owner: string, sink: AccountExportArtifactSink) => {
+        await sink.write('export-v1');
+        await sink.commit(assembly);
+        return assembly;
+      },
+    } as unknown as AccountExportAssembler;
+    const firstService = {
+      claimNext: jest.fn().mockResolvedValueOnce(job).mockResolvedValue(null),
+      renewLease: jest.fn().mockResolvedValue(true),
+      complete: jest.fn().mockRejectedValue(new Error('Mongo completion response unknown')),
+      reschedule: (input: {
+        id: string; claimId: string; state: 'pending' | 'failed';
+        nextAttemptAt: Date; failureCode: 'EXPORT_ASSEMBLY_RETRY';
+      }) => exportsStore.reschedule({ ...input, now: new Date() }),
+    } as unknown as AccountExportService;
+    const first = new AccountExportProcessor(
+      firstService, assembler, exportsStore, artifacts, orphans,
+    );
+    await expect(first.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, orphanDeleted: 0,
+    });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    const stored = await orphanJobs.findOne({ jobId: id, generation }).lean().exec();
+    expect(stored).toMatchObject({
+      state: 'pending', attempts: 0, ownerUserId: userId,
+    });
+    expect((await exportsStore.findOwned(id, userId))?.state).toBe('pending');
+
+    // Restart: no previous in-memory processor, but Mongo still has the task.
+    const second = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      assembler, exportsStore, artifacts,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(second.runIteration()).resolves.toMatchObject({
+      claimed: 0, orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(deleteArtifact).toHaveBeenCalledTimes(2);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B69 never clears a cleanup intent already claimed by another Mongo worker', async () => {
+    await orphanJobs.deleteMany({});
+    const ownerId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const storeA = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const storeB = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await storeA.enqueue({ jobId: id, generation, ownerUserId: ownerId, now });
+    const winnerClaim = randomUUID();
+    const row = await storeA.claimNext({
+      now, claimId: winnerClaim,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    expect(row?.claimId).toBe(winnerClaim);
+    await expect(storeB.clearPending({ jobId: id, generation }))
+      .resolves.toBe(false);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    await expect(storeA.acknowledge({
+      jobId: id, generation, claimId: winnerClaim, now,
+    })).resolves.toBe(true);
+  }, 30_000);
+
   it('purges progress in account closure transaction and blocks later mutations', async () => {
     const userId = await owner();
     const subjectId = randomUUID();
