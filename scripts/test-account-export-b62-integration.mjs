@@ -52,7 +52,7 @@ verify("worker and assembler retain every persisted job version", () => {
 verify("no silent downgrade on rollout/rollback", () => {
   assert.match(service, /this\.progress\.hasOwnedProgress\(userId\)/u);
   assert.match(service, /this\.collections\.hasOwnedCollections\(userId\)/u);
-  assert.match(service, /requestedFormatVersion > result\.job\.formatVersion/u);
+  assert.match(service, /currentRequiredVersion > result\.job\.formatVersion/u);
   assert.match(service, /Private account export readers are not fully wired/u);
 });
 verify("v3 completion, status and download metadata are validated", () => {
@@ -82,7 +82,9 @@ verify("database projections are allowlisted and validated", () => {
 verify("new contributor uses reader and emits bounded allowlist", () => {
   assert.match(contributor, /sectionId = 'study\.progress'/u);
   assert.match(contributor, /listAccountExportProgress\(input\.userId/u);
-  assert.match(contributor, /plan: row\.plan/u);
+  assert.match(contributor, /const plan: AccountExportRecord/u);
+  assert.match(contributor, /tasks: row\.plan\.tasks\.map/u);
+  assert.match(contributor, /plan,/u);
   assert.match(readModule, /exports: \[StudyProgressExportReader\]/u);
 });
 verify("legacy regression and Mongo integration evidence exist", () => {
