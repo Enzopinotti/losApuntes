@@ -21,6 +21,8 @@ assert.match(page, /page\.revision/u);
 assert.match(page, /header\.collection\.revision/u);
 assert.match(page, /previousRevision/u);
 assert.match(page, /STUDY_COLLECTION_CURSOR_STALE/u);
+assert.match(page, /  StudyCollectionsApiError,/u);
+assert.match(page, /detailStateRef\.current = detailState;/u);
 assert.match(page, /Actualizar colección/u);
 assert.match(page, /PERSISTENT_COLLECTIONS_VISIBLE/u);
 assert.match(page, /Colecciones sincronizadas no disponibles/u);

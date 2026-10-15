@@ -13,7 +13,7 @@ import {
   studyCollectionsApi,
   type CollectionResourceItem,
   type StudyCollection,
-  type StudyCollectionsApiError,
+  StudyCollectionsApiError,
 } from "../features/study-collections/studyCollectionsService";
 import {
   useAsyncAuthorityFence,
@@ -87,7 +87,9 @@ const StudyCollections = () => {
   const [listState, setListState] = useState<CollectionList | null>(null);
   const [detailState, setDetailState] = useState<CollectionDetail | null>(null);
   const detailStateRef = useRef<CollectionDetail | null>(null);
-  detailStateRef.current = detailState;
+  useEffect(() => {
+    detailStateRef.current = detailState;
+  }, [detailState]);
   const [searchState, setSearchState] = useState<SearchState | null>(null);
   const [searchDraft, setSearchDraft] = useState<{
     scope: string;

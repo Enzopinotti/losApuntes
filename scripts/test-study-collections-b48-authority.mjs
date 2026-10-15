@@ -98,4 +98,4 @@ assert.strictEqual(
 );
 assert.equal(releaseScopedCollectionAction(null, firstLease), null);
 
-console.log("B48 scoped collection authority: 20 runtime cases PASS");
+console.log("B48 scoped collection authority: 22 runtime assertions PASS");
