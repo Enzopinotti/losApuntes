@@ -54,6 +54,7 @@ const EXPECTED_V1_SECTION_IDS = [
 ] as const;
 
 const EXPECTED_V2_SECTION_IDS = [...EXPECTED_V1_SECTION_IDS, 'study.collections'].sort();
+const EXPECTED_V3_SECTION_IDS = [...EXPECTED_V2_SECTION_IDS, 'study.progress'].sort();
 
 function contributorFactory(): ContributorFactoryProvider {
   const providers = Reflect.getMetadata(
@@ -89,32 +90,36 @@ function wiredContributors(dependency: unknown): AccountExportContributor[] {
 }
 
 describe('DataLifecycleModule account export wiring', () => {
-  it('registers all 31 v2 sections while keeping v1 manifests unchanged', () => {
+  it('registers 32 v3 sections while preserving the legacy manifests', () => {
     const registry = new AccountExportContributorRegistry(
       wiredContributors({}),
     );
 
     expect(registry.list().map(({ sectionId }) => sectionId)).toEqual(
-      EXPECTED_V2_SECTION_IDS,
+      EXPECTED_V3_SECTION_IDS,
     );
-    expect(() => assertAccountExportSections(registry.list(), 2))
+    expect(() => assertAccountExportSections(registry.list(), 3))
       .not.toThrow();
+    expect(() => assertAccountExportSections(
+      registry.list().filter(({sectionId}) => sectionId !== 'study.progress'), 2,
+    )).not.toThrow();
     expect(() => assertAccountExportV1Sections(
-      registry.list().filter(({sectionId}) => sectionId !== 'study.collections'),
+      registry.list().filter(({sectionId}) =>
+        sectionId !== 'study.collections' && sectionId !== 'study.progress'),
     )).not.toThrow();
   });
 
-  it('fails the real Nest factory before generating an incomplete v2 export', () => {
+  it('fails the real Nest factory before generating an incomplete v3 export', () => {
     const provider = contributorFactory();
     const dependencies = provider.inject.map(
       (Contributor) => new Contributor({} as never),
     );
-    expect(dependencies).toHaveLength(EXPECTED_V2_SECTION_IDS.length);
+    expect(dependencies).toHaveLength(EXPECTED_V3_SECTION_IDS.length);
 
     const missing = dependencies.filter(
       (contributor) => contributor.sectionId !== 'qa.submittedReports',
     );
-    expect(() => assertAccountExportSections(missing, 2)).toThrow(
+    expect(() => assertAccountExportSections(missing, 3)).toThrow(
       'inventory is incomplete or incompatible',
     );
     expect(() =>
@@ -128,15 +133,15 @@ describe('DataLifecycleModule account export wiring', () => {
               nextCursor: null,
             }),
         },
-      ], 2),
+      ], 3),
     ).toThrow('inventory is incomplete or incompatible');
     expect(() =>
       assertAccountExportSections([
         ...dependencies.slice(0, -1),
         dependencies[0],
-      ], 2),
+      ], 3),
     ).toThrow('inventory is incomplete or incompatible');
-    expect(() => assertAccountExportSections(dependencies, 2)).not.toThrow();
+    expect(() => assertAccountExportSections(dependencies, 3)).not.toThrow();
   });
 
   it('assembles every section with the exact owner and bounded page budget', async () => {
