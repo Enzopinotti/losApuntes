@@ -50,6 +50,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
   let models: Models;
   let collections: MongoStudyCollectionStore;
   let lifecycle: MongoAccountLifecycleStore;
+  let verifiedLocalReplica = false;
 
   beforeAll(async () => {
     if (!uri) throw new Error('Local test Mongo URI is required');
@@ -76,12 +77,29 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       serverSelectionTimeoutMS: 8_000,
     }).asPromise();
     const hello = await connection.db!.admin().command({ hello: 1 });
+    const reportedMembers: unknown[] = [
+      ...(Array.isArray(hello.hosts) ? hello.hosts : []),
+      ...(Array.isArray(hello.passives) ? hello.passives : []),
+      ...(Array.isArray(hello.arbiters) ? hello.arbiters : []),
+      hello.me,
+    ].filter((value) => value !== undefined);
+    const membersLocal = reportedMembers.length > 0 &&
+      reportedMembers.every((entry) => {
+        if (typeof entry !== 'string') return false;
+        const [host, port, extra] = entry.split(':');
+        return !extra && localHosts.has(host ?? '') &&
+          (port === undefined || /^[0-9]{1,5}$/u.test(port));
+      });
     if (
       typeof hello.setName !== 'string' ||
-      hello.isWritablePrimary !== true
+      hello.isWritablePrimary !== true ||
+      !membersLocal
     ) {
-      throw new Error('B50 requires an initialized primary replica set');
+      throw new Error('B52 requires an initialized exclusively local replica set');
     }
+    // Mark this connection safe to clean up only after verifying all
+    // advertised replica members; a failed safety check must NEVER drop DBs.
+    verifiedLocalReplica = true;
     models = {
       users: connection.model(User.name, UserSchema),
       collections: connection.model(StudyCollection.name, StudyCollectionSchema),
@@ -106,7 +124,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
   }, 30_000);
 
   afterAll(async () => {
-    if (connection?.readyState === 1) {
+    if (verifiedLocalReplica && connection?.readyState === 1) {
       // The name is generated above, never taken from the environment.
       await connection.dropDatabase();
     }
