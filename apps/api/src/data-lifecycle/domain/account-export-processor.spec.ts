@@ -54,6 +54,8 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
       .fn()
       .mockResolvedValue(input.job === undefined ? claim() : input.job),
     renewLease: jest.fn().mockResolvedValue(true),
+    captureStudyProgressExportEpoch: jest.fn().mockResolvedValue(7),
+    assertStudyProgressExportEpoch: jest.fn().mockResolvedValue(undefined),
     complete: jest.fn().mockResolvedValue(true),
     reschedule: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportService>;
@@ -468,6 +470,95 @@ describe('AccountExportProcessor', () => {
         state: 'failed', failureCode: 'EXPORT_RETRY_EXHAUSTED',
       }),
     );
+  });
+
+  it('B65: rejects a v3 mutation after S3 commit but before durable job completion', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.assertStudyProgressExportEpoch.mockRejectedValueOnce(
+      new Error('Study progress changed during account export'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0, failed: 0,
+    });
+    expect(f.sink.commit).toHaveBeenCalledTimes(1);
+    expect(f.exports.captureStudyProgressExportEpoch)
+      .toHaveBeenCalledWith('owner-1');
+    expect(f.exports.assertStudyProgressExportEpoch)
+      .toHaveBeenCalledWith('owner-1', 7);
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id, claim().claimId,
+    );
+    expect(f.sink.abort).not.toHaveBeenCalled();
+    expect(f.exports.reschedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'pending', failureCode: 'EXPORT_ASSEMBLY_RETRY',
+      }),
+    );
+  });
+
+  it('B65: preserves committed artifact ordering for a stable v3 epoch', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      completed: 1, retryScheduled: 0,
+    });
+    const s3Commit = f.sink.commit.mock.invocationCallOrder[0];
+    const epochRead = f.exports.captureStudyProgressExportEpoch.mock.invocationCallOrder[0];
+    const epochCheck = f.exports.assertStudyProgressExportEpoch.mock.invocationCallOrder[0];
+    const durableCommit = f.exports.complete.mock.invocationCallOrder[0];
+    expect(epochRead).toBeLessThan(s3Commit);
+    expect(s3Commit).toBeLessThan(epochCheck);
+    expect(epochCheck).toBeLessThan(durableCommit);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B65: retries after a postcommit epoch probe outage and attempts cleanup', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    const error = new Error('Mongo owner revision unavailable');
+    f.exports.assertStudyProgressExportEpoch.mockRejectedValueOnce(error);
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(
+      new Error('S3 cleanup temporarily unavailable'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0,
+    });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id, claim().claimId,
+    );
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.exports.reschedule).toHaveBeenCalledWith(
+      expect.objectContaining({ failureCode: 'EXPORT_ASSEMBLY_RETRY' }),
+    );
+  });
+
+  it('B65: does not publish a stale v3 even at retry exhaustion', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3, attempts: 5 }) });
+    f.exports.assertStudyProgressExportEpoch.mockRejectedValueOnce(
+      new Error('Study progress changed during account export'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      failed: 1, completed: 0, retryScheduled: 0,
+    });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id, claim().claimId,
+    );
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.exports.reschedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'failed', failureCode: 'EXPORT_RETRY_EXHAUSTED',
+      }),
+    );
+  });
+
+  it('B65: never adds epoch lookups to historical v1 or v2 jobs', async () => {
+    for (const version of [1, 2]) {
+      const f = fixture({ job: claim({ formatVersion: version }) });
+      await expect(f.processor.runIteration()).resolves.toMatchObject({
+        claimed: 1, completed: 1,
+      });
+      expect(f.exports.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
+      expect(f.exports.assertStudyProgressExportEpoch).not.toHaveBeenCalled();
+    }
   });
 
   it('routes persisted v3 jobs to the v3 assembler without modifying legacy claims', async () => {
