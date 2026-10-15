@@ -15,6 +15,8 @@ const EXPECTED = Object.freeze([
   "never leaves owner documents after delete races a successful closure",
   "keeps the same idempotency key and original collection on replay",
   "rolls back both closure and collection deletion when audit persistence fails",
+  "exports only the owner collections with bounded stable pages and no internal fields",
+  "retains v2 account portability after rollback and erases closed-owner exports",
 ]);
 
 export const REQUIRED_STUDY_MONGO_TEST_NAMES = EXPECTED;
@@ -55,8 +57,11 @@ export function validateStudyMongoJestReport(report) {
     report.success !== true ||
     report.numFailedTests !== 0 ||
     report.numPendingTests !== 0 ||
-    report.numPassedTests < EXPECTED.length ||
-    !Array.isArray(report.testResults)
+    report.numPassedTests !== EXPECTED.length ||
+    report.numTotalTests !== EXPECTED.length ||
+    report.numTotalTestSuites !== 1 ||
+    !Array.isArray(report.testResults) ||
+    report.testResults.length !== 1
   ) {
     throw new Error("Mongo acceptance suite failed, was skipped or is incomplete");
   }
@@ -74,19 +79,25 @@ export function validateStudyMongoJestReport(report) {
   if (!Array.isArray(results)) {
     throw new Error("Mongo test assertion results are missing");
   }
-  const passed = results
-    .filter((entry) => entry?.status === "passed")
-    .map((entry) => entry.fullName);
-  const missing = EXPECTED.filter(
-    (name) => !passed.some((fullName) => fullName.includes(name)),
-  );
-  if (missing.length > 0 || results.some((entry) => entry?.status !== "passed")) {
+  const suiteTitle =
+    "B50 real Mongo replica-set acceptance: collections vs closure";
+  const expectedNames = EXPECTED.map((name) => suiteTitle + " " + name);
+  const passed = results.map((entry) => entry?.fullName);
+  // Exact full-name and count checks prevent a repeated or similarly named
+  // test from masquerading as a missing required acceptance scenario.
+  const actual = new Set(passed);
+  if (
+    results.length !== EXPECTED.length ||
+    actual.size !== EXPECTED.length ||
+    results.some((entry) => entry?.status !== "passed") ||
+    expectedNames.some((name) => !actual.has(name))
+  ) {
     throw new Error(
-      "Mongo acceptance missing required passed tests: " + missing.join(", "),
+      "Mongo acceptance must pass every unique required test by exact name",
     );
   }
   return {
-    passed: passed.length,
+    passed: results.length,
     required: EXPECTED.length,
     suite: matching[0].name,
   };
