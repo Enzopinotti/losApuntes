@@ -459,7 +459,7 @@ describe('MongoAccountExportStore', () => {
     }, { $inc: { account_lifecycle_revision: 1 } }, { session: f.session });
     expect(f.jobs.updateOne).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'export-1', claimId: 'claim-1', formatVersion: 3,
+        id: 'export-1', claimId: 'claim-1', formatVersion: 3, userId: 'user-1',
       }),
       expect.objectContaining({
         $set: expect.objectContaining({ state: 'completed', artifactSectionCount: 32 }),
