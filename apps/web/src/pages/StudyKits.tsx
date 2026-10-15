@@ -184,8 +184,13 @@ export default function StudyKits() {
   const verified = verifiedState?.scope === verifyKey ? verifiedState : null;
   const [feedbackState, setFeedbackState] = useState<KitFeedback | null>(null);
   const feedback = feedbackState?.scope === scope ? feedbackState : null;
-  const [newTitle, setNewTitle] = useState("");
-  const [newNotes, setNewNotes] = useState("");
+  const [createForm, setCreateForm] = useState<{
+    scope: string;
+    title: string;
+    notes: string;
+  } | null>(null);
+  const newTitle = createForm?.scope === scope ? createForm.title : "";
+  const newNotes = createForm?.scope === scope ? createForm.notes : "";
   const [editing, setEditing] = useState<{ scope: string; kitId: string } | null>(null);
   const isEditing = editing?.scope === scope && editing.kitId === selectedId;
   const [draftTitle, setDraftTitle] = useState("");
@@ -349,8 +354,7 @@ export default function StudyKits() {
       });
       updateArchive(next);
       setSelectedState({scope,kitId:id});
-      setNewTitle("");
-      setNewNotes("");
+      setCreateForm({scope,title:"",notes:""});
     } catch(error) {
       setFeedbackState({scope,error:true,text:errorFor(error)});
     }
@@ -526,12 +530,20 @@ export default function StudyKits() {
                 <label>
                   Nombre
                   <input value={newTitle} maxLength={100} required
-                    onChange={(event)=>setNewTitle(event.target.value)} />
+                    onChange={(event)=>setCreateForm({
+                      scope,
+                      title:event.target.value,
+                      notes:newNotes,
+                    })} />
                 </label>
                 <label>
                   Notas personales
                   <textarea rows={3} maxLength={500} value={newNotes}
-                    onChange={(event)=>setNewNotes(event.target.value)} />
+                    onChange={(event)=>setCreateForm({
+                      scope,
+                      title:newTitle,
+                      notes:event.target.value,
+                    })} />
                 </label>
                 <button type="submit" disabled={archive.kits.length>=STUDY_KIT_MAX_COLLECTIONS}>
                   Crear colección
