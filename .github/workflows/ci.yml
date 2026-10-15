@@ -506,11 +506,11 @@ jobs:
       - name: Check Web Search Save source formatting
         run: pnpm --filter @losapuntes/web exec prettier --check src/features/search/SearchQuickSaveAction.tsx src/pages/Search.tsx src/pages/Resources.tsx
 
-      - name: Verify Web TypeScript
-        run: pnpm --filter @losapuntes/web check:types
-
       - name: Verify Web Search and Save contract
         run: |
           node scripts/test-web-search-contract.mjs
           node scripts/test-web-search-quick-save-contract.mjs
           node scripts/test-web-resources-contract.mjs
+
+      - name: Verify Web TypeScript
+        run: pnpm --filter @losapuntes/web check:types
