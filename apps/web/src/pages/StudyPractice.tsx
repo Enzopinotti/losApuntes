@@ -130,6 +130,12 @@ export default function StudyPractice() {
   const summary = round ? recallSummary(round.ids, round.outcomes) : null;
   const [feedbackState, setFeedbackState] = useState<Feedback | null>(null);
   const feedback = feedbackState?.scope === scope ? feedbackState : null;
+  const [revealState, setRevealState] = useState<{
+    key: string;
+    busy: boolean;
+    error: string | null;
+  } | null>(null);
+  const revealStatus = revealState?.key === detailKey ? revealState : null;
 
   const {
     begin: beginContext,
@@ -151,6 +157,11 @@ export default function StudyPractice() {
     isCurrent: moreCurrent,
     finish: finishMore,
   } = useAsyncAuthorityFence(`practice-more:${detailKey}`);
+  const {
+    begin: beginReveal,
+    isCurrent: revealCurrent,
+    finish: finishReveal,
+  } = useAsyncAuthorityFence(`practice-reveal:${detailKey}`);
 
   const loadContext = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -257,6 +268,46 @@ export default function StudyPractice() {
       finishDetail(ticket);
     }
   }, [currentId, subjectId, detailKey, beginDetail, detailCurrent, finishDetail]);
+
+  const revealAnswers = async () => {
+    if (!currentId || !subjectId || !detail?.question || revealStatus?.busy) {
+      return;
+    }
+    const ticket = beginReveal();
+    if (!revealCurrent(ticket)) return;
+    setRevealState({ key: detailKey, busy: true, error: null });
+    try {
+      // Refresh at the actual reveal boundary. An older response may have
+      // been removed while the student was preparing their own explanation.
+      const response = await communityApi.question(currentId, ticket.signal);
+      if (response.question.academic.subject.id !== subjectId) {
+        throw new Error("Question subject changed");
+      }
+      if (!revealCurrent(ticket)) return;
+      setDetailState({
+        key: detailKey,
+        loading: false,
+        loadingMore: false,
+        question: response.question,
+        answers: response.answers,
+        nextCursor: response.answersNextCursor,
+        error: null,
+      });
+      changeRound((previous) => ({
+        ...previous,
+        revealedIds: [...new Set([...previous.revealedIds, currentId])],
+      }));
+      setRevealState({ key: detailKey, busy: false, error: null });
+    } catch (error) {
+      if (revealCurrent(ticket)) {
+        setRevealState({
+          key: detailKey, busy: false, error: messageFor(error),
+        });
+      }
+    } finally {
+      finishReveal(ticket);
+    }
+  };
 
   const loadMoreAnswers = async () => {
     if (
@@ -524,15 +575,22 @@ export default function StudyPractice() {
                       />
                     </label>
                     {!revealed ? (
-                      <button type="button" onClick={() => {
-                        if (!currentId) return;
-                        changeRound((previous) => ({
-                          ...previous,
-                          revealedIds: [...new Set([...previous.revealedIds, currentId])],
-                        }));
-                      }}>
-                        Mostrar respuestas de la comunidad
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          disabled={revealStatus?.busy}
+                          onClick={() => void revealAnswers()}
+                        >
+                          {revealStatus?.busy
+                            ? "Comprobando respuestas…"
+                            : "Mostrar respuestas de la comunidad"}
+                        </button>
+                        {revealStatus?.error && (
+                          <p className="study-practice-error" role="alert">
+                            {revealStatus.error} Las respuestas siguen ocultas.
+                          </p>
+                        )}
+                      </>
                     ) : (
                       <div className="study-practice-answers">
                         <h3>Compará con respuestas disponibles</h3>
