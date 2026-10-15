@@ -853,7 +853,7 @@ describe('AccountExportProcessor', () => {
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanDeleted: 1, orphanRetries: 0,
     });
-    expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId, orphan.ownerUserId);
+    expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId);
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
       orphan.jobId, orphan.generation,
     );
