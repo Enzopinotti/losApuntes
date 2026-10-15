@@ -61,6 +61,9 @@ verify('both recovered completion and proven orphan are tested', () => {
   assert.match(tests, /B66 preserves S3 when claim outcome is unknown/u);
   assert.match(tests, /B66 ignores a completed export from another owner/u);
   assert.match(tests, /B66 retains a durable retry outcome when S3 orphan cleanup fails/u);
+  assert.match(tests, /B66 never deletes S3 if the reconciliation CAS itself fails/u);
+  assert.match(tests, /B66 preserves S3 if both reconciliation reads are unavailable/u);
+  assert.match(tests, /also reconciles lost acknowledgements for historical/u);
 });
 verify('real Mongo replica opt-in tests cover lost reply and CAS before orphan cleanup', () => {
   assert.match(mongo, /B66 recovers an actually committed Mongo export/u);
