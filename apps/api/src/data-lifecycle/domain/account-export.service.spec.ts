@@ -649,6 +649,7 @@ describe('AccountExportService', () => {
 
   it('accepts v2 completion only with the exact 31-section manifest', async () => {
     const f = fixture();
+    f.store.complete.mockResolvedValueOnce(true);
     const v2 = {
       format: ACCOUNT_EXPORT_FORMAT,
       formatVersion: 2 as const,
