@@ -25,7 +25,9 @@ export function QuestionDiscoverySubjectPicker({
   const [query, setQuery] = useState("");
   const key = `qa-subject-discovery:${authorityScope}:${query.trim()}`;
   const { begin, isCurrent, finish, invalidate } = useAsyncAuthorityFence(key);
-  const [searchState, setSearchState] = useState<SubjectSearchState | null>(null);
+  const [searchState, setSearchState] = useState<SubjectSearchState | null>(
+    null,
+  );
   const state = searchState?.key === key ? searchState : null;
 
   useEffect(() => {
@@ -97,12 +99,19 @@ export function QuestionDiscoverySubjectPicker({
           {state?.busy ? "Buscando…" : "Buscar materias"}
         </button>
       </div>
-      {state?.error && <p role="alert" className="community-error">{state.error}</p>}
+      {state?.error && (
+        <p role="alert" className="community-error">
+          {state.error}
+        </p>
+      )}
       {state && !state.busy && !state.error && state.options.length === 0 && (
         <p role="status">No se encontraron materias para esa búsqueda.</p>
       )}
       {state && state.options.length > 0 && (
-        <ul className="community-list compact" aria-label="Materias encontradas">
+        <ul
+          className="community-list compact"
+          aria-label="Materias encontradas"
+        >
           {state.options.map((option) => (
             <li key={option.id}>
               <button
