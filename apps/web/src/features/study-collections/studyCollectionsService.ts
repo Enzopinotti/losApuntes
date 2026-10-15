@@ -30,10 +30,7 @@ export class StudyCollectionsApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const signal = init.signal
     ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])
     : AbortSignal.timeout(15_000);
