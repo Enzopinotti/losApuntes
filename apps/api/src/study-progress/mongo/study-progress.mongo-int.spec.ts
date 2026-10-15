@@ -397,6 +397,36 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     await expect(finish(staleEpoch + 1)).resolves.toBe(true);
   }, 30_000);
 
+  it('B65 cannot publish owner A job with owner B epoch authority', async () => {
+    const ownerA = await owner();
+    const ownerB = await owner();
+    const reader = new UsersService(users as never);
+    const epochA = await reader.getStudyProgressExportEpoch(ownerA);
+    const epochB = await reader.getStudyProgressExportEpoch(ownerB);
+    const id = randomUUID();
+    const claimId = randomUUID();
+    await exportJobs.create({
+      id, userId: ownerA, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: new Date(),
+      claimId, leaseExpiresAt: new Date(Date.now() + 120_000),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    await expect(store.complete({
+      id, claimId, ownerUserId: ownerB, expectedProgressEpoch: epochB,
+      completedAt: new Date(), artifactGeneration: claimId,
+      artifactExpiresAt: new Date(Date.now() + 86_400_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 128,
+        sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(false);
+    expect((await exportJobs.findOne({ id }).lean().exec())?.state)
+      .toBe('processing');
+    expect(await reader.getStudyProgressExportEpoch(ownerA)).toBe(epochA);
+    expect(await reader.getStudyProgressExportEpoch(ownerB)).toBe(epochB);
+  }, 30_000);
+
   it('B65 does not increment owner epoch if a v3 claim has expired', async () => {
     const ownerId = await owner();
     const account = new UsersService(users as never);
