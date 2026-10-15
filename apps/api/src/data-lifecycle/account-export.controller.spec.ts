@@ -273,6 +273,32 @@ describe('AccountExportController', () => {
     raw.emit('finish');
   });
 
+  it('accepts version-three export artifacts using the existing download contract', async () => {
+    const f = fixture();
+    f.exports.download.mockResolvedValueOnce({
+      kind: 'available',
+      formatVersion: 3,
+      generation: '123e4567-e89b-42d3-a456-426614174001',
+      byteLength: 1,
+      sha256: digest('x'),
+    });
+    f.artifacts.readObjectChunks.mockReturnValueOnce(
+      (async function* () { yield Buffer.from('x'); })(),
+    );
+    const raw = Object.assign(new EventEmitter(), { writableFinished: true });
+    const reply = {
+      raw,
+      header: jest.fn<unknown, [name: string, value: string | number]>().mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
+    };
+    await f.controller.download(f.request, exportId, reply as never);
+    expect(reply.header).toHaveBeenCalledWith(
+      'content-disposition',
+      'attachment; filename="los-apuntes-account-export-v3.json"',
+    );
+    raw.emit('finish');
+  });
+
   it('refuses malformed artifact versions before reading private storage', async () => {
     const f = fixture();
     f.exports.download.mockResolvedValueOnce({
