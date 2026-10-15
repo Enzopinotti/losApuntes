@@ -216,4 +216,37 @@ describe('StudyCollectionService', () => {
     expect(result.items).toEqual([{ resourceId, resource: null }]);
   });
 
+  it('rejects malformed and non-canonical cursors without querying private data', async () => {
+    const { service, store } = setup();
+    const page = await service.list(ownerId, 1);
+    const valid = page.nextCursor;
+    expect(valid).toBeNull();
+
+    // A URL-safe but oversized/corrupt cursor must be rejected before Mongo.
+    await expect(service.list(ownerId, 1, 'a'.repeat(512)))
+      .rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(service.listResources(ownerId, collectionId, 1, 'a'.repeat(512)))
+      .rejects.toBeInstanceOf(UnprocessableEntityException);
+    const invalidCanonical = Buffer.from(
+      JSON.stringify({ version:1,ownerUserId:ownerId,index:1 }),
+    ).toString('base64url') + 'A';
+    await expect(service.listResources(
+      ownerId, collectionId, 1, invalidCanonical,
+    )).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(store.list).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, -1, 26, 1.5, Number.NaN])(
+    'rejects invalid collection resource page budget %s',
+    async (limit) => {
+      const { service, store, get } = setup();
+      await expect(service.listResources(ownerId, collectionId, limit))
+        .rejects.toMatchObject({
+          response: { code: 'STUDY_COLLECTION_PAGE_LIMIT_INVALID' },
+        });
+      expect(store.findOwned).not.toHaveBeenCalled();
+      expect(get).not.toHaveBeenCalled();
+    },
+  );
+
 });
