@@ -16,9 +16,10 @@ for (const name of ["edit", "add resource", "remove resource", "delete"]) {
 }
 assert.match(suite, /it\.each\(competingMutations\)/u);
 assert.match(suite, /Promise\.allSettled\(/u);
-assert.match(suite, /const completed = closure\.status === 'fulfilled'/u);
-assert.match(suite, /: await close\(userId\)/u);
-assert.match(suite, /expect\(completed\.status\)\.toBe\('closed'\)/u);
+assert.match(suite, /async function committedClosureAfterRace\(/u);
+assert.match(suite, /await committedClosureAfterRace\(userId, closeResult\)/u);
+assert.match(suite, /await committedClosureAfterRace\(userId, closure\)/u);
+assert.match(suite, /expect\(committed\.status\)\.toBe\('closed'\)/u);
 assert.match(suite, /expect\(remaining\)\.toBe\(0\)/u);
 assert.match(suite, /keeps the same idempotency key and original collection/u);
 assert.match(suite, /STUDY_COLLECTIONS_TEST_MONGO_URI/u);
@@ -36,8 +37,8 @@ assert.match(runner, /--outputFile/u);
 assert.match(runner, /run\.status !== 0/u);
 assert.match(runner, /process\.exitCode = 1/u);
 assert.match(checker, /numPendingTests !== 0/u);
-assert.match(checker, /numPassedTests < EXPECTED\.length/u);
-assert.match(checker, /missing\.length > 0/u);
+assert.match(checker, /numPassedTests !== EXPECTED\.length/u);
+assert.match(checker, /expectedNames\.some\(\(name\) => !actual\.has\(name\)\)/u);
 assert.match(checker, /assertionResults/u);
 assert.match(gate, /assert\.throws/u);
 assert.match(flag, /'STUDY_COLLECTIONS_ENABLED',\s*false/u);

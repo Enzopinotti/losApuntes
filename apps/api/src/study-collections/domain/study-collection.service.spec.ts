@@ -177,6 +177,72 @@ describe('StudyCollectionService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
+  it('returns a recoverable 409 when removing resources shrinks beyond the old cursor index', async () => {
+    const { service, store, get } = setup();
+    const first = await service.listResources(ownerId, collectionId, 1);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    store.findOwned.mockResolvedValueOnce(
+      collection({ revision: 3, resourceIds: [resourceId] }),
+    );
+    await expect(
+      service.listResources(ownerId, collectionId, 1, first.nextCursor ?? undefined),
+    ).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_STALE' },
+    });
+    // Resource metadata must never be retrieved for a stale page.
+    expect(get).toHaveBeenCalledTimes(1);
+
+    store.findOwned.mockResolvedValueOnce(
+      collection({ revision: 4, resourceIds: [] }),
+    );
+    await expect(
+      service.listResources(ownerId, collectionId, 1, first.nextCursor ?? undefined),
+    ).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_STALE' },
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects malformed same-revision indexes and explicit empty cursor tokens', async () => {
+    const { service, store, get } = setup(
+      collection({ revision: 2, resourceIds: [resourceId] }),
+    );
+    const oldCursor = Buffer.from(JSON.stringify({
+      version: 1,
+      ownerUserId: ownerId,
+      collectionId,
+      revision: 2,
+      index: 1,
+    })).toString('base64url');
+    await expect(service.listResources(
+      ownerId, collectionId, 1, oldCursor,
+    )).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
+    });
+    await expect(service.list(ownerId, 1, ''))
+      .rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
+      });
+    await expect(service.listResources(ownerId, collectionId, 1, ''))
+      .rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
+      });
+
+    const malformed = Buffer.from(JSON.stringify({
+      version: 1,
+      ownerUserId: ownerId,
+      collectionId,
+      revision: '2',
+      index: 0,
+    })).toString('base64url');
+    await expect(service.listResources(ownerId, collectionId, 1, malformed))
+      .rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
+      });
+    expect(store.list).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it('detects update revisions and disallows empty patches', async () => {
     const { service, store } = setup();
     await expect(
