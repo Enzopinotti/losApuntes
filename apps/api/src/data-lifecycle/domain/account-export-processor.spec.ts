@@ -682,6 +682,32 @@ describe('AccountExportProcessor', () => {
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(claim().id, claim().claimId);
   });
 
+  it('B66 never deletes S3 if the reconciliation CAS itself fails', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('Mongo completion acknowledgement unknown'),
+    );
+    f.store.findOwned.mockRejectedValueOnce(new Error('Mongo read unavailable'));
+    f.exports.reschedule.mockRejectedValueOnce(new Error('Mongo retry CAS unavailable'));
+    await expect(f.processor.runIteration()).rejects.toThrow(
+      'Mongo retry CAS unavailable',
+    );
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.sink.abort).not.toHaveBeenCalled();
+  });
+
+  it('B66 preserves S3 if both reconciliation reads are unavailable and CAS loses', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('Mongo completion unknown'));
+    f.store.findOwned.mockRejectedValue(new Error('Mongo reader unavailable'));
+    f.exports.reschedule.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      stale: 1, completed: 0, retryScheduled: 0,
+    });
+    expect(f.store.findOwned).toHaveBeenCalledTimes(2);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
   it('B66 retains a durable retry outcome when S3 orphan cleanup fails', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
     f.exports.complete.mockRejectedValueOnce(new Error('Mongo response unknown'));
