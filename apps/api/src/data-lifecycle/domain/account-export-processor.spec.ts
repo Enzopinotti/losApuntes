@@ -576,6 +576,28 @@ describe('AccountExportProcessor', () => {
     });
   }
 
+  it.each([1, 2] as const)(
+    'B66 also reconciles lost acknowledgements for historical v%s without new epoch reads',
+    async (version) => {
+      const f = fixture({ job: claim({ formatVersion: version }) });
+      f.exports.complete.mockRejectedValueOnce(new Error('commit ack lost'));
+      f.store.findOwned.mockResolvedValueOnce(claim({
+        state: 'completed', active: false, claimId: null,
+        completedAt: now, formatVersion: version,
+        artifactGeneration: claim().claimId,
+        artifactSectionCount: version === 1 ? 30 : 31,
+        artifactRecordCount: 1, artifactByteLength: 64,
+        artifactSha256: 'a'.repeat(64),
+      }));
+      await expect(f.processor.runIteration()).resolves.toMatchObject({
+        completed: 1, retryScheduled: 0,
+      });
+      expect(f.exports.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
+      expect(f.exports.reschedule).not.toHaveBeenCalled();
+      expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    },
+  );
+
   it('B66 reconciles a lost Mongo acknowledgement to the real completed generation', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
     f.exports.complete.mockRejectedValueOnce(
