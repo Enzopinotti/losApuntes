@@ -47,7 +47,10 @@ export declare function repairMissingReferences(
   api: {
     get(id: string, signal?: AbortSignal): Promise<{ collection: { id: string; revision: number; resourceCount: number } }>;
     readResource(id: string, signal?: AbortSignal): Promise<{ resource: { id: string } }>;
-    remove(id: string, resourceId: string, signal?: AbortSignal): Promise<{ collection: { id: string; revision: number } }>;
+    remove(
+      id: string, resourceId: string, signal?: AbortSignal,
+      expectedRevision?: number,
+    ): Promise<{ collection: { id: string; revision: number } }>;
   },
   signal?: AbortSignal,
   onProgress?: (progress: CollectionRepairProgress) => void,

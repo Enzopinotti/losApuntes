@@ -185,7 +185,12 @@ export async function repairMissingReferences(report, api, signal, onProgress) {
       } catch (error) {
         active(signal);
         if (error?.status === 403 || error?.status === 404) {
-          const result = await api.remove(id, resourceId, signal);
+          // The server checks ownership, current Resource accessibility,
+          // and performs revision CAS in the Mongo transaction. A stale
+          // revision must fail without deleting a newly modified reference.
+          const result = await api.remove(
+            id, resourceId, signal, progress.revision,
+          );
           active(signal);
           if (!result?.collection ||
               validId(result.collection.id) !== id ||

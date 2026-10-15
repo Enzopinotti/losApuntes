@@ -41,6 +41,13 @@ function recoveryError(error: unknown): string {
   if (error instanceof CollectionRecoveryError) {
     if (error.code === "RECOVERY_ABORTED") return "La operación se interrumpió.";
     if (error.failure instanceof Error) {
+      if ("code" in error.failure && (
+        error.failure.code === "STUDY_COLLECTION_REVISION_CONFLICT" ||
+        error.failure.code === "STUDY_COLLECTION_REFERENCE_ACCESSIBLE" ||
+        error.failure.code === "STUDY_COLLECTION_REFERENCE_CHANGED"
+      )) {
+        return "El servidor detectó cambios de revisión o de acceso. Volvé a analizar la colección antes de continuar.";
+      }
       if (error.failure.message === "RECOVERY_STALE_REVISION" ||
           error.failure.message === "RECOVERY_STALE_SCAN" ||
           error.failure.message === "RECOVERY_REVISION_OR_PAGE_INVALID") {
@@ -181,7 +188,7 @@ export default function StudyCollectionsRecovery() {
     const report = current.report;
     if (!window.confirm(
       `¿Quitar ${report.missingIds.length} referencias sin acceso de esta colección? ` +
-      "No se eliminan los apuntes originales. Volvé a revisar si tenés dudas.",
+      "El servidor verificará de nuevo el acceso y la revisión; los apuntes originales nunca se eliminan.",
     )) return;
     const ticket = beginAction();
     if (!actionCurrent(ticket)) return;
@@ -194,8 +201,8 @@ export default function StudyCollectionsRecovery() {
     void repairMissingReferences(report, {
       get: (id, signal) => studyCollectionsApi.get(id, signal),
       readResource: (id, signal) => resourcesApi.get(id, signal),
-      remove: (id, resourceId, signal) =>
-        studyCollectionsApi.remove(id, resourceId, signal),
+      remove: (id, resourceId, signal, expectedRevision) =>
+        studyCollectionsApi.remove(id, resourceId, signal, expectedRevision),
     }, ticket.signal, (progress) => {
       if (actionCurrent(ticket)) {
         setState({
