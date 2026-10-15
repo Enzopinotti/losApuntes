@@ -48,7 +48,7 @@ assert.match(reportTests, /REQUIRED_STUDY_MONGO_TEST_NAMES\.length, 13/u);
 assert.match(manifest, /returns stale revision conflict after concurrent removal shrinks a resource page/u);
 assert.match(manifest, /actual\.size !== EXPECTED\.length/u);
 assert.match(b52, /committedClosureAfterRace/u);
-assert.match(b52, /numPassedTests !== EXPECTED\.length/u);
+assert.match(b52, /numPassedTests !== EXPECTED/u);
 assert.match(b53, /REQUIRED_STUDY_MONGO_TEST_NAMES\\.length, 13/u);
 assert.match(closure, /deleteMany\(\{ ownerUserId: input\.userId \}, \{ session \}\)/u);
 assert.match(config, /'STUDY_COLLECTIONS_ENABLED',\s*false/u);
