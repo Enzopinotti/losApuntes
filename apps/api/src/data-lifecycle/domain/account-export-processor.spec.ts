@@ -97,6 +97,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
       ),
   } as unknown as jest.Mocked<AccountExportAssembler>;
   const store = {
+    findOwned: jest.fn().mockResolvedValue(null),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     clearExpiredArtifact: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportStore>;
@@ -560,6 +561,136 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.complete).toHaveBeenCalledTimes(1);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.sink.abort).not.toHaveBeenCalled();
+  });
+
+  function completedAttempt(
+    overrides: Partial<AccountExportJobRecord> = {},
+  ): AccountExportJobRecord {
+    return claim({
+      state: 'completed', active: false, claimId: null,
+      formatVersion: 3, completedAt: now,
+      artifactGeneration: claim().claimId,
+      artifactSectionCount: 32, artifactRecordCount: 1,
+      artifactByteLength: 64, artifactSha256: 'a'.repeat(64),
+      ...overrides,
+    });
+  }
+
+  it('B66 reconciles a lost Mongo acknowledgement to the real completed generation', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('Mongo committed but client lost the response'),
+    );
+    f.store.findOwned.mockResolvedValueOnce(completedAttempt());
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, completed: 1, stale: 0, retryScheduled: 0,
+    });
+    expect(f.store.findOwned).toHaveBeenCalledWith(claim().id, 'owner-1');
+    expect(f.exports.reschedule).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.sink.abort).not.toHaveBeenCalled();
+  });
+
+  it('B66 rechecks after a lost reschedule CAS and recovers late Mongo completion', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('response lost'));
+    f.store.findOwned.mockResolvedValueOnce(null).mockResolvedValueOnce(completedAttempt());
+    f.exports.reschedule.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, completed: 1, retryScheduled: 0,
+    });
+    expect(f.store.findOwned).toHaveBeenCalledTimes(2);
+    expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B66 deletes orphaned S3 only AFTER retry CAS proves noncompletion', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('response lost'));
+    f.store.findOwned.mockResolvedValue(null);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0,
+    });
+    expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(claim().id, claim().claimId);
+    expect(f.exports.reschedule.mock.invocationCallOrder[0])
+      .toBeLessThan(f.artifacts.deleteArtifact.mock.invocationCallOrder[0]);
+    expect(f.store.findOwned).toHaveBeenCalledTimes(1);
+  });
+
+  it('B66 preserves S3 when claim outcome is unknown and CAS is lost', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('unknown write concern'));
+    f.exports.reschedule.mockResolvedValueOnce(false);
+    f.store.findOwned.mockResolvedValue(null);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, stale: 1, completed: 0,
+    });
+    expect(f.store.findOwned).toHaveBeenCalledTimes(2);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B66 ignores a completed export from another owner or another S3 generation', async () => {
+    for (const foreign of [
+      completedAttempt({ userId: 'another-owner' }),
+      completedAttempt({ artifactGeneration: 'another-generation' }),
+      completedAttempt({ artifactSha256: 'b'.repeat(64) }),
+      completedAttempt({ artifactSectionCount: 31 }),
+      completedAttempt({ active: true }),
+      completedAttempt({ completedAt: null }),
+    ]) {
+      const f = fixture({ job: claim({ formatVersion: 3 }) });
+      f.exports.complete.mockRejectedValueOnce(new Error('unknown Mongo completion'));
+      f.store.findOwned.mockResolvedValue(foreign);
+      f.exports.reschedule.mockResolvedValueOnce(false);
+      await expect(f.processor.runIteration()).resolves.toMatchObject({
+        stale: 1, completed: 0,
+      });
+      expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    }
+  });
+
+  it('B66 retries and safely deletes an orphan when its first reconciliation read fails', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('Mongo timeout'));
+    f.store.findOwned.mockRejectedValueOnce(new Error('read unavailable'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0,
+    });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(claim().id, claim().claimId);
+  });
+
+  it('B66 retains a durable retry outcome when S3 orphan cleanup fails', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('Mongo response unknown'));
+    f.store.findOwned.mockResolvedValue(null);
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 not reachable'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      retryScheduled: 1, completed: 0, stale: 0,
+    });
+    expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledTimes(1);
+  });
+
+  it('B66 reconciles unknown completion at retry exhaustion without false failure', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3, attempts: 5 }) });
+    f.exports.complete.mockRejectedValueOnce(new Error('lost commit acknowledgement'));
+    f.store.findOwned.mockResolvedValueOnce(completedAttempt());
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      completed: 1, failed: 0,
+    });
+    expect(f.exports.reschedule).not.toHaveBeenCalled();
+  });
+
+  it('B66 deletes a confirmed stale generation without requiring a retry CAS', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockResolvedValueOnce(false);
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 unavailable'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      stale: 1, completed: 0,
+    });
+    expect(f.exports.reschedule).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(claim().id, claim().claimId);
   });
 
   it('B65: does not publish a stale v3 even at retry exhaustion', async () => {
