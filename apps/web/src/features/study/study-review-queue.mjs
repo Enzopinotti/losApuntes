@@ -99,7 +99,9 @@ export function reviewCandidates(source, marks, mode = "all") {
     ranked.push({ ...task, category, rank, order: index });
   }
   ranked.sort((a, b) => a.rank - b.rank || a.order - b.order);
-  return ranked.map(({ rank: _rank, order: _order, ...task }) => task);
+  return ranked.map(({ kind, id, minutes, done, category }) => ({
+    kind, id, minutes, done, category,
+  }));
 }
 
 /**
