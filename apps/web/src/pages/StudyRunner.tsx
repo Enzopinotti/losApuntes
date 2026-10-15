@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { ContextualDiscoveryResponse } from "../features/search/interfaces";
 import { isSearchApiError, searchApi } from "../features/search/services/searchService";
@@ -13,6 +13,16 @@ import {
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
 import { recallStudyDraft } from "../features/study/study-session-draft.mjs";
+import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
+import {
+  buildReviewSession,
+  reviewCandidates,
+  summarizeReviews,
+  updateReviewMarks,
+  type ReviewMark,
+  type ReviewMarks,
+  type ReviewMode,
+} from "../features/study/study-review-queue.mjs";
 import {
   createTaskClock,
   remainingTaskClock,
@@ -41,10 +51,11 @@ type Runner = {
   plan: StudySession;
   labels: Record<string, string | null>;
   clocks: Record<string, TaskClock>;
+  reviews: ReviewMarks;
   index: number;
 };
 type Notice = { scope: string; text: string; error: boolean };
-type Busy = { scope: string; kind: "load" | "confirm"; key?: string };
+type Busy = { scope: string; kind: "load" | "confirm" | "review"; key?: string };
 
 function keyOf(task: Pick<StudySessionTask, "kind" | "id">): string {
   return task.kind + ":" + task.id;
@@ -87,14 +98,14 @@ async function verifiedTaskLabel(
   }
 }
 
-function downloadPlan(plan: StudySession) {
+function downloadPlan(plan: StudySession, filename = "los-apuntes-sesion-actualizada.json") {
   const content = serializeStudySession(plan);
   const url = URL.createObjectURL(
     new Blob([content], { type: "application/json;charset=utf-8" }),
   );
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "los-apuntes-sesion-actualizada.json";
+  anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -109,6 +120,7 @@ function clockText(remainingMs: number): string {
 
 export default function StudyRunner() {
   const { status, user, session } = useAuth();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const selection = studySubjectSelectionFromParams(params);
   const authScope = [status, user?.id ?? "anonymous", session?.id ?? "none"].join(":");
@@ -130,6 +142,15 @@ export default function StudyRunner() {
   const [now, setNow] = useState(() => Date.now());
   const remainingMs = activeClock ? remainingTaskClock(activeClock, now) : 0;
   const stats = runner ? runSummary(runner.plan) : null;
+  const [reviewModeState, setReviewModeState] = useState<{
+    scope: string;
+    mode: ReviewMode;
+  } | null>(null);
+  const reviewMode: ReviewMode = reviewModeState?.scope === scope
+    ? reviewModeState.mode : "all";
+  const reviewStats = runner ? summarizeReviews(runner.plan, runner.reviews) : null;
+  const reviewItems = runner
+    ? reviewCandidates(runner.plan, runner.reviews, reviewMode) : [];
   const [busyState, setBusyState] = useState<Busy | null>(null);
   const busy = busyState?.scope === scope ? busyState : null;
   const [noticeState, setNoticeState] = useState<Notice | null>(null);
@@ -141,6 +162,8 @@ export default function StudyRunner() {
     useAsyncAuthorityFence("study-run-load:" + scope);
   const { begin: beginConfirm, isCurrent: confirmCurrent, finish: finishConfirm } =
     useAsyncAuthorityFence("study-run-confirm:" + scope + ":" + (activeKey ?? "none"));
+  const { begin: beginReview, isCurrent: reviewCurrent, finish: finishReview } =
+    useAsyncAuthorityFence("study-run-review:" + scope);
 
   const loadContext = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -198,7 +221,15 @@ export default function StudyRunner() {
         const selected = plan.tasks.findIndex(
           (item) => !item.done && labels[keyOf(item)] !== null,
         );
-        return { scope, plan, labels, clocks, index: selected >= 0 ? selected : 0 };
+        const reviews: ReviewMarks = {};
+        if (!resetClocks && previous?.scope === scope) {
+          for (const item of plan.tasks) {
+            const key = keyOf(item);
+            const rating = previous.reviews[key];
+            if (rating && labels[key] !== null) reviews[key] = rating;
+          }
+        }
+        return { scope, plan, labels, clocks, reviews, index: selected >= 0 ? selected : 0 };
       });
       setNow(Date.now());
       setNoticeState({
