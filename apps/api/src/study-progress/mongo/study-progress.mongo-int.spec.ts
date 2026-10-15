@@ -3,6 +3,8 @@ import { createConnection, type Connection, type Model } from 'mongoose';
 
 import { MongoAccountLifecycleStore } from '../../data-lifecycle/mongo/mongo-account-lifecycle.store';
 import { MongoAccountExportStore } from '../../data-lifecycle/mongo/mongo-account-export.store';
+import { MongoAccountExportOrphanCleanupStore } from '../../data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store';
+import { AccountExportOrphanCleanup, AccountExportOrphanCleanupSchema } from '../../data-lifecycle/mongo/account-export-orphan-cleanup.schema';
 import { AccountExportJob, AccountExportJobSchema } from '../../data-lifecycle/mongo/account-export.mongo-schema';
 import { AccountExportAssembler, type AccountExportArtifactSink } from '../../data-lifecycle/domain/account-export-assembler';
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
@@ -47,6 +49,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
   let exportReader: StudyProgressExportReader;
   let lifecycle: MongoAccountLifecycleStore;
   let exportJobs: Model<AccountExportJob>;
+  let orphanJobs: Model<AccountExportOrphanCleanup>;
   let verifiedReplica = false;
 
   beforeAll(async () => {
@@ -85,7 +88,8 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     const audits = connection.model(SecurityAudit.name, SecurityAuditSchema);
     const collections = connection.model(StudyCollection.name, StudyCollectionSchema);
     exportJobs = connection.model(AccountExportJob.name, AccountExportJobSchema);
-    await Promise.all([users, progress, profiles, managers, jobs, audits, collections, exportJobs]
+    orphanJobs = connection.model(AccountExportOrphanCleanup.name, AccountExportOrphanCleanupSchema);
+    await Promise.all([users, progress, profiles, managers, jobs, audits, collections, exportJobs, orphanJobs]
       .map((model) => model.init()));
     service = new StudyProgressService(progress, users, connection);
     exportReader = new StudyProgressExportReader(progress);
@@ -618,6 +622,76 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     const durable = await store.findOwned(id, userId);
     expect(durable?.state).toBe('pending');
     expect(durable?.artifactGeneration).toBeNull();
+  }, 30_000);
+
+  it('B67 retains an orphan cleanup task across a crashed worker lease', async () => {
+    const ownerId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const store = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const now = new Date();
+    await store.enqueue({
+      jobId: id, ownerUserId: ownerId, generation, now,
+    });
+    await store.enqueue({
+      jobId: id, ownerUserId: ownerId, generation, now,
+    });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    const firstClaim = randomUUID();
+    const leased = await store.claimNext({
+      now, claimId: firstClaim,
+      leaseExpiresAt: new Date(now.getTime() + 60_000),
+    });
+    expect(leased).toMatchObject({ jobId: id, generation, attempts: 1 });
+    // Lost process: Mongo retains the attempt. It is not claimable early.
+    await expect(store.claimNext({
+      now, claimId: randomUUID(),
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).resolves.toBeNull();
+    const secondClaim = randomUUID();
+    const later = new Date(now.getTime() + 60_001);
+    const reclaimed = await store.claimNext({
+      now: later, claimId: secondClaim,
+      leaseExpiresAt: new Date(later.getTime() + 120_000),
+    });
+    expect(reclaimed).toMatchObject({ claimId: secondClaim, attempts: 2 });
+    await expect(store.acknowledge({
+      jobId: id, generation, claimId: firstClaim, now: later,
+    })).resolves.toBe(false);
+    await expect(store.acknowledge({
+      jobId: id, generation, claimId: secondClaim, now: later,
+    })).resolves.toBe(true);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B67 retries a failed deletion without losing a durable orphan record', async () => {
+    const ownerId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const store = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const now = new Date();
+    await store.enqueue({ jobId: id, ownerUserId: ownerId, generation, now });
+    const first = await store.claimNext({
+      now, claimId: randomUUID(),
+      leaseExpiresAt: new Date(now.getTime() + 60_000),
+    });
+    expect(first).not.toBeNull();
+    const future = new Date(now.getTime() + 30_000);
+    await expect(store.retry({
+      jobId: id, generation, claimId: first!.claimId,
+      now, nextAttemptAt: future,
+    })).resolves.toBe(true);
+    const persisted = await orphanJobs.findOne({ jobId: id, generation }).lean().exec();
+    expect(persisted).toMatchObject({ state: 'pending', attempts: 1 });
+    await expect(store.claimNext({
+      now, claimId: randomUUID(),
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).resolves.toBeNull();
+    const second = await store.claimNext({
+      now: future, claimId: randomUUID(),
+      leaseExpiresAt: new Date(future.getTime() + 120_000),
+    });
+    expect(second).toMatchObject({ attempts: 2 });
   }, 30_000);
 
   it('purges progress in account closure transaction and blocks later mutations', async () => {
