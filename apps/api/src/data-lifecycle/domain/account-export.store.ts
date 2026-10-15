@@ -45,6 +45,9 @@ export interface AccountExportStore {
     completedAt: Date;
     artifactExpiresAt: Date;
     result: AccountExportAssemblyResult;
+    /** Required only by v3: atomically fence owner writes with completion. */
+    ownerUserId?: string;
+    expectedProgressEpoch?: number;
   }): Promise<boolean>;
 
   findExpiredArtifacts(input: {
