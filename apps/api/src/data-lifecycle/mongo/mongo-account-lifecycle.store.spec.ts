@@ -70,6 +70,7 @@ function fixture(
     jobs as never,
     audits as never,
     studyCollections as never,
+    { deleteMany: jest.fn(() => query({ deletedCount: 0 })) } as never,
   );
 
   return {
