@@ -26,6 +26,10 @@ import {
 import { serializeStudySession } from "../features/study/study-session-plan.mjs";
 import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
 import {
+  isPracticeQuestionForSubject,
+  practiceQuestionFromParams,
+} from "../features/study/study-practice-question-link.mjs";
+import {
   resolveStudySubject,
   studySubjectHref,
   studySubjectSelectionFromParams,
@@ -104,6 +108,9 @@ export default function StudyPractice() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const selection = studySubjectSelectionFromParams(params);
+  const questionSelection = practiceQuestionFromParams(params);
+  const focusId =
+    questionSelection.kind === "selected" ? questionSelection.questionId : null;
   const authScope = [status, user?.id ?? "anonymous", session?.id ?? "none"].join(":");
 
   const [contextState, setContextState] = useState<ContextState | null>(null);
@@ -113,8 +120,16 @@ export default function StudyPractice() {
     : null;
   const subject = resolution?.kind === "ready" ? resolution.subject : null;
   const subjectId = subject?.id ?? null;
-  const scope = `${authScope}:${subjectId ?? "none"}`;
+  const scope = `${authScope}:${subjectId ?? "none"}:${focusId ?? questionSelection.kind}`;
 
+  const [focusedState, setFocusedState] = useState<{
+    key: string;
+    loading: boolean;
+    question: QuestionView | null;
+    error: string | null;
+  } | null>(null);
+  const focusedKey = `${scope}:focused-question`;
+  const focused = focusedState?.key === focusedKey ? focusedState : null;
   const [listState, setListState] = useState<QuestionList | null>(null);
   const list = listState?.scope === scope ? listState : null;
   const [selectionState, setSelectionState] = useState<{
@@ -149,6 +164,11 @@ export default function StudyPractice() {
     isCurrent: listCurrent,
     finish: finishList,
   } = useAsyncAuthorityFence(`practice-list:${scope}`);
+  const {
+    begin: beginFocused,
+    isCurrent: focusedCurrent,
+    finish: finishFocused,
+  } = useAsyncAuthorityFence(`practice-focus:${focusedKey}`);
   const {
     begin: beginDetail,
     isCurrent: detailCurrent,
@@ -193,7 +213,7 @@ export default function StudyPractice() {
   }, [status, authScope, beginContext, contextCurrent, finishContext]);
 
   const loadQuestions = useCallback(async (cursor?: string) => {
-    if (!subjectId) return;
+    if (!subjectId || questionSelection.kind === "invalid") return;
     const ticket = beginList();
     if (!listCurrent(ticket)) return;
     setListState((previous) => ({
@@ -232,7 +252,14 @@ export default function StudyPractice() {
     } finally {
       finishList(ticket);
     }
-  }, [subjectId, scope, beginList, listCurrent, finishList]);
+  }, [
+    subjectId,
+    scope,
+    questionSelection.kind,
+    beginList,
+    listCurrent,
+    finishList,
+  ]);
 
   const loadDetail = useCallback(async () => {
     if (!currentId || !subjectId) return;
@@ -353,13 +380,59 @@ export default function StudyPractice() {
     }
   };
 
+  const loadFocusedQuestion = useCallback(async () => {
+    if (status !== "authenticated" || !subjectId || !focusId) return;
+    const ticket = beginFocused();
+    if (!focusedCurrent(ticket)) return;
+    setFocusedState({
+      key: focusedKey, loading: true, question: null, error: null,
+    });
+    try {
+      const response = await communityApi.question(focusId, ticket.signal);
+      if (!focusedCurrent(ticket)) return;
+      if (!isPracticeQuestionForSubject(response.question, subjectId, focusId)) {
+        setFocusedState({
+          key: focusedKey,
+          loading: false,
+          question: null,
+          error: "La pregunta no pertenece a esta materia o ya no está disponible.",
+        });
+        return;
+      }
+      setFocusedState({
+        key: focusedKey, loading: false,
+        question: response.question, error: null,
+      });
+    } catch (error) {
+      if (focusedCurrent(ticket)) {
+        setFocusedState({
+          key: focusedKey, loading: false,
+          question: null, error: messageFor(error),
+        });
+      }
+    } finally {
+      finishFocused(ticket);
+    }
+  }, [
+    status, subjectId, focusId, focusedKey,
+    beginFocused, focusedCurrent, finishFocused,
+  ]);
+
   useEffect(() => {
     void loadContext();
   }, [loadContext]);
 
   useEffect(() => {
-    if (subjectId) void loadQuestions();
-  }, [subjectId, loadQuestions]);
+    if (subjectId && questionSelection.kind !== "invalid") {
+      void loadQuestions();
+    }
+  }, [subjectId, questionSelection.kind, loadQuestions]);
+
+  useEffect(() => {
+    if (status === "authenticated" && subjectId && focusId) {
+      void loadFocusedQuestion();
+    }
+  }, [status, subjectId, focusId, loadFocusedQuestion]);
 
   useEffect(() => {
     if (currentId) void loadDetail();
@@ -506,8 +579,65 @@ export default function StudyPractice() {
             <strong>{subject.name}</strong>
             <span>Sin notas persistidas ni calificaciones públicas.</span>
           </div>
-          {!round ? (
-            <section className="study-practice-panel" aria-labelledby="study-practice-choose">
+          {!round && questionSelection.kind === "invalid" ? (
+            <section className="study-practice-panel" aria-labelledby="study-practice-invalid-link">
+              <h2 id="study-practice-invalid-link">Enlace de práctica inválido</h2>
+              <p role="alert">
+                El identificador de pregunta es inválido o está repetido.
+                No abrimos otra pregunta ni iniciamos una práctica general.
+              </p>
+              <Link to={`/study/practice?subjectId=${encodeURIComponent(subject.id)}`}>
+                Elegir preguntas de esta materia
+              </Link>
+            </section>
+          ) : !round ? (
+            <>
+              {focusId && (
+                <section
+                  className="study-practice-panel study-practice-focused"
+                  aria-labelledby="study-practice-focused-title"
+                >
+                  <h2 id="study-practice-focused-title">Practicar esta pregunta</h2>
+                  {focused?.loading || !focused ? (
+                    <p role="status">Verificando la pregunta y su materia…</p>
+                  ) : focused.error ? (
+                    <div role="alert" className="study-practice-error">
+                      <p>{focused.error}</p>
+                      <button
+                        type="button"
+                        onClick={() => void loadFocusedQuestion()}
+                      >
+                        Reintentar verificación
+                      </button>
+                    </div>
+                  ) : focused.question ? (
+                    <>
+                      <h3>{focused.question.title}</h3>
+                      <p className="study-practice-body">
+                        {focused.question.body}
+                      </p>
+                      <p>
+                        Las respuestas se mantienen ocultas hasta que intentes
+                        resolverla y elijas revelarlas.
+                      </p>
+                      <div className="study-practice-actions">
+                        <button
+                          type="button"
+                          onClick={() => startRound([focused.question!.id])}
+                        >
+                          Empezar práctica enfocada
+                        </button>
+                        <Link
+                          to={`/questions?id=${encodeURIComponent(focused.question.id)}`}
+                        >
+                          Ver conversación original
+                        </Link>
+                      </div>
+                    </>
+                  ) : null}
+                </section>
+              )}
+              <section className="study-practice-panel" aria-labelledby="study-practice-choose">
               <h2 id="study-practice-choose">1. Elegí las preguntas de tu ronda</h2>
               <p>Podés practicar hasta {ACTIVE_RECALL_MAX_QUESTIONS} preguntas. La lista corresponde a las páginas cargadas, no al total de la materia.</p>
               <div className="study-practice-actions">
@@ -554,7 +684,8 @@ export default function StudyPractice() {
                   Cargar más preguntas
                 </button>
               )}
-            </section>
+              </section>
+            </>
           ) : (
             <div className="study-practice-workspace">
               <section className="study-practice-panel" aria-labelledby="study-practice-round">

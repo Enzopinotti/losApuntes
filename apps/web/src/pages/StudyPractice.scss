@@ -92,3 +92,18 @@
   .study-practice-header, .study-practice-choices li, .study-practice-round-top { flex-direction: column; align-items: start; }
   .study-practice-stats { grid-template-columns: 1fr 1fr; }
 }
+
+.study-practice-focused {
+  margin-bottom: 1rem;
+  border-color: #bdb5ec;
+  background: #fbfaff;
+}
+.study-practice-focused h3 {
+  margin-bottom: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.study-practice-focused .study-practice-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+}
