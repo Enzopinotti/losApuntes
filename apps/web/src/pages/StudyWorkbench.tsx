@@ -88,7 +88,11 @@ export default function StudyWorkbench() {
   const { status, user, session } = useAuth();
   const [params, setParams] = useSearchParams();
   const selection = studySubjectSelectionFromParams(params);
-  const authScope = [status, user?.id ?? "anonymous", session?.id ?? "none"].join(":");
+  const authScope = [
+    status,
+    user?.id ?? "anonymous",
+    session?.id ?? "none",
+  ].join(":");
 
   const [contextState, setContextState] = useState<ContextState | null>(null);
   const context = contextState?.scope === authScope ? contextState : null;
@@ -99,9 +103,13 @@ export default function StudyWorkbench() {
   const subjectId = activeSubject?.id ?? null;
   const dataScope = `${authScope}:${subjectId ?? "no-subject"}`;
 
-  const [savedState, setSavedState] = useState<PageState<ResourceView> | null>(null);
-  const [availableState, setAvailableState] = useState<PageState<ResourceView> | null>(null);
-  const [questionState, setQuestionState] = useState<PageState<QuestionView> | null>(null);
+  const [savedState, setSavedState] = useState<PageState<ResourceView> | null>(
+    null,
+  );
+  const [availableState, setAvailableState] =
+    useState<PageState<ResourceView> | null>(null);
+  const [questionState, setQuestionState] =
+    useState<PageState<QuestionView> | null>(null);
   const saved = savedState?.scope === dataScope ? savedState : null;
   const available = availableState?.scope === dataScope ? availableState : null;
   const questions = questionState?.scope === dataScope ? questionState : null;
@@ -113,7 +121,8 @@ export default function StudyWorkbench() {
     error: boolean;
   } | null>(null);
   const currentAction = actionState?.scope === dataScope ? actionState : null;
-  const currentMessage = actionMessage?.scope === dataScope ? actionMessage : null;
+  const currentMessage =
+    actionMessage?.scope === dataScope ? actionMessage : null;
   const activeActionRef = useRef<{ scope: string; epoch: number } | null>(null);
 
   const {
@@ -158,7 +167,12 @@ export default function StudyWorkbench() {
         ticket.signal,
       );
       if (isContextCurrent(ticket)) {
-        setContextState({ scope: authScope, data, loading: false, error: null });
+        setContextState({
+          scope: authScope,
+          data,
+          loading: false,
+          error: null,
+        });
       }
     } catch (error) {
       if (isContextCurrent(ticket)) {
@@ -174,126 +188,147 @@ export default function StudyWorkbench() {
     }
   }, [status, authScope, beginContext, isContextCurrent, finishContext]);
 
-  const loadSaved = useCallback(async (cursor?: string, append = false) => {
-    if (!subjectId) return;
-    const ticket = beginSaved();
-    if (!isSavedCurrent(ticket)) return;
-    setSavedState((previous) => ({
-      scope: dataScope,
-      items: append && previous?.scope === dataScope ? previous.items : [],
-      cursor: append && previous?.scope === dataScope ? previous.cursor : null,
-      loading: true,
-      error: null,
-    }));
-    try {
-      const page = await resourcesApi.savedBySubject(
-        subjectId,
-        cursor,
-        ticket.signal,
-      );
+  const loadSaved = useCallback(
+    async (cursor?: string, append = false) => {
+      if (!subjectId) return;
+      const ticket = beginSaved();
       if (!isSavedCurrent(ticket)) return;
       setSavedState((previous) => ({
         scope: dataScope,
-        items: append && previous?.scope === dataScope
-          ? appendDistinct(previous.items, page.items)
-          : page.items,
-        cursor: page.nextCursor,
-        loading: false,
+        items: append && previous?.scope === dataScope ? previous.items : [],
+        cursor:
+          append && previous?.scope === dataScope ? previous.cursor : null,
+        loading: true,
         error: null,
       }));
-    } catch (error) {
-      if (isSavedCurrent(ticket)) {
+      try {
+        const page = await resourcesApi.savedBySubject(
+          subjectId,
+          cursor,
+          ticket.signal,
+        );
+        if (!isSavedCurrent(ticket)) return;
         setSavedState((previous) => ({
           scope: dataScope,
-          items: append && previous?.scope === dataScope ? previous.items : [],
-          cursor: null,
+          items:
+            append && previous?.scope === dataScope
+              ? appendDistinct(previous.items, page.items)
+              : page.items,
+          cursor: page.nextCursor,
           loading: false,
-          error: messageFor(error),
+          error: null,
         }));
+      } catch (error) {
+        if (isSavedCurrent(ticket)) {
+          setSavedState((previous) => ({
+            scope: dataScope,
+            items:
+              append && previous?.scope === dataScope ? previous.items : [],
+            cursor: null,
+            loading: false,
+            error: messageFor(error),
+          }));
+        }
+      } finally {
+        finishSaved(ticket);
       }
-    } finally {
-      finishSaved(ticket);
-    }
-  }, [subjectId, dataScope, beginSaved, isSavedCurrent, finishSaved]);
+    },
+    [subjectId, dataScope, beginSaved, isSavedCurrent, finishSaved],
+  );
 
-  const loadAvailable = useCallback(async (cursor?: string, append = false) => {
-    if (!subjectId) return;
-    const ticket = beginAvailable();
-    if (!isAvailableCurrent(ticket)) return;
-    setAvailableState((previous) => ({
-      scope: dataScope,
-      items: append && previous?.scope === dataScope ? previous.items : [],
-      cursor: append && previous?.scope === dataScope ? previous.cursor : null,
-      loading: true,
-      error: null,
-    }));
-    try {
-      const page = await resourcesApi.search({ subjectId, cursor }, ticket.signal);
+  const loadAvailable = useCallback(
+    async (cursor?: string, append = false) => {
+      if (!subjectId) return;
+      const ticket = beginAvailable();
       if (!isAvailableCurrent(ticket)) return;
       setAvailableState((previous) => ({
         scope: dataScope,
-        items: append && previous?.scope === dataScope
-          ? appendDistinct(previous.items, page.items)
-          : page.items,
-        cursor: page.nextCursor,
-        loading: false,
+        items: append && previous?.scope === dataScope ? previous.items : [],
+        cursor:
+          append && previous?.scope === dataScope ? previous.cursor : null,
+        loading: true,
         error: null,
       }));
-    } catch (error) {
-      if (isAvailableCurrent(ticket)) {
+      try {
+        const page = await resourcesApi.search(
+          { subjectId, cursor },
+          ticket.signal,
+        );
+        if (!isAvailableCurrent(ticket)) return;
         setAvailableState((previous) => ({
           scope: dataScope,
-          items: append && previous?.scope === dataScope ? previous.items : [],
-          cursor: null,
+          items:
+            append && previous?.scope === dataScope
+              ? appendDistinct(previous.items, page.items)
+              : page.items,
+          cursor: page.nextCursor,
           loading: false,
-          error: messageFor(error),
+          error: null,
         }));
+      } catch (error) {
+        if (isAvailableCurrent(ticket)) {
+          setAvailableState((previous) => ({
+            scope: dataScope,
+            items:
+              append && previous?.scope === dataScope ? previous.items : [],
+            cursor: null,
+            loading: false,
+            error: messageFor(error),
+          }));
+        }
+      } finally {
+        finishAvailable(ticket);
       }
-    } finally {
-      finishAvailable(ticket);
-    }
-  }, [subjectId, dataScope, beginAvailable, isAvailableCurrent, finishAvailable]);
+    },
+    [subjectId, dataScope, beginAvailable, isAvailableCurrent, finishAvailable],
+  );
 
-  const loadQuestions = useCallback(async (cursor?: string, append = false) => {
-    if (!subjectId) return;
-    const ticket = beginQuestions();
-    if (!isQuestionsCurrent(ticket)) return;
-    setQuestionState((previous) => ({
-      scope: dataScope,
-      items: append && previous?.scope === dataScope ? previous.items : [],
-      cursor: append && previous?.scope === dataScope ? previous.cursor : null,
-      loading: true,
-      error: null,
-    }));
-    try {
-      const page = await communityApi.questions(
-        { subjectId, status: "open", limit: 15, cursor },
-        ticket.signal,
-      );
+  const loadQuestions = useCallback(
+    async (cursor?: string, append = false) => {
+      if (!subjectId) return;
+      const ticket = beginQuestions();
       if (!isQuestionsCurrent(ticket)) return;
       setQuestionState((previous) => ({
         scope: dataScope,
-        items: append && previous?.scope === dataScope
-          ? appendDistinct(previous.items, page.items)
-          : page.items,
-        cursor: page.nextCursor,
-        loading: false,
+        items: append && previous?.scope === dataScope ? previous.items : [],
+        cursor:
+          append && previous?.scope === dataScope ? previous.cursor : null,
+        loading: true,
         error: null,
       }));
-    } catch (error) {
-      if (isQuestionsCurrent(ticket)) {
+      try {
+        const page = await communityApi.questions(
+          { subjectId, status: "open", limit: 15, cursor },
+          ticket.signal,
+        );
+        if (!isQuestionsCurrent(ticket)) return;
         setQuestionState((previous) => ({
           scope: dataScope,
-          items: append && previous?.scope === dataScope ? previous.items : [],
-          cursor: null,
+          items:
+            append && previous?.scope === dataScope
+              ? appendDistinct(previous.items, page.items)
+              : page.items,
+          cursor: page.nextCursor,
           loading: false,
-          error: messageFor(error),
+          error: null,
         }));
+      } catch (error) {
+        if (isQuestionsCurrent(ticket)) {
+          setQuestionState((previous) => ({
+            scope: dataScope,
+            items:
+              append && previous?.scope === dataScope ? previous.items : [],
+            cursor: null,
+            loading: false,
+            error: messageFor(error),
+          }));
+        }
+      } finally {
+        finishQuestions(ticket);
       }
-    } finally {
-      finishQuestions(ticket);
-    }
-  }, [subjectId, dataScope, beginQuestions, isQuestionsCurrent, finishQuestions]);
+    },
+    [subjectId, dataScope, beginQuestions, isQuestionsCurrent, finishQuestions],
+  );
 
   useEffect(() => {
     void loadContext();
@@ -391,12 +426,18 @@ export default function StudyWorkbench() {
   };
 
   return (
-    <section className="study-workbench" aria-labelledby="study-workbench-title">
+    <section
+      className="study-workbench"
+      aria-labelledby="study-workbench-title"
+    >
       <header className="study-workbench-hero">
         <div>
           <p className="study-workbench-kicker">Mi espacio académico</p>
           <h1 id="study-workbench-title">Mesa de estudio</h1>
-          <p>Una materia, tus guardados, apuntes para descubrir y preguntas abiertas. Todo conectado a los permisos originales.</p>
+          <p>
+            Una materia, tus guardados, apuntes para descubrir y preguntas
+            abiertas. Todo conectado a los permisos originales.
+          </p>
         </div>
         <Link to="/resources">Ver biblioteca completa</Link>
       </header>
@@ -408,7 +449,9 @@ export default function StudyWorkbench() {
       ) : context.error ? (
         <div className="study-workbench-alert" role="alert">
           <p>{context.error}</p>
-          <button type="button" onClick={() => void loadContext()}>Reintentar</button>
+          <button type="button" onClick={() => void loadContext()}>
+            Reintentar
+          </button>
         </div>
       ) : context.data && result ? (
         result.kind === "invalid" ? (
@@ -418,20 +461,29 @@ export default function StudyWorkbench() {
           </div>
         ) : result.kind === "unavailable" ? (
           <div className="study-workbench-alert" role="alert">
-            <p>Esta materia no está entre las primeras ocho disponibles para esta vista. Revisá tu trayectoria y el contexto activo.</p>
+            <p>
+              Esta materia no está entre las primeras ocho disponibles para esta
+              vista. Revisá tu trayectoria y el contexto activo.
+            </p>
             <Link to="/study">Elegir una materia actual</Link>
           </div>
         ) : result.kind === "no-context" ? (
           <div className="study-workbench-empty">
             <h2>Todavía no hay materias actuales</h2>
-            <p>La Mesa de estudio no inventa cursadas. Cuando agregues materias reales a tu trayectoria, podrás ver materiales y preguntas desde acá.</p>
+            <p>
+              La Mesa de estudio no inventa cursadas. Cuando agregues materias
+              reales a tu trayectoria, podrás ver materiales y preguntas desde
+              acá.
+            </p>
             <Link to="/profile">Configurar mi contexto académico</Link>
             <Link to="/search">Buscar recursos públicamente</Link>
           </div>
         ) : selectedSubject ? (
           <>
             <div className="study-workbench-subjectbar">
-              <label htmlFor="study-subject">Materia para estudiar (hasta ocho actuales)</label>
+              <label htmlFor="study-subject">
+                Materia para estudiar (hasta ocho actuales)
+              </label>
               <select
                 id="study-subject"
                 value={selectedSubject.id}
@@ -444,17 +496,25 @@ export default function StudyWorkbench() {
                 ))}
               </select>
               <form onSubmit={(event) => void copySubjectLink(event)}>
-                <button type="submit" className="study-workbench-secondary">Copiar enlace</button>
+                <button type="submit" className="study-workbench-secondary">
+                  Copiar enlace
+                </button>
               </form>
             </div>
             <div className="study-workbench-actions">
-              <Link to={`/study/session?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
+              <Link
+                to={`/study/session?subjectId=${encodeURIComponent(selectedSubject.id)}`}
+              >
                 Preparar sesión de estudio
               </Link>
-              <Link to={`/study/practice?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
+              <Link
+                to={`/study/practice?subjectId=${encodeURIComponent(selectedSubject.id)}`}
+              >
                 Practicar preguntas
               </Link>
-              <Link to={`/study/kits?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
+              <Link
+                to={`/study/kits?subjectId=${encodeURIComponent(selectedSubject.id)}`}
+              >
                 Organizar colecciones portátiles
               </Link>
               {PERSISTENT_COLLECTIONS_VISIBLE && (
@@ -462,30 +522,53 @@ export default function StudyWorkbench() {
                   Mis colecciones sincronizadas
                 </Link>
               )}
-              <Link to={`/resources?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
+              <Link
+                to={`/resources?subjectId=${encodeURIComponent(selectedSubject.id)}`}
+              >
                 Explorar más apuntes
               </Link>
               <Link to="/questions">Hacer una pregunta</Link>
               <Link to="/academic/lifecycle">Mis materias</Link>
             </div>
             {currentMessage && (
-              <p className={currentMessage.error ? "study-workbench-alert" : "study-workbench-notice"} role={currentMessage.error ? "alert" : "status"}>
+              <p
+                className={
+                  currentMessage.error
+                    ? "study-workbench-alert"
+                    : "study-workbench-notice"
+                }
+                role={currentMessage.error ? "alert" : "status"}
+              >
                 {currentMessage.text}
               </p>
             )}
             <div className="study-workbench-columns">
-              <section className="study-workbench-panel" aria-labelledby="study-saved-title">
+              <section
+                className="study-workbench-panel"
+                aria-labelledby="study-saved-title"
+              >
                 <header>
                   <h2 id="study-saved-title">Mis guardados</h2>
-                  <p>Materiales que elegiste conservar, siempre sujetos a su acceso actual.</p>
+                  <p>
+                    Materiales que elegiste conservar, siempre sujetos a su
+                    acceso actual.
+                  </p>
                 </header>
                 {saved?.error && (
-                  <p role="alert" className="study-workbench-alert">{saved.error}</p>
+                  <p role="alert" className="study-workbench-alert">
+                    {saved.error}
+                  </p>
                 )}
                 {saved?.loading && <p role="status">Cargando guardados…</p>}
-                {saved && !saved.loading && saved.items.length === 0 && !saved.error && (
-                  <p>No tenés guardados visibles en esta materia. Empezá explorando apuntes.</p>
-                )}
+                {saved &&
+                  !saved.loading &&
+                  saved.items.length === 0 &&
+                  !saved.error && (
+                    <p>
+                      No tenés guardados visibles en esta materia. Empezá
+                      explorando apuntes.
+                    </p>
+                  )}
                 <ul>
                   {savedItems.map((item) => (
                     <li key={item.id}>
@@ -499,7 +582,9 @@ export default function StudyWorkbench() {
                         disabled={Boolean(currentAction) || saved?.loading}
                         onClick={() => saveResource(item.id, false)}
                       >
-                        {currentAction?.resourceId === item.id ? "Actualizando…" : "Quitar de guardados"}
+                        {currentAction?.resourceId === item.id
+                          ? "Actualizando…"
+                          : "Quitar de guardados"}
                       </button>
                     </li>
                   ))}
@@ -509,42 +594,73 @@ export default function StudyWorkbench() {
                     type="button"
                     className="study-workbench-secondary"
                     disabled={saved.loading}
-                    onClick={() => void loadSaved(saved.cursor ?? undefined, true)}
+                    onClick={() =>
+                      void loadSaved(saved.cursor ?? undefined, true)
+                    }
                   >
                     Mostrar más guardados
                   </button>
                 )}
-                <button type="button" className="study-workbench-secondary" disabled={saved?.loading} onClick={() => void loadSaved()}>
+                <button
+                  type="button"
+                  className="study-workbench-secondary"
+                  disabled={saved?.loading}
+                  onClick={() => void loadSaved()}
+                >
                   Actualizar guardados
                 </button>
               </section>
 
-              <section className="study-workbench-panel" aria-labelledby="study-discovery-title">
+              <section
+                className="study-workbench-panel"
+                aria-labelledby="study-discovery-title"
+              >
                 <header>
                   <h2 id="study-discovery-title">Apuntes disponibles</h2>
-                  <p>Recursos que el servidor permite descubrir ahora para {selectedSubject.name}.</p>
+                  <p>
+                    Recursos que el servidor permite descubrir ahora para{" "}
+                    {selectedSubject.name}.
+                  </p>
                 </header>
-                {available?.error && <p role="alert" className="study-workbench-alert">{available.error}</p>}
-                {available?.loading && <p role="status">Buscando apuntes…</p>}
-                {available && !available.loading && available.items.length === 0 && !available.error && (
-                  <p>No encontramos material accesible para esta materia todavía.</p>
+                {available?.error && (
+                  <p role="alert" className="study-workbench-alert">
+                    {available.error}
+                  </p>
                 )}
+                {available?.loading && <p role="status">Buscando apuntes…</p>}
+                {available &&
+                  !available.loading &&
+                  available.items.length === 0 &&
+                  !available.error && (
+                    <p>
+                      No encontramos material accesible para esta materia
+                      todavía.
+                    </p>
+                  )}
                 <ul>
                   {availableItems.map((item) => (
                     <li key={item.id}>
                       <Link to={`/resources/${encodeURIComponent(item.id)}`}>
                         <strong>{item.title}</strong>
                       </Link>
-                      <small>{item.author?.displayName ?? "Colaboración académica"}</small>
+                      <small>
+                        {item.author?.displayName ?? "Colaboración académica"}
+                      </small>
                       {savedIds.has(item.id) ? (
-                        <span className="study-workbench-saved-hint">Aparece en tus guardados cargados</span>
+                        <span className="study-workbench-saved-hint">
+                          Aparece en tus guardados cargados
+                        </span>
                       ) : (
                         <button
                           type="button"
-                          disabled={Boolean(currentAction) || available?.loading}
+                          disabled={
+                            Boolean(currentAction) || available?.loading
+                          }
                           onClick={() => saveResource(item.id, true)}
                         >
-                          {currentAction?.resourceId === item.id ? "Guardando…" : "Guardar apunte"}
+                          {currentAction?.resourceId === item.id
+                            ? "Guardando…"
+                            : "Guardar apunte"}
                         </button>
                       )}
                     </li>
@@ -555,33 +671,56 @@ export default function StudyWorkbench() {
                     type="button"
                     className="study-workbench-secondary"
                     disabled={available.loading}
-                    onClick={() => void loadAvailable(available.cursor ?? undefined, true)}
+                    onClick={() =>
+                      void loadAvailable(available.cursor ?? undefined, true)
+                    }
                   >
                     Más apuntes
                   </button>
                 )}
-                <button type="button" className="study-workbench-secondary" disabled={available?.loading} onClick={() => void loadAvailable()}>
+                <button
+                  type="button"
+                  className="study-workbench-secondary"
+                  disabled={available?.loading}
+                  onClick={() => void loadAvailable()}
+                >
                   Actualizar apuntes
                 </button>
               </section>
 
-              <section className="study-workbench-panel" aria-labelledby="study-questions-title">
+              <section
+                className="study-workbench-panel"
+                aria-labelledby="study-questions-title"
+              >
                 <header>
                   <h2 id="study-questions-title">Dudas por resolver</h2>
-                  <p>Preguntas abiertas y vinculadas a la materia. Cada autor controla su contenido.</p>
+                  <p>
+                    Preguntas abiertas y vinculadas a la materia. Cada autor
+                    controla su contenido.
+                  </p>
                 </header>
-                {questions?.error && <p role="alert" className="study-workbench-alert">{questions.error}</p>}
-                {questions?.loading && <p role="status">Cargando preguntas…</p>}
-                {questions && !questions.loading && questions.items.length === 0 && !questions.error && (
-                  <p>Todavía no hay preguntas abiertas disponibles.</p>
+                {questions?.error && (
+                  <p role="alert" className="study-workbench-alert">
+                    {questions.error}
+                  </p>
                 )}
+                {questions?.loading && <p role="status">Cargando preguntas…</p>}
+                {questions &&
+                  !questions.loading &&
+                  questions.items.length === 0 &&
+                  !questions.error && (
+                    <p>Todavía no hay preguntas abiertas disponibles.</p>
+                  )}
                 <ul>
                   {questionItems.map((item) => (
                     <li key={item.id}>
                       <Link to={`/questions?id=${encodeURIComponent(item.id)}`}>
                         <strong>{item.title}</strong>
                       </Link>
-                      <small>{item.answerCount} respuestas · {item.author?.displayName ?? "Estudiante"}</small>
+                      <small>
+                        {item.answerCount} respuestas ·{" "}
+                        {item.author?.displayName ?? "Estudiante"}
+                      </small>
                       <span className="study-workbench-open">Abierta</span>
                     </li>
                   ))}
@@ -591,18 +730,27 @@ export default function StudyWorkbench() {
                     type="button"
                     className="study-workbench-secondary"
                     disabled={questions.loading}
-                    onClick={() => void loadQuestions(questions.cursor ?? undefined, true)}
+                    onClick={() =>
+                      void loadQuestions(questions.cursor ?? undefined, true)
+                    }
                   >
                     Más preguntas
                   </button>
                 )}
-                <button type="button" className="study-workbench-secondary" disabled={questions?.loading} onClick={() => void loadQuestions()}>
+                <button
+                  type="button"
+                  className="study-workbench-secondary"
+                  disabled={questions?.loading}
+                  onClick={() => void loadQuestions()}
+                >
                   Actualizar preguntas
                 </button>
               </section>
             </div>
             <p className="study-workbench-footnote">
-              Las cantidades corresponden a los elementos de las páginas cargadas, no a estadísticas globales ni a una evaluación de rendimiento.
+              Las cantidades corresponden a los elementos de las páginas
+              cargadas, no a estadísticas globales ni a una evaluación de
+              rendimiento.
             </p>
           </>
         ) : null
