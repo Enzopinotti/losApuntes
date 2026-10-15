@@ -48,4 +48,6 @@ Proyección de lectura owner-only, paginada con cursor opaco y límite máximo 1
 5. Asegurar que una solicitud nueva nunca reciba un v1 **una vez que existan colecciones privadas persistentes**. Hasta el corte, el backend no debe habilitar la escritura de colecciones.
 6. Ejecutar Jest (incluyendo regresiones 30/31, retries y artefactos antiguos), typecheck, build, smoke contra Mongo y S3, test de descarga, fallos de red, vencimientos y auditoría de dependencias sobre SHA exacto.
 
-**Un merge de B45 acredita integración del código, no activación de v2 ni aceptación de producción.**
+**Actualización B46:** el lector owner-only y el contribuyente `study.collections` ya están implementados y montados mediante `StudyCollectionsExportReadModule`. La fábrica de exportación está protegida por un manifiesto de 31 secciones y las exportaciones v1 conservan su conjunto histórico de 30. **La nueva solicitud de cuenta sigue en v1**, mientras que el PR #316 todavía no habilita CRUD en `main`; falta el corte atómico entre persistencia y v2 más el contrato de cierre/retención. Véase `docs/security/account-data-export-v2-study-collections.md`.
+
+**Un merge de B45/B46 acredita integración del código, no activación de v2 para nuevas solicitudes ni aceptación de producción.**
