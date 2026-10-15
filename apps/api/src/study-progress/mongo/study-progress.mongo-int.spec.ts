@@ -695,6 +695,8 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
   }, 30_000);
 
   it('B68 fences two Mongo orphan workers to one current cleanup claim', async () => {
+    // All tests share only this disposable local database. Isolate due tasks.
+    await orphanJobs.deleteMany({});
     const ownerId = await owner();
     const id = randomUUID();
     const generation = randomUUID();
@@ -734,6 +736,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
   }, 30_000);
 
   it('B68 reads the true durable owner and rejects a mismatched cleanup task', async () => {
+    await orphanJobs.deleteMany({});
     const realOwner = await owner();
     const foreignOwner = await owner();
     const id = randomUUID();
