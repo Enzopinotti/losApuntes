@@ -41,6 +41,16 @@ import {
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
+import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
+import {
+  studyCollectionsApi,
+  StudyCollectionsApiError,
+} from "../features/study-collections/studyCollectionsService";
+import {
+  syncStudyKitToCollection,
+  StudyKitSyncError,
+  type StudyKitSyncProgress,
+} from "../features/study-collections/studyKitSync.mjs";
 import "./StudyKits.scss";
 
 type ScopeState<T> = {
@@ -79,6 +89,24 @@ function errorFor(error: unknown) {
     return "El archivo o la colección no cumple los límites o el formato admitidos.";
   }
   return "No pudimos completar la operación. Revisá la conexión.";
+}
+
+function syncErrorFor(error: unknown): string {
+  const cause = error instanceof StudyKitSyncError ? error.cause : error;
+  if (cause instanceof StudyCollectionsApiError) {
+    if (cause.code === "STUDY_COLLECTION_OPERATION_KEY_CONFLICT") {
+      return "Ya sincronizaste este kit con otro nombre o descripción. Editá esa colección sincronizada o creá un nuevo kit.";
+    }
+    if (cause.status === 503) {
+      return "La sincronización todavía no está habilitada por el servidor.";
+    }
+    if (cause.status === 401) return "Tu sesión venció. Volvé a iniciar sesión.";
+    if (cause.status === 403 || cause.status === 404) {
+      return "La cuenta, colección o referencia dejó de estar disponible.";
+    }
+    return cause.message;
+  }
+  return errorFor(cause);
 }
 
 function addDistinct(existing: ResourceView[], incoming: ResourceView[]) {
@@ -173,6 +201,11 @@ export default function StudyKits() {
     : archive?.kits[0]?.id ?? null;
   const selectedKit = archive?.kits.find((kit) => kit.id === selectedId) ?? null;
   const verifyKey = `${scope}:${selectedId ?? "none"}:${selectedKit?.resourceIds.join(",") ?? ""}`;
+  const syncScope = [
+    scope, selectedKit?.id ?? "none",
+    selectedKit?.title ?? "", selectedKit?.notes ?? "",
+    selectedKit?.resourceIds.join(",") ?? "",
+  ].join(":");
 
   const [savedState, setSavedState] = useState<ScopeState<ResourcePage> | null>(null);
   const [foundState, setFoundState] = useState<ScopeState<ResourcePage> | null>(null);
@@ -195,6 +228,13 @@ export default function StudyKits() {
   const [draftTitle, setDraftTitle] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [syncState, setSyncState] = useState<{
+    scope: string;
+    busy: boolean;
+    progress: StudyKitSyncProgress | null;
+    error: string | null;
+  } | null>(null);
+  const currentSync = syncState?.scope === syncScope ? syncState : null;
 
   const {
     begin: beginContext,
@@ -216,6 +256,12 @@ export default function StudyKits() {
     isCurrent: verifyCurrent,
     finish: finishVerify,
   } = useAsyncAuthorityFence(`study-kit-verification:${verifyKey}`);
+
+  const {
+    begin: beginSync,
+    isCurrent: syncCurrent,
+    finish: finishSync,
+  } = useAsyncAuthorityFence(`study-kit-persistent-sync:${syncScope}`);
 
   const updateArchive = (next: PortableStudyKitArchive) => {
     if (!subjectId || next.subjectId !== subjectId) return;
@@ -429,6 +475,60 @@ export default function StudyKits() {
     }
   };
 
+  const syncSelectedKit = () => {
+    if (
+      !PERSISTENT_COLLECTIONS_VISIBLE ||
+      status !== "authenticated" ||
+      !subjectId ||
+      !selectedKit ||
+      currentSync?.busy
+    ) return;
+    if (!window.confirm(
+      `¿Sincronizar "${selectedKit.title}" y hasta ${selectedKit.resourceIds.length} referencias? ` +
+      "No se elimina el kit portátil. Los permisos de cada apunte se volverán a verificar.",
+    )) return;
+    const ticket = beginSync();
+    if (!syncCurrent(ticket)) return;
+    setSyncState({ scope: syncScope, busy: true, progress: null, error: null });
+    void syncStudyKitToCollection(
+      { kit: selectedKit, subjectId },
+      {
+        createCollection: (input, signal) => studyCollectionsApi.create(input, signal),
+        readResource: (id, signal) => resourcesApi.get(id, signal),
+        addResource: (collectionId, resourceId, signal) =>
+          studyCollectionsApi.add(collectionId, resourceId, signal),
+      },
+      ticket.signal,
+      (progress) => {
+        if (syncCurrent(ticket)) {
+          setSyncState({
+            scope: syncScope, busy: true, progress, error: null,
+          });
+        }
+      },
+    ).then(
+      (progress) => {
+        if (syncCurrent(ticket)) {
+          setSyncState({
+            scope: syncScope, busy: false, progress, error: null,
+          });
+        }
+      },
+      (error: unknown) => {
+        if (syncCurrent(ticket)) {
+          setSyncState({
+            scope: syncScope,
+            busy: false,
+            progress: error instanceof StudyKitSyncError ? error.progress : null,
+            error: syncErrorFor(error),
+          });
+        }
+      },
+    ).finally(() => {
+      finishSync(ticket);
+    });
+  };
+
   const openInPlanner = () => {
     if(!archive||!selectedKit||!subjectId ||status!=="authenticated")return;
     try {
@@ -592,7 +692,32 @@ export default function StudyKits() {
                       onClick={openInPlanner}>Preparar sesión con este kit</button>
                     <button type="button" disabled={verified?.loading}
                       onClick={()=>void loadVerified()}>Verificar permisos</button>
+                    {PERSISTENT_COLLECTIONS_VISIBLE&&(
+                      <button
+                        type="button"
+                        disabled={currentSync?.busy}
+                        onClick={syncSelectedKit}
+                      >{currentSync?.busy?"Sincronizando…":"Sincronizar este kit"}</button>
+                    )}
                   </div>
+                  {PERSISTENT_COLLECTIONS_VISIBLE && currentSync && (
+                    <div className="study-kits-sync-report" role={currentSync.error?"alert":"status"}>
+                      {currentSync.busy ? (
+                        <p>Sincronizando referencias… {currentSync.progress
+                          ? `${currentSync.progress.linked+currentSync.progress.skipped}/${currentSync.progress.total}`
+                          : "creando o recuperando la colección"}.</p>
+                      ) : currentSync.error ? (
+                        <p>{currentSync.error} Podés reintentar: se usa la misma colección y los apuntes ya vinculados no se duplican.</p>
+                      ) : (
+                        <p>Sincronización terminada. Referencias procesadas: {currentSync.progress?.linked ?? 0}; omitidas por falta de acceso o materia diferente: {currentSync.progress?.skipped ?? 0}.</p>
+                      )}
+                      {currentSync.progress?.collectionId && (
+                        <Link to={`/study-collections?collection=${encodeURIComponent(currentSync.progress.collectionId)}`}>
+                          Ver colección sincronizada
+                        </Link>
+                      )}
+                    </div>
+                  )}
                   <h3>Apuntes de la colección</h3>
                   {verified?.loading&&<p role="status">Comprobando permisos del material…</p>}
                   {verified?.error&&(
