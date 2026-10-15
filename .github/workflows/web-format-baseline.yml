@@ -44,9 +44,9 @@ jobs:
       - name: Install workspace from frozen lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Diagnose exact canonical formatting diff
+      - name: Verify seven previously failing Web files without rewriting
         run: |
-          pnpm --filter @losapuntes/web exec prettier --write \
+          pnpm --filter @losapuntes/web exec prettier --check \
             src/features/resources/services/resourcesService.ts \
             src/features/study-collections/studyCollectionsService.ts \
             src/pages/StudyCollections.tsx \
@@ -54,17 +54,6 @@ jobs:
             src/pages/StudyPractice.tsx \
             src/pages/StudySession.tsx \
             src/pages/StudyWorkbench.tsx
-          echo "FORMAT_PATCH_BEGIN"
-          git --no-pager diff --no-ext-diff --unified=3 -- \
-            apps/web/src/features/resources/services/resourcesService.ts \
-            apps/web/src/features/study-collections/studyCollectionsService.ts \
-            apps/web/src/pages/StudyCollections.tsx \
-            apps/web/src/pages/StudyKits.tsx \
-            apps/web/src/pages/StudyPractice.tsx \
-            apps/web/src/pages/StudySession.tsx \
-            apps/web/src/pages/StudyWorkbench.tsx
-          echo "FORMAT_PATCH_END"
-          git diff --exit-code --quiet -- apps/web/src || {
-            echo "Canonical formatting differs from candidate; apply exact patch."
-            exit 1
-          }
+
+      - name: Check Web TypeScript
+        run: pnpm --filter @losapuntes/web check:types
