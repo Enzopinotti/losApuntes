@@ -255,3 +255,29 @@ the bucket policy separately before lifting the production release hold.
 
 See `docs/engineering/account-export-orphan-cleanup-b67.md` for
 constraints and the opt-in replica-set acceptance suite.
+
+
+## B68 — Orphan cleanup workers, lease renewal and owner authority
+
+The private orphan queue is not a permission to delete a generation. The
+cleanup worker first looks up the **actual durable job by job ID**, then
+compares its stored owner with the queued owner. A mismatch always fails
+closed and schedules a retry; do not treat a missing owner-scoped lookup as
+proof that an object is unreferenced.
+
+After checking that the generation is not referenced by a completed job
+and not held by a live matching export claim, cleanup renews its own
+queue lease using a claim-fenced, monotonic update. If renewal fails, no
+S3 DELETE is initiated. During a long S3 deletion, a heartbeat continues
+renewing the cleanup lease. If the claim is lost or the queue lease expires,
+the old worker must not acknowledge the task. A newer worker can reclaim
+it after expiry and retry the exact generation idempotently.
+
+Operational verification: use the B68 opt-in Mongo replica-set tests to
+exercise two concurrent workers and a mismatched owner. Monitor
+`orphanRetries` and queue age for recurring lease loss. A successful
+S3 DELETE does not prove provider-wide deletion of retained noncurrent
+object versions, replicas, backups or archival copies; investigate
+bucket versioning and lifecycle policies separately.
+
+See `docs/engineering/account-export-orphan-concurrency-b68.md`.
