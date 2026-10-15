@@ -16,7 +16,7 @@ const manifestMatch = registry.match(
   /ACCOUNT_EXPORT_V1_SECTION_IDS = Object\.freeze\(\[([\s\S]*?)\] as const\);/u,
 );
 assert.ok(manifestMatch, "Public v1 manifest declaration must remain explicit");
-const v1Ids = [...manifestMatch[1].matchAll(/'([a-z.]+)'/gu)]
+const v1Ids = [...manifestMatch[1].matchAll(/'([A-Za-z.]+)'/gu)]
   .map((match) => match[1]);
 assert.equal(v1Ids.length, 30, "v1 account export must have exactly 30 sections");
 assert.equal(new Set(v1Ids).size, 30, "v1 section IDs must be unique");
