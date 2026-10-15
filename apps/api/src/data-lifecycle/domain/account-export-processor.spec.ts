@@ -815,7 +815,6 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.complete).not.toHaveBeenCalled();
   });
 
-}
   const orphan = {
     jobId: claim().id,
     ownerUserId: 'owner-1',
