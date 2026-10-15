@@ -144,6 +144,21 @@ describe('StudyCollectionExportReader: B46 owner-only projection', () => {
     await expect(bad.reader.listAccountExportCollections(owner,{
       limit: 5,cursor:null,
     })).rejects.toThrow('row is invalid');
+    const tooMany = fixture([{
+      ...document(id1),
+      resourceIds: Array.from({ length:101 }, (_, i) =>
+        `000000${String(i).padStart(2, '0')}-0000-4000-8000-000000000000`,
+      ),
+    }]);
+    await expect(tooMany.reader.listAccountExportCollections(owner,{
+      limit: 5,cursor:null,
+    })).rejects.toThrow('row is invalid');
+    const duplicate = fixture([{
+      ...document(id1),resourceIds:[resource,resource],
+    }]);
+    await expect(duplicate.reader.listAccountExportCollections(owner,{
+      limit: 5,cursor:null,
+    })).rejects.toThrow('row is invalid');
     const invalidDate = fixture([{ ...document(id1),
       createdAt: new Date('not-a-date') }]);
     await expect(invalidDate.reader.listAccountExportCollections(owner,{

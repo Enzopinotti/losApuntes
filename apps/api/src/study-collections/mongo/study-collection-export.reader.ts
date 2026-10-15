@@ -80,9 +80,14 @@ function project(row: DatabaseRow): StudyCollectionExportRow {
     !Number.isSafeInteger(row.revision) ||
     row.revision < 1 ||
     typeof row.title !== 'string' ||
-    typeof row.description !== 'string' && row.description !== null ||
+    row.title.trim().length < 1 ||
+    row.title.length > 100 ||
+    (typeof row.description !== 'string' && row.description !== null) ||
+    (typeof row.description === 'string' && row.description.length > 500) ||
     !Array.isArray(row.resourceIds) ||
+    row.resourceIds.length > 100 ||
     !row.resourceIds.every((id) => typeof id === 'string' && UUID_V4.test(id)) ||
+    new Set(row.resourceIds).size !== row.resourceIds.length ||
     !(row.createdAt instanceof Date) ||
     !Number.isFinite(row.createdAt.getTime()) ||
     !(row.updatedAt instanceof Date) ||
