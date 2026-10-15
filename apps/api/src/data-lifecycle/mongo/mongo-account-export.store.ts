@@ -255,7 +255,7 @@ export class MongoAccountExportStore implements AccountExportStore {
             { session },
           ).exec();
         if (fenced.matchedCount !== 1) {
-          throw new Error('Study progress changed during account export');
+          throw new AccountExportEpochConflictError();
         }
         const completed = await this.jobs
           .updateOne(filter, update, { session }).exec();
