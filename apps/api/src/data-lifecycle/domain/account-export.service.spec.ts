@@ -721,6 +721,98 @@ describe('AccountExportService', () => {
     hasOwnedProgress: jest.fn().mockResolvedValue(false),
   };
 
+  it('B63: rejects a v1 job when its owner saves progress during the upsert', async () => {
+    const f = fixture();
+    const progress = {
+      hasOwnedProgress: jest.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true),
+    };
+    const service = new AccountExportService(
+      f.store, f.users,
+      { get: () => false } as never,
+      { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
+      progress as never,
+    );
+    f.store.requestActive.mockImplementation(async (input) => ({
+      created: true,
+      job: job({ formatVersion: input.formatVersion }),
+    }));
+    await expect(service.request('user-1', now)).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
+    });
+    expect(f.store.requestActive).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', formatVersion: 1 }),
+    );
+    expect(progress.hasOwnedProgress).toHaveBeenCalledTimes(2);
+  });
+
+  it('B63: rejects a v2 job when progress appears after version selection', async () => {
+    const f = fixture();
+    const progress = {
+      hasOwnedProgress: jest.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true),
+    };
+    const service = new AccountExportService(
+      f.store, f.users,
+      { get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' } as never,
+      { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
+      progress as never,
+    );
+    f.store.requestActive.mockImplementation(async (input) => ({
+      created: true,
+      job: job({ formatVersion: input.formatVersion }),
+    }));
+    await expect(service.request('user-1', now)).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
+    });
+    expect(f.store.requestActive).toHaveBeenCalledWith(
+      expect.objectContaining({ formatVersion: 2 }),
+    );
+  });
+
+  it('B63: fails closed when the post-upsert owner probe fails', async () => {
+    const f = fixture();
+    const error = new Error('private data read unavailable');
+    const progress = {
+      hasOwnedProgress: jest.fn()
+        .mockResolvedValueOnce(false)
+        .mockRejectedValueOnce(error),
+    };
+    const service = new AccountExportService(
+      f.store, f.users,
+      { get: () => false } as never,
+      { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
+      progress as never,
+    );
+    f.store.requestActive.mockImplementation(async (input) => ({
+      created: true,
+      job: job({ formatVersion: input.formatVersion }),
+    }));
+    await expect(service.request('user-1', now)).rejects.toBe(error);
+    expect(f.store.requestActive).toHaveBeenCalledTimes(1);
+  });
+
+  it('B63: permits replay of a higher-version historical job, never downgrading it', async () => {
+    const f = fixture();
+    const service = new AccountExportService(
+      f.store, f.users,
+      { get: () => false } as never,
+      { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
+      { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
+    );
+    f.store.requestActive.mockResolvedValue({
+      created: false, job: job({ formatVersion: 3 }),
+    });
+    const result = await service.request('user-1', now);
+    expect(result.created).toBe(false);
+    expect(result.export.formatVersion).toBe(3);
+    expect(f.store.requestActive).toHaveBeenCalledWith(
+      expect.objectContaining({ formatVersion: 1 }),
+    );
+  });
+
   it('requires v3 for existing study progress despite a rolled-back flag', async () => {
     const f = fixture();
     const config = { get: () => false };
