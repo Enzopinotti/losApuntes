@@ -2,6 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AccountExportAssembler } from './account-export-assembler';
 import { AccountExportEpochConflictError } from './account-export-epoch-conflict.error';
+import {
+  ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE,
+  type AccountExportOrphanCleanupStore,
+} from './account-export-orphan-cleanup.store';
+import { randomUUID } from 'node:crypto';
 import { AccountExportService } from './account-export.service';
 import {
   ACCOUNT_EXPORT_STORE,
@@ -24,6 +29,8 @@ const LEASE_RENEWAL_INTERVAL_MS = Math.floor(
   ACCOUNT_EXPORT_LEASE_DURATION_MS / 3,
 );
 const EXPIRED_ARTIFACT_BATCH_SIZE = 100;
+const ORPHAN_BATCH_SIZE = 10;
+const ORPHAN_MAX_BACKOFF_MS = 6 * 60 * 60_000;
 
 export type AccountExportIteration = {
   claimed: number;
@@ -33,6 +40,9 @@ export type AccountExportIteration = {
   stale: number;
   expiredDeleted: number;
   expirationRetries: number;
+  orphanDeleted: number;
+  orphanPreserved: number;
+  orphanRetries: number;
 };
 
 function retryDelayMs(attempts: number): number {
@@ -68,6 +78,8 @@ export class AccountExportProcessor {
     private readonly store: AccountExportStore,
     @Inject(ACCOUNT_EXPORT_ARTIFACT_STORAGE)
     private readonly artifacts: AccountExportArtifactStorage,
+    @Inject(ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE)
+    private readonly orphans: AccountExportOrphanCleanupStore,
   ) {}
 
   async runIteration(maxJobs = 1): Promise<AccountExportIteration> {
@@ -85,9 +97,13 @@ export class AccountExportProcessor {
       stale: 0,
       expiredDeleted: 0,
       expirationRetries: 0,
+      orphanDeleted: 0,
+      orphanPreserved: 0,
+      orphanRetries: 0,
     };
 
     await this.deleteExpiredArtifacts(result);
+    await this.drainOrphanCleanup(result);
     for (let index = 0; index < maxJobs; index += 1) {
       const job = await this.exports.claimNext();
       if (!job) break;
@@ -163,12 +179,7 @@ export class AccountExportProcessor {
         // The multipart upload has already been committed. Aborting its
         // writer cannot reliably remove the completed object; explicitly
         // delete only this claim's attempt-scoped generation.
-        try {
-          await this.artifacts.deleteArtifact(job.id, claimId);
-        } catch {
-          // A private-bucket lifecycle rule is the deletion backstop.
-          // No completed job can point at this lost-lease generation.
-        }
+        await this.deleteOrEnqueueProvenOrphan(job, claimId);
         return 'stale';
       }
 
@@ -194,11 +205,7 @@ export class AccountExportProcessor {
         // The durable CAS explicitly rejected this claim. It cannot publish
         // this attempt's generation; S3 cleanup is best-effort and must not
         // turn a known stale outcome into a retry of somebody else's claim.
-        try {
-          await this.artifacts.deleteArtifact(job.id, claimId);
-        } catch {
-          // Private-bucket object expiry is the deletion backstop.
-        }
+        await this.deleteOrEnqueueProvenOrphan(job, claimId);
         return 'stale';
       }
       return 'completed';
@@ -212,7 +219,7 @@ export class AccountExportProcessor {
           error instanceof AccountExportEpochConflictError) {
           // A known rejected epoch cannot have a durable completion. Delete
           // only this attempt's generation; never delete a shared object.
-          await this.artifacts.deleteArtifact(job.id, claimId);
+          await this.deleteOrEnqueueProvenOrphan(job, claimId);
         }
         // An error after attempting the Mongo completion is ambiguous:
         // the transaction may have committed before the reply was lost.
@@ -269,12 +276,7 @@ export class AccountExportProcessor {
         // A successful reschedule is durable proof that this claim did NOT
         // complete. The generation is now safe to delete, and cannot be
         // referenced by a later retry (every claim gets a fresh UUID).
-        try {
-          await this.artifacts.deleteArtifact(job.id, claimId);
-        } catch {
-          // Failed cleanup is handled by the bucket's private lifecycle;
-          // do not undo the already-durable retry/failure transition.
-        }
+        await this.deleteOrEnqueueProvenOrphan(job, claimId);
       }
       return terminal ? 'failed' : 'retryScheduled';
     } finally {
@@ -314,6 +316,87 @@ export class AccountExportProcessor {
       // No durable evidence available: do not infer success. A subsequent
       // reschedule CAS may still prove non-completion; otherwise preserve S3.
       return false;
+    }
+  }
+
+  /**
+   * Enqueue ONLY a proven orphan: lost claim, confirmed owner-epoch
+   * rejection or successful retry CAS. Never enqueue uncertain completions.
+   */
+  private async deleteOrEnqueueProvenOrphan(
+    job: AccountExportJobRecord,
+    generation: string,
+  ): Promise<void> {
+    try {
+      await this.artifacts.deleteArtifact(job.id, generation);
+    } catch {
+      try {
+        await this.orphans.enqueue({
+          jobId: job.id, ownerUserId: job.userId,
+          generation, now: new Date(),
+        });
+      } catch {
+        // The isolated bucket lifecycle remains the final safety net.
+        // Never change a durable job result due to cleanup-store outage.
+      }
+    }
+  }
+
+  /**
+   * Restart-safe compensator with a bounded batch and claim lease.
+   * Queue presence is not authorization to delete: verify durable ownership
+   * before removing the exact UUID-qualified object generation.
+   */
+  private async drainOrphanCleanup(
+    result: AccountExportIteration,
+  ): Promise<void> {
+    for (let index = 0; index < ORPHAN_BATCH_SIZE; index += 1) {
+      const now = new Date();
+      const candidate = await this.orphans.claimNext({
+        now, claimId: randomUUID(),
+        leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+      });
+      if (!candidate) break;
+      const ref = {
+        jobId: candidate.jobId, generation: candidate.generation,
+        claimId: candidate.claimId,
+      };
+      try {
+        const job = await this.store.findOwned(candidate.jobId, candidate.ownerUserId);
+        if (job && job.artifactGeneration === candidate.generation &&
+          job.state === 'completed') {
+          // An ambiguous completion was resolved to a live artifact.
+          await this.orphans.acknowledge({ ...ref, now: new Date() });
+          result.orphanPreserved += 1;
+          continue;
+        }
+        if (job && job.state === 'processing' &&
+          job.claimId === candidate.generation &&
+          job.leaseExpiresAt instanceof Date &&
+          job.leaseExpiresAt.getTime() > Date.now()) {
+          throw new Error('Export attempt is still leased');
+        }
+        await this.artifacts.deleteArtifact(candidate.jobId, candidate.generation);
+        const acked = await this.orphans.acknowledge({ ...ref, now: new Date() });
+        if (acked) result.orphanDeleted += 1;
+        else result.orphanRetries += 1;
+      } catch {
+        result.orphanRetries += 1;
+        // Bounded exponential retry; never exhaust permanently. A crashed
+        // worker's processing lease can be claimed by a new worker.
+        const backoff = Math.min(
+          30_000 * 2 ** Math.min(candidate.attempts - 1, 10),
+          ORPHAN_MAX_BACKOFF_MS,
+        );
+        try {
+          await this.orphans.retry({
+            ...ref, now: new Date(),
+            nextAttemptAt: new Date(Date.now() + backoff),
+          });
+        } catch {
+          // An expired claim can be re-claimed; do not stall other work.
+        }
+      }
     }
   }
 
