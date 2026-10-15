@@ -384,7 +384,13 @@ const Questions = () => {
     setSubjectIdDraft(committedSubjectId);
     setSubjectNameDraft(null);
     setFilterError(null);
-  }, [committedQuery, committedStatus, committedSubjectId, selectionKey]);
+  }, [
+    committedQuery,
+    committedStatus,
+    committedSubjectId,
+    selectionKey,
+    viewerScopeKey,
+  ]);
 
   const submitDiscovery = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -783,6 +789,7 @@ const Questions = () => {
         <input
           aria-label="Buscar preguntas"
           placeholder="Buscar por título o contenido"
+          maxLength={120}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
