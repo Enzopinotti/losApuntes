@@ -39,7 +39,9 @@ El cierre conserva sus comprobaciones de contraseña y rol de administrador, y e
 3. **Elimina `study_collections` por `ownerUserId` dentro de la misma transacción Mongo**, sin afectar recursos, perfiles de terceros ni organizaciones.
 4. Marca el perfil cerrado, registra limpieza diferida de sesiones y tokens y audita el evento.
 
-La creación de una colección adquiere un conflicto de escritura sobre el mismo documento User, incrementando `account_lifecycle_revision` en transacción. Así, un alta que corra junto al cierre no puede confirmar una nueva colección privada después del commit del cierre. Si la cuenta está cerrada, falla antes del upsert. El cierre no es un borrado global: permanecen las políticas de conservación de otros contenidos/artefactos y backups conforme a sus reglas, que requieren documentación de retención más amplia.
+Desde B50, **todas las mutaciones privadas** de una colección (crear, editar, agregar recurso, quitar recurso y eliminar) adquieren un conflicto de escritura sobre el mismo documento User, incrementando `account_lifecycle_revision` en transacción. Así, ninguna mutación que compita con el cierre puede confirmar cambios privados después de que ese cierre se confirmó. Los errores de conflicto transaccional requieren el mecanismo normal de reintento de Mongo. La validación requiere replica set; consultar [aceptación B50](study-collections-b50-transactional-acceptance.md). Si la cuenta está cerrada, falla antes del upsert. El cierre no es un borrado global: permanecen las políticas de conservación de otros contenidos/artefactos y backups conforme a sus reglas, que requieren documentación de retención más amplia.
+
+- **Actualización B50:** incluso las ediciones, altas/bajas de recursos y eliminación manual usan el mismo límite transaccional que el cierre. Las cinco escrituras de Colecciones están protegidas en el mismo documento de autoridad User. La ejecución con Mongo replica set sigue pendiente.
 
 ## Compatibilidad y límites
 
