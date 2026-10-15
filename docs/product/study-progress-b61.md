@@ -22,7 +22,7 @@ Protección común: `AuthSessionGuard`, `StudyProgressFeatureGuard`, `Cache-Cont
 | PUT | `/study-progress/:subjectId` | `{expectedRevision,plan}`, crea con revisión 0 o actualiza con revisión exacta; 409 ante carrera |
 | DELETE | `/study-progress/:subjectId` | `{expectedRevision}`, borra sólo la revisión exacta; `{deleted:true}` |
 
-Un usuario y una materia tienen **un único registro privado** mediante índice Mongo único `(ownerUserId, subjectId)`. `revision` empieza en 1. No existe endpoint de listado global, datos públicos ni reasignación de propietario.
+Cada cuenta admite **hasta 16 materias con progreso guardado** (cuota transaccional). Un usuario y una materia tienen **un único registro privado** mediante índice Mongo único `(ownerUserId, subjectId)`. `revision` empieza en 1. No existe endpoint de listado global, datos públicos ni reasignación de propietario.
 
 El servidor exige esquema **Study Session v1** cerrado: `format`, `version`, `subjectId`, `title`, `notes`, `startsAt`, `tasks`. Hasta 24 actividades, 1.200 minutos, 64.000 bytes UTF-8, UUIDv4 canónicos y datos acotados. Rechaza campos adicionales como títulos de terceros, archivos, URLs de acceso, tokens y grants.
 
