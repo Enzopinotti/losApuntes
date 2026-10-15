@@ -11,6 +11,7 @@ import type {
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from './account-export.types';
 import type { AccountExportArtifactStorage } from '../storage/account-export-artifact-storage';
 import { AccountExportProcessor } from './account-export-processor';
+import { AccountExportEpochConflictError } from './account-export-epoch-conflict.error';
 
 const now = new Date('2026-10-11T12:00:00.000Z');
 const result: AccountExportAssemblyResult = {
@@ -529,6 +530,36 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.reschedule).toHaveBeenCalledWith(
       expect.objectContaining({ failureCode: 'EXPORT_ASSEMBLY_RETRY' }),
     );
+  });
+
+  it('B65: cleans S3 after a confirmed atomic Mongo epoch rejection', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(new AccountExportEpochConflictError());
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, completed: 0, retryScheduled: 1,
+    });
+    expect(f.exports.complete).toHaveBeenCalledTimes(1);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id, claim().claimId,
+    );
+    expect(f.exports.reschedule).toHaveBeenCalledWith(
+      expect.objectContaining({ failureCode: 'EXPORT_ASSEMBLY_RETRY' }),
+    );
+  });
+
+  it('B65: never deletes S3 on an uncertain durable Mongo completion', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('Mongo acknowledged a write but the reply was lost'),
+    );
+    f.exports.reschedule.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      stale: 1, completed: 0,
+    });
+    expect(f.sink.commit).toHaveBeenCalledTimes(1);
+    expect(f.exports.complete).toHaveBeenCalledTimes(1);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.sink.abort).not.toHaveBeenCalled();
   });
 
   it('B65: does not publish a stale v3 even at retry exhaustion', async () => {
