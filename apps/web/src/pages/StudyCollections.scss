@@ -1,0 +1,123 @@
+.study-collections-page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 2rem auto 4rem;
+}
+
+.study-collections-hero {
+  margin-bottom: 1.5rem;
+}
+
+.study-collections-hero h1 {
+  margin: 0 0 0.5rem;
+}
+
+.study-collections-grid {
+  display: grid;
+  grid-template-columns: minmax(255px, 1fr) minmax(0, 2fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.study-collections-panel {
+  background: white;
+  border: 1px solid #e7e7ef;
+  border-radius: 16px;
+  padding: 1.5rem;
+  min-width: 0;
+}
+
+.study-collections-form {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.study-collections-form label,
+.study-collections-panel > label {
+  display: block;
+  font-weight: 600;
+}
+
+.study-collections-form input,
+.study-collections-form textarea,
+.study-collections-panel > input {
+  box-sizing: border-box;
+  display: block;
+  padding: 0.75rem;
+  width: 100%;
+  border: 1px solid #cfcfd8;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.study-collections-list,
+.study-collection-resources {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.study-collections-list button {
+  display: grid;
+  gap: 0.25rem;
+  text-align: left;
+  width: 100%;
+  border: 1px solid #cfcfd8;
+  background: #fff;
+  border-radius: 9px;
+  padding: 0.85rem;
+  color: inherit;
+}
+
+.study-collections-list .study-collection-selected {
+  border-color: #5b5bd6;
+  background: #f1f0ff;
+}
+
+.study-collections-list small,
+.study-collection-resources small {
+  display: block;
+  color: #55566c;
+}
+
+.study-collections-heading,
+.study-collection-resources li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.study-collections-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.study-collection-resources li {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid #ececf2;
+  overflow-wrap: anywhere;
+}
+
+.study-collection-resources li > div {
+  min-width: 0;
+}
+
+.study-collections-panel button:focus-visible,
+.study-collections-panel a:focus-visible,
+.study-collections-panel input:focus-visible,
+.study-collections-panel textarea:focus-visible {
+  outline: 3px solid #5b5bd6;
+  outline-offset: 2px;
+}
+
+@media (max-width: 790px) {
+  .study-collections-grid {
+    grid-template-columns: 1fr;
+  }
+  .study-collections-heading {
+    flex-direction: column;
+  }
+}
