@@ -203,6 +203,26 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     })).toBe(0);
   }, 30_000);
 
+  it('deletes only the closing owner and preserves another account\'s collections', async () => {
+    const ownerA = await owner();
+    const ownerB = await owner();
+    await create(ownerA);
+    const savedB = await create(ownerB);
+    await expect(close(ownerA)).resolves.toMatchObject({ status: 'closed' });
+    expect(await models.collections.countDocuments({
+      ownerUserId: ownerA,
+    })).toBe(0);
+    expect(await models.collections.findOne({
+      ownerUserId: ownerB, id: savedB.id,
+    })).not.toBeNull();
+    const updatedB = await collections.updateOwned({
+      id: savedB.id, ownerUserId: ownerB,
+      expectedRevision: savedB.revision,
+      patch: { title: 'Segunda cuenta sigue activa' },
+    });
+    expect(updatedB?.title).toBe('Segunda cuenta sigue activa');
+  }, 30_000);
+
   it('never resurrects a collection when creation and closure start together', async () => {
     const userId = await owner();
     const [createResult, closeResult] = await Promise.allSettled([
