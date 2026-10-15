@@ -619,6 +619,34 @@ export default function StudyRunner() {
                         {task.done ? "Marcar pendiente" : "Marcar como realizada"}
                       </button>
                     </div>
+                    <fieldset className="study-runner-ratings" disabled={Boolean(busy) || !label}>
+                      <legend>¿Cómo te resultó esta actividad?</legend>
+                      <p className="study-runner-help">
+                        Es una valoración personal: no cambia «realizada» ni implica una calificación.
+                      </p>
+                      <div className="study-runner-actions">
+                        <button type="button"
+                          aria-pressed={runner.reviews[activeKey ?? ""] === "repeat"}
+                          onClick={() => rateCurrent("repeat")}>
+                          Necesito repasar
+                        </button>
+                        <button type="button"
+                          aria-pressed={runner.reviews[activeKey ?? ""] === "reinforce"}
+                          onClick={() => rateCurrent("reinforce")}>
+                          Quiero reforzar
+                        </button>
+                        <button type="button"
+                          aria-pressed={runner.reviews[activeKey ?? ""] === "confident"}
+                          onClick={() => rateCurrent("confident")}>
+                          Lo tengo claro
+                        </button>
+                        <button type="button"
+                          disabled={Boolean(busy) || !label || !runner.reviews[activeKey ?? ""]}
+                          onClick={() => rateCurrent(null)}>
+                          Quitar valoración
+                        </button>
+                      </div>
+                    </fieldset>
                     {busy?.kind === "confirm" && <p role="status">Comprobando acceso antes de guardar la marca…</p>}
                     <div className="study-runner-navigation">
                       <button type="button" disabled={Boolean(busy) || runner.index === 0}
@@ -652,6 +680,71 @@ export default function StudyRunner() {
                   al cambiar de actividad se pausa su temporizador. El progreso se conserva
                   únicamente en esta pestaña hasta que exportes el archivo.
                 </p>
+              </section>
+              <section className="study-runner-panel study-runner-review"
+                aria-labelledby="study-run-review">
+                <h2 id="study-run-review">Preparar mi próximo repaso</h2>
+                <p>
+                  Elegí qué volver a estudiar a partir de tus valoraciones. Las actividades
+                  pendientes sin valorar se incluyen como prioridad; las que marcaste
+                  «Lo tengo claro» quedan afuera. No se calculan notas ni resultados de examen.
+                </p>
+                <div className="study-runner-review-summary" aria-live="polite">
+                  <span>{reviewStats?.repeat} para repasar</span>
+                  <span>{reviewStats?.pendingUnrated} pendientes sin valorar</span>
+                  <span>{reviewStats?.reinforce} para reforzar</span>
+                  <span>{reviewStats?.confident} claras</span>
+                </div>
+                <label className="study-runner-review-filter">
+                  Qué incluir en el próximo plan
+                  <select value={reviewMode} disabled={Boolean(busy)}
+                    onChange={(event) => setReviewModeState({
+                      scope, mode: event.target.value as ReviewMode,
+                    })}>
+                    <option value="all">Todo lo que necesita repaso</option>
+                    <option value="priority">Prioridad: repasar y pendiente</option>
+                    <option value="reinforce">Sólo actividades para reforzar</option>
+                  </select>
+                </label>
+                {reviewItems.length === 0 ? (
+                  <p className="study-runner-help">
+                    No hay actividades para este filtro. Podés valorar las actividades
+                    o elegir otra opción.
+                  </p>
+                ) : (
+                  <ol className="study-runner-review-preview">
+                    {reviewItems.map((item) => (
+                      <li key={keyOf(item)}>
+                        <strong>{runner.labels[keyOf(item)] ?? "Sin acceso confirmado"}</strong>
+                        <small>
+                          {item.category === "repeat" ? "Necesito repasar" :
+                            item.category === "pending" ? "Pendiente" : "Quiero reforzar"}
+                          {" · "}{item.minutes} min
+                        </small>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                <p className="study-runner-help">
+                  El nuevo plan reinicia las casillas de progreso, conserva las duraciones
+                  y no incluye títulos, valoraciones ni notas privadas. Antes de generarlo
+                  se comprueba de nuevo el acceso a cada actividad.
+                </p>
+                <div className="study-runner-actions">
+                  <button type="button"
+                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    onClick={() => void createNextReview("planner")}>
+                    Pasar al Planificador
+                  </button>
+                  <button type="button"
+                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    onClick={() => void createNextReview("download")}>
+                    Exportar próximo repaso JSON
+                  </button>
+                </div>
+                {busy?.kind === "review" && (
+                  <p role="status">Comprobando accesos del próximo repaso…</p>
+                )}
               </section>
             </div>
           )}
