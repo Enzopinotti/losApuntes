@@ -25,6 +25,7 @@ import {
   scopedCollectionCreateAttempt,
   type ScopedCollectionCreateAttempt,
 } from "../features/study-collections/studyCollectionsAuthority.mjs";
+import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import "./StudyCollections.scss";
 
 type CollectionList = {
@@ -146,7 +147,7 @@ const StudyCollections = () => {
 
   const loadList = useCallback(
     async (cursor?: string, append = false) => {
-      if (status !== "authenticated") return;
+      if (status !== "authenticated" || !PERSISTENT_COLLECTIONS_VISIBLE) return;
       const ticket = beginList();
       if (!isListCurrent(ticket)) return;
       setListState((previous) => ({
@@ -189,7 +190,7 @@ const StudyCollections = () => {
 
   const loadDetail = useCallback(
     async (cursor?: string, append = false) => {
-      if (!selectedId || status !== "authenticated") return;
+      if (!selectedId || status !== "authenticated" || !PERSISTENT_COLLECTIONS_VISIBLE) return;
       const ticket = beginDetail();
       if (!isDetailCurrent(ticket)) return;
       const previousRevision = append && detailStateRef.current?.scope === detailScope
@@ -268,7 +269,12 @@ const StudyCollections = () => {
   }, [detailScope]);
 
   useEffect(() => {
-    if (status !== "authenticated" || !selectedId || query.trim().length < 2) return;
+    if (
+      status !== "authenticated" ||
+      !PERSISTENT_COLLECTIONS_VISIBLE ||
+      !selectedId ||
+      query.trim().length < 2
+    ) return;
     const ticket = beginSearch();
     if (!isSearchCurrent(ticket)) return;
     setSearchState({ scope: searchScope, items: [], busy: true, error: null });
@@ -301,7 +307,11 @@ const StudyCollections = () => {
   const execute = async (
     work: (signal: AbortSignal) => Promise<void>,
   ) => {
-    if (status !== "authenticated" || actionLock.current?.scope === detailScope) {
+    if (
+      status !== "authenticated" ||
+      !PERSISTENT_COLLECTIONS_VISIBLE ||
+      actionLock.current?.scope === detailScope
+    ) {
       return;
     }
     const ticket = beginAction();
@@ -406,6 +416,16 @@ const StudyCollections = () => {
       setNotice({ scope: detailScope, message: "Apunte quitado de la colección." });
     });
   };
+
+  if (!PERSISTENT_COLLECTIONS_VISIBLE) {
+    return (
+      <main className="study-collections-page">
+        <h1>Colecciones sincronizadas no disponibles</h1>
+        <p>Esta función todavía no está habilitada. Podés seguir organizando tus apuntes con las colecciones portátiles.</p>
+        <Link to="/study">Volver a la Mesa de estudio</Link>
+      </main>
+    );
+  }
 
   return (
     <main className="study-collections-page">
