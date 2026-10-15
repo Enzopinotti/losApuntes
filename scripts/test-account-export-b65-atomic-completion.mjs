@@ -46,7 +46,7 @@ verify("Mongo v3 completion atomically compares user and claim", () => {
   assert.match(sub, /this\.connection\.startSession\(\)/u);
   assert.match(sub, /session\.withTransaction\(async/u);
   assert.match(sub, /this\.users\s*\.updateOne\(ownerFilter,/u);
-  assert.match(sub, /this\.jobs\s*\.updateOne\(filter, update, \{ session \}\)/u);
+  assert.match(sub, /this\.jobs\s*\.updateOne\(\{ \.\.\.filter, userId: ownerUserId \}, update, \{ session \}\)/u);
   assert.match(sub, /account_lifecycle_revision: expectedEpoch/u);
   assert.match(sub, /account_lifecycle_revision: \{ \$exists: false \}/u);
   assert.match(sub, /return false/u);
