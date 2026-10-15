@@ -76,6 +76,7 @@ verify("isolated real-Mongo replica tests exercise atomic completion", () => {
   assert.match(mongoIntegration, /B65 completes a real v3 export atomically/u);
   assert.match(mongoIntegration, /B65 rejects a v3 epoch made stale/u);
   assert.match(mongoIntegration, /B65 does not increment owner epoch if a v3 claim has expired/u);
+  assert.match(mongoIntegration, /B65 cannot publish owner A job with owner B epoch authority/u);
   assert.match(mongoIntegration, /STUDY_PROGRESS_TEST_MONGO_URI/u);
 });
 verify("feature activation remains blocked in production", () => {
