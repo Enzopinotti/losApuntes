@@ -147,16 +147,16 @@
   color: #626274;
 }
 
-.search-result-actions {
-  display: flex !important;
+.search-group li .search-result-actions {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem 0.75rem;
 }
 
-.search-save-action {
-  display: flex !important;
+.search-group li .search-save-action {
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
