@@ -22,18 +22,24 @@ function contributor(
 ): AccountExportContributor {
   return {
     sectionId: id,
-    readPage: jest.fn().mockImplementation(
-      async ({ userId, cursor, limit }: {
-        userId: string;
-        cursor: string | null;
-        limit: number;
-      }) => {
-        if (userId !== OWNER || limit !== 100 || cursor !== null) {
-          throw new Error('Export read exceeded owner/pagination boundary');
-        }
-        return { records: rows, nextCursor: null };
-      },
-    ),
+    readPage: jest
+      .fn()
+      .mockImplementation(
+        async ({
+          userId,
+          cursor,
+          limit,
+        }: {
+          userId: string;
+          cursor: string | null;
+          limit: number;
+        }) => {
+          if (userId !== OWNER || limit !== 100 || cursor !== null) {
+            throw new Error('Export read exceeded owner/pagination boundary');
+          }
+          return { records: rows, nextCursor: null };
+        },
+      ),
   };
 }
 
@@ -45,15 +51,20 @@ function mounted(v2: boolean) {
     contributor(
       id,
       id === SECTION
-        ? [{
-            id: '11111111-1111-4111-8111-111111111111',
-            title: 'Primer parcial',
-            resourceIds: ['22222222-2222-4222-8222-222222222222'],
-          }]
+        ? [
+            {
+              id: '11111111-1111-4111-8111-111111111111',
+              title: 'Primer parcial',
+              resourceIds: ['22222222-2222-4222-8222-222222222222'],
+            },
+          ]
         : [],
     ),
   );
-  return { contributors, registry: new AccountExportContributorRegistry(contributors) };
+  return {
+    contributors,
+    registry: new AccountExportContributorRegistry(contributors),
+  };
 }
 
 function fixture(registry: AccountExportContributorRegistry) {
@@ -69,10 +80,15 @@ function fixture(registry: AccountExportContributorRegistry) {
     abort,
   };
   const service = {
-    readContributorPage: jest.fn().mockImplementation(
-      (provider: AccountExportContributor, userId: string, cursor: string | null) =>
-        provider.readPage({ userId, cursor, limit: 100 }),
-    ),
+    readContributorPage: jest
+      .fn()
+      .mockImplementation(
+        (
+          provider: AccountExportContributor,
+          userId: string,
+          cursor: string | null,
+        ) => provider.readPage({ userId, cursor, limit: 100 }),
+      ),
     assertActiveAccount: jest.fn().mockResolvedValue(undefined),
   };
   const assembler = new AccountExportAssembler(
@@ -86,24 +102,32 @@ describe('Account export v2 compatibility — B45', () => {
   it('keeps the legacy thirty in their exact order and adds a single v2 section', () => {
     expect(ACCOUNT_EXPORT_V1_SECTION_IDS).toHaveLength(30);
     expect(ACCOUNT_EXPORT_V2_SECTION_IDS).toHaveLength(31);
-    expect(ACCOUNT_EXPORT_V2_SECTION_IDS.filter(
-      (id) => !ACCOUNT_EXPORT_V1_SECTION_IDS.includes(
-        id as (typeof ACCOUNT_EXPORT_V1_SECTION_IDS)[number],
+    expect(
+      ACCOUNT_EXPORT_V2_SECTION_IDS.filter(
+        (id) =>
+          !ACCOUNT_EXPORT_V1_SECTION_IDS.includes(
+            id as (typeof ACCOUNT_EXPORT_V1_SECTION_IDS)[number],
+          ),
       ),
-    )).toEqual([SECTION]);
+    ).toEqual([SECTION]);
     expect(accountExportSectionIds(1)).toEqual(ACCOUNT_EXPORT_V1_SECTION_IDS);
     expect(accountExportSectionIds(2)).toEqual(ACCOUNT_EXPORT_V2_SECTION_IDS);
     expect(() => accountExportSectionIds(3)).toThrow('Unsupported');
-    expect(() => assertAccountExportSections(mounted(false).contributors, 1))
-      .not.toThrow();
-    expect(() => assertAccountExportSections(mounted(false).contributors, 2))
-      .toThrow('inventory is incomplete');
-    expect(() => assertAccountExportSections(mounted(true).contributors, 2))
-      .not.toThrow();
-    expect(() => assertAccountExportSections([
-      ...mounted(true).contributors,
-      contributor('unreviewed.private'),
-    ], 2)).toThrow('inventory is incomplete');
+    expect(() =>
+      assertAccountExportSections(mounted(false).contributors, 1),
+    ).not.toThrow();
+    expect(() =>
+      assertAccountExportSections(mounted(false).contributors, 2),
+    ).toThrow('inventory is incomplete');
+    expect(() =>
+      assertAccountExportSections(mounted(true).contributors, 2),
+    ).not.toThrow();
+    expect(() =>
+      assertAccountExportSections(
+        [...mounted(true).contributors, contributor('unreviewed.private')],
+        2,
+      ),
+    ).toThrow('inventory is incomplete');
   });
 
   it('assembles legacy v1 byte-shape even when v2 is mounted', async () => {
@@ -114,7 +138,9 @@ describe('Account export v2 compatibility — B45', () => {
       sections: Record<string, unknown[]>;
     };
     expect(envelope.version).toBe(1);
-    expect(Object.keys(envelope.sections)).toEqual(ACCOUNT_EXPORT_V1_SECTION_IDS);
+    expect(Object.keys(envelope.sections)).toEqual(
+      ACCOUNT_EXPORT_V1_SECTION_IDS,
+    );
     expect(envelope.sections).not.toHaveProperty(SECTION);
     expect(result.sectionCount).toBe(30);
     expect(result.formatVersion).toBe(1);
@@ -122,7 +148,9 @@ describe('Account export v2 compatibility — B45', () => {
   });
 
   it('assembles v2 owner-owned collections only after complete 31-section wiring', async () => {
-    const { assembler, chunks, sink, service, commit } = fixture(mounted(true).registry);
+    const { assembler, chunks, sink, service, commit } = fixture(
+      mounted(true).registry,
+    );
     const result = await assembler.writeJsonV2(OWNER, sink);
     const envelope = JSON.parse(chunks.join('')) as {
       format: string;
@@ -130,12 +158,16 @@ describe('Account export v2 compatibility — B45', () => {
       sections: Record<string, AccountExportRecord[]>;
     };
     expect(envelope.version).toBe(2);
-    expect(Object.keys(envelope.sections)).toEqual(ACCOUNT_EXPORT_V2_SECTION_IDS);
-    expect(envelope.sections[SECTION]).toEqual([{
-      id: '11111111-1111-4111-8111-111111111111',
-      title: 'Primer parcial',
-      resourceIds: ['22222222-2222-4222-8222-222222222222'],
-    }]);
+    expect(Object.keys(envelope.sections)).toEqual(
+      ACCOUNT_EXPORT_V2_SECTION_IDS,
+    );
+    expect(envelope.sections[SECTION]).toEqual([
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Primer parcial',
+        resourceIds: ['22222222-2222-4222-8222-222222222222'],
+      },
+    ]);
     expect(result.formatVersion).toBe(2);
     expect(result.sectionCount).toBe(31);
     expect(result.recordCount).toBe(1);
@@ -146,16 +178,20 @@ describe('Account export v2 compatibility — B45', () => {
 
   it('does not publish v2 when its contributor is missing or the inventory is altered', async () => {
     const legacy = fixture(mounted(false).registry);
-    await expect(legacy.assembler.writeJsonV2(OWNER, legacy.sink))
-      .rejects.toThrow('Unknown account export section: study.collections');
+    await expect(
+      legacy.assembler.writeJsonV2(OWNER, legacy.sink),
+    ).rejects.toThrow('Unknown account export section: study.collections');
     expect(legacy.commit).not.toHaveBeenCalled();
     const expanded = mounted(true).contributors;
-    const invalid = fixture(new AccountExportContributorRegistry([
-      ...expanded,
-      contributor('unreviewed.private'),
-    ]));
-    await expect(invalid.assembler.writeJsonV2(OWNER, invalid.sink))
-      .rejects.toThrow('inventory is incomplete');
+    const invalid = fixture(
+      new AccountExportContributorRegistry([
+        ...expanded,
+        contributor('unreviewed.private'),
+      ]),
+    );
+    await expect(
+      invalid.assembler.writeJsonV2(OWNER, invalid.sink),
+    ).rejects.toThrow('inventory is incomplete');
     expect(invalid.commit).not.toHaveBeenCalled();
   });
 });
