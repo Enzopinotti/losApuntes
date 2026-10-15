@@ -293,8 +293,9 @@ export class AccountExportProcessor {
     claimId: string,
     assembly: AccountExportAssemblyResult,
   ): Promise<boolean> {
-    const current = await this.store.findOwned(job.id, job.userId);
-    return Boolean(
+    try {
+      const current = await this.store.findOwned(job.id, job.userId);
+      return Boolean(
       current &&
       current.userId === job.userId &&
       current.id === job.id &&
@@ -308,7 +309,12 @@ export class AccountExportProcessor {
       current.artifactSha256 === assembly.sha256 &&
       current.completedAt instanceof Date &&
       Number.isFinite(current.completedAt.getTime()),
-    );
+      );
+    } catch {
+      // No durable evidence available: do not infer success. A subsequent
+      // reschedule CAS may still prove non-completion; otherwise preserve S3.
+      return false;
+    }
   }
 
   private async deleteExpiredArtifacts(
