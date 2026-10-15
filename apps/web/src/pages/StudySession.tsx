@@ -617,6 +617,14 @@ export default function StudySession() {
               Practicar preguntas
             </Link>
           )}
+          {subjectId && (
+            <Link
+              to={`/study/kits?subjectId=${encodeURIComponent(subjectId)}`}
+              onClick={() => { if (plan) rememberStudyDraft(scope, plan); }}
+            >
+              Mis colecciones portátiles
+            </Link>
+          )}
           <Link to={subjectId ? studySubjectHref(subjectId) ?? "/study" : "/study"}>Volver a la Mesa</Link>
         </div>
       </header>
