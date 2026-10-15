@@ -92,7 +92,7 @@ function errorFor(error: unknown) {
 }
 
 function syncErrorFor(error: unknown): string {
-  const cause = error instanceof StudyKitSyncError ? error.cause : error;
+  const cause = error instanceof StudyKitSyncError ? error.failure : error;
   if (cause instanceof StudyCollectionsApiError) {
     if (cause.code === "STUDY_COLLECTION_OPERATION_KEY_CONFLICT") {
       return "Ya sincronizaste este kit con otro nombre o descripción. Editá esa colección sincronizada o creá un nuevo kit.";

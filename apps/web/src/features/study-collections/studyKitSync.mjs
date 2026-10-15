@@ -14,7 +14,7 @@ export class StudyKitSyncError extends Error {
     super(message);
     this.name = "StudyKitSyncError";
     this.progress = progress;
-    this.cause = cause;
+    this.failure = cause;
   }
 }
 

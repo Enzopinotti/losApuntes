@@ -7,7 +7,7 @@ export type StudyKitSyncProgress = {
 };
 export declare class StudyKitSyncError extends Error {
   readonly progress: StudyKitSyncProgress;
-  readonly cause: unknown;
+  readonly failure: unknown;
   constructor(message: string, progress: StudyKitSyncProgress, cause: unknown);
 }
 export declare function validateStudyKitSyncInput(
