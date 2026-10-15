@@ -490,9 +490,10 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       deleteArtifact,
     } as unknown as AccountExportArtifactStorage;
     const assembler = {
-      writeJsonV3: async () => {
-        // This is an S3 test double; the database completion is real.
-        s3Committed = true;
+      writeJsonV3: async (_owner: string, sink: AccountExportArtifactSink) => {
+        // The artifact sink is a test double; Mongo commit and lookup are real.
+        await sink.write('private-v3');
+        await sink.commit(assembly);
         return assembly;
       },
     } as unknown as AccountExportAssembler;
@@ -590,7 +591,13 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
         return updated;
       },
     } as unknown as AccountExportService;
-    const assembler = { writeJsonV3: async () => assembly } as unknown as AccountExportAssembler;
+    const assembler = {
+      writeJsonV3: async (_owner: string, sink: AccountExportArtifactSink) => {
+        await sink.write('orphaned-v3');
+        await sink.commit(assembly);
+        return assembly;
+      },
+    } as unknown as AccountExportAssembler;
     const processor = new AccountExportProcessor(
       workerService, assembler, store, artifacts,
     );
