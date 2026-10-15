@@ -128,6 +128,26 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect((await service.get(second, subject)).progress.revision).toBe(1);
   }, 30_000);
 
+  it('caps owner storage at sixteen distinct subjects', async () => {
+    const userId = await owner();
+    const subjects = Array.from({ length: 16 }, () => randomUUID());
+    for (const subject of subjects) {
+      await service.save(userId, subject, 0, planFor(subject));
+    }
+    const extra = randomUUID();
+    await expect(service.save(userId, extra, 0, planFor(extra))).rejects.toMatchObject({
+      response: { code: 'STUDY_PROGRESS_LIMIT_REACHED' },
+    });
+    // Existing subjects still report stale revision, rather than the quota.
+    await expect(service.save(userId, subjects[0], 0, planFor(subjects[0])))
+      .rejects.toMatchObject({
+        response: { code: 'STUDY_PROGRESS_REVISION_CONFLICT' },
+      });
+    await service.remove(userId, subjects[0], 1);
+    await expect(service.save(userId, extra, 0, planFor(extra)))
+      .resolves.toMatchObject({ progress: { revision: 1 } });
+  }, 60_000);
+
   it('purges progress in account closure transaction and blocks later mutations', async () => {
     const userId = await owner();
     const subjectId = randomUUID();
