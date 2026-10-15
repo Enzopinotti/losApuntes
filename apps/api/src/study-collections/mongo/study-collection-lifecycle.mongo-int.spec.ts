@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
+import { StudyCollectionService } from '../domain/study-collection.service';
 import { createConnection, type Connection, type Model } from 'mongoose';
 
 import {
@@ -474,6 +475,36 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
     const otherAccount = await request.request(bob);
     expect(otherAccount.export.formatVersion).toBe(2);
     expect(versions).toContainEqual({ ownerUserId: bob, version: 2 });
+  }, 30_000);
+
+  it('returns stale revision conflict after concurrent removal shrinks a resource page', async () => {
+    const userId = await owner();
+    const saved = await create(userId);
+    const firstId = randomUUID();
+    const secondId = randomUUID();
+    await collections.addResource(saved.id, userId, firstId);
+    await collections.addResource(saved.id, userId, secondId);
+
+    const service = new StudyCollectionService(
+      collections,
+      {
+        get: async (resourceId: string) => ({
+          resource: { id: resourceId, title: 'Test resource' },
+        }),
+      } as never,
+    );
+    const firstPage = await service.listResources(userId, saved.id, 1);
+    expect(firstPage.items).toHaveLength(1);
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+
+    // A different client removes the resource that occupied the cursor
+    // position: its index no longer exists in the current revision.
+    await collections.removeResource(saved.id, userId, secondId);
+    await expect(service.listResources(
+      userId, saved.id, 1, firstPage.nextCursor ?? undefined,
+    )).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_STALE' },
+    });
   }, 30_000);
 
   it('rolls back both closure and collection deletion when audit persistence fails', async () => {
