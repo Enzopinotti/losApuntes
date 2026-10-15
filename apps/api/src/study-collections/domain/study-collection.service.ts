@@ -69,9 +69,14 @@ function parseCursor(value?: string): Record<string, unknown> | null {
     if (value.length > 512 || !/^[A-Za-z0-9_-]+$/.test(value)) {
       return invalidCursor();
     }
-    const decoded: unknown = JSON.parse(
-      Buffer.from(value, 'base64url').toString('utf8'),
-    );
+    const bytes = Buffer.from(value, 'base64url');
+    if (
+      bytes.length > 256 ||
+      bytes.toString('base64url') !== value
+    ) {
+      return invalidCursor();
+    }
+    const decoded: unknown = JSON.parse(bytes.toString('utf8'));
     if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
       return invalidCursor();
     }
@@ -275,6 +280,16 @@ export class StudyCollectionService {
     limit: number,
     cursor?: string,
   ) {
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > STUDY_COLLECTION_MAX_PAGE
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'STUDY_COLLECTION_PAGE_LIMIT_INVALID',
+        message: 'Page limit must be between 1 and 25',
+      });
+    }
     const row = await this.requireOwned(id, ownerUserId);
     const start = itemsCursor(cursor, ownerUserId, row);
     const resourceIds = row.resourceIds.slice(start, start + limit);

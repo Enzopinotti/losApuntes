@@ -13,9 +13,19 @@ import {
   studyCollectionsApi,
   type CollectionResourceItem,
   type StudyCollection,
-  type StudyCollectionsApiError,
+  StudyCollectionsApiError,
 } from "../features/study-collections/studyCollectionsService";
-import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
+import {
+  useAsyncAuthorityFence,
+  type AsyncAuthorityTicket,
+} from "../shared/useAsyncAuthorityFence";
+import {
+  isConsistentCollectionPage,
+  releaseScopedCollectionAction,
+  scopedCollectionCreateAttempt,
+  type ScopedCollectionCreateAttempt,
+} from "../features/study-collections/studyCollectionsAuthority.mjs";
+import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import "./StudyCollections.scss";
 
 type CollectionList = {
@@ -51,6 +61,9 @@ function errorMessage(error: unknown): string {
     if (apiError.code === "STUDY_COLLECTION_CURSOR_STALE") {
       return "La colección cambió. Volvé a cargar los apuntes.";
     }
+    if (apiError.code === "STUDY_COLLECTIONS_NOT_ENABLED" || apiError.status === 503) {
+      return "Las colecciones sincronizadas todavía no están habilitadas.";
+    }
     if (apiError.code === "STUDY_COLLECTION_FULL") {
       return "Esta colección llegó al máximo de 100 apuntes.";
     }
@@ -73,6 +86,10 @@ const StudyCollections = () => {
   const detailScope = `${authScope}:${selectedId}`;
   const [listState, setListState] = useState<CollectionList | null>(null);
   const [detailState, setDetailState] = useState<CollectionDetail | null>(null);
+  const detailStateRef = useRef<CollectionDetail | null>(null);
+  useEffect(() => {
+    detailStateRef.current = detailState;
+  }, [detailState]);
   const [searchState, setSearchState] = useState<SearchState | null>(null);
   const [searchDraft, setSearchDraft] = useState<{
     scope: string;
@@ -96,8 +113,11 @@ const StudyCollections = () => {
   const [actionError, setActionError] = useState<{ scope: string; message: string } | null>(null);
   const [notice, setNotice] = useState<{ scope: string; message: string } | null>(null);
   const [busyScope, setBusyScope] = useState<string | null>(null);
-  const actionLock = useRef(false);
-  const operationKeyRef = useRef(crypto.randomUUID());
+  const actionLock = useRef<{
+    scope: string;
+    ticket: AsyncAuthorityTicket;
+  } | null>(null);
+  const createAttemptRef = useRef<ScopedCollectionCreateAttempt | null>(null);
 
   const {
     begin: beginList,
@@ -129,7 +149,7 @@ const StudyCollections = () => {
 
   const loadList = useCallback(
     async (cursor?: string, append = false) => {
-      if (status !== "authenticated") return;
+      if (status !== "authenticated" || !PERSISTENT_COLLECTIONS_VISIBLE) return;
       const ticket = beginList();
       if (!isListCurrent(ticket)) return;
       setListState((previous) => ({
@@ -172,9 +192,12 @@ const StudyCollections = () => {
 
   const loadDetail = useCallback(
     async (cursor?: string, append = false) => {
-      if (!selectedId || status !== "authenticated") return;
+      if (!selectedId || status !== "authenticated" || !PERSISTENT_COLLECTIONS_VISIBLE) return;
       const ticket = beginDetail();
       if (!isDetailCurrent(ticket)) return;
+      const previousRevision = append && detailStateRef.current?.scope === detailScope
+        ? detailStateRef.current.collection?.revision ?? null
+        : null;
       setDetailState((previous) => ({
         scope: detailScope,
         collection: previous?.scope === detailScope ? previous.collection : null,
@@ -189,6 +212,18 @@ const StudyCollections = () => {
           studyCollectionsApi.resources(selectedId, cursor, ticket.signal),
         ]);
         if (!isDetailCurrent(ticket)) return;
+        if (!isConsistentCollectionPage(
+          header.collection.revision,
+          page.revision,
+          previousRevision,
+          append,
+        )) {
+          throw new StudyCollectionsApiError(
+            "STUDY_COLLECTION_CURSOR_STALE",
+            409,
+            "La colección cambió durante la consulta.",
+          );
+        }
         setDetailState((previous) => ({
           scope: detailScope,
           collection: header.collection,
@@ -203,10 +238,16 @@ const StudyCollections = () => {
         }));
       } catch (error) {
         if (isDetailCurrent(ticket)) {
+          const stale = error instanceof StudyCollectionsApiError &&
+            error.code === "STUDY_COLLECTION_CURSOR_STALE";
           setDetailState((previous) => ({
             scope: detailScope,
-            collection: previous?.scope === detailScope ? previous.collection : null,
-            items: append && previous?.scope === detailScope ? previous.items : [],
+            collection: stale
+              ? null
+              : previous?.scope === detailScope ? previous.collection : null,
+            items: stale ? [] : append && previous?.scope === detailScope
+              ? previous.items
+              : [],
             nextCursor: null,
             busy: false,
             error: errorMessage(error),
@@ -227,12 +268,15 @@ const StudyCollections = () => {
   }, [loadDetail]);
   useEffect(() => {
     setEditingAt(null);
-    setQuery("");
-    actionLock.current = false;
   }, [detailScope]);
 
   useEffect(() => {
-    if (status !== "authenticated" || !selectedId || query.trim().length < 2) return;
+    if (
+      status !== "authenticated" ||
+      !PERSISTENT_COLLECTIONS_VISIBLE ||
+      !selectedId ||
+      query.trim().length < 2
+    ) return;
     const ticket = beginSearch();
     if (!isSearchCurrent(ticket)) return;
     setSearchState({ scope: searchScope, items: [], busy: true, error: null });
@@ -265,13 +309,17 @@ const StudyCollections = () => {
   const execute = async (
     work: (signal: AbortSignal) => Promise<void>,
   ) => {
-    if (actionLock.current) return;
-    actionLock.current = true;
-    const ticket = beginAction();
-    if (!isActionCurrent(ticket)) {
-      actionLock.current = false;
+    if (
+      status !== "authenticated" ||
+      !PERSISTENT_COLLECTIONS_VISIBLE ||
+      actionLock.current?.scope === detailScope
+    ) {
       return;
     }
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    const lease = { scope: detailScope, ticket };
+    actionLock.current = lease;
     setBusyScope(detailScope);
     setActionError(null);
     setNotice(null);
@@ -283,21 +331,31 @@ const StudyCollections = () => {
       }
     } finally {
       if (finishAction(ticket)) setBusyScope(null);
-      actionLock.current = false;
+      actionLock.current = releaseScopedCollectionAction(
+        actionLock.current,
+        lease,
+      );
     }
   };
 
   const create = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!title.trim()) return;
-    const key = operationKeyRef.current;
+    const attempt = scopedCollectionCreateAttempt(
+      createAttemptRef.current,
+      authScope,
+      title,
+      description,
+      () => crypto.randomUUID(),
+    );
+    createAttemptRef.current = attempt;
     void execute(async (signal) => {
       const response = await studyCollectionsApi.create(
-        { operationKey: key, title, description },
+        { operationKey: attempt.key, title, description },
         signal,
       );
       if (signal.aborted) return;
-      operationKeyRef.current = crypto.randomUUID();
+      if (createAttemptRef.current === attempt) createAttemptRef.current = null;
       setTitle("");
       setDescription("");
       setParams({ collection: response.collection.id });
@@ -361,6 +419,16 @@ const StudyCollections = () => {
     });
   };
 
+  if (!PERSISTENT_COLLECTIONS_VISIBLE) {
+    return (
+      <main className="study-collections-page">
+        <h1>Colecciones sincronizadas no disponibles</h1>
+        <p>Esta función todavía no está habilitada. Podés seguir organizando tus apuntes con las colecciones portátiles.</p>
+        <Link to="/study">Volver a la Mesa de estudio</Link>
+      </main>
+    );
+  }
+
   return (
     <main className="study-collections-page">
       <header className="study-collections-hero">
@@ -387,6 +455,7 @@ const StudyCollections = () => {
               maxLength={100}
               required
               value={title}
+              disabled={busy}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Ej.: Segundo parcial de Física"
             />
@@ -395,6 +464,7 @@ const StudyCollections = () => {
               id="new-collection-description"
               maxLength={500}
               value={description}
+              disabled={busy}
               onChange={(event) => setDescription(event.target.value)}
             />
             <button type="submit" disabled={busy || !title.trim()}>
@@ -445,7 +515,12 @@ const StudyCollections = () => {
             <>
               {currentDetail?.busy && <p role="status">Cargando apuntes…</p>}
               {currentDetail?.error && (
-                <p role="alert" className="resources-error">{currentDetail.error}</p>
+                <div role="alert" className="resources-error">
+                  <p>{currentDetail.error}</p>
+                  <button type="button" onClick={() => void loadDetail()}>
+                    Actualizar colección
+                  </button>
+                </div>
               )}
               {collection && (
                 <>
