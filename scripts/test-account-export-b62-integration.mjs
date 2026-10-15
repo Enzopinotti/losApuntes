@@ -91,6 +91,12 @@ verify("legacy regression and Mongo integration evidence exist", () => {
   assert.match(tests, /writeJsonV3/u);
   assert.match(mongoTest, /listAccountExportProgress\(ownerId/u);
 });
+verify("S3 commit requires version-matched inventory and digest", () => {
+  assert.match(storage, /accountExportSectionIds\(result\.formatVersion\)\.length/u);
+  assert.match(storage, /result\.sha256 !== actualDigest/u);
+  assert.match(smoke, /EXPECTED_SECTION_COUNTS/u);
+  assert.match(smoke, /artifact\.version, status\.formatVersion/u);
+});
 verify("production activation is still blocked", () => {
   assert.match(config, /STUDY_PROGRESS_ENABLED must remain false in production/u);
 });
