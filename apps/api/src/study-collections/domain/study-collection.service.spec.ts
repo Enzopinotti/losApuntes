@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -208,4 +209,11 @@ describe('StudyCollectionService', () => {
       service.list('intruder', 1, page.nextCursor ?? undefined),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
+  it('returns a safe placeholder for a reference whose access was revoked', async () => {
+    const { service, get } = setup();
+    get.mockRejectedValueOnce(new ForbiddenException());
+    const result = await service.listResources(ownerId, collectionId, 1);
+    expect(result.items).toEqual([{ resourceId, resource: null }]);
+  });
+
 });
