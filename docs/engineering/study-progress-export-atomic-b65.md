@@ -9,7 +9,7 @@ B63 evita aceptar un job v1/v2 como completo si el dueño guardó progreso en el
 B65 agrega **dos barreras adicionales, complementarias**:
 
 1. El `AccountExportProcessor` captura la revisión del usuario antes de iniciar v3 y la revalida **después de completar S3**, antes de solicitar el commit durable. Es una verificación fuera de Mongo, útil para detectar cambios en el intervalo S3.
-2. `MongoAccountExportStore.complete` confirma **en una sola transacción Mongo** el fence de revisión del dueño y el cambio de estado del job. Para v3, ambas escrituras usan la **misma sesión**. Si la revisión cambió, la transacción falla sin completar el job; si el claim se perdió/expiró, se revierte el incremento del usuario y devuelve `false`. El `User` es la misma fila de autoridad que toca transaccionalmente `StudyProgressService.save/remove` y account closure.
+2. `MongoAccountExportStore.complete` confirma **en una sola transacción Mongo** el fence de revisión del dueño y el cambio de estado del job. Para v3, ambas escrituras usan la **misma sesión**. Si la revisión cambió, la transacción falla sin completar el job; si el claim se perdió/expiró, se revierte el incremento del usuario y devuelve `false`. El `User` es la misma fila de autoridad que toca transaccionalmente `StudyProgressService.save/remove` y account closure. El CAS del trabajo exige además `userId: ownerUserId`: no puede finalizar la exportación de una cuenta usando el epoch de otra.
 
 ## Invariante y alcance
 
