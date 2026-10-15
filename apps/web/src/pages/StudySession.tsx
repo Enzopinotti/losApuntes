@@ -607,7 +607,13 @@ export default function StudySession() {
         </div>
         <div className="study-session-quick-actions">
           {subjectId && (
-            <Link to={`/study/practice?subjectId=${encodeURIComponent(subjectId)}`}>
+            <Link
+              to={`/study/practice?subjectId=${encodeURIComponent(subjectId)}`}
+              onClick={() => {
+                // Snapshot before route unmount, including the last edited key.
+                if (plan) rememberStudyDraft(scope, plan);
+              }}
+            >
               Practicar preguntas
             </Link>
           )}
