@@ -13,6 +13,7 @@ import {
 } from '../storage/account-export-artifact-storage';
 import {
   type AccountExportJobRecord,
+  type AccountExportAssemblyResult,
   ACCOUNT_EXPORT_LEASE_DURATION_MS,
 } from './account-export.types';
 
@@ -107,6 +108,7 @@ export class AccountExportProcessor {
     let leaseLost = false;
     let artifactCommitted = false;
     let durableCompletionAttempted = false;
+    let completedAssembly: AccountExportAssemblyResult | null = null;
     // The assembler checks its own epoch before S3 commit. This separate
     // owner snapshot also fences the S3-completed -> durable-complete gap.
     let progressEpoch: number | null = null;
@@ -154,6 +156,7 @@ export class AccountExportProcessor {
               () => Promise.resolve(!leaseLost),
             );
       artifactCommitted = true;
+      completedAssembly = assembly;
       clearInterval(heartbeat);
       await Promise.resolve(heartbeatInFlight);
       if (leaseLost) {
@@ -188,7 +191,14 @@ export class AccountExportProcessor {
           : {}),
       });
       if (!completed) {
-        await this.artifacts.deleteArtifact(job.id, claimId);
+        // The durable CAS explicitly rejected this claim. It cannot publish
+        // this attempt's generation; S3 cleanup is best-effort and must not
+        // turn a known stale outcome into a retry of somebody else's claim.
+        try {
+          await this.artifacts.deleteArtifact(job.id, claimId);
+        } catch {
+          // Private-bucket object expiry is the deletion backstop.
+        }
         return 'stale';
       }
       return 'completed';
@@ -215,6 +225,18 @@ export class AccountExportProcessor {
       }
       if (leaseLost) return 'stale';
 
+      const uncertainCompletion =
+        artifactCommitted && durableCompletionAttempted &&
+        !(error instanceof AccountExportEpochConflictError);
+      // A Mongo commit can succeed even when the response is lost. Trust
+      // only exact owner + job + generation + digest + version metadata.
+      // Never delete S3 before deciding whether the durable job references it.
+      if (uncertainCompletion && completedAssembly) {
+        if (await this.isConfirmedCompletion(job, claimId, completedAssembly)) {
+          return 'completed';
+        }
+      }
+
       const inactiveAccount = isInactiveAccountError(error);
       const terminal = inactiveAccount || job.attempts >= MAX_ATTEMPTS;
       const state = terminal ? 'failed' : 'pending';
@@ -232,10 +254,66 @@ export class AccountExportProcessor {
         ),
         failureCode,
       });
-      if (!updated) return 'stale';
+      if (!updated) {
+        // The CAS was not ours: completion may have won between the first
+        // reconciliation read and the attempt to reschedule. Re-read before
+        // classifying the outcome. Otherwise preserve the S3 generation.
+        if (uncertainCompletion && completedAssembly &&
+          await this.isConfirmedCompletion(job, claimId, completedAssembly)) {
+          return 'completed';
+        }
+        return 'stale';
+      }
+
+      if (uncertainCompletion) {
+        // A successful reschedule is durable proof that this claim did NOT
+        // complete. The generation is now safe to delete, and cannot be
+        // referenced by a later retry (every claim gets a fresh UUID).
+        try {
+          await this.artifacts.deleteArtifact(job.id, claimId);
+        } catch {
+          // Failed cleanup is handled by the bucket's private lifecycle;
+          // do not undo the already-durable retry/failure transition.
+        }
+      }
       return terminal ? 'failed' : 'retryScheduled';
     } finally {
       clearInterval(heartbeat);
+    }
+  }
+
+  /**
+   * Reconcile an unknown Mongo completion result with the durable record.
+   * Only the precise attempt, owner, artifact digest, format and counters
+   * prove the S3 object is actually referenced by a completed job.
+   * Read failures remain unknown; never guess success or delete on ambiguity.
+   */
+  private async isConfirmedCompletion(
+    job: AccountExportJobRecord,
+    claimId: string,
+    assembly: AccountExportAssemblyResult,
+  ): Promise<boolean> {
+    try {
+      const current = await this.store.findOwned(job.id, job.userId);
+      return Boolean(
+        current &&
+        current.userId === job.userId &&
+        current.id === job.id &&
+        current.state === 'completed' &&
+        current.active === false &&
+        current.artifactGeneration === claimId &&
+        current.formatVersion === assembly.formatVersion &&
+        current.artifactSectionCount === assembly.sectionCount &&
+        current.artifactRecordCount === assembly.recordCount &&
+        current.artifactByteLength === assembly.byteLength &&
+        current.artifactSha256 === assembly.sha256 &&
+        current.completedAt instanceof Date &&
+        Number.isFinite(current.completedAt.getTime()),
+      );
+    } catch {
+      // No durable evidence available: do not infer success. A subsequent
+      // reschedule CAS may still prove non-completion; otherwise preserve S3.
+      return false;
     }
   }
 

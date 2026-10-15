@@ -6,6 +6,9 @@ import { MongoAccountExportStore } from '../../data-lifecycle/mongo/mongo-accoun
 import { AccountExportJob, AccountExportJobSchema } from '../../data-lifecycle/mongo/account-export.mongo-schema';
 import { AccountExportAssembler, type AccountExportArtifactSink } from '../../data-lifecycle/domain/account-export-assembler';
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
+import { AccountExportProcessor } from '../../data-lifecycle/domain/account-export-processor';
+import type { AccountExportArtifactStorage } from '../../data-lifecycle/storage/account-export-artifact-storage';
+import type { AccountExportJobRecord } from '../../data-lifecycle/domain/account-export.types';
 import {
   AccountExportContributorRegistry,
   ACCOUNT_EXPORT_V3_SECTION_IDS,
@@ -453,6 +456,159 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(await account.getStudyProgressExportEpoch(ownerId)).toBe(epoch);
     expect((await exportJobs.findOne({ id }).lean().exec())?.state)
       .toBe('processing');
+  }, 30_000);
+
+  it('B66 recovers an actually committed Mongo export after its response is lost', async () => {
+    const userId = await owner();
+    const subjectId = randomUUID();
+    await service.save(userId, subjectId, 0, planFor(subjectId));
+    const id = randomUUID();
+    const claimId = randomUUID();
+    const created = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: created,
+      claimId, leaseExpiresAt: new Date(created.getTime() + 120_000),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    const job = await store.findOwned(id, userId) as AccountExportJobRecord;
+    const userReader = new UsersService(users as never);
+    const assembly = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: 3 as const,
+      sectionCount: 32, recordCount: 1, byteLength: 256,
+      sha256: 'a'.repeat(64),
+    };
+    let s3Committed = false;
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const artifacts = {
+      createSink: jest.fn().mockReturnValue({
+        write: jest.fn().mockResolvedValue(undefined),
+        commit: jest.fn().mockImplementation(async () => { s3Committed = true; }),
+        abort: jest.fn().mockResolvedValue(undefined),
+      }),
+      deleteArtifact,
+    } as unknown as AccountExportArtifactStorage;
+    const assembler = {
+      writeJsonV3: async (_owner: string, sink: AccountExportArtifactSink) => {
+        // The artifact sink is a test double; Mongo commit and lookup are real.
+        await sink.write('private-v3');
+        await sink.commit(assembly);
+        return assembly;
+      },
+    } as unknown as AccountExportAssembler;
+    const complete = jest.fn(async (input: {
+      id: string; claimId: string; ownerUserId: string;
+      expectedProgressEpoch: number;
+    }) => {
+      const committed = await store.complete({
+        ...input,
+        artifactGeneration: input.claimId,
+        completedAt: new Date(),
+        artifactExpiresAt: new Date(Date.now() + 86_400_000),
+        result: assembly,
+      });
+      expect(committed).toBe(true);
+      // Simulate network failure only AFTER the Mongo transaction committed.
+      throw new Error('Mongo commit reply lost after success');
+    });
+    const reschedule = jest.fn();
+    const workerService = {
+      claimNext: jest.fn().mockResolvedValueOnce(job),
+      captureStudyProgressExportEpoch: (ownerId: string) =>
+        userReader.getStudyProgressExportEpoch(ownerId),
+      assertStudyProgressExportEpoch: async (
+        ownerId: string, expected: number,
+      ) => {
+        expect(await userReader.getStudyProgressExportEpoch(ownerId))
+          .toBe(expected);
+      },
+      complete, reschedule,
+      renewLease: jest.fn().mockResolvedValue(true),
+    } as unknown as AccountExportService;
+    const processor = new AccountExportProcessor(
+      workerService, assembler, store, artifacts,
+    );
+    await expect(processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, completed: 1, stale: 0, retryScheduled: 0,
+    });
+    expect(s3Committed).toBe(true);
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(reschedule).not.toHaveBeenCalled();
+    expect(deleteArtifact).not.toHaveBeenCalled();
+    const durable = await store.findOwned(id, userId);
+    expect(durable?.state).toBe('completed');
+    expect(durable?.artifactGeneration).toBe(claimId);
+    expect(durable?.artifactSha256).toBe(assembly.sha256);
+  }, 30_000);
+
+  it('B66 deletes an orphan only after a real Mongo reschedule commits', async () => {
+    const userId = await owner();
+    const id = randomUUID();
+    const claimId = randomUUID();
+    const created = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: created,
+      claimId, leaseExpiresAt: new Date(created.getTime() + 120_000),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    const job = await store.findOwned(id, userId) as AccountExportJobRecord;
+    const reader = new UsersService(users as never);
+    const operations: string[] = [];
+    const deleteArtifact = jest.fn().mockImplementation(async () => {
+      const row = await store.findOwned(id, userId);
+      expect(row?.state).toBe('pending');
+      operations.push('delete-S3');
+    });
+    const artifacts = {
+      createSink: jest.fn().mockReturnValue({
+        write: jest.fn().mockResolvedValue(undefined),
+        commit: jest.fn().mockResolvedValue(undefined),
+        abort: jest.fn().mockResolvedValue(undefined),
+      }),
+      deleteArtifact,
+    } as unknown as AccountExportArtifactStorage;
+    const assembly = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: 3 as const,
+      sectionCount: 32, recordCount: 0, byteLength: 128,
+      sha256: 'a'.repeat(64),
+    };
+    const workerService = {
+      claimNext: jest.fn().mockResolvedValueOnce(job),
+      renewLease: jest.fn().mockResolvedValue(true),
+      captureStudyProgressExportEpoch: (ownerId: string) =>
+        reader.getStudyProgressExportEpoch(ownerId),
+      assertStudyProgressExportEpoch: async () => undefined,
+      complete: jest.fn().mockRejectedValue(new Error('Mongo reply unknown')),
+      reschedule: async (input: {
+        id: string; claimId: string; state: 'pending' | 'failed';
+        nextAttemptAt: Date; failureCode: 'EXPORT_ASSEMBLY_RETRY';
+      }) => {
+        const updated = await store.reschedule({ ...input, now: new Date() });
+        if (updated) operations.push('reschedule-committed');
+        return updated;
+      },
+    } as unknown as AccountExportService;
+    const assembler = {
+      writeJsonV3: async (_owner: string, sink: AccountExportArtifactSink) => {
+        await sink.write('orphaned-v3');
+        await sink.commit(assembly);
+        return assembly;
+      },
+    } as unknown as AccountExportAssembler;
+    const processor = new AccountExportProcessor(
+      workerService, assembler, store, artifacts,
+    );
+    await expect(processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0,
+    });
+    expect(operations).toEqual(['reschedule-committed', 'delete-S3']);
+    expect(deleteArtifact).toHaveBeenCalledWith(id, claimId);
+    const durable = await store.findOwned(id, userId);
+    expect(durable?.state).toBe('pending');
+    expect(durable?.artifactGeneration).toBeNull();
   }, 30_000);
 
   it('purges progress in account closure transaction and blocks later mutations', async () => {

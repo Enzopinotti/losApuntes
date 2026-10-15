@@ -189,3 +189,38 @@ retention decision. [AWS object expiration and versioning](https://docs.aws.amaz
 The seven-day API window and eight-day lifecycle policy do not promise deletion
 from version history, backups, replicas, recovery media or provider billing
 records. Do not describe them as a legal retention or backup-purge guarantee.
+
+
+## B66 — Reconciling an uncertain durable completion
+
+When the worker receives an error after a private export generation was
+uploaded to S3, it must **not** assume that the database commit failed. A lost
+Mongo acknowledgment can occur after the transaction has committed.
+
+The worker first looks up the export via the exact owner and job ID. It can
+recognize completion only when the durable row is marked completed/inactive
+and its **attempt generation, format version, section and record counts, byte
+length, and SHA-256** all match the uploaded artifact. In that case it reports
+completion; it never deletes the referenced object or requeues the job.
+
+If the record does not prove completion, the worker tries to release or fail
+the **original claim using Mongo CAS**. Successful CAS is proof that that
+claim did not publish a completed job. Only after success may the worker
+delete `exports/{jobId}/{claimId}.json` as an orphan. If the CAS loses,
+the worker checks durable completion a second time. Without exact proof it
+returns stale and preserves the object. Failed lookup or CAS reads are not
+permission to delete. The bucket lifecycle remains the fallback when an
+orphan cleanup fails.
+
+**Operational triage, without leaking identifiers into public logs:** Inspect
+the job's `state`, `active`, owner, generation, and checksum using an
+authorized internal Mongo session; compare only the attempt-scoped S3
+generation. Never delete on an error message alone, never delete another
+claim's generation, and never log artifact content, tokens, object URLs, or
+the owner's private plan. Alert on repeated worker
+`iteration_failed` events, retry exhaustion, and provider lifecycle drift.
+Validate exact-head recovery via fault injection and the Mongo opt-in B66
+tests before production.
+
+See `docs/engineering/account-export-reconciliation-b66.md` for the proof
+model, failure matrix, and remaining acceptance requirements.
