@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -283,7 +284,10 @@ export class StudyCollectionService {
           const result = await this.resources.get(resourceId, ownerUserId);
           return { resourceId, resource: result.resource };
         } catch (error) {
-          if (error instanceof NotFoundException) {
+          if (
+            error instanceof NotFoundException ||
+            error instanceof ForbiddenException
+          ) {
             return { resourceId, resource: null };
           }
           throw error;
