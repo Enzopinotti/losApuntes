@@ -41,3 +41,8 @@
 .study-kits-footer{color:#565a72;max-width:85ch;line-height:1.55;margin-top:1rem;}
 @media(max-width:850px){.study-kits-layout{grid-template-columns:1fr;}}
 @media(max-width:620px){.study-kits-hero,.study-kits-collection-header,.study-kits-items li,.study-kits-discovery li{flex-direction:column;align-items:start;}}
+
+.study-kits-sync-report{margin:.8rem 0;padding:1rem;border:1px solid #d6d4e7;border-radius:10px;background:#f8f7ff;color:#282849;overflow-wrap:anywhere;}
+.study-kits-sync-report p{margin:.15rem 0 .65rem;line-height:1.5;}
+.study-kits-sync-report a{font-weight:700;display:inline-block;}
+.study-kits-sync-report[role="alert"]{border-color:#bb7c91;background:#fff4f6;}

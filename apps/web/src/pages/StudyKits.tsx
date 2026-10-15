@@ -485,7 +485,7 @@ export default function StudyKits() {
     ) return;
     if (!window.confirm(
       `¿Sincronizar "${selectedKit.title}" y hasta ${selectedKit.resourceIds.length} referencias? ` +
-      "No se elimina el kit portátil. Los permisos de cada apunte se volverán a verificar.",
+      "El kit portátil se conserva. Se agregan referencias accesibles, pero NO se quitan apuntes ya sincronizados.",
     )) return;
     const ticket = beginSync();
     if (!syncCurrent(ticket)) return;
@@ -697,7 +697,7 @@ export default function StudyKits() {
                         type="button"
                         disabled={currentSync?.busy}
                         onClick={syncSelectedKit}
-                      >{currentSync?.busy?"Sincronizando…":"Sincronizar este kit"}</button>
+                      >{currentSync?.busy?"Copiando…":"Copiar kit a Colecciones sincronizadas"}</button>
                     )}
                   </div>
                   {PERSISTENT_COLLECTIONS_VISIBLE && currentSync && (
@@ -709,7 +709,7 @@ export default function StudyKits() {
                       ) : currentSync.error ? (
                         <p>{currentSync.error} Podés reintentar: se usa la misma colección y los apuntes ya vinculados no se duplican.</p>
                       ) : (
-                        <p>Sincronización terminada. Referencias procesadas: {currentSync.progress?.linked ?? 0}; omitidas por falta de acceso o materia diferente: {currentSync.progress?.skipped ?? 0}.</p>
+                        <p>Copia terminada. Referencias verificadas y vinculadas (incluidas las previamente vinculadas): {currentSync.progress?.linked ?? 0}; omitidas por falta de acceso o materia diferente: {currentSync.progress?.skipped ?? 0}.</p>
                       )}
                       {currentSync.progress?.collectionId && (
                         <Link to={`/study-collections?collection=${encodeURIComponent(currentSync.progress.collectionId)}`}>
