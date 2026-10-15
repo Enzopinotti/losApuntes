@@ -7,6 +7,7 @@ import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
   assertAccountExportV1Sections,
+  assertAccountExportSections,
 } from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
 import type { AccountExportContributor } from './domain/account-export.types';
@@ -52,6 +53,8 @@ const EXPECTED_V1_SECTION_IDS = [
   'social.following',
 ] as const;
 
+const EXPECTED_V2_SECTION_IDS = [...EXPECTED_V1_SECTION_IDS, 'study.collections'].sort();
+
 function contributorFactory(): ContributorFactoryProvider {
   const providers = Reflect.getMetadata(
     MODULE_METADATA.PROVIDERS,
@@ -86,31 +89,36 @@ function wiredContributors(dependency: unknown): AccountExportContributor[] {
 }
 
 describe('DataLifecycleModule account export wiring', () => {
-  it('registers every documented v1 section through its real contributor factory', () => {
+  it('registers all 31 v2 sections while keeping v1 manifests unchanged', () => {
     const registry = new AccountExportContributorRegistry(
       wiredContributors({}),
     );
 
     expect(registry.list().map(({ sectionId }) => sectionId)).toEqual(
-      EXPECTED_V1_SECTION_IDS,
+      EXPECTED_V2_SECTION_IDS,
     );
+    expect(() => assertAccountExportSections(registry.list(), 2))
+      .not.toThrow();
+    expect(() => assertAccountExportV1Sections(
+      registry.list().filter(({sectionId}) => sectionId !== 'study.collections'),
+    )).not.toThrow();
   });
 
-  it('fails the real Nest factory before generating an incomplete v1 export', () => {
+  it('fails the real Nest factory before generating an incomplete v2 export', () => {
     const provider = contributorFactory();
     const dependencies = provider.inject.map(
       (Contributor) => new Contributor({} as never),
     );
-    expect(dependencies).toHaveLength(EXPECTED_V1_SECTION_IDS.length);
+    expect(dependencies).toHaveLength(EXPECTED_V2_SECTION_IDS.length);
 
     const missing = dependencies.filter(
       (contributor) => contributor.sectionId !== 'qa.submittedReports',
     );
-    expect(() => assertAccountExportV1Sections(missing)).toThrow(
+    expect(() => assertAccountExportSections(missing, 2)).toThrow(
       'inventory is incomplete or incompatible',
     );
     expect(() =>
-      assertAccountExportV1Sections([
+      assertAccountExportSections([
         ...dependencies,
         {
           sectionId: 'private.unreviewed',
@@ -120,15 +128,15 @@ describe('DataLifecycleModule account export wiring', () => {
               nextCursor: null,
             }),
         },
-      ]),
+      ], 2),
     ).toThrow('inventory is incomplete or incompatible');
     expect(() =>
-      assertAccountExportV1Sections([
+      assertAccountExportSections([
         ...dependencies.slice(0, -1),
         dependencies[0],
-      ]),
+      ], 2),
     ).toThrow('inventory is incomplete or incompatible');
-    expect(() => assertAccountExportV1Sections(dependencies)).not.toThrow();
+    expect(() => assertAccountExportSections(dependencies, 2)).not.toThrow();
   });
 
   it('assembles every section with the exact owner and bounded page budget', async () => {
@@ -221,5 +229,56 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(hasActiveAccount).toHaveBeenCalledWith(ownerId);
     expect(commit).toHaveBeenCalledTimes(1);
     expect(abort).not.toHaveBeenCalled();
+  });
+
+  it('assembles 31 owner-only sections when executing a persisted v2 claim', async () => {
+    const ownerId = 'owner-sentinel';
+    const calls: Array<{method:string; args: unknown[]}> = [];
+    const domain = new Proxy({}, {
+      get: (_, method) => (...args: unknown[]) => {
+        calls.push({ method: String(method), args });
+        if (method === 'getAccountExportProjection') {
+          return Promise.resolve({
+            id: ownerId, email: 'owner@example.test', username: 'owner',
+            emailVerifiedAt: null, accountStatus: 'active', accountClosedAt: null,
+            fullName: null, avatarUrl: null, bio: null, careerId: null,
+            cohortYear: null, createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          });
+        }
+        if (String(method).startsWith('get') || String(method).startsWith('find')) {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve({ items: [], nextCursor: null });
+      },
+    });
+    const registry = new AccountExportContributorRegistry(wiredContributors(domain));
+    const assembler = new AccountExportAssembler(
+      registry,
+      new AccountExportService({} as never, {
+        hasActiveAccount: jest.fn().mockResolvedValue(true),
+      } as never),
+    );
+    const chunks: string[] = [];
+    const sink: AccountExportArtifactSink = {
+      write: (chunk) => { chunks.push(chunk); return Promise.resolve(); },
+      commit: jest.fn().mockResolvedValue(undefined),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const result = await assembler.writeJsonV2(ownerId, sink);
+    const output = JSON.parse(chunks.join('')) as {
+      version:number; sections: Record<string,unknown[]>;
+    };
+    expect(result.sectionCount).toBe(31);
+    expect(result.formatVersion).toBe(2);
+    expect(output.version).toBe(2);
+    expect(Object.keys(output.sections)).toEqual(EXPECTED_V2_SECTION_IDS);
+    expect(output.sections['study.collections']).toEqual([]);
+    expect(calls).toHaveLength(31);
+    expect(calls.find(({method}) => method === 'listAccountExportCollections'))
+      .toEqual({
+        method: 'listAccountExportCollections',
+        args: [ownerId, { limit: 100, cursor: null }],
+      });
   });
 });
