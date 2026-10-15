@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
 import { UsersService } from '../../users/users.service';
+import { StudyCollectionExportReader } from '../../study-collections/mongo/study-collection-export.reader';
 import { accountExportSectionIds } from './account-export-contributor.registry';
 import {
   ACCOUNT_EXPORT_STORE,
@@ -80,6 +81,7 @@ export class AccountExportService {
     private readonly store: AccountExportStore,
     private readonly users: UsersService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly collections?: StudyCollectionExportReader,
   ) {}
 
   async request(
@@ -88,20 +90,18 @@ export class AccountExportService {
   ): Promise<{ created: boolean; export: AccountExportStatus }> {
     await this.assertActiveAccount(userId);
 
+    const requestedFormatVersion = await this.requiredExportVersion(userId);
     const result = await this.store.requestActive({
       id: randomUUID(),
       userId,
-      formatVersion:
-        this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true
-          ? 2
-          : ACCOUNT_EXPORT_FORMAT_VERSION,
+      formatVersion: requestedFormatVersion,
       now,
     });
 
-    // A pre-activation v1 job can still be active during a rollout. Do not
-    // reuse it as though it contained newly persisted private collections.
+    // A v1 job can remain active after rollout or rollback. If the
+    // requested version needs private collections, never replay that v1 job.
     if (
-      this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true &&
+      requestedFormatVersion === 2 &&
       result.job.formatVersion !== 2
     ) {
       throw new ConflictException({
@@ -113,6 +113,29 @@ export class AccountExportService {
       created: result.created,
       export: this.publicStatus(result.job, now),
     };
+  }
+
+  /**
+   * A feature rollback must not silently reduce account portability.
+   * The reader is read-only and owner-scoped; its Mongo failures propagate
+   * before creating or replaying any export work.
+   *
+   * Old unit fixtures may omit all Nest dependencies. In an actual Nest
+   * runtime with ConfigService present, missing reader wiring fails closed.
+   */
+  private async requiredExportVersion(userId: string): Promise<1 | 2> {
+    if (this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true) {
+      return 2;
+    }
+    if (!this.collections) {
+      if (this.config) {
+        throw new Error('Study collections export reader is not wired');
+      }
+      return ACCOUNT_EXPORT_FORMAT_VERSION;
+    }
+    return (await this.collections.hasOwnedCollections(userId))
+      ? 2
+      : ACCOUNT_EXPORT_FORMAT_VERSION;
   }
 
   async status(
