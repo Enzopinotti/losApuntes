@@ -541,6 +541,69 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(durable?.artifactSha256).toBe(assembly.sha256);
   }, 30_000);
 
+  it('B66 deletes an orphan only after a real Mongo reschedule commits', async () => {
+    const userId = await owner();
+    const id = randomUUID();
+    const claimId = randomUUID();
+    const created = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 3, attempts: 1, nextAttemptAt: created,
+      claimId, leaseExpiresAt: new Date(created.getTime() + 120_000),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection);
+    const job = await store.findOwned(id, userId) as AccountExportJobRecord;
+    const reader = new UsersService(users as never);
+    const operations: string[] = [];
+    const deleteArtifact = jest.fn().mockImplementation(async () => {
+      const row = await store.findOwned(id, userId);
+      expect(row?.state).toBe('pending');
+      operations.push('delete-S3');
+    });
+    const artifacts = {
+      createSink: jest.fn().mockReturnValue({
+        write: jest.fn().mockResolvedValue(undefined),
+        commit: jest.fn().mockResolvedValue(undefined),
+        abort: jest.fn().mockResolvedValue(undefined),
+      }),
+      deleteArtifact,
+    } as unknown as AccountExportArtifactStorage;
+    const assembly = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: 3 as const,
+      sectionCount: 32, recordCount: 0, byteLength: 128,
+      sha256: 'a'.repeat(64),
+    };
+    const workerService = {
+      claimNext: jest.fn().mockResolvedValueOnce(job),
+      renewLease: jest.fn().mockResolvedValue(true),
+      captureStudyProgressExportEpoch: (ownerId: string) =>
+        reader.getStudyProgressExportEpoch(ownerId),
+      assertStudyProgressExportEpoch: async () => undefined,
+      complete: jest.fn().mockRejectedValue(new Error('Mongo reply unknown')),
+      reschedule: async (input: {
+        id: string; claimId: string; state: 'pending' | 'failed';
+        nextAttemptAt: Date; failureCode: 'EXPORT_ASSEMBLY_RETRY';
+      }) => {
+        const updated = await store.reschedule({ ...input, now: new Date() });
+        if (updated) operations.push('reschedule-committed');
+        return updated;
+      },
+    } as unknown as AccountExportService;
+    const assembler = { writeJsonV3: async () => assembly } as unknown as AccountExportAssembler;
+    const processor = new AccountExportProcessor(
+      workerService, assembler, store, artifacts,
+    );
+    await expect(processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0,
+    });
+    expect(operations).toEqual(['reschedule-committed', 'delete-S3']);
+    expect(deleteArtifact).toHaveBeenCalledWith(id, claimId);
+    const durable = await store.findOwned(id, userId);
+    expect(durable?.state).toBe('pending');
+    expect(durable?.artifactGeneration).toBeNull();
+  }, 30_000);
+
   it('purges progress in account closure transaction and blocks later mutations', async () => {
     const userId = await owner();
     const subjectId = randomUUID();
