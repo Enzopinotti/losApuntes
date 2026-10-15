@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 import { UsersService } from '../../users/users.service';
 import { StudyCollectionExportReader } from '../../study-collections/mongo/study-collection-export.reader';
+import { StudyProgressExportReader } from '../../study-progress/mongo/study-progress-export.reader';
 import { accountExportSectionIds } from './account-export-contributor.registry';
 import {
   ACCOUNT_EXPORT_STORE,
@@ -39,7 +40,7 @@ export type AccountExportDownload =
   | { kind: 'expired' }
   | {
       kind: 'available';
-      formatVersion: 1 | 2;
+      formatVersion: 1 | 2 | 3;
       generation: string;
       byteLength: number;
       sha256: string;
@@ -82,6 +83,7 @@ export class AccountExportService {
     private readonly users: UsersService,
     @Optional() private readonly config?: ConfigService,
     @Optional() private readonly collections?: StudyCollectionExportReader,
+    @Optional() private readonly progress?: StudyProgressExportReader,
   ) {}
 
   async request(
@@ -98,11 +100,9 @@ export class AccountExportService {
       now,
     });
 
-    // A v1 job can remain active after rollout or rollback. If the
-    // requested version needs private collections, never replay that v1 job.
+    // An older active job must not be presented as a complete newer export.
     if (
-      requestedFormatVersion === 2 &&
-      result.job.formatVersion !== 2
+      requestedFormatVersion > result.job.formatVersion
     ) {
       throw new ConflictException({
         code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
@@ -123,19 +123,23 @@ export class AccountExportService {
    * Old unit fixtures may omit all Nest dependencies. In an actual Nest
    * runtime with ConfigService present, missing reader wiring fails closed.
    */
-  private async requiredExportVersion(userId: string): Promise<1 | 2> {
+  private async requiredExportVersion(userId: string): Promise<1 | 2 | 3> {
+    // Read-only probes continue after feature rollback. Persisted private
+    // data must never disappear from a newly requested account export.
+    if (this.config && (!this.collections || !this.progress)) {
+      throw new Error('Private account export readers are not fully wired');
+    }
+    if (this.config?.get<boolean>('STUDY_PROGRESS_ENABLED') === true) {
+      return 3;
+    }
+    if (this.progress && await this.progress.hasOwnedProgress(userId)) {
+      return 3;
+    }
     if (this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true) {
       return 2;
     }
-    if (!this.collections) {
-      if (this.config) {
-        throw new Error('Study collections export reader is not wired');
-      }
-      return ACCOUNT_EXPORT_FORMAT_VERSION;
-    }
-    return (await this.collections.hasOwnedCollections(userId))
-      ? 2
-      : ACCOUNT_EXPORT_FORMAT_VERSION;
+    return this.collections && await this.collections.hasOwnedCollections(userId)
+      ? 2 : ACCOUNT_EXPORT_FORMAT_VERSION;
   }
 
   async status(
@@ -178,7 +182,7 @@ export class AccountExportService {
 
     return {
       kind: 'available',
-      formatVersion: job.formatVersion as 1 | 2,
+      formatVersion: job.formatVersion as 1 | 2 | 3,
       generation: job.artifactGeneration,
       byteLength: job.artifactByteLength,
       sha256: job.artifactSha256,
