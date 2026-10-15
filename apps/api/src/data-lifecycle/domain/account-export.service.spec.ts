@@ -750,4 +750,109 @@ describe('AccountExportService', () => {
       .rejects.toBeInstanceOf(ConflictException);
   });
 
+  describe('B49 rollback-safe account portability', () => {
+    const disabled = {
+      get: (key: string) =>
+        key === 'STUDY_COLLECTIONS_ENABLED' ? false : undefined,
+    };
+
+    function reader(owned: boolean) {
+      return {
+        hasOwnedCollections: jest.fn().mockResolvedValue(owned),
+      };
+    }
+
+    it('requests a complete v2 export if owned collections survived a disabled feature flag', async () => {
+      const f = fixture();
+      const ownedReader = reader(true);
+      const service = new AccountExportService(
+        f.store, f.users, disabled as never, ownedReader as never,
+      );
+      f.store.requestActive.mockImplementation(async (input) => ({
+        created: true,
+        job: job({
+          id: input.id,
+          userId: input.userId,
+          formatVersion: input.formatVersion,
+        }),
+      }));
+      const result = await service.request('user-1', now);
+      expect(result.export.formatVersion).toBe(2);
+      expect(f.store.requestActive).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', formatVersion: 2 }),
+      );
+      expect(ownedReader.hasOwnedCollections).toHaveBeenCalledWith('user-1');
+    });
+
+    it('keeps v1 only if the owner's private collection set is empty', async () => {
+      const f = fixture();
+      const emptyReader = reader(false);
+      const service = new AccountExportService(
+        f.store, f.users, disabled as never, emptyReader as never,
+      );
+      f.store.requestActive.mockImplementation(async (input) => ({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }));
+      const result = await service.request('user-1', now);
+      expect(result.export.formatVersion).toBe(1);
+      expect(emptyReader.hasOwnedCollections).toHaveBeenCalledWith('user-1');
+    });
+
+    it('rejects a stale active v1 job if private collections require v2 during rollback', async () => {
+      const f = fixture();
+      const service = new AccountExportService(
+        f.store, f.users, disabled as never, reader(true) as never,
+      );
+      f.store.requestActive.mockResolvedValueOnce({
+        created: false, job: job({ formatVersion: 1 }),
+      });
+      await expect(service.request('user-1', now))
+        .rejects.toMatchObject({
+          response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
+        });
+      expect(f.store.requestActive).toHaveBeenCalledWith(
+        expect.objectContaining({ formatVersion: 2 }),
+      );
+    });
+
+    it('propagates Mongo failures instead of creating an incomplete v1 artifact', async () => {
+      const f = fixture();
+      const unavailable = reader(false);
+      const error = new Error('Mongo read unavailable');
+      unavailable.hasOwnedCollections.mockRejectedValueOnce(error);
+      const service = new AccountExportService(
+        f.store, f.users, disabled as never, unavailable as never,
+      );
+      await expect(service.request('user-1', now)).rejects.toBe(error);
+      expect(f.store.requestActive).not.toHaveBeenCalled();
+    });
+
+    it('fails closed on missing reader wiring whenever real configuration is present', async () => {
+      const f = fixture();
+      const service = new AccountExportService(
+        f.store, f.users, disabled as never,
+      );
+      await expect(service.request('user-1', now))
+        .rejects.toThrow('export reader is not wired');
+      expect(f.store.requestActive).not.toHaveBeenCalled();
+    });
+
+    it('keeps opt-in v2 behavior and does not require an additional Mongo existence query', async () => {
+      const f = fixture();
+      const ownedReader = reader(false);
+      const enabled = { get: () => true };
+      const service = new AccountExportService(
+        f.store, f.users, enabled as never, ownedReader as never,
+      );
+      f.store.requestActive.mockImplementation(async (input) => ({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }));
+      const result = await service.request('user-1', now);
+      expect(result.export.formatVersion).toBe(2);
+      expect(ownedReader.hasOwnedCollections).not.toHaveBeenCalled();
+    });
+  });
+
 });

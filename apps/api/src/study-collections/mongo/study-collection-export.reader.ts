@@ -120,6 +120,23 @@ export class StudyCollectionExportReader {
     private readonly collections: Model<StudyCollection>,
   ) {}
 
+  /**
+   * Portability must outlive the feature rollout flag. A collection created
+   * before a rollback still requires an account-export v2 artifact.
+   *
+   * Do not read collection bodies or perform an unrestricted count.
+   * Database errors propagate so the caller never falls back to v1.
+   */
+  async hasOwnedCollections(ownerUserId: string): Promise<boolean> {
+    if (typeof ownerUserId !== 'string' || ownerUserId.trim().length === 0) {
+      throw new Error('Account export owner is required');
+    }
+    const found = await this.collections
+      .exists({ ownerUserId })
+      .exec();
+    return found !== null;
+  }
+
   async listAccountExportCollections(
     ownerUserId: string,
     input: { cursor: string | null; limit: number },
