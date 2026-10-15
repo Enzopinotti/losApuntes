@@ -586,7 +586,7 @@ export default function StudyPractice() {
                 El identificador de pregunta es inválido o está repetido.
                 No abrimos otra pregunta ni iniciamos una práctica general.
               </p>
-              <Link to={`/study/practice?subjectId=${encodeURIComponent(subjectId)}`}>
+              <Link to={`/study/practice?subjectId=${encodeURIComponent(subject.id)}`}>
                 Elegir preguntas de esta materia
               </Link>
             </section>
