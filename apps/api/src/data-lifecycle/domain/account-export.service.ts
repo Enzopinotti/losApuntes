@@ -148,6 +148,28 @@ export class AccountExportService {
       ? 2 : ACCOUNT_EXPORT_FORMAT_VERSION;
   }
 
+  /**
+   * Progress mutations share the account_lifecycle_revision write fence.
+   * A v3 export starts and ends on the same owner epoch or aborts before
+   * publishing. A changed epoch is retryable; it is never a valid snapshot.
+   */
+  async captureStudyProgressExportEpoch(userId: string): Promise<number> {
+    return this.users.getStudyProgressExportEpoch(userId);
+  }
+
+  async assertStudyProgressExportEpoch(
+    userId: string,
+    expectedEpoch: number,
+  ): Promise<void> {
+    if (!Number.isSafeInteger(expectedEpoch) || expectedEpoch < 0) {
+      throw new Error('Study progress export epoch is invalid');
+    }
+    const actual = await this.users.getStudyProgressExportEpoch(userId);
+    if (actual !== expectedEpoch) {
+      throw new Error('Study progress changed during account export');
+    }
+  }
+
   async status(
     userId: string,
     id: string,

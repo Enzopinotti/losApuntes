@@ -18,6 +18,7 @@ import { OrganizationManager, OrganizationManagerSchema } from '../../organizati
 import { Profile, ProfileSchema } from '../../profile/mongo/profile.mongo-schemas';
 import { StudyCollection, StudyCollectionSchema } from '../../study-collections/mongo/study-collection.mongo-schema';
 import { User, UserSchema } from '../../users/schemas/user.schema';
+import { UsersService } from '../../users/users.service';
 import { StudyProgressService } from '../study-progress.service';
 import { StudyProgress, StudyProgressSchema } from './study-progress.schema';
 import { StudyProgressExportReader } from './study-progress-export.reader';
@@ -216,6 +217,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       commit,
       abort: jest.fn().mockResolvedValue(undefined),
     };
+    const userReader = new UsersService(users as never);
     const exportService = {
       readContributorPage: async (
         contributor: AccountExportContributor,
@@ -225,6 +227,16 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       assertActiveAccount: async (ownerUserId: string) => {
         if (ownerUserId !== userId) {
           throw new Error('Unexpected account authority');
+        }
+      },
+      captureStudyProgressExportEpoch: (ownerUserId: string) =>
+        userReader.getStudyProgressExportEpoch(ownerUserId),
+      assertStudyProgressExportEpoch: async (
+        ownerUserId: string, expected: number,
+      ) => {
+        const actual = await userReader.getStudyProgressExportEpoch(ownerUserId);
+        if (actual !== expected) {
+          throw new Error('Study progress changed during account export');
         }
       },
     } as unknown as AccountExportService;
@@ -249,6 +261,67 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(result.byteLength).toBe(Buffer.byteLength(bytes, 'utf8'));
     expect(result.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
     expect(commit).toHaveBeenCalledWith(result);
+  }, 30_000);
+
+  it('B64 rejects a real Mongo progress mutation during v3 assembly', async () => {
+    const userId = await owner();
+    const subjectId = randomUUID();
+    await service.save(userId, subjectId, 0, planFor(subjectId));
+    const account = new UsersService(users as never);
+    const originalEpoch = await account.getStudyProgressExportEpoch(userId);
+
+    const source = new StudyProgressExportContributor(exportReader);
+    const contributors: AccountExportContributor[] =
+      ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+        sectionId === 'study.progress' ? source : {
+          sectionId, readPage: async () => ({ records: [], nextCursor: null }),
+        },
+      );
+    let mutated = false;
+    const commit = jest.fn().mockResolvedValue(undefined);
+    const abort = jest.fn().mockResolvedValue(undefined);
+    const sink: AccountExportArtifactSink = {
+      write: async (chunk) => {
+        // Mutation occurs after the v3 epoch was captured but before the
+        // stream reaches its final consistency check.
+        if (!mutated && chunk === '"study.progress":[') {
+          mutated = true;
+          await service.save(userId, subjectId, 1, {
+            ...planFor(subjectId), title: 'Actualización concurrente',
+          });
+        }
+      },
+      commit, abort,
+    };
+    const exportApi = {
+      captureStudyProgressExportEpoch: (ownerUserId: string) =>
+        account.getStudyProgressExportEpoch(ownerUserId),
+      assertStudyProgressExportEpoch: async (
+        ownerUserId: string, expected: number,
+      ) => {
+        const actual = await account.getStudyProgressExportEpoch(ownerUserId);
+        if (actual !== expected) {
+          throw new Error('Study progress changed during account export');
+        }
+      },
+      assertActiveAccount: async (ownerUserId: string) => {
+        if (ownerUserId !== userId) throw new Error('Wrong owner');
+      },
+      readContributorPage: (
+        contributor: AccountExportContributor,
+        ownerUserId: string, cursor: string | null,
+      ) => contributor.readPage({ userId: ownerUserId, cursor, limit: 100 }),
+    } as unknown as AccountExportService;
+    const assembler = new AccountExportAssembler(
+      new AccountExportContributorRegistry(contributors), exportApi,
+    );
+    await expect(assembler.writeJsonV3(userId, sink))
+      .rejects.toThrow('Study progress changed during account export');
+    expect(mutated).toBe(true);
+    expect(await account.getStudyProgressExportEpoch(userId))
+      .toBe(originalEpoch + 1);
+    expect(commit).not.toHaveBeenCalled();
+    expect(abort).toHaveBeenCalledTimes(1);
   }, 30_000);
 
   it('purges progress in account closure transaction and blocks later mutations', async () => {

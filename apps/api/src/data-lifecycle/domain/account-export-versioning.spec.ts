@@ -75,6 +75,8 @@ function fixture(registry: AccountExportContributorRegistry) {
         provider.readPage({ userId, cursor, limit: 100 }),
     ),
     assertActiveAccount: jest.fn().mockResolvedValue(undefined),
+    captureStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
+    assertStudyProgressExportEpoch: jest.fn().mockResolvedValue(undefined),
   };
   const assembler = new AccountExportAssembler(
     registry,
@@ -196,6 +198,60 @@ describe('Account export v2 compatibility — B45', () => {
       expect(payload.version).toBe(version);
       expect(Object.keys(payload.sections)).toEqual(expectedIds);
       expect(payload.sections).not.toHaveProperty('study.progress');
+    }
+  });
+
+  it('B64: aborts v3 if owner progress changes while streaming', async () => {
+    const all = ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+      contributor(sectionId),
+    );
+    const f = fixture(new AccountExportContributorRegistry(all));
+    f.service.captureStudyProgressExportEpoch.mockResolvedValue(7);
+    f.service.assertStudyProgressExportEpoch.mockRejectedValue(
+      new Error('Study progress changed during account export'),
+    );
+    await expect(f.assembler.writeJsonV3(OWNER, f.sink))
+      .rejects.toThrow('Study progress changed during account export');
+    expect(f.service.captureStudyProgressExportEpoch)
+      .toHaveBeenCalledWith(OWNER);
+    expect(f.service.assertStudyProgressExportEpoch)
+      .toHaveBeenCalledWith(OWNER, 7);
+    expect(f.commit).not.toHaveBeenCalled();
+    expect(f.abort).toHaveBeenCalledTimes(1);
+  });
+
+  it('B64: exports a stable v3 revision and checks before artifact commit', async () => {
+    const all = ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+      contributor(sectionId),
+    );
+    const f = fixture(new AccountExportContributorRegistry(all));
+    const order: string[] = [];
+    f.service.captureStudyProgressExportEpoch.mockResolvedValue(9);
+    f.service.assertStudyProgressExportEpoch.mockImplementation(async (
+      userId: string, expected: number,
+    ) => {
+      expect(userId).toBe(OWNER);
+      expect(expected).toBe(9);
+      order.push('recheck');
+    });
+    f.sink.commit = jest.fn().mockImplementation(async () => {
+      order.push('commit');
+    });
+    await f.assembler.writeJsonV3(OWNER, f.sink);
+    expect(order).toEqual(['recheck', 'commit']);
+  });
+
+  it('B64: never probes new private epochs for legacy v1/v2 jobs', async () => {
+    const all = ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+      contributor(sectionId),
+    );
+    for (const version of [1, 2] as const) {
+      const f = fixture(new AccountExportContributorRegistry(all));
+      if (version === 1) await f.assembler.writeJsonV1(OWNER, f.sink);
+      else await f.assembler.writeJsonV2(OWNER, f.sink);
+      expect(f.service.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
+      expect(f.service.assertStudyProgressExportEpoch).not.toHaveBeenCalled();
+      expect(f.commit).toHaveBeenCalledTimes(1);
     }
   });
 

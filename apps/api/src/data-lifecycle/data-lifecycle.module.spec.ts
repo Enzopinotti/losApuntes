@@ -262,6 +262,7 @@ describe('DataLifecycleModule account export wiring', () => {
       registry,
       new AccountExportService({} as never, {
         hasActiveAccount: jest.fn().mockResolvedValue(true),
+        getStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
       } as never),
     );
     const chunks: string[] = [];
