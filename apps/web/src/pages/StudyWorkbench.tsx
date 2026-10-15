@@ -456,6 +456,9 @@ export default function StudyWorkbench() {
               <Link to={`/study/kits?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Organizar colecciones portátiles
               </Link>
+              <Link to="/study-collections">
+                Mis colecciones sincronizadas
+              </Link>
               <Link to={`/resources?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Explorar más apuntes
               </Link>
