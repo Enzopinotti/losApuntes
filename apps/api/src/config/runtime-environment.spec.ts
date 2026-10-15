@@ -36,6 +36,17 @@ const validProductionEnvironment = {
 };
 
 describe('validateRuntimeEnvironment', () => {
+  it('blocks private progress activation in production until data export covers it', () => {
+    expect(() => validateRuntimeEnvironment({
+      ...validProductionEnvironment,
+      STUDY_PROGRESS_ENABLED: 'true',
+    })).toThrow('STUDY_PROGRESS_ENABLED must remain false in production');
+    expect(
+      validateRuntimeEnvironment(validProductionEnvironment).STUDY_PROGRESS_ENABLED,
+    ).toBe(false);
+  });
+
+
   it('uses the local deployment profile outside production by default', () => {
     const result = validateRuntimeEnvironment(validEnvironment);
 
