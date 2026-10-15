@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { ContextualDiscoveryResponse } from "../features/search/interfaces";
 import { isSearchApiError, searchApi } from "../features/search/services/searchService";
@@ -13,6 +13,16 @@ import {
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
 import { recallStudyDraft } from "../features/study/study-session-draft.mjs";
+import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
+import {
+  buildReviewSession,
+  reviewCandidates,
+  summarizeReviews,
+  updateReviewMarks,
+  type ReviewMark,
+  type ReviewMarks,
+  type ReviewMode,
+} from "../features/study/study-review-queue.mjs";
 import {
   createTaskClock,
   remainingTaskClock,
@@ -41,10 +51,11 @@ type Runner = {
   plan: StudySession;
   labels: Record<string, string | null>;
   clocks: Record<string, TaskClock>;
+  reviews: ReviewMarks;
   index: number;
 };
 type Notice = { scope: string; text: string; error: boolean };
-type Busy = { scope: string; kind: "load" | "confirm"; key?: string };
+type Busy = { scope: string; kind: "load" | "confirm" | "review"; key?: string };
 
 function keyOf(task: Pick<StudySessionTask, "kind" | "id">): string {
   return task.kind + ":" + task.id;
@@ -87,14 +98,14 @@ async function verifiedTaskLabel(
   }
 }
 
-function downloadPlan(plan: StudySession) {
+function downloadPlan(plan: StudySession, filename = "los-apuntes-sesion-actualizada.json") {
   const content = serializeStudySession(plan);
   const url = URL.createObjectURL(
     new Blob([content], { type: "application/json;charset=utf-8" }),
   );
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "los-apuntes-sesion-actualizada.json";
+  anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -109,6 +120,7 @@ function clockText(remainingMs: number): string {
 
 export default function StudyRunner() {
   const { status, user, session } = useAuth();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const selection = studySubjectSelectionFromParams(params);
   const authScope = [status, user?.id ?? "anonymous", session?.id ?? "none"].join(":");
@@ -130,6 +142,15 @@ export default function StudyRunner() {
   const [now, setNow] = useState(() => Date.now());
   const remainingMs = activeClock ? remainingTaskClock(activeClock, now) : 0;
   const stats = runner ? runSummary(runner.plan) : null;
+  const [reviewModeState, setReviewModeState] = useState<{
+    scope: string;
+    mode: ReviewMode;
+  } | null>(null);
+  const reviewMode: ReviewMode = reviewModeState?.scope === scope
+    ? reviewModeState.mode : "all";
+  const reviewStats = runner ? summarizeReviews(runner.plan, runner.reviews) : null;
+  const reviewItems = runner
+    ? reviewCandidates(runner.plan, runner.reviews, reviewMode) : [];
   const [busyState, setBusyState] = useState<Busy | null>(null);
   const busy = busyState?.scope === scope ? busyState : null;
   const [noticeState, setNoticeState] = useState<Notice | null>(null);
@@ -141,6 +162,8 @@ export default function StudyRunner() {
     useAsyncAuthorityFence("study-run-load:" + scope);
   const { begin: beginConfirm, isCurrent: confirmCurrent, finish: finishConfirm } =
     useAsyncAuthorityFence("study-run-confirm:" + scope + ":" + (activeKey ?? "none"));
+  const { begin: beginReview, isCurrent: reviewCurrent, finish: finishReview } =
+    useAsyncAuthorityFence("study-run-review:" + scope);
 
   const loadContext = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -198,7 +221,15 @@ export default function StudyRunner() {
         const selected = plan.tasks.findIndex(
           (item) => !item.done && labels[keyOf(item)] !== null,
         );
-        return { scope, plan, labels, clocks, index: selected >= 0 ? selected : 0 };
+        const reviews: ReviewMarks = {};
+        if (!resetClocks && previous?.scope === scope) {
+          for (const item of plan.tasks) {
+            const key = keyOf(item);
+            const rating = previous.reviews[key];
+            if (rating && labels[key] !== null) reviews[key] = rating;
+          }
+        }
+        return { scope, plan, labels, clocks, reviews, index: selected >= 0 ? selected : 0 };
       });
       setNow(Date.now());
       setNoticeState({
@@ -366,6 +397,108 @@ export default function StudyRunner() {
     }
   };
 
+  const rateCurrent = (rating: ReviewMark | null) => {
+    if (!runner || !task || !activeKey || !label || busy) return;
+    setRunnerState((previous) => {
+      if (previous?.scope !== scope) return previous;
+      const current = previous.plan.tasks[previous.index];
+      if (!current || keyOf(current) !== activeKey || !previous.labels[activeKey]) {
+        return previous;
+      }
+      return {
+        ...previous,
+        reviews: updateReviewMarks(
+          previous.plan, previous.reviews, current.kind, current.id, rating,
+        ),
+      };
+    });
+    setNoticeState(null);
+  };
+
+  const createNextReview = async (destination: "download" | "planner") => {
+    if (!runner || !subjectId || status !== "authenticated" || busy || !reviewItems.length) {
+      return;
+    }
+    const ticket = beginReview();
+    if (!reviewCurrent(ticket)) return;
+    setBusyState({ scope, kind: "review" });
+    setNoticeState(null);
+    try {
+      const freshLabels: Record<string, string | null> = {};
+      let cursor = 0;
+      // Fixed maximum concurrency: at most four live requests even for a
+      // 24-activity review. No request broadening and no silent error skips.
+      const workers = Array.from(
+        { length: Math.min(4, reviewItems.length) },
+        async () => {
+          while (cursor < reviewItems.length) {
+            if (!reviewCurrent(ticket)) return;
+            const candidate = reviewItems[cursor++];
+            if (!candidate) return;
+            const value = await verifiedTaskLabel(runner.plan, candidate, ticket.signal);
+            if (!reviewCurrent(ticket)) return;
+            freshLabels[keyOf(candidate)] = value;
+          }
+        },
+      );
+      await Promise.all(workers);
+      if (!reviewCurrent(ticket)) return;
+      const permitted = reviewItems
+        .filter((candidate) => freshLabels[keyOf(candidate)] !== null)
+        .map(keyOf);
+      setRunnerState((previous) => previous?.scope === scope
+        ? { ...previous, labels: { ...previous.labels, ...freshLabels } }
+        : previous);
+
+      const omitted = reviewItems.length - permitted.length;
+      if (!permitted.length) {
+        setNoticeState({
+          scope, error: true,
+          text: "Ninguna actividad seleccionada conserva acceso confirmado. Revisá tu plan.",
+        });
+        return;
+      }
+      if (omitted > 0 && !window.confirm(
+        "Hay " + omitted + " actividades sin acceso vigente. ¿Crear el nuevo repaso sólo con las " +
+        permitted.length + " verificadas?",
+      )) {
+        setNoticeState({
+          scope, error: true,
+          text: "No se generó el repaso: había referencias sin acceso confirmado.",
+        });
+        return;
+      }
+      if (!reviewCurrent(ticket)) return;
+      const next = buildReviewSession(
+        runner.plan, runner.reviews, reviewMode, permitted,
+      );
+      if (!next) throw new Error("STUDY_REVIEW_EMPTY");
+      if (destination === "download") {
+        downloadPlan(next, "los-apuntes-proximo-repaso.json");
+        setNoticeState({
+          scope, error: false,
+          text: "Se exportó el repaso con " + next.tasks.length +
+            " actividades verificadas" + (omitted ? " (se omitieron " + omitted + ")." : "."),
+        });
+      } else {
+        // The Planner accepts a nonce, not a plan in the URL. It verifies every
+        // reference once more before offering append/replace.
+        const handoff = createStudyHandoff(next, scope);
+        if (!reviewCurrent(ticket)) return;
+        navigate("/study/session?subjectId=" + encodeURIComponent(subjectId), {
+          state: handoff,
+        });
+      }
+    } catch (error) {
+      if (reviewCurrent(ticket)) {
+        setNoticeState({ scope, error: true, text: errorText(error) });
+      }
+    } finally {
+      if (reviewCurrent(ticket)) setBusyState(null);
+      finishReview(ticket);
+    }
+  };
+
   const exportUpdated = () => {
     if (!runner || busy) return;
     downloadPlan(runner.plan);
@@ -497,6 +630,34 @@ export default function StudyRunner() {
                         {task.done ? "Marcar pendiente" : "Marcar como realizada"}
                       </button>
                     </div>
+                    <fieldset className="study-runner-ratings" disabled={Boolean(busy) || !label}>
+                      <legend>¿Cómo te resultó esta actividad?</legend>
+                      <p className="study-runner-help">
+                        Es una valoración personal: no cambia «realizada» ni implica una calificación.
+                      </p>
+                      <div className="study-runner-actions">
+                        <button type="button"
+                          aria-pressed={runner.reviews[activeKey ?? ""] === "repeat"}
+                          onClick={() => rateCurrent("repeat")}>
+                          Necesito repasar
+                        </button>
+                        <button type="button"
+                          aria-pressed={runner.reviews[activeKey ?? ""] === "reinforce"}
+                          onClick={() => rateCurrent("reinforce")}>
+                          Quiero reforzar
+                        </button>
+                        <button type="button"
+                          aria-pressed={runner.reviews[activeKey ?? ""] === "confident"}
+                          onClick={() => rateCurrent("confident")}>
+                          Lo tengo claro
+                        </button>
+                        <button type="button"
+                          disabled={Boolean(busy) || !label || !runner.reviews[activeKey ?? ""]}
+                          onClick={() => rateCurrent(null)}>
+                          Quitar valoración
+                        </button>
+                      </div>
+                    </fieldset>
                     {busy?.kind === "confirm" && <p role="status">Comprobando acceso antes de guardar la marca…</p>}
                     <div className="study-runner-navigation">
                       <button type="button" disabled={Boolean(busy) || runner.index === 0}
@@ -519,7 +680,17 @@ export default function StudyRunner() {
                           aria-current={index === runner.index ? "step" : undefined}
                           onClick={() => move(index)}>
                           <span>{index + 1}. {itemLabel ?? "Sin acceso"}</span>
-                          <small>{item.done ? "Realizada" : itemLabel ? "Pendiente" : "Requiere acceso"} · {item.minutes} min</small>
+                          <small>
+                            {item.done ? "Realizada" : itemLabel ? "Pendiente" : "Requiere acceso"}
+                            {" · "}{item.minutes} min
+                            {runner.reviews[key] === "repeat"
+                              ? " · Necesito repasar"
+                              : runner.reviews[key] === "reinforce"
+                                ? " · Quiero reforzar"
+                                : runner.reviews[key] === "confident"
+                                  ? " · Lo tengo claro"
+                                  : ""}
+                          </small>
                         </button>
                       </li>
                     );
@@ -530,6 +701,71 @@ export default function StudyRunner() {
                   al cambiar de actividad se pausa su temporizador. El progreso se conserva
                   únicamente en esta pestaña hasta que exportes el archivo.
                 </p>
+              </section>
+              <section className="study-runner-panel study-runner-review"
+                aria-labelledby="study-run-review">
+                <h2 id="study-run-review">Preparar mi próximo repaso</h2>
+                <p>
+                  Elegí qué volver a estudiar a partir de tus valoraciones. Las actividades
+                  pendientes sin valorar se incluyen como prioridad; las que marcaste
+                  «Lo tengo claro» quedan afuera. No se calculan notas ni resultados de examen.
+                </p>
+                <div className="study-runner-review-summary" aria-live="polite">
+                  <span>{reviewStats?.repeat} para repasar</span>
+                  <span>{reviewStats?.pendingUnrated} pendientes sin valorar</span>
+                  <span>{reviewStats?.reinforce} para reforzar</span>
+                  <span>{reviewStats?.confident} claras</span>
+                </div>
+                <label className="study-runner-review-filter">
+                  Qué incluir en el próximo plan
+                  <select value={reviewMode} disabled={Boolean(busy)}
+                    onChange={(event) => setReviewModeState({
+                      scope, mode: event.target.value as ReviewMode,
+                    })}>
+                    <option value="all">Todo lo que necesita repaso</option>
+                    <option value="priority">Prioridad: repasar y pendiente</option>
+                    <option value="reinforce">Sólo actividades para reforzar</option>
+                  </select>
+                </label>
+                {reviewItems.length === 0 ? (
+                  <p className="study-runner-help">
+                    No hay actividades para este filtro. Podés valorar las actividades
+                    o elegir otra opción.
+                  </p>
+                ) : (
+                  <ol className="study-runner-review-preview">
+                    {reviewItems.map((item) => (
+                      <li key={keyOf(item)}>
+                        <strong>{runner.labels[keyOf(item)] ?? "Sin acceso confirmado"}</strong>
+                        <small>
+                          {item.category === "repeat" ? "Necesito repasar" :
+                            item.category === "pending" ? "Pendiente" : "Quiero reforzar"}
+                          {" · "}{item.minutes} min
+                        </small>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                <p className="study-runner-help">
+                  El nuevo plan reinicia las casillas de progreso, conserva las duraciones
+                  y no incluye títulos, valoraciones ni notas privadas. Antes de generarlo
+                  se comprueba de nuevo el acceso a cada actividad.
+                </p>
+                <div className="study-runner-actions">
+                  <button type="button"
+                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    onClick={() => void createNextReview("planner")}>
+                    Pasar al Planificador
+                  </button>
+                  <button type="button"
+                    disabled={Boolean(busy) || reviewItems.length === 0}
+                    onClick={() => void createNextReview("download")}>
+                    Exportar próximo repaso JSON
+                  </button>
+                </div>
+                {busy?.kind === "review" && (
+                  <p role="status">Comprobando accesos del próximo repaso…</p>
+                )}
               </section>
             </div>
           )}
