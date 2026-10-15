@@ -258,7 +258,7 @@ export class MongoAccountExportStore implements AccountExportStore {
           throw new AccountExportEpochConflictError();
         }
         const completed = await this.jobs
-          .updateOne(filter, update, { session }).exec();
+          .updateOne({ ...filter, userId: ownerUserId }, update, { session }).exec();
         if (completed.modifiedCount !== 1) {
           // The User increment must rollback along with the lost claim.
           throw new LostClaim('Account export completion claim changed');
