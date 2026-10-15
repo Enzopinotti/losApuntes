@@ -18,6 +18,7 @@ import { OrganizationManager, OrganizationManagerSchema } from '../../organizati
 import { Profile, ProfileSchema } from '../../profile/mongo/profile.mongo-schemas';
 import { StudyCollection, StudyCollectionSchema } from '../../study-collections/mongo/study-collection.mongo-schema';
 import { User, UserSchema } from '../../users/schemas/user.schema';
+import { UsersService } from '../../users/users.service';
 import { StudyProgressService } from '../study-progress.service';
 import { StudyProgress, StudyProgressSchema } from './study-progress.schema';
 import { StudyProgressExportReader } from './study-progress-export.reader';
@@ -216,6 +217,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       commit,
       abort: jest.fn().mockResolvedValue(undefined),
     };
+    const userReader = new UsersService(users as never);
     const exportService = {
       readContributorPage: async (
         contributor: AccountExportContributor,
@@ -225,6 +227,16 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       assertActiveAccount: async (ownerUserId: string) => {
         if (ownerUserId !== userId) {
           throw new Error('Unexpected account authority');
+        }
+      },
+      captureStudyProgressExportEpoch: (ownerUserId: string) =>
+        userReader.getStudyProgressExportEpoch(ownerUserId),
+      assertStudyProgressExportEpoch: async (
+        ownerUserId: string, expected: number,
+      ) => {
+        const actual = await userReader.getStudyProgressExportEpoch(ownerUserId);
+        if (actual !== expected) {
+          throw new Error('Study progress changed during account export');
         }
       },
     } as unknown as AccountExportService;
