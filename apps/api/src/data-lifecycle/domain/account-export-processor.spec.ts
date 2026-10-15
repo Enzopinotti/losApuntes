@@ -102,6 +102,12 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     clearExpiredArtifact: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportStore>;
+  const orphans = {
+    enqueue: jest.fn().mockResolvedValue(undefined),
+    claimNext: jest.fn().mockResolvedValue(null),
+    acknowledge: jest.fn().mockResolvedValue(true),
+    retry: jest.fn().mockResolvedValue(true),
+  } as unknown as jest.Mocked<AccountExportOrphanCleanupStore>;
   const artifacts = {
     createSink: jest.fn().mockReturnValue(sink),
     deleteArtifact: jest.fn().mockResolvedValue(undefined),
