@@ -29,6 +29,7 @@ import {
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
+import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import "./StudyWorkbench.scss";
 
 type PageState<T> = {
@@ -456,6 +457,11 @@ export default function StudyWorkbench() {
               <Link to={`/study/kits?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Organizar colecciones portátiles
               </Link>
+              {PERSISTENT_COLLECTIONS_VISIBLE && (
+                <Link to="/study-collections">
+                  Mis colecciones sincronizadas
+                </Link>
+              )}
               <Link to={`/resources?subjectId=${encodeURIComponent(selectedSubject.id)}`}>
                 Explorar más apuntes
               </Link>

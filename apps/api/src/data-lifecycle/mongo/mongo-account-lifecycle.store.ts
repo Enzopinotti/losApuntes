@@ -5,6 +5,7 @@ import type { Connection, FilterQuery, Model } from 'mongoose';
 import type { OrganizationManagerRecord } from '../../organizations/domain/organization.types';
 import { OrganizationManager } from '../../organizations/mongo/organization.mongo-schemas';
 import { Profile } from '../../profile/mongo/profile.mongo-schemas';
+import { StudyCollection } from '../../study-collections/mongo/study-collection.mongo-schema';
 import { User } from '../../users/schemas/user.schema';
 import type { AccountLifecycleStore } from '../domain/account-lifecycle.store';
 import type {
@@ -46,6 +47,8 @@ export class MongoAccountLifecycleStore implements AccountLifecycleStore {
     private readonly jobs: Model<AccountOffboardingJob>,
     @InjectModel(SecurityAudit.name)
     private readonly audits: Model<SecurityAudit>,
+    @InjectModel(StudyCollection.name)
+    private readonly studyCollections: Model<StudyCollection>,
   ) {}
 
   async listManagementBlockers(
@@ -115,6 +118,12 @@ export class MongoAccountLifecycleStore implements AccountLifecycleStore {
           result = { status: 'revision_conflict' };
           return;
         }
+
+        // Remove private study collections in the same transaction that
+        // marks the owner closed. On transaction failure neither action commits.
+        await this.studyCollections
+          .deleteMany({ ownerUserId: input.userId }, { session })
+          .exec();
 
         await this.profiles
           .updateOne(

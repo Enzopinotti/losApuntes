@@ -489,6 +489,11 @@ export function validateRuntimeEnvironment(
     PORT: parsePort(source.PORT, 'PORT', 4000),
     MONGO_URI: mongoUri,
     WEB_ORIGIN: webOrigin,
+    STUDY_COLLECTIONS_ENABLED: parseBoolean(
+      source.STUDY_COLLECTIONS_ENABLED,
+      'STUDY_COLLECTIONS_ENABLED',
+      false,
+    ),
     SWAGGER_ENABLED: parseBoolean(
       source.SWAGGER_ENABLED,
       'SWAGGER_ENABLED',
