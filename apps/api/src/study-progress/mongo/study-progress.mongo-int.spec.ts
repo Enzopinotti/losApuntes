@@ -1,7 +1,15 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createConnection, type Connection, type Model } from 'mongoose';
 
 import { MongoAccountLifecycleStore } from '../../data-lifecycle/mongo/mongo-account-lifecycle.store';
+import { AccountExportAssembler, type AccountExportArtifactSink } from '../../data-lifecycle/domain/account-export-assembler';
+import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
+import {
+  AccountExportContributorRegistry,
+  ACCOUNT_EXPORT_V3_SECTION_IDS,
+} from '../../data-lifecycle/domain/account-export-contributor.registry';
+import type { AccountExportContributor } from '../../data-lifecycle/domain/account-export.types';
+import { StudyProgressExportContributor } from '../../data-lifecycle/contributors/account-export-study-progress.contributor';
 import {
   AccountOffboardingJob, AccountOffboardingJobSchema,
   SecurityAudit, SecurityAuditSchema,
@@ -179,6 +187,68 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       cursor: null, limit: 100,
     })).items).toHaveLength(0);
     expect(await exportReader.hasOwnedProgress(secondOwner)).toBe(true);
+  }, 30_000);
+
+  it('B63 assembles an owner-only v3 JSON from real Mongo records', async () => {
+    const userId = await owner();
+    const foreignId = await owner();
+    const subjectId = randomUUID();
+    const otherSubject = randomUUID();
+    await service.save(userId, subjectId, 0, planFor(subjectId));
+    await service.save(foreignId, otherSubject, 0, planFor(otherSubject));
+
+    const live = new StudyProgressExportContributor(exportReader);
+    const contributors: AccountExportContributor[] =
+      ACCOUNT_EXPORT_V3_SECTION_IDS.map((sectionId) =>
+        sectionId === 'study.progress'
+          ? live
+          : {
+              sectionId,
+              readPage: async () => ({
+                records: [], nextCursor: null,
+              }),
+            },
+      );
+    const chunks: string[] = [];
+    const commit = jest.fn().mockResolvedValue(undefined);
+    const sink: AccountExportArtifactSink = {
+      write: async (chunk) => { chunks.push(chunk); },
+      commit,
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const exportService = {
+      readContributorPage: async (
+        contributor: AccountExportContributor,
+        ownerUserId: string,
+        cursor: string | null,
+      ) => contributor.readPage({ userId: ownerUserId, cursor, limit: 100 }),
+      assertActiveAccount: async (ownerUserId: string) => {
+        if (ownerUserId !== userId) {
+          throw new Error('Unexpected account authority');
+        }
+      },
+    } as unknown as AccountExportService;
+    const assembler = new AccountExportAssembler(
+      new AccountExportContributorRegistry(contributors), exportService,
+    );
+    const result = await assembler.writeJsonV3(userId, sink);
+    const bytes = chunks.join('');
+    const artifact = JSON.parse(bytes) as {
+      version: number;
+      sections: Record<string, Array<Record<string, unknown>>>;
+    };
+    expect(artifact.version).toBe(3);
+    expect(Object.keys(artifact.sections)).toEqual(ACCOUNT_EXPORT_V3_SECTION_IDS);
+    expect(artifact.sections['study.progress']).toHaveLength(1);
+    expect(artifact.sections['study.progress'][0]?.subjectId).toBe(subjectId);
+    expect(artifact.sections['study.progress'][0]?.revision).toBe(1);
+    expect(bytes).not.toContain(otherSubject);
+    expect(bytes).not.toContain(foreignId);
+    expect(result.sectionCount).toBe(32);
+    expect(result.recordCount).toBe(1);
+    expect(result.byteLength).toBe(Buffer.byteLength(bytes, 'utf8'));
+    expect(result.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
+    expect(commit).toHaveBeenCalledWith(result);
   }, 30_000);
 
   it('purges progress in account closure transaction and blocks later mutations', async () => {
