@@ -563,7 +563,7 @@ export default function StudyKits() {
         <div>
           <p className="study-kits-kicker">Colecciones portátiles</p>
           <h1 id="study-kits-title">Mis kits de estudio</h1>
-          <p>Armá conjuntos de apuntes para un parcial o final. Tus colecciones solo viven en esta pestaña: exportá un archivo JSON para conservarlas o llevarlas a otro dispositivo.</p>
+          <p>Armá conjuntos de apuntes para un parcial o final. El borrador portátil vive en esta pestaña: exportá su JSON para conservarlo. {PERSISTENT_COLLECTIONS_VISIBLE && "También podés copiar un kit a Colecciones sincronizadas cuando el servidor lo permita."}</p>
         </div>
         <Link to={subjectId?studySubjectHref(subjectId)??"/study":"/study"}>
           Volver a Mesa de estudio
