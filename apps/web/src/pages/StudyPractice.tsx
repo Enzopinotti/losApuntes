@@ -603,12 +603,17 @@ export default function StudyPractice() {
                   ) : focused.error ? (
                     <div role="alert" className="study-practice-error">
                       <p>{focused.error}</p>
-                      <button
-                        type="button"
-                        onClick={() => void loadFocusedQuestion()}
-                      >
-                        Reintentar verificación
-                      </button>
+                      <div className="study-practice-actions">
+                        <button
+                          type="button"
+                          onClick={() => void loadFocusedQuestion()}
+                        >
+                          Reintentar verificación
+                        </button>
+                        <Link to={`/study/practice?subjectId=${encodeURIComponent(subject.id)}`}>
+                          Elegir otra pregunta
+                        </Link>
+                      </div>
                     </div>
                   ) : focused.question ? (
                     <>
@@ -631,6 +636,9 @@ export default function StudyPractice() {
                           to={`/questions?id=${encodeURIComponent(focused.question.id)}`}
                         >
                           Ver conversación original
+                        </Link>
+                        <Link to={`/study/practice?subjectId=${encodeURIComponent(subject.id)}`}>
+                          Quitar foco y elegir preguntas
                         </Link>
                       </div>
                     </>
