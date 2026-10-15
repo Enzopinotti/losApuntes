@@ -13,15 +13,10 @@ type SaveState =
   | { scopeKey: string; kind: "uncertain" }
   | { scopeKey: string; kind: "error"; message: string };
 
-function outcomeFor(error: unknown): {
-  kind: "uncertain" | "error";
-  message?: string;
-} {
-  if (
-    !isResourcesApiError(error) ||
-    error.status === 0 ||
-    error.status >= 500
-  ) {
+function outcomeFor(
+  error: unknown,
+): { kind: "uncertain" } | { kind: "error"; message: string } {
+  if (!isResourcesApiError(error) || error.status === 0 || error.status >= 500) {
     // The server may have committed the PUT before the connection failed.
     // Never claim success or silently repeat an ambiguous write.
     return { kind: "uncertain" };
@@ -65,8 +60,13 @@ export function SearchQuickSaveAction({
   const current = state?.scopeKey === scopeKey ? state : null;
 
   const save = async () => {
-    if (current?.kind === "saving" || current?.kind === "saved" ||
-        current?.kind === "uncertain") return;
+    if (
+      current?.kind === "saving" ||
+      current?.kind === "saved" ||
+      current?.kind === "uncertain"
+    ) {
+      return;
+    }
 
     const ticket = begin();
     setState({ scopeKey, kind: "saving" });
