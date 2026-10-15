@@ -30,7 +30,7 @@ assert.match(registry, /ACCOUNT_EXPORT_V2_SECTION_IDS/u);
 assert.match(registry, /'study\.collections'/u);
 assert.match(types, /ACCOUNT_EXPORT_FORMAT_VERSION = 1;/u);
 assert.match(assembler, /accountExportSectionIds\(version\)/u);
-assert.match(assembler, /version === 2 \? this\.registry\.list\(\) : contributors/u);
+assert.match(assembler, /version === 3 \? this\.registry\.list\(\) : contributors/u);
 assert.match(assembler, /this\.registry\.require\(id\)/u);
 assert.match(assembler, /formatVersion: version/u);
 
