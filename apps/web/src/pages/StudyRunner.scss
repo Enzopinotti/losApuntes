@@ -126,3 +126,18 @@
 @media (max-width: 680px) {
   .study-runner-review-preview { grid-template-columns: minmax(0, 1fr); }
 }
+
+.study-runner-cloud { border-color: #aaa2d9; background: #f9f8ff; }
+.study-runner-cloud h2 { margin-bottom: .7rem; }
+.study-runner-cloud p { max-width: 80ch; line-height: 1.5; }
+.study-runner-cloud .study-runner-actions { align-items: stretch; }
+.study-runner-cloud .study-runner-actions button { min-height: 44px; }
+.study-runner-cloud button:last-child:not(:disabled) {
+  border-color: #a94b55;
+}
+@media (max-width: 620px) {
+  .study-runner-cloud .study-runner-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
