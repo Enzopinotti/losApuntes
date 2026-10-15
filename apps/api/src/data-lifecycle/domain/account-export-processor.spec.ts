@@ -574,6 +574,8 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.complete).toHaveBeenCalledWith({
       id: claim().id,
       claimId: claim().claimId,
+      ownerUserId: 'owner-1',
+      expectedProgressEpoch: 7,
       result: expect.objectContaining({
         formatVersion: 3, sectionCount: 32,
       }),
