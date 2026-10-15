@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { type Connection, type Model } from 'mongoose';
+import type { ClientSession, Connection, Model } from 'mongoose';
 
 import { User } from '../../users/schemas/user.schema';
 
@@ -23,25 +23,24 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
   ) {}
 
   /**
-   * Serialize first creation with account closure through a write on the
-   * user's lifecycle revision. Both transactions contend on the same User.
-   * A request that loses this race cannot recreate private collections.
+   * All private mutations (not just initial create) contend with the account
+   * closure transaction by updating the same User lifecycle revision.
+   * A closed account cannot commit any collection mutation after closure.
+   * A lost race triggers Mongo's write-conflict / transaction retry semantics.
    */
-  async create(
-    input: Parameters<StudyCollectionStore['create']>[0],
-  ): Promise<StudyCollectionRecord> {
-    const filter = {
-      ownerUserId: input.ownerUserId,
-      operationKey: input.operationKey,
-    };
+  private async withActiveOwnerTransaction<T>(
+    ownerUserId: string,
+    mutate: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
     const session = await this.connection.startSession();
+    let finished = false;
+    let value: T | undefined;
     try {
-      let output: StudyCollectionRecord | null = null;
       await session.withTransaction(async () => {
         const activeUser = await this.users
           .findOneAndUpdate(
             {
-              _id: input.ownerUserId,
+              _id: ownerUserId,
               $or: [
                 { account_status: 'active' },
                 { account_status: { $exists: false } },
@@ -55,27 +54,50 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
         if (!activeUser) {
           throw new ForbiddenException({
             code: 'STUDY_COLLECTION_ACCOUNT_INACTIVE',
-            message: 'Cannot create collections for a closed account',
+            message: 'Cannot change collections for a closed account',
           });
         }
-        output = await this.collections
-          .findOneAndUpdate(
-            filter,
-            {
-              $setOnInsert: {
-                ...input,
-                resourceIds: [],
-                revision: 1,
-              },
-            },
-            { upsert: true, new: true, session },
-          )
-          .lean<StudyCollectionRecord>()
-          .exec();
-        if (!output) throw new Error('Study collection upsert returned no row');
+        value = await mutate(session);
+        finished = true;
       });
-      if (!output) throw new Error('Study collection create transaction did not commit');
-      return output;
+      if (!finished) {
+        throw new Error('Study collection mutation transaction did not commit');
+      }
+      return value as T;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async create(
+    input: Parameters<StudyCollectionStore['create']>[0],
+  ): Promise<StudyCollectionRecord> {
+    const filter = {
+      ownerUserId: input.ownerUserId,
+      operationKey: input.operationKey,
+    };
+    try {
+      return await this.withActiveOwnerTransaction(
+        input.ownerUserId,
+        async (session) => {
+          const created = await this.collections
+            .findOneAndUpdate(
+              filter,
+              {
+                $setOnInsert: {
+                  ...input,
+                  resourceIds: [],
+                  revision: 1,
+                },
+              },
+              { upsert: true, new: true, session },
+            )
+            .lean<StudyCollectionRecord>()
+            .exec();
+          if (!created) throw new Error('Study collection upsert returned no row');
+          return created;
+        },
+      );
     } catch (error) {
       if (
         typeof error !== 'object' ||
@@ -85,14 +107,14 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
       ) {
         throw error;
       }
+      // Concurrent replay of the same owner+operationKey is idempotent.
+      // Another unique-key collision does not silently pass this lookup.
       const existing = await this.collections
         .findOne(filter)
         .lean<StudyCollectionRecord>()
         .exec();
       if (!existing) throw error;
       return existing;
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -137,18 +159,20 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
   async updateOwned(
     input: Parameters<StudyCollectionStore['updateOwned']>[0],
   ): Promise<StudyCollectionRecord | null> {
-    return this.collections
-      .findOneAndUpdate(
-        {
-          id: input.id,
-          ownerUserId: input.ownerUserId,
-          revision: input.expectedRevision,
-        },
-        { $set: input.patch, $inc: { revision: 1 } },
-        { new: true },
-      )
-      .lean<StudyCollectionRecord>()
-      .exec();
+    return this.withActiveOwnerTransaction(input.ownerUserId, (session) =>
+      this.collections
+        .findOneAndUpdate(
+          {
+            id: input.id,
+            ownerUserId: input.ownerUserId,
+            revision: input.expectedRevision,
+          },
+          { $set: input.patch, $inc: { revision: 1 } },
+          { new: true, session },
+        )
+        .lean<StudyCollectionRecord>()
+        .exec(),
+    );
   }
 
   async addResource(
@@ -156,28 +180,34 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
     ownerUserId: string,
     resourceId: string,
   ): Promise<StudyCollectionRecord | null> {
-    const updated = await this.collections
-      .findOneAndUpdate(
-        {
-          id,
-          ownerUserId,
-          resourceIds: { $ne: resourceId },
-          $expr: {
-            $lt: [
-              { $size: { $ifNull: ['$resourceIds', []] } },
-              STUDY_COLLECTION_MAX_ITEMS,
-            ],
+    return this.withActiveOwnerTransaction(ownerUserId, async (session) => {
+      const updated = await this.collections
+        .findOneAndUpdate(
+          {
+            id,
+            ownerUserId,
+            resourceIds: { $ne: resourceId },
+            $expr: {
+              $lt: [
+                { $size: { $ifNull: ['$resourceIds', []] } },
+                STUDY_COLLECTION_MAX_ITEMS,
+              ],
+            },
           },
-        },
-        {
-          $addToSet: { resourceIds: resourceId },
-          $inc: { revision: 1 },
-        },
-        { new: true },
-      )
-      .lean<StudyCollectionRecord>()
-      .exec();
-    return updated ?? this.findOwned(id, ownerUserId);
+          {
+            $addToSet: { resourceIds: resourceId },
+            $inc: { revision: 1 },
+          },
+          { new: true, session },
+        )
+        .lean<StudyCollectionRecord>()
+        .exec();
+      return updated ?? this.collections
+        .findOne({ id, ownerUserId })
+        .session(session)
+        .lean<StudyCollectionRecord>()
+        .exec();
+    });
   }
 
   async removeResource(
@@ -185,19 +215,29 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
     ownerUserId: string,
     resourceId: string,
   ): Promise<StudyCollectionRecord | null> {
-    const updated = await this.collections
-      .findOneAndUpdate(
-        { id, ownerUserId, resourceIds: resourceId },
-        { $pull: { resourceIds: resourceId }, $inc: { revision: 1 } },
-        { new: true },
-      )
-      .lean<StudyCollectionRecord>()
-      .exec();
-    return updated ?? this.findOwned(id, ownerUserId);
+    return this.withActiveOwnerTransaction(ownerUserId, async (session) => {
+      const updated = await this.collections
+        .findOneAndUpdate(
+          { id, ownerUserId, resourceIds: resourceId },
+          { $pull: { resourceIds: resourceId }, $inc: { revision: 1 } },
+          { new: true, session },
+        )
+        .lean<StudyCollectionRecord>()
+        .exec();
+      return updated ?? this.collections
+        .findOne({ id, ownerUserId })
+        .session(session)
+        .lean<StudyCollectionRecord>()
+        .exec();
+    });
   }
 
   async deleteOwned(id: string, ownerUserId: string): Promise<boolean> {
-    const result = await this.collections.deleteOne({ id, ownerUserId }).exec();
-    return result.deletedCount === 1;
+    return this.withActiveOwnerTransaction(ownerUserId, async (session) => {
+      const result = await this.collections
+        .deleteOne({ id, ownerUserId }, { session })
+        .exec();
+      return result.deletedCount === 1;
+    });
   }
 }
