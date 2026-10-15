@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import type { Connection, Model } from 'mongoose';
+import { User } from '../../users/schemas/user.schema';
 
 import type { AccountExportStore } from '../domain/account-export.store';
 import {
@@ -23,6 +24,10 @@ export class MongoAccountExportStore implements AccountExportStore {
   constructor(
     @InjectModel(AccountExportJob.name)
     private readonly jobs: Model<AccountExportJob>,
+    @InjectModel(User.name)
+    private readonly users: Model<User>,
+    @InjectConnection()
+    private readonly connection: Connection,
   ) {}
 
   async requestActive(
@@ -182,37 +187,89 @@ export class MongoAccountExportStore implements AccountExportStore {
   async complete(
     input: Parameters<AccountExportStore['complete']>[0],
   ): ReturnType<AccountExportStore['complete']> {
-    const result = await this.jobs
-      .updateOne(
-        {
-          id: input.id,
-          active: true,
-          state: 'processing',
-          formatVersion: input.result.formatVersion,
-          claimId: input.claimId,
-          leaseExpiresAt: { $gt: input.completedAt },
-        },
-        {
-          $set: {
-            state: 'completed',
-            active: false,
-            claimId: null,
-            leaseExpiresAt: null,
-            failureCode: null,
-            failedAt: null,
-            completedAt: input.completedAt,
-            artifactSectionCount: input.result.sectionCount,
-            artifactRecordCount: input.result.recordCount,
-            artifactByteLength: input.result.byteLength,
-            artifactSha256: input.result.sha256,
-            artifactGeneration: input.artifactGeneration,
-            artifactExpiresAt: input.artifactExpiresAt,
-          },
-        },
-      )
-      .exec();
+    const filter = {
+      id: input.id,
+      active: true,
+      state: 'processing',
+      formatVersion: input.result.formatVersion,
+      claimId: input.claimId,
+      leaseExpiresAt: { $gt: input.completedAt },
+    };
+    const update = {
+      $set: {
+        state: 'completed',
+        active: false,
+        claimId: null,
+        leaseExpiresAt: null,
+        failureCode: null,
+        failedAt: null,
+        completedAt: input.completedAt,
+        artifactSectionCount: input.result.sectionCount,
+        artifactRecordCount: input.result.recordCount,
+        artifactByteLength: input.result.byteLength,
+        artifactSha256: input.result.sha256,
+        artifactGeneration: input.artifactGeneration,
+        artifactExpiresAt: input.artifactExpiresAt,
+      },
+    };
+    // Preserve the historical single-document CAS for v1/v2. Neither
+    // protocol relies on the Study Progress owner revision.
+    if (input.result.formatVersion !== 3) {
+      const result = await this.jobs.updateOne(filter, update).exec();
+      return result.modifiedCount === 1;
+    }
 
-    return result.modifiedCount === 1;
+    const ownerUserId = input.ownerUserId;
+    const expected = input.expectedProgressEpoch;
+    if (typeof ownerUserId !== 'string' || !ownerUserId.trim() ||
+      !Number.isSafeInteger(expected) || (expected as number) < 0) {
+      throw new Error('Account export v3 completion owner epoch is required');
+    }
+    const expectedEpoch = expected as number;
+    // Both progress mutations and account closure write the SAME User row
+    // in Mongo transactions. Do not allow a progress mutation to race
+    // between the worker's post-S3 check and durable job completion.
+    const ownerFilter = {
+      _id: ownerUserId,
+      $and: [
+        { $or: [
+          { account_status: 'active' },
+          { account_status: { $exists: false } },
+        ] },
+        expectedEpoch === 0
+          ? { $or: [
+              { account_lifecycle_revision: 0 },
+              { account_lifecycle_revision: { $exists: false } },
+            ] }
+          : { account_lifecycle_revision: expectedEpoch },
+      ],
+    };
+    class LostClaim extends Error {}
+    const session = await this.connection.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const fenced = await this.users
+          .updateOne(ownerFilter,
+            { $inc: { account_lifecycle_revision: 1 } },
+            { session },
+          ).exec();
+        if (fenced.matchedCount !== 1) {
+          throw new Error('Study progress changed during account export');
+        }
+        const completed = await this.jobs
+          .updateOne(filter, update, { session }).exec();
+        if (completed.modifiedCount !== 1) {
+          // The User increment must rollback along with the lost claim.
+          throw new LostClaim('Account export completion claim changed');
+        }
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof LostClaim) return false;
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async findExpiredArtifacts(
