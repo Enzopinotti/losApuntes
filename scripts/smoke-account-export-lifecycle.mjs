@@ -8,7 +8,8 @@ const EXPORT_TIMEOUT_MS = 90_000;
 const EXPORT_POLL_INTERVAL_MS = 750;
 const MAX_SMOKE_EXPORT_BYTES = 32 * 1024 * 1024;
 const ARTIFACT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const EXPECTED_SECTION_COUNT = 30;
+const EXPECTED_SECTION_COUNTS = Object.freeze({ 1: 30, 2: 31, 3: 32 });
+const countFor = (version) => EXPECTED_SECTION_COUNTS[version];
 const PUBLIC_STATUS_FIELDS = [
   "downloadExpiresAt",
   "downloadable",
@@ -107,7 +108,7 @@ function assertPublicStatus(status) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
   );
   assert.equal(status.format, "los-apuntes-account-export");
-  assert.equal(status.formatVersion, 1);
+  assert.ok([1, 2, 3].includes(status.formatVersion));
   assert.ok(EXPORT_JOB_STATES.has(status.state));
   assert.ok(
     status.failureCode === null || EXPORT_FAILURE_CODES.has(status.failureCode),
@@ -277,7 +278,7 @@ if (replay.body.created === false) {
 
 const status = await waitForCompletion(exportId, authorization);
 assert.equal(status.format, "los-apuntes-account-export");
-assert.equal(status.formatVersion, 1);
+assert.ok([1, 2, 3].includes(status.formatVersion));
 assert.equal(status.downloadable, true);
 const expiresAt = Date.parse(status.downloadExpiresAt);
 assert.ok(Number.isFinite(expiresAt));
@@ -324,9 +325,11 @@ assert.ok(contentLength <= MAX_SMOKE_EXPORT_BYTES);
 const artifactBytes = await consumeBoundedBody(download, contentLength);
 const artifact = JSON.parse(artifactBytes.toString("utf8"));
 assert.equal(artifact.format, "los-apuntes-account-export");
-assert.equal(artifact.version, 1);
+assert.equal(artifact.version, status.formatVersion);
 const sectionEntries = Object.entries(artifact.sections ?? {});
-assert.equal(sectionEntries.length, EXPECTED_SECTION_COUNT);
+assert.equal(sectionEntries.length, countFor(status.formatVersion));
+assert.equal(Array.isArray(artifact.sections['study.collections']), status.formatVersion >= 2);
+assert.equal(Array.isArray(artifact.sections['study.progress']), status.formatVersion >= 3);
 for (const [sectionId, records] of sectionEntries) {
   assert.ok(Array.isArray(records), `section ${sectionId} must be an array`);
 }
@@ -354,7 +357,7 @@ console.log(
     event: "account_export.runtime.smoke.ok",
     state: status.state,
     requestReplayOutcome,
-    sectionCount: EXPECTED_SECTION_COUNT,
+    sectionCount: countFor(status.formatVersion),
     recordCount,
     byteLength: artifactBytes.byteLength,
     downloadable: status.downloadable,
