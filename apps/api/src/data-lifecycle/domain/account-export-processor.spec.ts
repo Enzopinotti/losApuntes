@@ -407,7 +407,11 @@ describe('AccountExportProcessor', () => {
     const iteration = f.processor.runIteration();
     await jest.advanceTimersByTimeAsync(40_000);
     resolveAssembly(result);
-    await expect(iteration).resolves.toMatchObject({ stale: 1 });
+    await jest.advanceTimersByTimeAsync(200);
+    await expect(iteration).resolves.toMatchObject({
+      stale: 1, orphanEnqueueRetries: 1, orphanEnqueueRecovered: 1,
+      orphanEnqueueFailures: 0,
+    });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.exports.complete.mock.calls).toHaveLength(0);
     expect(f.exports.reschedule.mock.calls).toHaveLength(0);
@@ -853,6 +857,44 @@ describe('AccountExportProcessor', () => {
     attempts: 1,
   };
 
+  it('B79 recovers a transient Mongo queue outage without S3 DELETE or a false failure alert', async () => {
+    const f = fixture();
+    f.exports.complete.mockResolvedValueOnce(false);
+    f.orphans.enqueue.mockRejectedValueOnce(new Error('private Mongo diagnostic'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      stale: 1, completed: 0,
+      orphanEnqueueRetries: 1, orphanEnqueueRecovered: 1,
+      orphanEnqueueFailures: 0,
+    });
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(2);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.clearPending).not.toHaveBeenCalled();
+  });
+
+  it('B79 preserves per-iteration recovery metrics with two proven orphans', async () => {
+    const f = fixture();
+    f.exports.complete.mockResolvedValue(false);
+    f.orphans.enqueue.mockRejectedValueOnce(new Error('temporary Mongo outage'));
+    await expect(f.processor.runIteration(2)).resolves.toMatchObject({
+      claimed: 2, stale: 2, completed: 0,
+      orphanEnqueueRetries: 1, orphanEnqueueRecovered: 1,
+      orphanEnqueueFailures: 0,
+    });
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B79 does not enqueue or report failures for a completed account export', async () => {
+    const f = fixture();
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      completed: 1,
+      orphanEnqueueRetries: 0, orphanEnqueueRecovered: 0,
+      orphanEnqueueFailures: 0,
+    });
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
   it('B78 does not bypass a prior takeover verification deadline with direct S3 DELETE', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
@@ -872,11 +914,12 @@ describe('AccountExportProcessor', () => {
   it('B78 does not turn a failed durable enqueue into permission for S3 DELETE', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('Mongo queue unavailable'));
+    f.orphans.enqueue.mockRejectedValue(new Error('Mongo queue unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1, completed: 0, orphanEnqueueRetries: 2,
+      orphanEnqueueRecovered: 0, orphanEnqueueFailures: 1,
     });
-    expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
   });
@@ -1333,11 +1376,12 @@ describe('AccountExportProcessor', () => {
   it('B71 preserves retry result when orphan enqueue fails after unknown S3 ACK', async () => {
     const f = fixture();
     f.sink.commit.mockRejectedValueOnce(new Error('S3 complete response unknown'));
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('Mongo orphan queue unavailable'));
+    f.orphans.enqueue.mockRejectedValue(new Error('Mongo orphan queue unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      retryScheduled: 1, completed: 0,
+      retryScheduled: 1, completed: 0, orphanEnqueueFailures: 1,
     });
-    expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
   });
 
@@ -1421,10 +1465,11 @@ describe('AccountExportProcessor', () => {
   it('B78 never deletes S3 if Mongo cannot persist an orphan intent', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('Mongo unavailable'));
+    f.orphans.enqueue.mockRejectedValue(new Error('Mongo unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1, completed: 0, orphanEnqueueFailures: 1,
     });
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
   });
