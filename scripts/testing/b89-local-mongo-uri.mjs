@@ -64,5 +64,16 @@ export async function validateB89LocalMongoUri(raw, {
     if (!loopbackIpv4 && !loopbackIpv6) fail();
   }
 
+  // Prevent DNS rebinding between preflight and the Mongo driver's
+  // own connection. Pin the checked numeric address, then force a direct
+  // connection so a replica-set hello cannot redirect the driver to an
+  // advertised hostname outside loopback.
+  const preferred = addresses.find(entry =>
+    entry.family === 4 && entry.address === '127.0.0.1'
+  ) ?? addresses.find(entry => entry.family === 4) ?? addresses[0];
+  parsed.hostname = preferred.family === 6
+    ? `[${preferred.address}]`
+    : preferred.address;
+  parsed.searchParams.set('directConnection', 'true');
   return parsed.toString();
 }
