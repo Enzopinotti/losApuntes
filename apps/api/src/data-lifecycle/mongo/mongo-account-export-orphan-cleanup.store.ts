@@ -110,6 +110,9 @@ implements AccountExportOrphanCleanupStore {
       jobId: input.jobId, generation: input.generation,
       state: 'processing', claimId: input.claimId,
       leaseExpiresAt: { $gt: input.now },
+      // If a takeover enlarged the horizon after this worker claimed the
+      // row, its stale ACK must fail instead of deleting the new intent.
+      verificationUntil: input.verificationUntil ?? null,
     }).exec();
     return result.deletedCount === 1;
   }
