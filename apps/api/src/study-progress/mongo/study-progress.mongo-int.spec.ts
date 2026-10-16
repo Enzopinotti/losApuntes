@@ -211,7 +211,7 @@ runMongo(
       const id: unknown = row.id;
       if (typeof id !== 'string' || id.length === 0) {
         throw new Error('Mongo user did not provide a valid owner ID');
-    }
+      }
       return id;
     }
 
@@ -346,9 +346,9 @@ runMongo(
                 sectionId,
                 readPage: () =>
                   Promise.resolve({
-                  records: [],
-                  nextCursor: null,
-                }),
+                    records: [],
+                    nextCursor: null,
+                  }),
               },
         );
       const chunks: string[] = [];
