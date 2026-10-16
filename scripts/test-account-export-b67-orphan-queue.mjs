@@ -54,7 +54,7 @@ verify('orphan cleanup is a separate dependency wired by Nest', () => {
 verify('no deletion before confirming generation is not referenced', () => {
   const drain = worker.slice(worker.indexOf('  private async drainOrphanCleanup('));
   const find = drain.indexOf('this.store.findForOrphanCleanup(candidate.jobId)');
-  const guard = drain.indexOf("job.state === 'completed'");
+  const guard = drain.indexOf('job.artifactGeneration === candidate.generation');
   const active = drain.indexOf("job.state === 'processing'");
   const remove = drain.indexOf('this.artifacts.deleteArtifact(');
   assert.ok(find >= 0 && guard > find && active > guard && remove > active);
