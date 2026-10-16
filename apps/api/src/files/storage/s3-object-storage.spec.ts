@@ -441,6 +441,40 @@ describe('S3ObjectStorage', () => {
       .toEqual(['PUT', 'DELETE']);
   });
 
+  it.each([
+    ['', 'empty'],
+    ['<html>OK</html>', 'HTML'],
+    ['<Error><Code>InternalError</Code></Error>', 'embedded S3 Error'],
+    ['<CompleteMultipartUploadResult>', 'unfinished XML'],
+  ])('B96 rejects HTTP 200 multipart %s without marking private object committed', async (xml) => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b96</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-1"' },
+      }))
+      .mockResolvedValueOnce(new Response(xml, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b96-generation.json',
+      contentType: 'application/json; charset=utf-8',
+      deleteObjectOnAbort: false,
+    });
+
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await expect(writer.complete()).rejects.toThrow('S3 Complete multipart upload');
+    // A provider may have committed the object even if its 200 body is
+    // invalid; cancelling the uploadId MUST NOT issue an object DELETE.
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST', 'DELETE']);
+    const abortUrl = new URL(fetchSpy.mock.calls[3]?.[0] as string);
+    expect(abortUrl.searchParams.get('uploadId')).toBe('private-b96');
+    expect(abortUrl.searchParams.has('partNumber')).toBe(false);
+  });
+
   it('B81 aborts only the private multipart upload ID after an ambiguous completion ACK', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(
