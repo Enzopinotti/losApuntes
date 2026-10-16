@@ -200,7 +200,12 @@ export default function StudyKits() {
     ? selectedState.kitId
     : archive?.kits[0]?.id ?? null;
   const selectedKit = archive?.kits.find((kit) => kit.id === selectedId) ?? null;
-  const verifyKey = `${scope}:${selectedId ?? "none"}:${selectedKit?.resourceIds.join(",") ?? ""}`;
+  const selectedKitId = selectedKit?.id ?? null;
+  // The resource IDs are validated UUIDs and cannot contain commas.
+  // A primitive snapshot prevents reloads of local workspace from
+  // retriggering verification solely because array identity changed.
+  const selectedResourceIdsKey = selectedKit?.resourceIds.join(",") ?? null;
+  const verifyKey = `${scope}:${selectedId ?? "none"}:${selectedResourceIdsKey ?? ""}`;
   const syncScope = [
     scope, selectedKit?.id ?? "none",
     selectedKit?.title ?? "", selectedKit?.notes ?? "",
@@ -358,12 +363,16 @@ export default function StudyKits() {
   },[subjectId,scope,beginFound,foundCurrent,finishFound]);
 
   const loadVerified = useCallback(async () => {
-    if (!subjectId || !selectedKit) return;
+    if (!subjectId || !selectedKitId || selectedResourceIdsKey === null) return;
     const ticket=beginVerify();
     if(!verifyCurrent(ticket))return;
     setVerifiedState({scope:verifyKey,loading:true,data:null,error:null});
     try {
-      const data=await verifyKitResources(subjectId,selectedKit.resourceIds,ticket.signal);
+      const data=await verifyKitResources(
+        subjectId,
+        selectedResourceIdsKey ? selectedResourceIdsKey.split(",") : [],
+        ticket.signal,
+      );
       if(verifyCurrent(ticket)) {
         setVerifiedState({scope:verifyKey,loading:false,data,error:null});
       }
@@ -376,7 +385,7 @@ export default function StudyKits() {
     } finally {
       finishVerify(ticket);
     }
-  },[subjectId,selectedKit?.id,selectedKit?.resourceIds.join(","),
+  },[subjectId,selectedKitId,selectedResourceIdsKey,
     verifyKey,beginVerify,verifyCurrent,finishVerify]);
 
   useEffect(()=>{void loadContext()},[loadContext]);
@@ -386,8 +395,8 @@ export default function StudyKits() {
     void loadFound();
   },[subjectId,loadSaved,loadFound]);
   useEffect(()=>{
-    if (selectedKit) void loadVerified();
-  },[loadVerified,selectedKit?.id]);
+    if (selectedKitId) void loadVerified();
+  },[loadVerified,selectedKitId]);
 
   const create = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
