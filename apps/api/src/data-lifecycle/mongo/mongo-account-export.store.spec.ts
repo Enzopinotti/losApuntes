@@ -225,6 +225,7 @@ describe('MongoAccountExportStore', () => {
         generation: oldClaim, state: 'pending', attempts: 0,
         nextAttemptAt: new Date(now.getTime() + 3 * 120_000),
         claimId: null, leaseExpiresAt: null,
+        verificationUntil: new Date(now.getTime() + 60 * 60_000),
       },
     }, { upsert: true, session: f.session });
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
