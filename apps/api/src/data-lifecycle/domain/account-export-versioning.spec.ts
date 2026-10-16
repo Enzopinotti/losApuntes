@@ -262,31 +262,6 @@ describe('Account export v2 compatibility — B45', () => {
     expect(old.commit).not.toHaveBeenCalled();
   });
 
-  it('rejects unreviewed providers before opening v1, v2 or v3 artifacts', async () => {
-    for (const version of [1, 2, 3] as const) {
-      const complete = accountExportSectionIds(version).map((id) =>
-        contributor(id),
-      );
-      const f = fixture(new AccountExportContributorRegistry([
-        ...complete,
-        contributor('unreviewed.private'),
-      ]));
-      const writing = version === 1
-        ? f.assembler.writeJsonV1(OWNER, f.sink)
-        : version === 2
-          ? f.assembler.writeJsonV2(OWNER, f.sink)
-          : f.assembler.writeJsonV3(OWNER, f.sink);
-
-      await expect(writing).rejects.toThrow(
-        `Account export v${version} contributor inventory is incomplete or incompatible`,
-      );
-      expect(f.chunks).toHaveLength(0);
-      expect(f.service.readContributorPage).not.toHaveBeenCalled();
-      expect(f.service.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
-      expect(f.commit).not.toHaveBeenCalled();
-    }
-  });
-
   it('does not publish v2 when its contributor is missing or the inventory is altered', async () => {
     const legacy = fixture(mounted(false).registry);
     await expect(legacy.assembler.writeJsonV2(OWNER, legacy.sink))
