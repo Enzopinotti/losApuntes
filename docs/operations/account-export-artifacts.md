@@ -358,3 +358,36 @@ The local exact-head acceptance runner now includes S3 storage and
 export assembler Jest files, while real S3/HTTP/provider E2E remain
 independent gates. See
 `docs/engineering/account-export-ambiguous-s3-b71.md`.
+
+
+## B72 — Transactional retirement of expired account export artifacts
+
+**Never delete the S3 artifact before unlinking the expired download
+reference.** B72 replaces the old S3-first `clearExpiredArtifact` path with
+`retireExpiredArtifact`. The Mongo store uses a single transaction for
+a compare-and-set on `id + completed state + exact generation + exact due
+expiry` and a write-ahead cleanup intent scoped to the **durable owner**
+of the previous row. If the CAS loses or queue creation fails, the S3
+object is untouched and any Mongo unlink is rolled back.
+
+After retirement, the existing private orphan worker enforces owner and
+lease checks and deletes the exact `exports/{jobId}/{generation}.json`
+object. On transient provider failure or worker restart, the Mongo queue
+persists and the next worker may safely retry. The bucket lifecycle rule
+remains an independent backstop for missed historical objects and retained
+noncurrent versions.
+
+Operational counters: `expiredRetired` = transactional unlink and durable
+queue success; `expirationStale` = expired-row CAS changed or became
+ineligible; `expirationRetries` = Mongo sweep/transaction errors;
+`orphanDeleted` = actual S3 deletion. The old `expiredDeleted` output
+is retained only for legacy log readers and **is not a physical deletion
+counter** after B72.
+
+A Mongo failure during expiration must not block new export claims.
+Repeated `expirationRetries` or growing orphan queue age warrant
+investigation. Production remains HOLD (#353) until the exact-head local
+replica-set suite, S3 provider tests, HTTP download/privacy, retention
+policies and backups all pass.
+
+See `docs/engineering/account-export-atomic-expiry-b72.md`.

@@ -41,6 +41,8 @@ async function bootstrap(): Promise<void> {
         if (
           iteration.claimed > 0 ||
           iteration.expiredDeleted > 0 ||
+          iteration.expiredRetired > 0 ||
+          iteration.expirationStale > 0 ||
           iteration.expirationRetries > 0 ||
           iteration.orphanDeleted > 0 ||
           iteration.orphanPreserved > 0 ||

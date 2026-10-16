@@ -31,14 +31,21 @@ function fixture(input: { active?: unknown } = {}) {
     exists: jest.fn().mockResolvedValue(null),
   };
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
-  const users = { updateOne: jest.fn(() => ownerUpdate) };
+  const users = {
+    updateOne: jest.fn(
+      (_filter: unknown, _update: unknown, _options?: unknown) => ownerUpdate,
+    ),
+  };
   const session = {
     withTransaction: jest.fn(async (callback: () => Promise<void>) => callback()),
     endSession: jest.fn().mockResolvedValue(undefined),
   };
   const connection = { startSession: jest.fn().mockResolvedValue(session) };
+  const orphanWrite = query({ matchedCount: 0, modifiedCount: 0, upsertedCount: 1 });
+  const orphanCleanup = { updateOne: jest.fn(() => orphanWrite) };
   const store = new MongoAccountExportStore(
     jobs as never, users as never, connection as never,
+    orphanCleanup as never,
   );
 
   return {
@@ -48,6 +55,8 @@ function fixture(input: { active?: unknown } = {}) {
     ownerUpdate,
     session,
     connection,
+    orphanCleanup,
+    orphanWrite,
     upsertQuery,
     findQuery,
     expiredQuery,
@@ -603,27 +612,79 @@ describe('MongoAccountExportStore', () => {
     });
   });
 
-  it('clears only the exact expired generation after object deletion', async () => {
+  it('B72 retires only an unchanged expired generation and atomically queues cleanup', async () => {
     const expiresAt = new Date(now.getTime() - 1);
     const f = fixture();
+    const previous = {
+      id: 'export-1', userId: 'user-1', artifactGeneration: 'generation-1',
+    };
+    const retiring = query(previous);
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(retiring);
 
-    await expect(
-      f.store.clearExpiredArtifact({
-        id: 'export-1',
-        generation: 'generation-1',
-        expiresAt,
-        now,
-      }),
-    ).resolves.toBe(true);
-    expect(f.jobs.updateOne).toHaveBeenCalledWith(
-      {
-        id: 'export-1',
-        state: 'completed',
-        artifactGeneration: 'generation-1',
-        artifactExpiresAt: { $eq: expiresAt, $lte: now },
-      },
-      { $set: { artifactGeneration: null } },
+    await expect(f.store.retireExpiredArtifact({
+      id: 'export-1', generation: 'generation-1', expiresAt, now,
+    })).resolves.toBe(true);
+    expect(f.connection.startSession).toHaveBeenCalledTimes(1);
+    expect(f.session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(f.jobs.findOneAndUpdate).toHaveBeenCalledWith({
+      id: 'export-1',
+      state: 'completed',
+      artifactGeneration: 'generation-1',
+      artifactExpiresAt: { $eq: expiresAt, $lte: now },
+    }, {
+      $set: { artifactGeneration: null },
+    }, { session: f.session, new: false });
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith({
+      jobId: 'export-1', generation: 'generation-1',
+    }, { $setOnInsert: {
+      jobId: 'export-1',
+      ownerUserId: 'user-1',
+      generation: 'generation-1',
+      state: 'pending',
+      attempts: 0,
+      nextAttemptAt: now,
+      claimId: null,
+      leaseExpiresAt: null,
+    } }, { upsert: true, session: f.session });
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B72 does not enqueue if the expiry or generation CAS misses', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(query(null));
+    await expect(f.store.retireExpiredArtifact({
+      id: 'export-1',
+      generation: 'outdated-generation',
+      expiresAt: new Date(now.getTime() - 1), now,
+    })).resolves.toBe(false);
+    expect(f.orphanCleanup.updateOne).not.toHaveBeenCalled();
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B72 aborts retirement transaction if orphan enqueue fails', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(query({
+      id: 'export-1', userId: 'user-1',
+      artifactGeneration: 'generation-1',
+    }));
+    f.orphanWrite.exec.mockRejectedValueOnce(new Error('Queue Mongo write failed'));
+    await expect(f.store.retireExpiredArtifact({
+      id: 'export-1', generation: 'generation-1',
+      expiresAt: new Date(now.getTime() - 1), now,
+    })).rejects.toThrow('Queue Mongo write failed');
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B72 refuses retirement if private cleanup queue is unregistered', async () => {
+    const f = fixture();
+    const incomplete = new MongoAccountExportStore(
+      f.jobs as never, f.users as never, f.connection as never,
     );
+    await expect(incomplete.retireExpiredArtifact({
+      id: 'export-1', generation: 'generation-1',
+      expiresAt: new Date(now.getTime() - 1), now,
+    })).rejects.toThrow('expiry queue is not registered');
+    expect(f.connection.startSession).not.toHaveBeenCalled();
   });
 
   it('keeps status reads owner-scoped and terminal failures observable', async () => {

@@ -58,7 +58,14 @@ export interface AccountExportStore {
     limit: number;
   }): Promise<import('./account-export.types').ExpiredAccountExportArtifact[]>;
 
-  clearExpiredArtifact(input: {
+  /**
+   * Atomically unlink a due completed artifact AND persist its exact S3
+   * generation in the private cleanup queue. Never DELETE S3 first.
+   *
+   * The same Mongo transaction must commit both operations or neither.
+   * False means the generation/expiry no longer match the durable record.
+   */
+  retireExpiredArtifact(input: {
     id: string;
     generation: string;
     expiresAt: Date;
