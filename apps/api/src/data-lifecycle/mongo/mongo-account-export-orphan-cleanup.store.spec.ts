@@ -15,7 +15,9 @@ function fixture() {
     }),
   };
   const remove = { exec: jest.fn().mockResolvedValue({ deletedCount: 1 }) };
-  const retry = { exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }) };
+  const retry = {
+    exec: jest.fn().mockResolvedValue({ matchedCount: 1, modifiedCount: 1 }),
+  };
   const model = {
     updateOne: jest.fn().mockReturnValueOnce(upsert).mockReturnValue(retry),
     findOneAndUpdate: jest.fn().mockReturnValue(claim),
@@ -31,7 +33,8 @@ describe('B67 durable account export orphan cleanup', () => {
   it('has an immutable unique job/generation key and due-queue index', () => {
     const indexes = AccountExportOrphanCleanupSchema.indexes();
     expect(indexes).toContainEqual([
-      { jobId: 1, generation: 1 }, { unique: true },
+      { jobId: 1, generation: 1 },
+      expect.objectContaining({ unique: true }),
     ]);
     expect(indexes.some(([keys]) => 'nextAttemptAt' in keys)).toBe(true);
   });
@@ -114,6 +117,16 @@ describe('B67 durable account export orphan cleanup', () => {
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
     }, { $max: { leaseExpiresAt: expires } });
+  });
+
+  it('B68 accepts a matched renewal even when the monotonic lease is unchanged', async () => {
+    const f = fixture();
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
+    f.retry.exec.mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 0 });
+    await expect(f.store.renewLease({
+      jobId, generation, claimId, now,
+      leaseExpiresAt: new Date(now.getTime() + 180_000),
+    })).resolves.toBe(true);
   });
 
   it('B68 refuses to renew a stolen or expired cleanup claim', async () => {

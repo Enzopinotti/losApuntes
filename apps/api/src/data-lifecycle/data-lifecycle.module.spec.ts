@@ -309,10 +309,12 @@ describe('DataLifecycleModule account export wiring', () => {
       },
     });
     const registry = new AccountExportContributorRegistry(wiredContributors(domain));
+    const getStudyProgressExportEpoch = jest.fn().mockResolvedValue(0);
     const assembler = new AccountExportAssembler(
       registry,
       new AccountExportService({} as never, {
         hasActiveAccount: jest.fn().mockResolvedValue(true),
+        getStudyProgressExportEpoch,
       } as never),
     );
     const chunks: string[] = [];
@@ -336,6 +338,24 @@ describe('DataLifecycleModule account export wiring', () => {
         method: 'listAccountExportProgress',
         args: [ownerId, { limit: 100, cursor: null }],
       });
+    expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(1, ownerId);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(2, ownerId);
+
+    // An owner progress mutation mid-assembly must abort staging rather than
+    // publish a mixed-epoch private export.
+    getStudyProgressExportEpoch
+      .mockReset()
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+    (sink.commit as jest.Mock).mockClear();
+    (sink.abort as jest.Mock).mockClear();
+    await expect(assembler.writeJsonV3(ownerId, sink)).rejects.toThrow(
+      'Study progress changed during account export',
+    );
+    expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
+    expect(sink.commit).not.toHaveBeenCalled();
+    expect(sink.abort).toHaveBeenCalledTimes(1);
   });
 
 });
