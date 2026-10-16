@@ -19,6 +19,22 @@ export interface AccountExportStore {
   /** Internal cleanup authority probe: read the durable owner by job ID. */
   findForOrphanCleanup(id: string): Promise<AccountExportJobRecord | null>;
 
+  /**
+   * B82: atomically revoke an expired current processing generation before
+   * S3 cleanup. A Mongo completion raced with cleanup either wins first
+   * (revoke returns false; preserve) or loses to this CAS (completion cannot
+   * subsequently publish the doomed generation).
+   *
+   * This may only reschedule the EXACT expired active claim, for the exact
+   * durable owner. Never revoke a newer claim or a completed reference.
+   */
+  fenceExpiredClaimForOrphanCleanup(input: {
+    id: string;
+    ownerUserId: string;
+    generation: string;
+    now: Date;
+  }): Promise<boolean>;
+
   claimNext(input: {
     now: Date;
     claimId: string;
