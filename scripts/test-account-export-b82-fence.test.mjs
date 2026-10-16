@@ -19,7 +19,7 @@ test('B82 exact owner and generation must be processing, active and unreferenced
     state: 'processing',
     claimId: input.generation,
     leaseExpiresAt: { $lte: now },
-    $expr: { $lte: ['$leaseExpiresAt', '$NOW'] },
+    $expr: { $lte: ['$leaseExpiresAt', '$$NOW'] },
     artifactGeneration: null,
   });
 });
