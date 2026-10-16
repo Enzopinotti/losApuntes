@@ -466,12 +466,14 @@ describe('AccountExportProcessor', () => {
       expirationRetries: 0,
       claimed: 0,
     });
-    expect(f.store.retireExpiredArtifact.mock.calls).toContainEqual([{
-      id: claim().id,
-      generation: claim().claimId!,
-      expiresAt,
-      now: anyDateMatcher,
-    }]);
+    expect(f.store.retireExpiredArtifact.mock.calls).toContainEqual([
+      {
+        id: claim().id,
+        generation: claim().claimId!,
+        expiresAt,
+        now: anyDateMatcher,
+      },
+    ]);
     expect(f.artifacts.deleteArtifact.mock.calls).toHaveLength(0);
     expect(f.orphans.enqueue.mock.calls).toHaveLength(0);
   });
@@ -538,11 +540,13 @@ describe('AccountExportProcessor', () => {
       f.sink,
       expect.any(Function),
     ]);
-    expect(f.exports.complete.mock.calls).toContainEqual([{
-      id: claim().id,
-      claimId: claim().claimId,
-      result: expectedV2Result,
-    }]);
+    expect(f.exports.complete.mock.calls).toContainEqual([
+      {
+        id: claim().id,
+        claimId: claim().claimId,
+        result: expectedV2Result,
+      },
+    ]);
   });
 
   it('B64 retries a stale v3 progress snapshot without publishing', async () => {
@@ -597,9 +601,9 @@ describe('AccountExportProcessor', () => {
       failed: 0,
     });
     expect(f.sink.commit.mock.calls).toHaveLength(1);
-    expect(f.exports.captureStudyProgressExportEpoch.mock.calls).toContainEqual([
-      'owner-1',
-    ]);
+    expect(f.exports.captureStudyProgressExportEpoch.mock.calls).toContainEqual(
+      ['owner-1'],
+    );
     expect(f.exports.assertStudyProgressExportEpoch.mock.calls).toContainEqual([
       'owner-1',
       7,
@@ -726,7 +730,9 @@ describe('AccountExportProcessor', () => {
         completed: 1,
         retryScheduled: 0,
       });
-      expect(f.exports.captureStudyProgressExportEpoch.mock.calls).toHaveLength(0);
+      expect(f.exports.captureStudyProgressExportEpoch.mock.calls).toHaveLength(
+        0,
+      );
       expect(f.exports.reschedule.mock.calls).toHaveLength(0);
       expect(f.artifacts.deleteArtifact.mock.calls).toHaveLength(0);
     },
@@ -744,7 +750,10 @@ describe('AccountExportProcessor', () => {
       stale: 0,
       retryScheduled: 0,
     });
-    expect(f.store.findOwned.mock.calls).toContainEqual([claim().id, 'owner-1']);
+    expect(f.store.findOwned.mock.calls).toContainEqual([
+      claim().id,
+      'owner-1',
+    ]);
     expect(f.exports.reschedule.mock.calls).toHaveLength(0);
     expect(f.artifacts.deleteArtifact.mock.calls).toHaveLength(0);
     expect(f.sink.abort.mock.calls).toHaveLength(0);
@@ -937,8 +946,12 @@ describe('AccountExportProcessor', () => {
         claimed: 1,
         completed: 1,
       });
-      expect(f.exports.captureStudyProgressExportEpoch.mock.calls).toHaveLength(0);
-      expect(f.exports.assertStudyProgressExportEpoch.mock.calls).toHaveLength(0);
+      expect(f.exports.captureStudyProgressExportEpoch.mock.calls).toHaveLength(
+        0,
+      );
+      expect(f.exports.assertStudyProgressExportEpoch.mock.calls).toHaveLength(
+        0,
+      );
     }
   });
 
@@ -956,13 +969,15 @@ describe('AccountExportProcessor', () => {
       f.sink,
       expect.any(Function),
     ]);
-    expect(f.exports.complete.mock.calls).toContainEqual([{
-      id: claim().id,
-      claimId: claim().claimId,
-      ownerUserId: 'owner-1',
-      expectedProgressEpoch: 7,
-      result: expectedV3Result,
-    }]);
+    expect(f.exports.complete.mock.calls).toContainEqual([
+      {
+        id: claim().id,
+        claimId: claim().claimId,
+        ownerUserId: 'owner-1',
+        expectedProgressEpoch: 7,
+        result: expectedV3Result,
+      },
+    ]);
   });
 
   it('fails closed on unsupported persisted versions before publishing a file', async () => {
@@ -1086,7 +1101,9 @@ describe('AccountExportProcessor', () => {
       claimed: 0,
       orphanRetries: 0,
     });
-    expect(f.store.findForOrphanCleanup.mock.calls).toContainEqual([orphan.jobId]);
+    expect(f.store.findForOrphanCleanup.mock.calls).toContainEqual([
+      orphan.jobId,
+    ]);
     expect(f.orphans.renewLease.mock.calls.length).toBeGreaterThan(0);
     expect(f.artifacts.deleteArtifact.mock.calls).toContainEqual([
       orphan.jobId,
@@ -1141,7 +1158,9 @@ describe('AccountExportProcessor', () => {
       orphanDeleted: 1,
       orphanRetries: 0,
     });
-    expect(f.store.findForOrphanCleanup.mock.calls).toContainEqual([orphan.jobId]);
+    expect(f.store.findForOrphanCleanup.mock.calls).toContainEqual([
+      orphan.jobId,
+    ]);
     expect(f.artifacts.deleteArtifact.mock.calls).toContainEqual([
       orphan.jobId,
       orphan.generation,
@@ -1191,12 +1210,16 @@ describe('AccountExportProcessor', () => {
       orphanRetries: 0,
       orphanAuthorityBlocked: 0,
     });
-    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls).toContainEqual([{
-      id: orphan.jobId,
-      ownerUserId: orphan.ownerUserId,
-      generation: orphan.generation,
-      now: anyDateMatcher,
-    }]);
+    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls).toContainEqual(
+      [
+        {
+          id: orphan.jobId,
+          ownerUserId: orphan.ownerUserId,
+          generation: orphan.generation,
+          now: anyDateMatcher,
+        },
+      ],
+    );
     expect(
       f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0],
     ).toBeLessThan(f.orphans.renewLease.mock.invocationCallOrder[0]);
@@ -1245,7 +1268,9 @@ describe('AccountExportProcessor', () => {
       orphanDeleted: 0,
       orphanRetries: 1,
     });
-    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls).toHaveLength(0);
+    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls).toHaveLength(
+      0,
+    );
     expect(f.artifacts.deleteArtifact.mock.calls).toHaveLength(0);
   });
 
@@ -1265,7 +1290,9 @@ describe('AccountExportProcessor', () => {
       orphanDeleted: 1,
       orphanRetries: 0,
     });
-    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls).toHaveLength(0);
+    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls).toHaveLength(
+      0,
+    );
     expect(f.artifacts.deleteArtifact.mock.calls).toContainEqual([
       orphan.jobId,
       orphan.generation,
@@ -1647,7 +1674,9 @@ describe('AccountExportProcessor', () => {
       orphanRetries: 1,
       orphanAuthorityBlocked: 1,
     });
-    expect(f.store.findForOrphanCleanup.mock.calls).toContainEqual([orphan.jobId]);
+    expect(f.store.findForOrphanCleanup.mock.calls).toContainEqual([
+      orphan.jobId,
+    ]);
     expect(f.artifacts.deleteArtifact.mock.calls).toHaveLength(0);
     expect(f.orphans.acknowledge.mock.calls).toHaveLength(0);
     expect(f.orphans.retry.mock.calls).toContainEqual([
