@@ -53,7 +53,12 @@ verify('B85 local Mongo replica cases prove retention and successful expiry', ()
   assert.match(replica, /B85 protects an unexpired private artifact/u);
   assert.match(replica, /B85 due private artifact remains safely retireable/u);
   assert.match(replica, /expect\(durable\?\.artifactGeneration\)\.toBe\(generation\)/u);
-  assert.match(replica, /expect\(await orphanJobs\.countDocuments\(\{ jobId: id, generation \}\)\)\.toBe\(0\)/u);
+  // The expected durable orphan count stays exactly zero; Prettier may
+  // split the toBe(0) matcher and insert a trailing comma after the value.
+  assert.match(
+    replica,
+    /expect\(\s*await\s+orphanJobs\.countDocuments\(\{\s*jobId:\s*id,\s*generation\s*\}\)\s*\)\s*\.toBe\(\s*0\s*,?\s*\)/u,
+  );
 });
 verify('B85 Node isolated and structural gates stay wired with B84/B83', () => {
   const suite = pkg.scripts['test:account-lifecycle-contract'];
