@@ -614,3 +614,28 @@ scripts/test-account-export-b82-fence.test.mjs` y
 con Mongo replica-set, S3 real, backup/retención y Node24/pnpm9
 permanecen obligatorios para release. `STUDY_PROGRESS_ENABLED=false`,
 issue #353 OPEN/HOLD y auditorías #133/#141 sin waiver.
+
+## B83 — Vencimientos de claims evaluados por MongoDB
+
+Las exportaciones no pueden publicar un archivo solo porque
+`completedAt` quedó fijado antes de que expirara su lease. Una
+finalización, renovación de heartbeat o reprogramación demorada debe
+superar también una condición `$expr` evaluada por MongoDB:
+`leaseExpiresAt > $$NOW`. La revocación de B82 requiere el inverso
+(`leaseExpiresAt <= $$NOW`) además del vencimiento que observa el
+worker. De esta manera se protege tanto contra respuestas de Mongo
+demoradas como contra un reloj adelantado del proceso que limpia.
+
+El tiempo del primary MongoDB es ahora parte de la autoridad de
+publicación. En incidentes, comprobar reloj del primary, NTP,
+logs agregados del worker y estado de `account_export_jobs`/
+`account_export_orphan_cleanup`. No usar timestamps de cliente para
+forzar limpieza ni desactivar CAS.
+
+Tests: `node --experimental-strip-types --test
+scripts/test-account-export-b83-mongo-clock.test.mjs`,
+`node scripts/test-account-export-b83-mongo-clock-guard.mjs`,
+más las pruebas Jest/Mongo replica-set opt-in. Las primeras no prueban
+compatibilidad real con el servidor Mongo ni failover. Mantener
+`STUDY_PROGRESS_ENABLED=false`, release #353 HOLD y auditorías
+#133/#141 abiertas.
