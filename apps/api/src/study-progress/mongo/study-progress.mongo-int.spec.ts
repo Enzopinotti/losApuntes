@@ -9,6 +9,8 @@ import { AccountExportJob, AccountExportJobSchema } from '../../data-lifecycle/m
 import { AccountExportAssembler, type AccountExportArtifactSink } from '../../data-lifecycle/domain/account-export-assembler';
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
 import { AccountExportProcessor } from '../../data-lifecycle/domain/account-export-processor';
+import { S3AccountExportArtifactStorage } from '../../data-lifecycle/storage/account-export-artifact-storage';
+import { createS3ObjectStorage } from '../../files/storage/s3-object-storage';
 import type { AccountExportArtifactStorage } from '../../data-lifecycle/storage/account-export-artifact-storage';
 import type { AccountExportOrphanCleanupStore } from '../../data-lifecycle/domain/account-export-orphan-cleanup.store';
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../../data-lifecycle/domain/account-export.types';
@@ -1945,6 +1947,197 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect((await exportJobs.findOne({ id }).lean().exec())?.artifactGeneration)
       .toBe(generation);
     expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B86 reconciles lost real S3 writer PUT ACK with B80/B82 Mongo recovery and a 503 DELETE retry', async () => {
+    await exportJobs.deleteMany({});
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: new Date(now.getTime() - 1_000),
+      claimId: null, leaseExpiresAt: null,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const claimed = await store.claimNext({
+      now, claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    });
+    expect(claimed?.claimId).toBe(generation);
+    const queuedBeforeUpload = await orphanJobs.findOne({
+      jobId: id, generation,
+    }).lean().exec();
+    expect(queuedBeforeUpload).toMatchObject({
+      ownerUserId: userId, state: 'pending', claimId: null,
+    });
+
+    const key = `/b86-private-acceptance/exports/${id}/${generation}.json`;
+    const objects = new Map<string, Buffer>();
+    const httpMethods: string[] = [];
+    let deleteFailures = 1;
+    // B86 exercises the REAL app S3 signed HTTP adapter, only replacing
+    // transport. It never contacts a remote object-storage provider.
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      const request = new URL(String(url));
+      expect(request.origin).toBe('http://127.0.0.1:19086');
+      expect(request.pathname).toBe(key);
+      expect(request.searchParams.has('uploadId')).toBe(false);
+      const method = init?.method ?? 'GET';
+      httpMethods.push(method);
+      if (method === 'PUT') {
+        objects.set(key, Buffer.from(init?.body as Uint8Array));
+        throw new Error('B86 S3 PUT ACK lost after object commit');
+      }
+      if (method === 'DELETE') {
+        if (deleteFailures-- > 0) return new Response(null, { status: 503 });
+        objects.delete(key);
+        return new Response(null, { status: 204 });
+      }
+      throw new Error('Unexpected B86 S3 method');
+    });
+    try {
+      const s3 = createS3ObjectStorage({
+        endpoint: 'http://127.0.0.1:19086',
+        bucket: 'b86-private-acceptance',
+        region: 'us-east-1', accessKeyId: 'fixture-only',
+        secretAccessKey: 'fixture-not-a-live-secret',
+        configurationPrefix: 'ACCOUNT_EXPORT_S3',
+      });
+      const artifacts = new S3AccountExportArtifactStorage(s3);
+      const sink = artifacts.createSink(id, generation);
+      const payload = '{"private":"B86"}';
+      await sink.write(payload);
+      await expect(sink.commit({
+        format: 'los-apuntes-account-export',
+        formatVersion: 1, sectionCount: 30, recordCount: 1,
+        byteLength: Buffer.byteLength(payload),
+        sha256: createHash('sha256').update(payload).digest('hex'),
+      })).rejects.toThrow('ACK lost');
+      await sink.abort();
+      expect(objects.get(key)?.toString()).toBe(payload);
+      expect(httpMethods).toEqual(['PUT']);
+      expect((await store.findOwned(id, userId))?.state).toBe('processing');
+
+      // Only in the isolated disposable Mongo DB: force the natural
+      // expiration/settlement that would otherwise take minutes.
+      await exportJobs.updateOne({ id, claimId: generation }, {
+        $set: { leaseExpiresAt: new Date(Date.now() - 1_000) },
+      });
+      await orphanJobs.updateOne({ jobId: id, generation }, {
+        $set: {
+          nextAttemptAt: new Date(Date.now() - 1_000),
+          verificationUntil: new Date(Date.now() - 1_000),
+        },
+      });
+      const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+      const processor = new AccountExportProcessor(
+        { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+        {} as AccountExportAssembler,
+        store, artifacts, queue,
+      );
+
+      await expect(processor.runIteration()).resolves.toMatchObject({
+        orphanDeleted: 0, orphanRetries: 1, orphanAuthorityBlocked: 0,
+      });
+      expect(objects.has(key)).toBe(true);
+      expect((await store.findOwned(id, userId))?.state).toBe('pending');
+      expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+      // Simulate due retry; do not advance primary time or bypass the CAS.
+      await orphanJobs.updateOne({ jobId: id, generation }, {
+        $set: { nextAttemptAt: new Date(Date.now() - 1_000) },
+      });
+      await expect(processor.runIteration()).resolves.toMatchObject({
+        orphanDeleted: 1, orphanRetries: 0,
+      });
+      expect(objects.has(key)).toBe(false);
+      expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+      expect(httpMethods).toEqual(['PUT', 'DELETE', 'DELETE']);
+      expect((await store.findOwned(id, userId))?.artifactGeneration).toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  }, 30_000);
+
+  it('B86 preserves a published generation when B80 queue recovery claims it', async () => {
+    await exportJobs.deleteMany({});
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: new Date(now.getTime() - 1_000),
+      claimId: null, leaseExpiresAt: null,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.claimNext({
+      now, claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    })).resolves.toMatchObject({ id, claimId: generation });
+    const key = `/b86-private-acceptance/exports/${id}/${generation}.json`;
+    const objects = new Map<string, Buffer>();
+    const httpMethods: string[] = [];
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      const request = new URL(String(url));
+      expect(request.pathname).toBe(key);
+      const method = init?.method ?? 'GET';
+      httpMethods.push(method);
+      if (method === 'PUT') {
+        objects.set(key, Buffer.from(init?.body as Uint8Array));
+        return new Response(null, { status: 200 });
+      }
+      if (method === 'DELETE') {
+        objects.delete(key);
+        return new Response(null, { status: 204 });
+      }
+      throw new Error('Unexpected method');
+    });
+    try {
+      const s3 = createS3ObjectStorage({
+        endpoint: 'http://127.0.0.1:19086', bucket: 'b86-private-acceptance',
+        region: 'us-east-1', accessKeyId: 'fixture-only',
+        secretAccessKey: 'fixture-not-a-live-secret',
+        configurationPrefix: 'ACCOUNT_EXPORT_S3',
+      });
+      const artifacts = new S3AccountExportArtifactStorage(s3);
+      const sink = artifacts.createSink(id, generation);
+      const payload = '{"private":"completed"}';
+      await sink.write(payload);
+      const summary = {
+        format: 'los-apuntes-account-export' as const,
+        formatVersion: 1 as const, sectionCount: 30, recordCount: 1,
+        byteLength: Buffer.byteLength(payload),
+        sha256: createHash('sha256').update(payload).digest('hex'),
+      };
+      await sink.commit(summary);
+      await expect(store.complete({
+        id, claimId: generation, artifactGeneration: generation,
+        completedAt: new Date(),
+        artifactExpiresAt: new Date(Date.now() + 86_400_000),
+        result: summary,
+      })).resolves.toBe(true);
+      await orphanJobs.updateOne({ jobId: id, generation }, {
+        $set: { nextAttemptAt: new Date(Date.now() - 1_000) },
+      });
+      const processor = new AccountExportProcessor(
+        { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+        {} as AccountExportAssembler, store, artifacts,
+        new MongoAccountExportOrphanCleanupStore(orphanJobs),
+      );
+      await expect(processor.runIteration()).resolves.toMatchObject({
+        orphanPreserved: 1, orphanDeleted: 0, orphanRetries: 0,
+      });
+      expect(httpMethods).toEqual(['PUT']);
+      expect(objects.has(key)).toBe(true);
+      expect((await store.findOwned(id, userId))?.artifactGeneration).toBe(generation);
+      expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   }, 30_000);
 
   it('B85 protects an unexpired private artifact from a clock-ahead worker', async () => {
