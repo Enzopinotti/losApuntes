@@ -1258,7 +1258,178 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(claimed).toMatchObject({
       id, userId, state: 'processing', claimId: newGeneration, attempts: 1,
     });
-    expect(await orphanJobs.countDocuments({ jobId: id })).toBe(0);
+    // B74 has no predecessor, but B80 write-ahead protects the new claim
+    // against worker/S3 completion crashes.
+    const intent = await orphanJobs.findOne({
+      jobId: id, generation: newGeneration,
+    }).lean().exec();
+    expect(intent).toMatchObject({
+      ownerUserId: userId, state: 'pending', claimId: null,
+      verificationUntil: expect.any(Date),
+    });
+    expect(intent!.nextAttemptAt.getTime()).toBe(
+      now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
+    );
+    expect(await orphanJobs.countDocuments({ jobId: id })).toBe(1);
+  }, 30_000);
+
+  it('B80 persists a first-claim recovery intent before any S3 write and rechecks after a crash', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+    });
+    const exportStore = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const claimed = await exportStore.claimNext({
+      now, claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    });
+    expect(claimed?.claimId).toBe(generation);
+    const durable = await orphanJobs.findOne({ jobId: id, generation }).lean().exec();
+    expect(durable).toMatchObject({
+      ownerUserId: userId, state: 'pending', attempts: 0, claimId: null,
+      verificationUntil: expect.any(Date),
+    });
+    expect(durable!.nextAttemptAt.getTime()).toBe(
+      now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
+    );
+
+    // Simulate a worker killed after the Mongo claim, before a reliable S3 ACK.
+    // Queue remains durable without any process-local enqueue callback.
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const cleanup = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const recovery = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler, exportStore,
+      { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      cleanup,
+    );
+
+    // Even an inadvertently due task cannot delete a currently leased claim.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
+    await expect(recovery.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(deleteArtifact).not.toHaveBeenCalled();
+
+    // A crash stops lease heartbeats. Once the durable lease has expired,
+    // recovery can delete and preserve the verification recheck task.
+    await exportJobs.updateOne({ id, claimId: generation }, {
+      $set: { leaseExpiresAt: new Date(Date.now() - 1) },
+    });
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
+    await expect(recovery.runIteration()).resolves.toMatchObject({
+      orphanVerificationScheduled: 1, orphanDeleted: 0,
+    });
+    expect(deleteArtifact).toHaveBeenCalledWith(id, generation);
+
+    // Recovery survives another process restart. Force final horizon in
+    // this isolated Mongo fixture to avoid sleeping for an hour.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: {
+        nextAttemptAt: new Date(Date.now() - 1),
+        verificationUntil: new Date(Date.now() - 1),
+      },
+    });
+    const restarted = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      new MongoAccountExportStore(exportJobs, users, connection, orphanJobs),
+      { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(restarted.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanVerificationScheduled: 0,
+    });
+    expect(deleteArtifact).toHaveBeenCalledTimes(2);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B80 rolls back an ordinary pending claim if its first recovery write fails', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+    });
+    const failing = { updateOne: () => ({
+      exec: async () => { throw new Error('B80 injected new claim ledger failure'); },
+    }) };
+    const broken = new MongoAccountExportStore(
+      exportJobs, users, connection, failing as never,
+    );
+    await expect(broken.claimNext({
+      now, claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    })).rejects.toThrow('B80 injected new claim ledger failure');
+    expect((await exportJobs.findOne({ id }).lean().exec())?.state).toBe('pending');
+    expect((await exportJobs.findOne({ id }).lean().exec())?.claimId).toBeNull();
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+
+    const recovered = new MongoAccountExportStore(
+      exportJobs, users, connection, orphanJobs,
+    );
+    await expect(recovered.claimNext({
+      now, claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    })).resolves.toMatchObject({ claimId: generation });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+  }, 30_000);
+
+  it('B80 preserves a completed generation and acknowledges its write-ahead intent', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await store.claimNext({
+      now, claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    });
+    const completedAt = new Date();
+    await expect(store.complete({
+      id, claimId: generation, completedAt,
+      artifactExpiresAt: new Date(completedAt.getTime() + 7 * 24 * 60 * 60_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 1,
+        sectionCount: 30, recordCount: 1, byteLength: 12, sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(true);
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const drainer = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler, store,
+      { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(drainer.runIteration()).resolves.toMatchObject({
+      orphanPreserved: 1, orphanDeleted: 0,
+    });
+    expect(deleteArtifact).not.toHaveBeenCalled();
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+    expect((await store.findOwned(id, userId))?.artifactGeneration).toBe(generation);
   }, 30_000);
 
   it('B72 retires an expired download and drains exact S3 cleanup in the same iteration', async () => {
@@ -1454,7 +1625,9 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       claimed: 1, completed: 0, retryScheduled: 1,
     });
     expect(writer.abort).toHaveBeenCalledTimes(1);
-    expect(deleteArtifact).toHaveBeenCalledWith(id, generation);
+    // B78 and B80 prohibit inline S3 DELETE; only a later owner-fenced
+    // drainer can remove the exact generation after the Mongo retry CAS.
+    expect(deleteArtifact).not.toHaveBeenCalled();
     expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
     expect((await exportStore.findOwned(id, userId))?.state).toBe('pending');
 
