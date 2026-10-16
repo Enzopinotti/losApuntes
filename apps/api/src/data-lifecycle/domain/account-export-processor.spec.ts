@@ -1102,6 +1102,83 @@ describe('AccountExportProcessor', () => {
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
   });
 
+  it('B71 cleans up S3 after multipart completion ACK is lost and Mongo retry CAS succeeds', async () => {
+    const f = fixture();
+    f.sink.commit.mockRejectedValueOnce(new Error('S3 completed but ACK was lost'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, retryScheduled: 1, completed: 0,
+    });
+    expect(f.sink.abort).toHaveBeenCalledTimes(1);
+    expect(f.exports.complete).not.toHaveBeenCalled();
+    expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: claim().id, generation: claim().claimId,
+      ownerUserId: claim().userId,
+    }));
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id, claim().claimId,
+    );
+    const durableCas = f.exports.reschedule.mock.invocationCallOrder[0];
+    const writeAhead = f.orphans.enqueue.mock.invocationCallOrder[0];
+    const deleteS3 = f.artifacts.deleteArtifact.mock.invocationCallOrder[0];
+    expect(durableCas).toBeLessThan(writeAhead);
+    expect(writeAhead).toBeLessThan(deleteS3);
+  });
+
+  it('B71 queues unknown S3 commit after failed S3 DELETE without losing durable retry', async () => {
+    const f = fixture();
+    f.sink.commit.mockRejectedValueOnce(new Error('S3 complete response unknown'));
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 currently down'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      retryScheduled: 1, completed: 0,
+    });
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
+    expect(f.orphans.clearPending).not.toHaveBeenCalled();
+  });
+
+  it('B71 does not delete uncertain multipart generation when Mongo retry CAS loses', async () => {
+    const f = fixture();
+    f.sink.commit.mockRejectedValueOnce(new Error('S3 complete ACK unknown'));
+    f.exports.reschedule.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, stale: 1, completed: 0,
+    });
+    expect(f.sink.abort).toHaveBeenCalledTimes(1);
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B71 preserves S3 when Mongo retry CAS itself is unavailable', async () => {
+    const f = fixture();
+    f.sink.commit.mockRejectedValueOnce(new Error('S3 complete ACK unknown'));
+    f.exports.reschedule.mockRejectedValueOnce(new Error('Mongo CAS unavailable'));
+    await expect(f.processor.runIteration()).rejects.toThrow('Mongo CAS unavailable');
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B71 still cleans up after an abort error when a durable retry CAS wins', async () => {
+    const f = fixture();
+    f.sink.commit.mockRejectedValueOnce(new Error('Uncertain S3 commit'));
+    f.sink.abort.mockRejectedValueOnce(new Error('S3 multipart abort failed'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      retryScheduled: 1, completed: 0,
+    });
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      claim().id, claim().claimId,
+    );
+  });
+
+  it('B71 retains normal successful assembly and completion without orphan cleanup', async () => {
+    const f = fixture({ job: claim({ formatVersion: 3 }) });
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 1, completed: 1, retryScheduled: 0,
+    });
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
   it('B69 persists cleanup intent before a failed S3 delete', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);

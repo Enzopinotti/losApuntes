@@ -79,6 +79,8 @@ if (flag !== '--expected-sha' || !accepted.test(expectedSha || '') ||
           '--filter', '@losapuntes/api', 'exec', 'jest',
           '--runInBand', '--runTestsByPath',
           'src/data-lifecycle/domain/account-export-processor.spec.ts',
+          'src/data-lifecycle/domain/account-export-assembler.spec.ts',
+          'src/data-lifecycle/storage/account-export-artifact-storage.spec.ts',
           'src/data-lifecycle/mongo/mongo-account-export.store.spec.ts',
           'src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts',
         ],

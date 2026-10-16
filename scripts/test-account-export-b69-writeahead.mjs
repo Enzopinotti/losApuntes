@@ -46,7 +46,7 @@ check('successful deletion only cancels unclaimed pending tasks', () => {
   assert.doesNotMatch(impl, /state: 'processing'/u);
 });
 check('ambiguous durable Mongo completion never creates a deletion intent', () => {
-  assert.match(worker, /if \(uncertainCompletion\)/u);
+  assert.match(worker, /if \(uncertainCompletion && completedAssembly\)/u);
   assert.match(worker, /if \(!updated\)/u);
   const part = worker.slice(
     worker.indexOf('      const uncertainCompletion ='),
@@ -62,7 +62,7 @@ check('Jest B67 and B68 tests are inside their original describe with clock rese
   const begin = tests.indexOf('describe(\'AccountExportProcessor\'');
   const orphan = tests.indexOf('  const orphan = {');
   assert.ok(orphan > begin);
-  assert.doesNotMatch(tests.slice(begin, orphan + 25), /\n}\s+const orphan =/u);
+  assert.doesNotMatch(tests.slice(begin, orphan + 25), /\n\}\s+const orphan =/u);
   assert.match(tests, /findForOrphanCleanup\)\.toHaveBeenCalledWith\(orphan\.jobId\)/u);
 });
 check('Jest captures ordered persistence, retry and concurrent claim interactions', () => {
