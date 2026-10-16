@@ -179,6 +179,7 @@ describe('MongoAccountExportStore', () => {
       active: true, state: 'processing',
       claimId: 'bba10100-7777-4777-8777-777777777777',
       leaseExpiresAt: { $lte: now },
+      $expr: { $lte: ['$leaseExpiresAt', '$NOW'] },
       artifactGeneration: null,
     }, {
       $set: {
@@ -451,6 +452,7 @@ describe('MongoAccountExportStore', () => {
         state: 'processing',
         claimId: 'claim-1',
         leaseExpiresAt: { $gt: now },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       },
       {
         $max: { leaseExpiresAt: new Date(now.getTime() + 120_000) },
@@ -513,6 +515,7 @@ describe('MongoAccountExportStore', () => {
         state: 'processing',
         claimId: 'claim-1',
         leaseExpiresAt: { $gt: now },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       },
       {
         $set: {
@@ -550,6 +553,7 @@ describe('MongoAccountExportStore', () => {
         state: 'processing',
         claimId: 'claim-2',
         leaseExpiresAt: { $gt: now },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       },
       {
         $set: {
@@ -594,6 +598,7 @@ describe('MongoAccountExportStore', () => {
         state: 'processing',
         claimId: 'claim-1',
         leaseExpiresAt: { $gt: now },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       },
       expect.any(Object),
     );
@@ -629,6 +634,7 @@ describe('MongoAccountExportStore', () => {
         formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
         claimId: 'claim-1',
         leaseExpiresAt: { $gt: now },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       },
       {
         $set: {
@@ -671,6 +677,75 @@ describe('MongoAccountExportStore', () => {
         },
       }),
     ).resolves.toBe(false);
+  });
+
+  it('B83 server-side lease freshness is required alongside captured client time', async () => {
+    const f = fixture();
+    const completedAt = now;
+    await expect(f.store.complete({
+      id: 'export-1',
+      claimId: 'claim-1',
+      artifactGeneration: 'claim-1',
+      completedAt,
+      artifactExpiresAt: new Date(now.getTime() + 120_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 1,
+        sectionCount: 30, recordCount: 0, byteLength: 64,
+        sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(true);
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leaseExpiresAt: { $gt: completedAt },
+        $expr: { $gt: ['$leaseExpiresAt', '$NOW'] },
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('B83 v3 completion applies the same server clock fence within the transaction', async () => {
+    const f = fixture();
+    await expect(f.store.complete({
+      id: 'export-1',
+      claimId: 'claim-1',
+      artifactGeneration: 'claim-1',
+      ownerUserId: 'user-1',
+      expectedProgressEpoch: 7,
+      completedAt: now,
+      artifactExpiresAt: new Date(now.getTime() + 120_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 64,
+        sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(true);
+    expect(f.jobs.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        $expr: { $gt: ['$leaseExpiresAt', '$NOW'] },
+      }),
+      expect.any(Object),
+      { session: f.session },
+    );
+  });
+
+  it('B83 requires server-clock authority for lease renewal and failed retry', async () => {
+    const f = fixture();
+    await f.store.renewLease({
+      id: 'export-1', claimId: 'claim-1', now,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    await f.store.reschedule({
+      id: 'export-1', claimId: 'claim-1', now,
+      state: 'pending', nextAttemptAt: now,
+      failureCode: 'EXPORT_ASSEMBLY_RETRY',
+    });
+    for (const [filter] of f.jobs.updateOne.mock.calls) {
+      expect(filter).toMatchObject({
+        state: 'processing',
+        $expr: { $gt: ['$leaseExpiresAt', '$NOW'] },
+      });
+    }
   });
 
   it('B65 atomically fences v3 owner epoch and completed claim', async () => {
