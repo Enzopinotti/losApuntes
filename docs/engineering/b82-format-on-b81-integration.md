@@ -19,3 +19,9 @@
 ## Previous evidence
 
 B81 [focal #38902042984](https://github.com/Enzopinotti/losApuntes/actions/runs/38902042984) passed six suites, 72 tests, API types and B77/B78/B79 contracts. [Global #38902043042](https://github.com/Enzopinotti/losApuntes/actions/runs/38902043042) passed 10/10 critical API coverage jobs but was red for old Web/API formatting and audit. **Those results are historical, not evidence for B82 HEAD.**
+
+## Resultados del formateador y retiro del permiso de escritura
+
+[Run #38903519454](https://github.com/Enzopinotti/losApuntes/actions/runs/38903519454) **SUCCESS**. Partió del SHA `5f90b80859c433515cb97a05c0b35a7810d5e2fc`, verificó el remote HEAD, instaló workspace congelado, formateó y publicó en **su propia rama** el commit `36704a80e2ec8761b610863b96da668f92fe6859`. La comparación de Git confirmó **58 archivos fuente** modificados: **48 API, 10 Web**, todos dentro de la allowlist TS/TSX. El job también completó en verde `format:check` API/Web, `lint` Web y `check:types` API/Web sobre el árbol ya formateado. Esto no sustituye el CI global.
+
+El workflow temporal de formateo, que poseía autorización restringida `contents: write`, se **retira de la rama candidata en el mismo commit que esta evidencia**. La fuente formateada permanece, pero ya no hay un workflow especial con permisos de escritura en el PR final. El siguiente `verify` debe ejecutarse sobre el nuevo SHA sin workflow temporal, y reportar por separado Quality Gate, diez coberturas, auditoría y runtime.
