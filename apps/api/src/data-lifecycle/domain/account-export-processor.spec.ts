@@ -99,7 +99,9 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
   } as unknown as jest.Mocked<AccountExportAssembler>;
   const store = {
     findOwned: jest.fn().mockResolvedValue(null),
-    findForOrphanCleanup: jest.fn().mockResolvedValue(null),
+    findForOrphanCleanup: jest.fn().mockResolvedValue(claim({
+      state: 'pending', active: true, claimId: null,
+    })),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     clearExpiredArtifact: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportStore>;
@@ -923,7 +925,9 @@ describe('AccountExportProcessor', () => {
   it('B67 retries deletion errors without losing durable cleanup claim', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'pending', active: true, claimId: null,
+    }));
     f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 offline'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanRetries: 1, orphanDeleted: 0,
@@ -945,7 +949,9 @@ describe('AccountExportProcessor', () => {
   it('B68 rechecks ownership after a slow authority lookup before touching S3', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'pending', active: true, claimId: null,
+    }));
     f.orphans.renewLease.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanDeleted: 0, orphanRetries: 1,
@@ -964,7 +970,9 @@ describe('AccountExportProcessor', () => {
   it('B68 renews the orphan claim BEFORE starting S3 and then acknowledges', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'pending', active: true, claimId: null,
+    }));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanDeleted: 1, orphanRetries: 0,
     });
