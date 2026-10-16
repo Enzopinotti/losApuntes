@@ -19,6 +19,10 @@ B67 agrega una cola privada y durable en la colección Mongo `account_export_orp
 - Por iteración se reclaman como máximo 10 tareas de la cola. Un fallo de la cola no bloquea el procesamiento de exportaciones normales, pero aumenta `orphanRetries`.
 - Observabilidad del worker: contadores `orphanDeleted`, `orphanPreserved`, `orphanRetries`, sin registrar propietario, ID, URL, planes, credenciales o generación.
 
+## Actualización B69 — intención persistida antes del borrado
+
+B69 endurece el orden de operaciones descrito en B67: en lugar de intentar eliminar S3 primero y encolar solamente si falla, el procesador **persiste la tarea de compensación antes de invocar S3**. Si el borrado inmediato termina bien, ejecuta `clearPending` condicionado a que la tarea siga sin reclamar; si falla o el proceso se cae, la tarea ya existe y puede recuperarse. La autoridad para generar esta intención sigue siendo exactamente la misma de B65–B68 y nunca un resultado de completion Mongo incierto. La documentación original de B67 representa el comportamiento inicial, ahora reemplazado por B69.
+
 ## Límites
 
 - El encolado es mejor-esfuerzo después de una falla S3: si Mongo tampoco responde, el bucket privado sigue siendo el último mecanismo de eliminación. Esta combinación **no garantiza eliminación física inmediata**, legal, de réplicas o de versiones no actuales.
