@@ -51,6 +51,7 @@ function fixture(registeredSections: readonly string[]) {
   );
   return {
     assembler,
+    sink,
     chunks,
     commit,
     abort,
