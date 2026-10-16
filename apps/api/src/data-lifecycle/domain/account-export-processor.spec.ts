@@ -1074,6 +1074,55 @@ describe('AccountExportProcessor', () => {
     expect(f.orphans.retry).not.toHaveBeenCalled();
   });
 
+  it('B77 threads the claimed deadline through both S3 lease renewal and durable recheck retry', async () => {
+    const f = fixture({ job: null });
+    const until = new Date(Date.now() + 60 * 60_000);
+    f.orphans.claimNext.mockResolvedValueOnce({ ...orphan, verificationUntil: until });
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanVerificationScheduled: 1,
+    });
+    expect(f.orphans.renewLease).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId, generation: orphan.generation,
+        claimId: orphan.claimId, verificationUntil: until,
+      }),
+    );
+    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: orphan.jobId, generation: orphan.generation,
+      claimId: orphan.claimId, verificationUntil: until,
+      nextAttemptAt: expect.any(Date),
+    }));
+  });
+
+  it('B77 blocks S3 DELETE when a takeover invalidates cleanup lease renewal', async () => {
+    const f = fixture({ job: null });
+    const until = new Date(Date.now() + 60 * 60_000);
+    f.orphans.claimNext.mockResolvedValueOnce({ ...orphan, verificationUntil: until });
+    f.orphans.renewLease.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1, orphanVerificationScheduled: 0,
+    });
+    expect(f.orphans.renewLease).toHaveBeenCalledWith(
+      expect.objectContaining({ verificationUntil: until }),
+    );
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+  });
+
+  it('B77 keeps the captured horizon on provider failure backoff', async () => {
+    const f = fixture({ job: null });
+    const until = new Date(Date.now() + 60 * 60_000);
+    f.orphans.claimNext.mockResolvedValueOnce({ ...orphan, verificationUntil: until });
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 unavailable'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(f.orphans.retry).toHaveBeenCalledWith(
+      expect.objectContaining({ verificationUntil: until }),
+    );
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+  });
+
   it('B75 retains an orphan after a successful S3 DELETE while the verification window remains open', async () => {
     const f = fixture({ job: null });
     const until = new Date(Date.now() + 60 * 60_000);
