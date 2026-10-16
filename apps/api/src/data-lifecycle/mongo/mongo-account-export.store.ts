@@ -11,6 +11,7 @@ import {
 } from '../domain/account-export.types';
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../domain/account-export.types';
 import { planAccountExportExpiredClaimFence } from '../domain/account-export-expired-claim-fence';
+import { accountExportArtifactExpiredOnMongoServer } from '../domain/account-export-mongo-artifact-expiry';
 import { accountExportLeaseActiveOnMongoServer } from '../domain/account-export-mongo-lease-clock';
 import { accountExportJobClaimDueOnMongoServer } from '../domain/account-export-mongo-claim-clock';
 import { planAccountExportClaimWriteAhead } from '../domain/account-export-claim-writeahead';
@@ -428,6 +429,8 @@ export class MongoAccountExportStore implements AccountExportStore {
         state: 'completed',
         artifactGeneration: { $type: 'string' },
         artifactExpiresAt: { $lte: input.now },
+        // Candidate selection uses primary time, never only worker.now.
+        ...accountExportArtifactExpiredOnMongoServer(),
       })
       .sort({ artifactExpiresAt: 1, id: 1 })
       .limit(input.limit)
@@ -474,6 +477,9 @@ export class MongoAccountExportStore implements AccountExportStore {
                 $eq: input.expiresAt,
                 $lte: input.now,
               },
+              // Enforce true expiry on the same Mongo transaction/write
+              // as the durable reference unlink and cleanup queue insert.
+              ...accountExportArtifactExpiredOnMongoServer(),
             },
             { $set: { artifactGeneration: null } },
             { session, new: false },
