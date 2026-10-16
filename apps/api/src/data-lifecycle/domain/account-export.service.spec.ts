@@ -71,7 +71,9 @@ describe('AccountExportService', () => {
     await expect(
       f.service.assertStudyProgressExportEpoch('user-1', 5),
     ).rejects.toThrow('Study progress changed during account export');
-    expect(f.users.getStudyProgressExportEpoch.mock.calls).toContainEqual(['user-1']);
+    expect(f.users.getStudyProgressExportEpoch.mock.calls).toContainEqual([
+      'user-1',
+    ]);
   });
 
   it('B64 fails closed on invalid owner epochs or source outages', async () => {
