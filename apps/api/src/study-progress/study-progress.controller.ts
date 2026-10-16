@@ -1,6 +1,14 @@
 import {
-  Body, Controller, Delete, Get, Header, Param, ParseUUIDPipe, Put,
-  Req, UseGuards,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  Param,
+  ParseUUIDPipe,
+  Put,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { IsInt, IsObject, Max, Min } from 'class-validator';
 import type { AuthenticatedRequest } from '../auth/auth.types';
@@ -45,7 +53,12 @@ export class StudyProgressController {
     @Param('subjectId', new ParseUUIDPipe({ version: '4' })) subjectId: string,
     @Body() dto: SaveStudyProgressDto,
   ) {
-    return this.service.save(req.user.id, subjectId, dto.expectedRevision, dto.plan);
+    return this.service.save(
+      req.user.id,
+      subjectId,
+      dto.expectedRevision,
+      dto.plan,
+    );
   }
 
   @Delete(':subjectId')

@@ -61,9 +61,7 @@ export const ACCOUNT_EXPORT_V3_SECTION_IDS = Object.freeze(
 );
 
 /** No fallback: every persisted job must use its originally assigned version. */
-export function accountExportSectionIds(
-  version: number,
-): readonly string[] {
+export function accountExportSectionIds(version: number): readonly string[] {
   if (version === 1) return ACCOUNT_EXPORT_V1_SECTION_IDS;
   if (version === 2) return ACCOUNT_EXPORT_V2_SECTION_IDS;
   if (version === 3) return ACCOUNT_EXPORT_V3_SECTION_IDS;

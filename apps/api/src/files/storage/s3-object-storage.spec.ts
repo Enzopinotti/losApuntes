@@ -416,7 +416,8 @@ describe('S3ObjectStorage', () => {
   });
 
   it('B81 never deletes a private export single-PUT object after a lost S3 ACK', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch')
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
       .mockRejectedValueOnce(new Error('S3 PUT ACK lost'))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const writer = storage().createMultipartWriter({
@@ -432,25 +433,37 @@ describe('S3ObjectStorage', () => {
     await expect(writer.complete()).rejects.toThrow('S3 PUT ACK lost');
     await writer.abort();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['PUT']);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual([
+      'PUT',
+    ]);
     await expect(writer.complete()).rejects.toThrow('aborted');
 
     // A separate, explicitly authorized cleanup request can still DELETE.
     await storage().deleteObject('exports/job/private-generation.json');
-    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
-      .toEqual(['PUT', 'DELETE']);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual([
+      'PUT',
+      'DELETE',
+    ]);
   });
 
   it('B81 aborts only the private multipart upload ID after an ambiguous completion ACK', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch')
-      .mockResolvedValueOnce(new Response(
-        '<InitiateMultipartUploadResult><UploadId>private-upload</UploadId></InitiateMultipartUploadResult>',
-        { status: 200 },
-      ))
-      .mockResolvedValueOnce(new Response(null, {
-        status: 200, headers: { etag: '"abcdef0123456789"' },
-      }))
-      .mockRejectedValueOnce(new Error('S3 CompleteMultipartUpload response lost'))
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          '<InitiateMultipartUploadResult><UploadId>private-upload</UploadId></InitiateMultipartUploadResult>',
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { etag: '"abcdef0123456789"' },
+        }),
+      )
+      .mockRejectedValueOnce(
+        new Error('S3 CompleteMultipartUpload response lost'),
+      )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const writer = storage().createMultipartWriter({
       objectKey: 'exports/job/private-generation.json',
@@ -462,7 +475,10 @@ describe('S3ObjectStorage', () => {
     await writer.abort();
 
     expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual([
-      'POST', 'PUT', 'POST', 'DELETE',
+      'POST',
+      'PUT',
+      'POST',
+      'DELETE',
     ]);
     const final = new URL(fetchSpy.mock.calls[3]?.[0] as string);
     expect(final.searchParams.get('uploadId')).toBe('private-upload');
@@ -474,14 +490,20 @@ describe('S3ObjectStorage', () => {
   });
 
   it('B81 cancels an unfinished private multipart upload without direct object deletion', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch')
-      .mockResolvedValueOnce(new Response(
-        '<InitiateMultipartUploadResult><UploadId>cancel-private</UploadId></InitiateMultipartUploadResult>',
-        { status: 200 },
-      ))
-      .mockResolvedValueOnce(new Response(null, {
-        status: 200, headers: { etag: '"abcdef0123456789"' },
-      }))
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          '<InitiateMultipartUploadResult><UploadId>cancel-private</UploadId></InitiateMultipartUploadResult>',
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { etag: '"abcdef0123456789"' },
+        }),
+      )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const writer = storage().createMultipartWriter({
       objectKey: 'exports/job/private-generation.json',
@@ -491,10 +513,16 @@ describe('S3ObjectStorage', () => {
     await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
     await writer.abort();
     await writer.abort();
-    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
-      .toEqual(['POST', 'PUT', 'DELETE']);
-    expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
-      .searchParams.get('uploadId')).toBe('cancel-private');
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual([
+      'POST',
+      'PUT',
+      'DELETE',
+    ]);
+    expect(
+      new URL(fetchSpy.mock.calls[2]?.[0] as string).searchParams.get(
+        'uploadId',
+      ),
+    ).toBe('cancel-private');
   });
 
   it('aborts partial multipart data and deletes any generation object idempotently', async () => {

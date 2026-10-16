@@ -13,7 +13,9 @@ export class StudyProgressExportContributor implements AccountExportContributor 
   constructor(private readonly progress: StudyProgressExportReader) {}
 
   async readPage(input: {
-    userId: string; cursor: string | null; limit: number;
+    userId: string;
+    cursor: string | null;
+    limit: number;
   }): Promise<AccountExportSectionPage> {
     const page = await this.progress.listAccountExportProgress(input.userId, {
       cursor: input.cursor,

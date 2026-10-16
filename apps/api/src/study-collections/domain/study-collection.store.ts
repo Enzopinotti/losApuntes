@@ -33,7 +33,10 @@ export interface StudyCollectionStore {
     limit: number;
     after?: StudyCollectionCursor;
   }): Promise<{ items: StudyCollectionRecord[]; hasMore: boolean }>;
-  findOwned(id: string, ownerUserId: string): Promise<StudyCollectionRecord | null>;
+  findOwned(
+    id: string,
+    ownerUserId: string,
+  ): Promise<StudyCollectionRecord | null>;
   updateOwned(input: {
     id: string;
     ownerUserId: string;

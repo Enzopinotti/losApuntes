@@ -37,14 +37,19 @@ export class AccountExportOrphanCleanup {
   updatedAt!: Date;
 }
 
-export const AccountExportOrphanCleanupSchema =
-  SchemaFactory.createForClass(AccountExportOrphanCleanup);
+export const AccountExportOrphanCleanupSchema = SchemaFactory.createForClass(
+  AccountExportOrphanCleanup,
+);
 
 // Multiple workers may report the same failed deletion. Only one durable
 // record may exist for the exact job/attempt generation.
 AccountExportOrphanCleanupSchema.index(
-  { jobId: 1, generation: 1 }, { unique: true },
+  { jobId: 1, generation: 1 },
+  { unique: true },
 );
 AccountExportOrphanCleanupSchema.index({
-  state: 1, nextAttemptAt: 1, leaseExpiresAt: 1, createdAt: 1,
+  state: 1,
+  nextAttemptAt: 1,
+  leaseExpiresAt: 1,
+  createdAt: 1,
 });

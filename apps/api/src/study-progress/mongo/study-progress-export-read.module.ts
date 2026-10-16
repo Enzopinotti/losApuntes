@@ -5,9 +5,11 @@ import { StudyProgressExportReader } from './study-progress-export.reader';
 
 /** Read-only provider. Does not register or enable study-progress CRUD. */
 @Module({
-  imports: [MongooseModule.forFeature([
-    { name: StudyProgress.name, schema: StudyProgressSchema },
-  ])],
+  imports: [
+    MongooseModule.forFeature([
+      { name: StudyProgress.name, schema: StudyProgressSchema },
+    ]),
+  ],
   providers: [StudyProgressExportReader],
   exports: [StudyProgressExportReader],
 })
