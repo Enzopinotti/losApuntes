@@ -531,7 +531,7 @@ describe('MongoAccountExportStore', () => {
           jobId: previous.id,
           ownerUserId: previous.userId,
           generation: 'new-claim',
-          verificationUntil: expect.any(Date),
+          verificationUntil: expect.any(Date) as unknown,
         }) as unknown,
       },
       { upsert: true, session: f.session },
