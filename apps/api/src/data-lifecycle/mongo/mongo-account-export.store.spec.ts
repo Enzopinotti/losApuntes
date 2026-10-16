@@ -167,6 +167,57 @@ describe('MongoAccountExportStore', () => {
     });
   });
 
+  it('B82 revokes only the exact expired active generation before cleanup', async () => {
+    const f = fixture();
+    const expiredAt = new Date(now.getTime() - 1);
+    await expect(f.store.fenceExpiredClaimForOrphanCleanup({
+      id: 'export-1', ownerUserId: 'user-1',
+      generation: 'bba10100-7777-4777-8777-777777777777', now,
+    })).resolves.toBe(true);
+    expect(f.jobs.updateOne).toHaveBeenCalledWith({
+      id: 'export-1', userId: 'user-1',
+      active: true, state: 'processing',
+      claimId: 'bba10100-7777-4777-8777-777777777777',
+      leaseExpiresAt: { $lte: now },
+      artifactGeneration: null,
+    }, {
+      $set: {
+        state: 'pending', claimId: null, leaseExpiresAt: null,
+        nextAttemptAt: now, failureCode: 'EXPORT_ASSEMBLY_RETRY',
+        failedAt: null,
+      },
+    });
+    expect(expiredAt.getTime()).toBeLessThan(now.getTime());
+  });
+
+  it('B82 refuses to revoke after a concurrent completion or newer claim wins', async () => {
+    const f = fixture();
+    f.updateQuery.exec.mockResolvedValueOnce({ matchedCount: 0, modifiedCount: 0 });
+    await expect(f.store.fenceExpiredClaimForOrphanCleanup({
+      id: 'export-1', ownerUserId: 'user-1',
+      generation: 'bba10100-7777-4777-8777-777777777777', now,
+    })).resolves.toBe(false);
+    expect(f.jobs.updateOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('B82 rejects forged generation, empty owner and malformed clock before Mongo', async () => {
+    const f = fixture();
+    for (const input of [
+      { id: '', ownerUserId: 'user-1',
+        generation: 'bba10100-7777-4777-8777-777777777777', now },
+      { id: 'export-1', ownerUserId: '   ',
+        generation: 'bba10100-7777-4777-8777-777777777777', now },
+      { id: 'export-1', ownerUserId: 'user-1', generation: '../outside', now },
+      { id: 'export-1', ownerUserId: 'user-1',
+        generation: 'bba10100-7777-4777-8777-777777777777',
+        now: new Date('invalid') },
+    ]) {
+      await expect(f.store.fenceExpiredClaimForOrphanCleanup(input))
+        .rejects.toThrow('fence input is invalid');
+    }
+    expect(f.jobs.updateOne).not.toHaveBeenCalled();
+  });
+
   it('B80 claims pending work with recovery for the new generation, not a predecessor', async () => {
     const previous = record({ state: 'pending', claimId: null });
     const claimed = record({ state: 'processing', attempts: 2, claimId: 'claim-2' });
