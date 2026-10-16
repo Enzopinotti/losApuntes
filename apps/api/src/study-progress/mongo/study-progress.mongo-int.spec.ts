@@ -965,6 +965,101 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       .toBe(0);
   }, 30_000);
 
+  it('B77 keeps an expired cleanup lease blocked until its new settlement date', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const oldGeneration = randomUUID();
+    const newGeneration = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 1, attempts: 1, nextAttemptAt: now,
+      claimId: oldGeneration, leaseExpiresAt: new Date(now.getTime() - 1),
+    });
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await queue.enqueue({ jobId: id, ownerUserId: userId, generation: oldGeneration, now });
+    const oldQueueClaim = randomUUID();
+    const original = await queue.claimNext({
+      now, claimId: oldQueueClaim,
+      leaseExpiresAt: new Date(now.getTime() + 60_000),
+    });
+    expect(original?.claimId).toBe(oldQueueClaim);
+
+    const exportStore = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const taken = await exportStore.claimNext({
+      now, claimId: newGeneration,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    expect(taken?.claimId).toBe(newGeneration);
+    const queued = await orphanJobs.findOne({ jobId: id, generation: oldGeneration })
+      .lean().exec();
+    const settling = new Date(now.getTime() + 3 * ACCOUNT_EXPORT_LEASE_DURATION_MS);
+    const deadline = new Date(now.getTime() + 60 * 60_000);
+    expect(queued?.nextAttemptAt).toEqual(settling);
+    expect(queued?.verificationUntil).toEqual(deadline);
+    expect(queued?.claimId).toBe(oldQueueClaim);
+
+    const leaseExpiredButNotDue = new Date(now.getTime() + 61_000);
+    await expect(queue.claimNext({
+      now: leaseExpiredButNotDue, claimId: randomUUID(),
+      leaseExpiresAt: new Date(leaseExpiredButNotDue.getTime() + 120_000),
+    })).resolves.toBeNull();
+
+    const due = new Date(settling.getTime() + 1);
+    const reclaimed = await queue.claimNext({
+      now: due, claimId: randomUUID(),
+      leaseExpiresAt: new Date(due.getTime() + 120_000),
+    });
+    expect(reclaimed).toMatchObject({
+      jobId: id, generation: oldGeneration, verificationUntil: deadline,
+      attempts: 2,
+    });
+  }, 30_000);
+
+  it('B77 refuses stale claimant renew/retry after takeover extends the horizon', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const oldGeneration = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 1, attempts: 1, nextAttemptAt: now,
+      claimId: oldGeneration, leaseExpiresAt: new Date(now.getTime() - 1),
+    });
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await queue.enqueue({ jobId: id, ownerUserId: userId, generation: oldGeneration, now });
+    const oldQueueClaim = randomUUID();
+    const oldLease = new Date(now.getTime() + 120_000);
+    await queue.claimNext({ now, claimId: oldQueueClaim, leaseExpiresAt: oldLease });
+    const exportStore = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await exportStore.claimNext({
+      now, claimId: randomUUID(),
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    const earlier = new Date(now.getTime() + 30_000);
+    await expect(queue.renewLease({
+      jobId: id, generation: oldGeneration, claimId: oldQueueClaim,
+      now, leaseExpiresAt: new Date(now.getTime() + 180_000),
+      verificationUntil: null,
+    })).resolves.toBe(false);
+    await expect(queue.retry({
+      jobId: id, generation: oldGeneration, claimId: oldQueueClaim,
+      now, nextAttemptAt: earlier, verificationUntil: null,
+    })).resolves.toBe(false);
+    const persisted = await orphanJobs.findOne({
+      jobId: id, generation: oldGeneration,
+    }).lean().exec();
+    expect(persisted?.state).toBe('processing');
+    expect(persisted?.claimId).toBe(oldQueueClaim);
+    expect(persisted?.nextAttemptAt?.getTime()).toBe(
+      now.getTime() + 3 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
+    );
+  }, 30_000);
+
   it('B75 prevents a pre-takeover cleanup claimant from ACKing a newly extended verification window', async () => {
     await orphanJobs.deleteMany({});
     await exportJobs.deleteMany({});
