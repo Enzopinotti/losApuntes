@@ -1,4 +1,5 @@
 import { ACCOUNT_EXPORT_FORMAT_VERSION } from '../domain/account-export.types';
+import { accountExportJobClaimDueOnMongoServer } from '../domain/account-export-mongo-claim-clock';
 import { AccountExportJobSchema } from './account-export.mongo-schema';
 import { MongoAccountExportStore } from './mongo-account-export.store';
 
@@ -236,6 +237,7 @@ describe('MongoAccountExportStore', () => {
         { state: 'pending', nextAttemptAt: { $lte: now } },
         { state: 'processing', leaseExpiresAt: { $lte: now } },
       ],
+      ...accountExportJobClaimDueOnMongoServer(),
     }, {
       $set: {
         state: 'processing', claimId: 'claim-2',
@@ -263,6 +265,25 @@ describe('MongoAccountExportStore', () => {
       state: 'processing', active: true, claimId: 'claim-2',
     }, null, { session: f.session });
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B84 fences pending and expired job takeover by Mongo primary due time', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(null);
+    await expect(f.store.claimNext({
+      now: new Date(now.getTime() + 86_400_000),
+      claimId: 'bba10100-7777-4777-8777-777777777777',
+      leaseExpiresAt: new Date(now.getTime() + 86_400_000 + 120_000),
+    })).resolves.toBeNull();
+    expect(f.jobs.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...accountExportJobClaimDueOnMongoServer(),
+      }),
+      expect.any(Object),
+      expect.objectContaining({ session: f.session }),
+    );
+    expect(f.orphanCleanup.updateOne).not.toHaveBeenCalled();
   });
 
   it('B80 refuses a pending claim when its new-generation intent fails to persist', async () => {

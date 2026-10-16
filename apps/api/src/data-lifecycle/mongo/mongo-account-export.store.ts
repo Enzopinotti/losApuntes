@@ -12,6 +12,7 @@ import {
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../domain/account-export.types';
 import { planAccountExportExpiredClaimFence } from '../domain/account-export-expired-claim-fence';
 import { accountExportLeaseActiveOnMongoServer } from '../domain/account-export-mongo-lease-clock';
+import { accountExportJobClaimDueOnMongoServer } from '../domain/account-export-mongo-claim-clock';
 import { planAccountExportClaimWriteAhead } from '../domain/account-export-claim-writeahead';
 import { AccountExportJob } from './account-export.mongo-schema';
 import { AccountExportOrphanCleanup } from './account-export-orphan-cleanup.schema';
@@ -147,6 +148,10 @@ export class MongoAccountExportStore implements AccountExportStore {
                   leaseExpiresAt: { $lte: input.now },
                 },
               ],
+              // Client time is an index-friendly upper bound only. The
+              // primary must independently confirm pending due time or
+              // processing lease expiry in the SAME claim CAS.
+              ...accountExportJobClaimDueOnMongoServer(),
             },
             {
               $set: {

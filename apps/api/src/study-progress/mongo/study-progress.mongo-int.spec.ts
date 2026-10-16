@@ -656,7 +656,12 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       leaseExpiresAt: new Date(now.getTime() + 120_000),
     })).resolves.toBeNull();
     const secondClaim = randomUUID();
-    const later = new Date(now.getTime() + 60_001);
+    // B84: expire the lease in the isolated Mongo fixture. Advancing only
+    // worker.now must no longer authorize a real primary takeover.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { leaseExpiresAt: new Date(Date.now() - 1_000) },
+    });
+    const later = new Date();
     const reclaimed = await store.claimNext({
       now: later, claimId: secondClaim,
       leaseExpiresAt: new Date(later.getTime() + 120_000),
@@ -694,9 +699,15 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       now, claimId: randomUUID(),
       leaseExpiresAt: new Date(now.getTime() + 120_000),
     })).resolves.toBeNull();
+    // B84: advance the isolated durable due date rather than passing a
+    // future clock to Mongo. The primary remains the source of truth.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1_000) },
+    });
+    const claimAt = new Date();
     const second = await store.claimNext({
-      now: future, claimId: randomUUID(),
-      leaseExpiresAt: new Date(future.getTime() + 120_000),
+      now: claimAt, claimId: randomUUID(),
+      leaseExpiresAt: new Date(claimAt.getTime() + 120_000),
     });
     expect(second).toMatchObject({ attempts: 2 });
   }, 30_000);
@@ -1092,7 +1103,15 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       leaseExpiresAt: new Date(leaseExpiredButNotDue.getTime() + 120_000),
     })).resolves.toBeNull();
 
-    const due = new Date(settling.getTime() + 1);
+    // B84: the old settlement/lease have genuinely passed in this
+    // isolated Mongo fixture. A fake future client timestamp is forbidden.
+    await orphanJobs.updateOne({ jobId: id, generation: oldGeneration }, {
+      $set: {
+        nextAttemptAt: new Date(Date.now() - 1_000),
+        leaseExpiresAt: new Date(Date.now() - 1_000),
+      },
+    });
+    const due = new Date();
     const reclaimed = await queue.claimNext({
       now: due, claimId: randomUUID(),
       leaseExpiresAt: new Date(due.getTime() + 120_000),
@@ -1477,6 +1496,134 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     })).resolves.toBe(false);
     expect(await userService.getStudyProgressExportEpoch(userId)).toBe(epoch);
     expect((await store.findOwned(id, userId))?.state).toBe('processing');
+  }, 30_000);
+
+  it('B84 rejects an early job claim when worker clock is ahead of the primary', async () => {
+    await exportJobs.deleteMany({});
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const futureDue = new Date(now.getTime() + 10 * 60_000);
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: futureDue,
+      claimId: null, leaseExpiresAt: null,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.claimNext({
+      // A faulty worker can believe a future scheduled task is overdue.
+      now: new Date(futureDue.getTime() + 60_000),
+      claimId: generation,
+      leaseExpiresAt: new Date(futureDue.getTime() + 180_000),
+    })).resolves.toBeNull();
+    expect((await store.findOwned(id, userId))?.state).toBe('pending');
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B84 prevents premature takeover of a still-leased export generation', async () => {
+    await exportJobs.deleteMany({});
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const currentGeneration = randomUUID();
+    const proposedGeneration = randomUUID();
+    const now = new Date();
+    const liveUntil = new Date(now.getTime() + 10 * 60_000);
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now, claimId: currentGeneration,
+      leaseExpiresAt: liveUntil,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.claimNext({
+      now: new Date(liveUntil.getTime() + 60_000),
+      claimId: proposedGeneration,
+      leaseExpiresAt: new Date(liveUntil.getTime() + 180_000),
+    })).resolves.toBeNull();
+    expect((await store.findOwned(id, userId))?.claimId).toBe(currentGeneration);
+    expect(await orphanJobs.countDocuments({ jobId: id })).toBe(0);
+  }, 30_000);
+
+  it('B84 refuses early orphan claims even if client time passes writeahead due', async () => {
+    await orphanJobs.deleteMany({});
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const futureDue = new Date(now.getTime() + 10 * 60_000);
+    await orphanJobs.create({
+      jobId: id, ownerUserId: await owner(), generation,
+      state: 'pending', attempts: 0, nextAttemptAt: futureDue,
+      claimId: null, leaseExpiresAt: null,
+    });
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await expect(queue.claimNext({
+      now: new Date(futureDue.getTime() + 60_000),
+      claimId: randomUUID(),
+      leaseExpiresAt: new Date(futureDue.getTime() + 180_000),
+    })).resolves.toBeNull();
+    expect((await orphanJobs.findOne({ jobId: id, generation }).lean().exec())?.state)
+      .toBe('pending');
+  }, 30_000);
+
+  it('B84 preserves a processing orphan until both lease and settlement are due on Mongo', async () => {
+    await orphanJobs.deleteMany({});
+    const id = randomUUID();
+    const generation = randomUUID();
+    const activeCleanup = randomUUID();
+    const now = new Date();
+    const liveUntil = new Date(now.getTime() + 10 * 60_000);
+    await orphanJobs.create({
+      jobId: id, ownerUserId: await owner(), generation,
+      state: 'processing', attempts: 1, nextAttemptAt: new Date(now.getTime() - 60_000),
+      claimId: activeCleanup, leaseExpiresAt: liveUntil,
+    });
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await expect(queue.claimNext({
+      now: new Date(liveUntil.getTime() + 60_000),
+      claimId: randomUUID(),
+      leaseExpiresAt: new Date(liveUntil.getTime() + 180_000),
+    })).resolves.toBeNull();
+    expect((await orphanJobs.findOne({ jobId: id, generation }).lean().exec())?.claimId)
+      .toBe(activeCleanup);
+  }, 30_000);
+
+  it('B84 blocks stale ACK, retry and renewal after the settlement due is extended', async () => {
+    await orphanJobs.deleteMany({});
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const ownerUserId = await owner();
+    const claimId = randomUUID();
+    await orphanJobs.create({
+      jobId: id, ownerUserId, generation,
+      state: 'pending', attempts: 0,
+      nextAttemptAt: new Date(now.getTime() - 60_000),
+      claimId: null, leaseExpiresAt: null,
+    });
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const leaseExpiresAt = new Date(now.getTime() + 120_000);
+    const claimed = await queue.claimNext({ now, claimId, leaseExpiresAt });
+    expect(claimed).toMatchObject({ jobId: id, generation, claimId });
+    const extendedUntil = new Date(now.getTime() + 10 * 60_000);
+    await orphanJobs.updateOne(
+      { jobId: id, generation },
+      { $max: { nextAttemptAt: extendedUntil } },
+    );
+    const fence = { jobId: id, generation, claimId, now };
+    await expect(queue.renewLease({
+      ...fence, leaseExpiresAt: new Date(now.getTime() + 180_000),
+    })).resolves.toBe(false);
+    await expect(queue.acknowledge(fence)).resolves.toBe(false);
+    await expect(queue.retry({
+      ...fence, nextAttemptAt: new Date(now.getTime() + 30_000),
+    })).resolves.toBe(false);
+    expect(await orphanJobs.findOne({ jobId: id, generation }).lean().exec())
+      .toMatchObject({
+        state: 'processing', claimId,
+        nextAttemptAt: extendedUntil,
+      });
   }, 30_000);
 
   it('B83 prevents delayed renewal and reschedule from resurrecting expired claims', async () => {
