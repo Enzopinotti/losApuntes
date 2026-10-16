@@ -50,7 +50,10 @@ describe('S3AccountExportArtifactStorage', () => {
   });
 
   it('commits valid v2 and v3 artifacts while preserving integrity checks', async () => {
-    for (const [formatVersion, sectionCount] of [[2, 31], [3, 32]] as const) {
+    for (const [formatVersion, sectionCount] of [
+      [2, 31],
+      [3, 32],
+    ] as const) {
       const writer = {
         write: jest.fn().mockResolvedValue(undefined),
         complete: jest.fn().mockResolvedValue(undefined),
@@ -67,7 +70,9 @@ describe('S3AccountExportArtifactStorage', () => {
       await sink.write(value);
       await sink.commit({
         format: 'los-apuntes-account-export',
-        formatVersion, sectionCount, recordCount: 0,
+        formatVersion,
+        sectionCount,
+        recordCount: 0,
         byteLength: Buffer.byteLength(value),
         sha256: createHash('sha256').update(value).digest('hex'),
       });
@@ -86,16 +91,22 @@ describe('S3AccountExportArtifactStorage', () => {
       readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
-    const sink = new S3AccountExportArtifactStorage(storage)
-      .createSink(jobId, generation);
+    const sink = new S3AccountExportArtifactStorage(storage).createSink(
+      jobId,
+      generation,
+    );
     const value = 'artifact';
     await sink.write(value);
-    await expect(sink.commit({
-      format: 'los-apuntes-account-export',
-      formatVersion: 3, sectionCount: 31, recordCount: 0,
-      byteLength: Buffer.byteLength(value),
-      sha256: createHash('sha256').update(value).digest('hex'),
-    })).rejects.toThrow('integrity check failed');
+    await expect(
+      sink.commit({
+        format: 'los-apuntes-account-export',
+        formatVersion: 3,
+        sectionCount: 31,
+        recordCount: 0,
+        byteLength: Buffer.byteLength(value),
+        sha256: createHash('sha256').update(value).digest('hex'),
+      }),
+    ).rejects.toThrow('integrity check failed');
     expect(writer.complete).not.toHaveBeenCalled();
   });
 
@@ -130,7 +141,9 @@ describe('S3AccountExportArtifactStorage', () => {
   it('B71 treats a lost multipart completion ACK as ambiguous even after abort', async () => {
     const writer = {
       write: jest.fn().mockResolvedValue(undefined),
-      complete: jest.fn().mockRejectedValueOnce(new Error('S3 complete ACK lost')),
+      complete: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('S3 complete ACK lost')),
       abort: jest.fn().mockResolvedValue(undefined),
     };
     const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
@@ -142,12 +155,16 @@ describe('S3AccountExportArtifactStorage', () => {
     const sink = artifacts.createSink(jobId, generation);
     const payload = '{"ambiguous":true}';
     await sink.write(payload);
-    await expect(sink.commit({
-      format: 'los-apuntes-account-export',
-      formatVersion: 1, sectionCount: 30, recordCount: 0,
-      byteLength: Buffer.byteLength(payload),
-      sha256: createHash('sha256').update(payload).digest('hex'),
-    })).rejects.toThrow('S3 complete ACK lost');
+    await expect(
+      sink.commit({
+        format: 'los-apuntes-account-export',
+        formatVersion: 1,
+        sectionCount: 30,
+        recordCount: 0,
+        byteLength: Buffer.byteLength(payload),
+        sha256: createHash('sha256').update(payload).digest('hex'),
+      }),
+    ).rejects.toThrow('S3 complete ACK lost');
     await sink.abort();
     expect(writer.complete).toHaveBeenCalledTimes(1);
     expect(writer.abort).toHaveBeenCalledTimes(1);

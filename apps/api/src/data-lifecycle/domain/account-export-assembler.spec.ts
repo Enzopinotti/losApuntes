@@ -265,8 +265,10 @@ describe('AccountExportAssembler', () => {
       id: `row-${String(id).padStart(5, '0')}`,
       label: 'x'.repeat(48),
     });
-    for (const [sectionIndex, sectionId] of
-      ACCOUNT_EXPORT_V1_SECTION_IDS.entries()) {
+    for (const [
+      sectionIndex,
+      sectionId,
+    ] of ACCOUNT_EXPORT_V1_SECTION_IDS.entries()) {
       if (sectionIndex > 0) addExpectedChunk(',');
       addExpectedChunk(`${JSON.stringify(sectionId)}:[`);
       if (sectionId === 'profile.activities') {
