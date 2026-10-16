@@ -414,7 +414,7 @@ runMongo(
       {
         label: 'remove resource',
         perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
-          collections.removeResource(row.id, userId, row.resourceIds[0]!),
+          collections.removeResource(row.id, userId, row.resourceIds[0]),
       },
       {
         label: 'delete',
@@ -525,7 +525,7 @@ runMongo(
       const foreign = await create(bob);
       const versions: Array<{ ownerUserId: string; version: number }> = [];
       const fakeStore = {
-        requestActive: async (input: {
+        requestActive: (input: {
           id: string;
           userId: string;
           formatVersion: 1 | 2;
@@ -535,7 +535,7 @@ runMongo(
             ownerUserId: input.userId,
             version: input.formatVersion,
           });
-          return {
+          return Promise.resolve({
             created: true,
             job: {
               id: input.id,
@@ -547,12 +547,12 @@ runMongo(
               artifactExpiresAt: null,
               artifactGeneration: null,
             },
-          };
+          });
         },
       };
       const request = new AccountExportService(
         fakeStore as never,
-        { hasActiveAccount: async () => true } as never,
+        { hasActiveAccount: () => Promise.resolve(true) } as never,
         { get: () => false } as never,
         exportReader,
       );
@@ -590,9 +590,10 @@ runMongo(
       await collections.addResource(saved.id, userId, secondId);
 
       const service = new StudyCollectionService(collections, {
-        get: async (resourceId: string) => ({
-          resource: { id: resourceId, title: 'Test resource' },
-        }),
+        get: (resourceId: string) =>
+          Promise.resolve({
+            resource: { id: resourceId, title: 'Test resource' },
+          }),
       } as never);
       const firstPage = await service.listResources(userId, saved.id, 1);
       expect(firstPage.items).toHaveLength(1);
@@ -623,9 +624,7 @@ runMongo(
         models.managers,
         models.jobs,
         {
-          create: async () => {
-            throw new Error('audit unavailable');
-          },
+          create: () => Promise.reject(new Error('audit unavailable')),
         } as never,
         models.collections,
         models.progress,
