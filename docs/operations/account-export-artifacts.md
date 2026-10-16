@@ -774,3 +774,33 @@ Estos ensayos no deben ejecutarse contra producción ni staging.
 `STUDY_PROGRESS_ENABLED=false` y issue #353 HOLD siguen vigentes;
 Jest/Mongo real, S3 de proveedor, backups, IAM y auditorías #133/#141
 permanecen pendientes.
+
+## B90 — Comprobar S3 GET antes de publicar exportaciones
+
+Desde B90, el ACK de `PUT Object` o `CompleteMultipartUpload` no
+basta para marcar una exportación privada como `completed`.
+`S3AccountExportArtifactStorage` relee **la misma generación** por GET
+en streaming y compara la longitud y SHA-256 contra el resultado
+calculado por el ensamblador. Solo después devuelve éxito al worker,
+que puede escribir el estado publicado en MongoDB.
+
+Cualquier truncamiento, dato alterado, respuesta excesiva, GET 404/503
+o error de streaming impide publicar. El worker conserva el mecanismo
+de reintento y la cola de limpieza durable B80/B78; B81 sigue
+prohibiendo DELETE directo desde `abort()`.
+
+Diagnóstico: buscar errores `Account export S3 readback...`, estado
+del claim en Mongo, registro de generación en
+`account_export_orphan_cleanup` y operaciones GET del objeto exacto.
+No eliminar manualmente un objeto con resultado incierto ni
+eludir owner/lease/verificationUntil de la cola.
+
+Regresiones: `pnpm test:account-export-b90-readback` (9 casos Node
+ejecutables); Jest storage y Mongo replica-set opt-in (B90 y B86
+ajustados), Node24/pnpm9, pruebas reales de S3/provider y readback.
+La lectura añade un GET completo por exportación y exige evaluar
+costos/performance antes de liberar.
+
+`STUDY_PROGRESS_ENABLED=false`; issue #353 HOLD.
+Auditorías #133/#141, proveedor S3, backups, versioning, IAM,
+TypeScript/Jest/HTTP/browser pendientes; no CI manual ni deploy.
