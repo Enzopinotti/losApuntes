@@ -121,7 +121,7 @@ export class MongoAccountExportStore implements AccountExportStore {
       artifactExpiresAt: input.expiresAt,
       ...accountExportArtifactLiveOnMongoServer(),
     });
-    return eligible !== null;
+    return Boolean(eligible);
   }
 
   async findForOrphanCleanup(id: string): Promise<AccountExportJobRecord | null> {
