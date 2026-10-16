@@ -48,8 +48,7 @@ jobs:
             src/study-collections/mongo/study-collection-export.reader.ts \
             src/study-progress/mongo/study-progress-export.reader.ts \
             src/data-lifecycle/domain/account-export-versioning.spec.ts \
-            src/data-lifecycle/domain/account-export.service.spec.ts \
-            --no-error-on-unmatched-pattern
+            src/data-lifecycle/domain/account-export.service.spec.ts
       - name: Canonical formatting across full API
         run: pnpm --filter @losapuntes/api format:check
   contracts:
