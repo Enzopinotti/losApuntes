@@ -42,6 +42,8 @@ export interface AccountExportOrphanCleanupStore {
     claimId: string;
     now: Date;
     leaseExpiresAt: Date;
+    /** Fence ownership against takeover extending the recheck horizon. */
+    verificationUntil?: Date | null;
   }): Promise<boolean>;
   acknowledge(input: {
     jobId: string;
@@ -57,5 +59,7 @@ export interface AccountExportOrphanCleanupStore {
     claimId: string;
     nextAttemptAt: Date;
     now: Date;
+    /** A stale claimant must not shorten the takeover settling period. */
+    verificationUntil?: Date | null;
   }): Promise<boolean>;
 }
