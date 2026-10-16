@@ -10,6 +10,7 @@ import {
   type AccountExportJobRecord,
 } from '../domain/account-export.types';
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../domain/account-export.types';
+import { planAccountExportExpiredClaimFence } from '../domain/account-export-expired-claim-fence';
 import { planAccountExportClaimWriteAhead } from '../domain/account-export-claim-writeahead';
 import { AccountExportJob } from './account-export.mongo-schema';
 import { AccountExportOrphanCleanup } from './account-export-orphan-cleanup.schema';
@@ -107,41 +108,12 @@ export class MongoAccountExportStore implements AccountExportStore {
   async fenceExpiredClaimForOrphanCleanup(
     input: Parameters<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>[0],
   ): ReturnType<AccountExportStore['fenceExpiredClaimForOrphanCleanup']> {
-    if (
-      !input.id?.trim() ||
-      !input.ownerUserId?.trim() ||
-      !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(input.generation) ||
-      !(input.now instanceof Date) ||
-      !Number.isFinite(input.now.getTime())
-    ) {
-      throw new Error('Account export cleanup claim fence input is invalid');
-    }
-
-    // Atomic write against the SAME job row as complete(), renewLease()
-    // and claimNext(). It prevents a delayed completion with a previously
-    // captured timestamp from publishing this generation AFTER the drainer
-    // decided to delete it. A winning complete/new claim makes this return
-    // false: the drainer must NOT touch S3 on that attempt.
+    // Same job document as complete(), renewLease() and claimNext(). The
+    // exact owner/generation CAS prevents a stale pre-expiry completion
+    // timestamp from publishing an object AFTER cleanup begins.
+    const plan = planAccountExportExpiredClaimFence(input);
     const revoked = await this.jobs.updateOne(
-      {
-        id: input.id,
-        userId: input.ownerUserId,
-        active: true,
-        state: 'processing',
-        claimId: input.generation,
-        leaseExpiresAt: { $lte: input.now },
-        artifactGeneration: null,
-      },
-      {
-        $set: {
-          state: 'pending',
-          claimId: null,
-          leaseExpiresAt: null,
-          nextAttemptAt: input.now,
-          failureCode: 'EXPORT_ASSEMBLY_RETRY',
-          failedAt: null,
-        },
-      },
+      plan.filter, plan.update,
     ).exec();
     return revoked.modifiedCount === 1;
   }
