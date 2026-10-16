@@ -262,18 +262,56 @@ describe('Account export v2 compatibility — B45', () => {
     expect(old.commit).not.toHaveBeenCalled();
   });
 
-  it('does not publish v2 when its contributor is missing or the inventory is altered', async () => {
-    const legacy = fixture(mounted(false).registry);
-    await expect(legacy.assembler.writeJsonV2(OWNER, legacy.sink))
-      .rejects.toThrow('Unknown account export section: study.collections');
-    expect(legacy.commit).not.toHaveBeenCalled();
-    const expanded = mounted(true).contributors;
-    const invalid = fixture(new AccountExportContributorRegistry([
-      ...expanded,
+  it('rejects missing required v2 collections even when unrelated contributors are present', async () => {
+    // An extra provider cannot replace the required owner-scoped collection.
+    for (const contributors of [
+      mounted(false).contributors,
+      [...mounted(false).contributors, contributor('unreviewed.private')],
+    ]) {
+      const f = fixture(new AccountExportContributorRegistry(contributors));
+      await expect(f.assembler.writeJsonV2(OWNER, f.sink))
+        .rejects.toThrow('Unknown account export section: study.collections');
+      expect(f.commit).not.toHaveBeenCalled();
+      expect(f.chunks).toHaveLength(0);
+    }
+  });
+
+  it('selects exactly the legacy v2 manifest when v3 and unknown providers are mounted', async () => {
+    const privateV3 = contributor('study.progress', [
+      { privateProgress: 'v3-only-sentinel' },
+    ]);
+    const unreviewed = contributor('unreviewed.private', [
+      { secret: 'never-include-me' },
+    ]);
+    const f = fixture(new AccountExportContributorRegistry([
+      ...mounted(true).contributors, privateV3, unreviewed,
+    ]));
+
+    const result = await f.assembler.writeJsonV2(OWNER, f.sink);
+    const output = JSON.parse(f.chunks.join('')) as {
+      version: number; sections: Record<string, unknown[]>;
+    };
+    expect(output.version).toBe(2);
+    expect(Object.keys(output.sections)).toEqual(ACCOUNT_EXPORT_V2_SECTION_IDS);
+    expect(output.sections).not.toHaveProperty('study.progress');
+    expect(output.sections).not.toHaveProperty('unreviewed.private');
+    expect(f.chunks.join('')).not.toContain('never-include-me');
+    expect(f.chunks.join('')).not.toContain('v3-only-sentinel');
+    expect(privateV3.readPage).not.toHaveBeenCalled();
+    expect(unreviewed.readPage).not.toHaveBeenCalled();
+    expect(result.formatVersion).toBe(2);
+    expect(result.sectionCount).toBe(31);
+    expect(f.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects unreviewed providers in the strict v3 inventory before any write', async () => {
+    const f = fixture(new AccountExportContributorRegistry([
+      ...ACCOUNT_EXPORT_V3_SECTION_IDS.map((id) => contributor(id)),
       contributor('unreviewed.private'),
     ]));
-    await expect(invalid.assembler.writeJsonV2(OWNER, invalid.sink))
+    await expect(f.assembler.writeJsonV3(OWNER, f.sink))
       .rejects.toThrow('inventory is incomplete');
-    expect(invalid.commit).not.toHaveBeenCalled();
+    expect(f.commit).not.toHaveBeenCalled();
+    expect(f.chunks).toHaveLength(0);
   });
 });
