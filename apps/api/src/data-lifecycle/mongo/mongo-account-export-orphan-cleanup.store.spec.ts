@@ -133,10 +133,24 @@ describe('B67 durable account export orphan cleanup', () => {
     expect(f.model.deleteOne).toHaveBeenCalledWith({
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
+      verificationUntil: null,
     });
     f.remove.exec.mockResolvedValueOnce({ deletedCount: 0 });
     await expect(f.store.acknowledge({ jobId, generation, claimId, now }))
       .resolves.toBe(false);
+  });
+
+  it('B75 CAS-fences ACK to the verification deadline observed by the claimant', async () => {
+    const f = fixture();
+    const until = new Date(now.getTime() + 60 * 60_000);
+    await expect(f.store.acknowledge({
+      jobId, generation, claimId, now, verificationUntil: until,
+    })).resolves.toBe(true);
+    expect(f.model.deleteOne).toHaveBeenCalledWith({
+      jobId, generation, state: 'processing', claimId,
+      leaseExpiresAt: { $gt: now },
+      verificationUntil: until,
+    });
   });
 
   it('schedules bounded retry without resetting generation or attempts', async () => {
