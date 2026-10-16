@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { createConnection, type Connection, type Model } from 'mongoose';
+import { ConnectionStates, createConnection, type Connection, type Model } from 'mongoose';
 
 import { MongoAccountLifecycleStore } from '../../data-lifecycle/mongo/mongo-account-lifecycle.store';
 import { MongoAccountExportStore } from '../../data-lifecycle/mongo/mongo-account-export.store';
@@ -63,11 +63,19 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     connection = await createConnection(uri, {
       dbName: database, serverSelectionTimeoutMS: 8_000,
     }).asPromise();
-    const hello = await connection.db!.admin().command({ hello: 1 });
+    // Mongo admin().command returns a loosely typed document. Validate the
+    // topology as untrusted data before trusting any connection or cleanup.
+    const response: unknown = await connection.db!.admin().command({ hello: 1 });
+    if (!response || typeof response !== 'object') {
+      throw new Error('B61 refuses an invalid Mongo hello response');
+    }
+    const hello = response as Record<string, unknown>;
+    const membersOf = (value: unknown): unknown[] =>
+      Array.isArray(value) ? (value as unknown[]) : [];
     const members: unknown[] = [
-      ...(Array.isArray(hello.hosts) ? hello.hosts : []),
-      ...(Array.isArray(hello.passives) ? hello.passives : []),
-      ...(Array.isArray(hello.arbiters) ? hello.arbiters : []),
+      ...membersOf(hello.hosts),
+      ...membersOf(hello.passives),
+      ...membersOf(hello.arbiters),
       hello.me,
     ].filter((item) => item !== undefined);
     if (hello.isWritablePrimary !== true ||
@@ -100,7 +108,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
   }, 30_000);
 
   afterAll(async () => {
-    if (verifiedReplica && connection?.readyState === 1) {
+    if (verifiedReplica && connection?.readyState === ConnectionStates.connected) {
       await connection.dropDatabase();
     }
     await connection?.close();
@@ -111,7 +119,11 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       email: randomUUID() + '@example.invalid',
       role: 'user', account_status: 'active', credential_version: 1,
     });
-    return row.id;
+    const id: unknown = row.id;
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new Error('Mongo user did not provide a valid owner ID');
+    }
+    return id;
   }
 
   it('isolates owners and requires explicit revision to overwrite', async () => {
