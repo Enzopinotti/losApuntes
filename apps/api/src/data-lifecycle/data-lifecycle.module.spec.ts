@@ -309,10 +309,12 @@ describe('DataLifecycleModule account export wiring', () => {
       },
     });
     const registry = new AccountExportContributorRegistry(wiredContributors(domain));
+    const getStudyProgressExportEpoch = jest.fn().mockResolvedValue(0);
     const assembler = new AccountExportAssembler(
       registry,
       new AccountExportService({} as never, {
         hasActiveAccount: jest.fn().mockResolvedValue(true),
+        getStudyProgressExportEpoch,
       } as never),
     );
     const chunks: string[] = [];
