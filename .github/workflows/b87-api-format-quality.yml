@@ -34,6 +34,11 @@ jobs:
         run: pnpm --filter @losapuntes/api format:check
       - name: Validate complete API types
         run: pnpm --filter @losapuntes/api check:types
+      - name: Validate completion CAS guard survives canonical formatting
+        run: |
+          node scripts/test-account-export-b83-mongo-clock-guard.mjs
+          node scripts/test-account-export-b84-mongo-claim-guard.mjs
+          node scripts/test-account-export-b85-expiry-guard.mjs
 
   api-eslint:
     name: Strict API ESLint — independently measured
