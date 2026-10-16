@@ -12,6 +12,7 @@ import {
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../domain/account-export.types';
 import { planAccountExportExpiredClaimFence } from '../domain/account-export-expired-claim-fence';
 import { accountExportArtifactExpiredOnMongoServer } from '../domain/account-export-mongo-artifact-expiry';
+import { accountExportArtifactLiveOnMongoServer } from '../domain/account-export-mongo-download-clock';
 import { accountExportLeaseActiveOnMongoServer } from '../domain/account-export-mongo-lease-clock';
 import { accountExportJobClaimDueOnMongoServer } from '../domain/account-export-mongo-claim-clock';
 import { planAccountExportClaimWriteAhead } from '../domain/account-export-claim-writeahead';
@@ -99,6 +100,28 @@ export class MongoAccountExportStore implements AccountExportStore {
       .findOne({ id, userId })
       .lean<AccountExportJobRecord>()
       .exec();
+  }
+
+  async isOwnedArtifactCurrent(
+    input: Parameters<AccountExportStore['isOwnedArtifactCurrent']>[0],
+  ): ReturnType<AccountExportStore['isOwnedArtifactCurrent']> {
+    if (!(input.expiresAt instanceof Date) ||
+      !Number.isFinite(input.expiresAt.getTime()) ||
+      !input.generation || !input.userId || !input.id) {
+      return false;
+    }
+    // B93: do not use a previous owner read or a worker clock as proof
+    // that S3 data may be exposed. This SAME server query compares the
+    // exact owner, current generation, expected expiry and $NOW.
+    const eligible = await this.jobs.exists({
+      id: input.id,
+      userId: input.userId,
+      state: 'completed',
+      artifactGeneration: input.generation,
+      artifactExpiresAt: input.expiresAt,
+      ...accountExportArtifactLiveOnMongoServer(),
+    });
+    return eligible !== null;
   }
 
   async findForOrphanCleanup(id: string): Promise<AccountExportJobRecord | null> {
