@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import test from 'node:test';
 
 import { createS3ObjectStorage } from '../apps/api/src/files/storage/s3-object-storage.ts';
+import { verifyB87S3SigV4 } from './testing/b87-s3-sigv4-verifier.mjs';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const GENERATION = '22222222-2222-4222-8222-222222222222';
@@ -11,6 +12,9 @@ const OBJECT_KEY = `exports/${JOB}/${GENERATION}.json`;
 const BUCKET = 'b86-private-acceptance';
 const PATH = `/${BUCKET}/${OBJECT_KEY}`;
 const CONTENT_TYPE = 'application/json; charset=utf-8';
+const FIXTURE_TIME = new Date('2026-10-16T14:00:00Z');
+const ACCESS_KEY_ID = 'b86-local-fixture';
+const SECRET_ACCESS_KEY = 'fixture-only-not-live';
 
 /**
  * B86 local-only HTTP *simulation* of selected S3 requests. Neither an
@@ -32,6 +36,25 @@ async function withLoopback(input, scenario) {
       const uploadId = url.searchParams.get('uploadId');
       const part = url.searchParams.get('partNumber');
       calls.push({ method, path: url.pathname, uploadId, part, bytes: body.length });
+      const trusted = verifyB87S3SigV4({
+        method,
+        url: new URL(request.url ?? '/', `http://${request.headers.host ?? ''}`),
+        headers: request.headers,
+        body,
+        bucket: BUCKET,
+        objectKey: OBJECT_KEY,
+        region: 'us-east-1',
+        accessKeyId: ACCESS_KEY_ID,
+        secretAccessKey: SECRET_ACCESS_KEY,
+        now: FIXTURE_TIME,
+      });
+      // A *real* HTTP request with a plausible AWS4 prefix is not enough.
+      // Deny wrong signature, modified payload/query, key, host or clock.
+      if (!trusted) {
+        response.writeHead(403);
+        response.end('SignatureDoesNotMatch');
+        return;
+      }
       assert.equal(url.pathname, PATH, 'never access another bucket or object');
       assert.match(request.headers.authorization ?? '', /^AWS4-HMAC-SHA256 /u);
       assert.match(request.headers['x-amz-date'] ?? '', /^\d{8}T\d{6}Z$/u);
@@ -94,11 +117,11 @@ async function withLoopback(input, scenario) {
     const endpoint = `http://127.0.0.1:${address.port}`;
     const storage = createS3ObjectStorage({
       endpoint, bucket: BUCKET, region: 'us-east-1',
-      accessKeyId: 'b86-local-fixture', secretAccessKey: 'fixture-only-not-live',
+      accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY,
       configurationPrefix: 'ACCOUNT_EXPORT_S3',
-      now: () => new Date('2026-10-16T14:00:00Z'),
+      now: () => FIXTURE_TIME,
     });
-    await scenario({ storage, objects, uploads, calls });
+    await scenario({ storage, objects, uploads, calls, endpoint });
   } finally {
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
@@ -177,6 +200,71 @@ test('B86 aborted unfinished multipart has no naked DELETE for private exports',
     assert.equal(uploads.size, 0);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'DELETE']);
     assert.ok(calls[2].uploadId);
+  });
+});
+
+test('B87 loopback rejects a forged SigV4 signature before storing bytes', async () => {
+  await withLoopback({}, async ({ endpoint, objects, calls }) => {
+    const response = await fetch(`${endpoint}${PATH}`, {
+      method: 'PUT',
+      headers: {
+        'x-amz-date': '20261016T140000Z',
+        'x-amz-content-sha256': createHash('sha256').update('evil').digest('hex'),
+        authorization: 'AWS4-HMAC-SHA256 Credential=' +
+          ACCESS_KEY_ID + '/20261016/us-east-1/s3/aws4_request, ' +
+          'SignedHeaders=host;x-amz-content-sha256;x-amz-date, ' +
+          'Signature=' + '0'.repeat(64),
+      },
+      body: 'evil',
+    });
+    assert.equal(response.status, 403);
+    assert.equal(objects.has(PATH), false);
+    assert.deepEqual(calls.map(call => call.method), ['PUT']);
+  });
+});
+
+test('B87 loopback denies payload modification after the app generated SigV4', async () => {
+  await withLoopback({}, async ({ storage, objects, calls }) => {
+    const realFetch = globalThis.fetch;
+    // Fault injector corrupts only the serialized body after signing.
+    // SigV4 must reject the request even if Authorization is untouched.
+    globalThis.fetch = (url, init) => {
+      if (init?.method !== 'PUT') return realFetch(url, init);
+      const body = Buffer.from(init.body);
+      body[0] ^= 0x01;
+      return realFetch(url, { ...init, body });
+    };
+    try {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.from('{"confidential":true}'));
+      await assert.rejects(writer.complete(), /HTTP 403/u);
+      await writer.abort();
+      assert.equal(objects.has(PATH), false);
+      assert.deepEqual(calls.map(call => call.method), ['PUT']);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
+
+test('B87 loopback refuses a signed request rerouted to another object key', async () => {
+  await withLoopback({}, async ({ storage, objects, calls }) => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (url, init) => realFetch(
+      String(url).replace('/exports/' + JOB + '/', '/exports/other-owner/'),
+      init,
+    );
+    try {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.from('private'));
+      await assert.rejects(writer.complete(), /HTTP 403/u);
+      await writer.abort();
+      assert.equal(objects.has(PATH), false);
+      assert.equal(calls[0].method, 'PUT');
+      assert.notEqual(calls[0].path, PATH);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });
 
