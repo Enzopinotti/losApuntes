@@ -333,6 +333,6 @@ describe('AccountExportController', () => {
     await expect(
       f.controller.download(f.request, exportId, reply as never),
     ).rejects.toThrow();
-    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
   });
 });
