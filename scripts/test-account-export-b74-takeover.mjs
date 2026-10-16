@@ -27,10 +27,15 @@ verify('takeover reads previous state from pre-image rather than new claim', () 
   assert.match(claim, /if \(previous\.state === 'processing'\)/u);
   assert.match(claim, /generation: oldGeneration/u);
 });
-verify('pending claims cannot manufacture orphan cleanup rows', () => {
-  const branch = claim.slice(claim.indexOf("if (previous.state === 'processing')"),claim.indexOf('claimed = await this.jobs'));
-  assert.match(branch, /oldGeneration/u);
-  assert.match(tests, /B74 claims pending work transactionally without adding a spurious orphan/u);
+verify('pending claims never manufacture a nonexistent predecessor ledger', () => {
+  const takeover = claim.slice(
+    claim.indexOf("if (previous.state === 'processing')"),
+    claim.indexOf('// B80: even a first pending claim'),
+  );
+  assert.match(takeover, /oldGeneration/u);
+  assert.match(takeover, /generation: oldGeneration/u);
+  assert.match(claim, /generation: input\.claimId/u);
+  assert.match(tests, /B80 claims pending work with recovery for the new generation/u);
 });
 verify('expired claim input verifies generation and durable owner', () => {
   assert.match(claim, /previous\.id\?\.trim\(\)/u);

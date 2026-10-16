@@ -513,3 +513,38 @@ el contrato de integración está en
 Ni una prueba unitaria de Node ni un contrato estructural acreditan
 Mongo replica-set, permisos de S3, lifecycle de versiones, backups o
 aceptación de dispositivos.
+
+## B80 — Intento de recuperación transaccional desde el primer claim
+
+En cada claim de exportación el worker ahora exige un registro durable de
+limpieza de **su nueva generación**, persistido en la misma transacción Mongo
+que cambia el job a `processing`. Esto aplica tanto a jobs `pending` como a
+takeovers. **Si falla el insert de la cola, se aborta toda la transacción y
+no se inicia la escritura en S3**. Es una protección contra caídas de proceso
+o períodos largos de Mongo inestable luego de comenzado el upload.
+
+Cada tarea se programa desde el vencimiento del lease original con tres
+leases más de asentamiento y luego verifica la eliminación por una hora
+adicional. La cola es una *intención*, no un permiso de DELETE: el worker
+de limpieza vuelve a leer owner, referencia publicada, claim vigente,
+due date, claim lease y horizonte CAS. Un export completado conserva su
+archivo y ACKea la intención sin tocar S3. B79 mantiene reintentos
+idempotentes y alertas si el callback tardío no pudo reencolar.
+
+Para diagnosticar un caso tras un restart, verificar por canales
+administrativos autorizados la presencia de un documento en
+`account_export_orphan_cleanup` asociado a `jobId`/`generation` sin
+exponerlos en logs. Comprobar `nextAttemptAt`, `verificationUntil`,
+`state`, `claimId`, `leaseExpiresAt` y el estado del job de exportación.
+No acortar vencimientos ni ejecutar DELETE manualmente para acelerar
+una recuperación.
+
+La mejora cubre **claims creados por código B80**; no retroinventa
+filas para generaciones creadas antes del despliegue. Mantener
+`STUDY_PROGRESS_ENABLED=false`, issue #353 HOLD y controles de
+backup/retención versionada, lifecycle y auditoría de credenciales.
+Pruebas: `node --experimental-strip-types --test
+scripts/test-account-export-b80-writeahead.test.mjs` y
+`node scripts/test-account-export-b80-writeahead.mjs`,
+más opt-in Mongo replica-set. Sin aceptación real S3/Mongo no hay
+habilitación productiva.
