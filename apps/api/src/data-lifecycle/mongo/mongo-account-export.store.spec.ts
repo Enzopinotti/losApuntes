@@ -40,7 +40,10 @@ function fixture(input: { active?: unknown } = {}) {
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
   const users = {
     updateOne: jest.fn(
-      (_filter: unknown, _update: unknown, _options?: unknown) => ownerUpdate,
+      (...args: [filter: unknown, update: unknown, options?: unknown]) => {
+        void args;
+        return ownerUpdate;
+      },
     ),
   };
   const session = {
@@ -541,19 +544,21 @@ describe('MongoAccountExportStore', () => {
       { session: f.session },
     );
     expect(f.orphanCleanup.updateOne).toHaveBeenCalledTimes(4);
+    // Jest asymmetric matchers return `any`; keep them opaque rather than
+    // letting their type contaminate the expected Mongo update document.
+    const expectedVerificationDate: unknown = expect.any(Date);
+    const expectedOrphanInsert: unknown = expect.objectContaining({
+      jobId: previous.id,
+      ownerUserId: previous.userId,
+      generation: 'new-claim',
+      verificationUntil: expectedVerificationDate,
+    });
     expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith(
       {
         jobId: previous.id,
         generation: 'new-claim',
       },
-      {
-        $setOnInsert: expect.objectContaining({
-          jobId: previous.id,
-          ownerUserId: previous.userId,
-          generation: 'new-claim',
-          verificationUntil: expect.any(Date),
-        }),
-      },
+      { $setOnInsert: expectedOrphanInsert },
       { upsert: true, session: f.session },
     );
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
@@ -1017,6 +1022,10 @@ describe('MongoAccountExportStore', () => {
       { $inc: { account_lifecycle_revision: 1 } },
       { session: f.session },
     );
+    const expectedCompletionSet: unknown = expect.objectContaining({
+      state: 'completed',
+      artifactSectionCount: 32,
+    });
     expect(f.jobs.updateOne).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'export-1',
@@ -1024,12 +1033,7 @@ describe('MongoAccountExportStore', () => {
         formatVersion: 3,
         userId: 'user-1',
       }),
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          state: 'completed',
-          artifactSectionCount: 32,
-        }),
-      }),
+      expect.objectContaining({ $set: expectedCompletionSet }),
       { session: f.session },
     );
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
