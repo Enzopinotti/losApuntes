@@ -879,6 +879,142 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     })).resolves.toBe(true);
   }, 30_000);
 
+  it('B72 retires an expired download and drains exact S3 cleanup in the same iteration', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() - 30_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      completedAt: new Date(now.getTime() - 86_400_000),
+      artifactGeneration: generation, artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const processor = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      store, { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(processor.runIteration()).resolves.toMatchObject({
+      expiredRetired: 1, expirationStale: 0, expirationRetries: 0,
+      orphanDeleted: 1, expiredDeleted: 0,
+    });
+    const durable = await exportJobs.findOne({ id }).lean().exec();
+    expect(durable?.artifactGeneration).toBeNull();
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+    expect(deleteArtifact).toHaveBeenCalledTimes(1);
+    expect(deleteArtifact).toHaveBeenCalledWith(id, generation);
+  }, 30_000);
+
+  it('B72 retains durable expiry intent across crash and transient S3 outage', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() - 30_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 3,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      completedAt: new Date(now.getTime() - 86_400_000),
+      artifactGeneration: generation, artifactExpiresAt: expiresAt,
+      artifactSectionCount: 32, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.retireExpiredArtifact({
+      id, generation, expiresAt, now,
+    })).resolves.toBe(true);
+    expect((await exportJobs.findOne({ id }).lean().exec())?.artifactGeneration)
+      .toBeNull();
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+
+    const deleteArtifact = jest.fn()
+      .mockRejectedValueOnce(new Error('S3 temporary outage'))
+      .mockResolvedValue(undefined);
+    const newProcessor = () => new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      new MongoAccountExportStore(exportJobs, users, connection, orphanJobs),
+      { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(newProcessor().runIteration()).resolves.toMatchObject({
+      expiredRetired: 0, orphanRetries: 1, orphanDeleted: 0,
+    });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    // Opt-in isolated test only: advance the durable backoff window so a
+    // restarted worker can claim the same retry immediately.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
+    await expect(newProcessor().runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+    expect(deleteArtifact).toHaveBeenCalledTimes(2);
+  }, 30_000);
+
+  it('B72 rolls back expiry unlink when insertion into the cleanup queue fails', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() - 30_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      completedAt: new Date(now.getTime() - 86_400_000),
+      artifactGeneration: generation, artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+    });
+    const unavailableQueue = {
+      updateOne: () => ({
+        exec: async () => { throw new Error('B72 injected queue failure'); },
+      }),
+    };
+    const store = new MongoAccountExportStore(
+      exportJobs, users, connection, unavailableQueue as never,
+    );
+    await expect(store.retireExpiredArtifact({
+      id, generation, expiresAt, now,
+    })).rejects.toThrow('B72 injected queue failure');
+    expect((await exportJobs.findOne({ id }).lean().exec())?.artifactGeneration)
+      .toBe(generation);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B72 refuses a stale expiry CAS after a concurrent retention extension', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const oldExpiry = new Date(now.getTime() - 60_000);
+    const extendedExpiry = new Date(now.getTime() + 86_400_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      artifactGeneration: generation, artifactExpiresAt: extendedExpiry,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.retireExpiredArtifact({
+      id, generation, expiresAt: oldExpiry, now,
+    })).resolves.toBe(false);
+    expect((await exportJobs.findOne({ id }).lean().exec())?.artifactGeneration)
+      .toBe(generation);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
   it('B71 recovers an ambiguous S3 multipart completion with real Mongo retry CAS', async () => {
     await orphanJobs.deleteMany({});
     const userId = await owner();
