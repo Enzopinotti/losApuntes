@@ -43,6 +43,7 @@ export type AccountExportIteration = {
   expirationStale: number;
   expirationRetries: number;
   orphanDeleted: number;
+  orphanVerificationScheduled: number;
   orphanPreserved: number;
   orphanRetries: number;
   orphanAuthorityBlocked: number;
@@ -103,6 +104,7 @@ export class AccountExportProcessor {
       expirationStale: 0,
       expirationRetries: 0,
       orphanDeleted: 0,
+      orphanVerificationScheduled: 0,
       orphanPreserved: 0,
       orphanRetries: 0,
       orphanAuthorityBlocked: 0,
@@ -486,6 +488,30 @@ export class AccountExportProcessor {
           result.orphanRetries += 1;
           continue;
         }
+        // A reclaimed multipart upload can finish AFTER an earlier
+        // DELETE returns success. Keep its durable task, and re-run owner,
+        // generation, and lease checks on each verification pass. A crash
+        // between passes leaves the next attempt in Mongo, not memory.
+        if (candidate.verificationUntil != null) {
+          if (!(candidate.verificationUntil instanceof Date) ||
+            !Number.isFinite(candidate.verificationUntil.getTime())) {
+            throw new Error('Account export cleanup verification deadline is invalid');
+          }
+          const verifiedAt = new Date();
+          if (verifiedAt.getTime() < candidate.verificationUntil.getTime()) {
+            const nextAttemptAt = new Date(Math.min(
+              verifiedAt.getTime() + 10 * 60_000,
+              candidate.verificationUntil.getTime(),
+            ));
+            const deferred = await this.orphans.retry({
+              ...ref, now: verifiedAt, nextAttemptAt,
+            });
+            if (deferred) result.orphanVerificationScheduled += 1;
+            else result.orphanRetries += 1;
+            continue;
+          }
+        }
+
         const acked = await this.orphans.acknowledge({
           ...ref, now: new Date(),
         });
