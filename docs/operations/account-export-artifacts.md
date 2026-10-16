@@ -891,3 +891,31 @@ constituye aceptación Mongo ni S3.
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`. Sin CI manual, sin
 deploy; pendientes Node24/pnpm9, Mongoose real, S3 IAM/versioning,
 HTTP/browser, backup/lifecycle y auditorías #133/#141.
+
+## B94 — Aceptación Mongo + S3 con evidencia obligatoria 5/5
+
+El ejecutor local histórico
+`pnpm test:account-export-b86-local-acceptance`
+antes seleccionaba **solo B86**, dejando sin correr los escenarios
+opt-in nuevos B90 (S3 GET corrupto) y B93 (autoridad del reloj
+Mongo primario). Ahora exige los **cinco tests B86/B90/B93** y
+un reporte JSON válido de Jest; ni `exit 0` ni `--passWithNoTests=false`
+se consideran suficientes sin cinco `passed` explícitos.
+
+Antes de iniciar Jest, valida el inventario de títulos y conserva
+el gate B89 de replica set local sin credenciales, IP loopback numérica,
+`directConnection=true`, Node24 y feature flag desactivada.
+Una selección incompleta o reporte ausente da salida no cero.
+El JSON de aceptación se guarda temporalmente y se elimina
+también después de errores.
+
+Primero: `pnpm test:account-export-b94-proof` (contrato Node sin Mongo).
+Luego, únicamente en replica set desechable local:
+`STUDY_PROGRESS_ENABLED=false STUDY_PROGRESS_TEST_MONGO_URI='mongodb://127.0.0.1:27017/?replicaSet=rs0' pnpm test:account-export-b86-local-acceptance`.
+
+El resultado 5/5 de ese comando significa Mongo real y adaptador
+S3 real con respuestas HTTP **simuladas**, no aceptación AWS/MinIO.
+No se modifican condiciones de limpieza B78–B85 ni descarga
+B90–B93. **Issue #353 HOLD** hasta Node24/Jest/Typescript/S3 de
+proveedor, auditorías #133/#141, IAM/versioning, backup y HTTP/browser.
+Sin CI manual ni deploy.
