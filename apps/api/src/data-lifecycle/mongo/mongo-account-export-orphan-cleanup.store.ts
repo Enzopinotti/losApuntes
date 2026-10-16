@@ -75,7 +75,13 @@ implements AccountExportOrphanCleanupStore {
       {
         $or: [
           { state: 'pending', nextAttemptAt: { $lte: input.now } },
-          { state: 'processing', leaseExpiresAt: { $lte: input.now } },
+          {
+            state: 'processing',
+            leaseExpiresAt: { $lte: input.now },
+            // A takeover may extend the settle date while another worker
+            // holds a claim. Both the lease AND due time must have passed.
+            nextAttemptAt: { $lte: input.now },
+          },
         ],
       },
       { $set: {
@@ -97,6 +103,7 @@ implements AccountExportOrphanCleanupStore {
         state: 'processing',
         claimId: input.claimId,
         leaseExpiresAt: { $gt: input.now },
+        verificationUntil: input.verificationUntil ?? null,
       },
       { $max: { leaseExpiresAt: input.leaseExpiresAt } },
     ).exec();
@@ -125,11 +132,13 @@ implements AccountExportOrphanCleanupStore {
         jobId: input.jobId, generation: input.generation,
         state: 'processing', claimId: input.claimId,
         leaseExpiresAt: { $gt: input.now },
+        verificationUntil: input.verificationUntil ?? null,
       },
-      { $set: {
-        state: 'pending', claimId: null, leaseExpiresAt: null,
-        nextAttemptAt: input.nextAttemptAt,
-      } },
+      {
+        $set: { state: 'pending', claimId: null, leaseExpiresAt: null },
+        // Never move a task earlier than a takeover's settling fence.
+        $max: { nextAttemptAt: input.nextAttemptAt },
+      },
     ).exec();
     return result.modifiedCount === 1;
   }
