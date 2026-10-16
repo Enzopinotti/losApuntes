@@ -24,3 +24,16 @@ The one-time scoped formatter uses the repository's actual pnpm/Prettier lockfil
 - Do not disable ESLint, add `any`, relax audit thresholds, or extend the `node-forge` exception. Issue #353 release remains **HOLD**; production audit is an independent blocker.
 - This B85 branch starts from **main**, not from the stacked quality carriers. After its exact-head tests pass, integrate semantically with #391's other fixture fixes and #388/#390's independent changes. Require a fresh global `verify` on the truly combined SHA before any main merge or release.
 - No API/Mongo/Web startup, deployment, or browser acceptance in this block.
+
+## Exact HEAD B85 processor evidence and explicit blockers
+
+[One-time formatter run #38913099395](https://github.com/Enzopinotti/losApuntes/actions/runs/38913099395) on `b4ae80939dffd93e5ba1c2a7375ecdbd54d9d141`: project-pinned formatter, strict ESLint of processor spec **PASS**, the full processor Jest regression suite **86/86 tests PASS**. The job failed later on **whole API TypeScript**, caused by four pre-existing fixture typing errors outside the processor:
+
+- `mongo-account-export.store.spec.ts`: missing arguments in `orphanCleanup.updateOne` and `jobs.updateOne` mock call tuples (TS2352/TS2493).
+- `study-progress-export.reader.spec.ts`: intentionally corrupted Mongo plan fixture needs a widened `unknown` type (TS2353).
+
+These errors are NOT marked passed or skipped. The permanent read-only workflow now runs processor Jest/lint/source guards and **whole API typecheck as separate mandatory jobs**, so processor success does not conceal TypeScript failure. The temporary scoped write-enabled formatter workflow is removed as part of this candidate; no additional write permission remains.
+
+### Parallel overlap
+
+[PR #394](https://github.com/Enzopinotti/losApuntes/pull/394) independently changes the exact same processor spec using typed opaque Jest asymmetric matchers rather than this carrier's mock-function exposure and typed call tuples. **These are alternative strategies, not mergeable complete-file snapshots.** Compare their regression outcomes and select/reconcile one. Neither PR changes production Mongo or S3.
