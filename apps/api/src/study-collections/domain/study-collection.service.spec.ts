@@ -212,6 +212,38 @@ describe('StudyCollectionService', () => {
       );
     });
 
+    it('rejects a failed atomic removal as a revision conflict when owner still exists', async () => {
+      const { service, store, get } = setup();
+      get.mockRejectedValueOnce(new NotFoundException());
+      store.removeResource.mockResolvedValueOnce(null);
+      await expect(service.removeResource(
+        ownerId, collectionId, resourceId, 2,
+      )).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
+      });
+      expect(store.findOwned).toHaveBeenCalledWith(collectionId, ownerId);
+      expect(store.removeResource).toHaveBeenCalledWith(
+        collectionId, ownerId, resourceId, 2,
+      );
+    });
+
+    it('rejects a post-write skipped revision even when the reference is absent', async () => {
+      const { service, store, get } = setup();
+      get.mockRejectedValueOnce(new ForbiddenException());
+      store.removeResource.mockResolvedValueOnce(collection({
+        revision: 4,
+        resourceIds: [nextId],
+      }));
+      await expect(service.removeResource(
+        ownerId, collectionId, resourceId, 2,
+      )).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
+      });
+      expect(store.removeResource).toHaveBeenCalledWith(
+        collectionId, ownerId, resourceId, 2,
+      );
+    });
+
     it('propagates unexpected Resource failures without removing references', async () => {
       const { service, store, get } = setup();
       const failure = new Error('resource backend unavailable');

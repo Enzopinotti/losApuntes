@@ -314,8 +314,23 @@ export class StudyCollectionService {
         const removed = await this.store.removeResource(
           id, ownerUserId, resourceId, expectedRevision,
         );
-        if (!removed) this.notFound();
-        if (removed.revision !== expectedRevision + 1) {
+        if (!removed) {
+          // The conditional Mongo update also returns null when a concurrent
+          // revision wins. Recheck owner authority to distinguish that conflict
+          // from an actual deleted/foreign collection without leaking access.
+          await this.requireOwned(id, ownerUserId);
+          throw new ConflictException({
+            code: 'STUDY_COLLECTION_REVISION_CONFLICT',
+            message: 'Collection changed; inspect it again before removing a link',
+          });
+        }
+        // A post-write revision increment alone does not prove the target
+        // reference was removed. Reject inconsistent storage outcomes rather
+        // than reporting a successful recovery while the link still exists.
+        if (
+          removed.revision !== expectedRevision + 1 ||
+          removed.resourceIds.includes(resourceId)
+        ) {
           throw new ConflictException({
             code: 'STUDY_COLLECTION_REVISION_CONFLICT',
             message: 'Collection changed; inspect it again before removing a link',
