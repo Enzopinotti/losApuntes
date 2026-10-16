@@ -247,7 +247,10 @@ describe('AccountExportController', () => {
   });
   it('names an owner-authorized v2 artifact as v2, not legacy v1', async () => {
     const f = fixture();
-    const content = Buffer.from('{"format":"los-apuntes-account-export","version":2}', 'utf8');
+    const content = Buffer.from(
+      '{"format":"los-apuntes-account-export","version":2}',
+      'utf8',
+    );
     f.exports.download.mockResolvedValueOnce({
       kind: 'available',
       formatVersion: 2,
@@ -256,20 +259,27 @@ describe('AccountExportController', () => {
       sha256: digest(content),
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
-      (async function* () { yield content; })(),
+      (async function* () {
+        yield content;
+      })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
     const reply = {
       raw,
-      header: jest.fn<unknown,[name:string,value:string|number]>().mockReturnThis(),
-      send: jest.fn<unknown,[payload:unknown]>().mockReturnThis(),
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await f.controller.download(f.request, exportId, reply as never);
     expect(reply.header).toHaveBeenCalledWith(
       'content-disposition',
       'attachment; filename="los-apuntes-account-export-v2.json"',
     );
-    expect(reply.header).toHaveBeenCalledWith('cache-control', 'private, no-store');
+    expect(reply.header).toHaveBeenCalledWith(
+      'cache-control',
+      'private, no-store',
+    );
     raw.emit('finish');
   });
 
@@ -283,12 +293,16 @@ describe('AccountExportController', () => {
       sha256: digest('x'),
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
-      (async function* () { yield Buffer.from('x'); })(),
+      (async function* () {
+        yield Buffer.from('x');
+      })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
     const reply = {
       raw,
-      header: jest.fn<unknown, [name: string, value: string | number]>().mockReturnThis(),
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
       send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await f.controller.download(f.request, exportId, reply as never);
@@ -311,13 +325,14 @@ describe('AccountExportController', () => {
       sha256: 'a'.repeat(64),
     });
     const reply = {
-      header: jest.fn<unknown,[name:string,value:string|number]>().mockReturnThis(),
-      send: jest.fn<unknown,[payload:unknown]>().mockReturnThis(),
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await expect(
       f.controller.download(f.request, exportId, reply as never),
     ).rejects.toThrow();
     expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
   });
-
 });

@@ -1,0 +1,115 @@
+name: B87 API canonical quality contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b87-api-canonical-quality-contract.yml"
+      - "apps/api/src/**"
+      - "apps/api/test/**"
+      - "docs/engineering/b87-canonical-api-format-current-b86.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b87-api-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-and-types:
+    name: Exact-head API/Web formatting and complete types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Full format API + Web
+        run: |
+          pnpm --filter @losapuntes/api format:check
+          pnpm --filter @losapuntes/web format:check
+      - name: Full TypeScript API + Web
+        run: |
+          pnpm --filter @losapuntes/api check:types
+          pnpm --filter @losapuntes/web check:types
+      - name: Web lint
+        run: pnpm --filter @losapuntes/web lint
+
+  functional-regressions:
+    name: Owner export, Study CAS, clock and S3 fences
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Combined API Jest contracts
+        run: |
+          pnpm --filter @losapuntes/api exec jest \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            src/data-lifecycle/data-lifecycle.module.spec.ts \
+            src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts \
+            src/study-collections/domain/study-collection.service.spec.ts \
+            --runInBand
+      - name: Primary clock and expiry guards
+        run: |
+          node scripts/test-account-export-b83-mongo-clock-guard.mjs
+          node scripts/test-account-export-b84-mongo-claim-guard.mjs
+          node scripts/test-account-export-b85-expiry-guard.mjs
+
+  remaining-lint:
+    name: Entire API strict lint, mandatory report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Entire API ESLint with zero warnings
+        run: pnpm --filter @losapuntes/api lint

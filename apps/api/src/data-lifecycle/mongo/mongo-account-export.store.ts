@@ -38,7 +38,8 @@ export class MongoAccountExportStore implements AccountExportStore {
     private readonly connection: Connection,
     // Optional for historical direct-store fixtures. The real Nest module
     // always registers this model; expiry retirement fails closed otherwise.
-    @Optional() @InjectModel(AccountExportOrphanCleanup.name)
+    @Optional()
+    @InjectModel(AccountExportOrphanCleanup.name)
     private readonly orphanCleanup?: Model<AccountExportOrphanCleanup>,
   ) {}
 
@@ -101,23 +102,22 @@ export class MongoAccountExportStore implements AccountExportStore {
       .exec();
   }
 
-  async findForOrphanCleanup(id: string): Promise<AccountExportJobRecord | null> {
-    return this.jobs
-      .findOne({ id })
-      .lean<AccountExportJobRecord>()
-      .exec();
+  async findForOrphanCleanup(
+    id: string,
+  ): Promise<AccountExportJobRecord | null> {
+    return this.jobs.findOne({ id }).lean<AccountExportJobRecord>().exec();
   }
 
   async fenceExpiredClaimForOrphanCleanup(
-    input: Parameters<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>[0],
+    input: Parameters<
+      AccountExportStore['fenceExpiredClaimForOrphanCleanup']
+    >[0],
   ): ReturnType<AccountExportStore['fenceExpiredClaimForOrphanCleanup']> {
     // Same job document as complete(), renewLease() and claimNext(). The
     // exact owner/generation CAS prevents a stale pre-expiry completion
     // timestamp from publishing an object AFTER cleanup begins.
     const plan = planAccountExportExpiredClaimFence(input);
-    const revoked = await this.jobs.updateOne(
-      plan.filter, plan.update,
-    ).exec();
+    const revoked = await this.jobs.updateOne(plan.filter, plan.update).exec();
     return revoked.modifiedCount === 1;
   }
 
@@ -179,8 +179,13 @@ export class MongoAccountExportStore implements AccountExportStore {
 
         if (previous.state === 'processing') {
           const oldGeneration = previous.claimId;
-          if (!oldGeneration || oldGeneration === input.claimId ||
-            !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(oldGeneration)) {
+          if (
+            !oldGeneration ||
+            oldGeneration === input.claimId ||
+            !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(
+              oldGeneration,
+            )
+          ) {
             throw new Error('Account export takeover generation is invalid');
           }
           // An old S3 multipart upload may still be settling after its
@@ -194,9 +199,7 @@ export class MongoAccountExportStore implements AccountExportStore {
           // checks, even after the first request reports success. This
           // narrows the window for a late multipart complete to resurrect
           // the object after its first successful deletion.
-          const verificationUntil = new Date(
-            input.now.getTime() + 60 * 60_000,
-          );
+          const verificationUntil = new Date(input.now.getTime() + 60 * 60_000);
           await this.orphanCleanup!.updateOne(
             { jobId: previous.id, generation: oldGeneration },
             {
@@ -253,10 +256,17 @@ export class MongoAccountExportStore implements AccountExportStore {
         // Use the original _id returned by the atomic takeover, not a
         // second unscoped claim search, to read only our new generation.
         claimed = await this.jobs
-          .findOne({
-            id: previous.id, userId: previous.userId,
-            state: 'processing', active: true, claimId: input.claimId,
-          }, null, { session })
+          .findOne(
+            {
+              id: previous.id,
+              userId: previous.userId,
+              state: 'processing',
+              active: true,
+              claimId: input.claimId,
+            },
+            null,
+            { session },
+          )
           .lean<AccountExportJobRecord>()
           .exec();
         if (!claimed) {
@@ -370,8 +380,12 @@ export class MongoAccountExportStore implements AccountExportStore {
 
     const ownerUserId = input.ownerUserId;
     const expected = input.expectedProgressEpoch;
-    if (typeof ownerUserId !== 'string' || !ownerUserId.trim() ||
-      !Number.isSafeInteger(expected) || (expected as number) < 0) {
+    if (
+      typeof ownerUserId !== 'string' ||
+      !ownerUserId.trim() ||
+      !Number.isSafeInteger(expected) ||
+      (expected as number) < 0
+    ) {
       throw new Error('Account export v3 completion owner epoch is required');
     }
     const expectedEpoch = expected as number;
@@ -381,15 +395,19 @@ export class MongoAccountExportStore implements AccountExportStore {
     const ownerFilter = {
       _id: ownerUserId,
       $and: [
-        { $or: [
-          { account_status: 'active' },
-          { account_status: { $exists: false } },
-        ] },
+        {
+          $or: [
+            { account_status: 'active' },
+            { account_status: { $exists: false } },
+          ],
+        },
         expectedEpoch === 0
-          ? { $or: [
-              { account_lifecycle_revision: 0 },
-              { account_lifecycle_revision: { $exists: false } },
-            ] }
+          ? {
+              $or: [
+                { account_lifecycle_revision: 0 },
+                { account_lifecycle_revision: { $exists: false } },
+              ],
+            }
           : { account_lifecycle_revision: expectedEpoch },
       ],
     };
@@ -398,15 +416,18 @@ export class MongoAccountExportStore implements AccountExportStore {
     try {
       await session.withTransaction(async () => {
         const fenced = await this.users
-          .updateOne(ownerFilter,
+          .updateOne(
+            ownerFilter,
             { $inc: { account_lifecycle_revision: 1 } },
             { session },
-          ).exec();
+          )
+          .exec();
         if (fenced.matchedCount !== 1) {
           throw new AccountExportEpochConflictError();
         }
         const completed = await this.jobs
-          .updateOne({ ...filter, userId: ownerUserId }, update, { session }).exec();
+          .updateOne({ ...filter, userId: ownerUserId }, update, { session })
+          .exec();
         if (completed.modifiedCount !== 1) {
           // The User increment must rollback along with the lost claim.
           throw new LostClaim('Account export completion claim changed');
@@ -487,9 +508,11 @@ export class MongoAccountExportStore implements AccountExportStore {
           .lean<{ id: string; userId: string; artifactGeneration: string }>()
           .exec();
         if (!previous) return;
-        if (previous.id !== input.id ||
+        if (
+          previous.id !== input.id ||
           previous.artifactGeneration !== input.generation ||
-          !previous.userId?.trim()) {
+          !previous.userId?.trim()
+        ) {
           throw new Error('Account export expired artifact owner is invalid');
         }
 

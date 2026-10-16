@@ -71,7 +71,8 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
           result.sha256 !== actualDigest ||
           result.format !== 'los-apuntes-account-export' ||
           ![1, 2, 3].includes(result.formatVersion) ||
-          result.sectionCount !== accountExportSectionIds(result.formatVersion).length
+          result.sectionCount !==
+            accountExportSectionIds(result.formatVersion).length
         ) {
           throw new Error('Account export artifact integrity check failed');
         }

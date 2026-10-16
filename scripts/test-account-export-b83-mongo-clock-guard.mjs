@@ -76,7 +76,9 @@ check('B82 completion-wins integration uses a still-valid actual lease', () => {
   const end = mongoAcceptance.indexOf("it('B82 renewal wins:", start);
   const part = mongoAcceptance.slice(start, end);
   assert.match(part, /const leaseExpiresAt = new Date\(started\.getTime\(\) \+ 120_000\)/u);
-  assert.match(part, /\}\)\)\.resolves\.toBe\(true\)/u);
+  // Preserve the B82 valid-lease completion assertion across Prettier's
+  // optional trailing comma and newline between object and expect closure.
+  assert.match(part, /\}\),?\s*\)\.resolves\.toBe\(true\)/u);
 });
 check('root lifecycle chain invokes both B83 executable tests and source guard', () => {
   const chain = scripts['test:account-lifecycle-contract'];
