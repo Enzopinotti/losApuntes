@@ -192,6 +192,21 @@ export class MongoAccountExportStore implements AccountExportStore {
             },
             { upsert: true, session },
           ).exec();
+          // Another worker may have enqueued the exact old generation
+          // earlier. Extend its verification horizon monotonically rather
+          // than relying only on $setOnInsert for newly created rows.
+          await this.orphanCleanup!.updateOne(
+            { jobId: previous.id, generation: oldGeneration },
+            { $max: { verificationUntil } },
+            { session },
+          ).exec();
+          // Delay an existing, still-unclaimed task until the old upload's
+          // initial settling window. Never steal an in-flight queue claim.
+          await this.orphanCleanup!.updateOne(
+            { jobId: previous.id, generation: oldGeneration, state: 'pending' },
+            { $max: { nextAttemptAt: settleAt } },
+            { session },
+          ).exec();
         }
         // Use the original _id returned by the atomic takeover, not a
         // second unscoped claim search, to read only our new generation.
