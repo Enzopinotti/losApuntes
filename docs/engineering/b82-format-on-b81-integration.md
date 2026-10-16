@@ -1,6 +1,6 @@
 # B82 — Canonical formatter on top of B81, preserving B80 export
 
-**Date:** 2026-10-16. **Candidate parent:** [B81 #383](https://github.com/Enzopinotti/losApuntes/pull/383) `0ad2aa672711d315fe5dc38cff75a5df3f5f92ff`, itself based on `main@3579eab49f9d0ad3dd889731695f7a1a155e7efd` (B80). The original format PR [#377](https://github.com/Enzopinotti/losApuntes/pull/377) started from a pre-B81 source snapshot, and copying files from it would risk overwriting owner epoch, Study Collections CAS and B80 S3 write-ahead changes.
+**Date:** 2026-10-16. **Functional parent:** [B81 #383](https://github.com/Enzopinotti/losApuntes/pull/383) `0ad2aa672711d315fe5dc38cff75a5df3f5f92ff`, itself based on `main@3579eab49f9d0ad3dd889731695f7a1a155e7efd` (B80). The B82 branch also merged current `main@a27a4e2a60f3ea993ee2d52e5303a55a33981a49` (B81 S3 multipart abort guard), after GitHub proved zero changed-path overlap with its 14 B81/B82 paths. The resulting exact-head merge commit is `03118f3162aa051f3aecb0f33471e4a3a8b541c9`, with both parent SHAs retained and no force updates. The original format PR [#377](https://github.com/Enzopinotti/losApuntes/pull/377) started from a pre-B81 source snapshot, and copying files from it would risk overwriting owner epoch, Study Collections CAS and B80 S3 write-ahead changes.
 
 ## Scope
 
