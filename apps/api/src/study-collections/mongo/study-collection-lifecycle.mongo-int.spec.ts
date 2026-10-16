@@ -192,7 +192,7 @@ runMongo(
       const id: unknown = user.id;
       if (typeof id !== 'string' || id.length === 0) {
         throw new Error('Mongo user did not provide a valid owner ID');
-    }
+      }
       return id;
     }
 
@@ -592,8 +592,8 @@ runMongo(
       const service = new StudyCollectionService(collections, {
         get: (resourceId: string) =>
           Promise.resolve({
-          resource: { id: resourceId, title: 'Test resource' },
-        }),
+            resource: { id: resourceId, title: 'Test resource' },
+          }),
       } as never);
       const firstPage = await service.listResources(userId, saved.id, 1);
       expect(firstPage.items).toHaveLength(1);
