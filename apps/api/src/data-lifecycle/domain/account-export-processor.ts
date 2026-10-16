@@ -425,6 +425,8 @@ export class AccountExportProcessor {
           // based on state alone could destroy recoverable private data.
           const acknowledged = await this.orphans.acknowledge({
             ...ref, now: new Date(),
+            ...(candidate.verificationUntil != null
+              ? { verificationUntil: candidate.verificationUntil } : {}),
           });
           if (acknowledged) result.orphanPreserved += 1;
           else result.orphanRetries += 1;
@@ -518,6 +520,8 @@ export class AccountExportProcessor {
 
         const acked = await this.orphans.acknowledge({
           ...ref, now: new Date(),
+          ...(candidate.verificationUntil != null
+            ? { verificationUntil: candidate.verificationUntil } : {}),
         });
         if (acked) result.orphanDeleted += 1;
         else result.orphanRetries += 1;
