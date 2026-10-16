@@ -298,7 +298,7 @@ describe('AccountExportProcessor', () => {
     );
     const restartedProcessor = new AccountExportProcessor(
       restartedService,
-      f.assembler,
+      f.assembler as unknown as AccountExportAssembler,
       store as unknown as AccountExportStore,
       f.artifacts as unknown as AccountExportArtifactStorage,
       f.orphans,
