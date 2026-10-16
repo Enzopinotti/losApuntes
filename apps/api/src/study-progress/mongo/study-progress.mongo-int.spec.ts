@@ -60,6 +60,8 @@ import { StudyProgressExportReader } from './study-progress-export.reader';
 const uri = process.env.STUDY_PROGRESS_TEST_MONGO_URI;
 const runMongo = uri ? describe : describe.skip;
 const safeHosts = new Set(['127.0.0.1', 'localhost', 'mongo']);
+// Jest's asymmetric matcher is typed as any; retain it as opaque test data.
+const dateMatcher: unknown = expect.any(Date);
 const database = 'losapuntes_b61_' + randomUUID().replace(/-/gu, '');
 const planFor = (subjectId: string) => ({
   format: 'losapuntes.study-session',
@@ -775,7 +777,7 @@ runMongo(
           renewLease: jest.fn().mockResolvedValue(true),
           acknowledge: jest.fn(),
           retry: jest.fn(),
-        } as unknown as AccountExportOrphanCleanupStore,
+        },
       );
       await expect(processor.runIteration()).resolves.toMatchObject({
         claimed: 1,
@@ -875,7 +877,7 @@ runMongo(
           renewLease: jest.fn().mockResolvedValue(true),
           acknowledge: jest.fn(),
           retry: jest.fn(),
-        } as unknown as AccountExportOrphanCleanupStore,
+        },
       );
       await expect(processor.runIteration()).resolves.toMatchObject({
         claimed: 1,
@@ -1022,7 +1024,7 @@ runMongo(
       ]);
       const winners = [first, second].filter((candidate) => candidate !== null);
       expect(winners).toHaveLength(1);
-      const winner = winners[0]!;
+      const winner = winners[0];
       const loserClaim = winner.claimId === firstId ? secondId : firstId;
 
       const extended = new Date(now.getTime() + 180_000);
@@ -1369,7 +1371,7 @@ runMongo(
         ownerUserId: userId,
         state: 'pending',
         claimId: null,
-        verificationUntil: expect.any(Date),
+        verificationUntil: dateMatcher,
       });
       expect(fresh!.nextAttemptAt.getTime()).toBe(
         now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
@@ -1934,7 +1936,7 @@ runMongo(
         ownerUserId: userId,
         state: 'pending',
         claimId: null,
-        verificationUntil: expect.any(Date),
+        verificationUntil: dateMatcher,
       });
       expect(intent!.nextAttemptAt.getTime()).toBe(
         now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
@@ -1983,7 +1985,7 @@ runMongo(
         state: 'pending',
         attempts: 0,
         claimId: null,
-        verificationUntil: expect.any(Date),
+        verificationUntil: dateMatcher,
       });
       expect(durable!.nextAttemptAt.getTime()).toBe(
         now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
