@@ -200,10 +200,12 @@ export class MongoAccountExportStore implements AccountExportStore {
             { $max: { verificationUntil } },
             { session },
           ).exec();
-          // Delay an existing, still-unclaimed task until the old upload's
-          // initial settling window. Never steal an in-flight queue claim.
+          // This delay applies even if another cleanup worker has already
+          // claimed the task: after its lease expires, the drainer must
+          // still respect the new settle date. $max never shortens a later
+          // pending retry. Claim ID and lease remain unchanged.
           await this.orphanCleanup!.updateOne(
-            { jobId: previous.id, generation: oldGeneration, state: 'pending' },
+            { jobId: previous.id, generation: oldGeneration },
             { $max: { nextAttemptAt: settleAt } },
             { session },
           ).exec();
