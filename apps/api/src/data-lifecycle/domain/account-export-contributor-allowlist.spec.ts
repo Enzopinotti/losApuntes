@@ -19,13 +19,15 @@ function fixture(registeredSections: readonly string[]) {
       }),
     }),
   );
-  const readContributorPage = jest.fn().mockImplementation(
-    (
-      contributor: AccountExportContributor,
-      userId: string,
-      cursor: string | null,
-    ) => contributor.readPage({ userId, cursor, limit: 100 }),
-  );
+  const readContributorPage = jest
+    .fn()
+    .mockImplementation(
+      (
+        contributor: AccountExportContributor,
+        userId: string,
+        cursor: string | null,
+      ) => contributor.readPage({ userId, cursor, limit: 100 }),
+    );
   const captureStudyProgressExportEpoch = jest.fn().mockResolvedValue(0);
   const assertStudyProgressExportEpoch = jest.fn().mockResolvedValue(undefined);
   const service = {
