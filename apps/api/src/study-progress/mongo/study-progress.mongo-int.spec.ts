@@ -3082,8 +3082,14 @@ runMongo(
       // transport. It never contacts a remote object-storage provider.
       const fetchSpy = jest
         .spyOn(globalThis, 'fetch')
-        .mockImplementation(async (url, init) => {
-          const request = new URL(String(url));
+        .mockImplementation((url, init) => {
+          const address =
+            typeof url === 'string'
+              ? url
+              : url instanceof URL
+                ? url.href
+                : url.url;
+          const request = new URL(address);
           expect(request.origin).toBe('http://127.0.0.1:19086');
           expect(request.pathname).toBe(key);
           expect(request.searchParams.has('uploadId')).toBe(false);
@@ -3091,15 +3097,15 @@ runMongo(
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            throw new Error('B86 S3 PUT ACK lost after object commit');
+            return Promise.reject(new Error('B86 S3 PUT ACK lost after object commit'));
           }
           if (method === 'DELETE') {
             if (deleteFailures-- > 0)
-              return new Response(null, { status: 503 });
+              return Promise.resolve(new Response(null, { status: 503 }));
             objects.delete(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           }
-          throw new Error('Unexpected B86 S3 method');
+          return Promise.reject(new Error('Unexpected B86 S3 method'));
         });
       try {
         const s3 = createS3ObjectStorage({
@@ -3229,20 +3235,26 @@ runMongo(
       const httpMethods: string[] = [];
       const fetchSpy = jest
         .spyOn(globalThis, 'fetch')
-        .mockImplementation(async (url, init) => {
-          const request = new URL(String(url));
+        .mockImplementation((url, init) => {
+          const address =
+            typeof url === 'string'
+              ? url
+              : url instanceof URL
+                ? url.href
+                : url.url;
+          const request = new URL(address);
           expect(request.pathname).toBe(key);
           const method = init?.method ?? 'GET';
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            return new Response(null, { status: 200 });
+            return Promise.resolve(new Response(null, { status: 200 }));
           }
           if (method === 'DELETE') {
             objects.delete(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           }
-          throw new Error('Unexpected method');
+          return Promise.reject(new Error('Unexpected method'));
         });
       try {
         const s3 = createS3ObjectStorage({
