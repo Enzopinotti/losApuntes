@@ -31,3 +31,27 @@ El workflow `Cross-agent integration rehearsal` prueba esa combinación con perm
 ## Evidencia requerida
 
 El PR del ensayo incluirá URL de ejecución, `main` SHA, head SHA de #374 y #377, ambos resultados de merge, ficheros en conflicto (si los hay), árbol sintético (si existe), checks ejecutados y resultado final. No afirmar “verde” para ramas ni para `main` a partir de un árbol descartable. La automatización no tiene permiso para aprobar, fusionar ni publicar.
+
+## Primera prueba CI-R01, exact-head
+
+[Run #38900454143](https://github.com/Enzopinotti/losApuntes/actions/runs/38900454143) sobre `1a34556b6cbdbc29a20c29018ae7e8eb671ccce8`: **5/5 tests del reporter PASS**. El ensayo terminó **FAILED, correctamente, por conflictos**. Tres refs realmente verificadas por GitHub:
+
+- `main=f342a530ac6233f48e660c42a7d4c3af83b9b3ea`.
+- `#374=ab5503a62a8443c309431edbc07998d5b414ba09`.
+- `#377=d9e84e063ea26326b8e7d139af0d3d236c5e01f3`.
+
+**Hallazgo más preciso:** ambos caminos fallaron en su **primer paso**, antes de aplicar el segundo PR. No se puede concluir que #374 y #377 entren en conflicto entre sí hasta reconciliar cada uno con el `main` actual.
+
+| Aplicación inicial sobre main | Resultado |
+| --- | --- |
+| #377 B78 | conflicto en `apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts` |
+| #374 B77 | conflicto en `apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts` |
+
+Ambos conflictos implican tests de cola S3/retención contra código reciente incorporado en `main`; no son permiso para conservar unilateralmente una versión del archivo. El runner no avanzó a los seis tests API, formato o Web porque **no existe todavía árbol combinado limpio**.
+
+### Siguiente secuencia
+
+1. Reconciliar #374 con el `main` nuevo sin perder escenarios B78/B79 de orphan cleanup.
+2. Reconciliar #377 con el `main` nuevo sin perder pruebas B78/B79 de procesador/cola.
+3. Volver a ejecutar CI-R01 con los HEAD actualizados. Solo entonces comprobar conflictos *entre* los dos carriers, diferencias entre órdenes y las suites en el merge sintético.
+4. Auditoría y `verify` exact-head posterior a integración real siguen pendientes y separados.
