@@ -639,3 +639,32 @@ más las pruebas Jest/Mongo replica-set opt-in. Las primeras no prueban
 compatibilidad real con el servidor Mongo ni failover. Mantener
 `STUDY_PROGRESS_ENABLED=false`, release #353 HOLD y auditorías
 #133/#141 abiertas.
+
+## B84 — Reclamos y ACK de limpieza autorizados por horario del primario Mongo
+
+Desde B84, no alcanza con que `input.now` del proceso indique que una
+exportación o tarea de limpieza está vencida. El `claimNext` del job
+comprueba con `$$NOW` del primario que la tarea `pending` está
+efectivamente programada o que el lease `processing` expiró. La
+transacción conserva el write-ahead B80 y la custodia de las generaciones.
+
+El `claimNext` de la cola de limpieza valida **en Mongo** tanto el
+vencimiento de `nextAttemptAt` como el lease de cualquier proceso
+anterior. Una extensión por takeover no se puede ignorar pasando un
+reloj adelantado. Los CAS de `renewLease`, `acknowledge` y `retry`
+comprueban de nuevo plazo y lease en el primario antes de cambiar o
+eliminar el registro.
+
+Un `claimNext` nulo, un ACK rechazado o un retry denegado ante
+diferencias de reloj **no autorizan un S3 DELETE directo**. Conservar
+las filas de recuperación; revisar hora/NTP del primario, due, claimId,
+leaseExpiresAt, verificationUntil y generación propietaria.
+No adelantar `input.now` para sortear el período de asentamiento.
+
+Pruebas del bloque:
+`node --experimental-strip-types --test scripts/test-account-export-b84-mongo-claim-clock.test.mjs`;
+`node scripts/test-account-export-b84-mongo-claim-guard.mjs`;
+Jest de ambos stores y suite aislada Mongo replica-set opt-in.
+Las pruebas Node interpretan predicados locales, **no sustituyen
+la aceptación real de Mongo/S3**. Release #353 sigue HOLD,
+`STUDY_PROGRESS_ENABLED=false`, sin waiver de auditorías #133/#141.
