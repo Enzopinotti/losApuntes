@@ -46,7 +46,7 @@ function claim(
 }
 
 function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
-  const sink: jest.Mocked<AccountExportArtifactSink> = {
+  const sink = {
     write: jest.fn().mockResolvedValue(undefined),
     commit: jest.fn().mockResolvedValue(undefined),
     abort: jest.fn().mockResolvedValue(undefined),
@@ -60,7 +60,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     assertStudyProgressExportEpoch: jest.fn().mockResolvedValue(undefined),
     complete: jest.fn().mockResolvedValue(true),
     reschedule: jest.fn().mockResolvedValue(true),
-  } as unknown as jest.Mocked<AccountExportService>;
+  };
   const assembler = {
     writeJsonV3: jest.fn<
       Promise<AccountExportAssemblyResult>,
@@ -96,7 +96,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
           return result;
         },
       ),
-  } as unknown as jest.Mocked<AccountExportAssembler>;
+  };
   const store = {
     findOwned: jest.fn().mockResolvedValue(null),
     findForOrphanCleanup: jest.fn().mockResolvedValue(claim({
@@ -105,7 +105,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     fenceExpiredClaimForOrphanCleanup: jest.fn().mockResolvedValue(true),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     retireExpiredArtifact: jest.fn().mockResolvedValue(true),
-  } as unknown as jest.Mocked<AccountExportStore>;
+  };
   const orphans = {
     enqueue: jest.fn().mockResolvedValue(undefined),
     claimNext: jest.fn().mockResolvedValue(null),
@@ -113,11 +113,11 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     clearPending: jest.fn().mockResolvedValue(true),
     acknowledge: jest.fn().mockResolvedValue(true),
     retry: jest.fn().mockResolvedValue(true),
-  } as unknown as jest.Mocked<AccountExportOrphanCleanupStore>;
+  };
   const artifacts = {
     createSink: jest.fn().mockReturnValue(sink),
     deleteArtifact: jest.fn().mockResolvedValue(undefined),
-  } as unknown as jest.Mocked<AccountExportArtifactStorage>;
+  };
 
   return {
     sink,
@@ -126,7 +126,15 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     store,
     artifacts,
     orphans,
-    processor: new AccountExportProcessor(exports, assembler, store, artifacts, orphans),
+    // The fixture exposes real Jest functions, while production-facing
+    // interfaces are adapted only at this construction boundary.
+    processor: new AccountExportProcessor(
+      exports as unknown as AccountExportService,
+      assembler as unknown as AccountExportAssembler,
+      store as unknown as AccountExportStore,
+      artifacts as unknown as AccountExportArtifactStorage,
+      orphans as unknown as AccountExportOrphanCleanupStore,
+    ),
   };
 }
 
@@ -226,9 +234,9 @@ describe('AccountExportProcessor', () => {
           return Promise.resolve(true);
         },
       ),
-    } as unknown as jest.Mocked<AccountExportStore>;
+    };
     const users = { hasActiveAccount: jest.fn().mockResolvedValue(true) };
-    const firstService = new AccountExportService(store, users as never);
+    const firstService = new AccountExportService(store as unknown as AccountExportStore, users as never);
 
     // Simulate process exit immediately after the database claim is persisted.
     const abandoned = await firstService.claimNext();
@@ -240,13 +248,13 @@ describe('AccountExportProcessor', () => {
 
     jest.setSystemTime(abandoned!.leaseExpiresAt!);
     const f = fixture({ job: null });
-    const restartedService = new AccountExportService(store, users as never);
+    const restartedService = new AccountExportService(store as unknown as AccountExportStore, users as never);
     const restartedProcessor = new AccountExportProcessor(
       restartedService,
       f.assembler,
-      store,
-      f.artifacts,
-      f.orphans,
+      store as unknown as AccountExportStore,
+      f.artifacts as unknown as AccountExportArtifactStorage,
+      f.orphans as unknown as AccountExportOrphanCleanupStore,
     );
 
     await expect(restartedProcessor.runIteration()).resolves.toMatchObject({
