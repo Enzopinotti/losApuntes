@@ -168,6 +168,21 @@ describe('B67 durable account export orphan cleanup', () => {
     }, { $max: { leaseExpiresAt: expires } });
   });
 
+  it('B68 accepts a matched renewal with an unchanged monotonic lease', async () => {
+    const f = fixture();
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
+    f.retry.exec.mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 0 });
+    await expect(f.store.renewLease({
+      jobId, generation, claimId, now,
+      leaseExpiresAt: new Date(now.getTime() + 180_000),
+    })).resolves.toBe(true);
+    expect(f.model.updateOne).toHaveBeenLastCalledWith({
+      jobId, generation, state: 'processing', claimId,
+      leaseExpiresAt: { $gt: now },
+      verificationUntil: null,
+    }, { $max: { leaseExpiresAt: new Date(now.getTime() + 180_000) } });
+  });
+
   it('B68 refuses to renew a stolen or expired cleanup claim', async () => {
     const f = fixture();
     await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
