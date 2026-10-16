@@ -911,6 +911,9 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(row!.nextAttemptAt.getTime()).toBe(
       now.getTime() + 3 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
     );
+    expect(row!.verificationUntil?.getTime()).toBe(
+      now.getTime() + 60 * 60_000,
+    );
     const deleteArtifact = jest.fn().mockResolvedValue(undefined);
     const worker = new AccountExportProcessor(
       { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
@@ -926,13 +929,104 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     await orphanJobs.updateOne({ jobId: id, generation: oldGeneration }, {
       $set: { nextAttemptAt: new Date(Date.now() - 1) },
     });
+    // First successful DELETE is not a terminal ACK: a late multipart
+    // completion could recreate the old key while the verification window
+    // is still open.
     await expect(worker.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, orphanRetries: 0,
+      orphanVerificationScheduled: 1,
+      orphanDeleted: 0, orphanRetries: 0,
     });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
+      .toBe(1);
     expect(deleteArtifact).toHaveBeenCalledWith(id, oldGeneration);
     expect(deleteArtifact).not.toHaveBeenCalledWith(id, newGeneration);
+
+    // Simulate a crashed worker and an old object reappearing after the
+    // first DELETE. Force the isolated test's horizon to its final pass.
+    await orphanJobs.updateOne({ jobId: id, generation: oldGeneration }, {
+      $set: {
+        nextAttemptAt: new Date(Date.now() - 1),
+        verificationUntil: new Date(Date.now() - 1),
+      },
+    });
+    const restarted = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      new MongoAccountExportStore(exportJobs, users, connection, orphanJobs),
+      { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(restarted.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanVerificationScheduled: 0, orphanRetries: 0,
+    });
+    expect(deleteArtifact).toHaveBeenCalledTimes(2);
+    expect(deleteArtifact).toHaveBeenNthCalledWith(2, id, oldGeneration);
     expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
       .toBe(0);
+  }, 30_000);
+
+  it('B75 prevents a pre-takeover cleanup claimant from ACKing a newly extended verification window', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const newGeneration = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 1, attempts: 1, nextAttemptAt: now,
+      claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() - 1),
+    });
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await queue.enqueue({ jobId: id, ownerUserId: userId, generation, now });
+    const cleanupClaim = randomUUID();
+    const alreadyClaimed = await queue.claimNext({
+      now, claimId: cleanupClaim,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    expect(alreadyClaimed?.verificationUntil ?? null).toBeNull();
+
+    const jobStore = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(jobStore.claimNext({
+      now, claimId: newGeneration,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).resolves.toMatchObject({ claimId: newGeneration });
+    const extended = await orphanJobs.findOne({ jobId: id, generation }).lean().exec();
+    expect(extended?.verificationUntil?.getTime()).toBe(
+      now.getTime() + 60 * 60_000,
+    );
+    await expect(queue.acknowledge({
+      jobId: id, generation, claimId: cleanupClaim, now,
+    })).resolves.toBe(false);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    // The old worker must release or expire its lease before another worker
+    // reclaims the row with the new verification deadline.
+  }, 30_000);
+
+  it('B75 prevents the old worker fast path from cancelling a pending takeover verification', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 1, attempts: 1, nextAttemptAt: now,
+      claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() - 1),
+    });
+    const jobStore = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(jobStore.claimNext({
+      now, claimId: randomUUID(),
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).resolves.not.toBeNull();
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await expect(queue.clearPending({ jobId: id, generation }))
+      .resolves.toBe(false);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
   }, 30_000);
 
   it('B74 preserves an expired claim if its takeover cleanup queue cannot be written', async () => {

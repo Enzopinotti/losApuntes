@@ -9,6 +9,11 @@ export interface AccountExportOrphanCleanupRecord {
   generation: string;
   attempts: number;
   claimId: string;
+  /**
+   * Only reclaimed, previously processing attempts get a bounded
+   * post-delete recheck period; ordinary proven orphans ACK immediately.
+   */
+  verificationUntil?: Date | null;
 }
 
 export interface AccountExportOrphanCleanupStore {
@@ -43,6 +48,8 @@ export interface AccountExportOrphanCleanupStore {
     generation: string;
     claimId: string;
     now: Date;
+    /** Prevent ACK when takeover installed a newer recheck deadline. */
+    verificationUntil?: Date | null;
   }): Promise<boolean>;
   retry(input: {
     jobId: string;

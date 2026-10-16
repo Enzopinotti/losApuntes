@@ -61,6 +61,9 @@ implements AccountExportOrphanCleanupStore {
       generation: input.generation,
       state: 'pending',
       claimId: null,
+      // A worker finishing a late failed attempt must not cancel the
+      // takeover's durable verification period. Null matches legacy rows.
+      verificationUntil: null,
     }).exec();
     return result.deletedCount === 1;
   }
@@ -107,6 +110,9 @@ implements AccountExportOrphanCleanupStore {
       jobId: input.jobId, generation: input.generation,
       state: 'processing', claimId: input.claimId,
       leaseExpiresAt: { $gt: input.now },
+      // If a takeover enlarged the horizon after this worker claimed the
+      // row, its stale ACK must fail instead of deleting the new intent.
+      verificationUntil: input.verificationUntil ?? null,
     }).exec();
     return result.deletedCount === 1;
   }

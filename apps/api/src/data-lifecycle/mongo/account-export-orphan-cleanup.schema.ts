@@ -26,6 +26,13 @@ export class AccountExportOrphanCleanup {
   @Prop({ type: Date, default: null })
   leaseExpiresAt!: Date | null;
 
+  /**
+   * Reclaimed multipart uploads may finish after their first cleanup.
+   * Persist a bounded recheck horizon so a worker crash cannot erase it.
+   */
+  @Prop({ type: Date, default: null })
+  verificationUntil!: Date | null;
+
   createdAt!: Date;
   updatedAt!: Date;
 }

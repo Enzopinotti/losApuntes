@@ -1074,6 +1074,88 @@ describe('AccountExportProcessor', () => {
     expect(f.orphans.retry).not.toHaveBeenCalled();
   });
 
+  it('B75 retains an orphan after a successful S3 DELETE while the verification window remains open', async () => {
+    const f = fixture({ job: null });
+    const until = new Date(Date.now() + 60 * 60_000);
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan, verificationUntil: until,
+    });
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanVerificationScheduled: 1, orphanRetries: 0,
+    });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      orphan.jobId, orphan.generation,
+    );
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: orphan.jobId, generation: orphan.generation,
+      claimId: orphan.claimId, nextAttemptAt: expect.any(Date),
+    }));
+    const next = f.orphans.retry.mock.calls[0][0].nextAttemptAt;
+    expect(next.getTime()).toBeLessThanOrEqual(until.getTime());
+    expect(next.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('B75 performs a final exact generation DELETE and ACK after verification deadline', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan, verificationUntil: new Date(Date.now() - 1),
+    });
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanVerificationScheduled: 0, orphanRetries: 0,
+    });
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledTimes(1);
+    expect(f.orphans.retry).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId, generation: orphan.generation,
+        claimId: orphan.claimId,
+      }),
+    );
+  });
+
+  it('B75 never deletes when verification deadline is malformed', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan, verificationUntil: 'invalid' as unknown as Date,
+    });
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+    expect(f.orphans.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('B75 does not ACK a verification task when lease-fenced retry loses', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan, verificationUntil: new Date(Date.now() + 60 * 60_000),
+    });
+    f.orphans.retry.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanVerificationScheduled: 0, orphanRetries: 1,
+    });
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+  });
+
+  it('B75 protects a re-referenced generation before every S3 verification pass', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan, verificationUntil: new Date(Date.now() + 60 * 60_000),
+    });
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'completed', active: false,
+      artifactGeneration: orphan.generation,
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanPreserved: 1, orphanDeleted: 0,
+      orphanVerificationScheduled: 0,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.retry).not.toHaveBeenCalled();
+  });
+
   it('B70 fails closed when the durable job is missing', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
