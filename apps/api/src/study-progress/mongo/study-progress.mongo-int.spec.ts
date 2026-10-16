@@ -879,6 +879,79 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     })).resolves.toBe(true);
   }, 30_000);
 
+  it('B71 recovers an ambiguous S3 multipart completion with real Mongo retry CAS', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const started = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 1, attempts: 1, nextAttemptAt: started,
+      claimId: generation,
+      leaseExpiresAt: new Date(started.getTime() + 120_000),
+    });
+    const exportStore = new MongoAccountExportStore(exportJobs, users, connection);
+    const queued = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    const claimed = await exportStore.findOwned(id, userId) as AccountExportJobRecord;
+    const payload = {
+      format: 'los-apuntes-account-export' as const,
+      formatVersion: 1 as const,
+      sectionCount: 30, recordCount: 0,
+      byteLength: 128, sha256: 'a'.repeat(64),
+    };
+    const writer = {
+      write: jest.fn().mockResolvedValue(undefined),
+      commit: jest.fn().mockRejectedValueOnce(new Error('S3 multipart ACK lost')),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const deleteArtifact = jest.fn()
+      .mockRejectedValueOnce(new Error('S3 DELETE transient outage'))
+      .mockResolvedValue(undefined);
+    const artifacts = {
+      createSink: jest.fn().mockReturnValue(writer),
+      deleteArtifact,
+    } as unknown as AccountExportArtifactStorage;
+    const assembler = {
+      writeJsonV1: async (_owner: string, sink: AccountExportArtifactSink) => {
+        await sink.write('uploaded-before-ack-loss');
+        await sink.commit(payload);
+        return payload;
+      },
+    } as unknown as AccountExportAssembler;
+    const service = {
+      claimNext: jest.fn().mockResolvedValueOnce(claimed).mockResolvedValue(null),
+      renewLease: jest.fn().mockResolvedValue(true),
+      complete: jest.fn().mockResolvedValue(true),
+      reschedule: (input: {
+        id: string; claimId: string; state: 'pending' | 'failed';
+        nextAttemptAt: Date; failureCode: 'EXPORT_ASSEMBLY_RETRY';
+      }) => exportStore.reschedule({ ...input, now: new Date() }),
+    } as unknown as AccountExportService;
+
+    const first = new AccountExportProcessor(
+      service, assembler, exportStore, artifacts, queued,
+    );
+    await expect(first.runIteration()).resolves.toMatchObject({
+      claimed: 1, completed: 0, retryScheduled: 1,
+    });
+    expect(writer.abort).toHaveBeenCalledTimes(1);
+    expect(deleteArtifact).toHaveBeenCalledWith(id, generation);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    expect((await exportStore.findOwned(id, userId))?.state).toBe('pending');
+
+    const restarted = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      assembler, exportStore, artifacts,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(restarted.runIteration()).resolves.toMatchObject({
+      claimed: 0, orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(deleteArtifact).toHaveBeenCalledTimes(2);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
   it('B70 keeps an orphan task but never touches S3 when the durable job is missing', async () => {
     await orphanJobs.deleteMany({});
     const userId = await owner();
