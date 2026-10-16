@@ -102,6 +102,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     findForOrphanCleanup: jest.fn().mockResolvedValue(claim({
       state: 'pending', active: true, claimId: null,
     })),
+    fenceExpiredClaimForOrphanCleanup: jest.fn().mockResolvedValue(true),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     retireExpiredArtifact: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportStore>;
@@ -998,6 +999,75 @@ describe('AccountExportProcessor', () => {
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).toHaveBeenCalledTimes(1);
+  });
+
+  it('B82 revokes a matching expired claim before touching S3', async () => {
+    const f = fixture({ job: null });
+    const expiredAt = new Date(Date.now() - 1);
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'processing', active: true, claimId: orphan.generation,
+      leaseExpiresAt: expiredAt, artifactGeneration: null,
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanRetries: 0, orphanAuthorityBlocked: 0,
+    });
+    expect(f.store.fenceExpiredClaimForOrphanCleanup).toHaveBeenCalledWith({
+      id: orphan.jobId, ownerUserId: orphan.ownerUserId,
+      generation: orphan.generation, now: expect.any(Date),
+    });
+    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0])
+      .toBeLessThan(f.orphans.renewLease.mock.invocationCallOrder[0]);
+    expect(f.orphans.renewLease.mock.invocationCallOrder[0])
+      .toBeLessThan(f.artifacts.deleteArtifact.mock.invocationCallOrder[0]);
+  });
+
+  it('B82 refuses S3 DELETE if a delayed completion wins the revocation CAS', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'processing', claimId: orphan.generation, active: true,
+      leaseExpiresAt: new Date(Date.now() - 1), artifactGeneration: null,
+    }));
+    f.store.fenceExpiredClaimForOrphanCleanup.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1, orphanAuthorityBlocked: 1,
+    });
+    expect(f.orphans.renewLease).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+    expect(f.orphans.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('B82 rejects a malformed current lease instead of assuming it expired', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'processing', claimId: orphan.generation, active: true,
+      leaseExpiresAt: null, artifactGeneration: null,
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(f.store.fenceExpiredClaimForOrphanCleanup).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+  });
+
+  it('B82 never revokes a different current generation before deleting an old orphan', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'processing', claimId: '44444444-4444-4444-8444-444444444444',
+      active: true, leaseExpiresAt: new Date(Date.now() + 30_000),
+      artifactGeneration: null,
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(f.store.fenceExpiredClaimForOrphanCleanup).not.toHaveBeenCalled();
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      orphan.jobId, orphan.generation,
+    );
   });
 
   it('B67 waits for a still-live matching claim instead of deleting S3', async () => {
