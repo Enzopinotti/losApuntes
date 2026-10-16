@@ -46,7 +46,7 @@ check('successful deletion only cancels unclaimed pending tasks', () => {
   assert.doesNotMatch(impl, /state: 'processing'/u);
 });
 check('ambiguous durable Mongo completion never creates a deletion intent', () => {
-  assert.match(worker, /if \(uncertainCompletion\)/u);
+  assert.match(worker, /if \(uncertainCompletion && completedAssembly\)/u);
   assert.match(worker, /if \(!updated\)/u);
   const part = worker.slice(
     worker.indexOf('      const uncertainCompletion ='),
