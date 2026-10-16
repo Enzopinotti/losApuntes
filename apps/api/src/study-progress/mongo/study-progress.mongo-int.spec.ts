@@ -3097,7 +3097,9 @@ runMongo(
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            return Promise.reject(new Error('B86 S3 PUT ACK lost after object commit'));
+            return Promise.reject(
+              new Error('B86 S3 PUT ACK lost after object commit'),
+            );
           }
           if (method === 'DELETE') {
             if (deleteFailures-- > 0)
