@@ -902,7 +902,7 @@ describe('AccountExportProcessor', () => {
       userId: 'another-owner', state: 'failed',
     }));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanRetries: 1, orphanDeleted: 0,
+      orphanRetries: 1, orphanDeleted: 0, orphanAuthorityBlocked: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.retry).toHaveBeenCalledTimes(1);
@@ -1036,7 +1036,8 @@ describe('AccountExportProcessor', () => {
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
     f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 0, orphanDeleted: 0, orphanPreserved: 0, orphanRetries: 1,
+      claimed: 0, orphanDeleted: 0, orphanPreserved: 0,
+      orphanRetries: 1, orphanAuthorityBlocked: 1,
     });
     expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1095,7 +1096,7 @@ describe('AccountExportProcessor', () => {
       id: 'different-job', state: 'failed',
     }));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1,
+      orphanDeleted: 0, orphanRetries: 1, orphanAuthorityBlocked: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
