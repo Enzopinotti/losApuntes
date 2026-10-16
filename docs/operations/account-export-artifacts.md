@@ -257,6 +257,25 @@ See `docs/engineering/account-export-orphan-cleanup-b67.md` for
 constraints and the opt-in replica-set acceptance suite.
 
 
+## B69 — Write-ahead cleanup intent before S3
+
+Whenever a proven orphan generation needs cleanup, the worker now persists
+a private Mongo intent **before** attempting its S3 DELETE. On success, it
+clears the intent only if it remains unclaimed (`pending`, `claimId=null`);
+a task already held by a second worker is not cancelled. On S3 failure or
+process crash, the durable intent remains eligible for the lease/retry
+mechanism. If Mongo cannot enqueue, the worker still performs a best-effort
+DELETE; private bucket lifecycle remains the fallback if both systems fail.
+
+This closes the loss-of-work window between a failed DELETE and recording
+a retry. It does **not** provide distributed transactional deletion or
+enumerate untracked legacy objects. An uncertain Mongo completion must still
+be reconciled before establishing any deletion intent.
+
+The B69 repair also restores the Jest spec nesting and timer cleanup for the
+earlier B67/B68 worker tests. Production qualification still requires
+an exact-head Jest/Mongo/S3 fault-injection pass.
+
 ## B68 — Orphan cleanup workers, lease renewal and owner authority
 
 The private orphan queue is not a permission to delete a generation. The
