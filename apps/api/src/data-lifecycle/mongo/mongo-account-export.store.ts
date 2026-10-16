@@ -168,6 +168,13 @@ export class MongoAccountExportStore implements AccountExportStore {
           const settleAt = new Date(
             input.now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS * 3,
           );
+          // Keep the old-generation intent for repeated provider DELETE
+          // checks, even after the first request reports success. This
+          // narrows the window for a late multipart complete to resurrect
+          // the object after its first successful deletion.
+          const verificationUntil = new Date(
+            input.now.getTime() + 60 * 60_000,
+          );
           await this.orphanCleanup!.updateOne(
             { jobId: previous.id, generation: oldGeneration },
             {
@@ -180,6 +187,7 @@ export class MongoAccountExportStore implements AccountExportStore {
                 nextAttemptAt: settleAt,
                 claimId: null,
                 leaseExpiresAt: null,
+                verificationUntil,
               },
             },
             { upsert: true, session },
