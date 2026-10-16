@@ -61,7 +61,10 @@ function errorMessage(error: unknown): string {
     if (apiError.code === "STUDY_COLLECTION_CURSOR_STALE") {
       return "La colección cambió. Volvé a cargar los apuntes.";
     }
-    if (apiError.code === "STUDY_COLLECTIONS_NOT_ENABLED" || apiError.status === 503) {
+    if (
+      apiError.code === "STUDY_COLLECTIONS_NOT_ENABLED" ||
+      apiError.status === 503
+    ) {
       return "Las colecciones sincronizadas todavía no están habilitadas.";
     }
     if (apiError.code === "STUDY_COLLECTION_FULL") {
@@ -96,12 +99,16 @@ const StudyCollections = () => {
     value: string;
   } | null>(null);
   const query = searchDraft?.scope === detailScope ? searchDraft.value : "";
-  const setQuery = (value: string) => setSearchDraft({ scope: detailScope, value });
+  const setQuery = (value: string) =>
+    setSearchDraft({ scope: detailScope, value });
   const [createDraft, setCreateDraft] = useState<{
-    scope: string; title: string; description: string;
+    scope: string;
+    title: string;
+    description: string;
   } | null>(null);
   const title = createDraft?.scope === authScope ? createDraft.title : "";
-  const description = createDraft?.scope === authScope ? createDraft.description : "";
+  const description =
+    createDraft?.scope === authScope ? createDraft.description : "";
   const setTitle = (value: string) =>
     setCreateDraft({ scope: authScope, title: value, description });
   const setDescription = (value: string) =>
@@ -110,8 +117,14 @@ const StudyCollections = () => {
   const editing = editingAt === detailScope;
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [actionError, setActionError] = useState<{ scope: string; message: string } | null>(null);
-  const [notice, setNotice] = useState<{ scope: string; message: string } | null>(null);
+  const [actionError, setActionError] = useState<{
+    scope: string;
+    message: string;
+  } | null>(null);
+  const [notice, setNotice] = useState<{
+    scope: string;
+    message: string;
+  } | null>(null);
   const [busyScope, setBusyScope] = useState<string | null>(null);
   const actionLock = useRef<{
     scope: string;
@@ -133,7 +146,9 @@ const StudyCollections = () => {
     begin: beginSearch,
     isCurrent: isSearchCurrent,
     finish: finishSearch,
-  } = useAsyncAuthorityFence(`study-collections-search:${detailScope}:${query.trim()}`);
+  } = useAsyncAuthorityFence(
+    `study-collections-search:${detailScope}:${query.trim()}`,
+  );
   const {
     begin: beginAction,
     isCurrent: isActionCurrent,
@@ -155,7 +170,8 @@ const StudyCollections = () => {
       setListState((previous) => ({
         scope: authScope,
         items: append && previous?.scope === authScope ? previous.items : [],
-        nextCursor: append && previous?.scope === authScope ? previous.nextCursor : null,
+        nextCursor:
+          append && previous?.scope === authScope ? previous.nextCursor : null,
         busy: true,
         error: null,
       }));
@@ -164,11 +180,17 @@ const StudyCollections = () => {
         if (!isListCurrent(ticket)) return;
         setListState((previous) => ({
           scope: authScope,
-          items: append && previous?.scope === authScope
-            ? Array.from(
-                new Map([...previous.items, ...next.items].map((item) => [item.id, item])).values(),
-              )
-            : next.items,
+          items:
+            append && previous?.scope === authScope
+              ? Array.from(
+                  new Map(
+                    [...previous.items, ...next.items].map((item) => [
+                      item.id,
+                      item,
+                    ]),
+                  ).values(),
+                )
+              : next.items,
           nextCursor: next.nextCursor,
           busy: false,
           error: null,
@@ -177,7 +199,8 @@ const StudyCollections = () => {
         if (isListCurrent(ticket)) {
           setListState((previous) => ({
             scope: authScope,
-            items: append && previous?.scope === authScope ? previous.items : [],
+            items:
+              append && previous?.scope === authScope ? previous.items : [],
             nextCursor: null,
             busy: false,
             error: errorMessage(error),
@@ -192,17 +215,27 @@ const StudyCollections = () => {
 
   const loadDetail = useCallback(
     async (cursor?: string, append = false) => {
-      if (!selectedId || status !== "authenticated" || !PERSISTENT_COLLECTIONS_VISIBLE) return;
+      if (
+        !selectedId ||
+        status !== "authenticated" ||
+        !PERSISTENT_COLLECTIONS_VISIBLE
+      )
+        return;
       const ticket = beginDetail();
       if (!isDetailCurrent(ticket)) return;
-      const previousRevision = append && detailStateRef.current?.scope === detailScope
-        ? detailStateRef.current.collection?.revision ?? null
-        : null;
+      const previousRevision =
+        append && detailStateRef.current?.scope === detailScope
+          ? (detailStateRef.current.collection?.revision ?? null)
+          : null;
       setDetailState((previous) => ({
         scope: detailScope,
-        collection: previous?.scope === detailScope ? previous.collection : null,
+        collection:
+          previous?.scope === detailScope ? previous.collection : null,
         items: append && previous?.scope === detailScope ? previous.items : [],
-        nextCursor: append && previous?.scope === detailScope ? previous.nextCursor : null,
+        nextCursor:
+          append && previous?.scope === detailScope
+            ? previous.nextCursor
+            : null,
         busy: true,
         error: null,
       }));
@@ -212,12 +245,14 @@ const StudyCollections = () => {
           studyCollectionsApi.resources(selectedId, cursor, ticket.signal),
         ]);
         if (!isDetailCurrent(ticket)) return;
-        if (!isConsistentCollectionPage(
-          header.collection.revision,
-          page.revision,
-          previousRevision,
-          append,
-        )) {
+        if (
+          !isConsistentCollectionPage(
+            header.collection.revision,
+            page.revision,
+            previousRevision,
+            append,
+          )
+        ) {
           throw new StudyCollectionsApiError(
             "STUDY_COLLECTION_CURSOR_STALE",
             409,
@@ -227,27 +262,38 @@ const StudyCollections = () => {
         setDetailState((previous) => ({
           scope: detailScope,
           collection: header.collection,
-          items: append && previous?.scope === detailScope
-            ? Array.from(
-                new Map([...previous.items, ...page.items].map((item) => [item.resourceId, item])).values(),
-              )
-            : page.items,
+          items:
+            append && previous?.scope === detailScope
+              ? Array.from(
+                  new Map(
+                    [...previous.items, ...page.items].map((item) => [
+                      item.resourceId,
+                      item,
+                    ]),
+                  ).values(),
+                )
+              : page.items,
           nextCursor: page.nextCursor,
           busy: false,
           error: null,
         }));
       } catch (error) {
         if (isDetailCurrent(ticket)) {
-          const stale = error instanceof StudyCollectionsApiError &&
+          const stale =
+            error instanceof StudyCollectionsApiError &&
             error.code === "STUDY_COLLECTION_CURSOR_STALE";
           setDetailState((previous) => ({
             scope: detailScope,
             collection: stale
               ? null
-              : previous?.scope === detailScope ? previous.collection : null,
-            items: stale ? [] : append && previous?.scope === detailScope
-              ? previous.items
-              : [],
+              : previous?.scope === detailScope
+                ? previous.collection
+                : null,
+            items: stale
+              ? []
+              : append && previous?.scope === detailScope
+                ? previous.items
+                : [],
             nextCursor: null,
             busy: false,
             error: errorMessage(error),
@@ -257,7 +303,14 @@ const StudyCollections = () => {
         finishDetail(ticket);
       }
     },
-    [status, selectedId, detailScope, beginDetail, isDetailCurrent, finishDetail],
+    [
+      status,
+      selectedId,
+      detailScope,
+      beginDetail,
+      isDetailCurrent,
+      finishDetail,
+    ],
   );
 
   useEffect(() => {
@@ -276,39 +329,49 @@ const StudyCollections = () => {
       !PERSISTENT_COLLECTIONS_VISIBLE ||
       !selectedId ||
       query.trim().length < 2
-    ) return;
+    )
+      return;
     const ticket = beginSearch();
     if (!isSearchCurrent(ticket)) return;
     setSearchState({ scope: searchScope, items: [], busy: true, error: null });
-    void resourcesApi.search({ q: query.trim() }, ticket.signal).then(
-      (result) => {
-        if (isSearchCurrent(ticket)) {
-          setSearchState({
-            scope: searchScope,
-            items: result.items,
-            busy: false,
-            error: null,
-          });
-        }
-      },
-      (error: unknown) => {
-        if (isSearchCurrent(ticket)) {
-          setSearchState({
-            scope: searchScope,
-            items: [],
-            busy: false,
-            error: errorMessage(error),
-          });
-        }
-      },
-    ).finally(() => {
-      finishSearch(ticket);
-    });
-  }, [status, selectedId, query, searchScope, beginSearch, isSearchCurrent, finishSearch]);
+    void resourcesApi
+      .search({ q: query.trim() }, ticket.signal)
+      .then(
+        (result) => {
+          if (isSearchCurrent(ticket)) {
+            setSearchState({
+              scope: searchScope,
+              items: result.items,
+              busy: false,
+              error: null,
+            });
+          }
+        },
+        (error: unknown) => {
+          if (isSearchCurrent(ticket)) {
+            setSearchState({
+              scope: searchScope,
+              items: [],
+              busy: false,
+              error: errorMessage(error),
+            });
+          }
+        },
+      )
+      .finally(() => {
+        finishSearch(ticket);
+      });
+  }, [
+    status,
+    selectedId,
+    query,
+    searchScope,
+    beginSearch,
+    isSearchCurrent,
+    finishSearch,
+  ]);
 
-  const execute = async (
-    work: (signal: AbortSignal) => Promise<void>,
-  ) => {
+  const execute = async (work: (signal: AbortSignal) => Promise<void>) => {
     if (
       status !== "authenticated" ||
       !PERSISTENT_COLLECTIONS_VISIBLE ||
@@ -359,7 +422,10 @@ const StudyCollections = () => {
       setTitle("");
       setDescription("");
       setParams({ collection: response.collection.id });
-      setNotice({ scope: `${authScope}:${response.collection.id}`, message: "Colección creada." });
+      setNotice({
+        scope: `${authScope}:${response.collection.id}`,
+        message: "Colección creada.",
+      });
       void loadList();
     });
   };
@@ -386,7 +452,12 @@ const StudyCollections = () => {
   };
 
   const removeCollection = () => {
-    if (!collection || !window.confirm(`¿Eliminar la colección "${collection.title}"? Los apuntes originales se conservan.`)) {
+    if (
+      !collection ||
+      !window.confirm(
+        `¿Eliminar la colección "${collection.title}"? Los apuntes originales se conservan.`,
+      )
+    ) {
       return;
     }
     void execute(async (signal) => {
@@ -404,7 +475,10 @@ const StudyCollections = () => {
       if (signal.aborted) return;
       void loadDetail();
       void loadList();
-      setNotice({ scope: detailScope, message: "Apunte agregado a la colección." });
+      setNotice({
+        scope: detailScope,
+        message: "Apunte agregado a la colección.",
+      });
     });
   };
 
@@ -415,7 +489,10 @@ const StudyCollections = () => {
       if (signal.aborted) return;
       void loadDetail();
       void loadList();
-      setNotice({ scope: detailScope, message: "Apunte quitado de la colección." });
+      setNotice({
+        scope: detailScope,
+        message: "Apunte quitado de la colección.",
+      });
     });
   };
 
@@ -423,7 +500,10 @@ const StudyCollections = () => {
     return (
       <main className="study-collections-page">
         <h1>Colecciones sincronizadas no disponibles</h1>
-        <p>Esta función todavía no está habilitada. Podés seguir organizando tus apuntes con las colecciones portátiles.</p>
+        <p>
+          Esta función todavía no está habilitada. Podés seguir organizando tus
+          apuntes con las colecciones portátiles.
+        </p>
         <Link to="/study">Volver a la Mesa de estudio</Link>
       </main>
     );
@@ -434,22 +514,34 @@ const StudyCollections = () => {
       <header className="study-collections-hero">
         <p className="resources-eyebrow">Mi espacio de estudio</p>
         <h1>Colecciones de estudio</h1>
-        <p>Armá carpetas para parciales, finales o temas. Los apuntes mantienen sus permisos originales; sólo vos ves tus colecciones.</p>
+        <p>
+          Armá carpetas para parciales, finales o temas. Los apuntes mantienen
+          sus permisos originales; sólo vos ves tus colecciones.
+        </p>
         <Link to="/resources">Explorar apuntes</Link>
       </header>
 
       {actionError?.scope === detailScope && (
-        <p role="alert" className="resources-error">{actionError.message}</p>
+        <p role="alert" className="resources-error">
+          {actionError.message}
+        </p>
       )}
       {notice?.scope === detailScope && (
-        <p role="status" className="resources-success">{notice.message}</p>
+        <p role="status" className="resources-success">
+          {notice.message}
+        </p>
       )}
 
       <div className="study-collections-grid">
-        <section aria-label="Mis colecciones" className="study-collections-panel">
+        <section
+          aria-label="Mis colecciones"
+          className="study-collections-panel"
+        >
           <h2>Mis colecciones</h2>
           <form onSubmit={create} className="study-collections-form">
-            <label htmlFor="new-collection-title">Nombre de la nueva colección</label>
+            <label htmlFor="new-collection-title">
+              Nombre de la nueva colección
+            </label>
             <input
               id="new-collection-title"
               maxLength={100}
@@ -459,7 +551,9 @@ const StudyCollections = () => {
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Ej.: Segundo parcial de Física"
             />
-            <label htmlFor="new-collection-description">Descripción (opcional)</label>
+            <label htmlFor="new-collection-description">
+              Descripción (opcional)
+            </label>
             <textarea
               id="new-collection-description"
               maxLength={500}
@@ -472,7 +566,9 @@ const StudyCollections = () => {
             </button>
           </form>
           {currentList?.error && (
-            <p role="alert" className="resources-error">{currentList.error}</p>
+            <p role="alert" className="resources-error">
+              {currentList.error}
+            </p>
           )}
           {currentList?.busy && <p role="status">Cargando colecciones…</p>}
           {!currentList?.busy && !currentList?.items.length && (
@@ -483,7 +579,9 @@ const StudyCollections = () => {
               <li key={item.id}>
                 <button
                   type="button"
-                  className={selectedId === item.id ? "study-collection-selected" : ""}
+                  className={
+                    selectedId === item.id ? "study-collection-selected" : ""
+                  }
                   aria-current={selectedId === item.id ? "page" : undefined}
                   onClick={() => setParams({ collection: item.id })}
                 >
@@ -498,18 +596,26 @@ const StudyCollections = () => {
               className="secondary"
               disabled={currentList.busy}
               type="button"
-              onClick={() => void loadList(currentList.nextCursor ?? undefined, true)}
+              onClick={() =>
+                void loadList(currentList.nextCursor ?? undefined, true)
+              }
             >
               Mostrar más colecciones
             </button>
           )}
         </section>
 
-        <section aria-label="Detalle de colección" className="study-collections-panel">
+        <section
+          aria-label="Detalle de colección"
+          className="study-collections-panel"
+        >
           {!selectedId ? (
             <>
               <h2>Elegí una colección</h2>
-              <p>Podés agregar recursos desde la búsqueda, sin descargarlos ni cambiar su visibilidad.</p>
+              <p>
+                Podés agregar recursos desde la búsqueda, sin descargarlos ni
+                cambiar su visibilidad.
+              </p>
             </>
           ) : (
             <>
@@ -527,27 +633,66 @@ const StudyCollections = () => {
                   <div className="study-collections-heading">
                     <div>
                       <h2>{collection.title}</h2>
-                      {collection.description && <p>{collection.description}</p>}
+                      {collection.description && (
+                        <p>{collection.description}</p>
+                      )}
                       <p>{collection.resourceCount} recursos</p>
                     </div>
                     <div className="study-collections-toolbar">
-                      <button type="button" className="secondary" disabled={busy} onClick={() => {
-                        setEditTitle(collection.title);
-                        setEditDescription(collection.description ?? "");
-                        setEditingAt((current) =>
-                          current === detailScope ? null : detailScope,
-                        );
-                      }}>Editar</button>
-                      <button type="button" className="secondary" disabled={busy} onClick={removeCollection}>Eliminar</button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditTitle(collection.title);
+                          setEditDescription(collection.description ?? "");
+                          setEditingAt((current) =>
+                            current === detailScope ? null : detailScope,
+                          );
+                        }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={removeCollection}
+                      >
+                        Eliminar
+                      </button>
                     </div>
                   </div>
                   {editing && (
-                    <form className="study-collections-form" onSubmit={saveEdit}>
+                    <form
+                      className="study-collections-form"
+                      onSubmit={saveEdit}
+                    >
                       <label htmlFor="edit-collection-title">Nombre</label>
-                      <input id="edit-collection-title" maxLength={100} required value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
-                      <label htmlFor="edit-collection-description">Descripción</label>
-                      <textarea id="edit-collection-description" maxLength={500} value={editDescription} onChange={(event) => setEditDescription(event.target.value)} />
-                      <button type="submit" disabled={busy || !editTitle.trim()}>Guardar cambios</button>
+                      <input
+                        id="edit-collection-title"
+                        maxLength={100}
+                        required
+                        value={editTitle}
+                        onChange={(event) => setEditTitle(event.target.value)}
+                      />
+                      <label htmlFor="edit-collection-description">
+                        Descripción
+                      </label>
+                      <textarea
+                        id="edit-collection-description"
+                        maxLength={500}
+                        value={editDescription}
+                        onChange={(event) =>
+                          setEditDescription(event.target.value)
+                        }
+                      />
+                      <button
+                        type="submit"
+                        disabled={busy || !editTitle.trim()}
+                      >
+                        Guardar cambios
+                      </button>
                     </form>
                   )}
                   <h3>Apuntes de esta colección</h3>
@@ -559,13 +704,20 @@ const StudyCollections = () => {
                       <li key={entry.resourceId}>
                         {entry.resource ? (
                           <div>
-                            <Link to={`/resources/${encodeURIComponent(entry.resourceId)}`}>
+                            <Link
+                              to={`/resources/${encodeURIComponent(entry.resourceId)}`}
+                            >
                               {entry.resource.title}
                             </Link>
-                            <small>{entry.resource.academic.subject.name}</small>
+                            <small>
+                              {entry.resource.academic.subject.name}
+                            </small>
                           </div>
                         ) : (
-                          <span>Apunte no disponible: se perdió el permiso o fue retirado.</span>
+                          <span>
+                            Apunte no disponible: se perdió el permiso o fue
+                            retirado.
+                          </span>
                         )}
                         <button
                           type="button"
@@ -580,12 +732,24 @@ const StudyCollections = () => {
                     ))}
                   </ul>
                   {currentDetail?.nextCursor && (
-                    <button className="secondary" type="button" disabled={currentDetail.busy} onClick={() => void loadDetail(currentDetail.nextCursor ?? undefined, true)}>
+                    <button
+                      className="secondary"
+                      type="button"
+                      disabled={currentDetail.busy}
+                      onClick={() =>
+                        void loadDetail(
+                          currentDetail.nextCursor ?? undefined,
+                          true,
+                        )
+                      }
+                    >
                       Mostrar más apuntes
                     </button>
                   )}
                   <h3>Agregar apuntes</h3>
-                  <label htmlFor="collection-resource-search">Buscar por título o tema (mínimo 2 caracteres)</label>
+                  <label htmlFor="collection-resource-search">
+                    Buscar por título o tema (mínimo 2 caracteres)
+                  </label>
                   <input
                     id="collection-resource-search"
                     value={query}
@@ -593,17 +757,28 @@ const StudyCollections = () => {
                     placeholder="Ej.: análisis matemático"
                   />
                   {currentSearch?.busy && <p role="status">Buscando…</p>}
-                  {currentSearch?.error && <p role="alert">{currentSearch.error}</p>}
-                  {query.trim().length >= 2 && !currentSearch?.busy && currentSearch?.items.length === 0 && !currentSearch.error && (
-                    <p>No encontramos recursos. Probá con otras palabras.</p>
+                  {currentSearch?.error && (
+                    <p role="alert">{currentSearch.error}</p>
                   )}
+                  {query.trim().length >= 2 &&
+                    !currentSearch?.busy &&
+                    currentSearch?.items.length === 0 &&
+                    !currentSearch.error && (
+                      <p>No encontramos recursos. Probá con otras palabras.</p>
+                    )}
                   <ul className="study-collection-resources">
                     {currentSearch?.items.map((resource) => {
-                      const included = currentDetail?.items.some((item) => item.resourceId === resource.id);
+                      const included = currentDetail?.items.some(
+                        (item) => item.resourceId === resource.id,
+                      );
                       return (
                         <li key={resource.id}>
                           <div>
-                            <Link to={`/resources/${encodeURIComponent(resource.id)}`}>{resource.title}</Link>
+                            <Link
+                              to={`/resources/${encodeURIComponent(resource.id)}`}
+                            >
+                              {resource.title}
+                            </Link>
                             <small>{resource.academic.subject.name}</small>
                           </div>
                           <button

@@ -61,26 +61,31 @@ function fixture() {
 describe('AccountExportService', () => {
   it('B64 validates a stable owner revision and rejects concurrent updates', async () => {
     const f = fixture();
-    await expect(f.service.captureStudyProgressExportEpoch('user-1'))
-      .resolves.toBe(5);
-    await expect(f.service.assertStudyProgressExportEpoch('user-1', 5))
-      .resolves.toBeUndefined();
+    await expect(
+      f.service.captureStudyProgressExportEpoch('user-1'),
+    ).resolves.toBe(5);
+    await expect(
+      f.service.assertStudyProgressExportEpoch('user-1', 5),
+    ).resolves.toBeUndefined();
     f.users.getStudyProgressExportEpoch.mockResolvedValueOnce(6);
-    await expect(f.service.assertStudyProgressExportEpoch('user-1', 5))
-      .rejects.toThrow('Study progress changed during account export');
+    await expect(
+      f.service.assertStudyProgressExportEpoch('user-1', 5),
+    ).rejects.toThrow('Study progress changed during account export');
     expect(f.users.getStudyProgressExportEpoch).toHaveBeenCalledWith('user-1');
   });
 
   it('B64 fails closed on invalid owner epochs or source outages', async () => {
     const f = fixture();
     for (const invalid of [-1, Number.NaN, 0.5]) {
-      await expect(f.service.assertStudyProgressExportEpoch('user-1', invalid))
-        .rejects.toThrow('epoch is invalid');
+      await expect(
+        f.service.assertStudyProgressExportEpoch('user-1', invalid),
+      ).rejects.toThrow('epoch is invalid');
     }
     const failure = new Error('epoch database unavailable');
     f.users.getStudyProgressExportEpoch.mockRejectedValueOnce(failure);
-    await expect(f.service.captureStudyProgressExportEpoch('user-1'))
-      .rejects.toBe(failure);
+    await expect(
+      f.service.captureStudyProgressExportEpoch('user-1'),
+    ).rejects.toBe(failure);
   });
 
   it('creates one active export request and returns only public status fields', async () => {
@@ -683,92 +688,134 @@ describe('AccountExportService', () => {
       byteLength: 1024,
       sha256: 'b'.repeat(64),
     };
-    await expect(f.service.complete({
-      id: 'export-2', claimId: 'claim-2', result: v2,
-    })).resolves.toBe(true);
+    await expect(
+      f.service.complete({
+        id: 'export-2',
+        claimId: 'claim-2',
+        result: v2,
+      }),
+    ).resolves.toBe(true);
     expect(f.store.complete).toHaveBeenCalledWith(
       expect.objectContaining({ result: v2 }),
     );
-    await expect(f.service.complete({
-      id: 'export-2', claimId: 'claim-2',
-      result: { ...v2, sectionCount: 30 },
-    })).rejects.toThrow('completion metadata is invalid');
-    await expect(f.service.complete({
-      id: 'export-2', claimId: 'claim-2',
-      result: { ...v2, formatVersion: 4 as 2 },
-    })).rejects.toThrow('completion metadata is invalid');
+    await expect(
+      f.service.complete({
+        id: 'export-2',
+        claimId: 'claim-2',
+        result: { ...v2, sectionCount: 30 },
+      }),
+    ).rejects.toThrow('completion metadata is invalid');
+    await expect(
+      f.service.complete({
+        id: 'export-2',
+        claimId: 'claim-2',
+        result: { ...v2, formatVersion: 4 as 2 },
+      }),
+    ).rejects.toThrow('completion metadata is invalid');
   });
 
   it('B65 refuses an unfenced v3 completion and passes owner epoch to Mongo CAS', async () => {
     const f = fixture();
     const v3 = {
-      format: ACCOUNT_EXPORT_FORMAT, formatVersion: 3 as const,
-      sectionCount: 32, recordCount: 1, byteLength: 1000,
+      format: ACCOUNT_EXPORT_FORMAT,
+      formatVersion: 3 as const,
+      sectionCount: 32,
+      recordCount: 1,
+      byteLength: 1000,
       sha256: 'b'.repeat(64),
     };
-    await expect(f.service.complete({
-      id: 'export-3', claimId: 'claim-3', result: v3,
-    })).rejects.toThrow('owner epoch authority');
+    await expect(
+      f.service.complete({
+        id: 'export-3',
+        claimId: 'claim-3',
+        result: v3,
+      }),
+    ).rejects.toThrow('owner epoch authority');
     expect(f.store.complete).not.toHaveBeenCalled();
     f.store.complete.mockResolvedValueOnce(true);
-    await expect(f.service.complete({
-      id: 'export-3', claimId: 'claim-3', result: v3,
-      ownerUserId: 'owner-1', expectedProgressEpoch: 7,
-    })).resolves.toBe(true);
+    await expect(
+      f.service.complete({
+        id: 'export-3',
+        claimId: 'claim-3',
+        result: v3,
+        ownerUserId: 'owner-1',
+        expectedProgressEpoch: 7,
+      }),
+    ).resolves.toBe(true);
     expect(f.store.complete).toHaveBeenCalledWith(
       expect.objectContaining({
-        result: v3, ownerUserId: 'owner-1',
+        result: v3,
+        ownerUserId: 'owner-1',
         expectedProgressEpoch: 7,
       }),
     );
-    await expect(f.service.complete({
-      id: 'export-3', claimId: 'claim-3', result: v3,
-      ownerUserId: 'owner-1', expectedProgressEpoch: -1,
-    })).rejects.toThrow('owner epoch authority');
+    await expect(
+      f.service.complete({
+        id: 'export-3',
+        claimId: 'claim-3',
+        result: v3,
+        ownerUserId: 'owner-1',
+        expectedProgressEpoch: -1,
+      }),
+    ).rejects.toThrow('owner epoch authority');
     expect(f.store.complete).toHaveBeenCalledTimes(1);
   });
 
   it('validates v2 artifact metadata without accepting a 30-section v1 artifact', async () => {
     const f = fixture();
     const expiresAt = new Date(now.getTime() + 60_000);
-    f.store.findOwned.mockResolvedValueOnce(job({
-      state: 'completed',
-      active: false,
-      formatVersion: 2,
-      artifactSectionCount: 31,
-      artifactByteLength: 1024,
-      artifactSha256: 'b'.repeat(64),
-      artifactGeneration: 'generation-v2',
-      artifactExpiresAt: expiresAt,
-    })).mockResolvedValueOnce(job({
-      state: 'completed',
-      active: false,
-      formatVersion: 2,
-      artifactSectionCount: 31,
-      artifactByteLength: 1024,
-      artifactSha256: 'b'.repeat(64),
-      artifactGeneration: 'generation-v2',
-      artifactExpiresAt: expiresAt,
-    })).mockResolvedValueOnce(job({
-      state: 'completed',
-      active: false,
-      formatVersion: 2,
-      artifactSectionCount: 30,
-      artifactByteLength: 1024,
-      artifactSha256: 'b'.repeat(64),
-      artifactGeneration: 'generation-v2',
-      artifactExpiresAt: expiresAt,
-    }));
-    const publicStatus = await f.service.status('user-1','export-2',now);
+    f.store.findOwned
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          formatVersion: 2,
+          artifactSectionCount: 31,
+          artifactByteLength: 1024,
+          artifactSha256: 'b'.repeat(64),
+          artifactGeneration: 'generation-v2',
+          artifactExpiresAt: expiresAt,
+        }),
+      )
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          formatVersion: 2,
+          artifactSectionCount: 31,
+          artifactByteLength: 1024,
+          artifactSha256: 'b'.repeat(64),
+          artifactGeneration: 'generation-v2',
+          artifactExpiresAt: expiresAt,
+        }),
+      )
+      .mockResolvedValueOnce(
+        job({
+          state: 'completed',
+          active: false,
+          formatVersion: 2,
+          artifactSectionCount: 30,
+          artifactByteLength: 1024,
+          artifactSha256: 'b'.repeat(64),
+          artifactGeneration: 'generation-v2',
+          artifactExpiresAt: expiresAt,
+        }),
+      );
+    const publicStatus = await f.service.status('user-1', 'export-2', now);
     expect(publicStatus?.downloadable).toBe(true);
     expect(publicStatus?.formatVersion).toBe(2);
-    await expect(f.service.download('user-1','export-2',now))
-      .resolves.toEqual({
-        kind: 'available', formatVersion: 2, generation: 'generation-v2',
-        byteLength: 1024, sha256: 'b'.repeat(64),
-      });
-    await expect(f.service.download('user-1','export-2',now))
-      .rejects.toThrow('artifact metadata is invalid');
+    await expect(
+      f.service.download('user-1', 'export-2', now),
+    ).resolves.toEqual({
+      kind: 'available',
+      formatVersion: 2,
+      generation: 'generation-v2',
+      byteLength: 1024,
+      sha256: 'b'.repeat(64),
+    });
+    await expect(f.service.download('user-1', 'export-2', now)).rejects.toThrow(
+      'artifact metadata is invalid',
+    );
   });
 
   const emptyProgressReader = {
@@ -778,12 +825,14 @@ describe('AccountExportService', () => {
   it('B63: rejects a v1 job when its owner saves progress during the upsert', async () => {
     const f = fixture();
     const progress = {
-      hasOwnedProgress: jest.fn()
+      hasOwnedProgress: jest
+        .fn()
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(true),
     };
     const service = new AccountExportService(
-      f.store, f.users,
+      f.store,
+      f.users,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
@@ -804,12 +853,14 @@ describe('AccountExportService', () => {
   it('B63: rejects a v2 job when progress appears after version selection', async () => {
     const f = fixture();
     const progress = {
-      hasOwnedProgress: jest.fn()
+      hasOwnedProgress: jest
+        .fn()
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(true),
     };
     const service = new AccountExportService(
-      f.store, f.users,
+      f.store,
+      f.users,
       { get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
@@ -830,12 +881,14 @@ describe('AccountExportService', () => {
     const f = fixture();
     const error = new Error('private data read unavailable');
     const progress = {
-      hasOwnedProgress: jest.fn()
+      hasOwnedProgress: jest
+        .fn()
         .mockResolvedValueOnce(false)
         .mockRejectedValueOnce(error),
     };
     const service = new AccountExportService(
-      f.store, f.users,
+      f.store,
+      f.users,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
@@ -851,28 +904,33 @@ describe('AccountExportService', () => {
   it('B63: rejects an unsupported durable format instead of mislabelling it', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store, f.users,
+      f.store,
+      f.users,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
     );
     f.store.requestActive.mockResolvedValue({
-      created: false, job: job({ formatVersion: 99 }),
+      created: false,
+      job: job({ formatVersion: 99 }),
     });
-    await expect(service.request('user-1', now))
-      .rejects.toThrow('unsupported format version');
+    await expect(service.request('user-1', now)).rejects.toThrow(
+      'unsupported format version',
+    );
   });
 
   it('B63: permits replay of a higher-version historical job, never downgrading it', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store, f.users,
+      f.store,
+      f.users,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
     );
     f.store.requestActive.mockResolvedValue({
-      created: false, job: job({ formatVersion: 3 }),
+      created: false,
+      job: job({ formatVersion: 3 }),
     });
     const result = await service.request('user-1', now);
     expect(result.created).toBe(false);
@@ -885,13 +943,20 @@ describe('AccountExportService', () => {
   it('requires v3 for existing study progress despite a rolled-back flag', async () => {
     const f = fixture();
     const config = { get: () => false };
-    const collections = { hasOwnedCollections: jest.fn().mockResolvedValue(false) };
+    const collections = {
+      hasOwnedCollections: jest.fn().mockResolvedValue(false),
+    };
     const progress = { hasOwnedProgress: jest.fn().mockResolvedValue(true) };
     const service = new AccountExportService(
-      f.store, f.users, config as never, collections as never, progress as never,
+      f.store,
+      f.users,
+      config as never,
+      collections as never,
+      progress as never,
     );
     f.store.requestActive.mockImplementation(async (input) => ({
-      created: true, job: job({ formatVersion: input.formatVersion }),
+      created: true,
+      job: job({ formatVersion: input.formatVersion }),
     }));
     expect((await service.request('user-1', now)).export.formatVersion).toBe(3);
     expect(progress.hasOwnedProgress).toHaveBeenCalledWith('user-1');
@@ -902,38 +967,54 @@ describe('AccountExportService', () => {
 
   it('rejects stale v1/v2 work for a newly required v3 export', async () => {
     const f = fixture();
-    const service = new AccountExportService(f.store, f.users, {
-      get: (key: string) => key === 'STUDY_PROGRESS_ENABLED',
-    } as never, { hasOwnedCollections: jest.fn() } as never,
-    { hasOwnedProgress: jest.fn() } as never);
+    const service = new AccountExportService(
+      f.store,
+      f.users,
+      {
+        get: (key: string) => key === 'STUDY_PROGRESS_ENABLED',
+      } as never,
+      { hasOwnedCollections: jest.fn() } as never,
+      { hasOwnedProgress: jest.fn() } as never,
+    );
     for (const version of [1, 2]) {
       f.store.requestActive.mockResolvedValueOnce({
-        created: false, job: job({ formatVersion: version }),
+        created: false,
+        job: job({ formatVersion: version }),
       });
-      await expect(service.request('user-1', now))
-        .rejects.toMatchObject({
-          response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
-        });
+      await expect(service.request('user-1', now)).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
+      });
     }
   });
 
   it('does not downgrade when progress existence check fails', async () => {
     const f = fixture();
     const failure = new Error('Mongo unavailable');
-    const service = new AccountExportService(f.store, f.users, {
-      get: () => false,
-    } as never, { hasOwnedCollections: jest.fn() } as never,
-    { hasOwnedProgress: jest.fn().mockRejectedValue(failure) } as never);
+    const service = new AccountExportService(
+      f.store,
+      f.users,
+      {
+        get: () => false,
+      } as never,
+      { hasOwnedCollections: jest.fn() } as never,
+      { hasOwnedProgress: jest.fn().mockRejectedValue(failure) } as never,
+    );
     await expect(service.request('user-1', now)).rejects.toBe(failure);
     expect(f.store.requestActive).not.toHaveBeenCalled();
   });
 
   it('requests v2 when persistent collections are enabled', async () => {
     const f = fixture();
-    const service = new AccountExportService(f.store, f.users, {
-      get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
-    } as never, { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
-      emptyProgressReader as never);
+    const service = new AccountExportService(
+      f.store,
+      f.users,
+      {
+        get: (key: string) =>
+          key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
+      } as never,
+      { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
+      emptyProgressReader as never,
+    );
     f.store.requestActive.mockImplementation(async (input) => ({
       created: true,
       job: job({
@@ -944,23 +1025,32 @@ describe('AccountExportService', () => {
     }));
     const output = await service.request('user-1', now);
     expect(output.export.formatVersion).toBe(2);
-    expect(f.store.requestActive).toHaveBeenCalledWith(expect.objectContaining({
-      formatVersion: 2,
-    }));
+    expect(f.store.requestActive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        formatVersion: 2,
+      }),
+    );
   });
 
   it('does not reuse a pre-activation v1 job for newly persisted private collections', async () => {
     const f = fixture();
-    const service = new AccountExportService(f.store, f.users, {
-      get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
-    } as never, { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
-      emptyProgressReader as never);
+    const service = new AccountExportService(
+      f.store,
+      f.users,
+      {
+        get: (key: string) =>
+          key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
+      } as never,
+      { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
+      emptyProgressReader as never,
+    );
     f.store.requestActive.mockResolvedValue({
       created: false,
       job: job({ formatVersion: 1 }),
     });
-    await expect(service.request('user-1', now))
-      .rejects.toBeInstanceOf(ConflictException);
+    await expect(service.request('user-1', now)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   describe('B49 rollback-safe account portability', () => {
@@ -979,7 +1069,10 @@ describe('AccountExportService', () => {
       const f = fixture();
       const ownedReader = reader(true);
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, ownedReader as never,
+        f.store,
+        f.users,
+        disabled as never,
+        ownedReader as never,
         emptyProgressReader as never,
       );
       f.store.requestActive.mockImplementation(async (input) => ({
@@ -1002,7 +1095,10 @@ describe('AccountExportService', () => {
       const f = fixture();
       const emptyReader = reader(false);
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, emptyReader as never,
+        f.store,
+        f.users,
+        disabled as never,
+        emptyReader as never,
         emptyProgressReader as never,
       );
       f.store.requestActive.mockImplementation(async (input) => ({
@@ -1017,16 +1113,19 @@ describe('AccountExportService', () => {
     it('rejects a stale active v1 job if private collections require v2 during rollback', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, reader(true) as never,
+        f.store,
+        f.users,
+        disabled as never,
+        reader(true) as never,
         emptyProgressReader as never,
       );
       f.store.requestActive.mockResolvedValueOnce({
-        created: false, job: job({ formatVersion: 1 }),
+        created: false,
+        job: job({ formatVersion: 1 }),
       });
-      await expect(service.request('user-1', now))
-        .rejects.toMatchObject({
-          response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
-        });
+      await expect(service.request('user-1', now)).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
+      });
       expect(f.store.requestActive).toHaveBeenCalledWith(
         expect.objectContaining({ formatVersion: 2 }),
       );
@@ -1038,7 +1137,10 @@ describe('AccountExportService', () => {
       const error = new Error('Mongo read unavailable');
       unavailable.hasOwnedCollections.mockRejectedValueOnce(error);
       const service = new AccountExportService(
-        f.store, f.users, disabled as never, unavailable as never,
+        f.store,
+        f.users,
+        disabled as never,
+        unavailable as never,
         emptyProgressReader as never,
       );
       await expect(service.request('user-1', now)).rejects.toBe(error);
@@ -1048,19 +1150,27 @@ describe('AccountExportService', () => {
     it('fails closed on missing reader wiring whenever real configuration is present', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store, f.users, disabled as never,
+        f.store,
+        f.users,
+        disabled as never,
       );
-      await expect(service.request('user-1', now))
-        .rejects.toThrow('export readers are not fully wired');
+      await expect(service.request('user-1', now)).rejects.toThrow(
+        'export readers are not fully wired',
+      );
       expect(f.store.requestActive).not.toHaveBeenCalled();
     });
 
     it('keeps opt-in v2 behavior and does not require an additional Mongo existence query', async () => {
       const f = fixture();
       const ownedReader = reader(false);
-      const enabled = { get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' };
+      const enabled = {
+        get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED',
+      };
       const service = new AccountExportService(
-        f.store, f.users, enabled as never, ownedReader as never,
+        f.store,
+        f.users,
+        enabled as never,
+        ownedReader as never,
         emptyProgressReader as never,
       );
       f.store.requestActive.mockImplementation(async (input) => ({
@@ -1072,5 +1182,4 @@ describe('AccountExportService', () => {
       expect(ownedReader.hasOwnedCollections).not.toHaveBeenCalled();
     });
   });
-
 });

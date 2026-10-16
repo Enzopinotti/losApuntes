@@ -162,29 +162,30 @@ export class AccountExportProcessor {
     try {
       // The version stored at request time is immutable for this claim.
       // Reject unknown values before staging an artifact.
-      if (job.formatVersion !== 1 && job.formatVersion !== 2 && job.formatVersion !== 3) {
+      if (
+        job.formatVersion !== 1 &&
+        job.formatVersion !== 2 &&
+        job.formatVersion !== 3
+      ) {
         throw new Error('Unsupported account export format version');
       }
       if (job.formatVersion === 3) {
-        progressEpoch = await this.exports.captureStudyProgressExportEpoch(job.userId);
+        progressEpoch = await this.exports.captureStudyProgressExportEpoch(
+          job.userId,
+        );
       }
-      const assembly = job.formatVersion === 1
-        ? await this.assembler.writeJsonV1(
-            job.userId,
-            sink,
-            () => Promise.resolve(!leaseLost),
-          )
-        : job.formatVersion === 2
-          ? await this.assembler.writeJsonV2(
-              job.userId,
-              sink,
-              () => Promise.resolve(!leaseLost),
+      const assembly =
+        job.formatVersion === 1
+          ? await this.assembler.writeJsonV1(job.userId, sink, () =>
+              Promise.resolve(!leaseLost),
             )
-          : await this.assembler.writeJsonV3(
-              job.userId,
-              sink,
-              () => Promise.resolve(!leaseLost),
-            );
+          : job.formatVersion === 2
+            ? await this.assembler.writeJsonV2(job.userId, sink, () =>
+                Promise.resolve(!leaseLost),
+              )
+            : await this.assembler.writeJsonV3(job.userId, sink, () =>
+                Promise.resolve(!leaseLost),
+              );
       artifactCommitted = true;
       completedAssembly = assembly;
       clearInterval(heartbeat);
@@ -202,7 +203,8 @@ export class AccountExportProcessor {
       // On failure the catch path removes this claim-scoped generation.
       if (progressEpoch !== null) {
         await this.exports.assertStudyProgressExportEpoch(
-          job.userId, progressEpoch,
+          job.userId,
+          progressEpoch,
         );
       }
 
@@ -248,7 +250,8 @@ export class AccountExportProcessor {
       }
 
       const uncertainCompletion =
-        artifactCommitted && durableCompletionAttempted &&
+        artifactCommitted &&
+        durableCompletionAttempted &&
         !(error instanceof AccountExportEpochConflictError);
       // A Mongo commit can succeed even when the response is lost. Trust
       // only exact owner + job + generation + digest + version metadata.
@@ -280,8 +283,11 @@ export class AccountExportProcessor {
         // The CAS was not ours: completion may have won between the first
         // reconciliation read and the attempt to reschedule. Re-read before
         // classifying the outcome. Otherwise preserve the S3 generation.
-        if (uncertainCompletion && completedAssembly &&
-          await this.isConfirmedCompletion(job, claimId, completedAssembly)) {
+        if (
+          uncertainCompletion &&
+          completedAssembly &&
+          (await this.isConfirmedCompletion(job, claimId, completedAssembly))
+        ) {
           return 'completed';
         }
         return 'stale';
@@ -375,12 +381,16 @@ export class AccountExportProcessor {
     for (let index = 0; index < ORPHAN_BATCH_SIZE; index += 1) {
       const now = new Date();
       const candidate = await this.orphans.claimNext({
-        now, claimId: randomUUID(),
-        leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+        now,
+        claimId: randomUUID(),
+        leaseExpiresAt: new Date(
+          now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+        ),
       });
       if (!candidate) break;
       const ref = {
-        jobId: candidate.jobId, generation: candidate.generation,
+        jobId: candidate.jobId,
+        generation: candidate.generation,
         claimId: candidate.claimId,
       };
       const fence = {
@@ -403,8 +413,10 @@ export class AccountExportProcessor {
           // Retain the task and fail closed until the durable job is known.
           throw new Error('Export orphan cleanup authority is missing');
         }
-        if (job.id !== candidate.jobId ||
-          job.userId !== candidate.ownerUserId) {
+        if (
+          job.id !== candidate.jobId ||
+          job.userId !== candidate.ownerUserId
+        ) {
           result.orphanAuthorityBlocked += 1;
           throw new Error('Export orphan cleanup authority mismatch');
         }
@@ -413,25 +425,32 @@ export class AccountExportProcessor {
           // This includes an inconsistent/nonterminal record: deleting
           // based on state alone could destroy recoverable private data.
           const acknowledged = await this.orphans.acknowledge({
-            ...fence, now: new Date(),
+            ...fence,
+            now: new Date(),
           });
           if (acknowledged) result.orphanPreserved += 1;
           else result.orphanRetries += 1;
           continue;
         }
-        if (job.state === 'processing' &&
+        if (
+          job.state === 'processing' &&
           job.claimId === candidate.generation &&
           job.leaseExpiresAt instanceof Date &&
-          job.leaseExpiresAt.getTime() > Date.now()) {
+          job.leaseExpiresAt.getTime() > Date.now()
+        ) {
           throw new Error('Export attempt is still leased');
         }
 
-        if (candidate.verificationUntil != null &&
+        if (
+          candidate.verificationUntil != null &&
           (!(candidate.verificationUntil instanceof Date) ||
-            !Number.isFinite(candidate.verificationUntil.getTime()))) {
+            !Number.isFinite(candidate.verificationUntil.getTime()))
+        ) {
           // Corrupt verification metadata is not permission to delete
           // private objects. Retain the task under normal retry/backoff.
-          throw new Error('Account export cleanup verification deadline is invalid');
+          throw new Error(
+            'Account export cleanup verification deadline is invalid',
+          );
         }
 
         // A slow Mongo read can outlive the initial lease. Prove ownership
@@ -454,24 +473,29 @@ export class AccountExportProcessor {
         const renewal = setInterval(() => {
           if (leaseLost || renewalInFlight) return;
           const renewalAt = new Date();
-          renewalInFlight = this.orphans.renewLease({
-            ...fence,
-            now: renewalAt,
-            leaseExpiresAt: new Date(
-              renewalAt.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
-            ),
-          }).then((current) => {
-            if (!current) leaseLost = true;
-          }).catch(() => {
-            leaseLost = true;
-          }).finally(() => {
-            renewalInFlight = null;
-          });
+          renewalInFlight = this.orphans
+            .renewLease({
+              ...fence,
+              now: renewalAt,
+              leaseExpiresAt: new Date(
+                renewalAt.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
+              ),
+            })
+            .then((current) => {
+              if (!current) leaseLost = true;
+            })
+            .catch(() => {
+              leaseLost = true;
+            })
+            .finally(() => {
+              renewalInFlight = null;
+            });
         }, LEASE_RENEWAL_INTERVAL_MS);
         renewal.unref();
         try {
           await this.artifacts.deleteArtifact(
-            candidate.jobId, candidate.generation,
+            candidate.jobId,
+            candidate.generation,
           );
         } finally {
           clearInterval(renewal);
@@ -492,12 +516,16 @@ export class AccountExportProcessor {
         if (candidate.verificationUntil != null) {
           const verifiedAt = new Date();
           if (verifiedAt.getTime() < candidate.verificationUntil.getTime()) {
-            const nextAttemptAt = new Date(Math.min(
-              verifiedAt.getTime() + 10 * 60_000,
-              candidate.verificationUntil.getTime(),
-            ));
+            const nextAttemptAt = new Date(
+              Math.min(
+                verifiedAt.getTime() + 10 * 60_000,
+                candidate.verificationUntil.getTime(),
+              ),
+            );
             const deferred = await this.orphans.retry({
-              ...fence, now: verifiedAt, nextAttemptAt,
+              ...fence,
+              now: verifiedAt,
+              nextAttemptAt,
             });
             if (deferred) result.orphanVerificationScheduled += 1;
             else result.orphanRetries += 1;
@@ -506,7 +534,8 @@ export class AccountExportProcessor {
         }
 
         const acked = await this.orphans.acknowledge({
-          ...fence, now: new Date(),
+          ...fence,
+          now: new Date(),
         });
         if (acked) result.orphanDeleted += 1;
         else result.orphanRetries += 1;
@@ -520,7 +549,8 @@ export class AccountExportProcessor {
         );
         try {
           await this.orphans.retry({
-            ...fence, now: new Date(),
+            ...fence,
+            now: new Date(),
             nextAttemptAt: new Date(Date.now() + backoff),
           });
         } catch {
