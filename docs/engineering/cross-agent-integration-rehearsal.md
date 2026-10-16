@@ -16,7 +16,7 @@ El workflow `Cross-agent integration rehearsal` prueba esa combinación con perm
 4. Se intentan ambos órdenes en commits **locales y descartables**:
    - main + #377 + #374
    - main + #374 + #377
-5. En cualquier conflicto, el script detecta todos los paths no resueltos del orden correspondiente, limpia el merge local, deja evidencia en el `GITHUB_STEP_SUMMARY` y devuelve error. **No usa `-X ours`, `-X theirs`, `--force` sobre refs remotas ni descarta silenciosamente cambios de otro carril.**
+5. En cualquier conflicto, el script identifica **qué paso exacto del orden falló** (aplicar #374 o #377), detecta todos los paths no resueltos de ese paso, limpia el merge local, deja evidencia en el `GITHUB_STEP_SUMMARY` y devuelve error. Una colisión contra cambios recientes de `main` no debe describirse erróneamente como colisión entre ambos PR. **No usa `-X ours`, `-X theirs`, `--force` sobre refs remotas ni descarta silenciosamente cambios de otro carril.**
 6. Si ambos órdenes son limpios, exige que produzcan **el mismo tree SHA**. Diferencias por orden son un bloqueo de revisión manual, incluso sin conflictos textuales.
 7. Solo si lo anterior pasa, se instala el workspace con `pnpm install --frozen-lockfile` y se ejecutan formato Web/API, tipos Web/API, lint Web y las **seis suites API conflictivas**: `study-collection.service`, `data-lifecycle.module`, `account-export-versioning`, `account-export-contributor-allowlist`, `mongo-account-export-orphan-cleanup.store` y `study-progress-export.reader`.
 
