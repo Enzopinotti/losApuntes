@@ -58,7 +58,10 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     renewLease: jest.fn().mockResolvedValue(true),
     captureStudyProgressExportEpoch: jest.fn().mockResolvedValue(7),
     assertStudyProgressExportEpoch: jest.fn().mockResolvedValue(undefined),
-    complete: jest.fn().mockResolvedValue(true),
+    complete: jest.fn<
+      ReturnType<AccountExportService['complete']>,
+      Parameters<AccountExportService['complete']>
+    >().mockResolvedValue(true),
     reschedule: jest.fn().mockResolvedValue(true),
   };
   const assembler = {
@@ -118,9 +121,15 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
         claimId: null,
       }),
     ),
-    fenceExpiredClaimForOrphanCleanup: jest.fn().mockResolvedValue(true),
+    fenceExpiredClaimForOrphanCleanup: jest.fn<
+      ReturnType<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>,
+      Parameters<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>
+    >().mockResolvedValue(true),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
-    retireExpiredArtifact: jest.fn().mockResolvedValue(true),
+    retireExpiredArtifact: jest.fn<
+      ReturnType<AccountExportStore['retireExpiredArtifact']>,
+      Parameters<AccountExportStore['retireExpiredArtifact']>
+    >().mockResolvedValue(true),
   };
   const orphans = {
     enqueue: jest.fn().mockResolvedValue(undefined),
@@ -128,10 +137,16 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     renewLease: jest.fn().mockResolvedValue(true),
     clearPending: jest.fn().mockResolvedValue(true),
     acknowledge: jest.fn().mockResolvedValue(true),
-    retry: jest.fn().mockResolvedValue(true),
+    retry: jest.fn<
+      ReturnType<AccountExportOrphanCleanupStore['retry']>,
+      Parameters<AccountExportOrphanCleanupStore['retry']>
+    >().mockResolvedValue(true),
   };
   const artifacts = {
-    createSink: jest.fn().mockReturnValue(sink),
+    createSink: jest.fn<
+      ReturnType<AccountExportArtifactStorage['createSink']>,
+      Parameters<AccountExportArtifactStorage['createSink']>
+    >().mockReturnValue(sink),
     deleteArtifact: jest.fn().mockResolvedValue(undefined),
   };
 
@@ -149,7 +164,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
       assembler as unknown as AccountExportAssembler,
       store as unknown as AccountExportStore,
       artifacts as unknown as AccountExportArtifactStorage,
-      orphans as unknown as AccountExportOrphanCleanupStore,
+      orphans,
     ),
   };
 }
@@ -276,7 +291,7 @@ describe('AccountExportProcessor', () => {
       f.assembler,
       store as unknown as AccountExportStore,
       f.artifacts as unknown as AccountExportArtifactStorage,
-      f.orphans as unknown as AccountExportOrphanCleanupStore,
+      f.orphans,
     );
 
     await expect(restartedProcessor.runIteration()).resolves.toMatchObject({
@@ -462,12 +477,13 @@ describe('AccountExportProcessor', () => {
       expirationRetries: 0,
       claimed: 0,
     });
-    expect(f.store.retireExpiredArtifact).toHaveBeenCalledWith({
+    expect(f.store.retireExpiredArtifact).toHaveBeenCalledTimes(1);
+    expect(f.store.retireExpiredArtifact.mock.calls[0]?.[0]).toMatchObject({
       id: claim().id,
       generation: claim().claimId!,
       expiresAt,
-      now: expect.any(Date),
     });
+    expect(f.store.retireExpiredArtifact.mock.calls[0]?.[0]?.now).toBeInstanceOf(Date);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
   });
@@ -534,13 +550,11 @@ describe('AccountExportProcessor', () => {
       f.sink,
       expect.any(Function),
     );
-    expect(f.exports.complete).toHaveBeenCalledWith({
+    expect(f.exports.complete).toHaveBeenCalledTimes(1);
+    expect(f.exports.complete.mock.calls[0]?.[0]).toMatchObject({
       id: claim().id,
       claimId: claim().claimId,
-      result: expect.objectContaining({
-        formatVersion: 2,
-        sectionCount: 31,
-      }),
+      result: { formatVersion: 2, sectionCount: 31 },
     });
   });
 
@@ -955,15 +969,13 @@ describe('AccountExportProcessor', () => {
       f.sink,
       expect.any(Function),
     );
-    expect(f.exports.complete).toHaveBeenCalledWith({
+    expect(f.exports.complete).toHaveBeenCalledTimes(1);
+    expect(f.exports.complete.mock.calls[0]?.[0]).toMatchObject({
       id: claim().id,
       claimId: claim().claimId,
       ownerUserId: 'owner-1',
       expectedProgressEpoch: 7,
-      result: expect.objectContaining({
-        formatVersion: 3,
-        sectionCount: 32,
-      }),
+      result: { formatVersion: 3, sectionCount: 32 },
     });
   });
 
@@ -1193,12 +1205,13 @@ describe('AccountExportProcessor', () => {
       orphanRetries: 0,
       orphanAuthorityBlocked: 0,
     });
-    expect(f.store.fenceExpiredClaimForOrphanCleanup).toHaveBeenCalledWith({
+    expect(f.store.fenceExpiredClaimForOrphanCleanup).toHaveBeenCalledTimes(1);
+    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls[0]?.[0]).toMatchObject({
       id: orphan.jobId,
       ownerUserId: orphan.ownerUserId,
       generation: orphan.generation,
-      now: expect.any(Date),
     });
+    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls[0]?.[0]?.now).toBeInstanceOf(Date);
     expect(
       f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0],
     ).toBeLessThan(f.orphans.renewLease.mock.invocationCallOrder[0]);
@@ -1489,9 +1502,9 @@ describe('AccountExportProcessor', () => {
         generation: orphan.generation,
         claimId: orphan.claimId,
         verificationUntil: until,
-        nextAttemptAt: expect.any(Date),
       }),
     );
+    expect(f.orphans.retry.mock.calls[0]?.[0]?.nextAttemptAt).toBeInstanceOf(Date);
   });
 
   it('B77 blocks S3 DELETE when a takeover invalidates cleanup lease renewal', async () => {
@@ -1556,10 +1569,11 @@ describe('AccountExportProcessor', () => {
         jobId: orphan.jobId,
         generation: orphan.generation,
         claimId: orphan.claimId,
-        nextAttemptAt: expect.any(Date),
       }),
     );
-    const next = f.orphans.retry.mock.calls[0][0].nextAttemptAt;
+    const next = f.orphans.retry.mock.calls[0]?.[0]?.nextAttemptAt;
+    expect(next).toBeInstanceOf(Date);
+    if (!(next instanceof Date)) throw new Error('Expected fenced retry deadline');
     expect(next.getTime()).toBeLessThanOrEqual(until.getTime());
     expect(next.getTime()).toBeGreaterThan(Date.now());
   });
@@ -1657,7 +1671,6 @@ describe('AccountExportProcessor', () => {
         jobId: orphan.jobId,
         generation: orphan.generation,
         claimId: orphan.claimId,
-        nextAttemptAt: expect.any(Date),
       }),
     );
   });
