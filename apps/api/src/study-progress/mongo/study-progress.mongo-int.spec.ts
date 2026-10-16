@@ -923,6 +923,17 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(row!.verificationUntil?.getTime()).toBe(
       now.getTime() + 60 * 60_000,
     );
+    const fresh = await orphanJobs.findOne({
+      jobId: id, generation: newGeneration,
+    }).lean().exec();
+    expect(fresh).toMatchObject({
+      ownerUserId: userId, state: 'pending', claimId: null,
+      verificationUntil: expect.any(Date),
+    });
+    expect(fresh!.nextAttemptAt.getTime()).toBe(
+      now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
+    );
+    expect(await orphanJobs.countDocuments({ jobId: id })).toBe(2);
     const deleteArtifact = jest.fn().mockResolvedValue(undefined);
     const worker = new AccountExportProcessor(
       { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
