@@ -41,6 +41,10 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
     const writer = this.storage.createMultipartWriter({
       objectKey: key,
       contentType: 'application/json; charset=utf-8',
+      // B81: an S3 commit can succeed after its ACK is lost. Never DELETE
+      // the completed object from abort(); the durable B80 orphan ledger
+      // and B78 owner-fenced cleanup worker alone decide object deletion.
+      deleteObjectOnAbort: false,
     });
     const digest = createHash('sha256');
     let byteLength = 0;

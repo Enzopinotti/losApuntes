@@ -548,3 +548,38 @@ scripts/test-account-export-b80-writeahead.test.mjs` y
 `node scripts/test-account-export-b80-writeahead.mjs`,
 más opt-in Mongo replica-set. Sin aceptación real S3/Mongo no hay
 habilitación productiva.
+
+## B81 — Cancelación de multipart sin DELETE implícito en exportaciones
+
+La ruta de error `AccountExportProcessor → sink.abort() → S3 writer.abort()`
+podía ejecutar un `DELETE` no autorizado del objeto completo, incluso
+cuando S3 hubiera confirmado internamente un PUT/multipart y solo se
+hubiera perdido el ACK. Este borrado evadía el ledger transaccional B80
+y las barreras de fecha, lease y propietario B78/B77.
+
+**Desde B81:** el escritor S3 recibe `deleteObjectOnAbort: false`
+exclusivamente desde `S3AccountExportArtifactStorage`. Al cancelar:
+
+- Con multipart incompleto, se solicita **AbortMultipartUpload por uploadId**,
+  pero no un `DELETE Object` del archivo.
+- Con PUT simple o completion ambiguo, el archivo potencialmente creado
+  **queda para la cola durable**, que comprobará la autoridad antes de borrarlo.
+- Los consumidores genéricos siguen usando la semántica previa por defecto
+  (`deleteObjectOnAbort` omitido o `true`), para no romper flujos ajenos.
+- La operación explícita `deleteArtifact` sigue disponible solo tras las
+  verificaciones del procesador; cancelar un upload **no acredita** ausencia
+  del objeto.
+
+Diagnóstico: ante una respuesta de S3 perdida, no reintentar un DELETE
+directo. Revisar la intención durable `account_export_orphan_cleanup`,
+`nextAttemptAt`, `verificationUntil`, estado actual del job, claim y
+lease; esperar el worker de compensación o seguir procedimiento autorizado
+de inventario/lifecycle. La falta de objeto después de `abort` tampoco
+demuestra que no pueda aparecer un multipart finalizado tardíamente.
+
+Regresión ejecutable sin servicios: `node --experimental-strip-types --test
+scripts/test-account-export-b81-s3-abort.test.mjs` y
+`node scripts/test-account-export-b81-abort-guard.mjs`. Estos tests
+mockean HTTP; **no reemplazan la aceptación contra S3 real**. #353 HOLD,
+`STUDY_PROGRESS_ENABLED=false`, verificación de permisos, versionado,
+backups y retención aún obligatoria.

@@ -39,6 +39,13 @@ export interface S3ObjectStorage extends ObjectStorage {
   createMultipartWriter(input: {
     objectKey: string;
     contentType: string;
+    /**
+     * Defaults to true for existing consumers.
+     * Private exports pass false: abort the multipart upload ID only, never
+     * delete a possibly committed object outside the Mongo owner-fenced
+     * orphan queue (B78-B81).
+     */
+    deleteObjectOnAbort?: boolean;
   }): S3MultipartObjectWriter;
 }
 
@@ -409,6 +416,7 @@ export function createS3ObjectStorage(
     createMultipartWriter(input: {
       objectKey: string;
       contentType: string;
+      deleteObjectOnAbort?: boolean;
     }): S3MultipartObjectWriter {
       const minimumPartBytes = 5 * 1024 * 1024;
       const maximumPartCount = 10_000;
@@ -571,7 +579,13 @@ export function createS3ObjectStorage(
               throw storageError('Abort multipart upload', response.status);
             }
           }
-          await deleteObject(input.objectKey);
+          // Multipart Abort only cancels the upload ID. An ambiguous
+          // completion ACK can mean the object already exists in S3.
+          // Private account exports pre-register a durable cleanup task
+          // and must never perform this unfenced exact-object DELETE.
+          if (input.deleteObjectOnAbort !== false) {
+            await deleteObject(input.objectKey);
+          }
           aborted = true;
           uploadId = null;
           completed = false;
