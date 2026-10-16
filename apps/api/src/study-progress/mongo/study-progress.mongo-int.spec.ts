@@ -341,17 +341,19 @@ runMongo(
             ? live
             : {
                 sectionId,
-                readPage: async () => ({
-                  records: [],
-                  nextCursor: null,
-                }),
+                readPage: () =>
+                  Promise.resolve({
+                    records: [],
+                    nextCursor: null,
+                  }),
               },
         );
       const chunks: string[] = [];
       const commit = jest.fn().mockResolvedValue(undefined);
       const sink: AccountExportArtifactSink = {
-        write: async (chunk) => {
+        write: (chunk) => {
           chunks.push(chunk);
+          return Promise.resolve();
         },
         commit,
         abort: jest.fn().mockResolvedValue(undefined),
@@ -363,11 +365,10 @@ runMongo(
           ownerUserId: string,
           cursor: string | null,
         ) => contributor.readPage({ userId: ownerUserId, cursor, limit: 100 }),
-        assertActiveAccount: async (ownerUserId: string) => {
-          if (ownerUserId !== userId) {
-            throw new Error('Unexpected account authority');
-          }
-        },
+        assertActiveAccount: (ownerUserId: string) =>
+          ownerUserId === userId
+            ? Promise.resolve()
+            : Promise.reject(new Error('Unexpected account authority')),
         captureStudyProgressExportEpoch: (ownerUserId: string) =>
           userReader.getStudyProgressExportEpoch(ownerUserId),
         assertStudyProgressExportEpoch: async (
@@ -423,7 +424,8 @@ runMongo(
             ? source
             : {
                 sectionId,
-                readPage: async () => ({ records: [], nextCursor: null }),
+                readPage: () =>
+                  Promise.resolve({ records: [], nextCursor: null }),
               },
         );
       let mutated = false;
@@ -456,9 +458,10 @@ runMongo(
             throw new Error('Study progress changed during account export');
           }
         },
-        assertActiveAccount: async (ownerUserId: string) => {
-          if (ownerUserId !== userId) throw new Error('Wrong owner');
-        },
+        assertActiveAccount: (ownerUserId: string) =>
+          ownerUserId === userId
+            ? Promise.resolve()
+            : Promise.reject(new Error('Wrong owner')),
         readContributorPage: (
           contributor: AccountExportContributor,
           ownerUserId: string,
@@ -705,8 +708,9 @@ runMongo(
       const artifacts = {
         createSink: jest.fn().mockReturnValue({
           write: jest.fn().mockResolvedValue(undefined),
-          commit: jest.fn().mockImplementation(async () => {
+          commit: jest.fn().mockImplementation(() => {
             s3Committed = true;
+            return Promise.resolve();
           }),
           abort: jest.fn().mockResolvedValue(undefined),
         }),
@@ -835,7 +839,7 @@ runMongo(
         renewLease: jest.fn().mockResolvedValue(true),
         captureStudyProgressExportEpoch: (ownerId: string) =>
           reader.getStudyProgressExportEpoch(ownerId),
-        assertStudyProgressExportEpoch: async () => undefined,
+        assertStudyProgressExportEpoch: () => Promise.resolve(undefined),
         complete: jest.fn().mockRejectedValue(new Error('Mongo reply unknown')),
         reschedule: async (input: {
           id: string;
@@ -1835,9 +1839,8 @@ runMongo(
       });
       const blockedQueue = {
         updateOne: () => ({
-          exec: async () => {
-            throw new Error('B74 injected takeover queue failure');
-          },
+          exec: () =>
+            Promise.reject(new Error('B74 injected takeover queue failure')),
         }),
       };
       const broken = new MongoAccountExportStore(
@@ -2083,9 +2086,8 @@ runMongo(
       });
       const failing = {
         updateOne: () => ({
-          exec: async () => {
-            throw new Error('B80 injected new claim ledger failure');
-          },
+          exec: () =>
+            Promise.reject(new Error('B80 injected new claim ledger failure')),
         }),
       };
       const broken = new MongoAccountExportStore(
@@ -2388,9 +2390,8 @@ runMongo(
       });
       const unavailableQueue = {
         updateOne: () => ({
-          exec: async () => {
-            throw new Error('B72 injected queue failure');
-          },
+          exec: () =>
+            Promise.reject(new Error('B72 injected queue failure')),
         }),
       };
       const store = new MongoAccountExportStore(
