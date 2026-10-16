@@ -26,3 +26,13 @@ The wider consolidation remains work in progress. Historical carriers [#386](htt
 ## Concurrent B86 carrier coordination
 
 After this branch was created, [#400](https://github.com/Enzopinotti/losApuntes/pull/400) independently implemented the same four fixes on the same exact parent using its own fixture types and pinned Prettier. **These two PRs cannot be merged by wholesale snapshot**; select one tested fixture version. Our scoped formatter [run #38918574448](https://github.com/Enzopinotti/losApuntes/actions/runs/38918574448) succeeded, then the write-enabled workflow was removed from the candidate. Await independent exact-HEAD checks on #399/#400; do not confuse one green scoped job with global release approval.
+
+## First safe functional reconciliation from B81
+
+The B86 branch additionally integrates **five** unmerged paths from [PR #383](https://github.com/Enzopinotti/losApuntes/pull/383) on this same exact main parent, after independently verifying the four existing main blob SHAs are **byte-identical to their original B81 base** `3579eab49f9d0ad3dd889731695f7a1a155e7efd`:
+
+- `data-lifecycle.module.spec.ts` — restore owner Study Progress epoch dependencies and fail-closed Nest wiring checks.
+- `account-export-assembler.ts` and the **new** `account-export-contributor-allowlist.spec.ts` — enforce reviewed v3 contributor registry without changing the durable v1/v2 format.
+- `study-collection.service.ts` and `.spec.ts` — enforce postcondition of ownership/resource absence following conditional CAS recovery.
+
+**Not copied:** previous B81 Mongo orphan cleanup and current S3 processor specs, Mongo stores, server clock, queue fences, typed progress reader specs. They have changed on newer main and cannot safely be overwritten by old snapshots. The workflow tests these five imported contract areas along with the two B86 Mongo fixture fixes. This is an incremental integrated source candidate, not a blanket merge of #383/#386/#388/#390/#391/#393 or #396; all remaining gates require new current-head evidence.
