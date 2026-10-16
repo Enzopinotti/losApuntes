@@ -53,7 +53,7 @@ verify('B85 local Mongo replica cases prove retention and successful expiry', ()
   assert.match(replica, /B85 protects an unexpired private artifact/u);
   assert.match(replica, /B85 due private artifact remains safely retireable/u);
   assert.match(replica, /expect\(durable\?\.artifactGeneration\)\.toBe\(generation\)/u);
-  assert.match(replica, /expect\(await orphanJobs\.countDocuments\(\{ jobId: id, generation \}\)\)\.toBe\(0\)/u);
+  assert.match(replica, /expect\(await orphanJobs\.countDocuments\(\{ jobId: id, generation \}\)\)\.toBe\(\s*0,?\s*\)/u);
 });
 verify('B85 Node isolated and structural gates stay wired with B84/B83', () => {
   const suite = pkg.scripts['test:account-lifecycle-contract'];
