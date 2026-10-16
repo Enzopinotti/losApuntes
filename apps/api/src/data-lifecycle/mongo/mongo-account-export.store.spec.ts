@@ -31,7 +31,11 @@ function fixture(input: { active?: unknown } = {}) {
     exists: jest.fn().mockResolvedValue(null),
   };
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
-  const users = { updateOne: jest.fn(() => ownerUpdate) };
+  const users = {
+    updateOne: jest.fn(
+      (_filter: unknown, _update: unknown, _options?: unknown) => ownerUpdate,
+    ),
+  };
   const session = {
     withTransaction: jest.fn(async (callback: () => Promise<void>) => callback()),
     endSession: jest.fn().mockResolvedValue(undefined),
