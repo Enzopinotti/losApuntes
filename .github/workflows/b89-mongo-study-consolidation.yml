@@ -1,0 +1,127 @@
+name: B89 combined strict Mongo and Study quality
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b89-mongo-study-consolidation.yml"
+      - "docs/engineering/b89-mongo-study-quality-consolidation.md"
+      - "scripts/test-account-export-b86-guard.mjs"
+      - "apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts"
+      - "apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts"
+permissions:
+  contents: read
+concurrency:
+  group: b89-integration-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  strict-source:
+    name: B89 combined 10 API sources zero-warning ESLint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: All 10 B88+B89 touched sources strict ESLint
+        run: |
+          pnpm --filter @losapuntes/api exec eslint --max-warnings=0 \
+            src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts \
+            src/study-progress/mongo/study-progress.mongo-int.spec.ts \
+            src/study-collections/study-collections-feature.guard.ts \
+            src/study-progress/study-progress.feature.guard.ts \
+            src/study-progress/domain/study-progress.plan.ts \
+            src/study-progress/domain/study-progress.plan.spec.ts \
+            src/study-collections/mongo/study-collection-export.reader.ts \
+            src/study-progress/mongo/study-progress-export.reader.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            src/data-lifecycle/domain/account-export.service.spec.ts
+      - name: Canonical formatting across full API
+        run: pnpm --filter @losapuntes/api format:check
+  contracts:
+    name: API types, owner Jest, guarded Mongo acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Full API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+      - name: Seven non-Mongo Jest domain suites
+        run: |
+          pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath \
+            src/study-collections/study-collections-feature.guard.spec.ts \
+            src/study-progress/study-progress.feature.guard.spec.ts \
+            src/study-progress/domain/study-progress.plan.spec.ts \
+            src/study-collections/mongo/study-collection-export.reader.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            src/data-lifecycle/domain/account-export.service.spec.ts \
+            --passWithNoTests=false
+      - name: Explicit Mongo opt-in suites (skip without approved local replica)
+        run: |
+          pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath \
+            src/study-progress/mongo/study-progress.mongo-int.spec.ts \
+            src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+      - name: Source guards B83 to B86
+        run: |
+          node scripts/test-account-export-b83-mongo-clock-guard.mjs
+          node scripts/test-account-export-b84-mongo-claim-guard.mjs
+          node scripts/test-account-export-b85-expiry-guard.mjs
+          node scripts/test-account-export-b86-guard.mjs
+      - name: B89 reject unsafe Mongo URI tests (no Mongo connection)
+        run: node --test scripts/test-account-export-b89-local-mongo-uri.test.mjs
+  full-lint:
+    name: Whole API lint (mandatory; known debt)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Full API ESLint strict
+        run: pnpm --filter @losapuntes/api lint
