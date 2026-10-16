@@ -45,6 +45,7 @@ async function bootstrap(): Promise<void> {
           iteration.expirationStale > 0 ||
           iteration.expirationRetries > 0 ||
           iteration.orphanDeleted > 0 ||
+          iteration.orphanVerificationScheduled > 0 ||
           iteration.orphanPreserved > 0 ||
           iteration.orphanRetries > 0 ||
           iteration.orphanAuthorityBlocked > 0
