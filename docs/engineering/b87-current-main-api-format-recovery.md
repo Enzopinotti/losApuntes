@@ -17,6 +17,15 @@ Fecha de referencia: 2026-10-16.
 - Se agregó workflow permanente de **solo lectura** `b87-api-format-quality.yml` con jobs independientes para Prettier/tipos API y ESLint estricto, todos anclados a `github.event.pull_request.head.sha`. Esto permite medir las siguientes fallas sin confundir stages no ejecutados.
 - No se modificaron `package.json`, lockfile, runtime de S3, rutas Web, configuración de seguridad, tests semánticos, excepciones del audit, flags ni servicios productivos por fuera de reformatear código existente.
 
+## Hallazgo adicional del exact-head B87: guard B83 sensible al formato
+
+- En el primer run completo B87, `apps/web`, `apps/api` y `apps/mobile` pasaron Prettier, y API `check:types` pasó. **Los diez jobs críticos siguieron PASS** con 127 suites ejecutadas y 1314 tests aprobados.
+- El Quality Gate avanzó a `apps/api lint` y registró **562 diagnósticos (437 errores y 125 advertencias)**: es el baseline preciso de esta rama integrada, no un delta atribuible a los cambios de formato ni comparable sin control al antiguo B84 de 214 errores. Se requiere saneamiento por archivo en B88.
+- El job de #399 `Server clock, claim and artifact expiry guards` falló después de las **5 suites / 88 tests PASS**, ya que `test-account-export-b83-mongo-clock-guard.mjs` verificaba el texto fijo `})) .resolves.toBe(true)`, sin soportar la coma final insertada por Prettier entre la llamada de completitud y el cierre de `expect`.
+- El script estructural ahora acepta espacio y coma opcionales **pero sigue exigiendo** `}).resolves.toBe(true)` correctamente encadenado al resultado de `store.complete()` dentro del escenario B82. No se eliminó el guard ni se debilitó su resultado esperado.
+- El workflow B87 fue ampliado para ejecutar los guards B83, B84 y B85 tras formato y TypeScript, con evidencia nueva sobre el SHA exacto. No extrapolar el verde de ejecuciones anteriores.
+- Auditoría de producción continúa roja por excepción de node-forge vencida en 2026-10-15; sin waiver, extensión ni cambio de dependencia.
+
 ## Criterios de cierre y riesgos
 
 1. Aceptación exact-head: `pnpm --filter @losapuntes/api format:check` PASS, `check:types` API PASS, y 10 jobs de cobertura crítica más suite de las funcionalidades CASA/epoch/allowlist sin regresión.
