@@ -21,7 +21,9 @@ function stored(subjectId: string) {
     ownerUserId: owner, excludedField: 'not-exported', _id: 'internal',
   };
 }
-function fixture(rows: ReturnType<typeof stored>[] = []) {
+// Mongo can return corrupted persisted documents; the reader, not the
+// fixture's TypeScript inference, must validate every private row.
+function fixture(rows: unknown[] = []) {
   const query = {
     select: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(), lean: jest.fn().mockReturnThis(),
