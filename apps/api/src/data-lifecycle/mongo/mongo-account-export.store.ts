@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { Connection, Model } from 'mongoose';
 import { User } from '../../users/schemas/user.schema';
@@ -10,6 +10,7 @@ import {
   type AccountExportJobRecord,
 } from '../domain/account-export.types';
 import { AccountExportJob } from './account-export.mongo-schema';
+import { AccountExportOrphanCleanup } from './account-export-orphan-cleanup.schema';
 
 function isDuplicateKey(error: unknown): boolean {
   return (
@@ -29,6 +30,10 @@ export class MongoAccountExportStore implements AccountExportStore {
     private readonly users: Model<User>,
     @InjectConnection()
     private readonly connection: Connection,
+    // Optional for historical direct-store fixtures. The real Nest module
+    // always registers this model; expiry retirement fails closed otherwise.
+    @Optional() @InjectModel(AccountExportOrphanCleanup.name)
+    private readonly orphanCleanup?: Model<AccountExportOrphanCleanup>,
   ) {}
 
   async requestActive(
@@ -308,25 +313,67 @@ export class MongoAccountExportStore implements AccountExportStore {
     }));
   }
 
-  async clearExpiredArtifact(
-    input: Parameters<AccountExportStore['clearExpiredArtifact']>[0],
-  ): ReturnType<AccountExportStore['clearExpiredArtifact']> {
-    const result = await this.jobs
-      .updateOne(
-        {
-          id: input.id,
-          state: 'completed',
-          artifactGeneration: input.generation,
-          artifactExpiresAt: {
-            $eq: input.expiresAt,
-            $lte: input.now,
-          },
-        },
-        { $set: { artifactGeneration: null } },
-      )
-      .exec();
+  async retireExpiredArtifact(
+    input: Parameters<AccountExportStore['retireExpiredArtifact']>[0],
+  ): ReturnType<AccountExportStore['retireExpiredArtifact']> {
+    if (!this.orphanCleanup) {
+      throw new Error('Account export expiry queue is not registered');
+    }
+    const session = await this.connection.startSession();
+    let retired = false;
+    try {
+      await session.withTransaction(async () => {
+        // CAS the original expiry and generation BEFORE creating any S3
+        // deletion intent. A concurrent extension or changed reference must
+        // leave both the job and the cleanup queue unchanged.
+        const previous = await this.jobs
+          .findOneAndUpdate(
+            {
+              id: input.id,
+              state: 'completed',
+              artifactGeneration: input.generation,
+              artifactExpiresAt: {
+                $eq: input.expiresAt,
+                $lte: input.now,
+              },
+            },
+            { $set: { artifactGeneration: null } },
+            { session, new: false },
+          )
+          .lean<{ id: string; userId: string; artifactGeneration: string }>()
+          .exec();
+        if (!previous) return;
+        if (previous.id !== input.id ||
+          previous.artifactGeneration !== input.generation ||
+          !previous.userId?.trim()) {
+          throw new Error('Account export expired artifact owner is invalid');
+        }
 
-    return result.modifiedCount === 1;
+        // This write and the job's unlink MUST commit atomically. If the
+        // worker crashes or a Mongo ACK is lost, the queue survives for
+        // B67-B71 claim-fenced compensation on its next iteration.
+        await this.orphanCleanup!.updateOne(
+          { jobId: input.id, generation: input.generation },
+          {
+            $setOnInsert: {
+              jobId: input.id,
+              ownerUserId: previous.userId,
+              generation: input.generation,
+              state: 'pending',
+              attempts: 0,
+              nextAttemptAt: input.now,
+              claimId: null,
+              leaseExpiresAt: null,
+            },
+          },
+          { upsert: true, session },
+        ).exec();
+        retired = true;
+      });
+      return retired;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async hasFailed(): Promise<boolean> {
