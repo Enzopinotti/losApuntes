@@ -23,3 +23,9 @@ B88 read-only permanent CI runs: (1) ESLint zero-warning on eight touched API so
 A one-time exact-head formatter may publish only these same eight API TS files to **its own branch** with an exact remote lease; that **write-enabled workflow must be deleted after formatting**, before recommending the PR as a carrier. Reverify final HEAD, including global `verify` and security audit.
 
 **Release #353 is HOLD**, default export v1 and Study Progress OFF. No merge/deploy, no local Mongo/Web/API start, no aged audit exemption extension.
+
+## Formatter evidence and removal
+
+[One-time formatter run #38937041602](https://github.com/Enzopinotti/losApuntes/actions/runs/38937041602) **SUCCESS**. Checked out exact SHA `d300fd3a67f17a4c7978aa11cbc16e66925a2325`, installed frozen dependencies and ran locked Prettier on the eight B88 files. It published `faa72fccc9d00e5becfc0915aacd3050482b1a8c` with an exact-remote-head lease. Git comparison confirms **only one changed source file**, `account-export.service.spec.ts`; every other changed B88 source was already canonically formatted. The same workflow passed full API `format:check`.
+
+The ephemeral `b88-once-format.yml` requested `contents: write` solely for that commit. This final candidate **deletes it**. Permanent `b88-strict-quality.yml` remains **read-only** and must be rerun on the new exact head, including strict full lint (no waiver), seven Jest suites, whole API TypeScript and B83–B85 source guards. Focused success cannot mean release approval.
