@@ -167,7 +167,7 @@ describe('MongoAccountExportStore', () => {
     });
   });
 
-  it('B74 claims pending work transactionally without adding a spurious orphan', async () => {
+  it('B80 claims pending work with recovery for the new generation, not a predecessor', async () => {
     const previous = record({ state: 'pending', claimId: null });
     const claimed = record({ state: 'processing', attempts: 2, claimId: 'claim-2' });
     const f = fixture();
@@ -194,12 +194,81 @@ describe('MongoAccountExportStore', () => {
       session: f.session, new: false,
       sort: { nextAttemptAt: 1, createdAt: 1, userId: 1 },
     });
-    expect(f.orphanCleanup.updateOne).not.toHaveBeenCalled();
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledTimes(1);
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith({
+      jobId: previous.id, generation: 'claim-2',
+    }, {
+      $setOnInsert: {
+        jobId: previous.id, ownerUserId: previous.userId,
+        generation: 'claim-2', state: 'pending', attempts: 0,
+        nextAttemptAt: new Date(now.getTime() + 4 * 120_000),
+        verificationUntil: new Date(now.getTime() + 4 * 120_000 + 60 * 60_000),
+        claimId: null, leaseExpiresAt: null,
+      },
+    }, { upsert: true, session: f.session });
     expect(f.jobs.findOne).toHaveBeenCalledWith({
       id: previous.id, userId: previous.userId,
       state: 'processing', active: true, claimId: 'claim-2',
     }, null, { session: f.session });
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B80 refuses a pending claim when its new-generation intent fails to persist', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(record({
+      state: 'pending', claimId: null,
+    }));
+    f.findQuery.exec.mockResolvedValue(record({
+      state: 'processing', claimId: 'uncommitted-generation',
+    }));
+    f.orphanWrite.exec.mockRejectedValueOnce(
+      new Error('B80 injected new claim queue failure'),
+    );
+    await expect(f.store.claimNext({
+      now, claimId: 'uncommitted-generation',
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).rejects.toThrow('B80 injected new claim queue failure');
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledTimes(1);
+    expect(f.jobs.findOne).not.toHaveBeenCalled();
+    expect(f.session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B80 never exposes a claim if new write-ahead dates are invalid', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(record({
+      state: 'pending', claimId: null,
+    }));
+    await expect(f.store.claimNext({
+      now, claimId: 'uncommitted-generation',
+      leaseExpiresAt: new Date(now.getTime() - 1),
+    })).rejects.toThrow('write-ahead input is invalid');
+    expect(f.orphanCleanup.updateOne).not.toHaveBeenCalled();
+    expect(f.jobs.findOne).not.toHaveBeenCalled();
+  });
+
+  it('B80 keeps rechecking the new generation after a crash until its horizon', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(record({
+      state: 'pending', claimId: null,
+    }));
+    f.findQuery.exec.mockResolvedValue(record({
+      state: 'processing', claimId: 'new-generation',
+    }));
+    await f.store.claimNext({
+      now, claimId: 'new-generation',
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    const write = f.orphanCleanup.updateOne.mock.calls[0][1] as {
+      $setOnInsert: { nextAttemptAt: Date; verificationUntil: Date };
+    };
+    expect(write.$setOnInsert.nextAttemptAt.getTime())
+      .toBeGreaterThan(now.getTime() + 120_000);
+    expect(write.$setOnInsert.verificationUntil.getTime())
+      .toBeGreaterThan(write.$setOnInsert.nextAttemptAt.getTime());
   });
 
   it('B74 atomically queues the previous attempt before returning an expired-lease takeover', async () => {
@@ -238,6 +307,15 @@ describe('MongoAccountExportStore', () => {
     }, { $max: {
       nextAttemptAt: new Date(now.getTime() + 3 * 120_000),
     } }, { session: f.session });
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledTimes(4);
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith({
+      jobId: previous.id, generation: 'new-claim',
+    }, {
+      $setOnInsert: expect.objectContaining({
+        jobId: previous.id, ownerUserId: previous.userId,
+        generation: 'new-claim', verificationUntil: expect.any(Date),
+      }),
+    }, { upsert: true, session: f.session });
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
 
