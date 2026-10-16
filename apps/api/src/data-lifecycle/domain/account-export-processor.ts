@@ -39,6 +39,8 @@ export type AccountExportIteration = {
   failed: number;
   stale: number;
   expiredDeleted: number;
+  expiredRetired: number;
+  expirationStale: number;
   expirationRetries: number;
   orphanDeleted: number;
   orphanPreserved: number;
@@ -97,6 +99,8 @@ export class AccountExportProcessor {
       failed: 0,
       stale: 0,
       expiredDeleted: 0,
+      expiredRetired: 0,
+      expirationStale: 0,
       expirationRetries: 0,
       orphanDeleted: 0,
       orphanPreserved: 0,
@@ -511,20 +515,34 @@ export class AccountExportProcessor {
     result: AccountExportIteration,
   ): Promise<void> {
     const now = new Date();
-    const due = await this.store.findExpiredArtifacts({
-      now,
-      limit: EXPIRED_ARTIFACT_BATCH_SIZE,
-    });
+    let due: Awaited<ReturnType<AccountExportStore['findExpiredArtifacts']>>;
+    try {
+      due = await this.store.findExpiredArtifacts({
+        now,
+        limit: EXPIRED_ARTIFACT_BATCH_SIZE,
+      });
+    } catch {
+      // An expiry-sweep outage is not permission to stall fresh exports.
+      result.expirationRetries += 1;
+      return;
+    }
 
     for (const artifact of due) {
       try {
-        await this.artifacts.deleteArtifact(artifact.id, artifact.generation);
-        await this.store.clearExpiredArtifact({
+        // No S3 request here. A single Mongo transaction must atomically
+        // remove the public download reference and enqueue an exact
+        // owner-scoped generation for crash-safe cleanup. The orphan drain
+        // below performs the actual S3 DELETE after owner/lease checks.
+        const retired = await this.store.retireExpiredArtifact({
           ...artifact,
           now,
         });
-        result.expiredDeleted += 1;
+        if (retired) result.expiredRetired += 1;
+        else result.expirationStale += 1;
       } catch {
+        // A transaction may have committed before its ACK was lost. Never
+        // issue an opportunistic DELETE; its durable queue will be drained
+        // after a subsequent read, or the transaction will be retried.
         result.expirationRetries += 1;
       }
     }
