@@ -1407,7 +1407,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     });
     const completedAt = new Date();
     await expect(store.complete({
-      id, claimId: generation, completedAt,
+      id, claimId: generation, artifactGeneration: generation, completedAt,
       artifactExpiresAt: new Date(completedAt.getTime() + 7 * 24 * 60 * 60_000),
       result: {
         format: 'los-apuntes-account-export', formatVersion: 1,
