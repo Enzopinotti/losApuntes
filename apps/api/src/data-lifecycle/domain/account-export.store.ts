@@ -16,6 +16,18 @@ export interface AccountExportStore {
 
   findOwned(id: string, userId: string): Promise<AccountExportJobRecord | null>;
 
+  /**
+   * B93: second owner- and generation-scoped read on the Mongo PRIMARY.
+   * True only if the exact published artifact is still referenced and
+   * its stored expiry is strictly after Mongo's $NOW. No client now.
+   */
+  isOwnedArtifactCurrent(input: {
+    id: string;
+    userId: string;
+    generation: string;
+    expiresAt: Date;
+  }): Promise<boolean>;
+
   /** Internal cleanup authority probe: read the durable owner by job ID. */
   findForOrphanCleanup(id: string): Promise<AccountExportJobRecord | null>;
 

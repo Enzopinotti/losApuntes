@@ -868,3 +868,26 @@ Medir latencia por el doble GET y dos consultas a Mongo.
 
 **#353 HOLD, `STUDY_PROGRESS_ENABLED=false`**.
 No CI manual, no deploy ni exención de auditorías #133/#141.
+
+## B93 — Estado y descarga privados usan el mismo reloj que la limpieza
+
+Para exportaciones completadas, `status.downloadable` y la decisión
+de `download()` consultan el primario MongoDB mediante un filtro
+propietario/generación/fecha exactos y `artifactExpiresAt > $$NOW`.
+Esto evita que la API y la cola de retiro B85 discrepen porque uno de
+los workers tenga el reloj adelantado o atrasado.
+
+Si el primario no puede validar el objeto y su vencimiento, la
+descarga **no se autoriza**. Si la consulta falla, se propaga el
+error; no se ignora ni se reemplaza silenciosamente con `Date.now()`.
+La segunda reautorización B92 sigue ocurriendo después del preflight
+S3 y antes de los headers; no crea un lease durante el stream.
+
+Pruebas: `pnpm test:account-export-b93-mongo-download-clock` valida
+predicados puros; Jest service/store y suite replica-set aislada
+opt-in validan la consulta real en Mongo. La suite Node sola no
+constituye aceptación Mongo ni S3.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`. Sin CI manual, sin
+deploy; pendientes Node24/pnpm9, Mongoose real, S3 IAM/versioning,
+HTTP/browser, backup/lifecycle y auditorías #133/#141.

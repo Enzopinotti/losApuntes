@@ -2214,6 +2214,65 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     }
   }, 30_000);
 
+  it('B93 Mongo primary authorizes a future artifact even if the worker is ahead', async () => {
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 10 * 60_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      completedAt: new Date(now.getTime() - 60_000),
+      artifactGeneration: generation, artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    // The old client-only download() check would reject an ahead clock.
+    expect(expiresAt.getTime()).toBeLessThan(now.getTime() + 20 * 60_000);
+    await expect(store.isOwnedArtifactCurrent({
+      id, userId, generation, expiresAt,
+    })).resolves.toBe(true);
+    await expect(store.isOwnedArtifactCurrent({
+      id, userId: randomUUID(), generation, expiresAt,
+    })).resolves.toBe(false);
+    await expect(store.isOwnedArtifactCurrent({
+      id, userId, generation: randomUUID(), expiresAt,
+    })).resolves.toBe(false);
+  }, 30_000);
+
+  it('B93 Mongo primary refuses expired and detached private generations', async () => {
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() - 10 * 60_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      completedAt: new Date(now.getTime() - 86_400_000),
+      artifactGeneration: generation, artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const input = { id, userId, generation, expiresAt };
+    await expect(store.isOwnedArtifactCurrent(input)).resolves.toBe(false);
+    // Even after extending the TTL in the fixture, the original
+    // captured metadata and a detached generation cannot grant access.
+    await exportJobs.updateOne({ id, userId }, {
+      $set: { artifactExpiresAt: new Date(now.getTime() + 10 * 60_000) },
+    });
+    await expect(store.isOwnedArtifactCurrent(input)).resolves.toBe(false);
+    await exportJobs.updateOne({ id, userId }, {
+      $set: { artifactGeneration: null },
+    });
+    await expect(store.isOwnedArtifactCurrent(input)).resolves.toBe(false);
+  }, 30_000);
+
   it('B85 protects an unexpired private artifact from a clock-ahead worker', async () => {
     await orphanJobs.deleteMany({});
     await exportJobs.deleteMany({});

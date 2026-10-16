@@ -3,6 +3,7 @@ import { accountExportJobClaimDueOnMongoServer } from '../domain/account-export-
 import { AccountExportJobSchema } from './account-export.mongo-schema';
 import { MongoAccountExportStore } from './mongo-account-export.store';
 import { accountExportArtifactExpiredOnMongoServer } from '../domain/account-export-mongo-artifact-expiry';
+import { accountExportArtifactLiveOnMongoServer } from '../domain/account-export-mongo-download-clock';
 
 const now = new Date('2026-10-04T23:55:00.000Z');
 
@@ -167,6 +168,37 @@ describe('MongoAccountExportStore', () => {
     expect(f.jobs.findOne).not.toHaveBeenCalledWith({
       id: 'export-foreign', userId: 'wrong-owner',
     });
+  });
+
+  it('B93 probes only the current exact owner/generation and Mongo primary time', async () => {
+    const f = fixture();
+    f.jobs.exists.mockResolvedValueOnce({ _id: 'current' });
+    await expect(f.store.isOwnedArtifactCurrent({
+      id: 'export-1', userId: 'user-1',
+      generation: 'generation-1',
+      expiresAt: new Date(now.getTime() + 60_000),
+    })).resolves.toBe(true);
+    expect(f.jobs.exists).toHaveBeenCalledWith({
+      id: 'export-1', userId: 'user-1', state: 'completed',
+      artifactGeneration: 'generation-1',
+      artifactExpiresAt: new Date(now.getTime() + 60_000),
+      ...accountExportArtifactLiveOnMongoServer(),
+    });
+    f.jobs.exists.mockResolvedValueOnce(null);
+    await expect(f.store.isOwnedArtifactCurrent({
+      id: 'export-1', userId: 'user-1',
+      generation: 'old-generation',
+      expiresAt: new Date(now.getTime() + 60_000),
+    })).resolves.toBe(false);
+  });
+
+  it('B93 refuses malformed expiry without querying a private artifact', async () => {
+    const f = fixture();
+    await expect(f.store.isOwnedArtifactCurrent({
+      id: 'export-1', userId: 'user-1',
+      generation: 'generation-1', expiresAt: new Date(NaN),
+    })).resolves.toBe(false);
+    expect(f.jobs.exists).not.toHaveBeenCalled();
   });
 
   it('B82 revokes only the exact expired active generation before cleanup', async () => {

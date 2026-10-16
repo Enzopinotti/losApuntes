@@ -99,6 +99,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
   } as unknown as jest.Mocked<AccountExportAssembler>;
   const store = {
     findOwned: jest.fn().mockResolvedValue(null),
+    isOwnedArtifactCurrent: jest.fn().mockResolvedValue(false),
     findForOrphanCleanup: jest.fn().mockResolvedValue(claim({
       state: 'pending', active: true, claimId: null,
     })),

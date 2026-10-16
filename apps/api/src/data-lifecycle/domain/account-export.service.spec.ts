@@ -40,6 +40,7 @@ function fixture() {
   const store = {
     requestActive: jest.fn(),
     findOwned: jest.fn(),
+    isOwnedArtifactCurrent: jest.fn().mockResolvedValue(true),
     claimNext: jest.fn(),
     renewLease: jest.fn(),
     reschedule: jest.fn(),
@@ -606,10 +607,68 @@ describe('AccountExportService', () => {
       byteLength: 512,
       sha256: 'a'.repeat(64),
     });
+    // B93 expiration is decided by the primary's $NOW, not the client
+    // test timestamp supplied to the service.
+    f.store.isOwnedArtifactCurrent.mockResolvedValueOnce(false);
     await expect(
       f.service.download('user-1', 'export-1', now),
     ).resolves.toEqual({ kind: 'expired' });
     expect(f.users.hasActiveAccount.mock.calls).toHaveLength(4);
+  });
+
+  it('B93 status uses the Mongo primary even if the worker clock is far ahead', async () => {
+    const f = fixture();
+    const expiresAt = new Date(now.getTime() + 60_000);
+    f.store.findOwned.mockResolvedValue(job({
+      state: 'completed', active: false,
+      artifactGeneration: 'generation-1',
+      artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30, artifactByteLength: 512,
+      artifactSha256: 'a'.repeat(64),
+    }));
+    f.store.isOwnedArtifactCurrent.mockResolvedValue(true);
+    const clientAhead = new Date(expiresAt.getTime() + 60_000);
+    await expect(f.service.status('user-1', 'export-1', clientAhead))
+      .resolves.toMatchObject({ downloadable: true });
+    await expect(f.service.download('user-1', 'export-1', clientAhead))
+      .resolves.toMatchObject({ kind: 'available', generation: 'generation-1' });
+    expect(f.store.isOwnedArtifactCurrent).toHaveBeenCalledWith({
+      id: 'export-1', userId: 'user-1',
+      generation: 'generation-1', expiresAt,
+    });
+  });
+
+  it('B93 status and download deny expiry even with worker clock far behind', async () => {
+    const f = fixture();
+    const expiresAt = new Date(now.getTime() + 60_000);
+    f.store.findOwned.mockResolvedValue(job({
+      state: 'completed', active: false,
+      artifactGeneration: 'generation-1',
+      artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30, artifactByteLength: 512,
+      artifactSha256: 'a'.repeat(64),
+    }));
+    f.store.isOwnedArtifactCurrent.mockResolvedValue(false);
+    await expect(f.service.status('user-1', 'export-1', now))
+      .resolves.toMatchObject({ downloadable: false });
+    await expect(f.service.download('user-1', 'export-1', now))
+      .resolves.toEqual({ kind: 'expired' });
+  });
+
+  it('B93 fails closed if the primary eligibility probe fails', async () => {
+    const f = fixture();
+    f.store.findOwned.mockResolvedValue(job({
+      state: 'completed', active: false,
+      artifactGeneration: 'generation-1',
+      artifactExpiresAt: new Date(now.getTime() + 60_000),
+      artifactSectionCount: 30, artifactByteLength: 512,
+      artifactSha256: 'a'.repeat(64),
+    }));
+    f.store.isOwnedArtifactCurrent.mockRejectedValue(new Error('Mongo primary down'));
+    await expect(f.service.status('user-1', 'export-1', now))
+      .rejects.toThrow('Mongo primary down');
+    await expect(f.service.download('user-1', 'export-1', now))
+      .rejects.toThrow('Mongo primary down');
   });
 
   it('does not find a completed export when another active account requests it', async () => {
