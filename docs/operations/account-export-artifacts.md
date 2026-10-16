@@ -836,3 +836,35 @@ Pruebas: `pnpm test:account-export-b91-preflight`, Jest del controlador
 y del adaptador, aceptación HTTP real y proveedor S3. Estas últimas
 siguen pendientes. **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`,
 auditorías #133/#141, IAM, backup, Mongo y CI completo pendientes.
+
+## B92 — Reautorizar después del preflight de exportación privada
+
+Las descargas privadas ejecutan el siguiente circuito:
+
+1. Validar sesión, cuenta, propiedad, estado y vigencia en Mongo.
+2. Comprobar S3 GET (preflight B91) con tamaño y SHA-256 exactos.
+3. **Volver a consultar Mongo antes de emitir headers** para comprobar
+   que la cuenta sigue activa y que la misma generación, versión,
+   tamaño y hash continúan autorizados y no vencidos.
+4. Iniciar un segundo GET con el chequeo SHA-256 durante el stream.
+
+Si cambió el estado: 404, 409 o 410 según corresponda. Si cambió
+la metadata/generación ya verificada: 409 estable con código
+`ACCOUNT_EXPORT_CHANGED_DURING_VERIFICATION`. Si S3 falla durante
+preflight: 503 `ACCOUNT_EXPORT_STORAGE_UNAVAILABLE`. Ningún error
+incluye object key, credenciales o contenido del archivo.
+Un cliente desconectado durante la consulta tampoco recibe adjunto.
+
+B92 cierra una ventana de autorización causada por el GET largo de B91,
+pero no crea un lease de descarga ni inmoviliza una versión durante
+todo el segundo GET. Para cerrar esta carrera residual se requieren
+permisos de objeto inmutable/versionado o una sesión de descarga
+con retención respaldada en storage, además de pruebas de carrera
+HTTP/Mongo/S3 reales.
+
+Ejecutar `pnpm test:account-export-b92-reauthorization` y los Jest
+del controlador, Node24/pnpm9, ensayos HTTP/browser y S3 real.
+Medir latencia por el doble GET y dos consultas a Mongo.
+
+**#353 HOLD, `STUDY_PROGRESS_ENABLED=false`**.
+No CI manual, no deploy ni exención de auditorías #133/#141.
