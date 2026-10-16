@@ -1,0 +1,67 @@
+name: B85 private export processor quality
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/b85-export-processor-quality.yml'
+      - 'apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts'
+
+permissions:
+  contents: read
+
+jobs:
+  processor-spec:
+    name: Strict Jest processor fixture contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Prove candidate identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use repository Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Exact processor Prettier
+        run: pnpm --filter @losapuntes/api exec prettier --check src/data-lifecycle/domain/account-export-processor.spec.ts
+      - name: Strict processor ESLint
+        run: pnpm --filter @losapuntes/api exec eslint --max-warnings=0 src/data-lifecycle/domain/account-export-processor.spec.ts
+      - name: Processor S3, lease and owner regressions
+        run: pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath src/data-lifecycle/domain/account-export-processor.spec.ts
+
+  api-types:
+    name: Whole API typecheck — independently reported
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Prove candidate identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use repository Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Full API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
