@@ -919,3 +919,29 @@ No se modifican condiciones de limpieza B78–B85 ni descarga
 B90–B93. **Issue #353 HOLD** hasta Node24/Jest/Typescript/S3 de
 proveedor, auditorías #133/#141, IAM/versioning, backup y HTTP/browser.
 Sin CI manual ni deploy.
+
+## B95 — Verificación B90/B91 contra transporte S3 HTTP local firmado
+
+El script `test-account-export-b86-s3-loopback.test.mjs` conserva
+todos los escenarios B86/B87 y suma seis casos B95 usando
+`createS3ObjectStorage` de producción, solicitudes HTTP reales
+a `127.0.0.1` y validación criptográfica SigV4 independiente.
+
+El servidor de prueba puede devolver GET con HTTP 200 pero cuerpo
+corrupto, más corto o más largo; 404/503; y una secuencia donde el
+preflight B91 pasa y el segundo GET falla por hash. Esas situaciones
+deben fallar en los verificadores reales B90/B91 sin autorizar
+DELETE directo del objeto almacenado.
+
+Comando aislado:
+`pnpm test:account-export-b95-http-integrity`.
+Suite HTTP completa con B86/B87:
+`pnpm test:account-export-b86-s3-loopback`.
+
+Este es un S3 **simulado** por HTTP localhost, no AWS/MinIO.
+Se deben ejecutar ambos comandos en el entorno Node24/pnpm9;
+no interpretar pruebas estáticas como PASS de red.
+El conjunto durable Mongo B86/B90/B93 sigue con su runner B94
+separado. **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`,
+sin CI manual ni despliegue; pendientes pruebas Mongo/S3 de proveedor,
+seguridad #133/#141, backups, IAM/versionado y HTTP navegador.
