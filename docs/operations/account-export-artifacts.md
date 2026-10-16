@@ -391,3 +391,28 @@ replica-set suite, S3 provider tests, HTTP download/privacy, retention
 policies and backups all pass.
 
 See `docs/engineering/account-export-atomic-expiry-b72.md`.
+
+
+## B74 — Expired export claim takeover and abandoned multipart generation
+
+When a worker takes over an **expired processing** claim, the Mongo store
+now performs the takeover and records cleanup for the previous attempt's
+UUID generation in the **same Mongo replica-set transaction**. The new
+worker is only handed the new claim after Mongo verifies its owner and
+claim ID. On transaction failure, including failure to enqueue the old
+generation, the takeover rolls back and cannot silently discard the old
+S3 object key. Ordinary pending jobs do not create orphan rows.
+
+Cleanup of a reclaimed previous generation starts no earlier than three
+export lease periods after the takeover. This gives an older multipart
+operation a settling window, but does NOT guarantee that an indefinitely
+delayed S3 completion can never race after cleanup ACK. Enforce bucket
+lifecycle retention, instrument long multipart durations and perform
+periodic object inventory/audit separately before production signoff.
+
+Run the opt-in Mongo replica-set B74 tests for takeover, queue rollback
+and exact-generation cleanup, and keep #353 OPEN until Node/Jest/Mongo,
+S3 multipart fault-injection, HTTP download/privacy and retention
+signoffs are complete.
+
+See `docs/engineering/account-export-takeover-ledger-b74.md`.
