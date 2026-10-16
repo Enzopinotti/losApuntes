@@ -31,6 +31,7 @@ test('reports both merge orders and explicit conflicted files', () => {
       {
         order: ['b78', 'b77'],
         ok: false,
+        failedOn: 'b78',
         conflicts: ['apps/api/src/a.ts', 'apps/web/src/b.ts'],
         tree: null,
       },
@@ -44,7 +45,7 @@ test('reports both merge orders and explicit conflicted files', () => {
     ok: false,
     commit: '',
   });
-  assert.match(report, /CONFLICT/u);
+  assert.match(report, /CONFLICT applying b78/u);
   assert.match(report, /apps\/api\/src\/a\.ts/u);
   assert.match(report, /apps\/web\/src\/b\.ts/u);
   assert.match(report, /HOLD/u);
@@ -73,11 +74,11 @@ test('successful report binds both orders to the same synthetic tree and commit'
 test('merge error with no conflict path still refuses to claim readiness', () => {
   const report = integrationMarkdown({
     shas: { base: a, b77: b, b78: c },
-    results: [{ order: ['b77', 'b78'], ok: false, conflicts: [], tree: null }],
+    results: [{ order: ['b77', 'b78'], ok: false, failedOn: 'b77', conflicts: [], tree: null }],
     ok: false,
     commit: '',
   });
-  assert.match(report, /MERGE ERROR/u);
+  assert.match(report, /MERGE ERROR applying b77/u);
   assert.match(report, /Inspect the job log/u);
   assert.match(report, /HOLD/u);
 });
