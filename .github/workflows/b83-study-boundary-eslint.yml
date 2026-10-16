@@ -1,0 +1,87 @@
+name: B83 Study Boundary ESLint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b83-study-boundary-eslint.yml"
+      - "apps/api/src/study-collections/study-collections-feature.guard.ts"
+      - "apps/api/src/study-progress/study-progress.feature.guard.ts"
+      - "apps/api/src/study-progress/domain/study-progress.plan.ts"
+      - "apps/api/src/study-progress/domain/study-progress.plan.spec.ts"
+      - "apps/api/src/study-collections/mongo/study-collection-export.reader.ts"
+      - "apps/api/src/study-progress/mongo/study-progress-export.reader.ts"
+      - "apps/api/src/data-lifecycle/domain/account-export-versioning.spec.ts"
+      - "docs/engineering/b83-study-boundary-eslint.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b83-study-eslint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strict-boundaries:
+    name: B83 API lint, contracts and TS (exact head)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Verify HEAD before acceptance
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Strict ESLint on B83 scope
+        run: |
+          pnpm --filter @losapuntes/api exec eslint \
+            src/study-collections/study-collections-feature.guard.ts \
+            src/study-progress/study-progress.feature.guard.ts \
+            src/study-progress/domain/study-progress.plan.ts \
+            src/study-progress/domain/study-progress.plan.spec.ts \
+            src/study-collections/mongo/study-collection-export.reader.ts \
+            src/study-progress/mongo/study-progress-export.reader.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            --max-warnings=0
+
+      - name: Canonical formatter on B83 scope
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --check \
+            src/study-collections/study-collections-feature.guard.ts \
+            src/study-progress/study-progress.feature.guard.ts \
+            src/study-progress/domain/study-progress.plan.ts \
+            src/study-progress/domain/study-progress.plan.spec.ts \
+            src/study-collections/mongo/study-collection-export.reader.ts \
+            src/study-progress/mongo/study-progress-export.reader.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts
+
+      - name: Domain Jest contracts for scope
+        run: |
+          pnpm --filter @losapuntes/api exec jest \
+            src/study-collections/study-collections-feature.guard.spec.ts \
+            src/study-progress/study-progress.feature.guard.spec.ts \
+            src/study-progress/domain/study-progress.plan.spec.ts \
+            src/study-collections/mongo/study-collection-export.reader.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            --runInBand
+
+      - name: API TypeScript contract
+        run: pnpm --filter @losapuntes/api check:types

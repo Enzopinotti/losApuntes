@@ -165,7 +165,7 @@ export class StudyProgressExportReader {
       items: page.map(project),
       nextCursor:
         rows.length > input.limit && page.length > 0
-          ? nextCursor(ownerUserId, page[page.length - 1]!.subjectId)
+          ? nextCursor(ownerUserId, page[page.length - 1].subjectId)
           : null,
     };
   }
