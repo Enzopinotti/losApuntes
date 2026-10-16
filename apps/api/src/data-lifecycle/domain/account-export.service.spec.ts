@@ -1096,7 +1096,7 @@ describe('AccountExportService', () => {
       const ownedReader = reader(true);
       const service = new AccountExportService(
         f.storeContract,
-      f.usersContract,
+        f.usersContract,
         disabled as never,
         ownedReader as never,
         emptyProgressReader as never,
@@ -1124,7 +1124,7 @@ describe('AccountExportService', () => {
       const emptyReader = reader(false);
       const service = new AccountExportService(
         f.storeContract,
-      f.usersContract,
+        f.usersContract,
         disabled as never,
         emptyReader as never,
         emptyProgressReader as never,
@@ -1144,7 +1144,7 @@ describe('AccountExportService', () => {
       const f = fixture();
       const service = new AccountExportService(
         f.storeContract,
-      f.usersContract,
+        f.usersContract,
         disabled as never,
         reader(true) as never,
         emptyProgressReader as never,
@@ -1168,7 +1168,7 @@ describe('AccountExportService', () => {
       unavailable.hasOwnedCollections.mockRejectedValueOnce(error);
       const service = new AccountExportService(
         f.storeContract,
-      f.usersContract,
+        f.usersContract,
         disabled as never,
         unavailable as never,
         emptyProgressReader as never,
@@ -1181,7 +1181,7 @@ describe('AccountExportService', () => {
       const f = fixture();
       const service = new AccountExportService(
         f.storeContract,
-      f.usersContract,
+        f.usersContract,
         disabled as never,
       );
       await expect(service.request('user-1', now)).rejects.toThrow(
@@ -1198,7 +1198,7 @@ describe('AccountExportService', () => {
       };
       const service = new AccountExportService(
         f.storeContract,
-      f.usersContract,
+        f.usersContract,
         enabled as never,
         ownedReader as never,
         emptyProgressReader as never,
