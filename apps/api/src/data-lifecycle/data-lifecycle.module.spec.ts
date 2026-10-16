@@ -337,12 +337,13 @@ describe('DataLifecycleModule account export wiring', () => {
       .toEqual({
         method: 'listAccountExportProgress',
         args: [ownerId, { limit: 100, cursor: null }],
-        expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
+      });
+    expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
     expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(1, ownerId);
     expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(2, ownerId);
 
-    // A private progress mutation during assembly must abort the staged
-    // artifact, never publish a cross-epoch snapshot as a completed export.
+    // An owner progress mutation mid-assembly must abort staging rather than
+    // publish a mixed-epoch private export.
     getStudyProgressExportEpoch
       .mockReset()
       .mockResolvedValueOnce(0)
@@ -355,7 +356,6 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
     expect(sink.commit).not.toHaveBeenCalled();
     expect(sink.abort).toHaveBeenCalledTimes(1);
-  });
   });
 
 });
