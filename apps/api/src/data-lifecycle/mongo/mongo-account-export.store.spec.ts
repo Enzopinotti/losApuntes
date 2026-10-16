@@ -167,51 +167,108 @@ describe('MongoAccountExportStore', () => {
     });
   });
 
-  it('claims pending work or an expired processing lease with one CAS', async () => {
-    const claimed = record({
-      state: 'processing',
-      attempts: 2,
-      claimId: 'claim-2',
-    });
-    const f = fixture({ active: record() });
-    f.claimQuery.exec.mockResolvedValue(claimed);
+  it('B74 claims pending work transactionally without adding a spurious orphan', async () => {
+    const previous = record({ state: 'pending', claimId: null });
+    const claimed = record({ state: 'processing', attempts: 2, claimId: 'claim-2' });
+    const f = fixture();
     f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(previous);
+    f.findQuery.exec.mockResolvedValue(claimed);
     const leaseExpiresAt = new Date(now.getTime() + 120_000);
+    await expect(f.store.claimNext({ now, claimId: 'claim-2', leaseExpiresAt }))
+      .resolves.toEqual(claimed);
 
-    await expect(
-      f.store.claimNext({
-        now,
-        claimId: 'claim-2',
-        leaseExpiresAt,
-      }),
-    ).resolves.toEqual(claimed);
+    expect(f.jobs.findOneAndUpdate).toHaveBeenCalledWith({
+      active: true,
+      $or: [
+        { state: 'pending', nextAttemptAt: { $lte: now } },
+        { state: 'processing', leaseExpiresAt: { $lte: now } },
+      ],
+    }, {
+      $set: {
+        state: 'processing', claimId: 'claim-2',
+        leaseExpiresAt, failureCode: null, failedAt: null,
+      },
+      $inc: { attempts: 1 },
+    }, {
+      session: f.session, new: false,
+      sort: { nextAttemptAt: 1, createdAt: 1, userId: 1 },
+    });
+    expect(f.orphanCleanup.updateOne).not.toHaveBeenCalled();
+    expect(f.jobs.findOne).toHaveBeenCalledWith({
+      id: previous.id, userId: previous.userId,
+      state: 'processing', active: true, claimId: 'claim-2',
+    }, null, { session: f.session });
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
 
-    expect(f.jobs.findOneAndUpdate.mock.calls[0]).toEqual([
-      {
-        active: true,
-        $or: [
-          { state: 'pending', nextAttemptAt: { $lte: now } },
-          {
-            state: 'processing',
-            leaseExpiresAt: { $lte: now },
-          },
-        ],
+  it('B74 atomically queues the previous attempt before returning an expired-lease takeover', async () => {
+    const oldClaim = 'bba10100-7777-4777-8777-777777777777';
+    const previous = record({
+      state: 'processing', claimId: oldClaim,
+      leaseExpiresAt: new Date(now.getTime() - 1000),
+    });
+    const claimed = record({ state: 'processing', claimId: 'new-claim' });
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(previous);
+    f.findQuery.exec.mockResolvedValue(claimed);
+    const leaseExpiresAt = new Date(now.getTime() + 120_000);
+    await expect(f.store.claimNext({
+      now, claimId: 'new-claim', leaseExpiresAt,
+    })).resolves.toEqual(claimed);
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith({
+      jobId: previous.id, generation: oldClaim,
+    }, {
+      $setOnInsert: {
+        jobId: previous.id, ownerUserId: previous.userId,
+        generation: oldClaim, state: 'pending', attempts: 0,
+        nextAttemptAt: new Date(now.getTime() + 3 * 120_000),
+        claimId: null, leaseExpiresAt: null,
       },
-      {
-        $set: {
-          state: 'processing',
-          claimId: 'claim-2',
-          leaseExpiresAt,
-          failureCode: null,
-          failedAt: null,
-        },
-        $inc: { attempts: 1 },
-      },
-      {
-        new: true,
-        sort: { nextAttemptAt: 1, createdAt: 1, userId: 1 },
-      },
-    ]);
+    }, { upsert: true, session: f.session });
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B74 rolls back a takeover if the orphan queue cannot persist', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(record({
+      state: 'processing',
+      claimId: 'bba10100-7777-4777-8777-777777777777',
+    }));
+    f.orphanWrite.exec.mockRejectedValueOnce(new Error('orphan queue write failed'));
+    await expect(f.store.claimNext({
+      now, claimId: 'new-claim',
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).rejects.toThrow('orphan queue write failed');
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+    expect(f.jobs.findOne).not.toHaveBeenCalled();
+  });
+
+  it('B74 refuses corrupt expired claims instead of discarding their S3 generations', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(record({
+      state: 'processing', claimId: 'not-a-uuid',
+    }));
+    await expect(f.store.claimNext({
+      now, claimId: 'new-claim',
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).rejects.toThrow('takeover generation is invalid');
+    expect(f.orphanCleanup.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('B74 does not expose a claim whose postcondition read cannot verify ownership', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(record());
+    f.findQuery.exec.mockResolvedValue(null);
+    await expect(f.store.claimNext({
+      now, claimId: 'new-claim',
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).rejects.toThrow('takeover postcondition failed');
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
 
   it('renews only a current active claim and never shortens its lease', async () => {
