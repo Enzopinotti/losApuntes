@@ -127,6 +127,39 @@ describe('S3AccountExportArtifactStorage', () => {
     expect(writer.complete).not.toHaveBeenCalled();
   });
 
+  it('B71 treats a lost multipart completion ACK as ambiguous even after abort', async () => {
+    const writer = {
+      write: jest.fn().mockResolvedValue(undefined),
+      complete: jest.fn().mockRejectedValueOnce(new Error('S3 complete ACK lost')),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn().mockReturnValue(writer),
+      readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+    };
+    const artifacts = new S3AccountExportArtifactStorage(storage);
+    const sink = artifacts.createSink(jobId, generation);
+    const payload = '{"ambiguous":true}';
+    await sink.write(payload);
+    await expect(sink.commit({
+      format: 'los-apuntes-account-export',
+      formatVersion: 1, sectionCount: 30, recordCount: 0,
+      byteLength: Buffer.byteLength(payload),
+      sha256: createHash('sha256').update(payload).digest('hex'),
+    })).rejects.toThrow('S3 complete ACK lost');
+    await sink.abort();
+    expect(writer.complete).toHaveBeenCalledTimes(1);
+    expect(writer.abort).toHaveBeenCalledTimes(1);
+    // Aborting a multipart writer is NOT an exact-object DELETE; if the
+    // commit already took effect, the processor must compensate after CAS.
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+    await artifacts.deleteArtifact(jobId, generation);
+    expect(storage.deleteObject).toHaveBeenCalledWith(
+      `exports/${jobId}/${generation}.json`,
+    );
+  });
+
   it('derives storage paths only from canonical job and generation UUIDs', async () => {
     const readObjectChunks = jest
       .fn()
