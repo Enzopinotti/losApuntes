@@ -2090,6 +2090,12 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
         objects.set(key, Buffer.from(init?.body as Uint8Array));
         return new Response(null, { status: 200 });
       }
+      if (method === 'GET') {
+        const bytes = objects.get(key);
+        return bytes
+          ? new Response(new Uint8Array(bytes), { status: 200 })
+          : new Response(null, { status: 404 });
+      }
       if (method === 'DELETE') {
         objects.delete(key);
         return new Response(null, { status: 204 });
@@ -2131,7 +2137,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       await expect(processor.runIteration()).resolves.toMatchObject({
         orphanPreserved: 1, orphanDeleted: 0, orphanRetries: 0,
       });
-      expect(httpMethods).toEqual(['PUT']);
+      expect(httpMethods).toEqual(['PUT', 'GET']);
       expect(objects.has(key)).toBe(true);
       expect((await store.findOwned(id, userId))?.artifactGeneration).toBe(generation);
       expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
