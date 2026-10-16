@@ -22,7 +22,7 @@ import type { FastifyReply } from 'fastify';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
-import { AccountExportService } from './domain/account-export.service';
+import { AccountExportService, type AccountExportDownload } from './domain/account-export.service';
 import { reauthorizeAccountExportDownload } from './domain/account-export-download-reauthorization';
 import { verifyAccountExportDownload } from './storage/account-export-download-integrity';
 import { ACCOUNT_EXPORT_ARTIFACT_STORAGE } from './storage/account-export-artifact-storage';
@@ -134,7 +134,7 @@ export class AccountExportController {
     // during the full S3 preflight (account closure, TTL retirement or
     // generation replacement). Recheck the CURRENT durable authorization
     // before emitting any headers, not the snapshot captured before GET.
-    let latest;
+    let latest: AccountExportDownload;
     try {
       latest = await this.exports.download(request.user.id, id);
     } catch (error) {
