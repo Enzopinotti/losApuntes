@@ -566,7 +566,7 @@ describe('AccountExportProcessor', () => {
     const error = new Error('Mongo owner revision unavailable');
     f.exports.assertStudyProgressExportEpoch.mockRejectedValueOnce(error);
     f.orphans.enqueue.mockRejectedValueOnce(
-      new Error('S3 cleanup temporarily unavailable'),
+      new Error('Mongo orphan queue temporarily unavailable'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       claimed: 1, retryScheduled: 1, completed: 0,
@@ -1385,11 +1385,13 @@ describe('AccountExportProcessor', () => {
   it('B69 persists cleanup intent without inline S3 deletion', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('Mongo orphan queue temporarily unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       stale: 1, completed: 0,
     });
-    expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: claim().id, ownerUserId: claim().userId,
+      generation: claim().claimId,
+    }));
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
   });
