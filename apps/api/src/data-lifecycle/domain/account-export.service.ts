@@ -177,13 +177,27 @@ export class AccountExportService {
   ): Promise<AccountExportStatus | null> {
     await this.assertActiveAccount(userId);
     const job = await this.store.findOwned(id, userId);
-    return job ? this.publicStatus(job, now) : null;
+    if (!job) return null;
+    // B93: status must agree with the Mongo primary that authorizes B85
+    // artifact retirement. A future/slow worker clock cannot grant or
+    // prematurely deny access based on its own Date.now().
+    const liveOnPrimary = job.state === 'completed' &&
+      typeof job.artifactGeneration === 'string' &&
+      job.artifactGeneration.length > 0 &&
+      job.artifactExpiresAt instanceof Date &&
+      Number.isFinite(job.artifactExpiresAt.getTime())
+        ? await this.store.isOwnedArtifactCurrent({
+            id, userId, generation: job.artifactGeneration,
+            expiresAt: job.artifactExpiresAt,
+          })
+        : false;
+    return this.publicStatus(job, now, liveOnPrimary);
   }
 
   async download(
     userId: string,
     id: string,
-    now = new Date(),
+    _now = new Date(),
   ): Promise<AccountExportDownload> {
     await this.assertActiveAccount(userId);
     const job = await this.store.findOwned(id, userId);
@@ -192,7 +206,7 @@ export class AccountExportService {
     if (
       !job.artifactGeneration ||
       !(job.artifactExpiresAt instanceof Date) ||
-      job.artifactExpiresAt.getTime() <= now.getTime()
+      !Number.isFinite(job.artifactExpiresAt.getTime())
     ) {
       return { kind: 'expired' };
     }
@@ -206,6 +220,16 @@ export class AccountExportService {
       job.artifactSectionCount !== safeSectionCount(job.formatVersion)
     ) {
       throw new Error('Account export artifact metadata is invalid');
+    }
+
+    // Mongo primary time is the only retention authority. Compare the
+    // same owner/generation/expiry against the CURRENT durable document,
+    // not a possibly stale worker clock or the earlier findOwned read.
+    if (!await this.store.isOwnedArtifactCurrent({
+      id, userId, generation: job.artifactGeneration,
+      expiresAt: job.artifactExpiresAt,
+    })) {
+      return { kind: 'expired' };
     }
 
     return {
@@ -347,6 +371,7 @@ export class AccountExportService {
   private publicStatus(
     job: AccountExportJobRecord,
     now: Date,
+    liveOnPrimary?: boolean,
   ): AccountExportStatus {
     const downloadExpiresAt =
       job.state === 'completed' &&
@@ -367,7 +392,7 @@ export class AccountExportService {
       downloadExpiresAt,
       downloadable:
         downloadExpiresAt !== null &&
-        job.artifactExpiresAt!.getTime() > now.getTime() &&
+        (liveOnPrimary ?? job.artifactExpiresAt!.getTime() > now.getTime()) &&
         Boolean(job.artifactGeneration) &&
         safeSectionCount(job.formatVersion) !== null &&
         job.artifactSectionCount === safeSectionCount(job.formatVersion) &&
