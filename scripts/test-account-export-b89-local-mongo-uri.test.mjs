@@ -13,21 +13,44 @@ const ensureRejected = async (uri, resolver = loopback) =>
     /requires an uncredentialed loopback/u);
 
 test('B89 uses the real system resolver for a numeric 127.0.0.1 URI', async () => {
-  assert.equal(await validateB89LocalMongoUri(URI), URI);
+  assert.equal(await validateB89LocalMongoUri(URI), URI + '&directConnection=true');
 });
 
 test('B89 accepts only explicit uncredentialed localhost with all loopback addresses', async () => {
   const localhostUri = 'mongodb://localhost:27017/?replicaSet=rs0';
   assert.equal(await validateB89LocalMongoUri(localhostUri, {
     lookupHost: resolveAllLoopback,
-  }), localhostUri);
+  }), URI + '&directConnection=true');
 });
 
 test('B89 accepts a bracketed IPv6 loopback replica endpoint', async () => {
   const ipv6 = 'mongodb://[::1]:27017/?replicaSet=rs_local-1';
   assert.equal(await validateB89LocalMongoUri(ipv6, {
     lookupHost: async () => [{ address: '::1', family: 6 }],
-  }), ipv6);
+  }), ipv6 + '&directConnection=true');
+});
+
+test('B89 pins localhost to a validated numeric destination before the driver runs', async () => {
+  const requested = 'mongodb://localhost:27017/?replicaSet=rs0';
+  const pinned = await validateB89LocalMongoUri(requested, {
+    lookupHost: async () => [
+      { address: '::1', family: 6 },
+      { address: '127.0.0.1', family: 4 },
+    ],
+  });
+  assert.equal(pinned, URI + '&directConnection=true');
+  assert.equal(new URL(pinned).hostname, '127.0.0.1');
+  assert.equal(new URL(pinned).searchParams.get('directConnection'), 'true');
+});
+
+test('B89 direct-mode also pins a localhost host resolving only to IPv6 loopback', async () => {
+  const pinned = await validateB89LocalMongoUri(
+    'mongodb://localhost:27017/?replicaSet=rs0', {
+      lookupHost: async () => [{ address: '::1', family: 6 }],
+    },
+  );
+  assert.equal(pinned,
+    'mongodb://[::1]:27017/?replicaSet=rs0&directConnection=true');
 });
 
 test('B89 rejects a plausible docker alias that could resolve remotely', async () => {
@@ -111,6 +134,6 @@ test('B89 validation does not contact Mongo or require a live replica', async ()
       return [{ address: '127.0.0.1', family: 4 }];
     },
   });
-  assert.equal(value, URI);
+  assert.equal(value, URI + '&directConnection=true');
   assert.equal(lookups, 1);
 });
