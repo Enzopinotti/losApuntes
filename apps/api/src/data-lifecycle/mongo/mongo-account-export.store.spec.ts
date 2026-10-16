@@ -234,11 +234,34 @@ describe('MongoAccountExportStore', () => {
       verificationUntil: new Date(now.getTime() + 60 * 60_000),
     } }, { session: f.session });
     expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith({
-      jobId: previous.id, generation: oldClaim, state: 'pending',
+      jobId: previous.id, generation: oldClaim,
     }, { $max: {
       nextAttemptAt: new Date(now.getTime() + 3 * 120_000),
     } }, { session: f.session });
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B77 extends the first recheck due date for a processing queue claim without stealing its lease', async () => {
+    const oldClaim = 'bba10100-7777-4777-8777-777777777777';
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(f.claimQuery);
+    f.claimQuery.exec.mockResolvedValue(record({
+      state: 'processing', claimId: oldClaim,
+      leaseExpiresAt: new Date(now.getTime() - 1),
+    }));
+    f.findQuery.exec.mockResolvedValue(record({
+      state: 'processing', claimId: 'new-claim',
+    }));
+    await f.store.claimNext({
+      now, claimId: 'new-claim',
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith({
+      jobId: 'export-1', generation: oldClaim,
+    }, { $max: { nextAttemptAt: new Date(now.getTime() + 3 * 120_000) } },
+    { session: f.session });
+    const updates = f.orphanCleanup.updateOne.mock.calls;
+    expect(updates.some((call) => call[1]?.$set?.claimId != null)).toBe(false);
   });
 
   it('B74 rolls back a takeover if the orphan queue cannot persist', async () => {
