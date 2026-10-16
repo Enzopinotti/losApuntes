@@ -336,19 +336,21 @@ export class AccountExportProcessor {
   }
 
   /**
-   * Only proven orphans enter the queue. Persist the cleanup intent BEFORE
-   * S3 deletion: a crash after an S3 error can then be recovered by another
-   * worker rather than silently losing the retry opportunity.
+   * Register a proven orphan for the owner-checked, lease-fenced queue drainer.
    *
-   * An uncertain Mongo completion never calls this method. If enqueue
-   * itself fails, an immediate best-effort delete is still permitted by
-   * the caller's proven-orphan authority; bucket lifecycle is the backstop.
+   * B78: do NOT perform a direct S3 DELETE here. An older export worker can
+   * finish its multipart upload after a newer worker has taken over the job.
+   * The takeover may already have deferred this generation's cleanup and
+   * extended its verification horizon; enqueue is idempotent and must never
+   * bypass those durable dates or another cleanup worker's claim.
+   *
+   * A failed Mongo enqueue does not grant deletion authority. Provider
+   * lifecycle policy is a last-resort backstop, not immediate proof of purge.
    */
   private async deleteOrEnqueueProvenOrphan(
     job: AccountExportJobRecord,
     generation: string,
   ): Promise<void> {
-    let queued = false;
     try {
       await this.orphans.enqueue({
         jobId: job.id,
@@ -356,29 +358,9 @@ export class AccountExportProcessor {
         generation,
         now: new Date(),
       });
-      queued = true;
     } catch {
-      // Keep the best-effort S3 fast path available when Mongo is down.
-    }
-    try {
-      await this.artifacts.deleteArtifact(job.id, generation);
-    } catch {
-      // The durable task survives a failure or a crash after S3 rejection.
-      // If Mongo was also down, isolated-bucket lifecycle is the backstop.
-      return;
-    }
-    if (queued) {
-      try {
-        // Do not remove a task another worker already claimed. That
-        // worker will safely reconcile the exact idempotent generation.
-        await this.orphans.clearPending({
-          jobId: job.id,
-          generation,
-        });
-      } catch {
-        // The queued retry is safe and will detect an already-deleted
-        // generation; it must not change the source job's outcome.
-      }
+      // Preserve S3 rather than bypassing settlement and owner fences.
+      // Operators must reconcile a failed enqueue against bucket lifecycle.
     }
   }
 
