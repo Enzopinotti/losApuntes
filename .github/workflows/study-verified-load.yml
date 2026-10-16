@@ -1,0 +1,54 @@
+name: Study verified session load
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/study-verified-load.yml"
+      - "apps/web/src/pages/StudyRunner.tsx"
+      - "apps/web/src/features/study/study-task-verification.*"
+      - "apps/web/src/features/study/study-session-plan.*"
+      - "scripts/test-web-study-task-verification.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: study-verified-load-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  study-verified-load:
+    name: B72 verified load contracts + Web types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Assert candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install frozen workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify bounded study loads
+        run: pnpm test:web-study-task-verification
+
+      - name: Typecheck Web
+        run: pnpm --filter @losapuntes/web check:types
