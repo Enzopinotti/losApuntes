@@ -217,7 +217,11 @@ export default function StudyKits() {
       : (archive?.kits[0]?.id ?? null);
   const selectedKit =
     archive?.kits.find((kit) => kit.id === selectedId) ?? null;
-  const verifyKey = `${scope}:${selectedId ?? "none"}:${selectedKit?.resourceIds.join(",") ?? ""}`;
+  const selectedKitId = selectedKit?.id ?? null;
+  // Validated resource IDs are UUIDs, so commas cannot occur inside an ID.
+  // This primitive snapshot remains stable even if the cached archive is reloaded.
+  const selectedResourceIdsKey = selectedKit?.resourceIds.join(",") ?? null;
+  const verifyKey = `${scope}:${selectedId ?? "none"}:${selectedResourceIdsKey ?? ""}`;
   const syncScope = [
     scope,
     selectedKit?.id ?? "none",
@@ -428,7 +432,7 @@ export default function StudyKits() {
   );
 
   const loadVerified = useCallback(async () => {
-    if (!subjectId || !selectedKit) return;
+    if (!subjectId || !selectedKitId || selectedResourceIdsKey === null) return;
     const ticket = beginVerify();
     if (!verifyCurrent(ticket)) return;
     setVerifiedState({
@@ -440,7 +444,7 @@ export default function StudyKits() {
     try {
       const data = await verifyKitResources(
         subjectId,
-        selectedKit.resourceIds,
+        selectedResourceIdsKey ? selectedResourceIdsKey.split(",") : [],
         ticket.signal,
       );
       if (verifyCurrent(ticket)) {
@@ -465,8 +469,8 @@ export default function StudyKits() {
     }
   }, [
     subjectId,
-    selectedKit?.id,
-    selectedKit?.resourceIds.join(","),
+    selectedKitId,
+    selectedResourceIdsKey,
     verifyKey,
     beginVerify,
     verifyCurrent,
@@ -482,8 +486,8 @@ export default function StudyKits() {
     void loadFound();
   }, [subjectId, loadSaved, loadFound]);
   useEffect(() => {
-    if (selectedKit) void loadVerified();
-  }, [loadVerified, selectedKit?.id]);
+    if (selectedKitId) void loadVerified();
+  }, [loadVerified, selectedKitId]);
 
   const create = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
