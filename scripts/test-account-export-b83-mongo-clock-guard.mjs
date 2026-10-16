@@ -76,7 +76,11 @@ check('B82 completion-wins integration uses a still-valid actual lease', () => {
   const end = mongoAcceptance.indexOf("it('B82 renewal wins:", start);
   const part = mongoAcceptance.slice(start, end);
   assert.match(part, /const leaseExpiresAt = new Date\(started\.getTime\(\) \+ 120_000\)/u);
-  assert.match(part, /\}\)\)\.resolves\.toBe\(true\)/u);
+  // Prettier may insert a trailing comma and line breaks between the
+  // completion call and the enclosing expect. Keep the success assertion
+  // mandatory while accepting either equivalent TypeScript layout.
+  const completionAssertion = /\}\)\s*,?\s*\)\.resolves\.toBe\(true\)/u;
+  assert.match(part, completionAssertion);
 });
 check('root lifecycle chain invokes both B83 executable tests and source guard', () => {
   const chain = scripts['test:account-lifecycle-contract'];
