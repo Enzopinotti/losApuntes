@@ -20,3 +20,11 @@ The one-time workflow `B87 one-time canonical API format on B86`:
 **Remove the write-enabled temporary workflow from this PR immediately after it succeeds.** Keep permanent CI read-only, rerun global `verify` **at the new exact SHA**, and separately check 10/10 coverages, lint API, API/Web types, Mongo/S3 guards and security audit. Format success is not a release gate by itself.
 
 No `eslint-disable`, `any` sweep, skipped tests, changed API contracts, `ours/theirs` merge strategy, expired audit waiver renewal or deploy. Preserve [#399](https://github.com/Enzopinotti/losApuntes/pull/399)'s typed untrusted Mongo fixtures, owner export epoch, B81 CAS, reviewed v3 contributor inventory, B82 React hook dependencies and B87 S3 SigV4. Release [#353](https://github.com/Enzopinotti/losApuntes/issues/353) stays **HOLD**. No local runtime, API/Mongo/Web launch or deployment.
+
+## Result — exact-tree canonical formatting
+
+[One-time formatter run #38925693678](https://github.com/Enzopinotti/losApuntes/actions/runs/38925693678): **SUCCESS**, after exact HEAD, remote branch, frozen install and source-only checks; generated a **single commit** `e6f16f1e46404e0ffb1dfec61c4fff7e87115850`. Git comparison confirmed **exactly 47 modified files**, all `apps/api/(src|test)/**/*.ts`, zero other paths. The run checked **API format:check SUCCESS** and **API TypeScript SUCCESS** on the resulting tree. No production logic was intentionally edited by this formatting-only command.
+
+**Write-permission lifecycle closed:** The temporary `b87-one-time-canonical-api-formatter.yml` workflow is **deleted in the same commit as this evidence**; it is not part of the final candidate. A new permanent `b87-api-canonical-quality-contract.yml` is **read-only** and runs three independent exact-HEAD jobs: pinned API/Web format + types + Web lint, five critical Jest suites + B83/B84/B85 clock/expiry guards, and whole-API strict ESLint as a **mandatory** gate. The last job may remain red until its remaining type-safe lint fixes are applied; never hide that result.
+
+Next, recertify the entire global `verify` and `security:audit` on this **new** final SHA. Keep release #353 HOLD and avoid merging stale source snapshots from other carriers.
