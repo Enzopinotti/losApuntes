@@ -43,6 +43,7 @@ export type AccountExportIteration = {
   orphanDeleted: number;
   orphanPreserved: number;
   orphanRetries: number;
+  orphanAuthorityBlocked: number;
 };
 
 function retryDelayMs(attempts: number): number {
@@ -100,6 +101,7 @@ export class AccountExportProcessor {
       orphanDeleted: 0,
       orphanPreserved: 0,
       orphanRetries: 0,
+      orphanAuthorityBlocked: 0,
     };
 
     await this.deleteExpiredArtifacts(result);
@@ -398,6 +400,7 @@ export class AccountExportProcessor {
         // an absent job and delete somebody else's completed S3 artifact.
         const job = await this.store.findForOrphanCleanup(candidate.jobId);
         if (!job) {
+          result.orphanAuthorityBlocked += 1;
           // The queue is an intention, not an authority record. Missing
           // Mongo owner/job data is NOT evidence that an object is orphaned.
           // Retain the task and fail closed until the durable job is known.
@@ -405,6 +408,7 @@ export class AccountExportProcessor {
         }
         if (job.id !== candidate.jobId ||
           job.userId !== candidate.ownerUserId) {
+          result.orphanAuthorityBlocked += 1;
           throw new Error('Export orphan cleanup authority mismatch');
         }
         if (job.artifactGeneration === candidate.generation) {
