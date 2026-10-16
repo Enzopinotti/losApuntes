@@ -58,10 +58,12 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     renewLease: jest.fn().mockResolvedValue(true),
     captureStudyProgressExportEpoch: jest.fn().mockResolvedValue(7),
     assertStudyProgressExportEpoch: jest.fn().mockResolvedValue(undefined),
-    complete: jest.fn<
-      ReturnType<AccountExportService['complete']>,
-      Parameters<AccountExportService['complete']>
-    >().mockResolvedValue(true),
+    complete: jest
+      .fn<
+        ReturnType<AccountExportService['complete']>,
+        Parameters<AccountExportService['complete']>
+      >()
+      .mockResolvedValue(true),
     reschedule: jest.fn().mockResolvedValue(true),
   };
   const assembler = {
@@ -121,15 +123,19 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
         claimId: null,
       }),
     ),
-    fenceExpiredClaimForOrphanCleanup: jest.fn<
-      ReturnType<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>,
-      Parameters<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>
-    >().mockResolvedValue(true),
+    fenceExpiredClaimForOrphanCleanup: jest
+      .fn<
+        ReturnType<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>,
+        Parameters<AccountExportStore['fenceExpiredClaimForOrphanCleanup']>
+      >()
+      .mockResolvedValue(true),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
-    retireExpiredArtifact: jest.fn<
-      ReturnType<AccountExportStore['retireExpiredArtifact']>,
-      Parameters<AccountExportStore['retireExpiredArtifact']>
-    >().mockResolvedValue(true),
+    retireExpiredArtifact: jest
+      .fn<
+        ReturnType<AccountExportStore['retireExpiredArtifact']>,
+        Parameters<AccountExportStore['retireExpiredArtifact']>
+      >()
+      .mockResolvedValue(true),
   };
   const orphans = {
     enqueue: jest.fn().mockResolvedValue(undefined),
@@ -137,16 +143,20 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     renewLease: jest.fn().mockResolvedValue(true),
     clearPending: jest.fn().mockResolvedValue(true),
     acknowledge: jest.fn().mockResolvedValue(true),
-    retry: jest.fn<
-      ReturnType<AccountExportOrphanCleanupStore['retry']>,
-      Parameters<AccountExportOrphanCleanupStore['retry']>
-    >().mockResolvedValue(true),
+    retry: jest
+      .fn<
+        ReturnType<AccountExportOrphanCleanupStore['retry']>,
+        Parameters<AccountExportOrphanCleanupStore['retry']>
+      >()
+      .mockResolvedValue(true),
   };
   const artifacts = {
-    createSink: jest.fn<
-      ReturnType<AccountExportArtifactStorage['createSink']>,
-      Parameters<AccountExportArtifactStorage['createSink']>
-    >().mockReturnValue(sink),
+    createSink: jest
+      .fn<
+        ReturnType<AccountExportArtifactStorage['createSink']>,
+        Parameters<AccountExportArtifactStorage['createSink']>
+      >()
+      .mockReturnValue(sink),
     deleteArtifact: jest.fn().mockResolvedValue(undefined),
   };
 
@@ -483,7 +493,9 @@ describe('AccountExportProcessor', () => {
       generation: claim().claimId!,
       expiresAt,
     });
-    expect(f.store.retireExpiredArtifact.mock.calls[0]?.[0]?.now).toBeInstanceOf(Date);
+    expect(
+      f.store.retireExpiredArtifact.mock.calls[0]?.[0]?.now,
+    ).toBeInstanceOf(Date);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
   });
@@ -1206,12 +1218,16 @@ describe('AccountExportProcessor', () => {
       orphanAuthorityBlocked: 0,
     });
     expect(f.store.fenceExpiredClaimForOrphanCleanup).toHaveBeenCalledTimes(1);
-    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls[0]?.[0]).toMatchObject({
+    expect(
+      f.store.fenceExpiredClaimForOrphanCleanup.mock.calls[0]?.[0],
+    ).toMatchObject({
       id: orphan.jobId,
       ownerUserId: orphan.ownerUserId,
       generation: orphan.generation,
     });
-    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.calls[0]?.[0]?.now).toBeInstanceOf(Date);
+    expect(
+      f.store.fenceExpiredClaimForOrphanCleanup.mock.calls[0]?.[0]?.now,
+    ).toBeInstanceOf(Date);
     expect(
       f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0],
     ).toBeLessThan(f.orphans.renewLease.mock.invocationCallOrder[0]);
@@ -1504,7 +1520,9 @@ describe('AccountExportProcessor', () => {
         verificationUntil: until,
       }),
     );
-    expect(f.orphans.retry.mock.calls[0]?.[0]?.nextAttemptAt).toBeInstanceOf(Date);
+    expect(f.orphans.retry.mock.calls[0]?.[0]?.nextAttemptAt).toBeInstanceOf(
+      Date,
+    );
   });
 
   it('B77 blocks S3 DELETE when a takeover invalidates cleanup lease renewal', async () => {
@@ -1573,7 +1591,8 @@ describe('AccountExportProcessor', () => {
     );
     const next = f.orphans.retry.mock.calls[0]?.[0]?.nextAttemptAt;
     expect(next).toBeInstanceOf(Date);
-    if (!(next instanceof Date)) throw new Error('Expected fenced retry deadline');
+    if (!(next instanceof Date))
+      throw new Error('Expected fenced retry deadline');
     expect(next.getTime()).toBeLessThanOrEqual(until.getTime());
     expect(next.getTime()).toBeGreaterThan(Date.now());
   });
