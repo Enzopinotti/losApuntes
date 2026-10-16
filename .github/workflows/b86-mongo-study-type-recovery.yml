@@ -51,7 +51,7 @@ jobs:
         run: |
           node scripts/test-account-export-b83-mongo-clock-guard.mjs
           node scripts/test-account-export-b84-mongo-claim-guard.mjs
-          node scripts/test-account-export-b85-artifact-expiry-guard.mjs
+          node scripts/test-account-export-b85-expiry-guard.mjs
 
   scoped-style:
     name: Scoped strict ESLint and canonical Prettier (independent)
