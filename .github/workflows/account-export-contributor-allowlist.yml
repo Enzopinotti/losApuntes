@@ -6,6 +6,7 @@ on:
       - ".github/workflows/account-export-contributor-allowlist.yml"
       - "apps/api/src/data-lifecycle/domain/account-export-assembler.ts"
       - "apps/api/src/data-lifecycle/domain/account-export-versioning.spec.ts"
+      - "apps/api/src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts"
       - "apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts"
       - "apps/api/src/data-lifecycle/domain/account-export-assembler.spec.ts"
 
@@ -46,7 +47,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Versioned assembly and registry acceptance
-        run: pnpm --filter @losapuntes/api exec jest src/data-lifecycle/domain/account-export-versioning.spec.ts src/data-lifecycle/domain/account-export-assembler.spec.ts --runInBand
+        run: pnpm --filter @losapuntes/api exec jest src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts src/data-lifecycle/domain/account-export-versioning.spec.ts src/data-lifecycle/domain/account-export-assembler.spec.ts --runInBand
 
       - name: Lint touched API sources
-        run: pnpm --filter @losapuntes/api exec eslint src/data-lifecycle/domain/account-export-assembler.ts src/data-lifecycle/domain/account-export-versioning.spec.ts --max-warnings=0
+        run: pnpm --filter @losapuntes/api exec eslint src/data-lifecycle/domain/account-export-assembler.ts src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts --max-warnings=0
