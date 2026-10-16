@@ -911,6 +911,9 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(row!.nextAttemptAt.getTime()).toBe(
       now.getTime() + 3 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
     );
+    expect(row!.verificationUntil?.getTime()).toBe(
+      now.getTime() + 60 * 60_000,
+    );
     const deleteArtifact = jest.fn().mockResolvedValue(undefined);
     const worker = new AccountExportProcessor(
       { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
@@ -926,11 +929,38 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     await orphanJobs.updateOne({ jobId: id, generation: oldGeneration }, {
       $set: { nextAttemptAt: new Date(Date.now() - 1) },
     });
+    // First successful DELETE is not a terminal ACK: a late multipart
+    // completion could recreate the old key while the verification window
+    // is still open.
     await expect(worker.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, orphanRetries: 0,
+      orphanVerificationScheduled: 1,
+      orphanDeleted: 0, orphanRetries: 0,
     });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
+      .toBe(1);
     expect(deleteArtifact).toHaveBeenCalledWith(id, oldGeneration);
     expect(deleteArtifact).not.toHaveBeenCalledWith(id, newGeneration);
+
+    // Simulate a crashed worker and an old object reappearing after the
+    // first DELETE. Force the isolated test's horizon to its final pass.
+    await orphanJobs.updateOne({ jobId: id, generation: oldGeneration }, {
+      $set: {
+        nextAttemptAt: new Date(Date.now() - 1),
+        verificationUntil: new Date(Date.now() - 1),
+      },
+    });
+    const restarted = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      new MongoAccountExportStore(exportJobs, users, connection, orphanJobs),
+      { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(restarted.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanVerificationScheduled: 0, orphanRetries: 0,
+    });
+    expect(deleteArtifact).toHaveBeenCalledTimes(2);
+    expect(deleteArtifact).toHaveBeenNthCalledWith(2, id, oldGeneration);
     expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
       .toBe(0);
   }, 30_000);
