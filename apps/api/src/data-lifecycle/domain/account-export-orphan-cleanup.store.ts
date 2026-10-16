@@ -48,6 +48,8 @@ export interface AccountExportOrphanCleanupStore {
     generation: string;
     claimId: string;
     now: Date;
+    /** Prevent ACK when takeover installed a newer recheck deadline. */
+    verificationUntil?: Date | null;
   }): Promise<boolean>;
   retry(input: {
     jobId: string;
