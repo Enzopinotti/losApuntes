@@ -179,7 +179,7 @@ describe('MongoAccountExportStore', () => {
       active: true, state: 'processing',
       claimId: 'bba10100-7777-4777-8777-777777777777',
       leaseExpiresAt: { $lte: now },
-      $expr: { $lte: ['$leaseExpiresAt', '$NOW'] },
+      $expr: { $lte: ['$leaseExpiresAt', '$$NOW'] },
       artifactGeneration: null,
     }, {
       $set: {
@@ -697,7 +697,7 @@ describe('MongoAccountExportStore', () => {
     expect(f.jobs.updateOne).toHaveBeenCalledWith(
       expect.objectContaining({
         leaseExpiresAt: { $gt: completedAt },
-        $expr: { $gt: ['$leaseExpiresAt', '$NOW'] },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       }),
       expect.any(Object),
     );
@@ -722,7 +722,7 @@ describe('MongoAccountExportStore', () => {
     expect(f.jobs.updateOne).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
-        $expr: { $gt: ['$leaseExpiresAt', '$NOW'] },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       }),
       expect.any(Object),
       { session: f.session },
@@ -743,7 +743,7 @@ describe('MongoAccountExportStore', () => {
     for (const [filter] of f.jobs.updateOne.mock.calls) {
       expect(filter).toMatchObject({
         state: 'processing',
-        $expr: { $gt: ['$leaseExpiresAt', '$NOW'] },
+        $expr: { $gt: ['$leaseExpiresAt', '$$NOW'] },
       });
     }
   });
