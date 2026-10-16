@@ -6,10 +6,7 @@ import {
 } from '@nestjs/common';
 
 import type { ResourceService } from '../../resources/domain/resource.service';
-import type {
-  StudyCollectionRecord,
-  StudyCollectionStore,
-} from './study-collection.store';
+import type { StudyCollectionRecord } from './study-collection.store';
 import { StudyCollectionService } from './study-collection.service';
 
 const ownerId = 'owner-1';
@@ -44,25 +41,28 @@ function setup(row: StudyCollectionRecord | null = collection()) {
       .mockResolvedValue({ items: row ? [row] : [], hasMore: false }),
     findOwned: jest
       .fn()
-      .mockImplementation(async (id: string, actor: string) =>
-        row?.id === id && row.ownerUserId === actor ? row : null,
+      .mockImplementation((id: string, actor: string) =>
+        Promise.resolve(
+          row?.id === id && row.ownerUserId === actor ? row : null,
+        ),
       ),
     updateOwned: jest.fn().mockResolvedValue(row),
     addResource: jest.fn().mockResolvedValue(row),
     removeResource: jest.fn().mockResolvedValue(row),
     deleteOwned: jest.fn().mockResolvedValue(Boolean(row)),
   };
-  const get = jest.fn().mockImplementation(async (id: string) => ({
-    resource: {
-      id,
-      title: 'Apunte de Álgebra',
-      academic: { subject: { id: 'subject-id', name: 'Álgebra' } },
-    },
-  }));
-  const service = new StudyCollectionService(
-    store as unknown as StudyCollectionStore,
-    { get } as unknown as ResourceService,
+  const get = jest.fn().mockImplementation((id: string) =>
+    Promise.resolve({
+      resource: {
+        id,
+        title: 'Apunte de Álgebra',
+        academic: { subject: { id: 'subject-id', name: 'Álgebra' } },
+      },
+    }),
   );
+  const service = new StudyCollectionService(store, {
+    get,
+  } as unknown as ResourceService);
   return { service, store, get };
 }
 

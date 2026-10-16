@@ -43,14 +43,19 @@ function fixture(active: boolean) {
     deleteOne: jest.fn().mockReturnValue({
       exec: jest.fn().mockResolvedValue({ deletedCount: 1 }),
     }),
-    findOneAndUpdate: jest.fn().mockReturnValue(
-      makeQuery({
-        ...input,
-        resourceIds: [],
-        revision: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
+    findOneAndUpdate: jest.fn(
+      (...args: [filter: unknown, update: unknown, options?: unknown]) => {
+        // The tuple preserves typed Jest call arguments; the fake query does
+        // not need their values, but the assertions below inspect mock.calls.
+        void args;
+        return makeQuery({
+          ...input,
+          resourceIds: [],
+          revision: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      },
     ),
   };
   const store = new MongoStudyCollectionStore(
