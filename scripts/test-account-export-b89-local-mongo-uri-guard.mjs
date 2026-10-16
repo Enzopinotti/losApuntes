@@ -21,7 +21,8 @@ check('B89 URI must be mongodb with explicit, uncredentialed loopback host', () 
   assert.match(helper, /parsed\.protocol !== 'mongodb:'/u);
   assert.match(helper, /'127\.0\.0\.1', 'localhost', '::1'/u);
   assert.match(helper, /parsed\.username \|\| parsed\.password/u);
-  assert.match(helper, /\!\/\^\\d\{1,5\}\$\/u\.test\(parsed\.port\)/u);
+  assert.match(helper, /parsed\.port/u);
+  assert.match(helper, /port < 1 \|\| port > 65535/u);
 });
 check('B89 refuses a selected database and arbitrary connection options', () => {
   assert.match(helper, /parsed\.pathname !== '\/'/u);
