@@ -416,3 +416,29 @@ S3 multipart fault-injection, HTTP download/privacy and retention
 signoffs are complete.
 
 See `docs/engineering/account-export-takeover-ledger-b74.md`.
+
+
+## B75 — Repeated cleanup checks for late multipart commits
+
+A recovered processing claim now leaves an orphan cleanup row with a
+`verificationUntil` horizon of one hour after takeover, in addition
+to the initial three-lease settling delay from B74. After successful
+exact-key DELETE, the queue stays durable and is scheduled again within
+ten minutes until the final verification pass. Each attempt rechecks
+the real owner, durable artifact references and its queue lease.
+
+A fast-path `clearPending` cannot remove a takeover row. A claimant
+that obtained the row before a concurrent takeover extended the horizon
+also cannot ACK it: both the claim and exact verification deadline must
+match. Existing queue rows receive monotonic deadline extensions within
+the takeover transaction.
+
+`orphanVerificationScheduled` counts successfully scheduled rechecks.
+`orphanDeleted` counts final acknowledged deletion only;
+`orphanRetries` captures outages or lost claims.
+
+This is a bounded mitigation. A provider may complete a multipart upload
+after the one-hour period; incomplete-multipart expiration policies,
+provider fault-injection, inventory/version audits and retention/backup
+signoff are still required. Keep issue #353 open and production disabled.
+See `docs/engineering/account-export-late-multipart-b75.md`.
