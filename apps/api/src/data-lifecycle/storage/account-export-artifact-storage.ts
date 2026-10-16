@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { AccountExportArtifactSink } from '../domain/account-export-assembler';
 import type { AccountExportAssemblyResult } from '../domain/account-export.types';
 import { accountExportSectionIds } from '../domain/account-export-contributor.registry';
+import { verifyAccountExportStoredBytes } from '../domain/account-export-artifact-readback';
 import type { S3ObjectStorage } from '../../files/storage/s3-object-storage';
 
 export type AccountExportArtifactObjectStorage = Pick<
@@ -38,7 +39,8 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
 
   createSink(jobId: string, generation: string): AccountExportArtifactSink {
     const key = objectKey(jobId, generation);
-    const writer = this.storage.createMultipartWriter({
+    const storage = this.storage;
+    const writer = storage.createMultipartWriter({
       objectKey: key,
       contentType: 'application/json; charset=utf-8',
       // B81: an S3 commit can succeed after its ACK is lost. Never DELETE
@@ -76,6 +78,16 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
           throw new Error('Account export artifact integrity check failed');
         }
         await writer.complete();
+        // B90: do not publish a durable Mongo reference solely because
+        // S3 acknowledged PUT/CompleteMultipartUpload. An object may be
+        // truncated, modified or unreadable. A streaming exact-generation
+        // GET must match the locally assembled digest and byte count.
+        // Failure leaves the sink uncommitted, with no direct S3 DELETE:
+        // B80's durable owner-fenced orphan queue handles recovery.
+        await verifyAccountExportStoredBytes(
+          storage.readObjectChunks(key),
+          { byteLength: result.byteLength, sha256: result.sha256 },
+        );
         state = 'committed';
       },
 

@@ -18,7 +18,10 @@ describe('S3AccountExportArtifactStorage', () => {
     };
     const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
-      readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
+            readObjectChunks: jest.fn().mockImplementation(() =>
+        (async function* () {
+          yield Buffer.from('{"format":"los-apuntes-account-export"}');
+        })()),
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
     const artifacts = new S3AccountExportArtifactStorage(storage);
@@ -59,7 +62,10 @@ describe('S3AccountExportArtifactStorage', () => {
       };
       const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
         createMultipartWriter: jest.fn().mockReturnValue(writer),
-        readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
+                readObjectChunks: jest.fn().mockImplementation(() =>
+          (async function* () {
+            yield Buffer.from('{"export":true}');
+          })()),
         deleteObject: jest.fn().mockResolvedValue(undefined),
       };
       const artifact = new S3AccountExportArtifactStorage(storage);
@@ -126,6 +132,82 @@ describe('S3AccountExportArtifactStorage', () => {
       }),
     ).rejects.toThrow('integrity check failed');
     expect(writer.complete).not.toHaveBeenCalled();
+  });
+
+  it('B90 refuses a truncated S3 readback after PUT ACK with no direct delete', async () => {
+    const writer = {
+      write: jest.fn().mockResolvedValue(undefined),
+      complete: jest.fn().mockResolvedValue(undefined),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn().mockReturnValue(writer),
+      readObjectChunks: jest.fn().mockImplementation(() =>
+        (async function* () { yield Buffer.from('{"valid":'); })()),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+    };
+    const sink = new S3AccountExportArtifactStorage(storage).createSink(jobId, generation);
+    const body = '{"valid":true}';
+    await sink.write(body);
+    await expect(sink.commit({
+      format: 'los-apuntes-account-export', formatVersion: 1,
+      sectionCount: 30, recordCount: 1, byteLength: Buffer.byteLength(body),
+      sha256: createHash('sha256').update(body).digest('hex'),
+    })).rejects.toThrow('readback byte length mismatch');
+    expect(writer.complete).toHaveBeenCalledTimes(1);
+    await sink.abort();
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it('B90 refuses a same-length corrupt S3 readback before publishing', async () => {
+    const writer = {
+      write: jest.fn().mockResolvedValue(undefined),
+      complete: jest.fn().mockResolvedValue(undefined),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn().mockReturnValue(writer),
+      readObjectChunks: jest.fn().mockImplementation(() =>
+        (async function* () { yield Buffer.from('{"valid":null}'); })()),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+    };
+    const body = '{"valid":true}';
+    const sink = new S3AccountExportArtifactStorage(storage).createSink(jobId, generation);
+    await sink.write(body);
+    const corrupted = '{"valid":null}';
+    storage.readObjectChunks.mockImplementationOnce(() =>
+      (async function* () { yield Buffer.from(corrupted); })());
+    await expect(sink.commit({
+      format: 'los-apuntes-account-export', formatVersion: 1,
+      sectionCount: 30, recordCount: 1, byteLength: Buffer.byteLength(body),
+      sha256: createHash('sha256').update(body).digest('hex'),
+    })).rejects.toThrow('readback SHA-256 mismatch');
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it('B90 refuses a GET error despite a successful S3 write ACK', async () => {
+    const writer = {
+      write: jest.fn().mockResolvedValue(undefined),
+      complete: jest.fn().mockResolvedValue(undefined),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn().mockReturnValue(writer),
+      readObjectChunks: jest.fn().mockImplementation(() =>
+        (async function* () { throw new Error('S3 GET 503'); })()),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+    };
+    const body = '{"export":"private"}';
+    const sink = new S3AccountExportArtifactStorage(storage).createSink(jobId, generation);
+    await sink.write(body);
+    await expect(sink.commit({
+      format: 'los-apuntes-account-export', formatVersion: 1,
+      sectionCount: 30, recordCount: 1, byteLength: Buffer.byteLength(body),
+      sha256: createHash('sha256').update(body).digest('hex'),
+    })).rejects.toThrow('S3 GET 503');
+    await sink.abort();
+    expect(writer.complete).toHaveBeenCalledTimes(1);
+    expect(storage.deleteObject).not.toHaveBeenCalled();
   });
 
   it('B71 treats a lost multipart completion ACK as ambiguous even after abort', async () => {
