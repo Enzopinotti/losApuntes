@@ -415,6 +415,88 @@ describe('S3ObjectStorage', () => {
     expect(completion).toContain('<PartNumber>2</PartNumber>');
   });
 
+  it('B81 never deletes a private export single-PUT object after a lost S3 ACK', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockRejectedValueOnce(new Error('S3 PUT ACK lost'))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/private-generation.json',
+      contentType: 'application/json; charset=utf-8',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.from('{"private":true}', 'utf8'));
+
+    // The provider may have durably accepted PUT before the connection
+    // dropped. The caller must let the Mongo-backed orphan worker decide
+    // whether this exact object is safe to delete.
+    await expect(writer.complete()).rejects.toThrow('S3 PUT ACK lost');
+    await writer.abort();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['PUT']);
+    await expect(writer.complete()).rejects.toThrow('aborted');
+
+    // A separate, explicitly authorized cleanup request can still DELETE.
+    await storage().deleteObject('exports/job/private-generation.json');
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['PUT', 'DELETE']);
+  });
+
+  it('B81 aborts only the private multipart upload ID after an ambiguous completion ACK', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-upload</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"abcdef0123456789"' },
+      }))
+      .mockRejectedValueOnce(new Error('S3 CompleteMultipartUpload response lost'))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/private-generation.json',
+      contentType: 'application/json; charset=utf-8',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await expect(writer.complete()).rejects.toThrow('response lost');
+    await writer.abort();
+
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual([
+      'POST', 'PUT', 'POST', 'DELETE',
+    ]);
+    const final = new URL(fetchSpy.mock.calls[3]?.[0] as string);
+    expect(final.searchParams.get('uploadId')).toBe('private-upload');
+    // There must not be a DELETE request targeting the plain object URL.
+    for (const [url, init] of fetchSpy.mock.calls) {
+      if (init?.method !== 'DELETE') continue;
+      expect(new URL(url as string).searchParams.has('uploadId')).toBe(true);
+    }
+  });
+
+  it('B81 cancels an unfinished private multipart upload without direct object deletion', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>cancel-private</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"abcdef0123456789"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/private-generation.json',
+      contentType: 'application/json; charset=utf-8',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await writer.abort();
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('cancel-private');
+  });
+
   it('aborts partial multipart data and deletes any generation object idempotently', async () => {
     const fetchSpy = jest
       .spyOn(global, 'fetch')
