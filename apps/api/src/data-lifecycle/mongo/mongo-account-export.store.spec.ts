@@ -37,9 +37,10 @@ function fixture(input: { active?: unknown } = {}) {
   };
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
   const users = {
-    updateOne: jest.fn(
-      (_filter: unknown, _update: unknown, _options?: unknown) => ownerUpdate,
-    ),
+    updateOne: jest.fn<
+      unknown,
+      [filter: unknown, update: unknown, options?: unknown]
+    >(() => ownerUpdate),
   };
   const session = {
     withTransaction: jest.fn(async (callback: () => Promise<void>) => callback()),
@@ -394,10 +395,10 @@ describe('MongoAccountExportStore', () => {
     expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith({
       jobId: previous.id, generation: 'new-claim',
     }, {
-      $setOnInsert: expect.objectContaining({
+      $setOnInsert: (expect.objectContaining({
         jobId: previous.id, ownerUserId: previous.userId,
         generation: 'new-claim', verificationUntil: expect.any(Date),
-      }),
+      }) as unknown),
     }, { upsert: true, session: f.session });
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
@@ -809,7 +810,7 @@ describe('MongoAccountExportStore', () => {
         id: 'export-1', claimId: 'claim-1', formatVersion: 3, userId: 'user-1',
       }),
       expect.objectContaining({
-        $set: expect.objectContaining({ state: 'completed', artifactSectionCount: 32 }),
+        $set: (expect.objectContaining({ state: 'completed', artifactSectionCount: 32 }) as unknown),
       }),
       { session: f.session },
     );
