@@ -49,7 +49,7 @@ jobs:
             --format json > "$RUNNER_TEMP/b79-eslint.json"
           status=$?
           set -e
-          node -e 'const fs=require("fs"); const raw=fs.readFileSync(process.env.RUNNER_TEMP+"/b79-eslint.json","utf8");const end=raw.lastIndexOf("]");if(end<0)throw Error("ESLint JSON result missing");const a=JSON.parse(raw.slice(0,end+1));for (const x of a) console.log(x.filePath,JSON.stringify({errors:x.errorCount,warnings:x.warningCount,fatals:x.fatalErrorCount}));console.log("B79 strict ESLint exit",process.argv[1]);' "$status"
+          node -e 'const fs=require("fs"); const raw=fs.readFileSync(process.env.RUNNER_TEMP+"/b79-eslint.json","utf8");const end=raw.lastIndexOf("]");if(end<0)throw Error("ESLint JSON result missing");const a=JSON.parse(raw.slice(0,end+1));for (const x of a) { const grouped={};for(const m of x.messages){const name=m.ruleId||"parser";grouped[name]=(grouped[name]||0)+1;}console.log(x.filePath,JSON.stringify({errors:x.errorCount,warnings:x.warningCount,fatals:x.fatalErrorCount,topRules:Object.entries(grouped).sort((a,b)=>b[1]-a[1]).slice(0,12),examples:x.messages.slice(0,3).map(m=>({line:m.line,rule:m.ruleId,message:m.message}))}));}console.log("B79 strict ESLint exit",process.argv[1]);' "$status"
           exit "$status"
 
       - name: API TypeScript contract
