@@ -483,3 +483,33 @@ If orphan enqueue fails, the worker does not attempt a direct S3 delete;
 operators must investigate queue persistence and provider lifecycle. This
 is not proof of storage/backup erasure. Run the B78 source guard and
 exact-head Jest/Mongo/S3 acceptance before removing release HOLD #353.
+
+## B79 — Recuperación acotada de encolado y alerta sin secretos
+
+El intento de exportación que ya demostró que una generación no se puede
+publicar intenta persistir su limpieza **hasta tres veces** (esperas de
+50 ms y 100 ms tras errores). Esto no cambia el plazo de verificación ni
+los leases existentes, porque el encolado Mongo es idempotente.
+
+La iteración del worker añade tres contadores internos:
+`orphanEnqueueRetries` (intentos adicionales), `orphanEnqueueRecovered`
+(encolados que finalmente se guardaron) y `orphanEnqueueFailures`
+(generaciones sin intención durable tras agotar los intentos). Si el último
+contador es mayor que cero, el worker emite un evento WARN
+`account_export.worker.orphan_enqueue_failed` con `failedCount`
+y `retryCount`. **No hay IDs de usuarios, jobs, generaciones, tokens,
+nombres de archivos ni mensajes del proveedor.**
+
+Al recibir esta alerta, investigar de manera autorizada el estado de Mongo
+y la cola, revisar el inventario del bucket S3 y el lifecycle remoto; una
+falla de encolado definitivamente no demuestra que exista una tarea durable.
+No borrar objetos por cuenta propia basándose solo en ese contador.
+Mantener `STUDY_PROGRESS_ENABLED` inactivo en producción y issue #353 HOLD.
+
+Pruebas locales sin dependencias externas:
+`node --experimental-strip-types --test scripts/test-account-export-b79-enqueue.test.mjs`;
+el contrato de integración está en
+`node scripts/test-account-export-b79-observability.mjs`.
+Ni una prueba unitaria de Node ni un contrato estructural acreditan
+Mongo replica-set, permisos de S3, lifecycle de versiones, backups o
+aceptación de dispositivos.
