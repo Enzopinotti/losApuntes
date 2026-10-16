@@ -96,7 +96,8 @@ export class StudyCollectionsController {
   addResource(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Param('resourceId', new ParseUUIDPipe({ version: '4' })) resourceId: string,
+    @Param('resourceId', new ParseUUIDPipe({ version: '4' }))
+    resourceId: string,
   ) {
     return this.collections.addResource(request.user.id, id, resourceId);
   }
@@ -106,11 +107,15 @@ export class StudyCollectionsController {
   removeResource(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Param('resourceId', new ParseUUIDPipe({ version: '4' })) resourceId: string,
+    @Param('resourceId', new ParseUUIDPipe({ version: '4' }))
+    resourceId: string,
     @Query() query: RemoveStudyCollectionResourceDto,
   ) {
     return this.collections.removeResource(
-      request.user.id, id, resourceId, query.expectedRevision,
+      request.user.id,
+      id,
+      resourceId,
+      query.expectedRevision,
     );
   }
 }
