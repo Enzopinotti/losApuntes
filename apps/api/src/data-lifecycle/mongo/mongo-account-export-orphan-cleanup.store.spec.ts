@@ -71,6 +71,7 @@ describe('B67 durable account export orphan cleanup', () => {
       .resolves.toBe(true);
     expect(f.model.deleteOne).toHaveBeenCalledWith({
       jobId, generation, state: 'pending', claimId: null,
+      verificationUntil: null,
     });
   });
 
@@ -81,6 +82,7 @@ describe('B67 durable account export orphan cleanup', () => {
       .resolves.toBe(false);
     expect(f.model.deleteOne).toHaveBeenCalledWith({
       jobId, generation, state: 'pending', claimId: null,
+      verificationUntil: null,
     });
   });
 
