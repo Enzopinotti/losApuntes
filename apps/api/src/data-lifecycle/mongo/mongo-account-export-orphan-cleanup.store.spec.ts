@@ -27,9 +27,20 @@ function fixture() {
     exec: jest.fn().mockResolvedValue({ matchedCount: 1, modifiedCount: 1 }),
   };
   const model = {
-    updateOne: jest.fn().mockReturnValueOnce(upsert).mockReturnValue(retry),
+    // Model the Mongo operation's typed call arguments. The fixture ignores
+    // their values, but the tests must inspect the original filter in
+    // mock.calls without Jest inferring an unsafe any[].
+    updateOne: jest
+      .fn((...args: [filter: unknown, update: unknown, options?: unknown]) => {
+        void args;
+        return retry;
+      })
+      .mockReturnValueOnce(upsert),
     findOneAndUpdate: jest.fn().mockReturnValue(claim),
-    deleteOne: jest.fn().mockReturnValue(remove),
+    deleteOne: jest.fn((...args: [filter: unknown, options?: unknown]) => {
+      void args;
+      return remove;
+    }),
   };
   return {
     model,
