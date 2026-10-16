@@ -401,6 +401,13 @@ export class AccountExportProcessor {
         jobId: candidate.jobId, generation: candidate.generation,
         claimId: candidate.claimId,
       };
+      const fence = {
+        ...ref,
+        // A takeover can update this deadline while a different worker
+        // holds the cleanup claim. Renew/retry/ACK must match the deadline
+        // observed at claim time, not just the old claimId/lease.
+        verificationUntil: candidate.verificationUntil ?? null,
+      };
       try {
         // Unlike findOwned(id, owner), the internal authority lookup MUST
         // return a job even if its durable owner differs from the queue.
@@ -424,9 +431,7 @@ export class AccountExportProcessor {
           // This includes an inconsistent/nonterminal record: deleting
           // based on state alone could destroy recoverable private data.
           const acknowledged = await this.orphans.acknowledge({
-            ...ref, now: new Date(),
-            ...(candidate.verificationUntil != null
-              ? { verificationUntil: candidate.verificationUntil } : {}),
+            ...fence, now: new Date(),
           });
           if (acknowledged) result.orphanPreserved += 1;
           else result.orphanRetries += 1;
@@ -451,7 +456,7 @@ export class AccountExportProcessor {
         // once more immediately before S3, then renew during the deletion.
         const refreshedAt = new Date();
         const owned = await this.orphans.renewLease({
-          ...ref,
+          ...fence,
           now: refreshedAt,
           leaseExpiresAt: new Date(
             refreshedAt.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
@@ -468,7 +473,7 @@ export class AccountExportProcessor {
           if (leaseLost || renewalInFlight) return;
           const renewalAt = new Date();
           renewalInFlight = this.orphans.renewLease({
-            ...ref,
+            ...fence,
             now: renewalAt,
             leaseExpiresAt: new Date(
               renewalAt.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS,
@@ -510,7 +515,7 @@ export class AccountExportProcessor {
               candidate.verificationUntil.getTime(),
             ));
             const deferred = await this.orphans.retry({
-              ...ref, now: verifiedAt, nextAttemptAt,
+              ...fence, now: verifiedAt, nextAttemptAt,
             });
             if (deferred) result.orphanVerificationScheduled += 1;
             else result.orphanRetries += 1;
@@ -519,9 +524,7 @@ export class AccountExportProcessor {
         }
 
         const acked = await this.orphans.acknowledge({
-          ...ref, now: new Date(),
-          ...(candidate.verificationUntil != null
-            ? { verificationUntil: candidate.verificationUntil } : {}),
+          ...fence, now: new Date(),
         });
         if (acked) result.orphanDeleted += 1;
         else result.orphanRetries += 1;
@@ -535,7 +538,7 @@ export class AccountExportProcessor {
         );
         try {
           await this.orphans.retry({
-            ...ref, now: new Date(),
+            ...fence, now: new Date(),
             nextAttemptAt: new Date(Date.now() + backoff),
           });
         } catch {

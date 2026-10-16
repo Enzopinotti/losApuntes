@@ -35,9 +35,11 @@ verify('queue identity is validated against S3 object-key UUID requirements', ()
   assert.match(mongo, /!validId\(input\.generation\)/u);
   assert.match(mongo, /!validId\(input\.jobId\)/u);
 });
-verify('worker claims only pending or expired processing leases', () => {
+verify('worker claims pending due rows or processing rows with both due and expired lease', () => {
   assert.match(mongo, /state: 'pending', nextAttemptAt: \{ \$lte: input\.now \}/u);
-  assert.match(mongo, /state: 'processing', leaseExpiresAt: \{ \$lte: input\.now \}/u);
+  const claim = mongo.slice(mongo.indexOf('  async claimNext('),
+    mongo.indexOf('  async renewLease('));
+  assert.match(claim, /state: 'processing',[\s\S]*?leaseExpiresAt: \{ \$lte: input\.now \},[\s\S]*?nextAttemptAt: \{ \$lte: input\.now \}/u);
   assert.match(mongo, /\$inc: \{ attempts: 1 \}/u);
 });
 verify('cleanup acknowledgement and retry are fenced by exact claim lease', () => {

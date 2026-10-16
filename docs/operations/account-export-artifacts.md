@@ -442,3 +442,29 @@ after the one-hour period; incomplete-multipart expiration policies,
 provider fault-injection, inventory/version audits and retention/backup
 signoff are still required. Keep issue #353 open and production disabled.
 See `docs/engineering/account-export-late-multipart-b75.md`.
+
+
+## B77 — Due-date fence when reclaiming abandoned cleanup leases
+
+The B75 `verificationUntil` horizon is now a CAS fence for **lease
+renewal and retry**, not only ACK. A worker that claimed the queue row
+before a concurrent takeover extended its deadline cannot shorten the
+settling period or keep renewing its stale horizon. A retry uses
+`$max(nextAttemptAt)` rather than resetting the due date.
+
+A recovery of an expired `processing` queue claim must satisfy **both**
+`leaseExpiresAt <= now` and `nextAttemptAt <= now`. On account-export
+takeover, the exact previous generation's due date is extended
+monotonically in the same Mongo transaction even if another cleanup
+worker already claimed its task; the claimant's ID and lease are not
+stolen. This prevents the next worker from deleting S3 in the original
+B74 three-lease settling window merely because a cleanup lease expired.
+
+Check `orphanRetries` and `orphanVerificationScheduled` for repeated
+lost-fence outcomes. Use local opt-in replica-set tests with stale
+claimants to verify this handoff before production signoff. The B75
+one-hour upper verification horizon still requires S3 provider
+fault-injection, multipart lifecycle expiry, object/version inventory,
+and backup/retention acceptance. See
+`docs/engineering/account-export-settlement-fences-b77.md`.
+Production gate #353 remains OPEN.
