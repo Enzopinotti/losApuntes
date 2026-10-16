@@ -97,7 +97,7 @@ test('B94 rejects a new or renamed selected case until manifest is reviewed', ()
   data[4] = result('B94 unreviewed new scenario');
   assert.throws(
     () => verifyB94MongoAcceptanceReport(report(data)),
-    /did not pass exactly once/u,
+    /selected Jest assertion count/u,
   );
 });
 
