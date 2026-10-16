@@ -30,9 +30,10 @@ verify('ordinary pending tasks retain the same due fence', () => {
 });
 verify('takeover extends waiting period without stealing an existing claim', () => {
   assert.match(reclaim, /\$max: \{ nextAttemptAt: settleAt \}/u);
-  const part = reclaim.slice(reclaim.indexOf('this.orphanCleanup!.updateOne('));
+  const part = reclaim.slice(reclaim.indexOf('this.orphanCleanup!.updateOne('),
+    reclaim.indexOf('// Use the original _id returned by the atomic takeover'));
   assert.match(part, /jobId: previous\.id, generation: oldGeneration/u);
-  assert.doesNotMatch(part, /state: 'processing'[^\n]*claimId: input\.claimId/u);
+  assert.doesNotMatch(part, /\$set: \{[^}]*claimId:/u);
 });
 verify('renewal CAS protects the originally observed verification horizon', () => {
   assert.match(renew, /verificationUntil: input\.verificationUntil \?\? null/u);
