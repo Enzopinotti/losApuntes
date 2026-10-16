@@ -5,6 +5,8 @@ on:
       - '.github/workflows/b88-mongo-boundary-lint.yml'
       - 'apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts'
       - 'apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts'
+      - 'scripts/test-account-export-b86-guard.mjs'
+      - 'docs/engineering/b88-mongo-acceptance-safe-lint-recovery.md'
 permissions:
   contents: read
 jobs:
