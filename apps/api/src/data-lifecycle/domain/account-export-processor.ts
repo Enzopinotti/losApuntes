@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AccountExportAssembler } from './account-export-assembler';
 import { AccountExportEpochConflictError } from './account-export-epoch-conflict.error';
+import { enqueueAccountExportOrphanWithRetry } from './account-export-orphan-enqueue';
 import {
   ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE,
   type AccountExportOrphanCleanupStore,
@@ -47,6 +48,9 @@ export type AccountExportIteration = {
   orphanPreserved: number;
   orphanRetries: number;
   orphanAuthorityBlocked: number;
+  orphanEnqueueRetries: number;
+  orphanEnqueueRecovered: number;
+  orphanEnqueueFailures: number;
 };
 
 function retryDelayMs(attempts: number): number {
@@ -108,6 +112,9 @@ export class AccountExportProcessor {
       orphanPreserved: 0,
       orphanRetries: 0,
       orphanAuthorityBlocked: 0,
+      orphanEnqueueRetries: 0,
+      orphanEnqueueRecovered: 0,
+      orphanEnqueueFailures: 0,
     };
 
     await this.deleteExpiredArtifacts(result);
@@ -122,7 +129,7 @@ export class AccountExportProcessor {
       const job = await this.exports.claimNext();
       if (!job) break;
       result.claimed += 1;
-      const outcome = await this.processClaim(job);
+      const outcome = await this.processClaim(job, result);
       result[outcome] += 1;
     }
     return result;
@@ -130,6 +137,7 @@ export class AccountExportProcessor {
 
   private async processClaim(
     job: AccountExportJobRecord,
+    result: AccountExportIteration,
   ): Promise<'completed' | 'retryScheduled' | 'failed' | 'stale'> {
     if (!job || !job.claimId)
       throw new Error('Account export claim is invalid');
@@ -193,7 +201,7 @@ export class AccountExportProcessor {
         // The multipart upload has already been committed. Aborting its
         // writer cannot reliably remove the completed object; explicitly
         // delete only this claim's attempt-scoped generation.
-        await this.deleteOrEnqueueProvenOrphan(job, claimId);
+        await this.deleteOrEnqueueProvenOrphan(job, claimId, result);
         return 'stale';
       }
 
@@ -219,7 +227,7 @@ export class AccountExportProcessor {
         // The durable CAS explicitly rejected this claim. It cannot publish
         // this attempt's generation; S3 cleanup is best-effort and must not
         // turn a known stale outcome into a retry of somebody else's claim.
-        await this.deleteOrEnqueueProvenOrphan(job, claimId);
+        await this.deleteOrEnqueueProvenOrphan(job, claimId, result);
         return 'stale';
       }
       return 'completed';
@@ -240,7 +248,7 @@ export class AccountExportProcessor {
           // This worker never requested Mongo completion. Its unique S3
           // generation cannot be a published artifact, even when multipart
           // completion itself returned an ambiguous error.
-          await this.deleteOrEnqueueProvenOrphan(job, claimId);
+          await this.deleteOrEnqueueProvenOrphan(job, claimId, result);
         }
         // Once Mongo completion was attempted, preserve the S3 generation:
         // a lost lease/response is not proof the transaction was rejected.
@@ -293,7 +301,7 @@ export class AccountExportProcessor {
       // left an S3 object despite artifactCommitted remaining false.
       // Conversely, a lost/rejected Mongo CAS leaves S3 untouched because
       // another worker or a completed job may own the generation.
-      await this.deleteOrEnqueueProvenOrphan(job, claimId);
+      await this.deleteOrEnqueueProvenOrphan(job, claimId, result);
       return terminal ? 'failed' : 'retryScheduled';
     } finally {
       clearInterval(heartbeat);
@@ -336,32 +344,29 @@ export class AccountExportProcessor {
   }
 
   /**
-   * Register a proven orphan for the owner-checked, lease-fenced queue drainer.
-   *
-   * B78: do NOT perform a direct S3 DELETE here. An older export worker can
-   * finish its multipart upload after a newer worker has taken over the job.
-   * The takeover may already have deferred this generation's cleanup and
-   * extended its verification horizon; enqueue is idempotent and must never
-   * bypass those durable dates or another cleanup worker's claim.
-   *
-   * A failed Mongo enqueue does not grant deletion authority. Provider
-   * lifecycle policy is a last-resort backstop, not immediate proof of purge.
+   * Record only a proven orphan; B78 forbids the direct S3 fast path.
+   * B79 retries transient Mongo queue writes, then surfaces an aggregate
+   * failure counter rather than silently masking a lost cleanup intent.
+   * A failed Mongo enqueue does not grant deletion authority.
    */
   private async deleteOrEnqueueProvenOrphan(
     job: AccountExportJobRecord,
     generation: string,
+    result: AccountExportIteration,
   ): Promise<void> {
-    try {
-      await this.orphans.enqueue({
-        jobId: job.id,
-        ownerUserId: job.userId,
-        generation,
-        now: new Date(),
-      });
-    } catch {
-      // Preserve S3 rather than bypassing settlement and owner fences.
-      // Operators must reconcile a failed enqueue against bucket lifecycle.
-    }
+    await enqueueAccountExportOrphanWithRetry(
+      async () => {
+        await this.orphans.enqueue({
+          jobId: job.id,
+          ownerUserId: job.userId,
+          generation,
+          now: new Date(),
+        });
+      },
+      result,
+    );
+    // Preserve S3 rather than bypassing settlement and owner fences.
+    // Permanent enqueue failures require operator reconciliation/lifecycle.
   }
 
   /**
