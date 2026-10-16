@@ -555,7 +555,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(durable?.artifactSha256).toBe(assembly.sha256);
   }, 30_000);
 
-  it('B66 deletes an orphan only after a real Mongo reschedule commits', async () => {
+  it('B66 queues an orphan only after a real Mongo reschedule commits', async () => {
     const userId = await owner();
     const id = randomUUID();
     const claimId = randomUUID();
