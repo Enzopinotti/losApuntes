@@ -694,3 +694,30 @@ Jest y Mongo replica-set opt-in siguen obligatorios antes del release.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`, validaciones de S3,
 backup, IAM, retención y auditorías #133/#141 pendientes.
+
+## B86 — Prueba integrada de exportación privada ante S3 y Mongo con fallas
+
+B86 incorpora dos niveles de aceptación sin credenciales ni datos reales:
+
+- **HTTP localhost:** `node --experimental-strip-types --test
+  scripts/test-account-export-b86-s3-loopback.test.mjs` usa
+  `createS3ObjectStorage` real, solicitudes SigV4 por socket y un
+  servidor Node mínimo **simulado**, siempre en `127.0.0.1`. Cubre
+  PUT/GET/DELETE, pérdida del ACK de PUT y multipart, AbortMultipartUpload,
+  error 503 y borrado explícito posterior. No prueba MinIO/AWS real.
+- **Mongo local opt-in:** con `STUDY_PROGRESS_TEST_MONGO_URI` apuntando
+  a un replica set desechable local, `node
+  scripts/run-account-export-b86-local-acceptance.mjs` ejecuta solo
+  casos B86 en la suite `study-progress.mongo-int.spec.ts`.
+  Valida B80 writeahead, claim revocation B82, un DELETE 503 seguido
+  de retry/ACK y preservación de exportaciones referenciadas, usando
+  el adaptador S3 real con **transporte HTTP simulado**.
+
+El runner rechaza ausencia de URI, hosts ajenos, credenciales, Node que
+no sea 24 y la feature flag de producción activa. Una suite saltada no
+puede considerarse aceptación. **No hay conexión real a S3 remoto.**
+
+Para release siguen faltando replica-set y S3 proveedor reales,
+TypeScript/Jest/Prettier/lint exact-head, seguridad de IAM, readback,
+versionado, lifecycle, backups y aceptación HTTP/browser. Mantener
+`STUDY_PROGRESS_ENABLED=false`, issue #353 HOLD y auditorías #133/#141.
