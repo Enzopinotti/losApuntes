@@ -1,5 +1,6 @@
 import { MongoAccountExportOrphanCleanupStore } from './mongo-account-export-orphan-cleanup.store';
 import { AccountExportOrphanCleanupSchema } from './account-export-orphan-cleanup.schema';
+import { accountExportOrphanClaimDueOnMongoServer, accountExportOrphanOwnedAndDueOnMongoServer } from '../domain/account-export-mongo-claim-clock';
 
 const jobId = '11111111-1111-4111-8111-111111111111';
 const generation = '22222222-2222-4222-8222-222222222222';
@@ -96,7 +97,9 @@ describe('B67 durable account export orphan cleanup', () => {
         { state: 'pending', nextAttemptAt: { $lte: now } },
         { state: 'processing', leaseExpiresAt: { $lte: now },
           nextAttemptAt: { $lte: now } },
-      ] },
+      ],
+        ...accountExportOrphanClaimDueOnMongoServer(),
+      },
       { $set: {
         state: 'processing', claimId, leaseExpiresAt: until,
       }, $inc: { attempts: 1 } },
@@ -117,7 +120,46 @@ describe('B67 durable account export orphan cleanup', () => {
           nextAttemptAt: { $lte: now },
         },
       ],
+      ...accountExportOrphanClaimDueOnMongoServer(),
     }, expect.any(Object), expect.any(Object));
+  });
+
+  it('B84 candidate selection demands Mongo primary due and expiry, not only an ahead worker clock', async () => {
+    const f = fixture();
+    await f.store.claimNext({
+      now: new Date(now.getTime() + 3_600_000),
+      claimId, leaseExpiresAt: new Date(now.getTime() + 3_720_000),
+    });
+    expect(f.model.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining(accountExportOrphanClaimDueOnMongoServer()),
+      expect.any(Object),
+      expect.any(Object),
+    );
+  });
+
+  it('B84 queue settlement and ACK share the exact server-clock ownership predicate', async () => {
+    const f = fixture();
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
+    await f.store.renewLease({
+      jobId, generation, claimId, now,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    await f.store.acknowledge({ jobId, generation, claimId, now });
+    await f.store.retry({
+      jobId, generation, claimId, now,
+      nextAttemptAt: new Date(now.getTime() + 60_000),
+    });
+    const required = accountExportOrphanOwnedAndDueOnMongoServer();
+    expect(f.model.updateOne.mock.calls[0]?.[0]).not.toHaveProperty('$expr');
+    expect(f.model.updateOne.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining(required),
+    );
+    expect(f.model.deleteOne.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining(required),
+    );
+    expect(f.model.updateOne.mock.calls[2]?.[0]).toEqual(
+      expect.objectContaining(required),
+    );
   });
 
   it('B77 lease renewal requires the claimant’s exact verification horizon', async () => {
@@ -132,6 +174,7 @@ describe('B67 durable account export orphan cleanup', () => {
     expect(f.model.updateOne).toHaveBeenLastCalledWith({
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now }, verificationUntil: until,
+      ...accountExportOrphanOwnedAndDueOnMongoServer(),
     }, { $max: { leaseExpiresAt: new Date(now.getTime() + 120_000) } });
   });
 
@@ -148,6 +191,7 @@ describe('B67 durable account export orphan cleanup', () => {
     expect(f.model.updateOne).toHaveBeenLastCalledWith({
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now }, verificationUntil: until,
+      ...accountExportOrphanOwnedAndDueOnMongoServer(),
     }, {
       $set: { state: 'pending', claimId: null, leaseExpiresAt: null },
       $max: { nextAttemptAt: due },
@@ -165,6 +209,7 @@ describe('B67 durable account export orphan cleanup', () => {
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
       verificationUntil: null,
+      ...accountExportOrphanOwnedAndDueOnMongoServer(),
     }, { $max: { leaseExpiresAt: expires } });
   });
 
@@ -186,6 +231,7 @@ describe('B67 durable account export orphan cleanup', () => {
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
       verificationUntil: null,
+      ...accountExportOrphanOwnedAndDueOnMongoServer(),
     });
     f.remove.exec.mockResolvedValueOnce({ deletedCount: 0 });
     await expect(f.store.acknowledge({ jobId, generation, claimId, now }))
@@ -202,6 +248,7 @@ describe('B67 durable account export orphan cleanup', () => {
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
       verificationUntil: until,
+      ...accountExportOrphanOwnedAndDueOnMongoServer(),
     });
   });
 
@@ -215,6 +262,7 @@ describe('B67 durable account export orphan cleanup', () => {
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
       verificationUntil: null,
+      ...accountExportOrphanOwnedAndDueOnMongoServer(),
     }, {
       $set: {
         state: 'pending', claimId: null, leaseExpiresAt: null,
