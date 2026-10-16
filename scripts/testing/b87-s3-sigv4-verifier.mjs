@@ -16,8 +16,8 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const hmac = (key, value) => createHmac('sha256', key).update(value).digest();
 const canonicalQuery = url => [...url.searchParams.entries()]
   .map(([key, value]) => [encode(key), encode(value)])
-  .sort((a, b) => a[0].localeCompare(b[0], 'en') ||
-    a[1].localeCompare(b[1], 'en'))
+  .sort(([ka, va], [kb, vb]) =>
+    ka < kb ? -1 : ka > kb ? 1 : va < vb ? -1 : va > vb ? 1 : 0)
   .map(([key, value]) => `${key}=${value}`).join('&');
 
 function readHeader(headers, key) {
