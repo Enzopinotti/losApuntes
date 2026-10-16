@@ -8,8 +8,13 @@
  * to authorize publishing a private artifact. B90 readback still applies.
  */
 export function isConfirmedS3MultipartCompletion(xml: string): boolean {
-  if (typeof xml !== 'string' || xml.length === 0 ||
-      xml.length > 64 * 1024) return false;
+  if (
+    typeof xml !== 'string' ||
+    xml.length === 0 ||
+    xml.length > 64 * 1024
+  ) {
+    return false;
+  }
 
   const body = xml.replace(/^\uFEFF/u, '').trim()
     .replace(/^<\?xml\s+[^<>]*\?>\s*/u, '');
@@ -21,10 +26,8 @@ export function isConfirmedS3MultipartCompletion(xml: string): boolean {
 
   // Accept S3's expected root (with optional default xmlns attributes)
   // and the self-closing representation used by some S3 simulators.
-  const root = 'CompleteMultipartUploadResult';
-  const opening = new RegExp(
-    '^<' + root + '(?:\\s+[^<>]*?)?\\s*(?:\\/>|>)', 'u',
-  );
+  const opening =
+    /^<CompleteMultipartUploadResult(?:\\s+[^<>]*?)?\\s*(?:\\/>|>)/u;
   const match = opening.exec(body);
   if (!match) return false;
 
