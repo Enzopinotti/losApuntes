@@ -27,7 +27,7 @@ export function isConfirmedS3MultipartCompletion(xml: string): boolean {
   // Accept S3's expected root (with optional default xmlns attributes)
   // and the self-closing representation used by some S3 simulators.
   const opening =
-    /^<CompleteMultipartUploadResult(?:\\s+[^<>]*?)?\\s*(?:\\/>|>)/u;
+    /^<CompleteMultipartUploadResult(?:\s+[^<>]*?)?\s*(?:\/>|>)/u;
   const match = opening.exec(body);
   if (!match) return false;
 
