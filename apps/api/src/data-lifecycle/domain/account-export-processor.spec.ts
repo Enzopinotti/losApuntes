@@ -24,6 +24,18 @@ const result: AccountExportAssemblyResult = {
   sha256: 'a'.repeat(64),
 };
 
+// Jest's asymmetric matchers are runtime predicates, but their typings return
+// any. Keep the values opaque so typed assertion objects never absorb any.
+const anyDateMatcher: unknown = expect.any(Date);
+const expectedV2Result: unknown = expect.objectContaining({
+  formatVersion: 2,
+  sectionCount: 31,
+});
+const expectedV3Result: unknown = expect.objectContaining({
+  formatVersion: 3,
+  sectionCount: 32,
+});
+
 function claim(
   overrides: Partial<AccountExportJobRecord> = {},
 ): AccountExportJobRecord {
@@ -430,7 +442,7 @@ describe('AccountExportProcessor', () => {
     });
     expect(f.store.retireExpiredArtifact).toHaveBeenCalledWith({
       id: claim().id, generation: claim().claimId!, expiresAt,
-      now: expect.any(Date),
+      now: anyDateMatcher,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
@@ -489,9 +501,7 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.complete).toHaveBeenCalledWith({
       id: claim().id,
       claimId: claim().claimId,
-      result: expect.objectContaining({
-        formatVersion: 2, sectionCount: 31,
-      }),
+      result: expectedV2Result,
     });
   });
 
@@ -832,9 +842,7 @@ describe('AccountExportProcessor', () => {
       claimId: claim().claimId,
       ownerUserId: 'owner-1',
       expectedProgressEpoch: 7,
-      result: expect.objectContaining({
-        formatVersion: 3, sectionCount: 32,
-      }),
+      result: expectedV3Result,
     });
   });
 
@@ -1014,7 +1022,7 @@ describe('AccountExportProcessor', () => {
     });
     expect(f.store.fenceExpiredClaimForOrphanCleanup).toHaveBeenCalledWith({
       id: orphan.jobId, ownerUserId: orphan.ownerUserId,
-      generation: orphan.generation, now: expect.any(Date),
+      generation: orphan.generation, now: anyDateMatcher,
     });
     expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0])
       .toBeLessThan(f.orphans.renewLease.mock.invocationCallOrder[0]);
@@ -1238,7 +1246,7 @@ describe('AccountExportProcessor', () => {
     expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
       jobId: orphan.jobId, generation: orphan.generation,
       claimId: orphan.claimId, verificationUntil: until,
-      nextAttemptAt: expect.any(Date),
+      nextAttemptAt: anyDateMatcher,
     }));
   });
 
@@ -1286,7 +1294,7 @@ describe('AccountExportProcessor', () => {
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
     expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
       jobId: orphan.jobId, generation: orphan.generation,
-      claimId: orphan.claimId, nextAttemptAt: expect.any(Date),
+      claimId: orphan.claimId, nextAttemptAt: anyDateMatcher,
     }));
     const next = f.orphans.retry.mock.calls[0][0].nextAttemptAt;
     expect(next.getTime()).toBeLessThanOrEqual(until.getTime());
@@ -1368,7 +1376,7 @@ describe('AccountExportProcessor', () => {
       jobId: orphan.jobId,
       generation: orphan.generation,
       claimId: orphan.claimId,
-      nextAttemptAt: expect.any(Date),
+      nextAttemptAt: anyDateMatcher,
     }));
   });
 
