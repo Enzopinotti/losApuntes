@@ -1,0 +1,55 @@
+name: B84 Account Export Service Mock Quality
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b84-account-export-service-mock-quality.yml"
+      - "apps/api/src/data-lifecycle/domain/account-export.service.spec.ts"
+      - "docs/engineering/b84-account-export-service-mock-quality.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b84-export-service-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strict-acceptance:
+    name: Typed store mocks, service Jest, API TS and zero-warning lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Zero-warning ESLint and pinned Prettier
+        run: |
+          pnpm --filter @losapuntes/api exec eslint src/data-lifecycle/domain/account-export.service.spec.ts --max-warnings=0
+          pnpm --filter @losapuntes/api exec prettier --check src/data-lifecycle/domain/account-export.service.spec.ts
+
+      - name: Account Export Service Jest
+        run: pnpm --filter @losapuntes/api exec jest src/data-lifecycle/domain/account-export.service.spec.ts --runInBand
+
+      - name: Entire API types
+        run: pnpm --filter @losapuntes/api check:types
