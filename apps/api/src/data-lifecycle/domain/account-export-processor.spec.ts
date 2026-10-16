@@ -103,7 +103,7 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
       state: 'pending', active: true, claimId: null,
     })),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
-    clearExpiredArtifact: jest.fn().mockResolvedValue(true),
+    retireExpiredArtifact: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportStore>;
   const orphans = {
     enqueue: jest.fn().mockResolvedValue(undefined),
@@ -164,7 +164,7 @@ describe('AccountExportProcessor', () => {
     });
     const store = {
       findExpiredArtifacts: jest.fn().mockResolvedValue([]),
-      clearExpiredArtifact: jest.fn().mockResolvedValue(true),
+      retireExpiredArtifact: jest.fn().mockResolvedValue(true),
       claimNext: jest.fn(
         (input: { now: Date; claimId: string; leaseExpiresAt: Date }) => {
           const duePending =
@@ -421,20 +421,63 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.reschedule.mock.calls).toHaveLength(0);
   });
 
-  it('retries expired artifact deletion without clearing its durable generation', async () => {
+  it('B72 retires expired export to durable cleanup queue before any S3 delete', async () => {
     const f = fixture({ job: null });
     const expiresAt = new Date(now.getTime() - 1);
     f.store.findExpiredArtifacts.mockResolvedValueOnce([
       { id: claim().id, generation: claim().claimId!, expiresAt },
     ]);
-    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('storage down'));
-
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      expiredDeleted: 0,
-      expirationRetries: 1,
-      claimed: 0,
+      expiredRetired: 1, expiredDeleted: 0,
+      expirationRetries: 0, claimed: 0,
     });
-    expect(f.store.clearExpiredArtifact.mock.calls).toHaveLength(0);
+    expect(f.store.retireExpiredArtifact).toHaveBeenCalledWith({
+      id: claim().id, generation: claim().claimId!, expiresAt,
+      now: expect.any(Date),
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('B72 handles expiry CAS loss without deleting S3 or stalling exports', async () => {
+    const f = fixture();
+    const expiresAt = new Date(now.getTime() - 1);
+    f.store.findExpiredArtifacts.mockResolvedValueOnce([
+      { id: claim().id, generation: claim().claimId!, expiresAt },
+    ]);
+    f.store.retireExpiredArtifact.mockResolvedValueOnce(false);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      expiredRetired: 0, expirationStale: 1,
+      expiredDeleted: 0, completed: 1,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.exports.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('B72 survives an expired-sweep Mongo read outage and continues new exports', async () => {
+    const f = fixture();
+    f.store.findExpiredArtifacts.mockRejectedValueOnce(new Error('Mongo read outage'));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      expirationRetries: 1, expiredRetired: 0, completed: 1,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.exports.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('B72 leaves S3 untouched after a transactional retirement exception', async () => {
+    const f = fixture();
+    const expiresAt = new Date(now.getTime() - 1);
+    f.store.findExpiredArtifacts.mockResolvedValueOnce([
+      { id: claim().id, generation: claim().claimId!, expiresAt },
+    ]);
+    f.store.retireExpiredArtifact.mockRejectedValueOnce(
+      new Error('Mongo commit acknowledgement unknown'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      expirationRetries: 1, expiredRetired: 0, completed: 1,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.enqueue).not.toHaveBeenCalled();
   });
 
   it('routes a persisted v2 job to the v2 assembler without rewriting its format', async () => {
