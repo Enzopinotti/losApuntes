@@ -42,7 +42,11 @@ function fixture(input: { active?: unknown } = {}) {
   };
   const connection = { startSession: jest.fn().mockResolvedValue(session) };
   const orphanWrite = query({ matchedCount: 0, modifiedCount: 0, upsertedCount: 1 });
-  const orphanCleanup = { updateOne: jest.fn(() => orphanWrite) };
+  const orphanCleanup = {
+    updateOne: jest.fn(
+      (_filter: unknown, _update: unknown, _options?: unknown) => orphanWrite,
+    ),
+  };
   const store = new MongoAccountExportStore(
     jobs as never, users as never, connection as never,
     orphanCleanup as never,
@@ -262,6 +266,7 @@ describe('MongoAccountExportStore', () => {
       now, claimId: 'new-generation',
       leaseExpiresAt: new Date(now.getTime() + 120_000),
     });
+    expect(f.orphanCleanup.updateOne).toHaveBeenCalledTimes(1);
     const write = f.orphanCleanup.updateOne.mock.calls[0][1] as {
       $setOnInsert: { nextAttemptAt: Date; verificationUntil: Date };
     };
