@@ -1,3 +1,5 @@
+import { accountExportLeaseExpiredOnMongoServer } from './account-export-mongo-lease-clock';
+
 /**
  * B82 CAS plan: the cleanup worker is not allowed to delete the current
  * generation merely because a lease looked expired in a prior Mongo read.
@@ -30,6 +32,7 @@ export function planAccountExportExpiredClaimFence(input: {
       claimId: input.generation,
       // Only truly expired Date leases; malformed/missing leases fail closed.
       leaseExpiresAt: { $lte: input.now },
+      ...accountExportLeaseExpiredOnMongoServer(),
       artifactGeneration: null,
     },
     update: {

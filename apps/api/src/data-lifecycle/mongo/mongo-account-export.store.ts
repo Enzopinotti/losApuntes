@@ -11,6 +11,7 @@ import {
 } from '../domain/account-export.types';
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../domain/account-export.types';
 import { planAccountExportExpiredClaimFence } from '../domain/account-export-expired-claim-fence';
+import { accountExportLeaseActiveOnMongoServer } from '../domain/account-export-mongo-lease-clock';
 import { planAccountExportClaimWriteAhead } from '../domain/account-export-claim-writeahead';
 import { AccountExportJob } from './account-export.mongo-schema';
 import { AccountExportOrphanCleanup } from './account-export-orphan-cleanup.schema';
@@ -273,6 +274,7 @@ export class MongoAccountExportStore implements AccountExportStore {
           state: 'processing',
           claimId: input.claimId,
           leaseExpiresAt: { $gt: input.now },
+          ...accountExportLeaseActiveOnMongoServer(),
         },
         {
           $max: { leaseExpiresAt: input.leaseExpiresAt },
@@ -298,6 +300,7 @@ export class MongoAccountExportStore implements AccountExportStore {
           state: 'processing',
           claimId: input.claimId,
           leaseExpiresAt: { $gt: input.now },
+          ...accountExportLeaseActiveOnMongoServer(),
         },
         {
           $set: {
@@ -333,6 +336,7 @@ export class MongoAccountExportStore implements AccountExportStore {
       formatVersion: input.result.formatVersion,
       claimId: input.claimId,
       leaseExpiresAt: { $gt: input.completedAt },
+      ...accountExportLeaseActiveOnMongoServer(),
     };
     const update = {
       $set: {

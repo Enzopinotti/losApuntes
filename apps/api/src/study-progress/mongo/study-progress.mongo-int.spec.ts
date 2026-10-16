@@ -1343,12 +1343,12 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     const id = randomUUID();
     const generation = randomUUID();
     const started = new Date();
-    const leaseExpiredAt = new Date(started.getTime() - 10_000);
-    const capturedCompletionAt = new Date(leaseExpiredAt.getTime() - 1);
+    const leaseExpiresAt = new Date(started.getTime() + 120_000);
+    const capturedCompletionAt = new Date(started.getTime());
     await exportJobs.create({
       id, userId, state: 'processing', active: true, formatVersion: 1,
       attempts: 1, nextAttemptAt: started,
-      claimId: generation, leaseExpiresAt: leaseExpiredAt,
+      claimId: generation, leaseExpiresAt,
     });
     const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
     await queue.enqueue({
@@ -1357,7 +1357,8 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     });
     const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
 
-    // Opposite ordering: the delayed completion lands before cleanup.
+    // Completion commits on Mongo while lease is actually valid, and the
+    // orphan drainer must preserve the published generation later.
     await expect(store.complete({
       id, claimId: generation, artifactGeneration: generation,
       completedAt: capturedCompletionAt,
@@ -1390,7 +1391,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     const id = randomUUID();
     const generation = randomUUID();
     const now = new Date();
-    const leaseExpiresAt = new Date(now.getTime() - 1);
+    const leaseExpiresAt = new Date(now.getTime() + 60_000);
     await exportJobs.create({
       id, userId, state: 'processing', active: true, formatVersion: 1,
       attempts: 1, nextAttemptAt: now,
@@ -1398,19 +1399,132 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     });
     const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
     const extendedUntil = new Date(now.getTime() + 120_000);
-    // Stale captured renewal time was before the old expiry. Whether this
-    // renewal is allowed in production depends on the primary Mongo clock;
-    // the B82 delete fence must still reject the resulting new lease.
+    // Renewal occurs on a genuinely live lease. The cleanup worker's
+    // local clock may be erroneously far ahead; Mongo $NOW still protects
+    // the newer expiration against premature revocation.
     await expect(store.renewLease({
       id, claimId: generation,
-      now: new Date(leaseExpiresAt.getTime() - 1),
+      now,
       leaseExpiresAt: extendedUntil,
     })).resolves.toBe(true);
     await expect(store.fenceExpiredClaimForOrphanCleanup({
-      id, ownerUserId: userId, generation, now,
+      id, ownerUserId: userId, generation,
+      now: new Date(extendedUntil.getTime() + 1),
     })).resolves.toBe(false);
     expect((await store.findOwned(id, userId))?.leaseExpiresAt?.getTime())
       .toBe(extendedUntil.getTime());
+  }, 30_000);
+
+  it.each([1, 2] as const)(
+    'B83 v%s rejects late Mongo completion despite an earlier capturedAt',
+    async (version) => {
+      await exportJobs.deleteMany({});
+      const userId = await owner();
+      const id = randomUUID();
+      const generation = randomUUID();
+      const expiredLease = new Date(Date.now() - 10_000);
+      const capturedAt = new Date(expiredLease.getTime() - 1);
+      await exportJobs.create({
+        id, userId, active: true, state: 'processing',
+        formatVersion: version, attempts: 1, nextAttemptAt: capturedAt,
+        claimId: generation, leaseExpiresAt: expiredLease,
+      });
+      const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+      // Old client-only filter would accept: expiredLease > capturedAt.
+      expect(expiredLease.getTime()).toBeGreaterThan(capturedAt.getTime());
+      await expect(store.complete({
+        id, claimId: generation, artifactGeneration: generation,
+        completedAt: capturedAt,
+        artifactExpiresAt: new Date(Date.now() + 86_400_000),
+        result: {
+          format: 'los-apuntes-account-export',
+          formatVersion: version,
+          sectionCount: version === 1 ? 30 : 31,
+          recordCount: 0, byteLength: 128, sha256: 'a'.repeat(64),
+        },
+      })).resolves.toBe(false);
+      const saved = await store.findOwned(id, userId);
+      expect(saved?.state).toBe('processing');
+      expect(saved?.artifactGeneration).toBeNull();
+    },
+    30_000,
+  );
+
+  it('B83 v3 rollback does not bump owner epoch after server-time lease expiry', async () => {
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const userService = new UsersService(users as never);
+    const epoch = await userService.getStudyProgressExportEpoch(userId);
+    const id = randomUUID();
+    const generation = randomUUID();
+    const expiredLease = new Date(Date.now() - 10_000);
+    await exportJobs.create({
+      id, userId, active: true, state: 'processing',
+      formatVersion: 3, attempts: 1, nextAttemptAt: expiredLease,
+      claimId: generation, leaseExpiresAt: expiredLease,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.complete({
+      id, claimId: generation, artifactGeneration: generation,
+      ownerUserId: userId, expectedProgressEpoch: epoch,
+      completedAt: new Date(expiredLease.getTime() - 1),
+      artifactExpiresAt: new Date(Date.now() + 86_400_000),
+      result: {
+        format: 'los-apuntes-account-export', formatVersion: 3,
+        sectionCount: 32, recordCount: 0, byteLength: 128,
+        sha256: 'a'.repeat(64),
+      },
+    })).resolves.toBe(false);
+    expect(await userService.getStudyProgressExportEpoch(userId)).toBe(epoch);
+    expect((await store.findOwned(id, userId))?.state).toBe('processing');
+  }, 30_000);
+
+  it('B83 prevents delayed renewal and reschedule from resurrecting expired claims', async () => {
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const expiredLease = new Date(Date.now() - 10_000);
+    const staleCapturedAt = new Date(expiredLease.getTime() - 1);
+    await exportJobs.create({
+      id, userId, active: true, state: 'processing',
+      formatVersion: 1, attempts: 1, nextAttemptAt: expiredLease,
+      claimId: generation, leaseExpiresAt: expiredLease,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.renewLease({
+      id, claimId: generation, now: staleCapturedAt,
+      leaseExpiresAt: new Date(Date.now() + 120_000),
+    })).resolves.toBe(false);
+    await expect(store.reschedule({
+      id, claimId: generation, state: 'pending',
+      now: staleCapturedAt, nextAttemptAt: new Date(),
+      failureCode: 'EXPORT_ASSEMBLY_RETRY',
+    })).resolves.toBe(false);
+    const saved = await store.findOwned(id, userId);
+    expect(saved?.claimId).toBe(generation);
+    expect(saved?.state).toBe('processing');
+    expect(saved?.leaseExpiresAt?.getTime()).toBe(expiredLease.getTime());
+  }, 30_000);
+
+  it('B83 fails closed if worker clock attempts early orphan revocation', async () => {
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const lease = new Date(now.getTime() + 120_000);
+    await exportJobs.create({
+      id, userId, active: true, state: 'processing',
+      formatVersion: 1, attempts: 1, nextAttemptAt: now,
+      claimId: generation, leaseExpiresAt: lease,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.fenceExpiredClaimForOrphanCleanup({
+      id, ownerUserId: userId, generation,
+      now: new Date(lease.getTime() + 10_000),
+    })).resolves.toBe(false);
+    expect((await store.findOwned(id, userId))?.claimId).toBe(generation);
   }, 30_000);
 
   it('B80 persists a first-claim recovery intent before any S3 write and rechecks after a crash', async () => {
