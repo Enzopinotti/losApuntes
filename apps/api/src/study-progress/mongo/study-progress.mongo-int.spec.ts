@@ -2392,8 +2392,7 @@ runMongo(
       });
       const unavailableQueue = {
         updateOne: () => ({
-          exec: () =>
-            Promise.reject(new Error('B72 injected queue failure')),
+          exec: () => Promise.reject(new Error('B72 injected queue failure')),
         }),
       };
       const store = new MongoAccountExportStore(
