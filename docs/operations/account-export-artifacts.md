@@ -583,3 +583,34 @@ scripts/test-account-export-b81-s3-abort.test.mjs` y
 mockean HTTP; **no reemplazan la aceptación contra S3 real**. #353 HOLD,
 `STUDY_PROGRESS_ENABLED=false`, verificación de permisos, versionado,
 backups y retención aún obligatoria.
+
+## B82 — Revocación atómica del claim vencido antes de S3 DELETE
+
+El chequeo previo de lease vencido del drainer no alcanzaba para bloquear
+un `complete()` que ya había comenzado y conservaba un `completedAt`
+anterior al vencimiento. El resultado posible era un job `completed`
+publicado en Mongo luego del `DELETE` de su archivo.
+
+B82 exige un **CAS de escritura en el documento del job** antes de
+eliminar una generación que sigue siendo el `claimId` de un intento
+`processing`. Con el mismo documento compartido con `complete`,
+gana exactamente una operación:
+
+- **Gana complete:** el job referencia `artifactGeneration`; revocación
+  rechazada y el drainer no borra S3.
+- **Gana la revocación:** el job vuelve a `pending` sin claim ni lease,
+  el siguiente attempt obtiene una generación nueva mediante B80 y el
+  `complete` tardío con claim anterior falla su CAS.
+- **Gana una renovación o un nuevo claim:** el CAS de revocación falla
+  cerrado; se conserva el objeto hasta nueva autoridad.
+- **Lease inválido o Mongo inaccesible:** no se invoca DELETE.
+
+No se cancela un objeto activo por el simple estado de la cola; se
+mantienen B81 multipart-only abort y B75/B77 verificación extendida.
+
+Pruebas nuevas: `node --experimental-strip-types --test
+scripts/test-account-export-b82-fence.test.mjs` y
+`node scripts/test-account-export-b82-fence-guard.mjs`. Los tests
+con Mongo replica-set, S3 real, backup/retención y Node24/pnpm9
+permanecen obligatorios para release. `STUDY_PROGRESS_ENABLED=false`,
+issue #353 OPEN/HOLD y auditorías #133/#141 sin waiver.
