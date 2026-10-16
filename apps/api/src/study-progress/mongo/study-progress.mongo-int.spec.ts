@@ -2146,6 +2146,74 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     }
   }, 30_000);
 
+  it('B90 refuses to publish corrupt same-size S3 GET bytes and retains B80 recovery intent', async () => {
+    await exportJobs.deleteMany({});
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: new Date(now.getTime() - 1_000),
+      claimId: null, leaseExpiresAt: null,
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(store.claimNext({
+      now, claimId: generation,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    })).resolves.toMatchObject({ claimId: generation });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+
+    const key = `/b90-readback/exports/${id}/${generation}.json`;
+    const objects = new Map<string, Buffer>();
+    const methods: string[] = [];
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+      const request = new URL(String(url));
+      expect(request.pathname).toBe(key);
+      const method = init?.method ?? 'GET';
+      methods.push(method);
+      if (method === 'PUT') {
+        objects.set(key, Buffer.from(init?.body as Uint8Array));
+        return Promise.resolve(new Response(null, { status: 200 }));
+      }
+      if (method === 'GET') {
+        const persisted = objects.get(key);
+        if (!persisted) return Promise.resolve(new Response(null, { status: 404 }));
+        const poisoned = Buffer.from(persisted);
+        poisoned[5] ^= 0x01;
+        return Promise.resolve(new Response(new Uint8Array(poisoned), { status: 200 }));
+      }
+      throw new Error('B90 unexpected S3 operation; no direct DELETE permitted');
+    });
+    try {
+      const s3 = createS3ObjectStorage({
+        endpoint: 'http://127.0.0.1:19086', bucket: 'b90-readback',
+        region: 'us-east-1', accessKeyId: 'fixture-only',
+        secretAccessKey: 'fixture-not-a-live-secret',
+        configurationPrefix: 'ACCOUNT_EXPORT_S3',
+      });
+      const sink = new S3AccountExportArtifactStorage(s3).createSink(id, generation);
+      const payload = '{"private":"B90-readback"}';
+      await sink.write(payload);
+      await expect(sink.commit({
+        format: 'los-apuntes-account-export', formatVersion: 1,
+        sectionCount: 30, recordCount: 1,
+        byteLength: Buffer.byteLength(payload),
+        sha256: createHash('sha256').update(payload).digest('hex'),
+      })).rejects.toThrow('S3 readback SHA-256 mismatch');
+      await sink.abort();
+      expect(methods).toEqual(['PUT', 'GET']);
+      expect(objects.get(key)?.toString()).toBe(payload);
+      const job = await store.findOwned(id, userId);
+      expect(job?.state).toBe('processing');
+      expect(job?.artifactGeneration).toBeNull();
+      expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  }, 30_000);
+
   it('B85 protects an unexpired private artifact from a clock-ahead worker', async () => {
     await orphanJobs.deleteMany({});
     await exportJobs.deleteMany({});
