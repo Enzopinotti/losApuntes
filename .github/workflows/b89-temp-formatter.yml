@@ -1,0 +1,49 @@
+name: B89 isolated pinned fixture formatter
+on:
+  push:
+    branches:
+      - tmp/b89-export-fixtures-prettier-20261016
+permissions:
+  contents: write
+jobs:
+  format-only:
+    if: github.repository == 'Enzopinotti/losApuntes'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+      - name: Verify exact checkout SHA
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Canonical Prettier on exactly two export fixtures
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --write \
+            src/data-lifecycle/domain/account-export-processor.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+      - name: Restrict output paths and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          while IFS= read -r p; do
+            case "$p" in
+              apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts|apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts) ;;
+              *) echo "Unexpected formatted path: $p" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only)
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+          git commit -m 'style(test): B89 format scoped Account Export fixtures'
+          git push origin HEAD:refs/heads/tmp/b89-export-fixtures-prettier-20261016
