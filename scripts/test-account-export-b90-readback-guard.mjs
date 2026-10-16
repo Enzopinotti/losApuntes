@@ -26,7 +26,7 @@ check('B90 bounded bytes before updating digest, fail-closed', () => {
 });
 check('B90 digest is verified with constant-time comparison', () => {
   assert.match(helper, /timingSafeEqual\(storedHash, expectedHash\)/u);
-  assert.match(helper, /\/\^\[a-f0-9\]\{64\}\$\/u/u);
+  assert.ok(helper.includes('!/^[a-f0-9]{64}$/u.test(expected.sha256)'));
 });
 check('B90 writer completion precedes readback which precedes published sink state', () => {
   const body = storage.slice(storage.indexOf('async commit('),
