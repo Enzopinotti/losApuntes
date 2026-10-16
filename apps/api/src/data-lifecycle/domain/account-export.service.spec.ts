@@ -837,7 +837,7 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
+    f.store.requestActive.mockImplementation((input) => Promise.resolve({
       created: true,
       job: job({ formatVersion: input.formatVersion }),
     }));
@@ -865,7 +865,7 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
+    f.store.requestActive.mockImplementation((input) => Promise.resolve({
       created: true,
       job: job({ formatVersion: input.formatVersion }),
     }));
@@ -893,7 +893,7 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
+    f.store.requestActive.mockImplementation((input) => Promise.resolve({
       created: true,
       job: job({ formatVersion: input.formatVersion }),
     }));
@@ -954,7 +954,7 @@ describe('AccountExportService', () => {
       collections as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
+    f.store.requestActive.mockImplementation((input) => Promise.resolve({
       created: true,
       job: job({ formatVersion: input.formatVersion }),
     }));
@@ -1015,7 +1015,7 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       emptyProgressReader as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
+    f.store.requestActive.mockImplementation((input) => Promise.resolve({
       created: true,
       job: job({
         id: input.id,
@@ -1075,7 +1075,7 @@ describe('AccountExportService', () => {
         ownedReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation(async (input) => ({
+      f.store.requestActive.mockImplementation((input) => Promise.resolve({
         created: true,
         job: job({
           id: input.id,
@@ -1091,7 +1091,7 @@ describe('AccountExportService', () => {
       expect(ownedReader.hasOwnedCollections).toHaveBeenCalledWith('user-1');
     });
 
-    it("keeps v1 only if the owner\'s private collection set is empty", async () => {
+    it("keeps v1 only if the owner's private collection set is empty", async () => {
       const f = fixture();
       const emptyReader = reader(false);
       const service = new AccountExportService(
@@ -1101,7 +1101,7 @@ describe('AccountExportService', () => {
         emptyReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation(async (input) => ({
+      f.store.requestActive.mockImplementation((input) => Promise.resolve({
         created: true,
         job: job({ formatVersion: input.formatVersion }),
       }));
@@ -1173,7 +1173,7 @@ describe('AccountExportService', () => {
         ownedReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation(async (input) => ({
+      f.store.requestActive.mockImplementation((input) => Promise.resolve({
         created: true,
         job: job({ formatVersion: input.formatVersion }),
       }));
