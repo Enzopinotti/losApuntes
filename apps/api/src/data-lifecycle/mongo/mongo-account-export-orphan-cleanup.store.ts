@@ -61,6 +61,9 @@ implements AccountExportOrphanCleanupStore {
       generation: input.generation,
       state: 'pending',
       claimId: null,
+      // A worker finishing a late failed attempt must not cancel the
+      // takeover's durable verification period. Null matches legacy rows.
+      verificationUntil: null,
     }).exec();
     return result.deletedCount === 1;
   }
