@@ -656,7 +656,12 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       leaseExpiresAt: new Date(now.getTime() + 120_000),
     })).resolves.toBeNull();
     const secondClaim = randomUUID();
-    const later = new Date(now.getTime() + 60_001);
+    // B84: expire the lease in the isolated Mongo fixture. Advancing only
+    // worker.now must no longer authorize a real primary takeover.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { leaseExpiresAt: new Date(Date.now() - 1_000) },
+    });
+    const later = new Date();
     const reclaimed = await store.claimNext({
       now: later, claimId: secondClaim,
       leaseExpiresAt: new Date(later.getTime() + 120_000),
@@ -694,9 +699,15 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       now, claimId: randomUUID(),
       leaseExpiresAt: new Date(now.getTime() + 120_000),
     })).resolves.toBeNull();
+    // B84: advance the isolated durable due date rather than passing a
+    // future clock to Mongo. The primary remains the source of truth.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1_000) },
+    });
+    const claimAt = new Date();
     const second = await store.claimNext({
-      now: future, claimId: randomUUID(),
-      leaseExpiresAt: new Date(future.getTime() + 120_000),
+      now: claimAt, claimId: randomUUID(),
+      leaseExpiresAt: new Date(claimAt.getTime() + 120_000),
     });
     expect(second).toMatchObject({ attempts: 2 });
   }, 30_000);
@@ -1092,7 +1103,15 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       leaseExpiresAt: new Date(leaseExpiredButNotDue.getTime() + 120_000),
     })).resolves.toBeNull();
 
-    const due = new Date(settling.getTime() + 1);
+    // B84: the old settlement/lease have genuinely passed in this
+    // isolated Mongo fixture. A fake future client timestamp is forbidden.
+    await orphanJobs.updateOne({ jobId: id, generation: oldGeneration }, {
+      $set: {
+        nextAttemptAt: new Date(Date.now() - 1_000),
+        leaseExpiresAt: new Date(Date.now() - 1_000),
+      },
+    });
+    const due = new Date();
     const reclaimed = await queue.claimNext({
       now: due, claimId: randomUUID(),
       leaseExpiresAt: new Date(due.getTime() + 120_000),
