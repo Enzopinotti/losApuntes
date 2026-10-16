@@ -837,10 +837,12 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation((input) => Promise.resolve({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     await expect(service.request('user-1', now)).rejects.toMatchObject({
       response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
     });
@@ -865,10 +867,12 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation((input) => Promise.resolve({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     await expect(service.request('user-1', now)).rejects.toMatchObject({
       response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
     });
@@ -893,10 +897,12 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation((input) => Promise.resolve({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     await expect(service.request('user-1', now)).rejects.toBe(error);
     expect(f.store.requestActive).toHaveBeenCalledTimes(1);
   });
@@ -954,10 +960,12 @@ describe('AccountExportService', () => {
       collections as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation((input) => Promise.resolve({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     expect((await service.request('user-1', now)).export.formatVersion).toBe(3);
     expect(progress.hasOwnedProgress).toHaveBeenCalledWith('user-1');
     expect(f.store.requestActive).toHaveBeenCalledWith(
@@ -1015,14 +1023,16 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       emptyProgressReader as never,
     );
-    f.store.requestActive.mockImplementation((input) => Promise.resolve({
-      created: true,
-      job: job({
-        id: input.id,
-        userId: input.userId,
-        formatVersion: input.formatVersion,
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({
+          id: input.id,
+          userId: input.userId,
+          formatVersion: input.formatVersion,
+        }),
       }),
-    }));
+    );
     const output = await service.request('user-1', now);
     expect(output.export.formatVersion).toBe(2);
     expect(f.store.requestActive).toHaveBeenCalledWith(
@@ -1075,14 +1085,16 @@ describe('AccountExportService', () => {
         ownedReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation((input) => Promise.resolve({
-        created: true,
-        job: job({
-          id: input.id,
-          userId: input.userId,
-          formatVersion: input.formatVersion,
+      f.store.requestActive.mockImplementation((input) =>
+        Promise.resolve({
+          created: true,
+          job: job({
+            id: input.id,
+            userId: input.userId,
+            formatVersion: input.formatVersion,
+          }),
         }),
-      }));
+      );
       const result = await service.request('user-1', now);
       expect(result.export.formatVersion).toBe(2);
       expect(f.store.requestActive).toHaveBeenCalledWith(
@@ -1101,10 +1113,12 @@ describe('AccountExportService', () => {
         emptyReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation((input) => Promise.resolve({
-        created: true,
-        job: job({ formatVersion: input.formatVersion }),
-      }));
+      f.store.requestActive.mockImplementation((input) =>
+        Promise.resolve({
+          created: true,
+          job: job({ formatVersion: input.formatVersion }),
+        }),
+      );
       const result = await service.request('user-1', now);
       expect(result.export.formatVersion).toBe(1);
       expect(emptyReader.hasOwnedCollections).toHaveBeenCalledWith('user-1');
@@ -1173,10 +1187,12 @@ describe('AccountExportService', () => {
         ownedReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation((input) => Promise.resolve({
-        created: true,
-        job: job({ formatVersion: input.formatVersion }),
-      }));
+      f.store.requestActive.mockImplementation((input) =>
+        Promise.resolve({
+          created: true,
+          job: job({ formatVersion: input.formatVersion }),
+        }),
+      );
       const result = await service.request('user-1', now);
       expect(result.export.formatVersion).toBe(2);
       expect(ownedReader.hasOwnedCollections).not.toHaveBeenCalled();
