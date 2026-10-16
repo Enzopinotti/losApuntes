@@ -33,7 +33,7 @@ export function isConfirmedS3MultipartCompletion(xml: string): boolean {
 
   if (match[0].endsWith('/>')) return match[0].length === body.length;
 
-  const closing = '</' + root + '>';
+  const closing = '</CompleteMultipartUploadResult>';
   if (!body.endsWith(closing)) return false;
   // Require exactly one outer completion envelope and no extra sibling
   // XML documents. Nested tags from the provider are allowed.
