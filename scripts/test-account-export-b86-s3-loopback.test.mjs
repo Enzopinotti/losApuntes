@@ -83,7 +83,7 @@ async function withLoopback(input, scenario) {
           response.destroy();
         } else {
           response.writeHead(200, { 'content-type': 'application/xml' });
-          response.end('<CompleteMultipartUploadResult />');
+          response.end(input.completeMultipartBody ?? '<CompleteMultipartUploadResult />');
         }
       } else if (method === 'PUT' && !uploadId) {
         objects.set(url.pathname, body);
@@ -384,6 +384,32 @@ test('B95 B91 second signed HTTP GET detects mutation after valid preflight', as
     assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET', 'GET']);
     assert.deepEqual(objects.get(PATH), B95_CONTENT);
   });
+});
+
+test('B96 real signed HTTP multipart rejects a blank or Error body without object DELETE', async () => {
+  for (const resultBody of [
+    '',
+    '<Error><Code>InternalError</Code></Error>',
+    '<html>not a completion</html>',
+  ]) {
+    await withLoopback({ completeMultipartBody: resultBody }, async ({
+      storage, objects, calls,
+    }) => {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x67));
+      await assert.rejects(writer.complete(), /Complete multipart upload/u);
+      // The local provider already wrote a committed object before its
+      // ambiguous HTTP 200 reply. B80 owns cleanup; abort only targets ID.
+      assert.equal(objects.has(PATH), true);
+      await writer.abort();
+      assert.equal(objects.has(PATH), true);
+      assert.deepEqual(calls.map(call => call.method),
+        ['POST', 'PUT', 'POST', 'DELETE']);
+      assert.ok(calls[3].uploadId, 'abort must target uploadId only');
+      assert.equal(calls.filter(call =>
+        call.method === 'DELETE' && call.uploadId === null).length, 0);
+    });
+  }
 });
 
 test('B86 shared generic writer keeps the previous explicit abort cleanup default', async () => {
