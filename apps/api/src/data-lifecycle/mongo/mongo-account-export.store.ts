@@ -323,6 +323,9 @@ export class MongoAccountExportStore implements AccountExportStore {
     let retired = false;
     try {
       await session.withTransaction(async () => {
+        // withTransaction may retry this callback after a transient abort.
+        // Do not retain a successful flag from a rolled-back attempt.
+        retired = false;
         // CAS the original expiry and generation BEFORE creating any S3
         // deletion intent. A concurrent extension or changed reference must
         // leave both the job and the cleanup queue unchanged.
