@@ -425,10 +425,30 @@ export class AccountExportProcessor {
           continue;
         }
         if (job.state === 'processing' &&
-          job.claimId === candidate.generation &&
-          job.leaseExpiresAt instanceof Date &&
-          job.leaseExpiresAt.getTime() > Date.now()) {
-          throw new Error('Export attempt is still leased');
+          job.claimId === candidate.generation) {
+          // B82: a delayed Mongo completion may have started while this
+          // claim was still leased, then commit AFTER a cleanup read.
+          // Checking expiration in memory is not enough. First revoke
+          // the exact expired claim with a CAS against the SAME Mongo job
+          // row that completion must update. If completion wins, this CAS
+          // fails and S3 must remain untouched. If revocation wins, a late
+          // completion cannot publish the deleted generation.
+          const revokeAt = new Date();
+          if (!(job.leaseExpiresAt instanceof Date) ||
+            !Number.isFinite(job.leaseExpiresAt.getTime()) ||
+            job.leaseExpiresAt.getTime() > revokeAt.getTime()) {
+            throw new Error('Export attempt remains leased or lease is invalid');
+          }
+          const revoked = await this.store.fenceExpiredClaimForOrphanCleanup({
+            id: candidate.jobId,
+            ownerUserId: candidate.ownerUserId,
+            generation: candidate.generation,
+            now: revokeAt,
+          });
+          if (!revoked) {
+            result.orphanAuthorityBlocked += 1;
+            throw new Error('Account export cleanup claim revocation lost CAS');
+          }
         }
 
         if (candidate.verificationUntil != null &&
