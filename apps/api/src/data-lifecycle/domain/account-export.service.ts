@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
@@ -107,12 +113,15 @@ export class AccountExportService {
     // returns the stable legacy-job conflict until that job finishes.
     const currentRequiredVersion = await this.requiredExportVersion(userId);
     if (![1, 2, 3].includes(result.job.formatVersion)) {
-      throw new Error('Account export active job has unsupported format version');
+      throw new Error(
+        'Account export active job has unsupported format version',
+      );
     }
     if (currentRequiredVersion > result.job.formatVersion) {
       throw new ConflictException({
         code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
-        message: 'The active export cannot include new private data. Retry after it completes.',
+        message:
+          'The active export cannot include new private data. Retry after it completes.',
       });
     }
     return {
@@ -138,14 +147,16 @@ export class AccountExportService {
     if (this.config?.get<boolean>('STUDY_PROGRESS_ENABLED') === true) {
       return 3;
     }
-    if (this.progress && await this.progress.hasOwnedProgress(userId)) {
+    if (this.progress && (await this.progress.hasOwnedProgress(userId))) {
       return 3;
     }
     if (this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true) {
       return 2;
     }
-    return this.collections && await this.collections.hasOwnedCollections(userId)
-      ? 2 : ACCOUNT_EXPORT_FORMAT_VERSION;
+    return this.collections &&
+      (await this.collections.hasOwnedCollections(userId))
+      ? 2
+      : ACCOUNT_EXPORT_FORMAT_VERSION;
   }
 
   /**
@@ -283,11 +294,16 @@ export class AccountExportService {
 
     const completedAt = new Date();
     assertCompletionResult(input.result, completedAt);
-    if (input.result.formatVersion === 3 &&
-      (typeof input.ownerUserId !== 'string' || !input.ownerUserId.trim() ||
+    if (
+      input.result.formatVersion === 3 &&
+      (typeof input.ownerUserId !== 'string' ||
+        !input.ownerUserId.trim() ||
         !Number.isSafeInteger(input.expectedProgressEpoch) ||
-        (input.expectedProgressEpoch as number) < 0)) {
-      throw new Error('Account export v3 completion requires owner epoch authority');
+        (input.expectedProgressEpoch as number) < 0)
+    ) {
+      throw new Error(
+        'Account export v3 completion requires owner epoch authority',
+      );
     }
     return this.store.complete({
       ...input,
