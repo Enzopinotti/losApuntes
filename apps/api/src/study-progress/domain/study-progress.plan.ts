@@ -37,8 +37,12 @@ function keys(value: Record<string, unknown>, expected: string[]): boolean {
 function clean(value: unknown, max: number): string {
   if (typeof value !== 'string' || value.length > max * 4) return invalid();
   const result = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
-  if (result.length > max || /[\u0000-\u001f\u007f]/u.test(result))
-    return invalid();
+  if (result.length > max) return invalid();
+  // The same ASCII control range is rejected without a control-regex.
+  for (const character of result) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) return invalid();
+  }
   return result;
 }
 function validTime(value: unknown): value is string | null {
@@ -107,7 +111,7 @@ export function parseStudyProgressPlan(
     seen.add(key);
     total += task.minutes as number;
     return {
-      kind: task.kind as StudyProgressTask['kind'],
+      kind: task.kind,
       id,
       minutes: task.minutes as number,
       done: task.done,
@@ -120,7 +124,7 @@ export function parseStudyProgressPlan(
     subjectId: subjectId.toLowerCase(),
     title,
     notes,
-    startsAt: value.startsAt as string | null,
+    startsAt: value.startsAt,
     tasks,
   };
   if (Buffer.byteLength(JSON.stringify(parsed), 'utf8') > 64_000)

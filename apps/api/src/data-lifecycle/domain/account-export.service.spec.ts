@@ -36,25 +36,41 @@ function job(
   };
 }
 
+// Preserve the store's method argument tuples and Promise return contracts
+// without exposing instance methods to Jest's detached-function matchers.
+function mockedStoreMethod<K extends keyof AccountExportStore>(): jest.Mock<
+  ReturnType<AccountExportStore[K]>,
+  Parameters<AccountExportStore[K]>
+> {
+  return jest.fn<
+    ReturnType<AccountExportStore[K]>,
+    Parameters<AccountExportStore[K]>
+  >();
+}
+
 function fixture() {
   const store = {
-    requestActive: jest.fn(),
-    findOwned: jest.fn(),
-    claimNext: jest.fn(),
-    renewLease: jest.fn(),
-    reschedule: jest.fn(),
-    complete: jest.fn(),
-    hasFailed: jest.fn(),
-  } as unknown as jest.Mocked<AccountExportStore>;
+    requestActive: mockedStoreMethod<'requestActive'>(),
+    findOwned: mockedStoreMethod<'findOwned'>(),
+    claimNext: mockedStoreMethod<'claimNext'>(),
+    renewLease: mockedStoreMethod<'renewLease'>(),
+    reschedule: mockedStoreMethod<'reschedule'>(),
+    complete: mockedStoreMethod<'complete'>(),
+    hasFailed: mockedStoreMethod<'hasFailed'>(),
+  };
   const users = {
     hasActiveAccount: jest.fn().mockResolvedValue(true),
     getStudyProgressExportEpoch: jest.fn().mockResolvedValue(5),
-  } as unknown as jest.Mocked<UsersService>;
+  };
 
+  const storeContract = store as unknown as AccountExportStore;
+  const usersContract = users as unknown as UsersService;
   return {
     store,
     users,
-    service: new AccountExportService(store, users),
+    storeContract,
+    usersContract,
+    service: new AccountExportService(storeContract, usersContract),
   };
 }
 
@@ -831,16 +847,18 @@ describe('AccountExportService', () => {
         .mockResolvedValueOnce(true),
     };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     await expect(service.request('user-1', now)).rejects.toMatchObject({
       response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
     });
@@ -859,16 +877,18 @@ describe('AccountExportService', () => {
         .mockResolvedValueOnce(true),
     };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     await expect(service.request('user-1', now)).rejects.toMatchObject({
       response: { code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE' },
     });
@@ -887,16 +907,18 @@ describe('AccountExportService', () => {
         .mockRejectedValueOnce(error),
     };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     await expect(service.request('user-1', now)).rejects.toBe(error);
     expect(f.store.requestActive).toHaveBeenCalledTimes(1);
   });
@@ -904,8 +926,8 @@ describe('AccountExportService', () => {
   it('B63: rejects an unsupported durable format instead of mislabelling it', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
@@ -922,8 +944,8 @@ describe('AccountExportService', () => {
   it('B63: permits replay of a higher-version historical job, never downgrading it', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
@@ -948,16 +970,18 @@ describe('AccountExportService', () => {
     };
     const progress = { hasOwnedProgress: jest.fn().mockResolvedValue(true) };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       config as never,
       collections as never,
       progress as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
-      created: true,
-      job: job({ formatVersion: input.formatVersion }),
-    }));
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({ formatVersion: input.formatVersion }),
+      }),
+    );
     expect((await service.request('user-1', now)).export.formatVersion).toBe(3);
     expect(progress.hasOwnedProgress).toHaveBeenCalledWith('user-1');
     expect(f.store.requestActive).toHaveBeenCalledWith(
@@ -968,8 +992,8 @@ describe('AccountExportService', () => {
   it('rejects stale v1/v2 work for a newly required v3 export', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: (key: string) => key === 'STUDY_PROGRESS_ENABLED',
       } as never,
@@ -991,8 +1015,8 @@ describe('AccountExportService', () => {
     const f = fixture();
     const failure = new Error('Mongo unavailable');
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: () => false,
       } as never,
@@ -1006,8 +1030,8 @@ describe('AccountExportService', () => {
   it('requests v2 when persistent collections are enabled', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: (key: string) =>
           key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
@@ -1015,14 +1039,16 @@ describe('AccountExportService', () => {
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       emptyProgressReader as never,
     );
-    f.store.requestActive.mockImplementation(async (input) => ({
-      created: true,
-      job: job({
-        id: input.id,
-        userId: input.userId,
-        formatVersion: input.formatVersion,
+    f.store.requestActive.mockImplementation((input) =>
+      Promise.resolve({
+        created: true,
+        job: job({
+          id: input.id,
+          userId: input.userId,
+          formatVersion: input.formatVersion,
+        }),
       }),
-    }));
+    );
     const output = await service.request('user-1', now);
     expect(output.export.formatVersion).toBe(2);
     expect(f.store.requestActive).toHaveBeenCalledWith(
@@ -1035,8 +1061,8 @@ describe('AccountExportService', () => {
   it('does not reuse a pre-activation v1 job for newly persisted private collections', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: (key: string) =>
           key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
@@ -1069,20 +1095,22 @@ describe('AccountExportService', () => {
       const f = fixture();
       const ownedReader = reader(true);
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+        f.usersContract,
         disabled as never,
         ownedReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation(async (input) => ({
-        created: true,
-        job: job({
-          id: input.id,
-          userId: input.userId,
-          formatVersion: input.formatVersion,
+      f.store.requestActive.mockImplementation((input) =>
+        Promise.resolve({
+          created: true,
+          job: job({
+            id: input.id,
+            userId: input.userId,
+            formatVersion: input.formatVersion,
+          }),
         }),
-      }));
+      );
       const result = await service.request('user-1', now);
       expect(result.export.formatVersion).toBe(2);
       expect(f.store.requestActive).toHaveBeenCalledWith(
@@ -1091,20 +1119,22 @@ describe('AccountExportService', () => {
       expect(ownedReader.hasOwnedCollections).toHaveBeenCalledWith('user-1');
     });
 
-    it("keeps v1 only if the owner\'s private collection set is empty", async () => {
+    it("keeps v1 only if the owner's private collection set is empty", async () => {
       const f = fixture();
       const emptyReader = reader(false);
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+        f.usersContract,
         disabled as never,
         emptyReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation(async (input) => ({
-        created: true,
-        job: job({ formatVersion: input.formatVersion }),
-      }));
+      f.store.requestActive.mockImplementation((input) =>
+        Promise.resolve({
+          created: true,
+          job: job({ formatVersion: input.formatVersion }),
+        }),
+      );
       const result = await service.request('user-1', now);
       expect(result.export.formatVersion).toBe(1);
       expect(emptyReader.hasOwnedCollections).toHaveBeenCalledWith('user-1');
@@ -1113,8 +1143,8 @@ describe('AccountExportService', () => {
     it('rejects a stale active v1 job if private collections require v2 during rollback', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+        f.usersContract,
         disabled as never,
         reader(true) as never,
         emptyProgressReader as never,
@@ -1137,8 +1167,8 @@ describe('AccountExportService', () => {
       const error = new Error('Mongo read unavailable');
       unavailable.hasOwnedCollections.mockRejectedValueOnce(error);
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+        f.usersContract,
         disabled as never,
         unavailable as never,
         emptyProgressReader as never,
@@ -1150,8 +1180,8 @@ describe('AccountExportService', () => {
     it('fails closed on missing reader wiring whenever real configuration is present', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+        f.usersContract,
         disabled as never,
       );
       await expect(service.request('user-1', now)).rejects.toThrow(
@@ -1167,16 +1197,18 @@ describe('AccountExportService', () => {
         get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED',
       };
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+        f.usersContract,
         enabled as never,
         ownedReader as never,
         emptyProgressReader as never,
       );
-      f.store.requestActive.mockImplementation(async (input) => ({
-        created: true,
-        job: job({ formatVersion: input.formatVersion }),
-      }));
+      f.store.requestActive.mockImplementation((input) =>
+        Promise.resolve({
+          created: true,
+          job: job({ formatVersion: input.formatVersion }),
+        }),
+      );
       const result = await service.request('user-1', now);
       expect(result.export.formatVersion).toBe(2);
       expect(ownedReader.hasOwnedCollections).not.toHaveBeenCalled();
