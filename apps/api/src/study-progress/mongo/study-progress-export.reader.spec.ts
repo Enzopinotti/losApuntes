@@ -21,7 +21,12 @@ function stored(subjectId: string) {
     ownerUserId: owner, excludedField: 'not-exported', _id: 'internal',
   };
 }
-function fixture(rows: ReturnType<typeof stored>[] = []) {
+type StoredFixtureRow = Omit<ReturnType<typeof stored>, 'plan'> & {
+  // Mongo can contain legacy or malformed plans; validation belongs to the reader.
+  plan: unknown;
+};
+
+function fixture(rows: StoredFixtureRow[] = []) {
   const query = {
     select: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(), lean: jest.fn().mockReturnThis(),
