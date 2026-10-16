@@ -1,0 +1,89 @@
+name: B86 Mongo Study type recovery
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b86-mongo-study-type-recovery.yml"
+      - "apps/api/src/data-lifecycle/mongo/mongo-account-export.store.spec.ts"
+      - "apps/api/src/study-progress/mongo/study-progress-export.reader.spec.ts"
+      - "docs/engineering/b86-mongo-study-fixture-recovery.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b86-fixture-types-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  type-and-regression:
+    name: Exact-head full API types and owner-private Mongo Jest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Entire API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+      - name: Mongo claims and private Study Progress reader
+        run: |
+          pnpm --filter @losapuntes/api exec jest \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            --runInBand
+      - name: Server clock, claim and artifact expiry guards
+        run: |
+          node scripts/test-account-export-b83-mongo-clock-guard.mjs
+          node scripts/test-account-export-b84-mongo-claim-guard.mjs
+          node scripts/test-account-export-b85-artifact-expiry-guard.mjs
+
+  scoped-style:
+    name: Scoped strict ESLint and canonical Prettier (independent)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Strict ESLint on just two specs
+        run: |
+          pnpm --filter @losapuntes/api exec eslint \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            --max-warnings=0
+      - name: Pinned Prettier on just two specs
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --check \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
