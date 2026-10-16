@@ -1,0 +1,57 @@
+name: B79 Mongo boundary quality
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts'
+      - 'apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts'
+      - '.github/workflows/b79-mongo-fixture-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mongo-fixture-lint-and-types:
+    name: B79 Mongo fixture lint and API types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Install pnpm and Node 24
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Count strict ESLint diagnostics on both Mongo fixtures
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @losapuntes/api exec eslint \
+            src/study-progress/mongo/study-progress.mongo-int.spec.ts \
+            src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts \
+            --format json > "$RUNNER_TEMP/b79-eslint.json"
+          status=$?
+          set -e
+          node -e 'const fs=require("fs"); const raw=fs.readFileSync(process.env.RUNNER_TEMP+"/b79-eslint.json","utf8");const end=raw.lastIndexOf("]");if(end<0)throw Error("ESLint JSON result missing");const a=JSON.parse(raw.slice(0,end+1));for (const x of a) { const grouped={};for(const m of x.messages){const name=m.ruleId||"parser";grouped[name]=(grouped[name]||0)+1;}console.log(x.filePath,JSON.stringify({errors:x.errorCount,warnings:x.warningCount,fatals:x.fatalErrorCount,topRules:Object.entries(grouped).sort((a,b)=>b[1]-a[1]).slice(0,12),diagnostics:x.messages.filter(m=>m.ruleId!=="prettier/prettier").map(m=>({line:m.line,col:m.column,rule:m.ruleId,message:m.message}))}));}console.log("B79 strict ESLint exit",process.argv[1]);' "$status"
+          exit "$status"
+
+      - name: API TypeScript contract
+        if: always()
+        run: pnpm --filter @losapuntes/api check:types
