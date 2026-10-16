@@ -2,6 +2,7 @@ import {
   ConflictException,
   GoneException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
@@ -26,6 +27,7 @@ function fixture() {
     download: jest.fn(),
   } as unknown as jest.Mocked<AccountExportService>;
   const artifacts = {
+    verifyReadable: jest.fn().mockResolvedValue(undefined),
     readObjectChunks: jest.fn(),
   } as unknown as jest.Mocked<AccountExportArtifactStorage>;
   const controller = new AccountExportController(exports, artifacts);
@@ -73,8 +75,125 @@ describe('AccountExportController', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(f.exports.download.mock.calls).toEqual([['other-user', exportId]]);
+    expect(f.artifacts.verifyReadable).not.toHaveBeenCalled();
     expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
     expect(reply.send.mock.calls).toHaveLength(0);
+  });
+
+  it('B91 preflights exact owner and generation before response headers or streaming', async () => {
+    const f = fixture();
+    const generation = '123e4567-e89b-42d3-a456-426614174001';
+    const bytes = Buffer.from('{"owner":"verified"}');
+    const sha256 = digest(bytes);
+    f.exports.download.mockResolvedValueOnce({
+      kind: 'available',
+      formatVersion: 1, generation, byteLength: bytes.length, sha256,
+    });
+    let release!: () => void;
+    const preflightBlocked = new Promise<void>((resolve) => { release = resolve; });
+    f.artifacts.verifyReadable.mockImplementationOnce(async () => {
+      await preflightBlocked;
+    });
+    f.artifacts.readObjectChunks.mockReturnValueOnce(
+      (async function* () { yield bytes; })(),
+    );
+    const raw = Object.assign(new EventEmitter(), {
+      destroyed: false, writableFinished: false,
+    });
+    const reply = {
+      raw,
+      header: jest.fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
+    };
+    const downloading = f.controller.download(f.request, exportId, reply as never);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(reply.header).not.toHaveBeenCalled();
+    expect(reply.send).not.toHaveBeenCalled();
+    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+    release();
+    await downloading;
+    expect(f.artifacts.verifyReadable).toHaveBeenCalledWith(
+      exportId, generation, { byteLength: bytes.length, sha256 },
+      expect.any(AbortSignal),
+    );
+    expect(f.artifacts.readObjectChunks).toHaveBeenCalledTimes(1);
+    expect(reply.header).toHaveBeenCalledWith('content-length', bytes.length);
+    expect(reply.send).toHaveBeenCalledTimes(1);
+    raw.emit('finish');
+  });
+
+  it.each(['corrupt', 'truncated', 'missing', 'provider down'])(
+    'B91 refuses an unverified %s export with stable 503 before emitting private bytes',
+    async () => {
+      const f = fixture();
+      const generation = '123e4567-e89b-42d3-a456-426614174001';
+      f.exports.download.mockResolvedValueOnce({
+        kind: 'available', formatVersion: 3, generation,
+        byteLength: 128, sha256: 'a'.repeat(64),
+      });
+      f.artifacts.verifyReadable.mockRejectedValueOnce(
+        new Error('provider internal object key exports/secret-user/stale.json'),
+      );
+      const raw = Object.assign(new EventEmitter(), {
+        destroyed: false, writableFinished: false,
+      });
+      const reply = {
+        raw,
+        header: jest.fn<unknown, [name: string, value: string | number]>()
+          .mockReturnThis(),
+        send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
+      };
+      const caught = await f.controller.download(
+        f.request, exportId, reply as never,
+      ).catch((error: unknown) => error);
+      expect(caught).toBeInstanceOf(ServiceUnavailableException);
+      const message = JSON.stringify((caught as ServiceUnavailableException).getResponse());
+      expect(message).toContain('ACCOUNT_EXPORT_STORAGE_UNAVAILABLE');
+      expect(message).not.toContain('secret-user');
+      expect(reply.header).not.toHaveBeenCalled();
+      expect(reply.send).not.toHaveBeenCalled();
+      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+      expect(raw.listenerCount('close')).toBe(0);
+      expect(raw.listenerCount('finish')).toBe(0);
+    },
+  );
+
+  it('B91 aborts a disconnected client during S3 preflight without starting download', async () => {
+    const f = fixture();
+    f.exports.download.mockResolvedValueOnce({
+      kind: 'available', formatVersion: 1,
+      generation: '123e4567-e89b-42d3-a456-426614174001',
+      byteLength: 1, sha256: digest('x'),
+    });
+    let observedSignal: AbortSignal | undefined;
+    f.artifacts.verifyReadable.mockImplementationOnce(
+      (_jobId, _generation, _expected, signal) => {
+        observedSignal = signal;
+        return new Promise<void>((resolve) => {
+          signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      },
+    );
+    const raw = Object.assign(new EventEmitter(), {
+      destroyed: false, writableFinished: false,
+    });
+    const reply = {
+      raw,
+      header: jest.fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
+    };
+    const running = f.controller.download(f.request, exportId, reply as never);
+    await Promise.resolve();
+    await Promise.resolve();
+    // The preflight receives the connection abort, without HTTP headers.
+    raw.emit('close');
+    await expect(running).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(observedSignal?.aborted).toBe(true);
+    expect(reply.send).not.toHaveBeenCalled();
+    expect(reply.header).not.toHaveBeenCalled();
   });
 
   it('streams an owner-authorized artifact with private no-store headers', async () => {

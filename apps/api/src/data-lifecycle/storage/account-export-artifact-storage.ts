@@ -22,6 +22,16 @@ export interface AccountExportArtifactStorage {
     generation: string,
     signal?: AbortSignal,
   ): AsyncIterable<Uint8Array>;
+  /**
+   * B91 preflight: fully verify the current stored generation before the
+   * HTTP response starts. The response still rechecks during streaming.
+   */
+  verifyReadable(
+    jobId: string,
+    generation: string,
+    expected: { byteLength: number; sha256: string },
+    signal?: AbortSignal,
+  ): Promise<void>;
   deleteArtifact(jobId: string, generation: string): Promise<void>;
 }
 
@@ -108,6 +118,20 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
     return signal
       ? this.storage.readObjectChunks(key, undefined, signal)
       : this.storage.readObjectChunks(key);
+  }
+
+  verifyReadable(
+    jobId: string,
+    generation: string,
+    expected: { byteLength: number; sha256: string },
+    signal?: AbortSignal,
+  ): Promise<void> {
+    // Reuse the exact bounded streaming verifier from B90, even when the
+    // provider returns a successful HTTP status with bad/short bytes.
+    return verifyAccountExportStoredBytes(
+      this.readObjectChunks(jobId, generation, signal),
+      expected,
+    );
   }
 
   deleteArtifact(jobId: string, generation: string): Promise<void> {
