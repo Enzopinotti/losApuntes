@@ -1947,6 +1947,71 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
   }, 30_000);
 
+  it('B85 protects an unexpired private artifact from a clock-ahead worker', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 10 * 60_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      completedAt: new Date(now.getTime() - 60_000),
+      artifactGeneration: generation, artifactExpiresAt: expiresAt,
+      artifactSectionCount: 30, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const workerAhead = new Date(expiresAt.getTime() + 60_000);
+    // The legacy client-only filter considered this already expired.
+    expect(expiresAt.getTime()).toBeLessThan(workerAhead.getTime());
+    await expect(store.findExpiredArtifacts({
+      now: workerAhead, limit: 100,
+    })).resolves.toEqual([]);
+    await expect(store.retireExpiredArtifact({
+      id, generation, expiresAt, now: workerAhead,
+    })).resolves.toBe(false);
+    const durable = await exportJobs.findOne({ id }).lean().exec();
+    expect(durable?.state).toBe('completed');
+    expect(durable?.artifactGeneration).toBe(generation);
+    expect(durable?.artifactExpiresAt).toEqual(expiresAt);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+  }, 30_000);
+
+  it('B85 due private artifact remains safely retireable with queued generation', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() - 10 * 60_000);
+    await exportJobs.create({
+      id, userId, state: 'completed', active: false, formatVersion: 3,
+      attempts: 1, nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      completedAt: new Date(now.getTime() - 86_400_000),
+      artifactGeneration: generation, artifactExpiresAt: expiresAt,
+      artifactSectionCount: 32, artifactRecordCount: 0,
+      artifactByteLength: 128, artifactSha256: 'a'.repeat(64),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const candidates = await store.findExpiredArtifacts({ now, limit: 100 });
+    expect(candidates).toEqual(expect.arrayContaining([{ id, generation, expiresAt }]));
+    await expect(store.retireExpiredArtifact({
+      id, generation, expiresAt, now,
+    })).resolves.toBe(true);
+    expect((await store.findOwned(id, userId))?.artifactGeneration).toBeNull();
+    const task = await orphanJobs.findOne({ jobId: id, generation }).lean().exec();
+    expect(task).toMatchObject({
+      ownerUserId: userId, state: 'pending', generation,
+      claimId: null,
+    });
+    // S3 deletion is NOT attempted here. It remains owner/lease-fenced in
+    // the separate recovery worker after a real server-authorized claim.
+  }, 30_000);
+
   it('B72 refuses a stale expiry CAS after a concurrent retention extension', async () => {
     await orphanJobs.deleteMany({});
     const userId = await owner();

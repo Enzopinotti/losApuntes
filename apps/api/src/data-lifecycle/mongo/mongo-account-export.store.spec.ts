@@ -2,6 +2,7 @@ import { ACCOUNT_EXPORT_FORMAT_VERSION } from '../domain/account-export.types';
 import { accountExportJobClaimDueOnMongoServer } from '../domain/account-export-mongo-claim-clock';
 import { AccountExportJobSchema } from './account-export.mongo-schema';
 import { MongoAccountExportStore } from './mongo-account-export.store';
+import { accountExportArtifactExpiredOnMongoServer } from '../domain/account-export-mongo-artifact-expiry';
 
 const now = new Date('2026-10-04T23:55:00.000Z');
 
@@ -913,6 +914,7 @@ describe('MongoAccountExportStore', () => {
       state: 'completed',
       artifactGeneration: { $type: 'string' },
       artifactExpiresAt: { $lte: now },
+      ...accountExportArtifactExpiredOnMongoServer(),
     });
     expect(f.expiredQuery.sort).toHaveBeenCalledWith({
       artifactExpiresAt: 1,
@@ -945,6 +947,7 @@ describe('MongoAccountExportStore', () => {
       state: 'completed',
       artifactGeneration: 'generation-1',
       artifactExpiresAt: { $eq: expiresAt, $lte: now },
+      ...accountExportArtifactExpiredOnMongoServer(),
     }, {
       $set: { artifactGeneration: null },
     }, { session: f.session, new: false });
@@ -961,6 +964,43 @@ describe('MongoAccountExportStore', () => {
       leaseExpiresAt: null,
     } }, { upsert: true, session: f.session });
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('B85 selection still asks the primary whether an expiry is actually due', async () => {
+    const f = fixture();
+    const aheadOfPrimary = new Date(now.getTime() + 7 * 24 * 60 * 60_000);
+    f.expiredQuery.exec.mockResolvedValueOnce([]);
+    await expect(f.store.findExpiredArtifacts({
+      now: aheadOfPrimary, limit: 100,
+    })).resolves.toEqual([]);
+    expect(f.jobs.find).toHaveBeenCalledWith({
+      state: 'completed',
+      artifactGeneration: { $type: 'string' },
+      artifactExpiresAt: { $lte: aheadOfPrimary },
+      ...accountExportArtifactExpiredOnMongoServer(),
+    });
+  });
+
+  it('B85 a skewed worker cannot retire an artifact without primary expiry CAS', async () => {
+    const f = fixture();
+    f.jobs.findOneAndUpdate.mockReset().mockReturnValue(query(null));
+    const actualExpiry = new Date(now.getTime() + 60_000);
+    const aheadOfPrimary = new Date(actualExpiry.getTime() + 60_000);
+    await expect(f.store.retireExpiredArtifact({
+      id: 'export-1',
+      generation: 'generation-1',
+      expiresAt: actualExpiry, now: aheadOfPrimary,
+    })).resolves.toBe(false);
+    expect(f.jobs.findOneAndUpdate).toHaveBeenCalledWith({
+      id: 'export-1',
+      state: 'completed',
+      artifactGeneration: 'generation-1',
+      artifactExpiresAt: { $eq: actualExpiry, $lte: aheadOfPrimary },
+      ...accountExportArtifactExpiredOnMongoServer(),
+    }, { $set: { artifactGeneration: null } }, {
+      session: f.session, new: false,
+    });
+    expect(f.orphanCleanup.updateOne).not.toHaveBeenCalled();
   });
 
   it('B72 does not enqueue if the expiry or generation CAS misses', async () => {

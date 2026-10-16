@@ -668,3 +668,29 @@ Jest de ambos stores y suite aislada Mongo replica-set opt-in.
 Las pruebas Node interpretan predicados locales, **no sustituyen
 la aceptación real de Mongo/S3**. Release #353 sigue HOLD,
 `STUDY_PROGRESS_ENABLED=false`, sin waiver de auditorías #133/#141.
+
+## B85 — No retirar exportaciones privadas antes de su vencimiento real
+
+Los siete días de retención no pueden darse por cumplidos solo porque
+`now` del worker esté adelantado. Desde B85, la búsqueda de candidatos
+y el `findOneAndUpdate` que desvincula una generación exigen un BSON
+Date `artifactExpiresAt <= $$NOW` evaluado por el primario MongoDB.
+El cliente puede acotar la consulta, pero **no otorgar permiso** para
+retirar un archivo ni crear una intención de S3 DELETE.
+
+El retiro y el alta de la intención de limpieza continúan en la misma
+transacción B72. Un CAS que falla deja `artifactGeneration` referenciado
+y no inserta una tarea S3. Si el vencimiento es real, se registra
+exactamente la generación y el borrado queda bajo autoridad de la cola
+B78–B84, nunca inline.
+
+Ante incidentes de borrado prematuro, comparar la fecha durable del
+artifact, el reloj del primario, NTP y la cola de compensación. No
+sustituir `$$NOW` por un timestamp del worker ni modificar a mano el
+horizonte de verificación. Regresiones:
+`node --experimental-strip-types --test scripts/test-account-export-b85-artifact-expiry.test.mjs`;
+`node scripts/test-account-export-b85-expiry-guard.mjs`;
+Jest y Mongo replica-set opt-in siguen obligatorios antes del release.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`, validaciones de S3,
+backup, IAM, retención y auditorías #133/#141 pendientes.
