@@ -33,7 +33,7 @@ check('retry CAS must succeed before any cleanup of an ambiguous pre-completion 
   assert.match(tail, /return 'stale'/u);
 });
 check('every winning retry CAS removes the claim scoped attempt even if assembly never returned', () => {
-  assert.match(claim, /await this.deleteOrEnqueueProvenOrphan\(job, claimId\);\s*return terminal \? 'failed' : 'retryScheduled';/u);
+  assert.match(claim, /await this.deleteOrEnqueueProvenOrphan\(job, claimId, result\);\s*return terminal \? 'failed' : 'retryScheduled';/u);
   assert.doesNotMatch(claim, /if \(uncertainCompletion\) \{\s*await this.deleteOrEnqueueProvenOrphan\(job, claimId\)/u);
 });
 check('lost lease before durable completion permits only attempt-scoped cleanup', () => {
