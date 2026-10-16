@@ -10,6 +10,7 @@ import {
   type AccountExportJobRecord,
 } from '../domain/account-export.types';
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../domain/account-export.types';
+import { planAccountExportClaimWriteAhead } from '../domain/account-export-claim-writeahead';
 import { AccountExportJob } from './account-export.mongo-schema';
 import { AccountExportOrphanCleanup } from './account-export-orphan-cleanup.schema';
 
@@ -106,12 +107,12 @@ export class MongoAccountExportStore implements AccountExportStore {
   async claimNext(
     input: Parameters<AccountExportStore['claimNext']>[0],
   ): ReturnType<AccountExportStore['claimNext']> {
-    // Reclaiming a timed-out worker overwrites the only durable reference
-    // to its attempt-scoped S3 generation. The takeover and enqueue of that
-    // previous generation MUST share a Mongo transaction, or a process
-    // crash between them can permanently lose the cleanup intent.
+    // B80 writes a recovery intent for EVERY new generation within the
+    // Mongo claim transaction, before the worker may write to S3.
+    // B74 also extends the previous generation's horizon on takeover.
+    // A queue failure rolls back claim ownership, not just cleanup.
     if (!this.orphanCleanup) {
-      throw new Error('Account export takeover cleanup queue is not registered');
+      throw new Error('Account export claim recovery queue is not registered');
     }
     const session = await this.connection.startSession();
     let claimed: AccountExportJobRecord | null = null;
@@ -210,6 +211,24 @@ export class MongoAccountExportStore implements AccountExportStore {
             { session },
           ).exec();
         }
+        // B80: even a first pending claim gets an attempt-scoped cleanup
+        // intent BEFORE the S3 writer can be created. Crash or a later Mongo
+        // outage cannot erase this durable recovery record. Keep a bounded
+        // settlement delay and post-delete verification horizon.
+        const writeAhead = planAccountExportClaimWriteAhead({
+          jobId: previous.id,
+          ownerUserId: previous.userId,
+          generation: input.claimId,
+          now: input.now,
+          leaseExpiresAt: input.leaseExpiresAt,
+          leaseDurationMs: ACCOUNT_EXPORT_LEASE_DURATION_MS,
+        });
+        await this.orphanCleanup!.updateOne(
+          { jobId: previous.id, generation: input.claimId },
+          { $setOnInsert: writeAhead },
+          { upsert: true, session },
+        ).exec();
+
         // Use the original _id returned by the atomic takeover, not a
         // second unscoped claim search, to read only our new generation.
         claimed = await this.jobs
