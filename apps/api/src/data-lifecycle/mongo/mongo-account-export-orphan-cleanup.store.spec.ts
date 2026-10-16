@@ -15,7 +15,7 @@ function fixture() {
     }),
   };
   const remove = { exec: jest.fn().mockResolvedValue({ deletedCount: 1 }) };
-  const retry = { exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }) };
+  const retry = { exec: jest.fn().mockResolvedValue({ matchedCount: 1, modifiedCount: 1 }) };
   const model = {
     updateOne: jest.fn().mockReturnValueOnce(upsert).mockReturnValue(retry),
     findOneAndUpdate: jest.fn().mockReturnValue(claim),
@@ -31,7 +31,7 @@ describe('B67 durable account export orphan cleanup', () => {
   it('has an immutable unique job/generation key and due-queue index', () => {
     const indexes = AccountExportOrphanCleanupSchema.indexes();
     expect(indexes).toContainEqual([
-      { jobId: 1, generation: 1 }, { unique: true },
+      { jobId: 1, generation: 1 }, expect.objectContaining({ unique: true }),
     ]);
     expect(indexes.some(([keys]) => 'nextAttemptAt' in keys)).toBe(true);
   });
@@ -94,13 +94,64 @@ describe('B67 durable account export orphan cleanup', () => {
     expect(f.model.findOneAndUpdate).toHaveBeenCalledWith(
       { $or: [
         { state: 'pending', nextAttemptAt: { $lte: now } },
-        { state: 'processing', leaseExpiresAt: { $lte: now } },
+        { state: 'processing', leaseExpiresAt: { $lte: now },
+          nextAttemptAt: { $lte: now } },
       ] },
       { $set: {
         state: 'processing', claimId, leaseExpiresAt: until,
       }, $inc: { attempts: 1 } },
       { new: true, sort: { nextAttemptAt: 1, createdAt: 1, jobId: 1 } },
     );
+  });
+
+  it('B77 rejects a reclaimed processing task until both lease and settle dates are due', async () => {
+    const f = fixture();
+    const until = new Date(now.getTime() + 120_000);
+    await f.store.claimNext({ now, claimId, leaseExpiresAt: until });
+    expect(f.model.findOneAndUpdate).toHaveBeenCalledWith({
+      $or: [
+        { state: 'pending', nextAttemptAt: { $lte: now } },
+        {
+          state: 'processing',
+          leaseExpiresAt: { $lte: now },
+          nextAttemptAt: { $lte: now },
+        },
+      ],
+    }, expect.any(Object), expect.any(Object));
+  });
+
+  it('B77 lease renewal requires the claimant’s exact verification horizon', async () => {
+    const f = fixture();
+    const until = new Date(now.getTime() + 60 * 60_000);
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
+    await f.store.renewLease({
+      jobId, generation, claimId, now,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+      verificationUntil: until,
+    });
+    expect(f.model.updateOne).toHaveBeenLastCalledWith({
+      jobId, generation, state: 'processing', claimId,
+      leaseExpiresAt: { $gt: now }, verificationUntil: until,
+    }, { $max: { leaseExpiresAt: new Date(now.getTime() + 120_000) } });
+  });
+
+  it('B77 fails a stale deadline on retry rather than shortening a takeover delay', async () => {
+    const f = fixture();
+    const until = new Date(now.getTime() + 60 * 60_000);
+    const due = new Date(now.getTime() + 10 * 60_000);
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
+    f.retry.exec.mockResolvedValueOnce({ matchedCount: 0, modifiedCount: 0 });
+    await expect(f.store.retry({
+      jobId, generation, claimId, now,
+      nextAttemptAt: due, verificationUntil: until,
+    })).resolves.toBe(false);
+    expect(f.model.updateOne).toHaveBeenLastCalledWith({
+      jobId, generation, state: 'processing', claimId,
+      leaseExpiresAt: { $gt: now }, verificationUntil: until,
+    }, {
+      $set: { state: 'pending', claimId: null, leaseExpiresAt: null },
+      $max: { nextAttemptAt: due },
+    });
   });
 
   it('B68 renews only its own active claim using a monotonic max lease', async () => {
@@ -113,6 +164,7 @@ describe('B67 durable account export orphan cleanup', () => {
     expect(f.model.updateOne).toHaveBeenLastCalledWith({
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
+      verificationUntil: null,
     }, { $max: { leaseExpiresAt: expires } });
   });
 
@@ -162,11 +214,12 @@ describe('B67 durable account export orphan cleanup', () => {
     expect(f.model.updateOne).toHaveBeenLastCalledWith({
       jobId, generation, state: 'processing', claimId,
       leaseExpiresAt: { $gt: now },
+      verificationUntil: null,
     }, {
       $set: {
         state: 'pending', claimId: null, leaseExpiresAt: null,
-        nextAttemptAt: later,
       },
+      $max: { nextAttemptAt: later },
     });
   });
 });
