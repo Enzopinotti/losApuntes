@@ -721,3 +721,27 @@ Para release siguen faltando replica-set y S3 proveedor reales,
 TypeScript/Jest/Prettier/lint exact-head, seguridad de IAM, readback,
 versionado, lifecycle, backups y aceptación HTTP/browser. Mantener
 `STUDY_PROGRESS_ENABLED=false`, issue #353 HOLD y auditorías #133/#141.
+
+## B87 — El simulador S3 exige firma criptográfica válida
+
+Antes de B87, el servidor de aceptación HTTP B86 aceptaba cualquier
+cabecera `Authorization` con prefijo `AWS4-HMAC-SHA256`, incluso si
+no coincidía con el cuerpo, la clave, la región o la consulta.
+
+Ahora cada solicitud al servidor **solo localhost** valida SigV4
+de forma independiente: hash real de bytes, headers y host firmados,
+query canónica, clave exacta, fecha, alcance de credencial y firma HMAC.
+Las peticiones falsas reciben `403 SignatureDoesNotMatch` **antes**
+de modificar el objeto simulado.
+
+Regresiones locales nuevas:
+`pnpm test:account-export-b87-sigv4` (9 vectores Node) y
+`pnpm test:account-export-b86-s3-loopback` (5 escenarios originales
+más 3 solicitudes falsificadas/manipuladas por HTTP real).
+
+**Alcance:** este verificador es exclusivamente de aceptación
+local; no es un endpoint público ni reemplaza el servicio S3 de
+producción. La validación contra Mongo local es opt-in por B86.
+No se ejecutaron en este entorno HTTP loopback completo, Mongo, Jest,
+TS o S3 de proveedor. Mantener `STUDY_PROGRESS_ENABLED=false`,
+issue #353 HOLD y auditorías #133/#141 pendientes.
