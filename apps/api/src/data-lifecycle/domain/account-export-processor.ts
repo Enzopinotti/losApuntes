@@ -220,25 +220,26 @@ export class AccountExportProcessor {
     } catch (error) {
       clearInterval(heartbeat);
       await Promise.resolve(heartbeatInFlight);
-      try {
-        if (!artifactCommitted) {
+      if (!artifactCommitted) {
+        try {
           await sink.abort();
-        } else if (!durableCompletionAttempted ||
-          error instanceof AccountExportEpochConflictError) {
-          // A known rejected epoch cannot have a durable completion. Delete
-          // only this attempt's generation; never delete a shared object.
+        } catch {
+          // Multipart completion might have succeeded before the S3 ACK was
+          // lost. Abort is best-effort and does NOT prove object absence.
+        }
+      }
+
+      if (leaseLost) {
+        if (!durableCompletionAttempted) {
+          // This worker never requested Mongo completion. Its unique S3
+          // generation cannot be a published artifact, even when multipart
+          // completion itself returned an ambiguous error.
           await this.deleteOrEnqueueProvenOrphan(job, claimId);
         }
-        // An error after attempting the Mongo completion is ambiguous:
-        // the transaction may have committed before the reply was lost.
-        // Do NOT delete its possibly referenced S3 object. The lease/CAS
-        // prevents false job completion; private bucket retention is the
-        // backstop for any unreferenced generation.
-      } catch {
-        // Orphan cleanup has a bucket-lifecycle backstop. Do not mask the
-        // original consistency/lease failure or manufacture a completed job.
+        // Once Mongo completion was attempted, preserve the S3 generation:
+        // a lost lease/response is not proof the transaction was rejected.
+        return 'stale';
       }
-      if (leaseLost) return 'stale';
 
       const uncertainCompletion =
         artifactCommitted && durableCompletionAttempted &&
@@ -280,12 +281,13 @@ export class AccountExportProcessor {
         return 'stale';
       }
 
-      if (uncertainCompletion) {
-        // A successful reschedule is durable proof that this claim did NOT
-        // complete. The generation is now safe to delete, and cannot be
-        // referenced by a later retry (every claim gets a fresh UUID).
-        await this.deleteOrEnqueueProvenOrphan(job, claimId);
-      }
+      // A successful reschedule CAS proves the old generation is no longer
+      // publishable, EVEN WHEN the assembler never returned a successful
+      // result. A lost acknowledgement from multipart complete may have
+      // left an S3 object despite artifactCommitted remaining false.
+      // Conversely, a lost/rejected Mongo CAS leaves S3 untouched because
+      // another worker or a completed job may own the generation.
+      await this.deleteOrEnqueueProvenOrphan(job, claimId);
       return terminal ? 'failed' : 'retryScheduled';
     } finally {
       clearInterval(heartbeat);
