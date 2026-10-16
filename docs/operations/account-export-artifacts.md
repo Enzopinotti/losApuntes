@@ -300,3 +300,36 @@ object versions, replicas, backups or archival copies; investigate
 bucket versioning and lifecycle policies separately.
 
 See `docs/engineering/account-export-orphan-concurrency-b68.md`.
+
+
+## B70 — Fail-closed cleanup authority and local acceptance
+
+An orphan queue record must **never** be treated as proof that the
+corresponding account-export job is absent. B70 forbids private S3 DELETE
+when the authoritative Mongo job lookup returns no row, or when its real
+job ID/owner disagrees with the queued entry. The task remains durable,
+retries through its existing lease/backoff, and contributes to
+`orphanAuthorityBlocked`. Investigate such repeated blocks as potential
+corruption, accidental job deletion, or a misplaced cleanup task; do not
+resolve them by blindly deleting S3 keys.
+
+Any job whose `artifactGeneration` still points at the candidate generation
+is protected, even if the job's state is not `completed`. This is a
+fail-closed response to inconsistent data, rather than evidence that a
+partially completed export may be downloaded. There is no new public API.
+
+For a clean local checkout at an exact merge SHA and an isolated,
+uncredentialed Mongo replica set, use the B70 acceptance runner:
+
+```bash
+export STUDY_PROGRESS_TEST_MONGO_URI='mongodb://127.0.0.1:27017/?replicaSet=rs0'
+pnpm accept:account-export:b70 --expected-sha <40-character-commit-SHA>
+```
+
+The runner refuses wrong Node/pnpm versions, a dirty or mismatched checkout
+and nonlocal MongoDB. It records a credential-free JSON summary in the
+system temporary directory. It does **not** execute actual S3-provider
+acceptance or HTTP/browser tests and cannot approve a production release.
+Keep release issue #353 open until all external acceptance and retention
+controls have been proven. See
+`docs/engineering/account-export-authority-b70.md`.

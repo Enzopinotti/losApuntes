@@ -99,7 +99,9 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
   } as unknown as jest.Mocked<AccountExportAssembler>;
   const store = {
     findOwned: jest.fn().mockResolvedValue(null),
-    findForOrphanCleanup: jest.fn().mockResolvedValue(null),
+    findForOrphanCleanup: jest.fn().mockResolvedValue(claim({
+      state: 'pending', active: true, claimId: null,
+    })),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     clearExpiredArtifact: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportStore>;
@@ -900,7 +902,7 @@ describe('AccountExportProcessor', () => {
       userId: 'another-owner', state: 'failed',
     }));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanRetries: 1, orphanDeleted: 0,
+      orphanRetries: 1, orphanDeleted: 0, orphanAuthorityBlocked: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.retry).toHaveBeenCalledTimes(1);
@@ -923,7 +925,9 @@ describe('AccountExportProcessor', () => {
   it('B67 retries deletion errors without losing durable cleanup claim', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'pending', active: true, claimId: null,
+    }));
     f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 offline'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanRetries: 1, orphanDeleted: 0,
@@ -945,7 +949,9 @@ describe('AccountExportProcessor', () => {
   it('B68 rechecks ownership after a slow authority lookup before touching S3', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'pending', active: true, claimId: null,
+    }));
     f.orphans.renewLease.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanDeleted: 0, orphanRetries: 1,
@@ -964,7 +970,9 @@ describe('AccountExportProcessor', () => {
   it('B68 renews the orphan claim BEFORE starting S3 and then acknowledges', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      state: 'pending', active: true, claimId: null,
+    }));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       orphanDeleted: 1, orphanRetries: 0,
     });
@@ -1021,6 +1029,77 @@ describe('AccountExportProcessor', () => {
     });
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
     expect(f.orphans.retry).not.toHaveBeenCalled();
+  });
+
+  it('B70 fails closed when the durable job is missing', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      claimed: 0, orphanDeleted: 0, orphanPreserved: 0,
+      orphanRetries: 1, orphanAuthorityBlocked: 1,
+    });
+    expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId);
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: orphan.jobId,
+      generation: orphan.generation,
+      claimId: orphan.claimId,
+      nextAttemptAt: expect.any(Date),
+    }));
+  });
+
+  it('B70 does not infer absence after an unavailable durable authority read', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockRejectedValueOnce(
+      new Error('Mongo primary temporarily unavailable'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanRetries: 1, orphanDeleted: 0,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
+    expect(f.orphans.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    'pending', 'failed', 'processing',
+  ] as const)(
+    'B70 preserves a generation referenced by an inconsistent %s job',
+    async (state) => {
+      const f = fixture({ job: null });
+      f.orphans.claimNext.mockResolvedValueOnce(orphan);
+      f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+        state, active: state !== 'failed',
+        claimId: null,
+        artifactGeneration: orphan.generation,
+      }));
+      await expect(f.processor.runIteration()).resolves.toMatchObject({
+        orphanDeleted: 0, orphanPreserved: 1, orphanRetries: 0,
+      });
+      expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+      expect(f.orphans.acknowledge).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobId: orphan.jobId, generation: orphan.generation,
+          claimId: orphan.claimId,
+        }),
+      );
+    },
+  );
+
+  it('B70 refuses a queue row pointing at a different durable job ID', async () => {
+    const f = fixture({ job: null });
+    f.orphans.claimNext.mockResolvedValueOnce(orphan);
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
+      id: 'different-job', state: 'failed',
+    }));
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 1, orphanAuthorityBlocked: 1,
+    });
+    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.acknowledge).not.toHaveBeenCalled();
   });
 
   it('B69 persists cleanup intent before a failed S3 delete', async () => {

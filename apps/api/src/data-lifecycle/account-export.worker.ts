@@ -44,7 +44,8 @@ async function bootstrap(): Promise<void> {
           iteration.expirationRetries > 0 ||
           iteration.orphanDeleted > 0 ||
           iteration.orphanPreserved > 0 ||
-          iteration.orphanRetries > 0
+          iteration.orphanRetries > 0 ||
+          iteration.orphanAuthorityBlocked > 0
         ) {
           console.log(
             JSON.stringify({

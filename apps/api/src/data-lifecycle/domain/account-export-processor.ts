@@ -43,6 +43,7 @@ export type AccountExportIteration = {
   orphanDeleted: number;
   orphanPreserved: number;
   orphanRetries: number;
+  orphanAuthorityBlocked: number;
 };
 
 function retryDelayMs(attempts: number): number {
@@ -100,6 +101,7 @@ export class AccountExportProcessor {
       orphanDeleted: 0,
       orphanPreserved: 0,
       orphanRetries: 0,
+      orphanAuthorityBlocked: 0,
     };
 
     await this.deleteExpiredArtifacts(result);
@@ -397,12 +399,22 @@ export class AccountExportProcessor {
         // An owner-scoped miss could mistake a corrupt/misbound task for
         // an absent job and delete somebody else's completed S3 artifact.
         const job = await this.store.findForOrphanCleanup(candidate.jobId);
-        if (job && (job.id !== candidate.jobId ||
-          job.userId !== candidate.ownerUserId)) {
+        if (!job) {
+          result.orphanAuthorityBlocked += 1;
+          // The queue is an intention, not an authority record. Missing
+          // Mongo owner/job data is NOT evidence that an object is orphaned.
+          // Retain the task and fail closed until the durable job is known.
+          throw new Error('Export orphan cleanup authority is missing');
+        }
+        if (job.id !== candidate.jobId ||
+          job.userId !== candidate.ownerUserId) {
+          result.orphanAuthorityBlocked += 1;
           throw new Error('Export orphan cleanup authority mismatch');
         }
-        if (job && job.artifactGeneration === candidate.generation &&
-          job.state === 'completed') {
+        if (job.artifactGeneration === candidate.generation) {
+          // Preserve any generation the durable row still references.
+          // This includes an inconsistent/nonterminal record: deleting
+          // based on state alone could destroy recoverable private data.
           const acknowledged = await this.orphans.acknowledge({
             ...ref, now: new Date(),
           });
@@ -410,7 +422,7 @@ export class AccountExportProcessor {
           else result.orphanRetries += 1;
           continue;
         }
-        if (job && job.state === 'processing' &&
+        if (job.state === 'processing' &&
           job.claimId === candidate.generation &&
           job.leaseExpiresAt instanceof Date &&
           job.leaseExpiresAt.getTime() > Date.now()) {

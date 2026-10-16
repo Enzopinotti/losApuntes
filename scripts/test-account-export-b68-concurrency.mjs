@@ -32,7 +32,7 @@ verify('orphan validation resolves original owner before deciding to delete', ()
   const drain = processor.slice(processor.indexOf('  private async drainOrphanCleanup('));
   const find = drain.indexOf('this.store.findForOrphanCleanup(candidate.jobId)');
   const owner = drain.indexOf('job.userId !== candidate.ownerUserId');
-  const preserve = drain.indexOf("job.state === 'completed'");
+  const preserve = drain.indexOf('job.artifactGeneration === candidate.generation');
   const deleteObject = drain.indexOf('this.artifacts.deleteArtifact(');
   assert.ok(find >= 0 && owner > find && preserve > owner && deleteObject > preserve);
 });

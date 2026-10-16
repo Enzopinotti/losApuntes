@@ -879,6 +879,72 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     })).resolves.toBe(true);
   }, 30_000);
 
+  it('B70 keeps an orphan task but never touches S3 when the durable job is missing', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const jobId = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await queue.enqueue({ jobId, ownerUserId: userId, generation, now });
+
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const artifacts = { deleteArtifact } as unknown as AccountExportArtifactStorage;
+    const processor = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      new MongoAccountExportStore(exportJobs, users, connection),
+      artifacts,
+      queue,
+    );
+
+    await expect(processor.runIteration()).resolves.toMatchObject({
+      claimed: 0,
+      orphanDeleted: 0,
+      orphanAuthorityBlocked: 1,
+      orphanRetries: 1,
+    });
+    expect(deleteArtifact).not.toHaveBeenCalled();
+    const persisted = await orphanJobs.findOne({ jobId, generation }).lean().exec();
+    expect(persisted).toMatchObject({
+      state: 'pending',
+      ownerUserId: userId,
+      attempts: 1,
+    });
+    expect(persisted?.nextAttemptAt.getTime()).toBeGreaterThan(now.getTime());
+  }, 30_000);
+
+  it('B70 preserves a referenced generation even if durable job state is nonterminal', async () => {
+    await orphanJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const generation = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true,
+      formatVersion: 3, attempts: 1,
+      nextAttemptAt: now, claimId: null, leaseExpiresAt: null,
+      artifactGeneration: generation,
+    });
+    const queue = new MongoAccountExportOrphanCleanupStore(orphanJobs);
+    await queue.enqueue({ jobId: id, ownerUserId: userId, generation, now });
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const processor = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      new MongoAccountExportStore(exportJobs, users, connection),
+      { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      queue,
+    );
+    await expect(processor.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanPreserved: 1, orphanRetries: 0,
+    });
+    expect(deleteArtifact).not.toHaveBeenCalled();
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(0);
+    const durable = await exportJobs.findOne({ id }).lean().exec();
+    expect(durable?.artifactGeneration).toBe(generation);
+  }, 30_000);
+
   it('purges progress in account closure transaction and blocks later mutations', async () => {
     const userId = await owner();
     const subjectId = randomUUID();
