@@ -1,5 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { createConnection, type Connection, type Model } from 'mongoose';
+import {
+  ConnectionStates,
+  createConnection,
+  type Connection,
+  type Model,
+} from 'mongoose';
 
 import { MongoAccountLifecycleStore } from '../../data-lifecycle/mongo/mongo-account-lifecycle.store';
 import { MongoAccountExportStore } from '../../data-lifecycle/mongo/mongo-account-export.store';
@@ -21,7 +26,6 @@ import { AccountExportProcessor } from '../../data-lifecycle/domain/account-expo
 import { S3AccountExportArtifactStorage } from '../../data-lifecycle/storage/account-export-artifact-storage';
 import { createS3ObjectStorage } from '../../files/storage/s3-object-storage';
 import type { AccountExportArtifactStorage } from '../../data-lifecycle/storage/account-export-artifact-storage';
-import type { AccountExportOrphanCleanupStore } from '../../data-lifecycle/domain/account-export-orphan-cleanup.store';
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../../data-lifecycle/domain/account-export.types';
 import type { AccountExportJobRecord } from '../../data-lifecycle/domain/account-export.types';
 import {
@@ -57,6 +61,8 @@ import { StudyProgressExportReader } from './study-progress-export.reader';
 const uri = process.env.STUDY_PROGRESS_TEST_MONGO_URI;
 const runMongo = uri ? describe : describe.skip;
 const safeHosts = new Set(['127.0.0.1', 'localhost', 'mongo']);
+// Jest's asymmetric matcher is typed as any; retain it as opaque test data.
+const dateMatcher: unknown = expect.any(Date);
 const database = 'losapuntes_b61_' + randomUUID().replace(/-/gu, '');
 const planFor = (subjectId: string) => ({
   format: 'losapuntes.study-session',
@@ -99,11 +105,21 @@ runMongo(
         dbName: database,
         serverSelectionTimeoutMS: 8_000,
       }).asPromise();
-      const hello = await connection.db!.admin().command({ hello: 1 });
+      // Mongo admin().command returns a loosely typed document. Validate the
+      // topology as untrusted data before trusting any connection or cleanup.
+      const response: unknown = await connection
+        .db!.admin()
+        .command({ hello: 1 });
+      if (!response || typeof response !== 'object') {
+        throw new Error('B61 refuses an invalid Mongo hello response');
+      }
+      const hello = response as Record<string, unknown>;
+      const membersOf = (value: unknown): unknown[] =>
+        Array.isArray(value) ? (value as unknown[]) : [];
       const members: unknown[] = [
-        ...(Array.isArray(hello.hosts) ? hello.hosts : []),
-        ...(Array.isArray(hello.passives) ? hello.passives : []),
-        ...(Array.isArray(hello.arbiters) ? hello.arbiters : []),
+        ...membersOf(hello.hosts),
+        ...membersOf(hello.passives),
+        ...membersOf(hello.arbiters),
         hello.me,
       ].filter((item) => item !== undefined);
       if (
@@ -176,7 +192,10 @@ runMongo(
     }, 30_000);
 
     afterAll(async () => {
-      if (verifiedReplica && connection?.readyState === 1) {
+      if (
+        verifiedReplica &&
+        connection?.readyState === ConnectionStates.connected
+      ) {
         await connection.dropDatabase();
       }
       await connection?.close();
@@ -189,7 +208,11 @@ runMongo(
         account_status: 'active',
         credential_version: 1,
       });
-      return row.id;
+      const id: unknown = row.id;
+      if (typeof id !== 'string' || id.length === 0) {
+        throw new Error('Mongo user did not provide a valid owner ID');
+      }
+      return id;
     }
 
     it('isolates owners and requires explicit revision to overwrite', async () => {
@@ -321,17 +344,19 @@ runMongo(
             ? live
             : {
                 sectionId,
-                readPage: async () => ({
-                  records: [],
-                  nextCursor: null,
-                }),
+                readPage: () =>
+                  Promise.resolve({
+                    records: [],
+                    nextCursor: null,
+                  }),
               },
         );
       const chunks: string[] = [];
       const commit = jest.fn().mockResolvedValue(undefined);
       const sink: AccountExportArtifactSink = {
-        write: async (chunk) => {
+        write: (chunk) => {
           chunks.push(chunk);
+          return Promise.resolve();
         },
         commit,
         abort: jest.fn().mockResolvedValue(undefined),
@@ -343,11 +368,10 @@ runMongo(
           ownerUserId: string,
           cursor: string | null,
         ) => contributor.readPage({ userId: ownerUserId, cursor, limit: 100 }),
-        assertActiveAccount: async (ownerUserId: string) => {
-          if (ownerUserId !== userId) {
-            throw new Error('Unexpected account authority');
-          }
-        },
+        assertActiveAccount: (ownerUserId: string) =>
+          ownerUserId === userId
+            ? Promise.resolve()
+            : Promise.reject(new Error('Unexpected account authority')),
         captureStudyProgressExportEpoch: (ownerUserId: string) =>
           userReader.getStudyProgressExportEpoch(ownerUserId),
         assertStudyProgressExportEpoch: async (
@@ -403,7 +427,8 @@ runMongo(
             ? source
             : {
                 sectionId,
-                readPage: async () => ({ records: [], nextCursor: null }),
+                readPage: () =>
+                  Promise.resolve({ records: [], nextCursor: null }),
               },
         );
       let mutated = false;
@@ -436,9 +461,10 @@ runMongo(
             throw new Error('Study progress changed during account export');
           }
         },
-        assertActiveAccount: async (ownerUserId: string) => {
-          if (ownerUserId !== userId) throw new Error('Wrong owner');
-        },
+        assertActiveAccount: (ownerUserId: string) =>
+          ownerUserId === userId
+            ? Promise.resolve()
+            : Promise.reject(new Error('Wrong owner')),
         readContributorPage: (
           contributor: AccountExportContributor,
           ownerUserId: string,
@@ -685,8 +711,9 @@ runMongo(
       const artifacts = {
         createSink: jest.fn().mockReturnValue({
           write: jest.fn().mockResolvedValue(undefined),
-          commit: jest.fn().mockImplementation(async () => {
+          commit: jest.fn().mockImplementation(() => {
             s3Committed = true;
+            return Promise.resolve();
           }),
           abort: jest.fn().mockResolvedValue(undefined),
         }),
@@ -751,7 +778,7 @@ runMongo(
           renewLease: jest.fn().mockResolvedValue(true),
           acknowledge: jest.fn(),
           retry: jest.fn(),
-        } as unknown as AccountExportOrphanCleanupStore,
+        },
       );
       await expect(processor.runIteration()).resolves.toMatchObject({
         claimed: 1,
@@ -815,7 +842,7 @@ runMongo(
         renewLease: jest.fn().mockResolvedValue(true),
         captureStudyProgressExportEpoch: (ownerId: string) =>
           reader.getStudyProgressExportEpoch(ownerId),
-        assertStudyProgressExportEpoch: async () => undefined,
+        assertStudyProgressExportEpoch: () => Promise.resolve(undefined),
         complete: jest.fn().mockRejectedValue(new Error('Mongo reply unknown')),
         reschedule: async (input: {
           id: string;
@@ -851,7 +878,7 @@ runMongo(
           renewLease: jest.fn().mockResolvedValue(true),
           acknowledge: jest.fn(),
           retry: jest.fn(),
-        } as unknown as AccountExportOrphanCleanupStore,
+        },
       );
       await expect(processor.runIteration()).resolves.toMatchObject({
         claimed: 1,
@@ -1015,7 +1042,7 @@ runMongo(
       ]);
       const winners = [first, second].filter((candidate) => candidate !== null);
       expect(winners).toHaveLength(1);
-      const winner = winners[0]!;
+      const winner = winners[0];
       const loserClaim = winner.claimId === firstId ? secondId : firstId;
 
       const extended = new Date(now.getTime() + 180_000);
@@ -1362,7 +1389,7 @@ runMongo(
         ownerUserId: userId,
         state: 'pending',
         claimId: null,
-        verificationUntil: expect.any(Date),
+        verificationUntil: dateMatcher,
       });
       expect(fresh!.nextAttemptAt.getTime()).toBe(
         now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
@@ -1843,9 +1870,8 @@ runMongo(
       });
       const blockedQueue = {
         updateOne: () => ({
-          exec: async () => {
-            throw new Error('B74 injected takeover queue failure');
-          },
+          exec: () =>
+            Promise.reject(new Error('B74 injected takeover queue failure')),
         }),
       };
       const broken = new MongoAccountExportStore(
@@ -1939,7 +1965,7 @@ runMongo(
         ownerUserId: userId,
         state: 'pending',
         claimId: null,
-        verificationUntil: expect.any(Date),
+        verificationUntil: dateMatcher,
       });
       expect(intent!.nextAttemptAt.getTime()).toBe(
         now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
@@ -2571,7 +2597,7 @@ runMongo(
         state: 'pending',
         attempts: 0,
         claimId: null,
-        verificationUntil: expect.any(Date),
+        verificationUntil: dateMatcher,
       });
       expect(durable!.nextAttemptAt.getTime()).toBe(
         now.getTime() + 4 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
@@ -2674,9 +2700,8 @@ runMongo(
       });
       const failing = {
         updateOne: () => ({
-          exec: async () => {
-            throw new Error('B80 injected new claim ledger failure');
-          },
+          exec: () =>
+            Promise.reject(new Error('B80 injected new claim ledger failure')),
         }),
       };
       const broken = new MongoAccountExportStore(
@@ -2979,9 +3004,7 @@ runMongo(
       });
       const unavailableQueue = {
         updateOne: () => ({
-          exec: async () => {
-            throw new Error('B72 injected queue failure');
-          },
+          exec: () => Promise.reject(new Error('B72 injected queue failure')),
         }),
       };
       const store = new MongoAccountExportStore(
@@ -3059,8 +3082,14 @@ runMongo(
       // transport. It never contacts a remote object-storage provider.
       const fetchSpy = jest
         .spyOn(globalThis, 'fetch')
-        .mockImplementation(async (url, init) => {
-          const request = new URL(String(url));
+        .mockImplementation((url, init) => {
+          const address =
+            typeof url === 'string'
+              ? url
+              : url instanceof URL
+                ? url.href
+                : url.url;
+          const request = new URL(address);
           expect(request.origin).toBe('http://127.0.0.1:19086');
           expect(request.pathname).toBe(key);
           expect(request.searchParams.has('uploadId')).toBe(false);
@@ -3068,15 +3097,17 @@ runMongo(
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            throw new Error('B86 S3 PUT ACK lost after object commit');
+            return Promise.reject(
+              new Error('B86 S3 PUT ACK lost after object commit'),
+            );
           }
           if (method === 'DELETE') {
             if (deleteFailures-- > 0)
-              return new Response(null, { status: 503 });
+              return Promise.resolve(new Response(null, { status: 503 }));
             objects.delete(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           }
-          throw new Error('Unexpected B86 S3 method');
+          return Promise.reject(new Error('Unexpected B86 S3 method'));
         });
       try {
         const s3 = createS3ObjectStorage({
@@ -3206,20 +3237,26 @@ runMongo(
       const httpMethods: string[] = [];
       const fetchSpy = jest
         .spyOn(globalThis, 'fetch')
-        .mockImplementation(async (url, init) => {
-          const request = new URL(String(url));
+        .mockImplementation((url, init) => {
+          const address =
+            typeof url === 'string'
+              ? url
+              : url instanceof URL
+                ? url.href
+                : url.url;
+          const request = new URL(address);
           expect(request.pathname).toBe(key);
           const method = init?.method ?? 'GET';
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            return new Response(null, { status: 200 });
+            return Promise.resolve(new Response(null, { status: 200 }));
           }
           if (method === 'DELETE') {
             objects.delete(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           }
-          throw new Error('Unexpected method');
+          return Promise.reject(new Error('Unexpected method'));
         });
       try {
         const s3 = createS3ObjectStorage({
