@@ -168,13 +168,13 @@ describe('S3AccountExportArtifactStorage', () => {
     const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
       readObjectChunks: jest.fn().mockImplementation(() =>
-        (async function* () { yield Buffer.from('{"valid":false}'); })()),
+        (async function* () { yield Buffer.from('{"valid":null}'); })()),
       deleteObject: jest.fn().mockResolvedValue(undefined),
     };
-    const body = '{"valid":true!}';
+    const body = '{"valid":true}';
     const sink = new S3AccountExportArtifactStorage(storage).createSink(jobId, generation);
     await sink.write(body);
-    const corrupted = '{"valid":falsE}';
+    const corrupted = '{"valid":null}';
     storage.readObjectChunks.mockImplementationOnce(() =>
       (async function* () { yield Buffer.from(corrupted); })());
     await expect(sink.commit({
