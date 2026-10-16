@@ -11,6 +11,7 @@ import { AccountExportService } from '../../data-lifecycle/domain/account-export
 import { AccountExportProcessor } from '../../data-lifecycle/domain/account-export-processor';
 import type { AccountExportArtifactStorage } from '../../data-lifecycle/storage/account-export-artifact-storage';
 import type { AccountExportOrphanCleanupStore } from '../../data-lifecycle/domain/account-export-orphan-cleanup.store';
+import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../../data-lifecycle/domain/account-export.types';
 import type { AccountExportJobRecord } from '../../data-lifecycle/domain/account-export.types';
 import {
   AccountExportContributorRegistry,
@@ -877,6 +878,124 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     await expect(storeA.acknowledge({
       jobId: id, generation, claimId: winnerClaim, now,
     })).resolves.toBe(true);
+  }, 30_000);
+
+  it('B74 atomically records an expired claim generation for delayed S3 cleanup', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const oldGeneration = randomUUID();
+    const newGeneration = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now,
+      claimId: oldGeneration,
+      leaseExpiresAt: new Date(now.getTime() - 1),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const claimed = await store.claimNext({
+      now, claimId: newGeneration,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    expect(claimed).toMatchObject({
+      id, userId, state: 'processing', claimId: newGeneration, attempts: 2,
+    });
+    const row = await orphanJobs.findOne({ jobId: id, generation: oldGeneration })
+      .lean().exec();
+    expect(row).toMatchObject({
+      ownerUserId: userId, generation: oldGeneration,
+      state: 'pending', claimId: null, attempts: 0,
+    });
+    expect(row!.nextAttemptAt.getTime()).toBe(
+      now.getTime() + 3 * ACCOUNT_EXPORT_LEASE_DURATION_MS,
+    );
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const worker = new AccountExportProcessor(
+      { claimNext: jest.fn().mockResolvedValue(null) } as unknown as AccountExportService,
+      {} as AccountExportAssembler,
+      store, { deleteArtifact } as unknown as AccountExportArtifactStorage,
+      new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    // Do not delete while the old multipart writer may still be settling.
+    await expect(worker.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 0, orphanRetries: 0,
+    });
+    expect(deleteArtifact).not.toHaveBeenCalled();
+    await orphanJobs.updateOne({ jobId: id, generation: oldGeneration }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
+    await expect(worker.runIteration()).resolves.toMatchObject({
+      orphanDeleted: 1, orphanRetries: 0,
+    });
+    expect(deleteArtifact).toHaveBeenCalledWith(id, oldGeneration);
+    expect(deleteArtifact).not.toHaveBeenCalledWith(id, newGeneration);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
+      .toBe(0);
+  }, 30_000);
+
+  it('B74 preserves an expired claim if its takeover cleanup queue cannot be written', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const oldGeneration = randomUUID();
+    const newGeneration = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true, formatVersion: 1,
+      attempts: 1, nextAttemptAt: now,
+      claimId: oldGeneration,
+      leaseExpiresAt: new Date(now.getTime() - 1),
+    });
+    const blockedQueue = {
+      updateOne: () => ({
+        exec: async () => { throw new Error('B74 injected takeover queue failure'); },
+      }),
+    };
+    const broken = new MongoAccountExportStore(
+      exportJobs, users, connection, blockedQueue as never,
+    );
+    await expect(broken.claimNext({
+      now, claimId: newGeneration,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).rejects.toThrow('B74 injected takeover queue failure');
+    expect((await exportJobs.findOne({ id }).lean().exec())?.claimId)
+      .toBe(oldGeneration);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
+      .toBe(0);
+    const repaired = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    await expect(repaired.claimNext({
+      now, claimId: newGeneration,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    })).resolves.toMatchObject({ claimId: newGeneration });
+    expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
+      .toBe(1);
+  }, 30_000);
+
+  it('B74 claims ordinary pending exports without orphaning a nonexistent predecessor', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const newGeneration = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'pending', active: true, formatVersion: 1,
+      attempts: 0, nextAttemptAt: now,
+      claimId: null, leaseExpiresAt: null,
+    });
+    const claimed = await new MongoAccountExportStore(
+      exportJobs, users, connection, orphanJobs,
+    ).claimNext({
+      now, claimId: newGeneration,
+      leaseExpiresAt: new Date(now.getTime() + 120_000),
+    });
+    expect(claimed).toMatchObject({
+      id, userId, state: 'processing', claimId: newGeneration, attempts: 1,
+    });
+    expect(await orphanJobs.countDocuments({ jobId: id })).toBe(0);
   }, 30_000);
 
   it('B72 retires an expired download and drains exact S3 cleanup in the same iteration', async () => {

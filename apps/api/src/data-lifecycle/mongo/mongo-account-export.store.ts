@@ -9,6 +9,7 @@ import {
   isAccountExportFailureCode,
   type AccountExportJobRecord,
 } from '../domain/account-export.types';
+import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../domain/account-export.types';
 import { AccountExportJob } from './account-export.mongo-schema';
 import { AccountExportOrphanCleanup } from './account-export-orphan-cleanup.schema';
 
@@ -105,35 +106,102 @@ export class MongoAccountExportStore implements AccountExportStore {
   async claimNext(
     input: Parameters<AccountExportStore['claimNext']>[0],
   ): ReturnType<AccountExportStore['claimNext']> {
-    return this.jobs
-      .findOneAndUpdate(
-        {
-          active: true,
-          $or: [
-            { state: 'pending', nextAttemptAt: { $lte: input.now } },
+    // Reclaiming a timed-out worker overwrites the only durable reference
+    // to its attempt-scoped S3 generation. The takeover and enqueue of that
+    // previous generation MUST share a Mongo transaction, or a process
+    // crash between them can permanently lose the cleanup intent.
+    if (!this.orphanCleanup) {
+      throw new Error('Account export takeover cleanup queue is not registered');
+    }
+    const session = await this.connection.startSession();
+    let claimed: AccountExportJobRecord | null = null;
+    try {
+      await session.withTransaction(async () => {
+        // withTransaction may retry a failed attempt. Never leak a row from
+        // a rolled-back transaction to the worker.
+        claimed = null;
+        const previous = await this.jobs
+          .findOneAndUpdate(
             {
-              state: 'processing',
-              leaseExpiresAt: { $lte: input.now },
+              active: true,
+              $or: [
+                { state: 'pending', nextAttemptAt: { $lte: input.now } },
+                {
+                  state: 'processing',
+                  leaseExpiresAt: { $lte: input.now },
+                },
+              ],
             },
-          ],
-        },
-        {
-          $set: {
-            state: 'processing',
-            claimId: input.claimId,
-            leaseExpiresAt: input.leaseExpiresAt,
-            failureCode: null,
-            failedAt: null,
-          },
-          $inc: { attempts: 1 },
-        },
-        {
-          new: true,
-          sort: { nextAttemptAt: 1, createdAt: 1, userId: 1 },
-        },
-      )
-      .lean<AccountExportJobRecord>()
-      .exec();
+            {
+              $set: {
+                state: 'processing',
+                claimId: input.claimId,
+                leaseExpiresAt: input.leaseExpiresAt,
+                failureCode: null,
+                failedAt: null,
+              },
+              $inc: { attempts: 1 },
+            },
+            {
+              session,
+              new: false,
+              sort: { nextAttemptAt: 1, createdAt: 1, userId: 1 },
+            },
+          )
+          .lean<AccountExportJobRecord>()
+          .exec();
+        if (!previous) return;
+        if (!previous.id?.trim() || !previous.userId?.trim()) {
+          throw new Error('Account export takeover owner is invalid');
+        }
+
+        if (previous.state === 'processing') {
+          const oldGeneration = previous.claimId;
+          if (!oldGeneration || oldGeneration === input.claimId ||
+            !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(oldGeneration)) {
+            throw new Error('Account export takeover generation is invalid');
+          }
+          // An old S3 multipart upload may still be settling after its
+          // worker lost the lease. Delay cleanup to avoid an immediate
+          // DELETE+ACK followed by a late successful multipart commit.
+          // Bucket lifecycle remains the backstop for unbounded S3 delays.
+          const settleAt = new Date(
+            input.now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS * 3,
+          );
+          await this.orphanCleanup!.updateOne(
+            { jobId: previous.id, generation: oldGeneration },
+            {
+              $setOnInsert: {
+                jobId: previous.id,
+                ownerUserId: previous.userId,
+                generation: oldGeneration,
+                state: 'pending',
+                attempts: 0,
+                nextAttemptAt: settleAt,
+                claimId: null,
+                leaseExpiresAt: null,
+              },
+            },
+            { upsert: true, session },
+          ).exec();
+        }
+        // Use the original _id returned by the atomic takeover, not a
+        // second unscoped claim search, to read only our new generation.
+        claimed = await this.jobs
+          .findOne({
+            id: previous.id, userId: previous.userId,
+            state: 'processing', active: true, claimId: input.claimId,
+          }, null, { session })
+          .lean<AccountExportJobRecord>()
+          .exec();
+        if (!claimed) {
+          throw new Error('Account export takeover postcondition failed');
+        }
+      });
+      return claimed;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async renewLease(
