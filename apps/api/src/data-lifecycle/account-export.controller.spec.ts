@@ -237,7 +237,7 @@ describe('AccountExportController', () => {
     [{ byteLength: 99 }, 'size'],
     [{ sha256: 'b'.repeat(64) }, 'digest'],
     [{ formatVersion: 2 }, 'version'],
-  ])('B92 refuses a changed %s after preflight with a safe 409', async (changes) => {
+  ] as const)('B92 refuses a changed %s after preflight with a safe 409', async (changes) => {
     const f = fixture();
     const original = {
       kind: 'available' as const, formatVersion: 1 as const,
