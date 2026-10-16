@@ -19,7 +19,9 @@ const resourceId = '33333333-3333-4333-8333-333333333333';
 const nextId = '44444444-4444-4444-8444-444444444444';
 const key = '55555555-5555-4555-8555-555555555555';
 
-function collection(overrides: Partial<StudyCollectionRecord> = {}): StudyCollectionRecord {
+function collection(
+  overrides: Partial<StudyCollectionRecord> = {},
+): StudyCollectionRecord {
   return {
     id: collectionId,
     ownerUserId: ownerId,
@@ -37,10 +39,14 @@ function collection(overrides: Partial<StudyCollectionRecord> = {}): StudyCollec
 function setup(row: StudyCollectionRecord | null = collection()) {
   const store = {
     create: jest.fn().mockResolvedValue(row),
-    list: jest.fn().mockResolvedValue({ items: row ? [row] : [], hasMore: false }),
-    findOwned: jest.fn().mockImplementation(async (id: string, actor: string) =>
-      row?.id === id && row.ownerUserId === actor ? row : null,
-    ),
+    list: jest
+      .fn()
+      .mockResolvedValue({ items: row ? [row] : [], hasMore: false }),
+    findOwned: jest
+      .fn()
+      .mockImplementation(async (id: string, actor: string) =>
+        row?.id === id && row.ownerUserId === actor ? row : null,
+      ),
     updateOwned: jest.fn().mockResolvedValue(row),
     addResource: jest.fn().mockResolvedValue(row),
     removeResource: jest.fn().mockResolvedValue(row),
@@ -142,40 +148,48 @@ describe('StudyCollectionService', () => {
   describe('B57 conditional recovery removals', () => {
     it('vetoes deleting a reference if the server can read it', async () => {
       const { service, store, get } = setup();
-      await expect(service.removeResource(
-        ownerId, collectionId, resourceId, 2,
-      )).rejects.toMatchObject({
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toMatchObject({
         response: { code: 'STUDY_COLLECTION_REFERENCE_ACCESSIBLE' },
       });
       expect(get).toHaveBeenCalledWith(resourceId, ownerId);
       expect(store.removeResource).not.toHaveBeenCalled();
     });
 
-    it.each([
-      () => new NotFoundException(),
-      () => new ForbiddenException(),
-    ])('conditionally removes only a confirmed inaccessible reference', async (exception) => {
-      const { service, store, get } = setup();
-      get.mockRejectedValueOnce(exception());
-      store.removeResource.mockResolvedValueOnce(collection({
-        revision: 3,
-        resourceIds: [nextId],
-      }));
-      const result = await service.removeResource(
-        ownerId, collectionId, resourceId, 2,
-      );
-      expect(result.collection.revision).toBe(3);
-      expect(result.collection.resourceCount).toBe(1);
-      expect(store.removeResource).toHaveBeenCalledWith(
-        collectionId, ownerId, resourceId, 2,
-      );
-    });
+    it.each([() => new NotFoundException(), () => new ForbiddenException()])(
+      'conditionally removes only a confirmed inaccessible reference',
+      async (exception) => {
+        const { service, store, get } = setup();
+        get.mockRejectedValueOnce(exception());
+        store.removeResource.mockResolvedValueOnce(
+          collection({
+            revision: 3,
+            resourceIds: [nextId],
+          }),
+        );
+        const result = await service.removeResource(
+          ownerId,
+          collectionId,
+          resourceId,
+          2,
+        );
+        expect(result.collection.revision).toBe(3);
+        expect(result.collection.resourceCount).toBe(1);
+        expect(store.removeResource).toHaveBeenCalledWith(
+          collectionId,
+          ownerId,
+          resourceId,
+          2,
+        );
+      },
+    );
 
     it('rejects stale revisions without looking up the referenced Resource', async () => {
       const { service, store, get } = setup();
-      await expect(service.removeResource(
-        ownerId, collectionId, resourceId, 1,
-      )).rejects.toMatchObject({
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 1),
+      ).rejects.toMatchObject({
         response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
       });
       expect(store.removeResource).not.toHaveBeenCalled();
@@ -183,12 +197,15 @@ describe('StudyCollectionService', () => {
     });
 
     it('rejects changed reference sets before the secondary permission check', async () => {
-      const { service, store, get } = setup(collection({
-        revision: 2, resourceIds: [nextId],
-      }));
-      await expect(service.removeResource(
-        ownerId, collectionId, resourceId, 2,
-      )).rejects.toMatchObject({
+      const { service, store, get } = setup(
+        collection({
+          revision: 2,
+          resourceIds: [nextId],
+        }),
+      );
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toMatchObject({
         response: { code: 'STUDY_COLLECTION_REFERENCE_CHANGED' },
       });
       expect(store.removeResource).not.toHaveBeenCalled();
@@ -198,17 +215,22 @@ describe('StudyCollectionService', () => {
     it('rejects an intervening Mongo revision change atomically', async () => {
       const { service, store, get } = setup();
       get.mockRejectedValueOnce(new NotFoundException());
-      store.removeResource.mockResolvedValueOnce(collection({
-        revision: 3,
-        resourceIds: [resourceId, nextId],
-      }));
-      await expect(service.removeResource(
-        ownerId, collectionId, resourceId, 2,
-      )).rejects.toMatchObject({
+      store.removeResource.mockResolvedValueOnce(
+        collection({
+          revision: 3,
+          resourceIds: [resourceId, nextId],
+        }),
+      );
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toMatchObject({
         response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
       });
       expect(store.removeResource).toHaveBeenCalledWith(
-        collectionId, ownerId, resourceId, 2,
+        collectionId,
+        ownerId,
+        resourceId,
+        2,
       );
     });
 
@@ -216,31 +238,39 @@ describe('StudyCollectionService', () => {
       const { service, store, get } = setup();
       get.mockRejectedValueOnce(new NotFoundException());
       store.removeResource.mockResolvedValueOnce(null);
-      await expect(service.removeResource(
-        ownerId, collectionId, resourceId, 2,
-      )).rejects.toMatchObject({
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toMatchObject({
         response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
       });
       expect(store.findOwned).toHaveBeenCalledWith(collectionId, ownerId);
       expect(store.removeResource).toHaveBeenCalledWith(
-        collectionId, ownerId, resourceId, 2,
+        collectionId,
+        ownerId,
+        resourceId,
+        2,
       );
     });
 
     it('rejects a post-write skipped revision even when the reference is absent', async () => {
       const { service, store, get } = setup();
       get.mockRejectedValueOnce(new ForbiddenException());
-      store.removeResource.mockResolvedValueOnce(collection({
-        revision: 4,
-        resourceIds: [nextId],
-      }));
-      await expect(service.removeResource(
-        ownerId, collectionId, resourceId, 2,
-      )).rejects.toMatchObject({
+      store.removeResource.mockResolvedValueOnce(
+        collection({
+          revision: 4,
+          resourceIds: [nextId],
+        }),
+      );
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toMatchObject({
         response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
       });
       expect(store.removeResource).toHaveBeenCalledWith(
-        collectionId, ownerId, resourceId, 2,
+        collectionId,
+        ownerId,
+        resourceId,
+        2,
       );
     });
 
@@ -248,9 +278,9 @@ describe('StudyCollectionService', () => {
       const { service, store, get } = setup();
       const failure = new Error('resource backend unavailable');
       get.mockRejectedValueOnce(failure);
-      await expect(service.removeResource(
-        ownerId, collectionId, resourceId, 2,
-      )).rejects.toBe(failure);
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toBe(failure);
       expect(store.removeResource).not.toHaveBeenCalled();
     });
 
@@ -258,9 +288,9 @@ describe('StudyCollectionService', () => {
       'rejects an invalid optimistic revision %s',
       async (revision) => {
         const { service, store, get } = setup();
-        await expect(service.removeResource(
-          ownerId, collectionId, resourceId, revision,
-        )).rejects.toMatchObject({
+        await expect(
+          service.removeResource(ownerId, collectionId, resourceId, revision),
+        ).rejects.toMatchObject({
           response: { code: 'STUDY_COLLECTION_REVISION_INVALID' },
         });
         expect(store.removeResource).not.toHaveBeenCalled();
@@ -270,9 +300,9 @@ describe('StudyCollectionService', () => {
 
     it('rejects a foreign collection before checking referenced Resource details', async () => {
       const { service, store, get } = setup();
-      await expect(service.removeResource(
-        'intruder', collectionId, resourceId, 2,
-      )).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        service.removeResource('intruder', collectionId, resourceId, 2),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(store.removeResource).not.toHaveBeenCalled();
       expect(get).not.toHaveBeenCalled();
     });
@@ -282,7 +312,9 @@ describe('StudyCollectionService', () => {
       await service.removeResource(ownerId, collectionId, resourceId);
       expect(get).not.toHaveBeenCalled();
       expect(store.removeResource).toHaveBeenCalledWith(
-        collectionId, ownerId, resourceId,
+        collectionId,
+        ownerId,
+        resourceId,
       );
     });
   });
@@ -311,9 +343,7 @@ describe('StudyCollectionService', () => {
     await expect(
       service.listResources('intruder', collectionId, 1, cursor),
     ).rejects.toBeInstanceOf(NotFoundException);
-    store.findOwned.mockResolvedValueOnce(
-      collection({ revision: 3 }),
-    );
+    store.findOwned.mockResolvedValueOnce(collection({ revision: 3 }));
     await expect(
       service.listResources(ownerId, collectionId, 1, cursor),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -333,7 +363,12 @@ describe('StudyCollectionService', () => {
       collection({ revision: 3, resourceIds: [resourceId] }),
     );
     await expect(
-      service.listResources(ownerId, collectionId, 1, first.nextCursor ?? undefined),
+      service.listResources(
+        ownerId,
+        collectionId,
+        1,
+        first.nextCursor ?? undefined,
+      ),
     ).rejects.toMatchObject({
       response: { code: 'STUDY_COLLECTION_CURSOR_STALE' },
     });
@@ -344,7 +379,12 @@ describe('StudyCollectionService', () => {
       collection({ revision: 4, resourceIds: [] }),
     );
     await expect(
-      service.listResources(ownerId, collectionId, 1, first.nextCursor ?? undefined),
+      service.listResources(
+        ownerId,
+        collectionId,
+        1,
+        first.nextCursor ?? undefined,
+      ),
     ).rejects.toMatchObject({
       response: { code: 'STUDY_COLLECTION_CURSOR_STALE' },
     });
@@ -355,38 +395,43 @@ describe('StudyCollectionService', () => {
     const { service, store, get } = setup(
       collection({ revision: 2, resourceIds: [resourceId] }),
     );
-    const oldCursor = Buffer.from(JSON.stringify({
-      version: 1,
-      ownerUserId: ownerId,
-      collectionId,
-      revision: 2,
-      index: 1,
-    })).toString('base64url');
-    await expect(service.listResources(
-      ownerId, collectionId, 1, oldCursor,
-    )).rejects.toMatchObject({
+    const oldCursor = Buffer.from(
+      JSON.stringify({
+        version: 1,
+        ownerUserId: ownerId,
+        collectionId,
+        revision: 2,
+        index: 1,
+      }),
+    ).toString('base64url');
+    await expect(
+      service.listResources(ownerId, collectionId, 1, oldCursor),
+    ).rejects.toMatchObject({
       response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
     });
-    await expect(service.list(ownerId, 1, ''))
-      .rejects.toMatchObject({
-        response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
-      });
-    await expect(service.listResources(ownerId, collectionId, 1, ''))
-      .rejects.toMatchObject({
-        response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
-      });
+    await expect(service.list(ownerId, 1, '')).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
+    });
+    await expect(
+      service.listResources(ownerId, collectionId, 1, ''),
+    ).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
+    });
 
-    const malformed = Buffer.from(JSON.stringify({
-      version: 1,
-      ownerUserId: ownerId,
-      collectionId,
-      revision: '2',
-      index: 0,
-    })).toString('base64url');
-    await expect(service.listResources(ownerId, collectionId, 1, malformed))
-      .rejects.toMatchObject({
-        response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
-      });
+    const malformed = Buffer.from(
+      JSON.stringify({
+        version: 1,
+        ownerUserId: ownerId,
+        collectionId,
+        revision: '2',
+        index: 0,
+      }),
+    ).toString('base64url');
+    await expect(
+      service.listResources(ownerId, collectionId, 1, malformed),
+    ).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_CURSOR_INVALID' },
+    });
     expect(store.list).not.toHaveBeenCalled();
     expect(get).not.toHaveBeenCalled();
   });
@@ -437,16 +482,19 @@ describe('StudyCollectionService', () => {
     expect(valid).toBeNull();
 
     // A URL-safe but oversized/corrupt cursor must be rejected before Mongo.
-    await expect(service.list(ownerId, 1, 'a'.repeat(512)))
-      .rejects.toBeInstanceOf(UnprocessableEntityException);
-    await expect(service.listResources(ownerId, collectionId, 1, 'a'.repeat(512)))
-      .rejects.toBeInstanceOf(UnprocessableEntityException);
-    const invalidCanonical = Buffer.from(
-      JSON.stringify({ version:1,ownerUserId:ownerId,index:1 }),
-    ).toString('base64url') + 'A';
-    await expect(service.listResources(
-      ownerId, collectionId, 1, invalidCanonical,
-    )).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      service.list(ownerId, 1, 'a'.repeat(512)),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      service.listResources(ownerId, collectionId, 1, 'a'.repeat(512)),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    const invalidCanonical =
+      Buffer.from(
+        JSON.stringify({ version: 1, ownerUserId: ownerId, index: 1 }),
+      ).toString('base64url') + 'A';
+    await expect(
+      service.listResources(ownerId, collectionId, 1, invalidCanonical),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(store.list).toHaveBeenCalledTimes(1);
   });
 
@@ -454,13 +502,13 @@ describe('StudyCollectionService', () => {
     'rejects invalid collection resource page budget %s',
     async (limit) => {
       const { service, store, get } = setup();
-      await expect(service.listResources(ownerId, collectionId, limit))
-        .rejects.toMatchObject({
-          response: { code: 'STUDY_COLLECTION_PAGE_LIMIT_INVALID' },
-        });
+      await expect(
+        service.listResources(ownerId, collectionId, limit),
+      ).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_PAGE_LIMIT_INVALID' },
+      });
       expect(store.findOwned).not.toHaveBeenCalled();
       expect(get).not.toHaveBeenCalled();
     },
   );
-
 });
