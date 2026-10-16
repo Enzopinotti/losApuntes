@@ -35,7 +35,7 @@ check('all actual S3 deletes stay inside the guarded cleanup drainer', () => {
   assert.match(helper, /await this\.orphans\.renewLease\(/u);
   assert.match(helper, /await this\.artifacts\.deleteArtifact\(/u);
 });
-check('successful deletion only cancels unclaimed pending tasks', () => {
+check('legacy clearPending helper remains narrowly fenced even though B78 does not call it', () => {
   assert.match(queueContract, /clearPending\(input:/u);
   const impl = queueMongo.slice(
     queueMongo.indexOf('  async clearPending('),
@@ -69,7 +69,7 @@ check('Jest B67 and B68 tests are inside their original describe with clock rese
 check('Jest captures ordered persistence, retry and concurrent claim interactions', () => {
   assert.match(tests, /B69 persists cleanup intent without inline S3 deletion/u);
   assert.match(tests, /B69 retains queued intent without performing a pending cancellation/u);
-  assert.match(tests, /B69 does not clear a task already claimed/u);
+  assert.match(tests, /B69 never clears a task claimed/u);
   assert.match(tests, /B69 keeps uncertain Mongo completion out of write-ahead/u);
 });
 check('CAS is covered at Mongo store level', () => {
