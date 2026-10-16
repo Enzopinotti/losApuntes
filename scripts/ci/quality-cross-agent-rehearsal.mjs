@@ -34,7 +34,9 @@ export function integrationMarkdown(input) {
   for (const result of input.results) {
     const status = result.ok
       ? 'Merge clean'
-      : result.conflicts.length ? 'CONFLICT' : 'MERGE ERROR';
+      : result.conflicts.length
+        ? `CONFLICT applying ${result.failedOn ?? 'unknown'}`
+        : `MERGE ERROR applying ${result.failedOn ?? 'unknown'}`;
     rows.push(`| ${result.order.join(' → ')} | ${status} | ${result.tree ?? '—'} |`);
     if (!result.ok) {
       rows.push('', `Conflict details for **${result.order.join(' → ')}**:`);
@@ -112,7 +114,7 @@ function tryOrder(shas, order) {
     const merged = localMerge(shas[label], label);
     if (merged.status !== 0) {
       const conflicts = conflictPaths();
-      const report = { order, ok: false, conflicts, tree: null };
+      const report = { order, ok: false, failedOn: label, conflicts, tree: null };
       const aborted = git(['merge', '--abort']);
       if (aborted.status !== 0) {
         throw new Error('Unable to abort a synthetic merge. Stop immediately.');
