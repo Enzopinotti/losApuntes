@@ -30,10 +30,7 @@ export class StudyCollectionsApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const signal = init.signal
     ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])
     : AbortSignal.timeout(15_000);
@@ -160,9 +157,10 @@ export const studyCollectionsApi = {
     signal?: AbortSignal,
     expectedRevision?: number,
   ) {
-    const conditional = expectedRevision === undefined
-      ? ""
-      : `?expectedRevision=${encodeURIComponent(String(expectedRevision))}`;
+    const conditional =
+      expectedRevision === undefined
+        ? ""
+        : `?expectedRevision=${encodeURIComponent(String(expectedRevision))}`;
     return request<{ collection: StudyCollection }>(
       `study-collections/${encode(id)}/resources/${encode(resourceId)}${conditional}`,
       { method: "DELETE", signal },

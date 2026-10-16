@@ -22,32 +22,54 @@ type Progress = { plan: StudySession; revision: number; updatedAt: string };
 
 function parseProgress(input: unknown, subjectId: string): Progress {
   if (!input || typeof input !== "object") {
-    throw new StudyProgressApiError("INVALID_RESPONSE", 200, "Respuesta inválida.");
+    throw new StudyProgressApiError(
+      "INVALID_RESPONSE",
+      200,
+      "Respuesta inválida.",
+    );
   }
   const wrapper = input as { progress?: unknown };
-  const raw = wrapper.progress as {
-    plan?: unknown; revision?: unknown; updatedAt?: unknown;
-  } | undefined;
-  if (!raw || !Number.isSafeInteger(raw.revision) ||
-    (raw.revision as number) < 1 || typeof raw.updatedAt !== "string" ||
-    !Number.isFinite(Date.parse(raw.updatedAt))) {
-    throw new StudyProgressApiError("INVALID_RESPONSE", 200, "Guardado inválido.");
+  const raw = wrapper.progress as
+    | {
+        plan?: unknown;
+        revision?: unknown;
+        updatedAt?: unknown;
+      }
+    | undefined;
+  if (
+    !raw ||
+    !Number.isSafeInteger(raw.revision) ||
+    (raw.revision as number) < 1 ||
+    typeof raw.updatedAt !== "string" ||
+    !Number.isFinite(Date.parse(raw.updatedAt))
+  ) {
+    throw new StudyProgressApiError(
+      "INVALID_RESPONSE",
+      200,
+      "Guardado inválido.",
+    );
   }
   let plan: StudySession;
   try {
     plan = normalizeStudySession(raw.plan);
   } catch {
-    throw new StudyProgressApiError("INVALID_RESPONSE", 200, "Plan incompatible.");
+    throw new StudyProgressApiError(
+      "INVALID_RESPONSE",
+      200,
+      "Plan incompatible.",
+    );
   }
   if (plan.subjectId !== subjectId.toLowerCase()) {
-    throw new StudyProgressApiError("INVALID_RESPONSE", 200, "La materia no coincide.");
+    throw new StudyProgressApiError(
+      "INVALID_RESPONSE",
+      200,
+      "La materia no coincide.",
+    );
   }
   return { plan, revision: raw.revision as number, updatedAt: raw.updatedAt };
 }
 
-async function request(
-  path: string, init: RequestInit = {},
-): Promise<unknown> {
+async function request(path: string, init: RequestInit = {}): Promise<unknown> {
   let result: Response;
   try {
     result = await fetch(new URL(path, baseUrl + "/").toString(), {
@@ -65,25 +87,33 @@ async function request(
     });
   } catch {
     throw new StudyProgressApiError(
-      "NETWORK_UNAVAILABLE", 0, "No pudimos conectarnos. Reintentá.",
+      "NETWORK_UNAVAILABLE",
+      0,
+      "No pudimos conectarnos. Reintentá.",
     );
   }
   let payload: unknown;
   try {
     const text = await result.text();
-    payload = text ? JSON.parse(text) as unknown : null;
+    payload = text ? (JSON.parse(text) as unknown) : null;
   } catch {
     throw new StudyProgressApiError(
-      "INVALID_RESPONSE", result.status, "El servidor respondió incorrectamente.",
+      "INVALID_RESPONSE",
+      result.status,
+      "El servidor respondió incorrectamente.",
     );
   }
   if (!result.ok) {
-    const error = payload && typeof payload === "object"
-      ? payload as { code?: string; message?: string } : {};
+    const error =
+      payload && typeof payload === "object"
+        ? (payload as { code?: string; message?: string })
+        : {};
     throw new StudyProgressApiError(
-      error.code ?? "REQUEST_FAILED", result.status,
+      error.code ?? "REQUEST_FAILED",
+      result.status,
       typeof error.message === "string"
-        ? error.message : "No pudimos completar la operación.",
+        ? error.message
+        : "No pudimos completar la operación.",
     );
   }
   return payload;
@@ -91,48 +121,79 @@ async function request(
 
 export const studyProgressApi = {
   async get(subjectId: string, signal?: AbortSignal): Promise<Progress> {
-    return parseProgress(await request(
-      "study-progress/" + encodeURIComponent(subjectId), { signal },
-    ), subjectId);
+    return parseProgress(
+      await request("study-progress/" + encodeURIComponent(subjectId), {
+        signal,
+      }),
+      subjectId,
+    );
   },
   async save(
-    subjectId: string, plan: StudySession,
-    expectedRevision: number, signal?: AbortSignal,
+    subjectId: string,
+    plan: StudySession,
+    expectedRevision: number,
+    signal?: AbortSignal,
   ): Promise<Progress> {
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
-      throw new StudyProgressApiError("INVALID_REVISION", 0, "Revisión inválida.");
+      throw new StudyProgressApiError(
+        "INVALID_REVISION",
+        0,
+        "Revisión inválida.",
+      );
     }
     const normalized = normalizeStudySession(plan);
     if (normalized.subjectId !== subjectId.toLowerCase()) {
-      throw new StudyProgressApiError("SUBJECT_MISMATCH", 0, "Materia inválida.");
+      throw new StudyProgressApiError(
+        "SUBJECT_MISMATCH",
+        0,
+        "Materia inválida.",
+      );
     }
-    return parseProgress(await request(
-      "study-progress/" + encodeURIComponent(subjectId), {
+    return parseProgress(
+      await request("study-progress/" + encodeURIComponent(subjectId), {
         method: "PUT",
         body: JSON.stringify({ expectedRevision, plan: normalized }),
         signal,
-      },
-    ), subjectId);
+      }),
+      subjectId,
+    );
   },
   async remove(
-    subjectId: string, expectedRevision: number, signal?: AbortSignal,
+    subjectId: string,
+    expectedRevision: number,
+    signal?: AbortSignal,
   ): Promise<void> {
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
-      throw new StudyProgressApiError("INVALID_REVISION", 0, "Revisión inválida.");
+      throw new StudyProgressApiError(
+        "INVALID_REVISION",
+        0,
+        "Revisión inválida.",
+      );
     }
-    const value = await request("study-progress/" + encodeURIComponent(subjectId), {
-      method: "DELETE",
-      body: JSON.stringify({ expectedRevision }),
-      signal,
-    });
-    if (!value || typeof value !== "object" ||
-      (value as { deleted?: unknown }).deleted !== true) {
-      throw new StudyProgressApiError("INVALID_RESPONSE", 200, "Resultado inválido.");
+    const value = await request(
+      "study-progress/" + encodeURIComponent(subjectId),
+      {
+        method: "DELETE",
+        body: JSON.stringify({ expectedRevision }),
+        signal,
+      },
+    );
+    if (
+      !value ||
+      typeof value !== "object" ||
+      (value as { deleted?: unknown }).deleted !== true
+    ) {
+      throw new StudyProgressApiError(
+        "INVALID_RESPONSE",
+        200,
+        "Resultado inválido.",
+      );
     }
   },
 };
 
-export function isStudyProgressApiError(error: unknown):
-  error is StudyProgressApiError {
+export function isStudyProgressApiError(
+  error: unknown,
+): error is StudyProgressApiError {
   return error instanceof StudyProgressApiError;
 }

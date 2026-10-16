@@ -27,10 +27,7 @@ export interface AccountExportOrphanCleanupStore {
    * Remove a queued intent only while it is still pending/unclaimed.
    * Once a second worker has claimed it, that worker owns the final ACK.
    */
-  clearPending(input: {
-    jobId: string;
-    generation: string;
-  }): Promise<boolean>;
+  clearPending(input: { jobId: string; generation: string }): Promise<boolean>;
   claimNext(input: {
     now: Date;
     claimId: string;

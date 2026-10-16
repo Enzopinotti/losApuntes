@@ -7,8 +7,9 @@ describe('StudyProgressFeatureGuard', () => {
       const guard = new StudyProgressFeatureGuard({
         get: jest.fn().mockReturnValue(value),
       } as never);
-      expect(() => guard.canActivate({} as never))
-        .toThrow(ServiceUnavailableException);
+      expect(() => guard.canActivate({} as never)).toThrow(
+        ServiceUnavailableException,
+      );
     }
   });
   it('permits requests only with validated server boolean true', () => {
