@@ -61,10 +61,16 @@ describe('B61 study progress portable plan integrity', () => {
     for (const code of [0, 1, 31, 127]) {
       const control = String.fromCharCode(code);
       expect(() =>
-        parseStudyProgressPlan({ ...valid, title: `Tema${control}uno` }, subject),
+        parseStudyProgressPlan(
+          { ...valid, title: `Tema${control}uno` },
+          subject,
+        ),
       ).toThrow(UnprocessableEntityException);
       expect(() =>
-        parseStudyProgressPlan({ ...valid, notes: `Nota${control}privada` }, subject),
+        parseStudyProgressPlan(
+          { ...valid, notes: `Nota${control}privada` },
+          subject,
+        ),
       ).toThrow(UnprocessableEntityException);
     }
     const normalized = parseStudyProgressPlan(
