@@ -22,3 +22,7 @@ The read-only [B86 workflow](../.github/workflows/b86-mongo-study-type-recovery.
 The wider consolidation remains work in progress. Historical carriers [#386](https://github.com/Enzopinotti/losApuntes/pull/386), [#388](https://github.com/Enzopinotti/losApuntes/pull/388), [#390](https://github.com/Enzopinotti/losApuntes/pull/390), [#391](https://github.com/Enzopinotti/losApuntes/pull/391), and processor choices [#393](https://github.com/Enzopinotti/losApuntes/pull/393)/[#396](https://github.com/Enzopinotti/losApuntes/pull/396) have **different parents and overlap**. Never wholesale copy an obsolete Mongo processor or S3 store. Reconcile each component against latest main, then require `verify` **on exact combined HEAD**.
 
 **Release issue #353 remains HOLD**; no conditional waiver of `node-forge`/other security debt, no disabled lint/types/coverage, no service startup or deploy.
+
+## Concurrent B86 carrier coordination
+
+After this branch was created, [#400](https://github.com/Enzopinotti/losApuntes/pull/400) independently implemented the same four fixes on the same exact parent using its own fixture types and pinned Prettier. **These two PRs cannot be merged by wholesale snapshot**; select one tested fixture version. Our scoped formatter [run #38918574448](https://github.com/Enzopinotti/losApuntes/actions/runs/38918574448) succeeded, then the write-enabled workflow was removed from the candidate. Await independent exact-HEAD checks on #399/#400; do not confuse one green scoped job with global release approval.
