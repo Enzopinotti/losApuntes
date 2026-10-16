@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
 import { StudyCollectionService } from '../domain/study-collection.service';
-import { createConnection, type Connection, type Model } from 'mongoose';
+import {
+  ConnectionStates,
+  createConnection,
+  type Connection,
+  type Model,
+} from 'mongoose';
 
 import { MongoAccountLifecycleStore } from '../../data-lifecycle/mongo/mongo-account-lifecycle.store';
 import {
@@ -89,11 +94,21 @@ runMongo(
         dbName: uniqueDbName,
         serverSelectionTimeoutMS: 8_000,
       }).asPromise();
-      const hello = await connection.db!.admin().command({ hello: 1 });
+      // Do not trust Mongo's loosely typed admin() response, even in tests:
+      // safety must be proved before we mark a scratch database disposable.
+      const response: unknown = await connection
+        .db!.admin()
+        .command({ hello: 1 });
+      if (!response || typeof response !== 'object') {
+        throw new Error('B50 refuses an invalid Mongo hello response');
+      }
+      const hello = response as Record<string, unknown>;
+      const membersOf = (value: unknown): unknown[] =>
+        Array.isArray(value) ? (value as unknown[]) : [];
       const reportedMembers: unknown[] = [
-        ...(Array.isArray(hello.hosts) ? hello.hosts : []),
-        ...(Array.isArray(hello.passives) ? hello.passives : []),
-        ...(Array.isArray(hello.arbiters) ? hello.arbiters : []),
+        ...membersOf(hello.hosts),
+        ...membersOf(hello.passives),
+        ...membersOf(hello.arbiters),
         hello.me,
       ].filter((value) => value !== undefined);
       const membersLocal =
@@ -157,7 +172,10 @@ runMongo(
     }, 30_000);
 
     afterAll(async () => {
-      if (verifiedLocalReplica && connection?.readyState === 1) {
+      if (
+        verifiedLocalReplica &&
+        connection?.readyState === ConnectionStates.connected
+      ) {
         // The name is generated above, never taken from the environment.
         await connection.dropDatabase();
       }
@@ -171,7 +189,11 @@ runMongo(
         account_status: 'active',
         credential_version: 1,
       });
-      return user.id;
+      const id: unknown = user.id;
+      if (typeof id !== 'string' || id.length === 0) {
+        throw new Error('Mongo user did not provide a valid owner ID');
+    }
+      return id;
     }
 
     async function create(ownerUserId: string, operationKey = randomUUID()) {
@@ -392,7 +414,7 @@ runMongo(
       {
         label: 'remove resource',
         perform: (userId: string, row: Awaited<ReturnType<typeof create>>) =>
-          collections.removeResource(row.id, userId, row.resourceIds[0]!),
+          collections.removeResource(row.id, userId, row.resourceIds[0]),
       },
       {
         label: 'delete',
@@ -503,7 +525,7 @@ runMongo(
       const foreign = await create(bob);
       const versions: Array<{ ownerUserId: string; version: number }> = [];
       const fakeStore = {
-        requestActive: async (input: {
+        requestActive: (input: {
           id: string;
           userId: string;
           formatVersion: 1 | 2;
@@ -513,7 +535,7 @@ runMongo(
             ownerUserId: input.userId,
             version: input.formatVersion,
           });
-          return {
+          return Promise.resolve({
             created: true,
             job: {
               id: input.id,
@@ -525,12 +547,12 @@ runMongo(
               artifactExpiresAt: null,
               artifactGeneration: null,
             },
-          };
+          });
         },
       };
       const request = new AccountExportService(
         fakeStore as never,
-        { hasActiveAccount: async () => true } as never,
+        { hasActiveAccount: () => Promise.resolve(true) } as never,
         { get: () => false } as never,
         exportReader,
       );
@@ -568,7 +590,8 @@ runMongo(
       await collections.addResource(saved.id, userId, secondId);
 
       const service = new StudyCollectionService(collections, {
-        get: async (resourceId: string) => ({
+        get: (resourceId: string) =>
+          Promise.resolve({
           resource: { id: resourceId, title: 'Test resource' },
         }),
       } as never);
@@ -601,9 +624,7 @@ runMongo(
         models.managers,
         models.jobs,
         {
-          create: async () => {
-            throw new Error('audit unavailable');
-          },
+          create: () => Promise.reject(new Error('audit unavailable')),
         } as never,
         models.collections,
         models.progress,
