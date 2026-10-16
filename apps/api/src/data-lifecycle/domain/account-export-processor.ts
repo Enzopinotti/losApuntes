@@ -437,6 +437,14 @@ export class AccountExportProcessor {
           throw new Error('Export attempt is still leased');
         }
 
+        if (candidate.verificationUntil != null &&
+          (!(candidate.verificationUntil instanceof Date) ||
+            !Number.isFinite(candidate.verificationUntil.getTime()))) {
+          // Corrupt verification metadata is not permission to delete
+          // private objects. Retain the task under normal retry/backoff.
+          throw new Error('Account export cleanup verification deadline is invalid');
+        }
+
         // A slow Mongo read can outlive the initial lease. Prove ownership
         // once more immediately before S3, then renew during the deletion.
         const refreshedAt = new Date();
@@ -493,10 +501,6 @@ export class AccountExportProcessor {
         // generation, and lease checks on each verification pass. A crash
         // between passes leaves the next attempt in Mongo, not memory.
         if (candidate.verificationUntil != null) {
-          if (!(candidate.verificationUntil instanceof Date) ||
-            !Number.isFinite(candidate.verificationUntil.getTime())) {
-            throw new Error('Account export cleanup verification deadline is invalid');
-          }
           const verifiedAt = new Date();
           if (verifiedAt.getTime() < candidate.verificationUntil.getTime()) {
             const nextAttemptAt = new Date(Math.min(
