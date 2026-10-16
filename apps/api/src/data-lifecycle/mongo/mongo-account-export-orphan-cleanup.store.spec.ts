@@ -139,6 +139,7 @@ describe('B67 durable account export orphan cleanup', () => {
 
   it('B84 queue settlement and ACK share the exact server-clock ownership predicate', async () => {
     const f = fixture();
+    await f.store.enqueue({ jobId, ownerUserId: 'owner-a', generation, now });
     await f.store.renewLease({
       jobId, generation, claimId, now,
       leaseExpiresAt: new Date(now.getTime() + 120_000),
