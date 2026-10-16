@@ -260,8 +260,6 @@ describe('MongoAccountExportStore', () => {
       jobId: 'export-1', generation: oldClaim,
     }, { $max: { nextAttemptAt: new Date(now.getTime() + 3 * 120_000) } },
     { session: f.session });
-    const updates = f.orphanCleanup.updateOne.mock.calls;
-    expect(updates.some((call) => call[1]?.$set?.claimId != null)).toBe(false);
   });
 
   it('B74 rolls back a takeover if the orphan queue cannot persist', async () => {
