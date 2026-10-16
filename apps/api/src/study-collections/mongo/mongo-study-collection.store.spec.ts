@@ -43,14 +43,15 @@ function fixture(active: boolean) {
     deleteOne: jest.fn().mockReturnValue({
       exec: jest.fn().mockResolvedValue({ deletedCount: 1 }),
     }),
-    findOneAndUpdate: jest.fn().mockReturnValue(
-      makeQuery({
-        ...input,
-        resourceIds: [],
-        revision: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
+    findOneAndUpdate: jest.fn(
+      (_filter: unknown, _update: unknown, _options?: unknown) =>
+        makeQuery({
+          ...input,
+          resourceIds: [],
+          revision: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
     ),
   };
   const store = new MongoStudyCollectionStore(
