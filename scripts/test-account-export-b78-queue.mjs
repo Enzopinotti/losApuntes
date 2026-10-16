@@ -7,6 +7,7 @@ const processor = read(prefix + 'domain/account-export-processor.ts');
 const tests = read(prefix + 'domain/account-export-processor.spec.ts');
 const mongo = read('apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts');
 const queue = read(prefix + 'mongo/mongo-account-export-orphan-cleanup.store.ts');
+const enqueue = read(prefix + 'domain/account-export-orphan-enqueue.ts');
 const helper = processor.slice(processor.indexOf('  private async deleteOrEnqueueProvenOrphan('),
   processor.indexOf('  private async drainOrphanCleanup('));
 const drain = processor.slice(processor.indexOf('  private async drainOrphanCleanup('),
@@ -18,8 +19,9 @@ verify('only enqueue operates on the failed export attempt fast path', () => {
   assert.doesNotMatch(helper, /artifacts\.deleteArtifact\(/u);
   assert.doesNotMatch(helper, /orphans\.clearPending\(/u);
 });
-verify('failed enqueue is explicitly fail closed', () => {
-  assert.match(helper, /catch \{/u);
+verify('failed enqueue is explicitly fail closed with bounded recovery', () => {
+  assert.match(helper, /await enqueueAccountExportOrphanWithRetry\(/u);
+  assert.match(enqueue, /orphanEnqueueFailures \+= 1/u);
   assert.match(helper, /Preserve S3 rather than bypassing settlement/u);
 });
 verify('cleanup drainer remains sole owner-fenced delete path', () => {

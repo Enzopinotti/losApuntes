@@ -27,7 +27,7 @@ check('failed S3 assembler abort is best-effort, not proof that committed object
 check('retry CAS must succeed before any cleanup of an ambiguous pre-completion S3 generation', () => {
   const reschedule = claim.indexOf('const updated = await this.exports.reschedule(');
   const casRejected = claim.indexOf('if (!updated)');
-  const cleanup = claim.indexOf('await this.deleteOrEnqueueProvenOrphan(job, claimId);', casRejected);
+  const cleanup = claim.indexOf('await this.deleteOrEnqueueProvenOrphan(job, claimId, result);', casRejected);
   assert.ok(reschedule >= 0 && casRejected > reschedule && cleanup > casRejected);
   const tail = claim.slice(casRejected, cleanup);
   assert.match(tail, /return 'stale'/u);

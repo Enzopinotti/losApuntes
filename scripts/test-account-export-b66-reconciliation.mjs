@@ -38,7 +38,7 @@ verify('reconciliation read failures never fabricate successful completion', () 
 verify('CAS grants cleanup only after durable pending or failed state', () => {
   const reschedule = processor.lastIndexOf('const updated = await this.exports.reschedule(');
   const result = processor.indexOf('if (!updated)', reschedule);
-  const cleanup = processor.indexOf('await this.deleteOrEnqueueProvenOrphan(job, claimId)', result);
+  const cleanup = processor.indexOf('await this.deleteOrEnqueueProvenOrphan(job, claimId, result)', result);
   assert.ok(reschedule >= 0 && result > reschedule && cleanup > result);
   assert.match(processor, /if \(uncertainCompletion && completedAssembly\)/u);
 });

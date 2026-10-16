@@ -48,12 +48,24 @@ async function bootstrap(): Promise<void> {
           iteration.orphanVerificationScheduled > 0 ||
           iteration.orphanPreserved > 0 ||
           iteration.orphanRetries > 0 ||
-          iteration.orphanAuthorityBlocked > 0
+          iteration.orphanAuthorityBlocked > 0 ||
+          iteration.orphanEnqueueRetries > 0 ||
+          iteration.orphanEnqueueFailures > 0
         ) {
           console.log(
             JSON.stringify({
               event: 'account_export.worker.iteration',
               ...iteration,
+            }),
+          );
+        }
+        if (iteration.orphanEnqueueFailures > 0) {
+          // Alert without job IDs, owners, object keys or provider errors.
+          console.warn(
+            JSON.stringify({
+              event: 'account_export.worker.orphan_enqueue_failed',
+              failedCount: iteration.orphanEnqueueFailures,
+              retryCount: iteration.orphanEnqueueRetries,
             }),
           );
         }

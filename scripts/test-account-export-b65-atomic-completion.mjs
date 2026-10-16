@@ -62,7 +62,7 @@ verify("confirmed epoch rejection and uncertain commits have distinct cleanup po
   assert.match(mongoStore, /throw new AccountExportEpochConflictError\(\)/u);
   assert.match(processor, /durableCompletionAttempted/u);
   assert.match(processor, /error instanceof AccountExportEpochConflictError/u);
-  assert.match(processor, /await this\.deleteOrEnqueueProvenOrphan\(job, claimId\)/u);
+  assert.match(processor, /await this\.deleteOrEnqueueProvenOrphan\(job, claimId, result\)/u);
   assert.match(processor, /Once Mongo completion was attempted, preserve the S3 generation/u);
 });
 verify("regression cases cover v3 CAS, stale claims, uncertain commits and retries", () => {
