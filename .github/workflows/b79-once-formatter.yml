@@ -1,0 +1,65 @@
+name: B79 format two Mongo test files once
+
+on:
+  push:
+    branches:
+      - fix/b79-mongo-acceptance-boundaries-reconciled-20261016
+
+permissions:
+  contents: write
+
+concurrency:
+  group: b79-mongo-formatter
+  cancel-in-progress: false
+
+jobs:
+  format-mongo-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+
+      - name: Assert exact revision
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical Prettier to exactly two test files
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --write \
+            src/study-progress/mongo/study-progress.mongo-int.spec.ts \
+            src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+
+      - name: Commit only exact files with git lease
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          while IFS= read -r f; do
+            case "$f" in
+              apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts|apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts) ;;
+              *) echo "Unapproved formatting change: $f" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only)
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+          git commit -m 'style(test): B79 canonical Prettier for two Mongo fixtures'
+          git push origin HEAD:refs/heads/fix/b79-mongo-acceptance-boundaries-reconciled-20261016
