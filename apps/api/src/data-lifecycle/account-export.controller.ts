@@ -15,6 +15,7 @@ import {
   Post,
   Req,
   Res,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
@@ -82,16 +83,6 @@ export class AccountExportController {
       throw new ForbiddenException();
     }
 
-    reply
-      .header('content-type', 'application/json; charset=utf-8')
-      .header(
-        'content-disposition',
-        `attachment; filename="los-apuntes-account-export-v${artifact.formatVersion}.json"`,
-      )
-      .header('cache-control', 'private, no-store')
-      .header('x-content-type-options', 'nosniff')
-      .header('content-length', artifact.byteLength);
-
     const abort = new AbortController();
     const cleanup = () => {
       reply.raw.off('close', onClose);
@@ -108,6 +99,44 @@ export class AccountExportController {
       reply.raw.once('close', onClose);
       reply.raw.once('finish', cleanup);
     }
+
+    // B91: B90 verifies the object immediately after upload, and the
+    // response stream checks it again as bytes are sent. Neither guard
+    // alone prevents a mutated/truncated object from sending *some*
+    // private bytes before a streaming digest mismatch is discovered.
+    //
+    // Perform a bounded, streaming preflight GET before writing headers.
+    // A missing, corrupt or unreadable object yields a stable 503 instead
+    // of starting an attachment that is already known to be invalid.
+    try {
+      await this.artifacts.verifyReadable(
+        id,
+        artifact.generation,
+        { byteLength: artifact.byteLength, sha256: artifact.sha256 },
+        abort.signal,
+      );
+      if (abort.signal.aborted) {
+        throw new Error('Download connection closed before preflight');
+      }
+    } catch {
+      cleanup();
+      abort.abort();
+      // Do not expose object keys, storage credentials or provider errors.
+      throw new ServiceUnavailableException({
+        code: 'ACCOUNT_EXPORT_STORAGE_UNAVAILABLE',
+        message: 'The account export could not be verified for download',
+      });
+    }
+
+    reply
+      .header('content-type', 'application/json; charset=utf-8')
+      .header(
+        'content-disposition',
+        `attachment; filename="los-apuntes-account-export-v${artifact.formatVersion}.json"`,
+      )
+      .header('cache-control', 'private, no-store')
+      .header('x-content-type-options', 'nosniff')
+      .header('content-length', artifact.byteLength);
 
     return reply.send(
       Readable.from(
