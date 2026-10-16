@@ -1,0 +1,91 @@
+name: B87 one-time canonical API format on B86
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b87-one-time-canonical-api-formatter.yml"
+      - "docs/engineering/b87-canonical-api-format-current-b86.md"
+
+# Ephemeral branch-scoped tool. Remove this workflow after the one-time formatting.
+permissions:
+  contents: write
+
+concurrency:
+  group: b87-canonical-api-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-format:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'reconcile/b87-canonical-api-format-current-b86-head'
+    name: Pinned Prettier on B86 API sources, exact remote lease
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout PR exact SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+
+      - name: Check exact head and branch ownership
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          test "$EXPECTED_BRANCH" = 'reconcile/b87-canonical-api-format-current-b86-head'
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+          test "$(git ls-remote --heads origin "$EXPECTED_BRANCH" | awk '{print $1}')" = "$EXPECTED_SHA"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format API TS on candidate tree with locked Prettier
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @losapuntes/api format
+          git diff --check
+          git diff --name-only > /tmp/b87-api-paths
+          if grep -Ev '^apps/api/(src|test)/.*\.ts$' /tmp/b87-api-paths; then
+            echo 'Unexpected non-API-TS path changed by format' >&2
+            exit 1
+          fi
+          echo "B87_FORMATTED_FILE_COUNT=$(wc -l </tmp/b87-api-paths)" >> "$GITHUB_ENV"
+          git diff --stat
+
+      - name: Push only own formatter output with exact lease
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if ! test -s /tmp/b87-api-paths; then
+            echo 'All API TS files already formatted'
+            exit 0
+          fi
+          git config user.name 'B87 Canonical API Formatter'
+          git config user.email 'b87-api-formatter@users.noreply.github.com'
+          git add -- apps/api/src apps/api/test
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only | grep -Ev '^apps/api/(src|test)/.*\.ts$' || true)"
+          git commit -m 'style(api): apply locked Prettier on B86 current-Mongo functional tree'
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_SHA"
+          git push --force-with-lease="refs/heads/$EXPECTED_BRANCH:$EXPECTED_SHA" origin "HEAD:refs/heads/$EXPECTED_BRANCH"
+
+      - name: Verify formatted source
+        run: |
+          pnpm --filter @losapuntes/api format:check
+          pnpm --filter @losapuntes/api check:types
