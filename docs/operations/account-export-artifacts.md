@@ -945,3 +945,27 @@ El conjunto durable Mongo B86/B90/B93 sigue con su runner B94
 separado. **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`,
 sin CI manual ni despliegue; pendientes pruebas Mongo/S3 de proveedor,
 seguridad #133/#141, backups, IAM/versionado y HTTP navegador.
+
+## B96 — HTTP 200 no garantiza una carga multipart S3 completada
+
+`createMultipartWriter().complete()` ahora requiere un XML
+`CompleteMultipartUploadResult` reconocido, además del código HTTP
+exitoso. Las respuestas vacías, HTML, un XML ajeno, un `<Error>`
+embebido o un resultado incompleto mantienen la finalización como
+**no confirmada**, aunque el proveedor haya devuelto HTTP 200.
+
+En una exportación privada, un resultado ambiguo conserva la intención
+de recuperación B80 y `abort()` cancela únicamente el `uploadId`;
+B81 sigue impidiendo el DELETE directo del objeto. El readback B90
+sigue siendo obligatorio aun después de una confirmación válida.
+
+Pruebas: `pnpm test:account-export-b96-multipart` para los vectores
+puros Node; `pnpm test:account-export-b86-s3-loopback` para red S3
+simulada firmada; Jest `s3-object-storage.spec.ts` para regresión
+del writer. Las últimas dos aún requieren ejecución real.
+
+La validación del XML no sustituye la aceptación de AWS/MinIO ni
+demuestra que el objeto exista. **#353 HOLD**,
+`STUDY_PROGRESS_ENABLED=false`; Node24/pnpm9/Jest/Mongo/S3 proveedor,
+IAM/versionado, backups y auditorías #133/#141 pendientes. Sin CI
+manual ni despliegue.
