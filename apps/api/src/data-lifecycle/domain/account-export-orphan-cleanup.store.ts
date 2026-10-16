@@ -9,6 +9,11 @@ export interface AccountExportOrphanCleanupRecord {
   generation: string;
   attempts: number;
   claimId: string;
+  /**
+   * Only reclaimed, previously processing attempts get a bounded
+   * post-delete recheck period; ordinary proven orphans ACK immediately.
+   */
+  verificationUntil?: Date | null;
 }
 
 export interface AccountExportOrphanCleanupStore {
