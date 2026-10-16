@@ -333,3 +333,28 @@ acceptance or HTTP/browser tests and cannot approve a production release.
 Keep release issue #353 open until all external acceptance and retention
 controls have been proven. See
 `docs/engineering/account-export-authority-b70.md`.
+
+
+## B71 — Ambiguous S3 multipart completion and safe retry-CAS cleanup
+
+A failed or timed-out S3 multipart `complete()` response is **not**
+proof that no final object was published. An abort request may abort only
+an in-progress multipart upload, not delete a final committed object.
+
+B71 ensures that once the exact original account-export claim has
+**successfully transitioned through the durable Mongo `reschedule` CAS**
+to `pending` or `failed`, its UUID-qualified S3 generation is treated
+as a proven orphan even when the assembler never returned success.
+The worker first persists the B69 cleanup intent, then attempts exact
+S3 object deletion. If deletion fails, another worker can claim/retry
+the durable task after restart.
+
+If the retry CAS is rejected or unavailable, preserve the S3 generation:
+an uncertain Mongo completion might already reference it. Never
+assume that an S3 abort proves absence, and never delete an entire
+object-key prefix.
+
+The local exact-head acceptance runner now includes S3 storage and
+export assembler Jest files, while real S3/HTTP/provider E2E remain
+independent gates. See
+`docs/engineering/account-export-ambiguous-s3-b71.md`.
