@@ -1,0 +1,59 @@
+name: B85 one-time processor spec formatting
+
+on:
+  push:
+    branches:
+      - fix/b85-export-processor-jest-matchers-20261016
+
+permissions:
+  contents: write
+
+concurrency:
+  group: b85-processor-format-once
+  cancel-in-progress: false
+
+jobs:
+  format-scope:
+    if: github.repository == 'Enzopinotti/losApuntes'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+      - name: Assert checkout identity
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use repository Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Reproduce frozen dependency graph
+        run: pnpm install --frozen-lockfile
+      - name: Canonical Prettier of processor spec only
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --write \
+            src/data-lifecycle/domain/account-export-processor.spec.ts
+      - name: Commit only declared source file
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          while IFS= read -r file; do
+            test "$file" = "apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts" || {
+              echo "Unexpected formatter output $file" >&2
+              exit 1
+            }
+          done < <(git diff --name-only)
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts
+          git commit -m 'style(test): B85 format current S3 processor fixture with pinned Prettier'
+          git push origin HEAD:refs/heads/fix/b85-export-processor-jest-matchers-20261016
