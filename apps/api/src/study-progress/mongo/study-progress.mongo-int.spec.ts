@@ -24,7 +24,6 @@ import {
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
 import { AccountExportProcessor } from '../../data-lifecycle/domain/account-export-processor';
 import type { AccountExportArtifactStorage } from '../../data-lifecycle/storage/account-export-artifact-storage';
-import type { AccountExportOrphanCleanupStore } from '../../data-lifecycle/domain/account-export-orphan-cleanup.store';
 import { ACCOUNT_EXPORT_LEASE_DURATION_MS } from '../../data-lifecycle/domain/account-export.types';
 import type { AccountExportJobRecord } from '../../data-lifecycle/domain/account-export.types';
 import {
