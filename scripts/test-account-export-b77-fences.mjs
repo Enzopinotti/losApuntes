@@ -49,7 +49,9 @@ verify('retry updates are monotonic and cannot shorten a takeover settlement', (
   assert.match(retry, /\$max: \{ nextAttemptAt: input\.nextAttemptAt \}/u);
   assert.doesNotMatch(retry, /\$set: \{[^}]*nextAttemptAt/u);
 });
-// Preserve exact method and captured fence while accepting pinned-Prettier\n// whitespace around chained calls. No production or permission change.\nverify('worker uses a shared captured horizon fence on renew/retry/ACK', () => {
+// Preserve exact method and captured fence while accepting pinned-Prettier
+// whitespace around chained calls. No production or permission change.
+verify('worker uses a shared captured horizon fence on renew/retry/ACK', () => {
   assert.match(drain, /const fence = \{/u);
   assert.match(drain, /verificationUntil: candidate\.verificationUntil \?\? null/u);
   assert.match(drain, /const owned = await this\.orphans\.renewLease\(\{\s*\.\.\.fence/u);
