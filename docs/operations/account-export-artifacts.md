@@ -804,3 +804,35 @@ costos/performance antes de liberar.
 `STUDY_PROGRESS_ENABLED=false`; issue #353 HOLD.
 Auditorías #133/#141, proveedor S3, backups, versioning, IAM,
 TypeScript/Jest/HTTP/browser pendientes; no CI manual ni deploy.
+
+## B91 — Preflight de integridad antes de iniciar una descarga privada
+
+El endpoint `GET /account/exports/:id/download` hace una comprobación
+adicional **después** de validar el propietario, estado, vencimiento
+y generación, pero **antes** de enviar headers y bytes al navegador.
+
+`verifyReadable` abre un GET autenticado para la generación exacta y
+comprueba el tamaño y SHA-256 con lectura en streaming (mismo verificador
+de B90). Ante objeto corrupto, truncado, ausente, GET 503 o respuesta
+inesperada, el endpoint devuelve 503 con código estable
+`ACCOUNT_EXPORT_STORAGE_UNAVAILABLE` y sin detalles del bucket.
+No se abre un adjunto parcial cuando el daño ya existía al empezar.
+
+Si el cliente corta la conexión durante el preflight, se cancela la
+lectura; si continúa, el segundo GET del adjunto mantiene el verificador
+de integridad y las cabeceras `private, no-store`.
+
+**Limitación:** el objeto aún puede cambiar entre ambos GET si un
+principal posee permisos de escritura sobre su clave. En ese caso el
+streaming detecta corrupción tardía, pero los bytes enviados no se
+pueden retirar. Revisar IAM/versionado/inmutabilidad antes del release.
+
+**Impacto:** una descarga completa requiere un GET adicional de
+preflight; medir latencia, ancho de banda y costo con archivos grandes.
+Un fallo no autoriza un DELETE S3 en el controlador. La limpieza sigue
+bajo B78–B85.
+
+Pruebas: `pnpm test:account-export-b91-preflight`, Jest del controlador
+y del adaptador, aceptación HTTP real y proveedor S3. Estas últimas
+siguen pendientes. **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`,
+auditorías #133/#141, IAM, backup, Mongo y CI completo pendientes.
