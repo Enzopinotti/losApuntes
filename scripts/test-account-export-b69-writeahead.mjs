@@ -17,22 +17,23 @@ const check = (label, fn) => {
   total++;
   console.log('PASS', label);
 };
-check('write-ahead stores orphan intent before first S3 delete attempt', () => {
+check('proven orphan path enqueues but never bypasses queue fences with direct S3', () => {
   const helper = worker.slice(
     worker.indexOf('  private async deleteOrEnqueueProvenOrphan('),
     worker.indexOf('  private async drainOrphanCleanup('),
   );
-  const enqueue = helper.indexOf('await this.orphans.enqueue(');
-  const deleteObject = helper.indexOf('await this.artifacts.deleteArtifact(');
-  const clear = helper.indexOf('await this.orphans.clearPending(');
-  assert.ok(enqueue >= 0 && enqueue < deleteObject && deleteObject < clear);
-  assert.match(helper, /let queued = false;/u);
+  assert.match(helper, /await this\.orphans\.enqueue\(/u);
+  assert.doesNotMatch(helper, /this\.artifacts\.deleteArtifact\(/u);
+  assert.doesNotMatch(helper, /this\.orphans\.clearPending\(/u);
 });
-check('failed Mongo intent does not prevent a proven S3 fast-path delete', () => {
-  assert.match(worker, /Keep the best-effort S3 fast path available/u);
+check('failed Mongo enqueue is not permission for an immediate S3 delete', () => {
+  assert.match(worker, /A failed Mongo enqueue does not grant deletion authority/u);
 });
-check('S3 failure does not drop the durable intent', () => {
-  assert.match(worker, /The durable task survives a failure or a crash/u);
+check('all actual S3 deletes stay inside the guarded cleanup drainer', () => {
+  const helper = worker.slice(worker.indexOf('  private async drainOrphanCleanup('));
+  assert.match(helper, /findForOrphanCleanup\(candidate\.jobId\)/u);
+  assert.match(helper, /await this\.orphans\.renewLease\(/u);
+  assert.match(helper, /await this\.artifacts\.deleteArtifact\(/u);
 });
 check('successful deletion only cancels unclaimed pending tasks', () => {
   assert.match(queueContract, /clearPending\(input:/u);
@@ -66,8 +67,8 @@ check('Jest B67 and B68 tests are inside their original describe with clock rese
   assert.match(tests, /findForOrphanCleanup\)\.toHaveBeenCalledWith\(orphan\.jobId\)/u);
 });
 check('Jest captures ordered persistence, retry and concurrent claim interactions', () => {
-  assert.match(tests, /B69 persists cleanup intent before a failed S3 delete/u);
-  assert.match(tests, /B69 preserves the queued intent if pending cancellation fails/u);
+  assert.match(tests, /B69 persists cleanup intent without inline S3 deletion/u);
+  assert.match(tests, /B69 retains queued intent without performing a pending cancellation/u);
   assert.match(tests, /B69 does not clear a task already claimed/u);
   assert.match(tests, /B69 keeps uncertain Mongo completion out of write-ahead/u);
 });
