@@ -14,7 +14,9 @@ import { ConfigService } from '@nestjs/config';
 export class StudyCollectionsFeatureGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
 
-  canActivate(_context: ExecutionContext): boolean {
+  canActivate(context: ExecutionContext): boolean {
+    // This global rollout gate does not consume the request-specific context.
+    void context;
     if (this.config.get<boolean>('STUDY_COLLECTIONS_ENABLED') !== true) {
       throw new ServiceUnavailableException({
         code: 'STUDY_COLLECTIONS_NOT_ENABLED',

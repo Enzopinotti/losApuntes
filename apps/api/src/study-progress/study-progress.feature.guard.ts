@@ -10,7 +10,9 @@ import { ConfigService } from '@nestjs/config';
 export class StudyProgressFeatureGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
 
-  canActivate(_context: ExecutionContext): boolean {
+  canActivate(context: ExecutionContext): boolean {
+    // This global rollout gate does not consume the request-specific context.
+    void context;
     if (this.config.get<boolean>('STUDY_PROGRESS_ENABLED') !== true) {
       throw new ServiceUnavailableException({
         code: 'STUDY_PROGRESS_NOT_ENABLED',

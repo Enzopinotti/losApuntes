@@ -57,6 +57,30 @@ describe('B61 study progress portable plan integrity', () => {
       );
     }
   });
+  it('B88 rejects remaining ASCII control characters without rejecting normalized whitespace', () => {
+    for (const code of [0, 1, 31, 127]) {
+      const control = String.fromCharCode(code);
+      expect(() =>
+        parseStudyProgressPlan(
+          { ...valid, title: `Tema${control}uno` },
+          subject,
+        ),
+      ).toThrow(UnprocessableEntityException);
+      expect(() =>
+        parseStudyProgressPlan(
+          { ...valid, notes: `Nota${control}privada` },
+          subject,
+        ),
+      ).toThrow(UnprocessableEntityException);
+    }
+    const normalized = parseStudyProgressPlan(
+      { ...valid, title: '  Tema\tuno  ', notes: ' Linea\n siguiente ' },
+      subject,
+    );
+    expect(normalized.title).toBe('Tema uno');
+    expect(normalized.notes).toBe('Linea siguiente');
+  });
+
   it('rejects unknown and duplicate ids across kind and subject', () => {
     expect(() =>
       parseStudyProgressPlan(
