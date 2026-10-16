@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AccountExportService } from '../../data-lifecycle/domain/account-export.service';
 import { StudyCollectionService } from '../domain/study-collection.service';
-import { createConnection, type Connection, type Model } from 'mongoose';
+import { ConnectionStates, createConnection, type Connection, type Model } from 'mongoose';
 
 import {
   MongoAccountLifecycleStore,
@@ -83,11 +83,19 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       dbName: uniqueDbName,
       serverSelectionTimeoutMS: 8_000,
     }).asPromise();
-    const hello = await connection.db!.admin().command({ hello: 1 });
+    // Do not trust Mongo's loosely typed admin() response, even in tests:
+    // safety must be proved before we mark a scratch database disposable.
+    const response: unknown = await connection.db!.admin().command({ hello: 1 });
+    if (!response || typeof response !== 'object') {
+      throw new Error('B50 refuses an invalid Mongo hello response');
+    }
+    const hello = response as Record<string, unknown>;
+    const membersOf = (value: unknown): unknown[] =>
+      Array.isArray(value) ? (value as unknown[]) : [];
     const reportedMembers: unknown[] = [
-      ...(Array.isArray(hello.hosts) ? hello.hosts : []),
-      ...(Array.isArray(hello.passives) ? hello.passives : []),
-      ...(Array.isArray(hello.arbiters) ? hello.arbiters : []),
+      ...membersOf(hello.hosts),
+      ...membersOf(hello.passives),
+      ...membersOf(hello.arbiters),
       hello.me,
     ].filter((value) => value !== undefined);
     const membersLocal = reportedMembers.length > 0 &&
@@ -134,7 +142,7 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
   }, 30_000);
 
   afterAll(async () => {
-    if (verifiedLocalReplica && connection?.readyState === 1) {
+    if (verifiedLocalReplica && connection?.readyState === ConnectionStates.connected) {
       // The name is generated above, never taken from the environment.
       await connection.dropDatabase();
     }
@@ -148,7 +156,11 @@ runMongo('B50 real Mongo replica-set acceptance: collections vs closure', () => 
       account_status: 'active',
       credential_version: 1,
     });
-    return user.id;
+    const id: unknown = user.id;
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new Error('Mongo user did not provide a valid owner ID');
+    }
+    return id;
   }
 
   async function create(ownerUserId: string, operationKey = randomUUID()) {
