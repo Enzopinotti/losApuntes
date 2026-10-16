@@ -6,6 +6,10 @@ import {
   type AccountExportOrphanCleanupRecord,
   type AccountExportOrphanCleanupStore,
 } from '../domain/account-export-orphan-cleanup.store';
+import {
+  accountExportOrphanClaimDueOnMongoServer,
+  accountExportOrphanOwnedAndDueOnMongoServer,
+} from '../domain/account-export-mongo-claim-clock';
 import { AccountExportOrphanCleanup } from './account-export-orphan-cleanup.schema';
 
 function duplicateKey(error: unknown): boolean {
@@ -83,6 +87,8 @@ implements AccountExportOrphanCleanupStore {
             nextAttemptAt: { $lte: input.now },
           },
         ],
+        // Due and prior lease are checked again on Mongo's primary time.
+        ...accountExportOrphanClaimDueOnMongoServer(),
       },
       { $set: {
         state: 'processing', claimId: input.claimId,
@@ -104,6 +110,9 @@ implements AccountExportOrphanCleanupStore {
         claimId: input.claimId,
         leaseExpiresAt: { $gt: input.now },
         verificationUntil: input.verificationUntil ?? null,
+        // Refuse lease renewal/retry when the settlement due was extended
+        // while a previous worker held the queue claim.
+        ...accountExportOrphanOwnedAndDueOnMongoServer(),
       },
       { $max: { leaseExpiresAt: input.leaseExpiresAt } },
     ).exec();
@@ -120,6 +129,7 @@ implements AccountExportOrphanCleanupStore {
       // If a takeover enlarged the horizon after this worker claimed the
       // row, its stale ACK must fail instead of deleting the new intent.
       verificationUntil: input.verificationUntil ?? null,
+      ...accountExportOrphanOwnedAndDueOnMongoServer(),
     }).exec();
     return result.deletedCount === 1;
   }
@@ -133,6 +143,9 @@ implements AccountExportOrphanCleanupStore {
         state: 'processing', claimId: input.claimId,
         leaseExpiresAt: { $gt: input.now },
         verificationUntil: input.verificationUntil ?? null,
+        // Refuse lease renewal/retry when the settlement due was extended
+        // while a previous worker held the queue claim.
+        ...accountExportOrphanOwnedAndDueOnMongoServer(),
       },
       {
         $set: { state: 'pending', claimId: null, leaseExpiresAt: null },
