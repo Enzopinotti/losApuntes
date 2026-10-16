@@ -39,7 +39,8 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
 
   createSink(jobId: string, generation: string): AccountExportArtifactSink {
     const key = objectKey(jobId, generation);
-    const writer = this.storage.createMultipartWriter({
+    const storage = this.storage;
+    const writer = storage.createMultipartWriter({
       objectKey: key,
       contentType: 'application/json; charset=utf-8',
       // B81: an S3 commit can succeed after its ACK is lost. Never DELETE
