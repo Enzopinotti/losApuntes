@@ -24,6 +24,18 @@ const result: AccountExportAssemblyResult = {
   sha256: 'a'.repeat(64),
 };
 
+// Jest's runtime asymmetric predicates are declared as any. Keep them
+// opaque so expected typed export records cannot inherit an unsafe type.
+const expectedDate: unknown = expect.any(Date);
+const expectedV2Artifact: unknown = expect.objectContaining({
+  formatVersion: 2,
+  sectionCount: 31,
+});
+const expectedV3Artifact: unknown = expect.objectContaining({
+  formatVersion: 3,
+  sectionCount: 32,
+});
+
 function claim(
   overrides: Partial<AccountExportJobRecord> = {},
 ): AccountExportJobRecord {
@@ -458,7 +470,7 @@ describe('AccountExportProcessor', () => {
       id: claim().id,
       generation: claim().claimId!,
       expiresAt,
-      now: expect.any(Date),
+      now: expectedDate,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
@@ -529,10 +541,7 @@ describe('AccountExportProcessor', () => {
     expect(f.exports.complete).toHaveBeenCalledWith({
       id: claim().id,
       claimId: claim().claimId,
-      result: expect.objectContaining({
-        formatVersion: 2,
-        sectionCount: 31,
-      }),
+      result: expectedV2Artifact,
     });
   });
 
@@ -952,10 +961,7 @@ describe('AccountExportProcessor', () => {
       claimId: claim().claimId,
       ownerUserId: 'owner-1',
       expectedProgressEpoch: 7,
-      result: expect.objectContaining({
-        formatVersion: 3,
-        sectionCount: 32,
-      }),
+      result: expectedV3Artifact,
     });
   });
 
@@ -1189,7 +1195,7 @@ describe('AccountExportProcessor', () => {
       id: orphan.jobId,
       ownerUserId: orphan.ownerUserId,
       generation: orphan.generation,
-      now: expect.any(Date),
+      now: expectedDate,
     });
     expect(
       f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0],
@@ -1481,7 +1487,7 @@ describe('AccountExportProcessor', () => {
         generation: orphan.generation,
         claimId: orphan.claimId,
         verificationUntil: until,
-        nextAttemptAt: expect.any(Date),
+        nextAttemptAt: expectedDate,
       }),
     );
   });
@@ -1548,7 +1554,7 @@ describe('AccountExportProcessor', () => {
         jobId: orphan.jobId,
         generation: orphan.generation,
         claimId: orphan.claimId,
-        nextAttemptAt: expect.any(Date),
+        nextAttemptAt: expectedDate,
       }),
     );
     const next = f.orphans.retry.mock.calls[0][0].nextAttemptAt;
@@ -1649,7 +1655,7 @@ describe('AccountExportProcessor', () => {
         jobId: orphan.jobId,
         generation: orphan.generation,
         claimId: orphan.claimId,
-        nextAttemptAt: expect.any(Date),
+        nextAttemptAt: expectedDate,
       }),
     );
   });
