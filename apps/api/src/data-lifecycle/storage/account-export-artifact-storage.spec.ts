@@ -276,6 +276,64 @@ describe('S3AccountExportArtifactStorage', () => {
     expect(storage.deleteObject).not.toHaveBeenCalled();
   });
 
+  it('B91 preflight accepts only exact-generation S3 bytes with bounded streaming hash', async () => {
+    const bytes = Buffer.from('{"private":"correct"}');
+    const readObjectChunks = jest.fn().mockImplementation(
+      () => (async function* () {
+        yield bytes.subarray(0, 7);
+        yield bytes.subarray(7);
+      })(),
+    );
+    const store: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn(),
+      readObjectChunks,
+      deleteObject: jest.fn(),
+    };
+    const storage = new S3AccountExportArtifactStorage(store);
+    const signal = new AbortController().signal;
+    await expect(storage.verifyReadable(
+      jobId, generation,
+      { byteLength: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') },
+      signal,
+    )).resolves.toBeUndefined();
+    expect(readObjectChunks).toHaveBeenCalledWith(
+      `exports/${jobId}/${generation}.json`, undefined, signal,
+    );
+    expect(store.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it('B91 preflight fails closed for equal-length corruption, truncation and S3 outage', async () => {
+    const bytes = Buffer.from('{"private":"correct"}');
+    const invalid = Buffer.from(bytes);
+    invalid[7] ^= 1;
+    const responses = [
+      (async function* () { yield invalid; })(),
+      (async function* () { yield bytes.subarray(0, bytes.length - 1); })(),
+      (async function* () { throw new Error('S3 unavailable'); })(),
+    ];
+    const readObjectChunks = jest.fn();
+    const store: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn(),
+      readObjectChunks,
+      deleteObject: jest.fn(),
+    };
+    const storage = new S3AccountExportArtifactStorage(store);
+    const expected = {
+      byteLength: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    };
+    for (const source of responses) {
+      readObjectChunks.mockReturnValueOnce(source);
+    }
+    await expect(storage.verifyReadable(jobId, generation, expected))
+      .rejects.toThrow('SHA-256 mismatch');
+    await expect(storage.verifyReadable(jobId, generation, expected))
+      .rejects.toThrow('byte length mismatch');
+    await expect(storage.verifyReadable(jobId, generation, expected))
+      .rejects.toThrow('S3 unavailable');
+    expect(store.deleteObject).not.toHaveBeenCalled();
+  });
+
   it('derives storage paths only from canonical job and generation UUIDs', async () => {
     const readObjectChunks = jest
       .fn()
