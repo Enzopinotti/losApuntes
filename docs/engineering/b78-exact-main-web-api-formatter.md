@@ -17,6 +17,15 @@
 
 El resultado antes de este documento fue **1 commit ahead, 0 behind**, con **58 archivos TS/TSX**. Prettier no es un test de comportamiento: el PR debe pasar los gates completos sobre su SHA final.
 
+## Cierre de ESLint Hooks (candidato B78)
+
+La primera CI exact-head del PR #377 (run #38898567686) confirmó **Prettier PASS en API, Web y Mobile**, pero el Quality Gate avanzó a ESLint y descubrió cuatro advertencias `react-hooks/exhaustive-deps` (cero advertencias permitido):
+
+- `StudyKits.tsx` (tres): el callback de verificación leía `selectedKit` desde una selección que puede regenerarse al leer el workspace local. Se creó un snapshot primitivo del ID y de los UUIDs de recursos (serializados por coma); el efecto y el callback observan los mismos valores primitivos y no dependen de una identidad mutable de objeto. Los UUIDs validados no contienen comas.
+- `StudyRunner.tsx` (una): el intervalo del cronómetro observa `activeClockStartedAt` como valor primitivo y `activeKey`, en lugar de leer una instancia de clock omitida del vector de dependencias.
+
+Se conserva la cancelación de requests mediante `useAsyncAuthorityFence`, el chequeo de `scope` y las reglas del temporizador. No se deshabilitó ESLint ni se agregó `eslint-disable`. Estos cambios **sí alteran código de React** y necesitan nueva CI exact-head; el PR deja de ser exclusivamente estilístico.
+
 ## Integración concurrente
 
 - El PR #374 conserva las correcciones funcionales CAS, exportación y progreso, pero proviene de un `main` anterior. Este PR **no incorpora ni reemplaza sus cambios funcionales**. Reconciliar #374 contra el formato final antes de fusionarlo.
