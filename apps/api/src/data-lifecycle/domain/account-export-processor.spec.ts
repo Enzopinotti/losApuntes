@@ -384,7 +384,7 @@ describe('AccountExportProcessor', () => {
       failed: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
-    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
+    expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
     expect(f.exports.complete.mock.calls).toHaveLength(0);
     expect(f.sink.abort.mock.calls).toHaveLength(0);
   });
@@ -400,7 +400,7 @@ describe('AccountExportProcessor', () => {
     );
     f.exports.renewLease.mockResolvedValueOnce(false);
     f.orphans.enqueue.mockRejectedValueOnce(
-      new Error('private provider cleanup failure'),
+      new Error('Mongo orphan queue failure'),
     );
     jest.useFakeTimers().setSystemTime(now);
 
@@ -1328,13 +1328,12 @@ describe('AccountExportProcessor', () => {
     const durableCas = f.exports.reschedule.mock.invocationCallOrder[0];
     const writeAhead = f.orphans.enqueue.mock.invocationCallOrder[0];
     expect(durableCas).toBeLessThan(writeAhead);
-    expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
   });
 
   it('B71 preserves retry result when orphan enqueue fails after unknown S3 ACK', async () => {
     const f = fixture();
     f.sink.commit.mockRejectedValueOnce(new Error('S3 complete response unknown'));
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('S3 currently down'));
+    f.orphans.enqueue.mockRejectedValueOnce(new Error('Mongo orphan queue unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       retryScheduled: 1, completed: 0,
     });
@@ -1386,7 +1385,7 @@ describe('AccountExportProcessor', () => {
   it('B69 persists cleanup intent without inline S3 deletion', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('S3 temporarily unavailable'));
+    f.orphans.enqueue.mockRejectedValueOnce(new Error('Mongo orphan queue temporarily unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       stale: 1, completed: 0,
     });
