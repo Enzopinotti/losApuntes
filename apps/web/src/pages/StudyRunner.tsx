@@ -195,6 +195,7 @@ export default function StudyRunner() {
   const activeKey = task ? keyOf(task) : null;
   const label = activeKey ? (runner?.labels[activeKey] ?? null) : null;
   const activeClock = activeKey ? (runner?.clocks[activeKey] ?? null) : null;
+  const activeClockStartedAt = activeClock?.startedAt ?? null;
   const [now, setNow] = useState(() => Date.now());
   const remainingMs = activeClock ? remainingTaskClock(activeClock, now) : 0;
   const stats = runner ? runSummary(runner.plan) : null;
@@ -385,10 +386,10 @@ export default function StudyRunner() {
   }, [subjectId, status, scope, loadPlan]);
 
   useEffect(() => {
-    if (!activeClock || activeClock.startedAt === null) return;
+    if (activeClockStartedAt === null) return;
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
-  }, [activeClock?.startedAt, activeKey]);
+  }, [activeClockStartedAt, activeKey]);
 
   useEffect(() => {
     if (
