@@ -745,3 +745,32 @@ producción. La validación contra Mongo local es opt-in por B86.
 No se ejecutaron en este entorno HTTP loopback completo, Mongo, Jest,
 TS o S3 de proveedor. Mantener `STUDY_PROGRESS_ENABLED=false`,
 issue #353 HOLD y auditorías #133/#141 pendientes.
+
+## B89 — Validación de destino y aislamiento de Mongo en aceptación local
+
+El runner `run-account-export-b86-local-acceptance.mjs` puede crear y
+eliminar bases **solo de prueba**. B89 impide que una URI de apariencia
+local conecte por DNS o descubrimiento de miembros a un Mongo remoto.
+
+Antes de iniciar Jest comprueba protocolo, puerto, ausencia de usuario,
+contraseña y base explícita, y un único `replicaSet` sin opciones
+adicionales. Admite `127.0.0.1`, `localhost` y `::1` únicamente
+si **todas las direcciones resueltas** son loopback. Fija luego la IP
+verificada en la URI y agrega `directConnection=true`, para no
+redirigirse a otro miembro por descubrimiento de topología.
+
+**Cambio intencional:** `mongo` como hostname de Docker deja de ser
+válido en este ejecutor seguro. Exponer/reenviar el replica set
+desechable a un puerto del host en loopback (sin credenciales reales).
+No pegar aquí URIs con secretos.
+
+Prueba que no conecta a Mongo:
+`node --test scripts/test-account-export-b89-local-mongo-uri.test.mjs`.
+
+La aceptación que sí utiliza Mongo requiere por separado Node24/pnpm9,
+URI de replica set local y confirmación del primario:
+`pnpm test:account-export-b86-local-acceptance`.
+Estos ensayos no deben ejecutarse contra producción ni staging.
+`STUDY_PROGRESS_ENABLED=false` y issue #353 HOLD siguen vigentes;
+Jest/Mongo real, S3 de proveedor, backups, IAM y auditorías #133/#141
+permanecen pendientes.
