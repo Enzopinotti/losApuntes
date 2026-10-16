@@ -63,13 +63,14 @@ function fixture() {
     getStudyProgressExportEpoch: jest.fn().mockResolvedValue(5),
   };
 
+  const storeContract = store as unknown as AccountExportStore;
+  const usersContract = users as unknown as UsersService;
   return {
     store,
     users,
-    service: new AccountExportService(
-      store as unknown as AccountExportStore,
-      users as unknown as UsersService,
-    ),
+    storeContract,
+    usersContract,
+    service: new AccountExportService(storeContract, usersContract),
   };
 }
 
@@ -846,8 +847,8 @@ describe('AccountExportService', () => {
         .mockResolvedValueOnce(true),
     };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
@@ -876,8 +877,8 @@ describe('AccountExportService', () => {
         .mockResolvedValueOnce(true),
     };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED' } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
@@ -906,8 +907,8 @@ describe('AccountExportService', () => {
         .mockRejectedValueOnce(error),
     };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       progress as never,
@@ -925,8 +926,8 @@ describe('AccountExportService', () => {
   it('B63: rejects an unsupported durable format instead of mislabelling it', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
@@ -943,8 +944,8 @@ describe('AccountExportService', () => {
   it('B63: permits replay of a higher-version historical job, never downgrading it', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       { get: () => false } as never,
       { hasOwnedCollections: jest.fn().mockResolvedValue(false) } as never,
       { hasOwnedProgress: jest.fn().mockResolvedValue(false) } as never,
@@ -969,8 +970,8 @@ describe('AccountExportService', () => {
     };
     const progress = { hasOwnedProgress: jest.fn().mockResolvedValue(true) };
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       config as never,
       collections as never,
       progress as never,
@@ -991,8 +992,8 @@ describe('AccountExportService', () => {
   it('rejects stale v1/v2 work for a newly required v3 export', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: (key: string) => key === 'STUDY_PROGRESS_ENABLED',
       } as never,
@@ -1014,8 +1015,8 @@ describe('AccountExportService', () => {
     const f = fixture();
     const failure = new Error('Mongo unavailable');
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: () => false,
       } as never,
@@ -1029,8 +1030,8 @@ describe('AccountExportService', () => {
   it('requests v2 when persistent collections are enabled', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: (key: string) =>
           key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
@@ -1060,8 +1061,8 @@ describe('AccountExportService', () => {
   it('does not reuse a pre-activation v1 job for newly persisted private collections', async () => {
     const f = fixture();
     const service = new AccountExportService(
-      f.store,
-      f.users,
+      f.storeContract,
+      f.usersContract,
       {
         get: (key: string) =>
           key === 'STUDY_COLLECTIONS_ENABLED' ? true : undefined,
@@ -1094,8 +1095,8 @@ describe('AccountExportService', () => {
       const f = fixture();
       const ownedReader = reader(true);
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+      f.usersContract,
         disabled as never,
         ownedReader as never,
         emptyProgressReader as never,
@@ -1122,8 +1123,8 @@ describe('AccountExportService', () => {
       const f = fixture();
       const emptyReader = reader(false);
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+      f.usersContract,
         disabled as never,
         emptyReader as never,
         emptyProgressReader as never,
@@ -1142,8 +1143,8 @@ describe('AccountExportService', () => {
     it('rejects a stale active v1 job if private collections require v2 during rollback', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+      f.usersContract,
         disabled as never,
         reader(true) as never,
         emptyProgressReader as never,
@@ -1166,8 +1167,8 @@ describe('AccountExportService', () => {
       const error = new Error('Mongo read unavailable');
       unavailable.hasOwnedCollections.mockRejectedValueOnce(error);
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+      f.usersContract,
         disabled as never,
         unavailable as never,
         emptyProgressReader as never,
@@ -1179,8 +1180,8 @@ describe('AccountExportService', () => {
     it('fails closed on missing reader wiring whenever real configuration is present', async () => {
       const f = fixture();
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+      f.usersContract,
         disabled as never,
       );
       await expect(service.request('user-1', now)).rejects.toThrow(
@@ -1196,8 +1197,8 @@ describe('AccountExportService', () => {
         get: (key: string) => key === 'STUDY_COLLECTIONS_ENABLED',
       };
       const service = new AccountExportService(
-        f.store,
-        f.users,
+        f.storeContract,
+      f.usersContract,
         enabled as never,
         ownedReader as never,
         emptyProgressReader as never,
