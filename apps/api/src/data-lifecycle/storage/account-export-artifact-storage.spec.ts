@@ -41,6 +41,7 @@ describe('S3AccountExportArtifactStorage', () => {
         {
           objectKey: `exports/${jobId}/${generation}.json`,
           contentType: 'application/json; charset=utf-8',
+          deleteObjectOnAbort: false,
         },
       ],
     ]);
@@ -158,6 +159,39 @@ describe('S3AccountExportArtifactStorage', () => {
     expect(storage.deleteObject).toHaveBeenCalledWith(
       `exports/${jobId}/${generation}.json`,
     );
+  });
+
+  it('B81 always opts private artifacts out of the S3 writer direct-delete abort path', async () => {
+    const writer = {
+      write: jest.fn().mockResolvedValue(undefined),
+      complete: jest.fn().mockRejectedValue(new Error('unknown commit')),
+      abort: jest.fn().mockResolvedValue(undefined),
+    };
+    const storage: jest.Mocked<AccountExportArtifactObjectStorage> = {
+      createMultipartWriter: jest.fn().mockReturnValue(writer),
+      readObjectChunks: jest.fn().mockReturnValue((async function* () {})()),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+    };
+    const sink = new S3AccountExportArtifactStorage(storage).createSink(jobId, generation);
+    const bytes = '{"unexpected":"ack"}';
+    await sink.write(bytes);
+    await expect(sink.commit({
+      format: 'los-apuntes-account-export',
+      formatVersion: 1,
+      sectionCount: 30, recordCount: 1,
+      byteLength: Buffer.byteLength(bytes),
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    })).rejects.toThrow('unknown commit');
+    await sink.abort();
+    await sink.abort();
+
+    expect(storage.createMultipartWriter).toHaveBeenCalledWith({
+      objectKey: `exports/${jobId}/${generation}.json`,
+      contentType: 'application/json; charset=utf-8',
+      deleteObjectOnAbort: false,
+    });
+    expect(writer.abort).toHaveBeenCalledTimes(1);
+    expect(storage.deleteObject).not.toHaveBeenCalled();
   });
 
   it('derives storage paths only from canonical job and generation UUIDs', async () => {
