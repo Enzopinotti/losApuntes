@@ -46,8 +46,8 @@ check('uncertain durable Mongo completion still gets exact-generation reconcilia
   assert.match(claim, /if \(!updated\)/u);
 });
 check('new Jest matrix covers lost multipart ACK and failed/unknown retry CAS', () => {
-  assert.match(tests, /B71 cleans up S3 after multipart completion ACK is lost/u);
-  assert.match(tests, /B71 queues unknown S3 commit after failed S3 DELETE/u);
+  assert.match(tests, /B71 queues S3 cleanup after multipart completion ACK is lost/u);
+  assert.match(tests, /B71 preserves retry result when orphan enqueue fails/u);
   assert.match(tests, /B71 does not delete uncertain multipart generation when Mongo retry CAS loses/u);
   assert.match(tests, /B71 preserves S3 when Mongo retry CAS itself is unavailable/u);
   assert.match(tests, /B71 still cleans up after an abort error/u);

@@ -468,3 +468,18 @@ fault-injection, multipart lifecycle expiry, object/version inventory,
 and backup/retention acceptance. See
 `docs/engineering/account-export-settlement-fences-b77.md`.
 Production gate #353 remains OPEN.
+
+
+## B78 — Queue-only cleanup on failed export attempts
+
+The export worker no longer executes an immediate S3 DELETE after a
+confirmed stale claim or retry-CAS. It **only writes the durable orphan
+intent**. The separate drainer, on a subsequent iteration, verifies the
+real job owner, exact generation, active lease, takeover due date and
+verification horizon before deleting. A stale worker cannot bypass the
+three-lease settling delay by re-enqueuing an existing takeover task.
+
+If orphan enqueue fails, the worker does not attempt a direct S3 delete;
+operators must investigate queue persistence and provider lifecycle. This
+is not proof of storage/backup erasure. Run the B78 source guard and
+exact-head Jest/Mongo/S3 acceptance before removing release HOLD #353.

@@ -62,15 +62,15 @@ verify("confirmed epoch rejection and uncertain commits have distinct cleanup po
   assert.match(mongoStore, /throw new AccountExportEpochConflictError\(\)/u);
   assert.match(processor, /durableCompletionAttempted/u);
   assert.match(processor, /error instanceof AccountExportEpochConflictError/u);
-  assert.match(processor, /await this\.artifacts\.deleteArtifact\(job\.id, claimId\)/u);
-  assert.match(processor, /An error after attempting the Mongo completion is ambiguous/u);
+  assert.match(processor, /await this\.deleteOrEnqueueProvenOrphan\(job, claimId\)/u);
+  assert.match(processor, /Once Mongo completion was attempted, preserve the S3 generation/u);
 });
 verify("regression cases cover v3 CAS, stale claims, uncertain commits and retries", () => {
   assert.match(mongoSpec, /B65 atomically fences v3/u);
   assert.match(mongoSpec, /B65 rejects concurrent progress edits/u);
   assert.match(mongoSpec, /B65 rolls back the owner fence/u);
   assert.match(workerSpec, /B65: never deletes S3 on an uncertain durable Mongo completion/u);
-  assert.match(workerSpec, /B65: cleans S3 after a confirmed atomic Mongo epoch rejection/u);
+  assert.match(workerSpec, /B65: queues S3 cleanup after a confirmed atomic Mongo epoch rejection/u);
 });
 verify("isolated real-Mongo replica tests exercise atomic completion", () => {
   assert.match(mongoIntegration, /B65 completes a real v3 export atomically/u);

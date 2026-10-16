@@ -555,7 +555,7 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(durable?.artifactSha256).toBe(assembly.sha256);
   }, 30_000);
 
-  it('B66 deletes an orphan only after a real Mongo reschedule commits', async () => {
+  it('B66 queues an orphan only after a real Mongo reschedule commits', async () => {
     const userId = await owner();
     const id = randomUUID();
     const claimId = randomUUID();
@@ -624,8 +624,8 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     await expect(processor.runIteration()).resolves.toMatchObject({
       claimed: 1, retryScheduled: 1, completed: 0,
     });
-    expect(operations).toEqual(['reschedule-committed', 'delete-S3']);
-    expect(deleteArtifact).toHaveBeenCalledWith(id, claimId);
+    expect(operations).toEqual(['reschedule-committed']);
+    expect(deleteArtifact).not.toHaveBeenCalled();
     const durable = await store.findOwned(id, userId);
     expect(durable?.state).toBe('pending');
     expect(durable?.artifactGeneration).toBeNull();
@@ -851,6 +851,15 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       new MongoAccountExportOrphanCleanupStore(orphanJobs),
     );
     await expect(second.runIteration()).resolves.toMatchObject({
+      claimed: 0, orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(deleteArtifact).toHaveBeenCalledTimes(1);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    // Advance only this isolated fixture's durable retry date.
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
+    await expect(second.runIteration()).resolves.toMatchObject({
       claimed: 0, orphanDeleted: 1, orphanRetries: 0,
     });
     expect(deleteArtifact).toHaveBeenCalledTimes(2);
@@ -963,6 +972,71 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
     expect(deleteArtifact).toHaveBeenNthCalledWith(2, id, oldGeneration);
     expect(await orphanJobs.countDocuments({ jobId: id, generation: oldGeneration }))
       .toBe(0);
+  }, 30_000);
+
+
+  it('B78 late stale worker cannot bypass the takeover cleanup deadline', async () => {
+    await orphanJobs.deleteMany({});
+    await exportJobs.deleteMany({});
+    const userId = await owner();
+    const id = randomUUID();
+    const previousGeneration = randomUUID();
+    const nextGeneration = randomUUID();
+    const now = new Date();
+    await exportJobs.create({
+      id, userId, state: 'processing', active: true,
+      formatVersion: 1, attempts: 1, nextAttemptAt: now,
+      claimId: previousGeneration, leaseExpiresAt: new Date(now.getTime() - 1),
+    });
+    const store = new MongoAccountExportStore(exportJobs, users, connection, orphanJobs);
+    const previous = await store.findOwned(id, userId) as AccountExportJobRecord;
+    await expect(store.claimNext({
+      now, claimId: nextGeneration,
+      leaseExpiresAt: new Date(now.getTime() + ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    })).resolves.toMatchObject({ claimId: nextGeneration });
+    const before = await orphanJobs.findOne({
+      jobId: id, generation: previousGeneration,
+    }).lean().exec();
+    expect(before?.verificationUntil).toEqual(new Date(now.getTime() + 60 * 60_000));
+    expect(before?.nextAttemptAt).toEqual(
+      new Date(now.getTime() + 3 * ACCOUNT_EXPORT_LEASE_DURATION_MS),
+    );
+
+    const deleteArtifact = jest.fn().mockResolvedValue(undefined);
+    const artifacts = {
+      createSink: jest.fn().mockReturnValue({
+        write: jest.fn(), commit: jest.fn(), abort: jest.fn(),
+      }),
+      deleteArtifact,
+    } as unknown as AccountExportArtifactStorage;
+    const assembler = {
+      writeJsonV1: jest.fn().mockResolvedValue({
+        format: 'los-apuntes-account-export', formatVersion: 1,
+        sectionCount: 30, recordCount: 0, byteLength: 128,
+        sha256: 'a'.repeat(64),
+      }),
+    } as unknown as AccountExportAssembler;
+    const staleWorker = new AccountExportProcessor(
+      {
+        claimNext: jest.fn().mockResolvedValueOnce(previous),
+        renewLease: jest.fn().mockResolvedValue(true),
+        complete: jest.fn().mockResolvedValue(false),
+      } as unknown as AccountExportService,
+      assembler, store, artifacts, new MongoAccountExportOrphanCleanupStore(orphanJobs),
+    );
+    await expect(staleWorker.runIteration()).resolves.toMatchObject({
+      claimed: 1, stale: 1, orphanDeleted: 0,
+    });
+    expect(deleteArtifact).not.toHaveBeenCalled();
+    const after = await orphanJobs.findOne({
+      jobId: id, generation: previousGeneration,
+    }).lean().exec();
+    expect(after?.verificationUntil).toEqual(before?.verificationUntil);
+    expect(after?.nextAttemptAt).toEqual(before?.nextAttemptAt);
+    expect(after?.state).toBe('pending');
+    expect(await orphanJobs.countDocuments({
+      jobId: id, generation: previousGeneration,
+    })).toBe(1);
   }, 30_000);
 
   it('B77 keeps an expired cleanup lease blocked until its new settlement date', async () => {

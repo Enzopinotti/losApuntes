@@ -38,9 +38,9 @@ verify('reconciliation read failures never fabricate successful completion', () 
 verify('CAS grants cleanup only after durable pending or failed state', () => {
   const reschedule = processor.lastIndexOf('const updated = await this.exports.reschedule(');
   const result = processor.indexOf('if (!updated)', reschedule);
-  const cleanup = processor.indexOf('await this.artifacts.deleteArtifact(job.id, claimId)', result);
+  const cleanup = processor.indexOf('await this.deleteOrEnqueueProvenOrphan(job, claimId)', result);
   assert.ok(reschedule >= 0 && result > reschedule && cleanup > result);
-  assert.match(processor, /if \(uncertainCompletion\) \{/u);
+  assert.match(processor, /if \(uncertainCompletion && completedAssembly\)/u);
 });
 verify('CAS loss causes a second reconciliation read before stale result', () => {
   assert.match(processor, /if \(!updated\) \{/u);
@@ -56,18 +56,18 @@ verify('typed confirmed epoch conflicts retain their existing safer cleanup', ()
 });
 verify('both recovered completion and proven orphan are tested', () => {
   assert.match(tests, /B66 reconciles a lost Mongo acknowledgement/u);
-  assert.match(tests, /B66 deletes orphaned S3 only AFTER retry CAS/u);
+  assert.match(tests, /B66 queues orphan cleanup only AFTER retry CAS/u);
   assert.match(tests, /B66 rechecks after a lost reschedule CAS/u);
   assert.match(tests, /B66 preserves S3 when claim outcome is unknown/u);
   assert.match(tests, /B66 ignores a completed export from another owner/u);
-  assert.match(tests, /B66 retains a durable retry outcome when S3 orphan cleanup fails/u);
+  assert.match(tests, /B66 retains a durable retry outcome when orphan enqueue fails/u);
   assert.match(tests, /B66 never deletes S3 if the reconciliation CAS itself fails/u);
   assert.match(tests, /B66 preserves S3 if both reconciliation reads are unavailable/u);
   assert.match(tests, /also reconciles lost acknowledgements for historical/u);
 });
 verify('real Mongo replica opt-in tests cover lost reply and CAS before orphan cleanup', () => {
   assert.match(mongo, /B66 recovers an actually committed Mongo export/u);
-  assert.match(mongo, /B66 deletes an orphan only after a real Mongo reschedule commits/u);
+  assert.match(mongo, /B66 queues an orphan only after a real Mongo reschedule commits/u);
   assert.match(mongo, /STUDY_PROGRESS_TEST_MONGO_URI/u);
   assert.match(store, /userId: ownerUserId/u);
 });
