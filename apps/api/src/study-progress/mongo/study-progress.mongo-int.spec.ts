@@ -1637,6 +1637,14 @@ runMongo('B61 private progress acceptance on isolated Mongo replica set', () => 
       new MongoAccountExportOrphanCleanupStore(orphanJobs),
     );
     await expect(restarted.runIteration()).resolves.toMatchObject({
+      claimed: 0, orphanDeleted: 0, orphanRetries: 1,
+    });
+    expect(deleteArtifact).toHaveBeenCalledTimes(1);
+    expect(await orphanJobs.countDocuments({ jobId: id, generation })).toBe(1);
+    await orphanJobs.updateOne({ jobId: id, generation }, {
+      $set: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
+    await expect(restarted.runIteration()).resolves.toMatchObject({
       claimed: 0, orphanDeleted: 1, orphanRetries: 0,
     });
     expect(deleteArtifact).toHaveBeenCalledTimes(2);
