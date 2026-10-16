@@ -1,5 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 
+import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
+
 import type {
   ObjectStorage,
   ObjectStorageDownloadIntent,
@@ -561,7 +563,11 @@ export function createS3ObjectStorage(
             'application/xml',
           );
           const xml = await response.text();
-          if (!response.ok || /<Error(?:\s|>)/u.test(xml)) {
+          // S3 may reply 200 with an embedded Error. A blank/unrelated
+          // 2xx body is also not evidence that a multipart committed.
+          // Preserve uploadId on failure so abort() only cancels this
+          // multipart ID; private exports never DELETE the object here.
+          if (!response.ok || !isConfirmedS3MultipartCompletion(xml)) {
             throw storageError('Complete multipart upload', response.status);
           }
           uploadId = null;
