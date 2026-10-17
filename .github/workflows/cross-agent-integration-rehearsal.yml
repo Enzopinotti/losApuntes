@@ -1,0 +1,92 @@
+name: Cross-agent integration rehearsal
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cross-agent-integration-rehearsal.yml"
+      - "scripts/ci/quality-cross-agent-rehearsal.mjs"
+      - "scripts/ci/quality-cross-agent-rehearsal.test.mjs"
+      - "docs/engineering/cross-agent-integration-rehearsal.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-agent-rehearsal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rehearsal:
+    name: Read-only B77 + B78 merge and targeted quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      CI_R01_READONLY_REHEARSAL: confirmed
+      GITHUB_ACTIONS: "true"
+    steps:
+      - name: Checkout exact request HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          # Token only has contents:read. No branch is pushed or modified.
+          persist-credentials: true
+
+      - name: Verify exact original HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Verify integration reporter semantics
+        run: node --test scripts/ci/quality-cross-agent-rehearsal.test.mjs
+
+      - name: Fetch only latest main and authorized candidate PR refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/pull/374/head:refs/remotes/origin/ci-r01-b77 \
+            +refs/pull/377/head:refs/remotes/origin/ci-r01-b78
+          printf 'CI_R01_BASE_SHA=%s\n' "$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_ENV"
+          printf 'CI_R01_B77_SHA=%s\n' "$(git rev-parse refs/remotes/origin/ci-r01-b77)" >> "$GITHUB_ENV"
+          printf 'CI_R01_B78_SHA=%s\n' "$(git rev-parse refs/remotes/origin/ci-r01-b78)" >> "$GITHUB_ENV"
+
+      - name: Rehearse both orders in temporary detached Git commits
+        run: node scripts/ci/quality-cross-agent-rehearsal.mjs
+
+      - name: Setup pnpm for merged candidate
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Frozen dependencies for locally merged candidate
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce combined API and Web formatting
+        run: |
+          pnpm --filter @losapuntes/api format:check
+          pnpm --filter @losapuntes/web format:check
+
+      - name: Validate cross-agent source types and Web lint
+        run: |
+          pnpm --filter @losapuntes/api check:types
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web lint
+
+      - name: Run six disputed API acceptance suites
+        run: |
+          pnpm --filter @losapuntes/api exec jest \
+            src/study-collections/domain/study-collection.service.spec.ts \
+            src/data-lifecycle/data-lifecycle.module.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            --runInBand
