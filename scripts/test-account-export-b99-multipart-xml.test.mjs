@@ -8,12 +8,12 @@ const wrap = fields =>
   '</CompleteMultipartUploadResult>';
 const good = '<Location>https://s3.example/a&amp;b</Location><Bucket>bucket</Bucket><Key>name</Key><ETag>"etag"</ETag>';
 
-test('B99 accepts AWS envelope, checksums, escaped text and loopback selfclosing fixture', () => {
+test('B99 accepts AWS envelope and checksums but rejects legacy empty ACK', () => {
   assert.equal(valid('<?xml version="1.0" encoding="UTF-8"?>' + wrap(good)), true);
   assert.equal(valid(wrap('<ETag>"v"</ETag><ChecksumCRC64NVME>abc=</ChecksumCRC64NVME>')), true);
   assert.equal(valid(wrap('<ETag>&quot;v&amp;2&quot;</ETag><Key>áñ€</Key>')), true);
-  assert.equal(valid('<CompleteMultipartUploadResult/>'), true);
-  assert.equal(valid('\uFEFF \n<?xml version="1.0"?>\n<CompleteMultipartUploadResult />'), true);
+  assert.equal(valid('<CompleteMultipartUploadResult/>'), false);
+  assert.equal(valid('\uFEFF \n<?xml version="1.0"?>\n<CompleteMultipartUploadResult />'), false);
 });
 
 test('B99 rejects unclosed, mismatched, duplicate or nested provider fields', () => {

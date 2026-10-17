@@ -31,9 +31,9 @@ check('B96 empty, HTML, truncated or sibling XML envelopes cannot signal success
   assert.match(unit, /B96 malformed or partial/u);
   assert.match(unit, /multiple sibling envelopes/u);
 });
-check('B96 accepts the real S3 result and existing B86 selfclosing fixture', () => {
+check('B103 preserves realistic S3 result while rejecting empty B86 ACK', () => {
   assert.match(unit, /realistic AWS S3 multipart completion XML/u);
-  assert.match(unit, /known self-closing local S3 completion fixture/u);
+  assert.match(unit, /rejects the known self-closing local S3 completion fixture/u);
 });
 check('B98 preserves B96 semantic XML guard after B97 bounded streaming', () => {
   const start = implementation.indexOf("const response = await request(\n            'POST',\n            [['uploadId', currentUploadId]]");

@@ -44,3 +44,11 @@ pnpm --filter @losapuntes/api test:ci --runTestsByPath src/files/storage/s3-obje
 ```
 
 Continuar con la matriz durable B94 contra Mongo local y la aceptación S3 del proveedor. No levantar #353 ni activar producción sin evidencia ejecutada.
+
+
+## Vigencia tras B103
+
+B103 eliminó la excepción inicial B96 que aceptaba respuestas autocerradas de
+un fixture de pruebas como éxito HTTP 200. El adaptador actual exige ETag
+semánticamente no vacío y el fixture B86 fue actualizado. Ver
+`account-export-b103-confirmed-s3-etag.md`.

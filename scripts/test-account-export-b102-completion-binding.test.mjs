@@ -39,8 +39,8 @@ test('B102 treats field omission as provider-compatible but never trusts an expl
   assert.equal(confirm(wrap(null, 'wrong'), expected), false);
 });
 
-test('B102 preserves B86 legacy selfclosing fixture and B99 syntax guards', () => {
-  assert.equal(confirm('<CompleteMultipartUploadResult/>', expected), true);
+test('B102 rejects B86 legacy empty ACK and preserves B99 syntax guards', () => {
+  assert.equal(confirm('<CompleteMultipartUploadResult/>', expected), false);
   assert.equal(confirm(wrap('other-bucket', 'other'), undefined), true,
     'legacy XML-only parsing remains independent for diagnostics');
   assert.equal(confirm(wrap('export-private', 'exports/owner-1/a&b final.json'), expected), false);

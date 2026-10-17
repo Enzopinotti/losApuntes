@@ -56,3 +56,11 @@ con su runner TAP anti-skips.
 Se mantienen B80/B81 cleanup owner-fenced, B90/B91 integridad SHA-256, B92/B93
 reautorización y B96–B101 límites/errores/compatibilidad.
 No habilitar producción antes de las aceptaciones de #353.
+
+
+## Vigencia tras B103
+
+La compatibilidad B102 con el resultado multipart autocerrado se retiró en B103.
+El simulador B86 emite ahora `<CompleteMultipartUploadResult>` con ETag. Las
+respuestas que omiten Bucket/Key pero incluyen ETag significativo conservan el
+comportamiento documentado, bajo B90 readback y #353 HOLD.

@@ -41,7 +41,7 @@ check('B102 decodes bounded XML entities for comparisons without XML entity expa
 });
 check('B102 rejects another owner bucket/key and preserves B99 XML rules', () => {
   assert.match(unit, /fails closed if S3 HTTP 200 completion/u);
-  assert.match(unit, /preserves B86 legacy selfclosing fixture/u);
+  assert.match(unit, /rejects B86 legacy empty ACK/u);
   assert.match(result, /seenFields\.has\(tag\.name\)/u);
   assert.match(result, /etagSeen && index === body\.length/u);
 });

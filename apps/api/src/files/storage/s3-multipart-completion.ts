@@ -166,7 +166,8 @@ export function isConfirmedS3MultipartCompletion(
     if (!rootOpen) {
       if (tag.closing || tag.name !== ROOT ||
           tag.attributes.some(name => name !== 'xmlns')) return false;
-      if (tag.selfClosing) return index === body.length; // Legacy loopback fixture.
+      // Even a well-formed HTTP 200 root without an ETag is not a S3 commit ACK.
+      if (tag.selfClosing) return false;
       rootOpen = true;
       continue;
     }
@@ -185,7 +186,14 @@ export function isConfirmedS3MultipartCompletion(
       seenFields.add(tag.name);
     } else {
       if (!tag.closing || tag.name !== activeField || !fieldHasValue) return false;
-      if (activeField === 'ETag') etagSeen = true;
+      if (activeField === 'ETag') {
+        // XML numeric entities can encode whitespace; checking raw text
+        // alone would treat &#x20; as a meaningful completion ETag.
+        if (decodeCompletionXmlField(fieldText).trim().length === 0) {
+          return false;
+        }
+        etagSeen = true;
+      }
       if (activeField === 'Bucket') {
         responseBucket = decodeCompletionXmlField(fieldText);
       }

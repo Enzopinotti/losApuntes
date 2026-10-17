@@ -28,9 +28,9 @@ check('B99 disallows markup or entity expansion in field values', () => {
   assert.match(parser, /if \(!isDecimal && !isHex\) return false/u);
   assert.match(units, /rejects undefined named, unescaped/u);
 });
-check('B99 preserves B96 legacy fixture and AWS real envelope', () => {
-  assert.match(parser, /if \(tag\.selfClosing\) return index === body\.length/u);
-  assert.match(units, /accepts AWS envelope, checksums/u);
+check('B103 preserves B99 strict AWS envelope and removes legacy empty ACK', () => {
+  assert.match(parser, /if \(tag\.selfClosing\) return false/u);
+  assert.match(units, /accepts AWS envelope and checksums/u);
 });
 check('B99 uses B97 bounded read before semantic acceptance and writer commit', () => {
   const start = writer.indexOf('async complete(): Promise<void>');
