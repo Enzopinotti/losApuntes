@@ -58,4 +58,6 @@ test('B99 accepts valid numeric entities and rejects embedded controls', () => {
   assert.equal(valid(wrap('<ETag>&#34;x&#x22;</ETag>')), true);
   assert.equal(valid(wrap('<ETag>ok\u0001</ETag>')), false);
   assert.equal(valid(wrap('<ETag>\ud800</ETag>')), false);
+  assert.equal(valid(wrap('<ETag>\ufffe</ETag>')), false);
+  assert.equal(valid(wrap('<ETag>bad]]>text</ETag>')), false);
 });
