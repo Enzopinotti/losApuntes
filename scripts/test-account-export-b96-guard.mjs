@@ -35,12 +35,19 @@ check('B96 accepts the real S3 result and existing B86 selfclosing fixture', () 
   assert.match(unit, /realistic AWS S3 multipart completion XML/u);
   assert.match(unit, /known self-closing local S3 completion fixture/u);
 });
-check('B96 enforces verified XML after POST response and before writer commit state', () => {
+check('B98 preserves B96 semantic XML guard after B97 bounded streaming', () => {
   const start = implementation.indexOf("const response = await request(\n            'POST',\n            [['uploadId', currentUploadId]]");
-  const body = implementation.indexOf('const xml = await response.text();', start);
-  const checked = implementation.indexOf('!isConfirmedS3MultipartCompletion(xml)', body);
-  const committed = implementation.indexOf('completed = true;', checked);
-  assert.ok(start > 0 && body > start && checked > body && committed > checked);
+  const end = implementation.indexOf('async abort(): Promise<void>', start);
+  assert.ok(start > 0 && end > start, 'multipart completion block exists');
+  const complete = implementation.slice(start, end);
+  const status = complete.indexOf('if (!response.ok)');
+  const bounded = complete.indexOf('const xml = await readBoundedS3MultipartCompletionXml(response);');
+  const checked = complete.indexOf('if (!isConfirmedS3MultipartCompletion(xml))');
+  const committed = complete.lastIndexOf('completed = true;');
+  assert.ok(status >= 0 && bounded > status && checked > bounded && committed > checked,
+    'HTTP success, bounded read and B96 semantic validation precede commit');
+  assert.doesNotMatch(complete, /response\.text\(\)/u,
+    'multipart response must never be buffered without a byte cap');
 });
 check('B96 abort remains generation-safe for private exports', () => {
   assert.match(implementation, /if \(input\.deleteObjectOnAbort !== false\)/u);
