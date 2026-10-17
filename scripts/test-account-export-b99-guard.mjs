@@ -37,7 +37,7 @@ check('B99 uses B97 bounded read before semantic acceptance and writer commit', 
   const end = writer.indexOf('async abort(): Promise<void>', start);
   const section = writer.slice(start, end);
   const bounded = section.indexOf('readBoundedS3MultipartCompletionXml(response)');
-  const semantic = section.indexOf('isConfirmedS3MultipartCompletion(xml)');
+  const semantic = section.indexOf('isConfirmedS3MultipartCompletion(xml, {');
   const done = section.lastIndexOf('completed = true;');
   assert.ok(bounded > 0 && semantic > bounded && done > semantic);
 });
