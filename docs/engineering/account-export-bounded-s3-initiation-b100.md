@@ -10,7 +10,7 @@ B97 limitó a 64 KiB el body HTTP de `CompleteMultipartUpload`, y B99 endureció
 ## Cambio de implementación
 
 1. Reutilizar el lector en streaming de B97 mediante `readBoundedS3MultipartInitiationXml`. El presupuesto de respuesta es de **65 536 bytes antes de decodificar**; UTF-8 fatal, cancelación en error y cierre del reader.
-2. Validar `InitiateMultipartUploadResult` con un helper dedicado `parseConfirmedS3MultipartUploadId`: XML opcional con declaración y namespace S3 oficial, campos `Bucket`, `Key`, `UploadId` planos y sin duplicados. Se requieren raíz correcta, ID único/no vacío, longitud máxima y ausencia de espacios/controles; se rechazan entidades inválidas y cuerpos/siblings extraños.
+2. Validar `InitiateMultipartUploadResult` con un helper dedicado `parseConfirmedS3MultipartUploadId`: XML opcional con declaración y namespace S3 oficial, campos `Bucket`, `Key`, `UploadId` planos y sin duplicados. Se requieren raíz correcta, ID único/no vacío, longitud máxima y ausencia de espacios/controles; se rechazan entidades inválidas y cuerpos/siblings extraños. Cuando aparecen los campos Bucket/Key se comparan contra el destino esperado antes de autorizar la primera parte.
 3. Solo asignar `uploadId` y comenzar los `PUT partNumber` después de ambas comprobaciones. No hacer fallback silencioso a un regex.
 4. Respetar la semántica existente de `CompleteMultipartUpload` (B96–B99), readback SHA-256 (B90), reautorización (B92–B93) y limpieza durable owner-fenced (B80–B81).
 
@@ -26,7 +26,7 @@ pnpm test:account-export-b86-s3-loopback
 pnpm test:account-lifecycle-contract
 ```
 
-Se agregaron vectores Node de validación/overflow/UTF-8 y TCP local `127.0.0.1`; casos Jest del writer y del HTTP firmado del adaptador (fallas sintéticas B100); guard estructural B100, scripts y runbook.
+Se ejecutaron 9/9 tests aislados en Node22 sobre blobs exactos por hash de GitHub (incluido TCP local); tsc aislado de los helpers PASS. Se agregaron vectores Node de validación/overflow/UTF-8 y TCP local `127.0.0.1`; casos Jest del writer y del HTTP firmado del adaptador (fallas sintéticas B100); guard estructural B100, scripts y runbook.
 
 **Evidencia pendiente:** ejecutar comandos en un checkout Node 24/pnpm 9, Jest/TypeScript/lint, suite SigV4 HTTP completa, Mongo replica real B94, proveedor real S3 con bucket/credenciales/lifecycle verificados, navegador, backups e IAM, auditorías #133/#141. Toda verificación pura o estática se reporta separada de esos gates.
 
