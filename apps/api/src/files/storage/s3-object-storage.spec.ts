@@ -379,7 +379,7 @@ describe('S3ObjectStorage', () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response('<CompleteMultipartUploadResult/>', { status: 200 }),
+        new Response('<CompleteMultipartUploadResult><ETag>"complete-etag"</ETag></CompleteMultipartUploadResult>', { status: 200 }),
       );
     const writer = storage().createMultipartWriter({
       objectKey: 'exports/job/generation.json',
@@ -439,6 +439,36 @@ describe('S3ObjectStorage', () => {
     await storage().deleteObject('exports/job/private-generation.json');
     expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
       .toEqual(['PUT', 'DELETE']);
+  });
+
+  it.each([
+    '<CompleteMultipartUploadResult/>',
+    '<CompleteMultipartUploadResult />',
+    '<CompleteMultipartUploadResult><ETag>&#x20;</ETag></CompleteMultipartUploadResult>',
+    '<CompleteMultipartUploadResult><ETag>&#9;</ETag></CompleteMultipartUploadResult>',
+  ])('B103 rejects HTTP 200 without a meaningful ETag, aborts only upload ID', async (xml) => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b103</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-1"' },
+      }))
+      .mockResolvedValueOnce(new Response(xml, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b103-private.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x74));
+    await expect(writer.complete()).rejects.toThrow('S3 Complete multipart upload');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[3]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b103');
   });
 
   it.each([
