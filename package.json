@@ -64,7 +64,7 @@
     "test:account-export-b92-reauthorization": "node --experimental-strip-types --test scripts/test-account-export-b92-reauthorization.test.mjs",
     "test:account-export-b93-mongo-download-clock": "node --experimental-strip-types --test scripts/test-account-export-b93-mongo-download-clock.test.mjs",
     "test:account-export-b94-proof": "node --test scripts/test-account-export-b94-acceptance-plan.test.mjs && node scripts/test-account-export-b94-guard.mjs",
-    "test:account-export-b95-http-integrity": "node --experimental-strip-types --test --test-name-pattern B95 scripts/test-account-export-b86-s3-loopback.test.mjs && node scripts/test-account-export-b95-http-integrity-guard.mjs",
+    "test:account-export-b95-http-integrity": "node --experimental-strip-types --import ./scripts/testing/register-api-typescript.mjs --test --test-name-pattern B95 scripts/test-account-export-b86-s3-loopback.test.mjs && node scripts/test-account-export-b95-http-integrity-guard.mjs",
     "test:account-export-b96-multipart": "node --experimental-strip-types --test scripts/test-account-export-b96-multipart-response.test.mjs && node scripts/test-account-export-b96-guard.mjs",
     "test:account-export-b97-multipart": "node --experimental-strip-types --test scripts/test-account-export-b97-bounded-multipart.test.mjs && node scripts/test-account-export-b97-guard.mjs",
     "test:account-export-b99-xml": "node --experimental-strip-types --test scripts/test-account-export-b99-multipart-xml.test.mjs && node scripts/test-account-export-b99-guard.mjs",
