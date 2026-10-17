@@ -78,3 +78,24 @@ No certificar release por cambios integrados o pruebas de fuente.
 Se mantienen B80/B81 ownership y orphans, B90 SHA256 de readback,
 B91–B93 autorización de descarga, B96–B103 validación de ACK S3.
 **#353 HOLD**.
+
+## Reproducción red/green adicional sobre el método real
+
+Se recuperó de GitHub el cuerpo exacto `createMultipartWriter` desde
+el commit anterior `9953f447cbb22093e766f56ebcfda6bbce17b558` y desde el
+commit B104 `386867f64bff13250c7df75301f967c03844af75`.
+Se aislaron anotaciones TypeScript y dependencias de red, conservando
+la lógica real `write`, `flushPending`, `complete`, `abort`. Con un
+transporte en memoria y tamaño de parte reducido a cinco bytes se
+ejecutaron cuatro escenarios **en ambas versiones**:
+
+| Fallo | Antes | Después |
+|---|---|---|
+| Primer PUT multipart HTTP 503 | complete fallaba por falta de partes | Complete bloqueado por fallo previo; abort permitido |
+| **Segundo PUT** HTTP 503 tras primer éxito | **Complete emitía POST y confirmaba objeto incompleto** | **No se emite POST Complete**; abort uploadId |
+| Complete HTTP 200 con ACK falso | **POST Complete repetido** al reintentar | Solo un POST; abort uploadId |
+| PUT simple 503 | **PUT repetido** tras respuesta ambigua | Un único PUT; sin DELETE Object |
+
+Esta es evidencia **funcional aislada red/green del método productivo**
+(no solo búsqueda de regex), aunque no sustituye HTTP real con firma,
+comportamiento de Buffer/stream y validación de build Node24.
