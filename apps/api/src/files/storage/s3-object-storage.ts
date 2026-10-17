@@ -433,6 +433,10 @@ export function createS3ObjectStorage(
       let uploadId: string | null = null;
       let completed = false;
       let aborted = false;
+      // B104: a failed PUT/ACK may have persisted an unknown subset of parts.
+      // Never allow complete() to publish after a failed write or ambiguous
+      // completion. Only abort() may act on the retained multipart upload ID.
+      let failed = false;
 
       const request = (
         method: 'POST' | 'PUT' | 'DELETE',
@@ -516,25 +520,34 @@ export function createS3ObjectStorage(
 
       return {
         async write(chunk: Uint8Array): Promise<void> {
-          if (completed || aborted) {
+          if (completed || aborted || failed) {
             throw new Error('S3 multipart writer is no longer writable');
           }
-          let offset = 0;
-          while (offset < chunk.byteLength) {
-            const take = Math.min(
-              minimumPartBytes - pendingBytes,
-              chunk.byteLength - offset,
-            );
-            pending.push(Buffer.from(chunk.subarray(offset, offset + take)));
-            pendingBytes += take;
-            offset += take;
-            if (pendingBytes === minimumPartBytes) await flushPending();
+          try {
+            let offset = 0;
+            while (offset < chunk.byteLength) {
+              const take = Math.min(
+                minimumPartBytes - pendingBytes,
+                chunk.byteLength - offset,
+              );
+              pending.push(Buffer.from(chunk.subarray(offset, offset + take)));
+              pendingBytes += take;
+              offset += take;
+              if (pendingBytes === minimumPartBytes) await flushPending();
+            }
+          } catch (error) {
+            // flushPending() already drained local bytes before awaiting S3;
+            // their commit/ACK status is unknown, so never retry this writer.
+            failed = true;
+            throw error;
           }
         },
 
         async complete(): Promise<void> {
           if (aborted) throw new Error('S3 multipart writer was aborted');
+          if (failed) throw new Error('S3 multipart writer cannot complete after a failed operation');
           if (completed) return;
+          try {
 
           if (!uploadId) {
             const bytes = Buffer.concat(pending, pendingBytes);
@@ -586,6 +599,12 @@ export function createS3ObjectStorage(
           }
           uploadId = null;
           completed = true;
+          } catch (error) {
+            // An incomplete/ambiguous provider response cannot be repaired by
+            // resubmitting complete(), which might commit a partial object.
+            failed = true;
+            throw error;
+          }
         },
 
         async abort(): Promise<void> {
