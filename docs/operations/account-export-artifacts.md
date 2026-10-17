@@ -1105,8 +1105,9 @@ Pruebas:
 - pnpm test:account-export-b101-signed-http
 - pnpm test:account-lifecycle-contract
 
-Se ejecutaron 5 casos aislados del validador mediante V8 sobre su código
-proveniente del blob GitHub, con anotaciones de TS eliminadas; 5/5 PASS.
+Se ejecutaron 20/20 callbacks aislados de B96/B99/B102 mediante V8 sobre
+blobs GitHub, eliminando solo las anotaciones TypeScript; 20/20 PASS.
+Se verificaron 10/10 contratos cruzados de fuente GitHub.
 No se ejecutó la cadena Node24/pnpm9 del checkout, Jest, ni los 23 tests
 completos de HTTP SigV4, Mongo replica o AWS/MinIO con lifecycle/IAM.
 No declarar aceptación productiva por pruebas aisladas.
