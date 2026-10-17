@@ -1020,3 +1020,34 @@ en esta pasada. El contrato XML estricto requiere conformance del proveedor
 antes de habilitarlo en producción; no asumir que toda extensión es válida.
 
 **#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni deploy.
+
+## B100 — Confirmación acotada del inicio multipart (CreateMultipartUpload)
+
+El adaptador compartido S3 todavía utilizaba response.text() sin límite para
+el HTTP 200 de CreateMultipartUpload y buscaba UploadId mediante regex aunque
+el servidor devolviera una respuesta ajena, repetida o adulterada. B100 aplica
+el lector incremental B97 a esta respuesta (65 536 bytes, UTF-8 fatal,
+cancelación del reader) y valida un único InitiateMultipartUploadResult con
+UploadId no vacío, acotado y sin caracteres de control antes de firmar
+ningún PUT de partes.
+
+Si S3 inició un multipart pero la respuesta fue inválida, la API **no posee un
+UploadId confirmado** para abortarlo de manera confiable. No debe inferirlo de
+errores arbitrarios ni emitir DELETE Object sin owner fencing. El lifecycle
+del bucket que aborta multipart incompletos sigue siendo obligatorio y debe
+comprobarse con proveedor real. Para exportaciones privadas B80/B81 controlan
+los objetos que pudieran quedar publicados; B90 continúa exigiendo GET con
+tamaño y SHA-256 antes de completar la publicación.
+
+Pruebas de aceptación del bloque:
+- pnpm test:account-export-b100-initiation
+- pnpm test:account-export-b86-s3-loopback
+- pnpm test:account-lifecycle-contract
+
+Los casos puros de parser/stream y de HTTP localhost se ejecutan sin
+proveedor externo ni credenciales productivas. La suite completa de Nest/Jest,
+Mongo replica, S3 real, IAM, lifecycle/backup, navegador, auditorías y release
+exact-head requiere evidencia adicional: no aceptar una simulación como
+conformidad productiva.
+
+**#353 HOLD**, STUDY_PROGRESS_ENABLED=false, sin CI manual ni despliegue.
