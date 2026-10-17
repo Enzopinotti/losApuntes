@@ -33,7 +33,8 @@ check('B104 original S3 adapter uses irreversible writer failure flag', () => {
   assert.match(section, /let failed = false/u);
   assert.match(write, /completed \|\| aborted \|\| failed/u);
   assert.match(write, /failed = true/u);
-  assert.match(complete, /if \(failed\) throw new Error\(/u);
+  assert.match(complete, /if \(failed\) \{/u);
+  assert.match(complete, /S3 multipart writer cannot complete after a failed operation/u);
   assert.match(complete, /failed = true/u);
 });
 check('B104 failed part cannot be repaired by retrying completion', () => {
