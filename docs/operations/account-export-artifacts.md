@@ -1028,7 +1028,7 @@ el HTTP 200 de CreateMultipartUpload y buscaba UploadId mediante regex aunque
 el servidor devolviera una respuesta ajena, repetida o adulterada. B100 aplica
 el lector incremental B97 a esta respuesta (65 536 bytes, UTF-8 fatal,
 cancelación del reader) y valida un único InitiateMultipartUploadResult con
-UploadId no vacío, acotado y sin caracteres de control antes de firmar
+UploadId no vacío, acotado y sin caracteres de control; si Bucket/Key están presentes, se comparan con el destino real antes de firmar
 ningún PUT de partes.
 
 Si S3 inició un multipart pero la respuesta fue inválida, la API **no posee un
@@ -1044,7 +1044,7 @@ Pruebas de aceptación del bloque:
 - pnpm test:account-export-b86-s3-loopback
 - pnpm test:account-lifecycle-contract
 
-Los casos puros de parser/stream y de HTTP localhost se ejecutan sin
+Los 9 casos Node del helper/parser (incluido HTTP 127.0.0.1) fueron ejecutados y aprobados en Node22 con los hashes exactos de la rama; el typecheck aislado también pasó. Los casos puros de parser/stream y de HTTP localhost se ejecutan sin
 proveedor externo ni credenciales productivas. La suite completa de Nest/Jest,
 Mongo replica, S3 real, IAM, lifecycle/backup, navegador, auditorías y release
 exact-head requiere evidencia adicional: no aceptar una simulación como
