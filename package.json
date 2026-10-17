@@ -68,7 +68,8 @@
     "test:account-export-b96-multipart": "node --experimental-strip-types --test scripts/test-account-export-b96-multipart-response.test.mjs && node scripts/test-account-export-b96-guard.mjs",
     "test:account-export-b97-multipart": "node --experimental-strip-types --test scripts/test-account-export-b97-bounded-multipart.test.mjs && node scripts/test-account-export-b97-guard.mjs",
     "test:account-export-b99-xml": "node --experimental-strip-types --test scripts/test-account-export-b99-multipart-xml.test.mjs && node scripts/test-account-export-b99-guard.mjs",
-    "test:account-export-b100-initiation": "node --experimental-strip-types --test scripts/test-account-export-b100-s3-initiation.test.mjs && node scripts/test-account-export-b100-guard.mjs"
+    "test:account-export-b100-initiation": "node --experimental-strip-types --test scripts/test-account-export-b100-s3-initiation.test.mjs && node scripts/test-account-export-b100-guard.mjs",
+    "test:account-export-b101-signed-http": "node --test scripts/test-account-export-b101-loader.test.mjs && node scripts/test-account-export-b101-guard.mjs && node scripts/run-account-export-b101-signed-http.mjs"
   },
   "pnpm": {
     "overrides": {
