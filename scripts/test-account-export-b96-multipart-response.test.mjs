@@ -13,9 +13,9 @@ test('B96 accepts a realistic AWS S3 multipart completion XML document', () => {
   ), true);
 });
 
-test('B96 accepts the known self-closing local S3 completion fixture', () => {
-  assert.equal(isConfirmedS3MultipartCompletion('<CompleteMultipartUploadResult/>'), true);
-  assert.equal(isConfirmedS3MultipartCompletion('<CompleteMultipartUploadResult />'), true);
+test('B96 rejects the known self-closing local S3 completion fixture without an ETag', () => {
+  assert.equal(isConfirmedS3MultipartCompletion('<CompleteMultipartUploadResult/>'), false);
+  assert.equal(isConfirmedS3MultipartCompletion('<CompleteMultipartUploadResult />'), false);
 });
 
 test('B96 rejects blank HTTP 200 bodies instead of claiming S3 completion', () => {
@@ -59,7 +59,8 @@ test('B96 rejects a string beyond the bounded completion response size', () => {
 
 test('B96 accepts a BOM and leading whitespace before valid AWS completion', () => {
   assert.equal(isConfirmedS3MultipartCompletion(
-    '\uFEFF \n<?xml version="1.0"?>\n<CompleteMultipartUploadResult />',
+    '\uFEFF \n<?xml version="1.0"?>\n' +
+    '<CompleteMultipartUploadResult><ETag>"verified"</ETag></CompleteMultipartUploadResult>',
   ), true);
 });
 
