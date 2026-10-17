@@ -3,7 +3,7 @@
  * response. A 2xx response or a regex match anywhere inside arbitrary HTML
  * is not authority to issue part PUTs to that upload generation.
  */
-export function decodeS3MultipartXmlScalar(value: string): string | null {
+function decodeXmlScalar(value: string): string | null {
   if (value.includes(']]>')) return null;
   const entity = /&(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9A-Fa-f]+);/gu;
   if (value.replace(entity, '').includes('&')) return null;
@@ -66,7 +66,7 @@ export function parseConfirmedS3MultipartUploadId(
     const name = match[1];
     if (seen.has(name)) return null;
     seen.add(name);
-    const text = decodeS3MultipartXmlScalar(match[2]);
+    const text = decodeXmlScalar(match[2]);
     if (text === null) return null;
     if (name === 'UploadId') uploadId = text;
     if (name === 'Bucket') responseBucket = text;
