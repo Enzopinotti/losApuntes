@@ -42,7 +42,10 @@ function decodeXmlScalar(value: string): string | null {
 }
 
 /** Null means unconfirmed initiation; never persist or sign an invalid ID. */
-export function parseConfirmedS3MultipartUploadId(xml: string): string | null {
+export function parseConfirmedS3MultipartUploadId(
+  xml: string,
+  expected?: { bucket: string; objectKey: string },
+): string | null {
   if (typeof xml !== 'string' || xml.length === 0 || xml.length > 64 * 1024) {
     return null;
   }
@@ -55,6 +58,8 @@ export function parseConfirmedS3MultipartUploadId(xml: string): string | null {
   const fields = /<(Bucket|Key|UploadId)>([^<]*)<\/\1>/gu;
   const seen = new Set<string>();
   let uploadId: string | null = null;
+  let responseBucket: string | null = null;
+  let responseKey: string | null = null;
   let cursor = 0;
   for (const match of inside.matchAll(fields)) {
     if (inside.slice(cursor, match.index).trim()) return null;
@@ -64,9 +69,15 @@ export function parseConfirmedS3MultipartUploadId(xml: string): string | null {
     const text = decodeXmlScalar(match[2]);
     if (text === null) return null;
     if (name === 'UploadId') uploadId = text;
+    if (name === 'Bucket') responseBucket = text;
+    if (name === 'Key') responseKey = text;
     cursor = match.index + match[0].length;
   }
   if (inside.slice(cursor).trim() || !uploadId ||
       uploadId.length > 2048 || /[\s\u007f]/u.test(uploadId)) return null;
+  if (expected && (
+    (responseBucket !== null && responseBucket !== expected.bucket) ||
+    (responseKey !== null && responseKey !== expected.objectKey)
+  )) return null;
   return uploadId;
 }
