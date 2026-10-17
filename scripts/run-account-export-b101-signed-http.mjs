@@ -17,8 +17,8 @@ const testUrl = new URL('./test-account-export-b86-s3-loopback.test.mjs', import
 const testSource = readFileSync(testUrl, 'utf8');
 const expectedNames = [...testSource.matchAll(/test\('([^']+)'/gu)].map(match => match[1]);
 const required = ['B86 ', 'B87 ', 'B95 ', 'B96 ', 'B97 ', 'B99 ',
-  'B100 ', 'B101 ', 'B102 ', 'B103 ', 'B104 '];
-if (expectedNames.length < 28 ||
+  'B100 ', 'B101 ', 'B102 ', 'B103 ', 'B104 ', 'B105 '];
+if (expectedNames.length < 32 ||
     required.some(prefix => !expectedNames.some(name => name.startsWith(prefix))) ||
     !testSource.includes("server.listen(0, '127.0.0.1', resolve)") ||
     !testSource.includes('verifyB87S3SigV4({')) {
@@ -50,12 +50,12 @@ try {
     expectedNames,
   });
   if (nodeMajor === 24) {
-    console.log('B104 Node24 local signed HTTP PASS: ' + result.passed + '/' + result.expected);
+    console.log('B105 Node24 local signed HTTP PASS: ' + result.passed + '/' + result.expected);
   } else {
-    console.log('B104 Node22 signed HTTP diagnostic PASS: ' + result.passed +
+    console.log('B105 Node22 signed HTTP diagnostic PASS: ' + result.passed +
       '/' + result.expected + '; NOT release acceptance (Node24 required).');
   }
 } catch {
-  console.error('B104 signed HTTP failed: no complete, unskipped local TAP acceptance.');
+  console.error('B105 signed HTTP failed: no complete, unskipped local TAP acceptance.');
   process.exitCode = 2;
 }

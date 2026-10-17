@@ -1184,3 +1184,41 @@ fallida permitía completar un objeto truncado, ACK ambiguo podía
 re-POST Complete y PUT simple se retransmitía; con B104 los tres
 reintentos peligrosos quedaron bloqueados. Ver informe técnico B104.
 No es la batería TCP SigV4/Node24.
+
+## B105 — Serialización FIFO de operaciones sobre writer S3
+
+La corrección B104 de fallos terminales no impedía carreras entre llamadas
+simultáneas del mismo writer: dos write() podían crear dos uploads o partes
+número 1; complete() podía adelantarse a un inicio multipart y ejecutar
+un PUT de cero bytes; abort() podía ejecutarse sin conocer todavía el
+uploadId; complete() simultáneos podían repetir PUT de una generación.
+
+B105 introduce una cola FIFO por writer. Copia los bytes de cada write()
+al aceptar la llamada; complete() y abort() establecen sus fences de
+escritura sincrónicamente, antes de entrar en cola. Abort espera las
+subidas previamente aceptadas para cancelar el uploadId correcto.
+La cola recupera fallos solo internamente y entrega el rechazo original;
+B104 mantiene estado failed irreversible y bloquea finalizaciones
+tras fallos. **Exportaciones privadas:** deleteObjectOnAbort:false, sin
+DELETE Object directo; ownership de cleanup B80/B81 y readback B90.
+
+Se agregaron cinco tests Jest del adaptador y cuatro pruebas HTTP
+localhost con SigV4 B87, con inventario 32 casos B86–B105 y TAP
+anti-skips. Comandos del checkout canónico:
+- pnpm test:account-export-b105-concurrency
+- pnpm test:account-export-b101-signed-http
+- pnpm test:account-lifecycle-contract
+
+**Evidencia aislada red/green:** cuatro escenarios de escritura concurrente
+sobre la lógica productiva extraída de los blobs GitHub B104/B105,
+quitando tipos TS y sustituyendo el transporte en V8, umbral de
+parte reducido a cinco bytes. Versión anterior duplicaba inicios/partes,
+permitía PUT simple anticipado, perdía el abort multipart y
+repetía PUT de complete concurrente. Versión B105 serializa.
+Este resultado **no** constituye aprobación de TCP SigV4/Jest en Node24.
+
+Pendientes los 32 escenarios completos sobre checkout Node24/pnpm9,
+Jest/typecheck/lint, Mongo replica B94, AWS/MinIO IAM/lifecycle,
+backup/restore, navegador y auditorías #133/#141.
+
+**#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni despliegue.
