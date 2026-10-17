@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import test from 'node:test';
 
 import {
@@ -105,4 +106,22 @@ test('B97 rejects a provider stream with non-binary data', async () => {
 test('B97 rejects an incomplete trailing UTF-8 sequence', async () => {
   await assert.rejects(readXml({ body: stream([Uint8Array.of(0xe2)]) }),
     /encoded data|UTF-8|encoding/u);
+});
+
+test('B97 real localhost HTTP 200 oversized XML is rejected before buffering full body', async () => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'application/xml' });
+    response.write(Buffer.alloc(63 * 1024, 0x41));
+    response.end(Buffer.alloc(2048, 0x42));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const response = await fetch('http://127.0.0.1:' + address.port);
+    assert.equal(response.status, 200);
+    await assert.rejects(readXml(response), /exceeds 65536 bytes/u);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 });
