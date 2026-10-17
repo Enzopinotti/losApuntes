@@ -446,6 +446,30 @@ describe('S3ObjectStorage', () => {
     ['<html>OK</html>', 'HTML'],
     ['<Error><Code>InternalError</Code></Error>', 'embedded S3 Error'],
     ['<CompleteMultipartUploadResult>', 'unfinished XML'],
+    [
+      '<CompleteMultipartUploadResult><ETag>"ok"</Key></CompleteMultipartUploadResult>',
+      'B99 mismatched closing field',
+    ],
+    [
+      '<CompleteMultipartUploadResult><Key>k</Key></CompleteMultipartUploadResult>',
+      'B99 missing ETag',
+    ],
+    [
+      '<CompleteMultipartUploadResult><ETag>"ok"</ETag><ETag>"dup"</ETag></CompleteMultipartUploadResult>',
+      'B99 duplicate ETag',
+    ],
+    [
+      '<CompleteMultipartUploadResult><ETag>&evil;</ETag></CompleteMultipartUploadResult>',
+      'B99 unknown XML entity',
+    ],
+    [
+      '<CompleteMultipartUploadResult><ETag><nested/></ETag></CompleteMultipartUploadResult>',
+      'B99 nested XML in ETag',
+    ],
+    [
+      '<CompleteMultipartUploadResult><ETag>"ok"</ETag><!-- forged --></CompleteMultipartUploadResult>',
+      'B99 injected XML comment',
+    ],
   ])('B96 rejects HTTP 200 multipart %s without marking private object committed', async (xml) => {
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(
