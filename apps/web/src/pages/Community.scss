@@ -321,3 +321,57 @@
 .network-relationships .community-list > li:last-child {
   border-bottom: 0;
 }
+
+/* Question discovery: public academic context, not the private create form. */
+.community-question-discovery-controls {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.7rem 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid #dce3ee;
+  border-radius: 14px;
+  background: #f9fbff;
+}
+
+.community-question-subject-picker {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.community-question-subject-picker label {
+  font-weight: 600;
+}
+
+.community-question-subject-picker input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid #cbd1dc;
+  border-radius: 9px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+}
+
+.community-question-subject-picker .community-note {
+  margin: 0;
+}
+
+.community-question-discovery-controls button,
+.community-question-subject-picker button {
+  min-height: 2.5rem;
+}
+
+.community-question-discovery-controls button:focus-visible,
+.community-question-subject-picker button:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
+.community-question-discovery-controls .community-actions {
+  justify-content: flex-start;
+}
+
+@media (max-width: 820px) {
+  .community-question-discovery-controls {
+    padding: 0.85rem;
+  }
+}

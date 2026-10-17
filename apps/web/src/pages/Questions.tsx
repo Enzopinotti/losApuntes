@@ -7,6 +7,13 @@ import {
 } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { QuestionDiscoverySubjectPicker } from "../features/community/QuestionDiscoverySubjectPicker";
+import {
+  EMPTY_QUESTION_DISCOVERY,
+  questionDiscoveryHref,
+  questionDiscoverySelectionFromParams,
+  questionDiscoverySelectionKey,
+} from "../features/community/question-discovery-navigation.mjs";
 import type {
   AnswerView,
   CommunityPerson,
@@ -89,14 +96,28 @@ const Questions = () => {
   ].join(":");
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id");
+  const selection = questionDiscoverySelectionFromParams(searchParams);
+  const selectionKey = questionDiscoverySelectionKey(selection);
+  const invalidFilters = selection === null;
+  const committedQuery = selection?.q ?? "";
+  const committedStatus = selection?.status ?? "";
+  const committedSubjectId = selection?.subjectId ?? "";
 
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<QuestionState | "">("");
-  const listScopeKey = [
-    viewerScopeKey,
-    query.trim(),
-    statusFilter || "all-states",
-  ].join(":");
+  const [query, setQuery] = useState(committedQuery);
+  const [statusFilter, setStatusFilter] = useState<QuestionState | "">(
+    committedStatus,
+  );
+  const [subjectIdDraft, setSubjectIdDraft] = useState(committedSubjectId);
+  const [subjectNameDraft, setSubjectNameDraft] = useState<string | null>(null);
+  const [filterError, setFilterError] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<{
+    key: string;
+    message: string;
+    error: boolean;
+  } | null>(null);
+  const listScopeKey = [viewerScopeKey, selectionKey ?? "invalid-filters"].join(
+    ":",
+  );
   const {
     begin: beginList,
     isCurrent: isListCurrent,
@@ -139,7 +160,7 @@ const Questions = () => {
     listState?.scopeKey === listScopeKey ? listState : null;
   const items = currentListState?.items ?? [];
   const nextCursor = currentListState?.nextCursor ?? null;
-  const loading = currentListState?.loading ?? true;
+  const loading = !invalidFilters && (currentListState?.loading ?? true);
 
   const [detailState, setDetailState] = useState<{
     scopeKey: string;
@@ -220,6 +241,7 @@ const Questions = () => {
 
   const loadList = useCallback(
     async (cursor?: string, append = false) => {
+      if (invalidFilters) return;
       const ticket = beginList();
       if (!isListCurrent(ticket)) return;
 
@@ -236,8 +258,9 @@ const Questions = () => {
       try {
         const result = await communityApi.questions(
           {
-            q: query.trim() || undefined,
-            status: statusFilter || undefined,
+            q: committedQuery || undefined,
+            status: committedStatus || undefined,
+            subjectId: committedSubjectId || undefined,
             cursor,
             limit: 25,
           },
@@ -278,7 +301,16 @@ const Questions = () => {
         }
       }
     },
-    [beginList, finishList, isListCurrent, listScopeKey, query, statusFilter],
+    [
+      beginList,
+      committedQuery,
+      committedStatus,
+      committedSubjectId,
+      finishList,
+      invalidFilters,
+      isListCurrent,
+      listScopeKey,
+    ],
   );
   const loadListRef = useRef(loadList);
   loadListRef.current = loadList;
@@ -336,10 +368,94 @@ const Questions = () => {
         void loadDetailRef.current();
         return;
       }
-      setSearchParams({ id });
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set("id", id);
+        return next;
+      });
     },
     [initialId, setSearchParams],
   );
+
+  useEffect(() => {
+    setQuery(committedQuery);
+    setStatusFilter(committedStatus);
+    setSubjectIdDraft(committedSubjectId);
+    setSubjectNameDraft(null);
+    setFilterError(null);
+  }, [
+    committedQuery,
+    committedStatus,
+    committedSubjectId,
+    selectionKey,
+    viewerScopeKey,
+  ]);
+
+  const submitDiscovery = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const href = questionDiscoveryHref({
+      q: query,
+      status: statusFilter,
+      subjectId: subjectIdDraft,
+    });
+    if (!href) {
+      setFilterError(
+        "Revisá el término (entre 2 y 120 caracteres), el estado y la materia.",
+      );
+      return;
+    }
+    setFilterError(null);
+    const next = new URLSearchParams(href.split("?")[1] ?? "");
+    if (
+      questionDiscoverySelectionKey(
+        questionDiscoverySelectionFromParams(next),
+      ) === selectionKey &&
+      initialId === null
+    ) {
+      void loadListRef.current();
+      return;
+    }
+    // A submitted discovery query returns to the list, not to an old detail.
+    setSearchParams(next);
+  };
+
+  const clearDiscovery = () => {
+    setQuery("");
+    setStatusFilter("");
+    setSubjectIdDraft("");
+    setSubjectNameDraft(null);
+    setFilterError(null);
+    setSearchParams(new URLSearchParams());
+  };
+
+  const copyDiscoveryLink = async (questionId?: string) => {
+    const href = questionDiscoveryHref(
+      selection ?? EMPTY_QUESTION_DISCOVERY,
+      questionId,
+    );
+    if (!href) return;
+    const key = `${listScopeKey}:${questionId ?? "list"}`;
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(
+        new URL(href, window.location.origin).toString(),
+      );
+      setCopyState({
+        key,
+        message: questionId
+          ? "Enlace a la pregunta copiado."
+          : "Enlace a la búsqueda copiado.",
+        error: false,
+      });
+    } catch {
+      setCopyState({
+        key,
+        message: "No pudimos copiar. Podés usar la dirección del navegador.",
+        error: true,
+      });
+    }
+  };
 
   useEffect(() => {
     void loadList();
@@ -536,7 +652,11 @@ const Questions = () => {
         });
         await loadListRef.current();
         if (!isActionCurrent(ticket)) return;
-        setSearchParams({ id: result.question.id });
+        setSearchParams((current) => {
+          const next = new URLSearchParams(current);
+          next.set("id", result.question.id);
+          return next;
+        });
       },
     );
   };
@@ -665,16 +785,11 @@ const Questions = () => {
         </p>
       )}
 
-      <form
-        className="community-search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void loadList();
-        }}
-      >
+      <form className="community-search" onSubmit={submitDiscovery}>
         <input
           aria-label="Buscar preguntas"
           placeholder="Buscar por título o contenido"
+          maxLength={120}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -689,10 +804,66 @@ const Questions = () => {
           <option value="open">Abiertas</option>
           <option value="closed">Cerradas</option>
         </select>
-        <button type="submit" disabled={loading}>
+        <button type="submit" disabled={query.trim().length > 120 || loading}>
           Buscar
         </button>
       </form>
+      <div className="community-question-discovery-controls">
+        <QuestionDiscoverySubjectPicker
+          subjectId={subjectIdDraft}
+          selectedName={subjectNameDraft}
+          authorityScope={viewerScopeKey}
+          onSelect={(subject) => {
+            setSubjectIdDraft(subject?.id ?? "");
+            setSubjectNameDraft(subject?.name ?? null);
+            setFilterError(null);
+          }}
+        />
+        <div className="community-actions">
+          <button type="button" className="secondary" onClick={clearDiscovery}>
+            Limpiar filtros
+          </button>
+          {selection && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void copyDiscoveryLink()}
+            >
+              Copiar enlace de búsqueda
+            </button>
+          )}
+        </div>
+        {subjectIdDraft !== committedSubjectId && (
+          <p className="community-note" role="status">
+            Tocá Buscar para aplicar el cambio de materia.
+          </p>
+        )}
+        {filterError && (
+          <p className="community-error" role="alert">
+            {filterError}
+          </p>
+        )}
+        {invalidFilters && (
+          <p className="community-error" role="alert">
+            El enlace de búsqueda contiene filtros inválidos. Limpiá los filtros
+            para comenzar otra consulta sin ampliarla automáticamente.
+          </p>
+        )}
+        {copyState?.key === `${listScopeKey}:list` && (
+          <p
+            role={copyState.error ? "alert" : "status"}
+            className={
+              copyState.error ? "community-error" : "community-success"
+            }
+          >
+            {copyState.message}
+          </p>
+        )}
+        <p className="community-note">
+          Los enlaces incluyen el texto de búsqueda y el identificador público
+          de la materia. No compartas consultas sensibles.
+        </p>
+      </div>
 
       {authenticated ? (
         <details className="community-card">
@@ -813,6 +984,39 @@ const Questions = () => {
           ) : (
             <>
               <header className="community-question-header">
+                <div className="community-actions">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      setSearchParams((current) => {
+                        const next = new URLSearchParams(current);
+                        next.delete("id");
+                        return next;
+                      })
+                    }
+                  >
+                    Volver a las preguntas
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => void copyDiscoveryLink(selected.question.id)}
+                  >
+                    Copiar enlace a esta pregunta
+                  </button>
+                </div>
+                {copyState?.key ===
+                  `${listScopeKey}:${selected.question.id}` && (
+                  <p
+                    role={copyState.error ? "alert" : "status"}
+                    className={
+                      copyState.error ? "community-error" : "community-success"
+                    }
+                  >
+                    {copyState.message}
+                  </p>
+                )}
                 {feedReturnTo && (
                   <Link
                     className="community-back-link"
