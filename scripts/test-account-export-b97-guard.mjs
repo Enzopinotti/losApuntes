@@ -32,7 +32,7 @@ check('B97 rejects invalid UTF8 instead of repairing XML', () => {
   assert.match(reader, /value instanceof Uint8Array/u);
 });
 check('B97 still requires semantically valid B96 XML', () => {
-  assert.match(s3, /isConfirmedS3MultipartCompletion\(xml\)/u);
+  assert.match(s3, /isConfirmedS3MultipartCompletion\(xml, \{/u);
   assert.match(xml, /CompleteMultipartUploadResult/u);
 });
 check('B97 checks HTTP success and bounded XML before marking the writer committed', () => {
