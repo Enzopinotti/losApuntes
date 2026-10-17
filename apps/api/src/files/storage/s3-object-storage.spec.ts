@@ -499,6 +499,66 @@ describe('S3ObjectStorage', () => {
     expect(abortUrl.searchParams.has('partNumber')).toBe(false);
   });
 
+  it.each([
+    ['', 'empty response'],
+    ['<html><UploadId>forged</UploadId></html>', 'forged HTML'],
+    ['<InitiateMultipartUploadResult><UploadId>first</UploadId><UploadId>second</UploadId></InitiateMultipartUploadResult>', 'duplicate UploadId'],
+    ['<Error><UploadId>fake</UploadId></Error>', 'embedded error'],
+  ])('B100 refuses unconfirmed multipart initiation %s without signing a part', async (xml) => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(xml, { status: 200 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b100-initiation.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x70)))
+      .rejects.toThrow('S3 multipart upload id is missing or invalid');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['POST']);
+  });
+
+  it('B100 cancels oversized HTTP 200 initiation without buffering or DELETE Object', async () => {
+    let cancelled = false;
+    const response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(Buffer.alloc(64 * 1024 + 1)); },
+      cancel() { cancelled = true; },
+    }), { status: 200 });
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(response);
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b100-oversized.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await expect(writer.write(Buffer.alloc(5 * 1024 * 1024)))
+      .rejects.toThrow('S3 multipart initiation response exceeds 65536 bytes');
+    expect(cancelled).toBe(true);
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['POST']);
+  });
+
+  it('B100 decodes a confirmed AWS UploadId before signing part and completion', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' +
+        '<Bucket>b</Bucket><Key>k</Key><UploadId>a&amp;b</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, { status: 200, headers: { etag: '"p1"' } }))
+      .mockResolvedValueOnce(new Response('<CompleteMultipartUploadResult><ETag>"ok"</ETag></CompleteMultipartUploadResult>', { status: 200 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b100-valid.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x70));
+    await writer.complete();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['POST', 'PUT', 'POST']);
+    expect(new URL(fetchSpy.mock.calls[1]?.[0] as string).searchParams.get('uploadId'))
+      .toBe('a&b');
+  });
+
   it('B97 caps and cancels an oversized HTTP 200 multipart response without direct object DELETE', async () => {
     let cancelled = 0;
     const body = new ReadableStream<Uint8Array>({
