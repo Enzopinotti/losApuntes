@@ -1,6 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
+import { readBoundedS3MultipartCompletionXml } from './s3-multipart-response-body';
 
 import type {
   ObjectStorage,
@@ -562,12 +563,16 @@ export function createS3ObjectStorage(
             body,
             'application/xml',
           );
-          const xml = await response.text();
-          // S3 may reply 200 with an embedded Error. A blank/unrelated
-          // 2xx body is also not evidence that a multipart committed.
-          // Preserve uploadId on failure so abort() only cancels this
-          // multipart ID; private exports never DELETE the object here.
-          if (!response.ok || !isConfirmedS3MultipartCompletion(xml)) {
+          // Never buffer an unlimited 200 response before B96's semantic
+          // check: a malicious/broken provider might stream indefinitely.
+          // Keep the uploadId when completion is ambiguous. In the private
+          // export path, abort() can only target that multipart ID.
+          if (!response.ok) {
+            void response.body?.cancel().catch(() => undefined);
+            throw storageError('Complete multipart upload', response.status);
+          }
+          const xml = await readBoundedS3MultipartCompletionXml(response);
+          if (!isConfirmedS3MultipartCompletion(xml)) {
             throw storageError('Complete multipart upload', response.status);
           }
           uploadId = null;

@@ -969,3 +969,26 @@ demuestra que el objeto exista. **#353 HOLD**,
 `STUDY_PROGRESS_ENABLED=false`; Node24/pnpm9/Jest/Mongo/S3 proveedor,
 IAM/versionado, backups y auditorías #133/#141 pendientes. Sin CI
 manual ni despliegue.
+
+## B97 — Límite de memoria de confirmación S3 antes de XML
+
+El writer multipart ya no usa `response.text()` para leer
+`CompleteMultipartUpload`: eso cargaba todo un cuerpo HTTP 200 antes
+de aplicar el límite XML de B96. B97 lee el body por streaming con un
+límite de **65 536 bytes reales**, cancela el reader en exceso o error,
+rechaza UTF-8 inválido y recién entonces exige el envelope B96.
+
+Si el proveedor emite un cuerpo demasiado largo o una lectura rota,
+no se marca `completed`, se conserva el `uploadId` y el `abort()`
+de una exportación privada sigue **sin eliminar el objeto**: la cola
+durable B80/B78 maneja el estado ambiguo. Los fallos deben investigarse
+sin borrar manualmente generaciones posiblemente publicadas.
+
+Pruebas: `pnpm test:account-export-b97-multipart` (12 tests Node,
+incluyendo HTTP real loopback), `pnpm test:account-export-b86-s3-loopback`
+(SigV4 local) y Jest `s3-object-storage.spec.ts`. Solo la primera suite
+ha sido ejecutada y aprobada durante B97; las otras siguen pendientes.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`; sin CI manual ni
+deploy. Pendientes acceptance de Mongo, AWS/MinIO, IAM, backup,
+auditorías #133/#141, Node24/TS/lint y navegador.

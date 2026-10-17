@@ -475,6 +475,66 @@ describe('S3ObjectStorage', () => {
     expect(abortUrl.searchParams.has('partNumber')).toBe(false);
   });
 
+  it('B97 caps and cancels an oversized HTTP 200 multipart response without direct object DELETE', async () => {
+    let cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.alloc(64 * 1024 + 1, 0x61));
+      },
+      cancel() { cancelled += 1; },
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b97</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-b97"' },
+      }))
+      .mockResolvedValueOnce(new Response(body, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b97-generation.json',
+      contentType: 'application/json; charset=utf-8',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await expect(writer.complete()).rejects.toThrow(
+      'S3 multipart completion response exceeds 65536 bytes',
+    );
+    expect(cancelled).toBe(1);
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[3]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b97');
+  });
+
+  it('B97 rejects invalid UTF-8 multipart XML and preserves upload-ID-only abort', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>bad-utf8-b97</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-b97"' },
+      }))
+      .mockResolvedValueOnce(new Response(Buffer.from([0xc3, 0x28]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b97-bad-utf8.json',
+      contentType: 'application/json; charset=utf-8',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await expect(writer.complete()).rejects.toThrow();
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[3]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('bad-utf8-b97');
+  });
+
   it('B81 aborts only the private multipart upload ID after an ambiguous completion ACK', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(
