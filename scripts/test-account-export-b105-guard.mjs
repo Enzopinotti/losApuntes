@@ -38,7 +38,7 @@ check('B105 serializes write/complete/abort against a single operation tail', ()
   assert.match(wrapper, /let pendingOperation: Promise<void> = Promise\.resolve\(\)/u);
   assert.match(wrapper, /const result = pendingOperation\.then\(operation\)/u);
   assert.match(wrapper, /pendingOperation = result\.then\(/u);
-  assert.match(wrapper, /return serialize\(\(\) => underlyingWriter\.write\(snapshot\)\)/u);
+  assert.match(wrapper, /await underlyingWriter\.write\(snapshot\)/u);
   assert.match(wrapper, /return serialize\(\(\) => underlyingWriter\.complete\(\)\)/u);
   assert.match(wrapper, /return serialize\(\(\) => underlyingWriter\.abort\(\)\)/u);
 });
@@ -50,8 +50,8 @@ check('B105 fences writes immediately after complete or abort request', () => {
   assert.match(wrapper, /S3 multipart writer is no longer writable/u);
 });
 check('B105 snapshots mutable caller bytes before deferring signed PUT', () => {
-  const copy = wrapper.indexOf('const snapshot = Buffer.from(chunk)');
-  const queue = wrapper.indexOf('return serialize(() => underlyingWriter.write(snapshot))');
+  const copy = wrapper.indexOf('snapshot = Buffer.from(chunk)');
+  const queue = wrapper.indexOf('return serialize(async () => {');
   assert.ok(copy >= 0 && queue > copy);
   assert.match(jest, /B105 snapshots queued mutable byte arrays/u);
 });
@@ -78,14 +78,14 @@ check('B105 real signed HTTP covers concurrent writes/abort/complete/failure', (
 });
 check('B105 requires all 32 TCP cases, preserving B104 and TAP anti-skips', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 32);
-  assert.equal(new Set(names).size, 32);
+  assert.equal(names.length, 34);
+  assert.equal(new Set(names).size, 34);
   for (const id of ['B86 ', 'B87 ', 'B95 ', 'B96 ', 'B97 ', 'B99 ', 'B100 ',
     'B101 ', 'B102 ', 'B103 ', 'B104 ', 'B105 ']) {
     assert.ok(names.some(name => name.startsWith(id)), id);
   }
-  assert.match(runner, /expectedNames\.length < 32/u);
-  assert.match(runner, /'B104 ', 'B105 '/u);
+  assert.match(runner, /expectedNames\.length < 34/u);
+  assert.match(runner, /'B104 ', 'B105 ', 'B106 '/u);
   assert.match(tap, /summary\.skipped !== 0/u);
   assert.match(oldGuard, /names\.length >= 28/u);
 });

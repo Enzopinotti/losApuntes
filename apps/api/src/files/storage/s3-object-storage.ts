@@ -639,6 +639,12 @@ export function createS3ObjectStorage(
       let pendingOperation: Promise<void> = Promise.resolve();
       let completionRequested = false;
       let abortRequested = false;
+      // B106 bounds snapshots accepted while the provider is stalled.
+      // It includes both queued and currently executing write() calls.
+      const maximumQueuedSnapshotBytes = 16 * 1024 * 1024;
+      const maximumQueuedWriteOperations = 32;
+      let queuedSnapshotBytes = 0;
+      let queuedWriteOperations = 0;
       const serialize = (operation: () => Promise<void>): Promise<void> => {
         const result = pendingOperation.then(operation);
         pendingOperation = result.then(
@@ -653,11 +659,36 @@ export function createS3ObjectStorage(
           if (completionRequested || abortRequested || completed || aborted || failed) {
             return Promise.reject(new Error('S3 multipart writer is no longer writable'));
           }
-          // Queued calls must own their bytes. Otherwise a caller reusing a
-          // mutable Uint8Array while another PUT is pending can change the
-          // signed payload before this queued write begins.
-          const snapshot = Buffer.from(chunk);
-          return serialize(() => underlyingWriter.write(snapshot));
+          // Fail closed if backpressure is ignored. Rejection must poison
+          // this generation: otherwise complete() could commit only the
+          // previously accepted chunks after the caller drops the error.
+          if (chunk.byteLength > maximumQueuedSnapshotBytes - queuedSnapshotBytes ||
+              queuedWriteOperations >= maximumQueuedWriteOperations) {
+            failed = true;
+            return Promise.reject(new Error('S3 multipart writer pending writes exceed limits'));
+          }
+          // Snapshots must own their bytes while another signed PUT awaits an
+          // ACK. The counters include the active write as well as queued ones.
+          let snapshot: Buffer;
+          try {
+            snapshot = Buffer.from(chunk);
+          } catch (error) {
+            failed = true;
+            return Promise.reject(error);
+          }
+          queuedSnapshotBytes += snapshot.byteLength;
+          queuedWriteOperations += 1;
+          return serialize(async () => {
+            try {
+              await underlyingWriter.write(snapshot);
+            } finally {
+              // Do not retain private export bytes after an operation settles,
+              // regardless of whether its signed request succeeded or failed.
+              snapshot.fill(0);
+              queuedSnapshotBytes -= snapshot.byteLength;
+              queuedWriteOperations -= 1;
+            }
+          });
         },
 
         complete(): Promise<void> {
