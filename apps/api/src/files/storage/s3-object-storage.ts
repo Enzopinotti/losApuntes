@@ -1,7 +1,11 @@
 import { createHash, createHmac } from 'node:crypto';
 
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
-import { readBoundedS3MultipartCompletionXml } from './s3-multipart-response-body';
+import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
+import {
+  readBoundedS3MultipartCompletionXml,
+  readBoundedS3MultipartInitiationXml,
+} from './s3-multipart-response-body';
 
 import type {
   ObjectStorage,
@@ -459,15 +463,14 @@ export function createS3ObjectStorage(
         );
         if (!response.ok)
           throw storageError('Create multipart upload', response.status);
-        const xml = await response.text();
-        const rawUploadId = /<UploadId>([^<]+)<\/UploadId>/u.exec(xml)?.[1];
-        if (!rawUploadId) throw new Error('S3 multipart upload id is missing');
-        uploadId = rawUploadId
-          .replace(/&lt;/gu, '<')
-          .replace(/&gt;/gu, '>')
-          .replace(/&quot;/gu, '"')
-          .replace(/&apos;/gu, "'")
-          .replace(/&amp;/gu, '&');
+        // A 2xx initiation response must not be buffered without a limit or
+        // treated as proof of a valid upload generation without parsing.
+        const xml = await readBoundedS3MultipartInitiationXml(response);
+        const confirmedUploadId = parseConfirmedS3MultipartUploadId(xml);
+        if (!confirmedUploadId) {
+          throw new Error('S3 multipart upload id is missing or invalid');
+        }
+        uploadId = confirmedUploadId;
       };
 
       const uploadPart = async (bytes: Buffer) => {
