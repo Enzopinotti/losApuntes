@@ -539,12 +539,16 @@ describe('S3ObjectStorage', () => {
     const second = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x65));
     const completion = writer.complete();
     const aborting = writer.abort();
-    await expect(first).rejects.toThrow('S3 Upload multipart part failed with HTTP 503');
-    await expect(second).rejects.toThrow('S3 multipart writer is no longer writable');
-    await expect(completion).rejects.toThrow(
+    const failedFirst = expect(first).rejects.toThrow(
+      'S3 Upload multipart part failed with HTTP 503',
+    );
+    const failedSecond = expect(second).rejects.toThrow(
+      'S3 multipart writer is no longer writable',
+    );
+    const failedCompletion = expect(completion).rejects.toThrow(
       'S3 multipart writer cannot complete after a failed operation',
     );
-    await aborting;
+    await Promise.all([failedFirst, failedSecond, failedCompletion, aborting]);
     expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
       .toEqual(['POST', 'PUT', 'DELETE']);
     expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
