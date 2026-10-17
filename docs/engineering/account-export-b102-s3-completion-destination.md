@@ -46,9 +46,9 @@ pnpm test:account-export-b101-signed-http
 pnpm test:account-lifecycle-contract
 ```
 
-**Evidencia aislada:** cinco tests Node de B102 evaluados sobre código fuente
-equivalente por eliminación de anotaciones TS en el V8 aislado, con blobs GitHub
-verificados, 5/5 PASS. Esto **no** reemplaza la suite Node24/pnpm9 del checkout
+**Evidencia aislada:** se ejecutaron 20/20 callbacks de tests (10 B96, 5 B99 y
+5 B102) sobre los blobs GitHub verificados, quitando únicamente anotaciones TS
+para ejecutarlos en V8. No es ejecución del runner Node24/pnpm9. Esto **no** reemplaza la suite Node24/pnpm9 del checkout
 canónico, el Jest real, Mongo replica B94 o S3 externo. La batería de 23
 casos HTTP firmados permanece pendiente de ejecutar íntegra y comprobar
 con su runner TAP anti-skips.
