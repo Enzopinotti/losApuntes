@@ -29,7 +29,7 @@ function check(name, verify) {
 
 check('B105 preserves B104 real writer state and its failure/abort semantics', () => {
   assert.ok(from > 0 && to > from);
-  assert.match(underlying, /let failed = false/u);
+  assert.match(writer, /let failed = false/u);
   assert.match(underlying, /failed = true/u);
   assert.match(underlying, /async abort\(\): Promise<void>/u);
   assert.match(underlying, /input\.deleteObjectOnAbort !== false/u);
