@@ -10,6 +10,7 @@ import {
   searchInputReducer,
 } from "../src/features/search/search-input-state";
 import { MobileSearchController } from "../src/features/search/search-controller";
+import { parseMobileSearchLink } from "../src/features/search/search-deep-link";
 import type {
   MobileSearchApi,
   MobileSearchInput,
@@ -220,11 +221,12 @@ test("Subject deep links still target the same existing authorized search path",
     new URL("../src/features/search/search-screen.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(
-    search,
-    /subjectResourcesSearchRouteId\(\s*routeParams\.subjectId,?\s*\)/u,
-  );
-  assert.match(search, /dispatchSearchInput\(\{\s*type: "subjectSelected"/u);
+  assert.deepEqual(parseMobileSearchLink({ subjectId }), {
+    scope: "resources",
+    subjectId,
+  });
+  assert.match(search, /parseMobileSearchLink/u);
+  assert.match(search, /sharedSearchOpened/u);
   assert.match(
     search,
     /controller\.scheduleSearch\(authorityKey, searchInput\)/u,
