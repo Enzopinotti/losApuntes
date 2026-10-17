@@ -433,6 +433,10 @@ export function createS3ObjectStorage(
       let uploadId: string | null = null;
       let completed = false;
       let aborted = false;
+      // B104: a failed PUT/ACK may have persisted an unknown subset of parts.
+      // Never allow complete() to publish after a failed write or ambiguous
+      // completion. Only abort() may act on the retained multipart upload ID.
+      let failed = false;
 
       const request = (
         method: 'POST' | 'PUT' | 'DELETE',
@@ -516,76 +520,92 @@ export function createS3ObjectStorage(
 
       return {
         async write(chunk: Uint8Array): Promise<void> {
-          if (completed || aborted) {
+          if (completed || aborted || failed) {
             throw new Error('S3 multipart writer is no longer writable');
           }
-          let offset = 0;
-          while (offset < chunk.byteLength) {
-            const take = Math.min(
-              minimumPartBytes - pendingBytes,
-              chunk.byteLength - offset,
-            );
-            pending.push(Buffer.from(chunk.subarray(offset, offset + take)));
-            pendingBytes += take;
-            offset += take;
-            if (pendingBytes === minimumPartBytes) await flushPending();
+          try {
+            let offset = 0;
+            while (offset < chunk.byteLength) {
+              const take = Math.min(
+                minimumPartBytes - pendingBytes,
+                chunk.byteLength - offset,
+              );
+              pending.push(Buffer.from(chunk.subarray(offset, offset + take)));
+              pendingBytes += take;
+              offset += take;
+              if (pendingBytes === minimumPartBytes) await flushPending();
+            }
+          } catch (error) {
+            // flushPending() already drained local bytes before awaiting S3;
+            // their commit/ACK status is unknown, so never retry this writer.
+            failed = true;
+            throw error;
           }
         },
 
         async complete(): Promise<void> {
           if (aborted) throw new Error('S3 multipart writer was aborted');
+          if (failed) {
+            throw new Error('S3 multipart writer cannot complete after a failed operation');
+          }
           if (completed) return;
+          try {
+            if (!uploadId) {
+              const bytes = Buffer.concat(pending, pendingBytes);
+              const response = await request(
+                'PUT',
+                undefined,
+                bytes,
+                input.contentType,
+              );
+              if (!response.ok) throw storageError('PUT object', response.status);
+              completed = true;
+              return;
+            }
 
-          if (!uploadId) {
-            const bytes = Buffer.concat(pending, pendingBytes);
-            const response = await request(
-              'PUT',
-              undefined,
-              bytes,
-              input.contentType,
+            await flushPending();
+            if (parts.length === 0) {
+              throw new Error('S3 multipart upload has no parts');
+            }
+            const currentUploadId = uploadId;
+            const body = Buffer.from(
+              `<CompleteMultipartUpload>${parts
+                .map(
+                  ({ partNumber, etag }) =>
+                    `<Part><PartNumber>${partNumber}</PartNumber><ETag>${etag}</ETag></Part>`,
+                )
+                .join('')}</CompleteMultipartUpload>`,
+              'utf8',
             );
-            if (!response.ok) throw storageError('PUT object', response.status);
+            const response = await request(
+              'POST',
+              [['uploadId', currentUploadId]],
+              body,
+              'application/xml',
+            );
+            // Never buffer an unlimited 200 response before B96's semantic
+            // check: a malicious/broken provider might stream indefinitely.
+            // Keep the uploadId when completion is ambiguous. In the private
+            // export path, abort() can only target that multipart ID.
+            if (!response.ok) {
+              void response.body?.cancel().catch(() => undefined);
+              throw storageError('Complete multipart upload', response.status);
+            }
+            const xml = await readBoundedS3MultipartCompletionXml(response);
+            if (!isConfirmedS3MultipartCompletion(xml, {
+              bucket: options.bucket,
+              objectKey: input.objectKey,
+            })) {
+              throw storageError('Complete multipart upload', response.status);
+            }
+            uploadId = null;
             completed = true;
-            return;
+          } catch (error) {
+            // An incomplete/ambiguous provider response cannot be repaired by
+            // resubmitting complete(), which might commit a partial object.
+            failed = true;
+            throw error;
           }
-
-          await flushPending();
-          if (parts.length === 0) {
-            throw new Error('S3 multipart upload has no parts');
-          }
-          const currentUploadId = uploadId;
-          const body = Buffer.from(
-            `<CompleteMultipartUpload>${parts
-              .map(
-                ({ partNumber, etag }) =>
-                  `<Part><PartNumber>${partNumber}</PartNumber><ETag>${etag}</ETag></Part>`,
-              )
-              .join('')}</CompleteMultipartUpload>`,
-            'utf8',
-          );
-          const response = await request(
-            'POST',
-            [['uploadId', currentUploadId]],
-            body,
-            'application/xml',
-          );
-          // Never buffer an unlimited 200 response before B96's semantic
-          // check: a malicious/broken provider might stream indefinitely.
-          // Keep the uploadId when completion is ambiguous. In the private
-          // export path, abort() can only target that multipart ID.
-          if (!response.ok) {
-            void response.body?.cancel().catch(() => undefined);
-            throw storageError('Complete multipart upload', response.status);
-          }
-          const xml = await readBoundedS3MultipartCompletionXml(response);
-          if (!isConfirmedS3MultipartCompletion(xml, {
-            bucket: options.bucket,
-            objectKey: input.objectKey,
-          })) {
-            throw storageError('Complete multipart upload', response.status);
-          }
-          uploadId = null;
-          completed = true;
         },
 
         async abort(): Promise<void> {

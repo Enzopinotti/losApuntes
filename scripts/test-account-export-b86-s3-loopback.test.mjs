@@ -31,6 +31,7 @@ async function withLoopback(input, scenario) {
   // B95 faults affect only GET responses *after* SigV4 authorization.
   // Every GET still traverses the real signed S3 adapter and real TCP.
   const getFaults = [...(input.getFaults ?? [])];
+  const partStatuses = [...(input.partStatuses ?? [])];
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     const method = request.method ?? '';
@@ -71,6 +72,10 @@ async function withLoopback(input, scenario) {
       } else if (method === 'PUT' && uploadId && part) {
         const upload = uploads.get(uploadId);
         if (!upload) { response.writeHead(404); response.end(); return; }
+        const status = partStatuses.shift() ?? 200;
+        if (status !== 200) {
+          response.writeHead(status); response.end(); return;
+        }
         upload[Number(part) - 1] = body;
         response.writeHead(200, { etag: '"b86-part-etag"' });
         response.end();
@@ -516,6 +521,70 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     await assert.doesNotReject(writer.complete());
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+  });
+});
+
+test('B104 signed HTTP failed first part forbids completion and permits uploadId-only abort', async () => {
+  await withLoopback({ partStatuses: [503] }, async ({ storage, objects, calls, uploads }) => {
+    const writer = newWriter(storage);
+    await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x41)),
+      /S3 Upload multipart part failed with HTTP 503/u);
+    await assert.rejects(writer.complete(),
+      /S3 multipart writer cannot complete after a failed operation/u);
+    await assert.rejects(writer.write(Buffer.from('retry')),
+      /S3 multipart writer is no longer writable/u);
+    await writer.abort();
+    assert.equal(objects.size, 0, 'no truncated object was committed');
+    assert.equal(uploads.size, 0, 'the known multipart generation was aborted');
+    assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'DELETE']);
+    assert.ok(calls[2].uploadId);
+    assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+  });
+});
+
+test('B104 signed HTTP failed second part never confirms a first-part-only object', async () => {
+  await withLoopback({ partStatuses: [200, 503] }, async ({ storage, objects, calls }) => {
+    const writer = newWriter(storage);
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x41));
+    await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x42)),
+      /S3 Upload multipart part failed with HTTP 503/u);
+    await assert.rejects(writer.complete(),
+      /S3 multipart writer cannot complete after a failed operation/u);
+    await writer.abort();
+    assert.equal(objects.size, 0, 'partial first-part upload cannot be published');
+    assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'PUT', 'DELETE']);
+    assert.ok(calls[3].uploadId);
+  });
+});
+
+test('B104 signed HTTP ambiguous final ACK cannot be replayed or DELETE private object', async () => {
+  await withLoopback({ completeMultipartBody: '<CompleteMultipartUploadResult/>' },
+    async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x43));
+      await assert.rejects(writer.complete(), /S3 Complete multipart upload failed/u);
+      assert.equal(objects.has(PATH), true, 'provider committed despite false ACK');
+      await assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      await writer.abort();
+      assert.equal(objects.has(PATH), true, 'owner fencing must own cleanup');
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST', 'DELETE']);
+      assert.ok(calls[3].uploadId);
+    });
+});
+
+test('B104 signed HTTP single PUT lost ACK cannot be repeated or delete private object', async () => {
+  await withLoopback({ losePutAck: true }, async ({ storage, objects, calls }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.from('{"private":"b104"}');
+    await writer.write(bytes);
+    await assert.rejects(writer.complete());
+    assert.deepEqual(objects.get(PATH), bytes, 'provider may already have persisted PUT');
+    await assert.rejects(writer.complete(),
+      /S3 multipart writer cannot complete after a failed operation/u);
+    await writer.abort();
+    assert.deepEqual(objects.get(PATH), bytes);
+    assert.deepEqual(calls.map(call => call.method), ['PUT']);
   });
 });
 

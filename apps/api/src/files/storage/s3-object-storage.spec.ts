@@ -441,6 +441,106 @@ describe('S3ObjectStorage', () => {
       .toEqual(['PUT', 'DELETE']);
   });
 
+  it('B104 failed first multipart PUT forbids later write/complete but allows uploadId abort', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b104-a</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b104-first-part.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61)))
+      .rejects.toThrow('S3 Upload multipart part failed with HTTP 503');
+    await expect(writer.write(Buffer.from('retry')))
+      .rejects.toThrow('S3 multipart writer is no longer writable');
+    await expect(writer.complete())
+      .rejects.toThrow('S3 multipart writer cannot complete after a failed operation');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b104-a');
+  });
+
+  it('B104 failed later multipart PUT cannot publish only the first successful part', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b104-b</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"good-part-1"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b104-second-part.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x62)))
+      .rejects.toThrow('S3 Upload multipart part failed with HTTP 503');
+    await expect(writer.complete())
+      .rejects.toThrow('S3 multipart writer cannot complete after a failed operation');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'PUT', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[3]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b104-b');
+  });
+
+  it('B104 ambiguous multipart final ACK cannot be resubmitted after failure', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b104-c</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-1"' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        '<CompleteMultipartUploadResult><ETag>&#32;</ETag></CompleteMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b104-completion.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024));
+    await expect(writer.complete()).rejects.toThrow('S3 Complete multipart upload failed with HTTP 200');
+    await expect(writer.complete())
+      .rejects.toThrow('S3 multipart writer cannot complete after a failed operation');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[3]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b104-c');
+  });
+
+  it('B104 ambiguous single PUT ACK forbids unsafe replay of the exact generation', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b104-single.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.from('{"single":true}'));
+    await expect(writer.complete()).rejects.toThrow('S3 PUT object failed with HTTP 503');
+    await expect(writer.complete())
+      .rejects.toThrow('S3 multipart writer cannot complete after a failed operation');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['PUT']);
+  });
+
   it.each([
     '<CompleteMultipartUploadResult/>',
     '<CompleteMultipartUploadResult />',
