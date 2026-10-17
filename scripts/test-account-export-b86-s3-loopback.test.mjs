@@ -64,7 +64,7 @@ async function withLoopback(input, scenario) {
       assert.match(request.headers.authorization ?? '', /^AWS4-HMAC-SHA256 /u);
       assert.match(request.headers['x-amz-date'] ?? '', /^\d{8}T\d{6}Z$/u);
       if (method === 'POST' && url.searchParams.has('uploads')) {
-        const id = randomUUID();
+        const id = input.initiationUploadId ?? randomUUID();
         uploads.set(id, []);
         response.writeHead(200, { 'content-type': 'application/xml' });
         response.end(input.initiateMultipartBody ?? `<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`);
@@ -429,6 +429,49 @@ test('B96 real signed HTTP multipart rejects a blank or Error body without objec
         call.method === 'DELETE' && call.uploadId === null).length, 0);
     });
   }
+});
+
+test('B101 SigV4 HTTP accepts bucket/key-fenced initiation and verifies committed bytes', async () => {
+  const id = 'b101-local-upload-id';
+  const initiateMultipartBody =
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' +
+    '<Bucket>' + BUCKET + '</Bucket><Key>' + OBJECT_KEY + '</Key>' +
+    '<UploadId>' + id + '</UploadId></InitiateMultipartUploadResult>';
+  await withLoopback({ initiationUploadId: id, initiateMultipartBody },
+    async ({ storage, objects, calls, uploads }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.alloc(5 * 1024 * 1024, 0x71);
+      await writer.write(bytes);
+      await writer.complete();
+      await verifyAccountExportStoredBytes(storage.readObjectChunks(OBJECT_KEY), {
+        byteLength: bytes.length,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      });
+      assert.deepEqual(objects.get(PATH), bytes);
+      assert.equal(uploads.size, 0);
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST', 'GET']);
+      assert.equal(calls[1].uploadId, id);
+      assert.equal(calls[2].uploadId, id);
+      assert.equal(calls.some(call => call.method === 'DELETE'), false);
+    });
+});
+
+test('B101 SigV4 HTTP rejects cross-key initiation before signing any part or deleting object', async () => {
+  const initiateMultipartBody =
+    '<InitiateMultipartUploadResult><Bucket>' + BUCKET + '</Bucket>' +
+    '<Key>exports/someone-else/private.json</Key>' +
+    '<UploadId>b101-cross-key-id</UploadId></InitiateMultipartUploadResult>';
+  await withLoopback({ initiateMultipartBody }, async ({ storage, objects, uploads, calls }) => {
+    const writer = newWriter(storage);
+    await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x71)),
+      /S3 multipart upload id is missing or invalid/u);
+    await writer.abort();
+    assert.equal(objects.has(PATH), false);
+    assert.equal(uploads.size, 1, 'provider-upload lifecycle handles unconfirmed initiation');
+    assert.deepEqual(calls.map(call => call.method), ['POST']);
+    assert.equal(calls.some(call => call.method === 'DELETE'), false);
+  });
 });
 
 test('B100 signed HTTP refuses oversized initiation body without part upload or object DELETE', async () => {

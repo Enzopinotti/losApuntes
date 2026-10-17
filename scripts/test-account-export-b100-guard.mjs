@@ -22,7 +22,7 @@ check('B100 start never uses an unbounded response.text or unsafe UploadId regex
   assert.doesNotMatch(segment, /response\.text\(\)/u);
   assert.doesNotMatch(segment, /<UploadId>\(\[\^<\]\+\)/u);
   const bounded = segment.indexOf('readBoundedS3MultipartInitiationXml(response)');
-  const parsed = segment.indexOf('parseConfirmedS3MultipartUploadId(xml)');
+  const parsed = segment.indexOf('parseConfirmedS3MultipartUploadId(xml, {');
   const assigned = segment.indexOf('uploadId = confirmedUploadId');
   assert.ok(bounded >= 0 && parsed > bounded && assigned > parsed);
   assert.match(segment, /bucket: options\.bucket/u);

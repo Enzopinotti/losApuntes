@@ -5,6 +5,8 @@ const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8'
 const loopback = read('scripts/test-account-export-b86-s3-loopback.test.mjs');
 const acceptance = read('apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts');
 const runner = read('scripts/run-account-export-b86-local-acceptance.mjs');
+const mongoUri = read('scripts/testing/b89-local-mongo-uri.mjs');
+const plan = read('scripts/testing/b94-mongo-acceptance-plan.mjs');
 const s3 = read('apps/api/src/files/storage/s3-object-storage.ts');
 const adapter = read('apps/api/src/data-lifecycle/storage/account-export-artifact-storage.ts');
 const processor = read('apps/api/src/data-lifecycle/domain/account-export-processor.ts');
@@ -66,12 +68,16 @@ check('B86 Mongo opt-in preserves durable published generation', () => {
   assert.match(acceptance, /artifactGeneration\)\.toBe\(generation\)/u);
   assert.match(acceptance, /httpMethods\)\.toEqual\(\['PUT'\]\)/u);
 });
-check('B86 standalone guard requires exact local uncredentialed replica and Node24', () => {
+check('B86 standalone guard delegates local URI to B89 and exact cases to B94', () => {
   assert.match(runner, /STUDY_PROGRESS_TEST_MONGO_URI/u);
-  assert.match(runner, /parsed\.protocol !== 'mongodb:'/u);
-  assert.match(runner, /parsed\.username \|\| parsed\.password/u);
+  assert.match(runner, /validateB89LocalMongoUri\(uri\)/u);
+  assert.match(mongoUri, /parsed\.protocol !== 'mongodb:'/u);
+  assert.match(mongoUri, /parsed\.username \|\| parsed\.password/u);
+  assert.match(mongoUri, /directConnection/u);
   assert.match(runner, /process\.versions\.node/u);
-  assert.match(runner, /--testNamePattern', 'B86'/u);
+  assert.match(runner, /--testNamePattern', B94_MONGO_TEST_PATTERN/u);
+  assert.match(runner, /verifyB94MongoAcceptanceReport\(report\)/u);
+  assert.match(plan, /B94_MONGO_TEST_PATTERN/u);
   assert.match(runner, /--passWithNoTests=false/u);
 });
 check('B86 is wired into root lifecycle and kept opt-in for Mongo', () => {
