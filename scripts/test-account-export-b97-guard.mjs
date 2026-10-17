@@ -32,7 +32,7 @@ check('B97 rejects invalid UTF8 instead of repairing XML', () => {
   assert.match(reader, /value instanceof Uint8Array/u);
 });
 check('B97 still requires semantically valid B96 XML', () => {
-  assert.match(s3, /isConfirmedS3MultipartCompletion\(xml\)/u);
+  assert.match(s3, /isConfirmedS3MultipartCompletion\(xml, \{/u);
   assert.match(xml, /CompleteMultipartUploadResult/u);
 });
 check('B97 checks HTTP success and bounded XML before marking the writer committed', () => {
@@ -41,7 +41,7 @@ check('B97 checks HTTP success and bounded XML before marking the writer committ
   const body = s3.slice(start, end);
   const status = body.indexOf('if (!response.ok)');
   const bounded = body.indexOf('readBoundedS3MultipartCompletionXml(response)');
-  const semantic = body.indexOf('isConfirmedS3MultipartCompletion(xml)');
+  const semantic = body.indexOf('isConfirmedS3MultipartCompletion(xml, {');
   const committed = body.lastIndexOf('completed = true;');
   assert.ok(status >= 0 && bounded > status && semantic > bounded && committed > semantic);
   assert.doesNotMatch(body, /response\.text\(\)/u);

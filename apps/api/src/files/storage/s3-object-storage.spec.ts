@@ -560,6 +560,42 @@ describe('S3ObjectStorage', () => {
       .toBe('a&b');
   });
 
+  it.each([
+    [
+      '<CompleteMultipartUploadResult><Bucket>foreign-bucket</Bucket>' +
+      '<Key>exports/job/b102-private.json</Key><ETag>"ok"</ETag></CompleteMultipartUploadResult>',
+      'foreign bucket',
+    ],
+    [
+      '<CompleteMultipartUploadResult><Bucket>losapuntes-files</Bucket>' +
+      '<Key>exports/another-owner/b102.json</Key><ETag>"ok"</ETag></CompleteMultipartUploadResult>',
+      'foreign key',
+    ],
+  ])('B102 rejects multipart completion from %s without deleting private object', async (xml) => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b102</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-1"' },
+      }))
+      .mockResolvedValueOnce(new Response(xml, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b102-private.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await expect(writer.complete()).rejects.toThrow('S3 Complete multipart upload');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[3]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b102');
+  });
+
   it('B97 caps and cancels an oversized HTTP 200 multipart response without direct object DELETE', async () => {
     let cancelled = 0;
     const body = new ReadableStream<Uint8Array>({

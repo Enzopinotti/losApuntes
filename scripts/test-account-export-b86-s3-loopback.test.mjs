@@ -505,8 +505,8 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
   const completeMultipartBody =
     '<?xml version="1.0" encoding="UTF-8"?>' +
     '<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' +
-    '<Location>https://s3.local/bucket/key</Location><Bucket>bucket</Bucket>' +
-    '<Key>key</Key><ETag>"etag"</ETag></CompleteMultipartUploadResult>';
+    '<Location>https://s3.local/bucket/key</Location><Bucket>' + BUCKET + '</Bucket>' +
+    '<Key>' + OBJECT_KEY + '</Key><ETag>"etag"</ETag></CompleteMultipartUploadResult>';
   await withLoopback({ completeMultipartBody }, async ({ storage, objects, calls }) => {
     const writer = newWriter(storage);
     await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x65));
@@ -514,6 +514,28 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B102 signed HTTP rejects foreign completion bucket/key with owner-safe multipart abort', async () => {
+  for (const completeMultipartBody of [
+    '<CompleteMultipartUploadResult><Bucket>other-bucket</Bucket>' +
+      '<Key>' + OBJECT_KEY + '</Key><ETag>"ok"</ETag></CompleteMultipartUploadResult>',
+    '<CompleteMultipartUploadResult><Bucket>' + BUCKET + '</Bucket>' +
+      '<Key>exports/someone-else/private.json</Key>' +
+      '<ETag>"ok"</ETag></CompleteMultipartUploadResult>',
+  ]) {
+    await withLoopback({ completeMultipartBody }, async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x72));
+      await assert.rejects(writer.complete(), /S3 Complete multipart upload/u);
+      assert.equal(objects.has(PATH), true, 'simulated provider already committed bytes');
+      await writer.abort();
+      assert.equal(objects.has(PATH), true, 'private generation is not deleted');
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST', 'DELETE']);
+      assert.ok(calls[3].uploadId);
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+    });
+  }
 });
 
 test('B99 signed HTTP rejects malformed success XML and preserves owner-fenced cleanup', async () => {

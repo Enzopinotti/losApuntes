@@ -1081,3 +1081,35 @@ auditorías #133/#141 continúan pendientes. No certificar release con
 un test local del loader ni confundir loopback firmado con AWS externo.
 
 **#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni despliegue.
+
+## B102 — Confirmación multipart S3 vinculada al objeto privado
+
+B99 validaba el XML estructural de CompleteMultipartUpload pero no cotejaba
+los campos Bucket y Key de la respuesta con el destino solicitado al proveedor.
+Un HTTP 200 con ETag y resultado de otro bucket/objeto podía marcar el writer
+como completado sin la evidencia correcta (B90 SHA-256 seguía como defensa
+independiente de publicación). B102 compara los nombres **decodificados** de
+Bucket/Key, cuando S3 los informa, con los parámetros usados para firmar el
+request. Ante mismatch el ACK es ambiguo/no confirmado: no marcar completed,
+conservar uploadId para abortar solo la subida multipart. No emitir DELETE
+Object directo de exportación privada. El worker owner-fenced B80/B81
+conserva la autoridad de limpieza y B90 GET+SHA-256 sigue siendo obligatorio.
+
+Compatibilidad: se admiten XML válidos sin Bucket/Key para S3 simulados y
+la forma autocerrada B86, que NO certifican conformance de proveedor real.
+Se corrigió además el fixture positivo B99 de HTTP firmado para declarar
+el bucket/key real.
+
+Pruebas:
+- pnpm test:account-export-b102-binding
+- pnpm test:account-export-b101-signed-http
+- pnpm test:account-lifecycle-contract
+
+Se ejecutaron 20/20 callbacks aislados de B96/B99/B102 mediante V8 sobre
+blobs GitHub, eliminando solo las anotaciones TypeScript; 20/20 PASS.
+Se verificaron 10/10 contratos cruzados de fuente GitHub.
+No se ejecutó la cadena Node24/pnpm9 del checkout, Jest, ni los 23 tests
+completos de HTTP SigV4, Mongo replica o AWS/MinIO con lifecycle/IAM.
+No declarar aceptación productiva por pruebas aisladas.
+
+**#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni deploy.

@@ -578,7 +578,10 @@ export function createS3ObjectStorage(
             throw storageError('Complete multipart upload', response.status);
           }
           const xml = await readBoundedS3MultipartCompletionXml(response);
-          if (!isConfirmedS3MultipartCompletion(xml)) {
+          if (!isConfirmedS3MultipartCompletion(xml, {
+            bucket: options.bucket,
+            objectKey: input.objectKey,
+          })) {
             throw storageError('Complete multipart upload', response.status);
           }
           uploadId = null;

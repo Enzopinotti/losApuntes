@@ -100,7 +100,33 @@ function readTag(xml: string, offset: number): XmlTag | null {
   return null;
 }
 
-export function isConfirmedS3MultipartCompletion(xml: string): boolean {
+
+/**
+ * B102 compares the *decoded* S3 result Bucket/Key with the signed request
+ * target. validXmlText() has already rejected invalid/nested entities, so
+ * this decoder never expands external entities or provider-supplied markup.
+ */
+function decodeCompletionXmlField(value: string): string {
+  return value.replace(/&(amp|lt|gt|apos|quot|#[0-9]+|#x[0-9a-fA-F]+);/gu,
+    (entity, name: string) => {
+      switch (name) {
+        case 'amp': return '&';
+        case 'lt': return '<';
+        case 'gt': return '>';
+        case 'apos': return "'";
+        case 'quot': return '"';
+        default: return String.fromCodePoint(
+          Number.parseInt(name.slice(name.startsWith('#x') ? 2 : 1),
+            name.startsWith('#x') ? 16 : 10),
+        );
+      }
+    });
+}
+
+export function isConfirmedS3MultipartCompletion(
+  xml: string,
+  expected?: { bucket: string; objectKey: string },
+): boolean {
   if (typeof xml !== 'string' || xml.length === 0 || xml.length > 64 * 1024) {
     return false;
   }
@@ -114,6 +140,9 @@ export function isConfirmedS3MultipartCompletion(xml: string): boolean {
   let rootOpen = false;
   let activeField: string | null = null;
   let fieldHasValue = false;
+  let fieldText = '';
+  let responseBucket: string | null = null;
+  let responseKey: string | null = null;
   let etagSeen = false;
   const seenFields = new Set<string>();
   while (index < body.length) {
@@ -123,6 +152,7 @@ export function isConfirmedS3MultipartCompletion(xml: string): boolean {
       const segment = body.slice(index, end);
       if (!validXmlText(segment)) return false;
       if (activeField) {
+        fieldText += segment;
         if (segment.trim().length > 0) fieldHasValue = true;
       } else if (segment.trim().length > 0) {
         return false;
@@ -141,17 +171,27 @@ export function isConfirmedS3MultipartCompletion(xml: string): boolean {
       continue;
     }
     if (tag.closing && tag.name === ROOT) {
-      return activeField === null && etagSeen && index === body.length;
+      return activeField === null && etagSeen && index === body.length &&
+        (!expected ||
+          ((responseBucket === null || responseBucket === expected.bucket) &&
+           (responseKey === null || responseKey === expected.objectKey)));
     }
     if (!activeField) {
       if (tag.closing || !RESULT_FIELDS.has(tag.name) || tag.selfClosing ||
           tag.attributes.length > 0 || seenFields.has(tag.name)) return false;
       activeField = tag.name;
       fieldHasValue = false;
+      fieldText = '';
       seenFields.add(tag.name);
     } else {
       if (!tag.closing || tag.name !== activeField || !fieldHasValue) return false;
       if (activeField === 'ETag') etagSeen = true;
+      if (activeField === 'Bucket') {
+        responseBucket = decodeCompletionXmlField(fieldText);
+      }
+      if (activeField === 'Key') {
+        responseKey = decodeCompletionXmlField(fieldText);
+      }
       activeField = null;
     }
   }

@@ -74,7 +74,7 @@ check('B100 preserves B96-99 and original private abort protections', () => {
     assert.ok(chain.includes(id), id + ' remains in lifecycle');
   }
   assert.match(s3, /input\.deleteObjectOnAbort !== false/u);
-  assert.match(s3, /isConfirmedS3MultipartCompletion\(xml\)/u);
+  assert.match(s3, /isConfirmedS3MultipartCompletion\(xml, \{/u);
 });
 
 check('B100 has dedicated runnable command and release stays HOLD', () => {
