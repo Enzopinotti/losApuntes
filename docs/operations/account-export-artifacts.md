@@ -1175,3 +1175,12 @@ proveedor S3/MinIO real, IAM/lifecycle, backup/restore, navegadores
 y auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`; sin CI manual ni deploy.
+
+**Evidencia B104 complementaria:** se extrajo y ejecutó en V8 el método
+productivo `createMultipartWriter` en versión anterior y corregida,
+con dependencias de transporte sustituidas y umbral de parte de cinco
+bytes. Reproducción 4 escenarios: en la versión antigua, segunda parte
+fallida permitía completar un objeto truncado, ACK ambiguo podía
+re-POST Complete y PUT simple se retransmitía; con B104 los tres
+reintentos peligrosos quedaron bloqueados. Ver informe técnico B104.
+No es la batería TCP SigV4/Node24.
