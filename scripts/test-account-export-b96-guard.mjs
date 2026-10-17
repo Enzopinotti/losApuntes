@@ -42,7 +42,7 @@ check('B98 preserves B96 semantic XML guard after B97 bounded streaming', () => 
   const complete = implementation.slice(start, end);
   const status = complete.indexOf('if (!response.ok)');
   const bounded = complete.indexOf('const xml = await readBoundedS3MultipartCompletionXml(response);');
-  const checked = complete.indexOf('if (!isConfirmedS3MultipartCompletion(xml))');
+  const checked = complete.indexOf('if (!isConfirmedS3MultipartCompletion(xml, {');
   const committed = complete.lastIndexOf('completed = true;');
   assert.ok(status >= 0 && bounded > status && checked > bounded && committed > checked,
     'HTTP success, bounded read and B96 semantic validation precede commit');
