@@ -16,7 +16,8 @@ test('B100 confirms normal S3 initiation, namespace and escaped opaque UploadId'
   assert.equal(parse('<?xml version="1.0" encoding="UTF-8"?>' +
     '<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' +
     '<Bucket>bucket</Bucket><Key>exports/private.json</Key>' +
-    '<UploadId>a&amp;b&#43;c</UploadId></InitiateMultipartUploadResult>'), 'a&b+c');
+    '<UploadId>a&amp;b&#43;c</UploadId></InitiateMultipartUploadResult>',
+    { bucket: 'bucket', objectKey: 'exports/private.json' }), 'a&b+c');
 });
 
 test('B100 rejects forged HTTP 200 response, wrong root, duplicate and absent UploadId', () => {
@@ -41,6 +42,13 @@ test('B100 validates XML entities and rejects control or dangerous upload IDs', 
     'a'.repeat(2049),
   ]) assert.equal(parse(fixture(id)), null, JSON.stringify(id));
   assert.equal(parse(fixture('a&amp;b')), 'a&b');
+});
+
+test('B100 rejects an initiation UploadId bound to another bucket or object key', () => {
+  const result = '<InitiateMultipartUploadResult><Bucket>wrong</Bucket>' +
+    '<Key>exports/other.json</Key><UploadId>id</UploadId></InitiateMultipartUploadResult>';
+  assert.equal(parse(result, { bucket: 'expected', objectKey: 'exports/ours.json' }), null);
+  assert.equal(parse(fixture('id'), { bucket: 'expected', objectKey: 'exports/ours.json' }), 'id');
 });
 
 test('B100 supports incremental initiation XML and preserves completion API', async () => {
