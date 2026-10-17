@@ -25,6 +25,8 @@ check('B100 start never uses an unbounded response.text or unsafe UploadId regex
   const parsed = segment.indexOf('parseConfirmedS3MultipartUploadId(xml)');
   const assigned = segment.indexOf('uploadId = confirmedUploadId');
   assert.ok(bounded >= 0 && parsed > bounded && assigned > parsed);
+  assert.match(segment, /bucket: options\.bucket/u);
+  assert.match(segment, /objectKey: input\.objectKey/u);
 });
 
 check('B100 init reuses B97 cancellation, bounded bytes and fatal UTF-8', () => {
@@ -41,6 +43,9 @@ check('B100 XML parser refuses unknown or duplicate upload generations', () => {
   assert.match(initiation, /seen\.has\(name\)/u);
   assert.match(initiation, /uploadId\.length > 2048/u);
   assert.match(nodeTests, /forged HTTP 200 response/u);
+  assert.match(nodeTests, /bound to another bucket or object key/u);
+  assert.match(initiation, /responseBucket !== expected\.bucket/u);
+  assert.match(initiation, /responseKey !== expected\.objectKey/u);
 });
 
 check('B100 Node suite includes real localhost TCP response', () => {
