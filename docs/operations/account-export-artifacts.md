@@ -1113,3 +1113,34 @@ completos de HTTP SigV4, Mongo replica o AWS/MinIO con lifecycle/IAM.
 No declarar aceptación productiva por pruebas aisladas.
 
 **#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni deploy.
+
+## B103 — Confirmación S3 multipart con ETag real, nunca ACK autocerrado
+
+Se eliminó la excepción de prueba B86 que aceptaba
+`<CompleteMultipartUploadResult/>` bajo HTTP 200 como éxito sin ETag.
+El simulador HTTP firmado responde ahora con un XML completo con
+`Bucket`, `Key` y `ETag`. El parser exige ETag semánticamente no
+vacío tras decodificar entidades XML, cerrando también el caso
+`<ETag>&#32;</ETag>` (espacio codificado). Nunca marcar
+`completed=true` con una confirmación autocerrada.
+
+Si el proveedor persiste el objeto pero entrega un ACK no confirmado,
+conservar `uploadId` para abortar **solo** ese multipart, sin DELETE
+Object directo de exportación privada. B80/B81 mantienen la limpieza
+durable bajo autoridad del propietario y B90 mantiene GET+SHA-256.
+
+Pruebas en checkout canónico:
+- pnpm test:account-export-b103-etag
+- pnpm test:account-export-b101-signed-http
+- pnpm test:account-lifecycle-contract
+
+**Evidencia disponible:** V8 aislado del validador sobre blobs GitHub,
+red/green: el parser anterior falló dos grupos B103 y el nuevo pasó
+25/25 grupos B96+B99+B102+B103. **No se ejecutaron** aquí los 24
+escenarios TCP SigV4 completos, Jest, ni el lifecycle en Node24/pnpm9.
+Ni esta evidencia ni un simulator S3 habilitan producción: pendiente
+Mongo replica B94, S3 real con IAM/lifecycle, backups, auditorías y
+aceptación #353.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción;
+sin CI manual ni despliegue.
