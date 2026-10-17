@@ -50,7 +50,7 @@ check('B105 fences writes immediately after complete or abort request', () => {
   assert.match(wrapper, /S3 multipart writer is no longer writable/u);
 });
 check('B105 snapshots mutable caller bytes before deferring signed PUT', () => {
-  const copy = wrapper.indexOf('const snapshot = Buffer.from(chunk)');
+  const copy = wrapper.indexOf('snapshot = Buffer.from(chunk)');
   const queue = wrapper.indexOf('return serialize(async () => {');
   assert.ok(copy >= 0 && queue > copy);
   assert.match(jest, /B105 snapshots queued mutable byte arrays/u);
