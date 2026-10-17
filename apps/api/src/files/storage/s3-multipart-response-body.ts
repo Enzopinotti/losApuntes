@@ -13,9 +13,10 @@ export const MAX_S3_MULTIPART_COMPLETION_BYTES = 64 * 1024;
 
 export async function readBoundedS3MultipartCompletionXml(
   response: Pick<Response, 'body'>,
+  purpose: 'completion' | 'initiation' = 'completion',
 ): Promise<string> {
   if (!response.body) {
-    throw new Error('S3 multipart completion response body is missing');
+    throw new Error(`S3 multipart ${purpose} response body is missing`);
   }
 
   const reader = response.body.getReader();
@@ -33,12 +34,12 @@ export async function readBoundedS3MultipartCompletionXml(
         return xml;
       }
       if (!(value instanceof Uint8Array)) {
-        throw new Error('S3 multipart completion response returned invalid bytes');
+        throw new Error(`S3 multipart ${purpose} response returned invalid bytes`);
       }
       // Fail before retaining/decoding unbounded data, even if a provider
       // incorrectly omits Content-Length or responds with chunked HTTP.
       if (value.byteLength > MAX_S3_MULTIPART_COMPLETION_BYTES - size) {
-        throw new Error('S3 multipart completion response exceeds 65536 bytes');
+        throw new Error(`S3 multipart ${purpose} response exceeds 65536 bytes`);
       }
       size += value.byteLength;
       xml += decoder.decode(value, { stream: true });
@@ -51,4 +52,11 @@ export async function readBoundedS3MultipartCompletionXml(
     }
     reader.releaseLock();
   }
+}
+
+/** Reuse B97's streamed, UTF-8-fatal, 64-KiB budget for multipart initiation. */
+export function readBoundedS3MultipartInitiationXml(
+  response: Pick<Response, 'body'>,
+): Promise<string> {
+  return readBoundedS3MultipartCompletionXml(response, 'initiation');
 }
