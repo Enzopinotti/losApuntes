@@ -41,7 +41,7 @@ check('B97 checks HTTP success and bounded XML before marking the writer committ
   const body = s3.slice(start, end);
   const status = body.indexOf('if (!response.ok)');
   const bounded = body.indexOf('readBoundedS3MultipartCompletionXml(response)');
-  const semantic = body.indexOf('isConfirmedS3MultipartCompletion(xml)');
+  const semantic = body.indexOf('isConfirmedS3MultipartCompletion(xml, {');
   const committed = body.lastIndexOf('completed = true;');
   assert.ok(status >= 0 && bounded > status && semantic > bounded && committed > semantic);
   assert.doesNotMatch(body, /response\.text\(\)/u);
