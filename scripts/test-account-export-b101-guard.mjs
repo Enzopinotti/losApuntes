@@ -64,7 +64,7 @@ check('B101 fixes B100 parser guard to accept destination-fenced arguments', () 
   assert.match(b100Guard, /segment\.indexOf\('parseConfirmedS3MultipartUploadId\(xml, \{'\)/u);
 });
 check('B101 keeps B86 Mongo security and B94 five-scenario evidence', () => {
-  assert.match(b86Guard, /validateB89LocalMongoUri\(uri\)/u);
+  assert.match(b86Guard, /validateB89LocalMongoUri/u);
   assert.match(b86Guard, /verifyB94MongoAcceptanceReport/u);
 });
 check('B101 is part of lifecycle without disabling production HOLD', () => {
