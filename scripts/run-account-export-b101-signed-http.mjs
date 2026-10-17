@@ -17,8 +17,8 @@ const testUrl = new URL('./test-account-export-b86-s3-loopback.test.mjs', import
 const testSource = readFileSync(testUrl, 'utf8');
 const expectedNames = [...testSource.matchAll(/test\('([^']+)'/gu)].map(match => match[1]);
 const required = ['B86 ', 'B87 ', 'B95 ', 'B96 ', 'B97 ', 'B99 ',
-  'B100 ', 'B101 ', 'B102 ', 'B103 ', 'B104 ', 'B105 '];
-if (expectedNames.length < 32 ||
+  'B100 ', 'B101 ', 'B102 ', 'B103 ', 'B104 ', 'B105 ', 'B106 '];
+if (expectedNames.length < 34 ||
     required.some(prefix => !expectedNames.some(name => name.startsWith(prefix))) ||
     !testSource.includes("server.listen(0, '127.0.0.1', resolve)") ||
     !testSource.includes('verifyB87S3SigV4({')) {
