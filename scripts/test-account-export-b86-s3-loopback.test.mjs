@@ -83,7 +83,10 @@ async function withLoopback(input, scenario) {
           response.destroy();
         } else {
           response.writeHead(200, { 'content-type': 'application/xml' });
-          response.end(input.completeMultipartBody ?? '<CompleteMultipartUploadResult />');
+          response.end(input.completeMultipartBody ??
+            `<CompleteMultipartUploadResult><Bucket>${BUCKET}</Bucket>` +
+            `<Key>${OBJECT_KEY}</Key><ETag>"fixture-etag"</ETag>` +
+            '</CompleteMultipartUploadResult>');
         }
       } else if (method === 'PUT' && !uploadId) {
         objects.set(url.pathname, body);
@@ -514,6 +517,26 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B103 signed HTTP refuses empty success ACK and never deletes committed private generation', async () => {
+  for (const completeMultipartBody of [
+    '<CompleteMultipartUploadResult/>',
+    '<CompleteMultipartUploadResult />',
+    '<CompleteMultipartUploadResult><ETag>&#x20;</ETag></CompleteMultipartUploadResult>',
+  ]) {
+    await withLoopback({ completeMultipartBody }, async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x73));
+      await assert.rejects(writer.complete(), /Complete multipart upload/u);
+      assert.equal(objects.has(PATH), true, 'provider committed bytes despite ambiguous ACK');
+      await writer.abort();
+      assert.equal(objects.has(PATH), true, 'private object requires owner-fenced cleanup');
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST', 'DELETE']);
+      assert.ok(calls[3].uploadId, 'abort only the known multipart upload');
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+    });
+  }
 });
 
 test('B102 signed HTTP rejects foreign completion bucket/key with owner-safe multipart abort', async () => {
