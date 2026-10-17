@@ -67,6 +67,7 @@ async function withLoopback(input, scenario) {
       if (method === 'POST' && url.searchParams.has('uploads')) {
         const id = input.initiationUploadId ?? randomUUID();
         uploads.set(id, []);
+        input.onInitiation?.();
         if (input.initiationDelayMs) {
           await new Promise(resolve => setTimeout(resolve, input.initiationDelayMs));
         }
@@ -525,6 +526,46 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B106 signed HTTP rejects oversized 16 MiB snapshot before any request', async () => {
+  await withLoopback({}, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    await assert.rejects(writer.write(Buffer.alloc(16 * 1024 * 1024 + 1)),
+      /S3 multipart writer pending writes exceed limits/u);
+    await assert.rejects(writer.complete(),
+      /S3 multipart writer cannot complete after a failed operation/u);
+    await writer.abort();
+    assert.deepEqual(calls, []);
+    assert.equal(objects.size, 0);
+  });
+});
+
+test('B106 signed HTTP aborts over-budget queued writes after confirmed upload ID', async () => {
+  let notifyInitiation;
+  const initiated = new Promise(resolve => { notifyInitiation = resolve; });
+  await withLoopback({ initiationDelayMs: 80, onInitiation: () => notifyInitiation() },
+    async ({ storage, calls, objects }) => {
+      const writer = newWriter(storage);
+      const first = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x41));
+      await initiated;
+      const second = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x42));
+      const third = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x43));
+      const overflow = assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x44)),
+        /S3 multipart writer pending writes exceed limits/u);
+      const rejectedSecond = assert.rejects(second,
+        /S3 multipart writer is no longer writable/u);
+      const rejectedThird = assert.rejects(third,
+        /S3 multipart writer is no longer writable/u);
+      const rejectedComplete = assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      const abort = writer.abort();
+      await Promise.all([first, rejectedSecond, rejectedThird, overflow, rejectedComplete, abort]);
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'DELETE']);
+      assert.ok(calls[2].uploadId);
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+      assert.equal(objects.size, 0);
+    });
 });
 
 test('B105 concurrent signed writes produce distinct ordered S3 parts and exact bytes', async () => {
