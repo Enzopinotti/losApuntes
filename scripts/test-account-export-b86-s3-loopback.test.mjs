@@ -67,7 +67,7 @@ async function withLoopback(input, scenario) {
         const id = randomUUID();
         uploads.set(id, []);
         response.writeHead(200, { 'content-type': 'application/xml' });
-        response.end(`<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`);
+        response.end(input.initiateMultipartBody ?? `<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`);
       } else if (method === 'PUT' && uploadId && part) {
         const upload = uploads.get(uploadId);
         if (!upload) { response.writeHead(404); response.end(); return; }
@@ -429,6 +429,33 @@ test('B96 real signed HTTP multipart rejects a blank or Error body without objec
         call.method === 'DELETE' && call.uploadId === null).length, 0);
     });
   }
+});
+
+test('B100 signed HTTP refuses oversized initiation body without part upload or object DELETE', async () => {
+  await withLoopback({ initiateMultipartBody: 'x'.repeat(64 * 1024 + 1) },
+    async ({ storage, objects, uploads, calls }) => {
+      const writer = newWriter(storage);
+      await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024)),
+        /S3 multipart initiation response exceeds 65536 bytes/u);
+      await writer.abort();
+      assert.equal(objects.has(PATH), false);
+      assert.equal(uploads.size, 1,
+        'unconfirmed provider upload is recovered by bucket lifecycle, not naked object DELETE');
+      assert.deepEqual(calls.map(call => call.method), ['POST']);
+    });
+});
+
+test('B100 signed HTTP rejects forged initiation XML before sending any part', async () => {
+  await withLoopback({ initiateMultipartBody:
+    '<Error><UploadId>forged</UploadId></Error>' },
+  async ({ storage, objects, calls }) => {
+    const writer = newWriter(storage);
+    await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024)),
+      /S3 multipart upload id is missing or invalid/u);
+    await writer.abort();
+    assert.equal(objects.has(PATH), false);
+    assert.deepEqual(calls.map(call => call.method), ['POST']);
+  });
 });
 
 test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', async () => {
