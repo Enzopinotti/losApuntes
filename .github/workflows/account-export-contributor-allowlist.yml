@@ -1,0 +1,53 @@
+name: Account Export Contributor Allowlist
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/account-export-contributor-allowlist.yml"
+      - "apps/api/src/data-lifecycle/domain/account-export-assembler.ts"
+      - "apps/api/src/data-lifecycle/domain/account-export-versioning.spec.ts"
+      - "apps/api/src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts"
+      - "apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts"
+      - "apps/api/src/data-lifecycle/domain/account-export-assembler.spec.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: export-contributor-allowlist-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contributor-allowlist:
+    name: Reject unreviewed sections, preserve legacy snapshots
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Verify exact HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Versioned assembly and registry acceptance
+        run: pnpm --filter @losapuntes/api exec jest src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts src/data-lifecycle/domain/account-export-versioning.spec.ts src/data-lifecycle/domain/account-export-assembler.spec.ts --runInBand
+
+      - name: Lint touched API sources
+        run: pnpm --filter @losapuntes/api exec eslint src/data-lifecycle/domain/account-export-assembler.ts src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts --max-warnings=0
