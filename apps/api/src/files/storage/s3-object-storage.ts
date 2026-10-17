@@ -466,7 +466,10 @@ export function createS3ObjectStorage(
         // A 2xx initiation response must not be buffered without a limit or
         // treated as proof of a valid upload generation without parsing.
         const xml = await readBoundedS3MultipartInitiationXml(response);
-        const confirmedUploadId = parseConfirmedS3MultipartUploadId(xml);
+        const confirmedUploadId = parseConfirmedS3MultipartUploadId(xml, {
+          bucket: options.bucket,
+          objectKey: input.objectKey,
+        });
         if (!confirmedUploadId) {
           throw new Error('S3 multipart upload id is missing or invalid');
         }
