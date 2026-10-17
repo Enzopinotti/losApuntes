@@ -441,6 +441,174 @@ describe('S3ObjectStorage', () => {
       .toEqual(['PUT', 'DELETE']);
   });
 
+  it('B105 serializes concurrent multipart writes before completing both signed parts', async () => {
+    let acknowledgeFirstPart!: (response: Response) => void;
+    const firstPartResponse = new Promise<Response>((resolve) => {
+      acknowledgeFirstPart = resolve;
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b105-ordered</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockImplementationOnce(() => firstPartResponse)
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-2"' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        '<CompleteMultipartUploadResult><ETag>"committed"</ETag></CompleteMultipartUploadResult>',
+        { status: 200 },
+      ));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b105-ordered.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    const first = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    const second = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x62));
+    const completion = writer.complete();
+    await expect(writer.write(Buffer.from('late'))).rejects.toThrow(
+      'S3 multipart writer is no longer writable',
+    );
+    acknowledgeFirstPart(new Response(null, {
+      status: 200, headers: { etag: '"part-1"' },
+    }));
+    await Promise.all([first, second, completion]);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'PUT', 'POST']);
+    const firstUrl = new URL(fetchSpy.mock.calls[1]?.[0] as string);
+    const secondUrl = new URL(fetchSpy.mock.calls[2]?.[0] as string);
+    expect(firstUrl.searchParams.get('uploadId')).toBe('private-b105-ordered');
+    expect(firstUrl.searchParams.get('partNumber')).toBe('1');
+    expect(secondUrl.searchParams.get('partNumber')).toBe('2');
+    const body = Buffer.from(fetchSpy.mock.calls[3]?.[1]?.body as Uint8Array).toString();
+    expect(body).toContain('<PartNumber>1</PartNumber>');
+    expect(body).toContain('<PartNumber>2</PartNumber>');
+  });
+
+  it('B105 concurrent abort waits for multipart initiation and cancels the actual uploadId', async () => {
+    let acknowledgeInitiation!: (response: Response) => void;
+    const initiation = new Promise<Response>((resolve) => {
+      acknowledgeInitiation = resolve;
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockImplementationOnce(() => initiation)
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"first-part"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b105-abort-race.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    const writing = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x63));
+    const aborting = writer.abort();
+    await expect(writer.write(Buffer.from('late'))).rejects.toThrow(
+      'S3 multipart writer is no longer writable',
+    );
+    await expect(writer.complete()).rejects.toThrow(
+      'S3 multipart writer was aborted',
+    );
+    acknowledgeInitiation(new Response(
+      '<InitiateMultipartUploadResult><UploadId>private-b105-abort</UploadId></InitiateMultipartUploadResult>',
+      { status: 200 },
+    ));
+    await Promise.all([writing, aborting]);
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b105-abort');
+  });
+
+  it('B105 queues a failed part before complete and still performs private safe abort', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b105-fail</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b105-failure-queue.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    const first = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x64));
+    const second = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x65));
+    const completion = writer.complete();
+    const aborting = writer.abort();
+    await expect(first).rejects.toThrow('S3 Upload multipart part failed with HTTP 503');
+    await expect(second).rejects.toThrow('S3 multipart writer is no longer writable');
+    await expect(completion).rejects.toThrow(
+      'S3 multipart writer cannot complete after a failed operation',
+    );
+    await aborting;
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('private-b105-fail');
+  });
+
+  it('B105 snapshots queued mutable byte arrays rather than signing changed content', async () => {
+    let acknowledgeFirstPart!: (response: Response) => void;
+    const firstPartResponse = new Promise<Response>((resolve) => {
+      acknowledgeFirstPart = resolve;
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>private-b105-bytes</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockImplementationOnce(() => firstPartResponse)
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-2"' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        '<CompleteMultipartUploadResult><ETag>"ok"</ETag></CompleteMultipartUploadResult>',
+        { status: 200 },
+      ));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b105-bytes.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    const first = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    const mutable = Buffer.alloc(5 * 1024 * 1024, 0x62);
+    const second = writer.write(mutable);
+    mutable.fill(0x7a);
+    acknowledgeFirstPart(new Response(null, {
+      status: 200, headers: { etag: '"part-1"' },
+    }));
+    await Promise.all([first, second]);
+    await writer.complete();
+    const secondPayload = Buffer.from(fetchSpy.mock.calls[2]?.[1]?.body as Uint8Array);
+    expect(secondPayload[0]).toBe(0x62);
+    expect(secondPayload[secondPayload.length - 1]).toBe(0x62);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'PUT', 'POST']);
+  });
+
+  it('B105 concurrent complete calls on one single PUT never duplicate request', async () => {
+    let acknowledgePut!: (response: Response) => void;
+    const putResponse = new Promise<Response>((resolve) => {
+      acknowledgePut = resolve;
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementationOnce(() => putResponse);
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b105-single-put.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    const writing = writer.write(Buffer.from('{"one":true}'));
+    const a = writer.complete();
+    const b = writer.complete();
+    acknowledgePut(new Response(null, { status: 200 }));
+    await Promise.all([writing, a, b]);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['PUT']);
+  });
+
   it('B104 failed first multipart PUT forbids later write/complete but allows uploadId abort', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(
