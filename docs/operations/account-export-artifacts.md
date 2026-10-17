@@ -1222,3 +1222,39 @@ Jest/typecheck/lint, Mongo replica B94, AWS/MinIO IAM/lifecycle,
 backup/restore, navegador y auditorías #133/#141.
 
 **#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni despliegue.
+
+## B106 — Backpressure y memoria acotada para la cola S3
+
+B105 copia inmediatamente cada chunk concurrente antes de encolarlo.
+B106 evita memoria sin límite cuando el transporte S3 está detenido
+o el llamador omite await: cada writer admite hasta **16 MiB de snapshots
+pendientes/activos** y **32 operaciones write()**. Superar cualquiera
+pone `failed=true` de forma irreversible **antes** de copiar, impidiendo
+`complete()` sobre una exportación parcial. `abort()` sigue permitido
+y owner-safe: para cuenta privada, `deleteObjectOnAbort:false`
+prohíbe DELETE Object directo de una generación quizá persistida.
+
+Los snapshots se limpian tras éxito/error mediante `snapshot.fill(0)`
+y ambos contadores se liberan en `finally`. El límite es de snapshots
+de la cola, **no cota de memoria total** del proceso. Los productores
+deben esperar cada `write()` (backpressure), dividir chunks mayores a
+16 MiB y abrir una nueva generación autorizada tras cualquier overflow.
+
+Se agregaron cuatro regresiones Jest (chunk mayor al máximo, burst de
+tres partes y rechazo de la cuarta, 33 writes vacíos, cuatro partes
+secuenciales) y dos HTTP localhost con firma independiente B87.
+Inventario firmado: **34 escenarios B86–B106** con TAP anti-skips.
+
+Comandos en checkout canónico:
+- pnpm test:account-export-b106-bounded-queue
+- pnpm test:account-export-b101-signed-http
+- pnpm test:account-lifecycle-contract
+
+**Evidencia disponible:** 4/4 escenarios red-green en V8 sobre
+método productivo B105/B106 recuperado de GitHub, quitando tipos
+TS y sustituyendo transporte, parte de cinco bytes, presupuesto
+de dieciséis bytes proporcional. No sustituye ejecución real de
+los 34 TCP SigV4 ni Jest/Node24. Persisten pendientes Mongo réplica
+B94, S3/MinIO real IAM/lifecycle, backup/browser y auditorías #133/#141.
+
+**#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni despliegue.
