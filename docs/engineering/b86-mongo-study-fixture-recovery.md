@@ -1,0 +1,46 @@
+# B86 — Recover API type contract on authoritative Mongo/S3 main
+
+**Date:** 2026-10-16. **Start SHA:** `main@7ef5f4fcdb4f0213888f1671238d770c513da2b9` after B86 fault-injection acceptance. This main includes the B82 expired-claim fence, B83 primary-server-clock lease, B84 cleanup queue timing, B85 artifact-expiry authority, and B86 tests. No production file is modified.
+
+## Root-cause evidence
+
+[B85 verify #38913820290](https://github.com/Enzopinotti/losApuntes/actions/runs/38913820290) and its focal TypeScript job fail on four diagnostic locations from **two test fixture files**, unrelated to the B85 processor's 86 green tests:
+
+1. `mongo-account-export.store.spec.ts`: `updateOne` mock functions declared as `jest.fn(() => ...)` inferred zero parameters; their `mock.calls[0][1]` and `for (const [filter] of mock.calls)` assertions are rejected as out-of-range tuples (TS2493), cascading to TS2352.
+2. `study-progress-export.reader.spec.ts`: the intentionally corrupted persisted Mongo row cannot pass a fixture parameter inferred from only a valid `stored()` return type (TS2353); production is correctly responsible for rejecting the corrupted row.
+
+## B86 corrections
+
+- Define two **typed Jest argument tuples** for `jobs.updateOne` and `orphanCleanup.updateOne` as `[filter: unknown, update: unknown, options?: unknown]`. The mocked result stays opaque (`unknown`) because actual store wiring already receives these as test-only Mongoose fakes. No discarded parameters, explicit `any`, or weaker Mongo claims.
+- Before reading an orphan queue's `$setOnInsert` dates, assert it was called exactly once. All original `nextAttemptAt` and `verificationUntil` ordering conditions remain.
+- The private Study Progress fixture accepts `unknown[]`, modeling a real Mongo read boundary where invalid persisted documents are possible. The tested reader still rejects the extra `unknownField`; the public export schema and runtime validation are unchanged.
+
+## Canonical acceptance
+
+The read-only [B86 workflow](../.github/workflows/b86-mongo-study-type-recovery.yml) checks exact SHA / frozen pnpm / Node 24 and runs **full API TypeScript**, both original Jest suites and the B83–B85 Mongo primary-clock/expiry source guards. A separate mandatory job runs **strict ESLint and pinned Prettier** on the same two files; this can remain red until their formatting is reconciled, and is never silently skipped.
+
+The wider consolidation remains work in progress. Historical carriers [#386](https://github.com/Enzopinotti/losApuntes/pull/386), [#388](https://github.com/Enzopinotti/losApuntes/pull/388), [#390](https://github.com/Enzopinotti/losApuntes/pull/390), [#391](https://github.com/Enzopinotti/losApuntes/pull/391), and processor choices [#393](https://github.com/Enzopinotti/losApuntes/pull/393)/[#396](https://github.com/Enzopinotti/losApuntes/pull/396) have **different parents and overlap**. Never wholesale copy an obsolete Mongo processor or S3 store. Reconcile each component against latest main, then require `verify` **on exact combined HEAD**.
+
+**Release issue #353 remains HOLD**; no conditional waiver of `node-forge`/other security debt, no disabled lint/types/coverage, no service startup or deploy.
+
+## Concurrent B86 carrier coordination
+
+After this branch was created, [#400](https://github.com/Enzopinotti/losApuntes/pull/400) independently implemented the same four fixes on the same exact parent using its own fixture types and pinned Prettier. **These two PRs cannot be merged by wholesale snapshot**; select one tested fixture version. Our scoped formatter [run #38918574448](https://github.com/Enzopinotti/losApuntes/actions/runs/38918574448) succeeded, then the write-enabled workflow was removed from the candidate. Await independent exact-HEAD checks on #399/#400; do not confuse one green scoped job with global release approval.
+
+## First safe functional reconciliation from B81
+
+The B86 branch additionally integrates **five** unmerged paths from [PR #383](https://github.com/Enzopinotti/losApuntes/pull/383) on this same exact main parent, after independently verifying the four existing main blob SHAs are **byte-identical to their original B81 base** `3579eab49f9d0ad3dd889731695f7a1a155e7efd`:
+
+- `data-lifecycle.module.spec.ts` — restore owner Study Progress epoch dependencies and fail-closed Nest wiring checks.
+- `account-export-assembler.ts` and the **new** `account-export-contributor-allowlist.spec.ts` — enforce reviewed v3 contributor registry without changing the durable v1/v2 format.
+- `study-collection.service.ts` and `.spec.ts` — enforce postcondition of ownership/resource absence following conditional CAS recovery.
+
+**Not copied:** previous B81 Mongo orphan cleanup and current S3 processor specs, Mongo stores, server clock, queue fences, typed progress reader specs. They have changed on newer main and cannot safely be overwritten by old snapshots. The workflow tests these five imported contract areas along with the two B86 Mongo fixture fixes. This is an incremental integrated source candidate, not a blanket merge of #383/#386/#388/#390/#391/#393 or #396; all remaining gates require new current-head evidence.
+
+## B82 Web reconciliation and B87 exact-main handoff
+
+Comparison `main@a27a4e2a60f3ea993ee2d52e5303a55a33981a49` to the B86 starting main proved **zero changed Web paths**. Therefore the **10** previously verified pinned-Prettier Web files from [#386](https://github.com/Enzopinotti/losApuntes/pull/386) could be imported by their original Git blob SHAs without losing newer Web changes. This includes stable `StudyKits` resource UUID dependencies and the `StudyRunner` clock-start dependency. The read-only B86 workflow gained a separate Web formatting, lint and TypeScript job; [focal #38920141571](https://github.com/Enzopinotti/losApuntes/actions/runs/38920141571) had all **3/3 jobs SUCCESS**, including API types, five Jest suites / **88 tests**, Mongo B83/B84/B85 structural safeguards and Web checks.
+
+While B86 was running, `main` advanced nine B87 commits through `ce9385456904fcd38f5e5a81509013d1a46c17bd` for cryptographic S3 loopback and operational evidence. Git comparison proved **zero overlap** with B86's nineteen touched paths, so its latest complete `main` tree is retained and the B86 changes are replayed by *exact blob SHA* onto that tree in a two-parent merge. Test results from earlier B86 head are historic; recertify the resulting SHA with new workflows before proposing integration.
+
+Concurrent [#400](https://github.com/Enzopinotti/losApuntes/pull/400) originated from the same B86 main and overlaps the two corrected fixture specs, but does not include the B81 functional or B82 Web reconciliation. Never merge both fixture snapshots; select one verified carrier, preserve independent coverage, and keep release #353 HOLD with dependency-audit blockers unchanged.
