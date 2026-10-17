@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isConfirmedS3MultipartCompletion as valid } from '../apps/api/src/files/storage/s3-multipart-completion.ts';
 
-const wrap = fields => '<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' + fields + '</CompleteMultipartUploadResult>';
+const wrap = fields =>
+  '<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' +
+  fields +
+  '</CompleteMultipartUploadResult>';
 const good = '<Location>https://s3.example/a&amp;b</Location><Bucket>bucket</Bucket><Key>name</Key><ETag>"etag"</ETag>';
 
 test('B99 accepts AWS envelope, checksums, escaped text and loopback selfclosing fixture', () => {
@@ -14,7 +17,7 @@ test('B99 accepts AWS envelope, checksums, escaped text and loopback selfclosing
 });
 
 test('B99 rejects unclosed, mismatched, duplicate or nested provider fields', () => {
-  for(const s of [
+  for (const s of [
     '<ETag>"v"</Key>',
     '<ETag>"v"',
     '<Key>name</Key><ETag>"v"</ETag></Key>',
@@ -28,7 +31,7 @@ test('B99 rejects unclosed, mismatched, duplicate or nested provider fields', ()
 });
 
 test('B99 rejects malformed namespaces, attributes, declarations or injected markup', () => {
-  for(const s of [
+  for (const s of [
     '<CompleteMultipartUploadResult xmlns=http://s3.example><ETag>"v"</ETag></CompleteMultipartUploadResult>',
     '<CompleteMultipartUploadResult xmlns="x" xmlns="y"><ETag>"v"</ETag></CompleteMultipartUploadResult>',
     '<CompleteMultipartUploadResult data-x="1"><ETag>"v"</ETag></CompleteMultipartUploadResult>',
@@ -43,7 +46,7 @@ test('B99 rejects malformed namespaces, attributes, declarations or injected mar
 });
 
 test('B99 rejects undefined named, unescaped and malformed numeric XML entities', () => {
-  for(const s of [
+  for (const s of [
     '<ETag>&notDefined;</ETag>', '<ETag>&amp</ETag>',
     '<ETag>"x&y"</ETag>', '<ETag>&#0;</ETag>',
     '<ETag>&#xD800;</ETag>', '<ETag>&#x110000;</ETag>',
