@@ -386,6 +386,25 @@ test('B95 B91 second signed HTTP GET detects mutation after valid preflight', as
   });
 });
 
+test('B97 signed HTTP 200 multipart caps an oversized streamed response without deleting the object', async () => {
+  await withLoopback({
+    completeMultipartBody: 'x'.repeat(64 * 1024 + 1),
+  }, async ({ storage, objects, calls }) => {
+    const writer = newWriter(storage);
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x64));
+    await assert.rejects(writer.complete(), /exceeds 65536 bytes/u);
+    // The fixture committed before answering. Abort must never issue
+    // an owner-unfenced object deletion on an ambiguous completion.
+    assert.equal(objects.has(PATH), true);
+    await writer.abort();
+    assert.equal(objects.has(PATH), true);
+    assert.deepEqual(calls.map(call => call.method),
+      ['POST', 'PUT', 'POST', 'DELETE']);
+    assert.ok(calls[3].uploadId);
+    assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+  });
+});
+
 test('B96 real signed HTTP multipart rejects a blank or Error body without object DELETE', async () => {
   for (const resultBody of [
     '',
