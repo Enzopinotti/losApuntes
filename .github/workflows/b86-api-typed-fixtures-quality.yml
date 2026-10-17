@@ -1,0 +1,101 @@
+name: B86 API Mongo fixture contracts
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/b86-api-typed-fixtures-quality.yml'
+      - 'apps/api/src/data-lifecycle/mongo/mongo-account-export.store.spec.ts'
+      - 'apps/api/src/study-progress/mongo/study-progress-export.reader.spec.ts'
+
+permissions:
+  contents: read
+
+jobs:
+  changed-fixture-style:
+    name: B86 exact-head Prettier and strict ESLint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use repository Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --check \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
+      - name: Strict lint — no waivers
+        run: |
+          pnpm --filter @losapuntes/api exec eslint --max-warnings=0 \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
+
+  api-types:
+    name: B86 whole API TypeScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use repository Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Compile-check API including fixtures
+        run: pnpm --filter @losapuntes/api check:types
+
+  regression:
+    name: B86 orphan-claim and private-progress Jest regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use repository Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Exercise exact regression suites
+        run: |
+          pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
