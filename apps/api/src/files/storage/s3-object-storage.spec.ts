@@ -441,6 +441,132 @@ describe('S3ObjectStorage', () => {
       .toEqual(['PUT', 'DELETE']);
   });
 
+  it('B106 rejects a chunk beyond the 16 MiB snapshot budget without contacting S3', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b106-oversized.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await expect(writer.write(Buffer.alloc(16 * 1024 * 1024 + 1)))
+      .rejects.toThrow('S3 multipart writer pending writes exceed limits');
+    await expect(writer.complete())
+      .rejects.toThrow('S3 multipart writer cannot complete after a failed operation');
+    await writer.abort();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('B106 over-budget queued writes cannot complete partial private export', async () => {
+    let resolveInitiation!: (response: Response) => void;
+    let notifyInitiation!: () => void;
+    const initiated = new Promise<void>((resolve) => { notifyInitiation = resolve; });
+    const initiationResponse = new Promise<Response>((resolve) => {
+      resolveInitiation = resolve;
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockImplementation(async (url, init) => {
+        const parsed = new URL(url as string);
+        if (parsed.searchParams.has('uploads')) {
+          notifyInitiation();
+          return initiationResponse;
+        }
+        if (init?.method === 'PUT' && parsed.searchParams.has('uploadId')) {
+          return new Response(null, {
+            status: 200, headers: { etag: '"part-one"' },
+          });
+        }
+        if (init?.method === 'DELETE' && parsed.searchParams.has('uploadId')) {
+          return new Response(null, { status: 204 });
+        }
+        throw new Error('B106 did not permit completing a partial generation');
+      });
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b106-budget.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    const first = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61));
+    await initiated;
+    const second = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x62));
+    const third = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x63));
+    const overflow = expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x64)))
+      .rejects.toThrow('S3 multipart writer pending writes exceed limits');
+    const rejectedSecond = expect(second).rejects.toThrow(
+      'S3 multipart writer is no longer writable',
+    );
+    const rejectedThird = expect(third).rejects.toThrow(
+      'S3 multipart writer is no longer writable',
+    );
+    const completion = expect(writer.complete()).rejects.toThrow(
+      'S3 multipart writer cannot complete after a failed operation',
+    );
+    const aborted = writer.abort();
+    resolveInitiation(new Response(
+      '<InitiateMultipartUploadResult><UploadId>b106-budget</UploadId></InitiateMultipartUploadResult>',
+      { status: 200 },
+    ));
+    await Promise.all([first, rejectedSecond, rejectedThird, overflow, completion, aborted]);
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('b106-budget');
+  });
+
+  it('B106 bounds zero-byte queued calls by number, not only snapshots', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b106-zero.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    const accepted = Array.from({ length: 32 }, () => writer.write(Buffer.alloc(0)));
+    const settled = Promise.allSettled(accepted);
+    await expect(writer.write(Buffer.alloc(0))).rejects.toThrow(
+      'S3 multipart writer pending writes exceed limits',
+    );
+    await settled;
+    await expect(writer.complete()).rejects.toThrow(
+      'S3 multipart writer cannot complete after a failed operation',
+    );
+    await writer.abort();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('B106 releases snapshot budget after each awaited write', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>b106-released</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-1"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-2"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-3"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"part-4"' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        '<CompleteMultipartUploadResult><ETag>"ok"</ETag></CompleteMultipartUploadResult>',
+        { status: 200 },
+      ));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b106-sequential.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    for (let i = 0; i < 4; i++) {
+      await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x41 + i));
+    }
+    await writer.complete();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'PUT', 'PUT', 'PUT', 'POST']);
+  });
+
   it('B105 serializes concurrent multipart writes before completing both signed parts', async () => {
     let acknowledgeFirstPart!: (response: Response) => void;
     const firstPartResponse = new Promise<Response>((resolve) => {
