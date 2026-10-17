@@ -67,6 +67,9 @@ async function withLoopback(input, scenario) {
       if (method === 'POST' && url.searchParams.has('uploads')) {
         const id = input.initiationUploadId ?? randomUUID();
         uploads.set(id, []);
+        if (input.initiationDelayMs) {
+          await new Promise(resolve => setTimeout(resolve, input.initiationDelayMs));
+        }
         response.writeHead(200, { 'content-type': 'application/xml' });
         response.end(input.initiateMultipartBody ?? `<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`);
       } else if (method === 'PUT' && uploadId && part) {
@@ -521,6 +524,71 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     await assert.doesNotReject(writer.complete());
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+  });
+});
+
+test('B105 concurrent signed writes produce distinct ordered S3 parts and exact bytes', async () => {
+  await withLoopback({}, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const a = Buffer.alloc(5 * 1024 * 1024, 0x41);
+    const b = Buffer.alloc(5 * 1024 * 1024, 0x42);
+    const first = writer.write(a);
+    const second = writer.write(b);
+    const completion = writer.complete();
+    await Promise.all([first, second, completion]);
+    assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'PUT', 'POST']);
+    assert.deepEqual(calls.filter(call => call.part).map(call => call.part), ['1', '2']);
+    const bytes = objects.get(PATH);
+    assert.ok(bytes);
+    assert.deepEqual(bytes, Buffer.concat([a, b]));
+  });
+});
+
+test('B105 signed HTTP abort cannot overtake concurrent initiation and part PUT', async () => {
+  await withLoopback({ initiationDelayMs: 30 }, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const writing = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x43));
+    const aborting = writer.abort();
+    await assert.rejects(writer.complete(), /S3 multipart writer was aborted/u);
+    await assert.rejects(writer.write(Buffer.from('late')),
+      /S3 multipart writer is no longer writable/u);
+    await Promise.all([writing, aborting]);
+    assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'DELETE']);
+    assert.ok(calls[2].uploadId);
+    assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+    assert.equal(objects.size, 0);
+  });
+});
+
+test('B105 signed HTTP concurrent complete calls perform a single private PUT', async () => {
+  await withLoopback({}, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.from('{"b105":"single"}');
+    const writing = writer.write(bytes);
+    const first = writer.complete();
+    const second = writer.complete();
+    await Promise.all([writing, first, second]);
+    assert.deepEqual(calls.map(call => call.method), ['PUT']);
+    assert.deepEqual(objects.get(PATH), bytes);
+  });
+});
+
+test('B105 signed HTTP queued failure blocks completion and still aborts exact upload', async () => {
+  await withLoopback({ partStatuses: [503] }, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const first = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x44));
+    const second = writer.write(Buffer.alloc(5 * 1024 * 1024, 0x45));
+    const completing = writer.complete();
+    const aborting = writer.abort();
+    const rejectedFirst = assert.rejects(first, /Upload multipart part failed with HTTP 503/u);
+    const rejectedSecond = assert.rejects(second,
+      /S3 multipart writer is no longer writable/u);
+    const rejectedComplete = assert.rejects(completing,
+      /S3 multipart writer cannot complete after a failed operation/u);
+    await Promise.all([rejectedFirst, rejectedSecond, rejectedComplete, aborting]);
+    assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'DELETE']);
+    assert.ok(calls[2].uploadId);
+    assert.equal(objects.size, 0);
   });
 });
 
