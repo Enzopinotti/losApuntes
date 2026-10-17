@@ -1051,3 +1051,33 @@ exact-head requiere evidencia adicional: no aceptar una simulación como
 conformidad productiva.
 
 **#353 HOLD**, STUDY_PROGRESS_ENABLED=false, sin CI manual ni despliegue.
+
+## B101 — Aceptación HTTP firmada: loader TypeScript y TAP anti-skips
+
+La batería B86/B95 sobre HTTP firmado y el adaptador S3 real no podía
+importar módulos Nest TypeScript sin extensión bajo Node --experimental-strip-types
+por sí solo (ERR_MODULE_NOT_FOUND reproducido en Node22). El nuevo loader
+**solo para pruebas** resuelve imports relativos a .ts dentro de apps/api/src,
+sin ampliar la resolución a rutas externas ni cambiar imports de producción.
+
+Los comandos B86/B95 y el lifecycle cargan el resolver. Dos casos SigV4
+B101 comprueban inicio multipart con Bucket/Key correctos, GET+SHA-256 real
+sobre localhost y rechazo de key ajena sin subir partes ni borrar objetos.
+El runner B101 exige TAP completo, todos los casos PASS (22 tests de la
+matriz) y cero skipped, failed, cancelled o todo: una salida 0 sin
+casos realmente ejecutados no es aceptación válida.
+
+**Comandos operativos** (checkout canónico, sin credenciales cloud):
+- pnpm test:account-export-b101-signed-http
+- pnpm test:account-export-b86-s3-loopback
+- pnpm test:account-export-b95-http-integrity
+- pnpm test:account-lifecycle-contract
+
+El problema y el registro ESM se reprodujeron sobre un fixture Node22 mínimo
+(1/1 caso); **no se ejecutó aquí la matriz completa** del adaptador firmado
+sobre un checkout Node24. Node22 es solo diagnóstico; las pruebas Jest,
+Mongo replica, bucket real S3/MinIO, lifecycle de uploads, backup y
+auditorías #133/#141 continúan pendientes. No certificar release con
+un test local del loader ni confundir loopback firmado con AWS externo.
+
+**#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni despliegue.
