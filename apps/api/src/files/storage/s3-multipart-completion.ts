@@ -15,9 +15,12 @@ const RESULT_FIELDS = new Set([
 ]);
 
 function validXmlText(value: string): boolean {
+  // The CDATA end delimiter cannot appear literally in XML text.
+  if (value.includes(']]>')) return false;
   for (let i = 0; i < value.length; i += 1) {
     const code = value.charCodeAt(i);
     if (code < 32 && code !== 9 && code !== 10 && code !== 13) return false;
+    if (code === 0xfffe || code === 0xffff) return false;
     if (code >= 0xd800 && code <= 0xdbff) {
       const next = value.charCodeAt(i + 1);
       if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
