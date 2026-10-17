@@ -46,3 +46,12 @@ pnpm test:account-lifecycle-contract
 Se ejecutaron localmente con Node 22 los cinco casos puros B99 sobre los bytes exactos del helper y test de GitHub. La suite completa Node24/pnpm9, guard B99, los tests Jest y el HTTP SigV4 aún requieren correr en un checkout del repo; no declararlos PASS a partir de revisión estática. Mongo replica B94 y storage proveedor real, IAM, lifecycle, backup/restore, navegador y auditorías #133/#141 siguen pendientes.
 
 **No promover el estado de producción fuera de HOLD.**
+
+
+## Vigencia tras B103
+
+La excepción histórica que aceptaba `<CompleteMultipartUploadResult/>` para el
+fixture B86 **fue retirada en B103**. La confirmación requiere ETag real no
+vacío incluso si el cuerpo HTTP tiene estado 200. El fixture B86 se corrigió;
+consultar `account-export-b103-confirmed-s3-etag.md`. El resto de este documento
+registra la decisión histórica de B99, no la política de aceptación vigente.
