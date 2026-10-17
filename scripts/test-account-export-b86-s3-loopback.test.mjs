@@ -431,6 +431,43 @@ test('B96 real signed HTTP multipart rejects a blank or Error body without objec
   }
 });
 
+test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', async () => {
+  const completeMultipartBody =
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' +
+    '<Location>https://s3.local/bucket/key</Location><Bucket>bucket</Bucket>' +
+    '<Key>key</Key><ETag>"etag"</ETag></CompleteMultipartUploadResult>';
+  await withLoopback({ completeMultipartBody }, async ({ storage, objects, calls }) => {
+    const writer = newWriter(storage);
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x65));
+    await assert.doesNotReject(writer.complete());
+    assert.equal(objects.has(PATH), true);
+    assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+  });
+});
+
+test('B99 signed HTTP rejects malformed success XML and preserves owner-fenced cleanup', async () => {
+  for (const completeMultipartBody of [
+    '<CompleteMultipartUploadResult><ETag>"ok"</Key></CompleteMultipartUploadResult>',
+    '<CompleteMultipartUploadResult><Key>key</Key></CompleteMultipartUploadResult>',
+    '<CompleteMultipartUploadResult><ETag>&unknown;</ETag></CompleteMultipartUploadResult>',
+  ]) {
+    await withLoopback({ completeMultipartBody }, async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x66));
+      await assert.rejects(writer.complete(), /Complete multipart upload/u);
+      // The signed local provider committed the object before HTTP 200.
+      // Only abort this multipart upload ID: never DELETE the object here.
+      assert.equal(objects.has(PATH), true);
+      await writer.abort();
+      assert.equal(objects.has(PATH), true);
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST', 'DELETE']);
+      assert.ok(calls[3].uploadId);
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+    });
+  }
+});
+
 test('B86 shared generic writer keeps the previous explicit abort cleanup default', async () => {
   await withLoopback({}, async ({ storage, calls }) => {
     const writer = storage.createMultipartWriter({

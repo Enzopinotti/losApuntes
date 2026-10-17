@@ -992,3 +992,31 @@ ha sido ejecutada y aprobada durante B97; las otras siguen pendientes.
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`; sin CI manual ni
 deploy. Pendientes acceptance de Mongo, AWS/MinIO, IAM, backup,
 auditorías #133/#141, Node24/TS/lint y navegador.
+
+## B99 — XML estructural de multipart antes de confirmar la exportación
+
+B96 validaba el envelope exterior, pero una respuesta S3 HTTP 200 podía tener
+campos mal anidados o incongruentes. B99 exige que la respuesta completa de
+CompleteMultipartUpload contenga un ETag único, no vacío, y solo campos escalares
+de S3 reconocidos (Location, Bucket, Key y checksums). Rechaza etiquetas
+mal cerradas o duplicadas, entidades XML inválidas, DTD, CDATA, comentarios y
+contenido inesperado. Conserva solo por compatibilidad con el laboratorio
+B86 el XML autocerrado del simulador.
+
+Orden obligatorio: HTTP 2xx → B97 límite streaming de 65 536 bytes →
+B99 estructura XML → B90 GET con tamaño y SHA-256 antes de publicar. El ETag
+**no sustituye** la verificación SHA-256 del objeto almacenado. Un
+CompleteMultipartUpload ambiguo conserva uploadId, y el aborto de exports
+privados solo cancela ese uploadId. No realizar un DELETE Object directo:
+la cola owner-fenced decide limpieza.
+
+Pruebas locales: pnpm test:account-export-b99-xml,
+pnpm test:account-export-b86-s3-loopback y
+pnpm test:account-lifecycle-contract. Se aprobaron cinco casos Node B99
+aislados en Node22, con archivos equivalentes por hash al branch GitHub.
+Los nuevos casos Jest y de servidor firmado TCP, la cadena completa
+Node24/pnpm9, Mongo replica y el proveedor real no fueron ejecutados
+en esta pasada. El contrato XML estricto requiere conformance del proveedor
+antes de habilitarlo en producción; no asumir que toda extensión es válida.
+
+**#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni deploy.
