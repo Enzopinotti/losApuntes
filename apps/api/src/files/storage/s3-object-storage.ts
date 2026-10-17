@@ -518,7 +518,7 @@ export function createS3ObjectStorage(
         await uploadPart(bytes);
       };
 
-      return {
+      const underlyingWriter: S3MultipartObjectWriter = {
         async write(chunk: Uint8Array): Promise<void> {
           if (completed || aborted || failed) {
             throw new Error('S3 multipart writer is no longer writable');
@@ -629,6 +629,51 @@ export function createS3ObjectStorage(
           aborted = true;
           uploadId = null;
           completed = false;
+        },
+      };
+
+      // B105: serialize *all* operations on this writer. B104's terminal
+      // failure flag does not prevent two simultaneous write() calls from
+      // reusing a part number, nor complete() overtaking a pending part ACK.
+      // A rejected operation must not poison the queue: abort() still runs.
+      let pendingOperation: Promise<void> = Promise.resolve();
+      let completionRequested = false;
+      let abortRequested = false;
+      const serialize = (operation: () => Promise<void>): Promise<void> => {
+        const result = pendingOperation.then(operation);
+        pendingOperation = result.then(
+          () => undefined,
+          () => undefined,
+        );
+        return result;
+      };
+
+      return {
+        write(chunk: Uint8Array): Promise<void> {
+          if (completionRequested || abortRequested || completed || aborted || failed) {
+            return Promise.reject(new Error('S3 multipart writer is no longer writable'));
+          }
+          // Queued calls must own their bytes. Otherwise a caller reusing a
+          // mutable Uint8Array while another PUT is pending can change the
+          // signed payload before this queued write begins.
+          const snapshot = Buffer.from(chunk);
+          return serialize(() => underlyingWriter.write(snapshot));
+        },
+
+        complete(): Promise<void> {
+          if (abortRequested) {
+            return Promise.reject(new Error('S3 multipart writer was aborted'));
+          }
+          // Fence late writes synchronously, *before* the queued completion.
+          completionRequested = true;
+          return serialize(() => underlyingWriter.complete());
+        },
+
+        abort(): Promise<void> {
+          // Fence late writes/completion synchronously but drain already
+          // accepted writes before issuing multipart Abort for their uploadId.
+          abortRequested = true;
+          return serialize(() => underlyingWriter.abort());
         },
       };
     },
