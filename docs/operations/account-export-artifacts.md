@@ -1144,3 +1144,34 @@ aceptación #353.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción;
 sin CI manual ni despliegue.
+
+## B104 — Writer multipart con fallos terminales, sin publicación de partes truncadas
+
+Se cerró un defecto del adaptador genérico S3: flushPending() quitaba bytes
+locales antes del PUT de la parte. Si una parte fallaba o perdía su ACK,
+el writer podía intentar completar únicamente las partes previas ya
+confirmadas y publicar un objeto truncado. Se añadió `failed` irreversible:
+después de cualquier error en write() o complete(), no admitir más
+write/complete en esa generación. Mantener abort() autorizado solo sobre
+uploadId conocido. Con `deleteObjectOnAbort:false` nunca emitir DELETE
+Object directo de exportación privada; B80/B81 preservan owner fencing y
+B90 GET/SHA continúa obligatorio.
+
+El fixture TCP B86 aplica fallos de partes 503 luego de la comprobación
+SigV4 independiente. Cuatro escenarios B104 cubren error en primera parte,
+error en segunda parte (tras éxito de primera), ACK final ambiguo y ACK
+perdido de PUT simple. El runner de aceptación se actualizó a **28 casos
+B86–B104**, todos requeridos con TAP exacto y sin skips.
+
+Comandos en checkout canónico:
+- pnpm test:account-export-b104-fail-closed
+- pnpm test:account-export-b101-signed-http
+- pnpm test:account-lifecycle-contract
+
+**Evidencia pendiente:** sin checkout de GitHub ni Node24/pnpm9 no se
+ejecutó acá la batería TCP completa, Nest/Jest ni Mongo replica B94.
+Los guards de código no son aceptación productiva. También pendientes
+proveedor S3/MinIO real, IAM/lifecycle, backup/restore, navegadores
+y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`; sin CI manual ni deploy.
