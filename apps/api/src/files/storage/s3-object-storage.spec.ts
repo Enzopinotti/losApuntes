@@ -542,7 +542,8 @@ describe('S3ObjectStorage', () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(
         '<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' +
-        '<Bucket>b</Bucket><Key>k</Key><UploadId>a&amp;b</UploadId></InitiateMultipartUploadResult>',
+        '<Bucket>losapuntes-files</Bucket><Key>exports/job/b100-valid.json</Key>' +
+        '<UploadId>a&amp;b</UploadId></InitiateMultipartUploadResult>',
         { status: 200 },
       ))
       .mockResolvedValueOnce(new Response(null, { status: 200, headers: { etag: '"p1"' } }))
