@@ -1602,3 +1602,35 @@ o auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en
 producción; sin CI manual ni despliegue.
+
+## B116 — S3 HEAD no confirma objetos mediante estados ambiguos
+
+B116 cierra una brecha en `S3ObjectStorage.headObject()`. El
+adaptador aceptaba `response.ok` y, por lo tanto, un HEAD
+`202/204/206` con Content-Length plausible podía ser interpretado
+como objeto existente. También aceptaba formatos ambiguos con
+`Number(rawLength)`, como `01`, `8e2` o encabezado vacío.
+
+Ahora solo `HTTP 200` confirma metadatos de objeto; el `404`
+mantiene semántica de ausente. Content-Length tiene que ser decimal
+canónico, no negativo y entero seguro. Los otros estados devuelven
+error, sin habilitar finalización o publicación por el solo metadata
+que afirmó el gateway. SigV4, ETag histórico, autorizaciones y
+limpieza owner-fenced quedan inalterados.
+
+Tests nativos y casos Jest documentados en
+`docs/engineering/account-export-b116-head-contract.md`.
+
+```sh
+pnpm test:account-export-b116-head
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+Los **53 escenarios TCP firmados B86–B115** permanecen pendientes
+de aceptación integral en Node24/pnpm9; B116 no los marca como
+aprobados. También siguen pendientes Jest/Nest, Mongo B94,
+S3/MinIO externo, backup/restore y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción;
+sin CI manual ni despliegue.

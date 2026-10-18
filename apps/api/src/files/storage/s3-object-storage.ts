@@ -10,6 +10,10 @@ import {
   assertS3FullObjectContentLength,
 } from './s3-full-object-length';
 import { collectS3SignedRequestHeaders } from './s3-signed-request-headers';
+import {
+  isConfirmedS3HeadObject,
+  parseS3HeadObjectByteSize,
+} from './s3-head-object-contract';
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
 import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
@@ -776,14 +780,14 @@ export function createS3ObjectStorage(
       });
 
       if (response.status === 404) return null;
-      if (!response.ok) throw storageError('HEAD', response.status);
-
-      const rawLength = response.headers.get('content-length');
-      const byteSize = rawLength === null ? Number.NaN : Number(rawLength);
-
-      if (!Number.isSafeInteger(byteSize) || byteSize < 0) {
-        throw new Error('S3 HEAD returned an invalid content length');
+      // B116: a successful-looking non-200 status is not proof that the
+      // whole object exists with these bytes (202/204/206 in particular).
+      if (!isConfirmedS3HeadObject(response.status)) {
+        throw storageError('HEAD', response.status);
       }
+      const byteSize = parseS3HeadObjectByteSize(
+        response.headers.get('content-length'),
+      );
 
       return {
         byteSize,
