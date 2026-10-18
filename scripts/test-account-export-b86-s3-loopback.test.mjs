@@ -41,7 +41,10 @@ async function withLoopback(input, scenario) {
       const body = Buffer.concat(bytes);
       const uploadId = url.searchParams.get('uploadId');
       const part = url.searchParams.get('partNumber');
-      calls.push({ method, path: url.pathname, uploadId, part, bytes: body.length });
+      calls.push({ method, path: url.pathname, uploadId, part, bytes: body.length,
+        ...(method === 'GET' && input.captureGetHeaders
+          ? { requestHeaders: { ...request.headers } } : {}),
+      });
       const trusted = verifyB87S3SigV4({
         method,
         url: new URL(request.url ?? '/', `http://${request.headers.host ?? ''}`),
@@ -525,6 +528,53 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     await assert.doesNotReject(writer.complete());
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+  });
+});
+
+test('B110 signed HTTP binds requested Range to SigV4 and rejects tampering', async () => {
+  await withLoopback({ captureGetHeaders: true },
+    async ({ storage, calls, endpoint, objects }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('%PDF-1.7');
+      await writer.write(bytes);
+      await writer.complete();
+      assert.deepEqual(await storage.readPrefix(OBJECT_KEY, 8), bytes);
+      const received = calls.find(call => call.method === 'GET');
+      assert.ok(received?.requestHeaders);
+      const headers = received.requestHeaders;
+      assert.equal(headers.range, 'bytes=0-7');
+      assert.match(headers.authorization,
+        /SignedHeaders=host;range;x-amz-content-sha256;x-amz-date,/u);
+      const request = {
+        method: 'GET', url: new URL(received.path, endpoint),
+        headers, body: Buffer.alloc(0), bucket: BUCKET, objectKey: OBJECT_KEY,
+        region: 'us-east-1', accessKeyId: ACCESS_KEY_ID,
+        secretAccessKey: SECRET_ACCESS_KEY, now: FIXTURE_TIME,
+      };
+      assert.equal(verifyB87S3SigV4(request), true);
+      assert.equal(verifyB87S3SigV4({
+        ...request, headers: { ...headers, range: 'bytes=1-8' },
+      }), false, 'changing signed Range must invalidate request');
+      const { range, ...withoutRange } = headers;
+      assert.equal(verifyB87S3SigV4({
+        ...request, headers: withoutRange,
+      }), false, 'removing signed Range must invalidate request');
+      assert.deepEqual(objects.get(PATH), bytes);
+    });
+});
+
+test('B110 signed HTTP full GET without Range preserves old SigV4 signature shape', async () => {
+  await withLoopback({ captureGetHeaders: true }, async ({ storage, calls }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.from('{"b110":"full"}');
+    await writer.write(bytes);
+    await writer.complete();
+    assert.deepEqual(await getBytes(storage), bytes);
+    const received = calls.find(call => call.method === 'GET');
+    assert.ok(received?.requestHeaders);
+    assert.equal(received.requestHeaders.range, undefined);
+    assert.match(received.requestHeaders.authorization,
+      /SignedHeaders=host;x-amz-content-sha256;x-amz-date,/u);
   });
 });
 
