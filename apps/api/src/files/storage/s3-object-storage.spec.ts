@@ -81,6 +81,43 @@ describe('S3ObjectStorage', () => {
     expect(result.expiresAt.toISOString()).toBe('2026-09-23T13:05:00.000Z');
   });
 
+  it('B125 percent-encodes RFC 5987 punctuation and sanitizes untrusted display filenames', async () => {
+    const value = await storage().createDownloadIntent({
+      objectKey: 'resource-assets/id/private-file.pdf',
+      filename: "Parcial '()+*.pdf\r\nX-Injected: yes",
+      contentType: 'application/pdf',
+      disposition: 'attachment',
+      expiresInSeconds: 300,
+    });
+    const url = new URL(value.url);
+    const contentDisposition = url.searchParams.get(
+      'response-content-disposition',
+    );
+    expect(contentDisposition).toBe(
+      "attachment; filename=\"Parcial '()+*.pdf__X-Injected: yes\"; " +
+        "filename*=UTF-8''Parcial%20%27%28%29%2B%2A.pdf%0D%0AX-Injected%3A%20yes",
+    );
+    expect(contentDisposition).not.toMatch(/[\r\n]/u);
+    expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/u);
+  });
+
+  it('B125 rejects malformed internal and public endpoint strings before creating a signed URL', () => {
+    const config = {
+      endpoint: 'http://object-storage:9000',
+      publicEndpoint: 'http://localhost:9000',
+      bucket: 'losapuntes-files',
+      region: 'us-east-1',
+      accessKeyId: 'test-access',
+      secretAccessKey: 'test-secret',
+    };
+    expect(() =>
+      createS3ObjectStorage({ ...config, endpoint: 'not an absolute url' }),
+    ).toThrow('FILES_S3_ENDPOINT must be an absolute HTTP(S) URL');
+    expect(() =>
+      createS3ObjectStorage({ ...config, publicEndpoint: 'not a url' }),
+    ).toThrow('FILES_PUBLIC_URL must be an absolute HTTP(S) URL');
+  });
+
   it('rejects invalid endpoint roots and invalid presign expiries', () => {
     expect(() =>
       createS3ObjectStorage({
