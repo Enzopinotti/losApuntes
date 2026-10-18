@@ -21,12 +21,13 @@ export function assertB118ProofPreconditions(input) {
     throw new Error('B118 refuses STUDY_PROGRESS_ENABLED=true in qualification');
   }
   const names = input.testNames;
-  if (!Array.isArray(names) || names.length !== 59 ||
-      new Set(names).size !== 59 ||
+  if (!Array.isArray(names) || names.length !== 61 ||
+      new Set(names).size !== 61 ||
       names.filter(name => typeof name === 'string' && name.startsWith('B117 ')).length !== 4 ||
       names.filter(name => typeof name === 'string' && name.startsWith('B119 ')).length !== 2 ||
+      names.filter(name => typeof name === 'string' && name.startsWith('B120 ')).length !== 2 ||
       names.some(name => typeof name !== 'string' || name.length === 0)) {
-    throw new Error('B118 requires all 59 unique signed S3 cases');
+    throw new Error('B118 requires all 61 unique signed S3 cases');
   }
 }
 
@@ -38,8 +39,8 @@ export function assertB118SignedHttpResult(input) {
   const markers = [...input.stdout.matchAll(
     /^B107 Node24 qualified signed HTTP PASS: ([0-9]+)\/([0-9]+)$/gmu,
   )];
-  if (markers.length !== 1 || markers[0][1] !== '59' || markers[0][2] !== '59') {
-    throw new Error('B118 missing unique 59/59 Node24 qualified proof marker');
+  if (markers.length !== 1 || markers[0][1] !== '61' || markers[0][2] !== '61') {
+    throw new Error('B118 missing unique 61/61 Node24 qualified proof marker');
   }
 }
 
@@ -57,8 +58,8 @@ export function buildB118ProofRecord(input) {
     gitSha: input.expectedSha,
     nodeVersion: input.nodeVersion,
     pnpmVersion: input.pnpmVersion,
-    total: 59,
-    passed: 59,
+    total: 61,
+    passed: 61,
     skipped: 0,
     todo: 0,
     inventorySha256: input.inventorySha256,
