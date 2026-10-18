@@ -147,6 +147,17 @@ async function withLoopback(input, scenario) {
           return;
         }
         const delivered = Buffer.from(obj);
+        if (fault === 'partial-full-get' && !request.headers.range) {
+          // Deliberately wrong: the caller asked for the whole object,
+          // but the compatible provider emitted only a partial response.
+          const slice = delivered.subarray(0, Math.min(8, delivered.length));
+          response.writeHead(206, {
+            'content-type': CONTENT_TYPE,
+            'content-range': `bytes 0-${slice.length - 1}/${delivered.length}`,
+          });
+          response.end(slice);
+          return;
+        }
         if (fault === 'corrupt') {
           delivered[Math.floor(delivered.length / 2)] ^= 0x01;
         } else if (fault === 'short') {
@@ -550,6 +561,43 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     await assert.doesNotReject(writer.complete());
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+  });
+});
+
+test('B114 signed full GET refuses HTTP 206 even with plausible Content-Range', async () => {
+  await withLoopback({ getFaults: ['partial-full-get'] },
+    async ({ storage, calls, objects }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('{"private":"b114-full-object-read"}');
+      await writer.write(bytes);
+      await writer.complete();
+      await assert.rejects(getBytes(storage),
+        /S3 GET object failed with HTTP 206/u);
+      assert.deepEqual(objects.get(PATH), bytes,
+        'read failure must not alter the committed private generation');
+      assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+      assert.equal(calls.some(call => call.method === 'DELETE'), false);
+    });
+});
+
+test('B114 signed full GET abort between chunks must reject as AbortError', async () => {
+  await withLoopback({}, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.alloc(4096, 0x72);
+    await writer.write(bytes);
+    await writer.complete();
+    const controller = new AbortController();
+    const iterator = storage.readObjectChunks(
+      OBJECT_KEY, 1024, controller.signal,
+    )[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    assert.equal(first.done, false);
+    assert.equal(first.value.byteLength, 1024);
+    controller.abort();
+    await assert.rejects(iterator.next(), error => error?.name === 'AbortError');
+    assert.deepEqual(objects.get(PATH), bytes);
+    assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+    assert.equal(calls.some(call => call.method === 'DELETE'), false);
   });
 });
 

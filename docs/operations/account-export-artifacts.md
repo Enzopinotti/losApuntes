@@ -1530,3 +1530,37 @@ con IAM/lifecycle y backups, navegador y auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`; no CI manual
 ni despliegue.
+
+## B114 — El GET S3 de objeto completo exige 200 y AbortError ante cancelación
+
+En el adaptador, `readObjectChunks()` firmaba un GET sin Range, pero
+aceptaba cualquier `response.ok`, incluso `HTTP 206 Partial Content`
+o `202 Accepted`. B114 exige **200 exacto** para un objeto completo;
+cancela la respuesta inválida antes de entregar bytes a scanners
+o consumidores. Los GET de *prefijo* siguen admitiendo solo
+200/206 estructuralmente válidos mediante B111.
+
+Se refuerza el `AbortSignal`: una cancelación no puede terminar
+como un EOF exitoso aunque `reader.read()` resuelva `done:true`.
+La descarga abortada produce `AbortError` y libera el reader.
+El readback SHA256 B90 y limpieza privada owner-fenced B80/B81
+continúan intactos.
+
+**Evidencia:** 7/7 pruebas nativas Node22.16.0 PASS con los
+archivos cotejados por Git blob. Se incorporaron casos Jest
+del adaptador y dos escenarios localhost SigV4 B87; inventario
+firmado obligatorio: **51 pruebas B86–B114**, aún sin ejecutar
+en Node24.
+
+```sh
+pnpm test:account-export-b114-full-get
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+**Pendiente:** 51 TCP SigV4 Node24/pnpm9, Jest/Nest, TypeScript,
+Mongo B94, proveedor S3/MinIO IAM/lifecycle real, backup,
+navegador y auditorías #133/#141.
+
+**#353 HOLD** y `STUDY_PROGRESS_ENABLED=false` productivo;
+no ejecutar CI manual ni desplegar.
