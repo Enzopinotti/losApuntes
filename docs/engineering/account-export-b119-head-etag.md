@@ -57,6 +57,28 @@ independiente y obligatorio para las exportaciones privadas.
   evolucionan a 59 casos para impedir que un `57/57` histórico
   sea certificado como la aceptación vigente.
 
+## Evidencia aislada ejecutada (Node 22.16.0)
+
+Los archivos nativos B119 se copiaron a un directorio aislado, se
+cotejaron uno por uno mediante `git hash-object` con sus Git blobs
+exactos de la rama y se ejecutaron con el resolver TS B101 original:
+
+- `s3-head-etag.ts`: `0c5ff63bb23f242eb4cc287ba1f4b6052ed63560`
+- `s3-multipart-part-etag.ts`: `8cda67a10135941442e8d1e6e50076f9500f7269`
+- `test-account-export-b119-head-etag.test.mjs`: `6562e76ad7957c8fdae8286a28ec794e94c4b6cd`
+- Resolver TS B101 y registrador: hashes exactos `d82804f4cad1e9083dd931c8179358f978a81982` y `6d334d834d12da07f7c1c57ea2d9efc23e889201`.
+
+**Red/green real:** la primera ejecución reveló que el trim del
+parser B108 permitía `abc\\u00a0` (NBSP al final): 4/5 PASS,
+1 FAIL. Se agregó a la validación HEAD un chequeo previo de
+ASCII imprimible sobre el encabezado original. La nueva ejecución
+del mismo suite alcanzó **5/5 PASS, cero skips, failures y TODO**.
+
+Adicionalmente, source guard B119 **8/8 PASS** y los cuatro
+callbacks de contrato B118 para aceptación de 59 casos
+**4/4 PASS** en V8 aislado. Estas pruebas no constituyen
+HTTP TCP integrado ni aceptación productiva Node24.
+
 ## Comandos de verificación
 
 ```sh
