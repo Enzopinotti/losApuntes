@@ -53,7 +53,7 @@ check('B104 abort after write failure remains owner-fenced and uploadId-specific
 });
 check('B104 signed HTTP server models failed part response after SigV4 authorization', () => {
   const verified = http.indexOf('const trusted = verifyB87S3SigV4(');
-  const denied = http.indexOf('response.writeHead(423)');
+  const denied = http.indexOf('response.writeHead(403)');
   const error = http.indexOf('const status = partStatuses.shift()');
   assert.ok(verified > 0 && denied > verified && error > denied);
   assert.match(http, /const partStatuses = \[\.\.\.\(input\.partStatuses \?\? \[\]\)\]/u);
