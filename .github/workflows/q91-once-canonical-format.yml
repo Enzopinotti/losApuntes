@@ -1,0 +1,95 @@
+name: Q91 one-time canonical formatter
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/q91-once-canonical-format.yml"
+      - "docs/engineering/q91-b123-canonical-format.md"
+permissions:
+  contents: write
+concurrency:
+  group: q91-format-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+jobs:
+  once:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'quality/q91-main-b123-canonical-format'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - name: Check clean SHA and own remote branch
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OWN_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          test "$OWN_BRANCH" = 'quality/q91-main-b123-canonical-format'
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain)"
+          test "$(git ls-remote --heads origin "$OWN_BRANCH" | awk '{print $1}')" = "$HEAD_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Canonical API formatting and confined atomic commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @losapuntes/api format
+          git diff --check
+          if git diff --name-only | grep -Ev '^apps/api/(src|test)/.*\.ts$'; then
+            echo 'Unexpected non-API source modified by API formatter' >&2
+            exit 1
+          fi
+          echo "Q91 API modified file count: $(git diff --name-only | wc -l)"
+          if ! git diff --quiet; then
+            git config user.name 'Q91 Canonical Formatter'
+            git config user.email 'q91-formatter@users.noreply.github.com'
+            git add -- apps/api/src apps/api/test
+            git diff --cached --check
+            git commit -m 'style(api): format current B123 export, Mongo and S3 sources'
+          fi
+      - name: Canonical Web formatting and separate atomic commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @losapuntes/web format
+          git diff --check
+          if git diff --name-only | grep -Ev '^apps/web/(src/.*\.(ts|tsx)|vite\.config\.ts|release-manifest\.ts)$'; then
+            echo 'Unexpected non-Web source modified by Web formatter' >&2
+            exit 1
+          fi
+          echo "Q91 Web modified file count: $(git diff --name-only | wc -l)"
+          if ! git diff --quiet; then
+            git add -- apps/web/src apps/web/vite.config.ts apps/web/release-manifest.ts
+            git diff --cached --check
+            git commit -m 'style(web): format current B123 academic and study screens'
+          fi
+      - name: Verify canonical formatted tree
+        run: |
+          pnpm --filter @losapuntes/api format:check
+          pnpm --filter @losapuntes/web format:check
+          pnpm --filter @losapuntes/mobile format:check
+      - name: Publish only own branch with initial SHA lease
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OWN_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if test "$(git rev-parse HEAD)" = "$HEAD_SHA"; then
+            echo 'No canonical formatting changes needed.'
+            exit 0
+          fi
+          git push --force-with-lease="refs/heads/$OWN_BRANCH:$HEAD_SHA" origin "HEAD:refs/heads/$OWN_BRANCH"
