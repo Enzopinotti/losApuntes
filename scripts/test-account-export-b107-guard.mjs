@@ -53,11 +53,11 @@ check('B107 native unit tests cover synthetic TAP and both Node22/24 policies', 
   assert.match(runtimeTest, /STUDY_PROGRESS_ENABLED=true/u);
 });
 
-check('B107 still runs all 51 actual distinct local signed tests', () => {
+check('B107 still runs all 53 actual distinct local signed tests', () => {
   const names = [...suite.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 51);
+  assert.equal(names.length, 53);
   assert.equal(new Set(names).size, names.length);
-  assert.match(runner, /expectedNames\.length < 51/u);
+  assert.match(runner, /expectedNames\.length < 53/u);
   assert.match(runner, /verifyB101SignedHttpTap\(/u);
   assert.match(originalGuard, /B101 TAP runner enforces full unskipped results/u);
 });
