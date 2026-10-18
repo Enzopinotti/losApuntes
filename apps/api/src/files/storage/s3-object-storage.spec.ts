@@ -586,6 +586,92 @@ describe('S3ObjectStorage', () => {
     },
   );
 
+  it('B115 rejects a truncated full GET at natural EOF despite HTTP 200', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from('short'));
+        controller.close();
+      },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(body, {
+      status: 200, headers: { 'content-length': '10' },
+    }));
+    const seen: Uint8Array[] = [];
+    await expect((async () => {
+      for await (const chunk of storage().readObjectChunks('b115-truncated', 1024)) {
+        seen.push(chunk);
+      }
+    })()).rejects.toThrow('S3 GET object returned a truncated Content-Length body');
+    expect(Buffer.concat(seen.map(v => Buffer.from(v))).toString()).toBe('short');
+  });
+
+  it('B115 rejects excess GET bytes before exposing an oversized provider chunk', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(
+      Buffer.from('excess-data'), {
+        status: 200, headers: { 'content-length': '4' },
+      },
+    ));
+    const seen: Uint8Array[] = [];
+    await expect((async () => {
+      for await (const chunk of storage().readObjectChunks('b115-excess', 1024)) {
+        seen.push(chunk);
+      }
+    })()).rejects.toThrow('S3 GET object exceeded declared Content-Length');
+    expect(seen).toEqual([]);
+  });
+
+  it('B115 rejects invalid or unsafe full GET Content-Length before reading bytes', async () => {
+    let cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(Buffer.from('data')); },
+      cancel() { cancelled++; },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(body, {
+      status: 200, headers: { 'content-length': '9007199254740992' },
+    }));
+    await expect((async () => {
+      for await (const _chunk of storage().readObjectChunks('b115-invalid', 1024)) {
+        // No private bytes may reach a caller for invalid metadata.
+      }
+    })()).rejects.toThrow('S3 GET object returned an invalid Content-Length');
+    expect(cancelled).toBe(1);
+  });
+
+  it('B115 accepts exact length and streaming without Content-Length', async () => {
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(Buffer.from('length-8'), {
+        status: 200, headers: { 'content-length': '8' },
+      }))
+      .mockResolvedValueOnce(new Response(Buffer.from('chunked'), {
+        status: 200,
+      }));
+    const results: string[] = [];
+    for (const key of ['b115-exact', 'b115-chunked']) {
+      const collected: Buffer[] = [];
+      for await (const chunk of storage().readObjectChunks(key, 1024)) {
+        collected.push(Buffer.from(chunk));
+      }
+      results.push(Buffer.concat(collected).toString());
+    }
+    expect(results).toEqual(['length-8', 'chunked']);
+  });
+
+  it('B115 early downstream iterator.return remains cancellation, not provider EOF', async () => {
+    let cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(Buffer.from('first')); },
+      cancel() { cancelled++; },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(body, {
+      status: 200, headers: { 'content-length': '500' },
+    }));
+    const iterator = storage().readObjectChunks('b115-short-consumer', 1024)
+      [Symbol.asyncIterator]();
+    expect((await iterator.next()).done).toBe(false);
+    await iterator.return?.();
+    expect(cancelled).toBe(1);
+  });
+
   it('B114 abort after first chunk throws AbortError rather than reporting clean EOF', async () => {
     let cancelled = 0;
     const controller = new AbortController();

@@ -169,7 +169,11 @@ async function withLoopback(input, scenario) {
         } else if (fault !== 'healthy') {
           throw new Error('Unexpected B95 fixture GET fault');
         }
-        response.writeHead(200, { 'content-type': CONTENT_TYPE });
+        response.writeHead(200, {
+          'content-type': CONTENT_TYPE,
+          ...(input.declareFullGetLength && !request.headers.range
+            ? { 'content-length': delivered.length } : {}),
+        });
         response.end(fault === 'short' ? delivered.subarray(0, delivered.length - 1) : delivered);
       } else {
         response.writeHead(405); response.end();
@@ -562,6 +566,36 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B115 signed GET verifies a declared exact private object length', async () => {
+  await withLoopback({ declareFullGetLength: true },
+    async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('{"b115":"complete-read"}');
+      await writer.write(bytes);
+      await writer.complete();
+      assert.deepEqual(await getBytes(storage), bytes);
+      assert.deepEqual(objects.get(PATH), bytes);
+      assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+    });
+});
+
+test('B115 signed GET must not accept a prematurely terminated declared body', async () => {
+  await withLoopback({ declareFullGetLength: true, getFaults: ['short'] },
+    async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('{"b115":"truncated-read"}');
+      await writer.write(bytes);
+      await writer.complete();
+      // On native TCP, undici may reject the response with 'terminated'
+      // before the adapter sees EOF; either path MUST reject, never publish
+      // a successful short read.
+      await assert.rejects(getBytes(storage));
+      assert.deepEqual(objects.get(PATH), bytes);
+      assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+      assert.equal(calls.some(call => call.method === 'DELETE'), false);
+    });
 });
 
 test('B114 signed full GET refuses HTTP 206 even with plausible Content-Range', async () => {
