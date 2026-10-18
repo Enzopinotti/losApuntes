@@ -1634,3 +1634,36 @@ S3/MinIO externo, backup/restore y auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción;
 sin CI manual ni despliegue.
+
+## B117 — HEAD S3 contra TCP firmado y aceptación obligatoria
+
+B116 reforzó la confirmación HEAD (únicamente HTTP 200 y tamaño
+decimal canónico), pero ese contrato todavía carecía de prueba
+de socket localhost firmada. La fixture B86/B87 incorpora ahora
+respuestas HEAD servidas **después de validar SigV4 independientemente**.
+Cuatro nuevos grupos de prueba cubren: (1) HEAD 200 con tamaño/ETag
+y posterior 404, (2) HEAD 202/206 falsamente exitosos,
+(3) HTTP 204 y HTTP 200 sin tamaño, (4) tamaños malformados,
+duplicados y excesivos. Las pruebas negativas conservan el
+objeto privado y verifican ausencia de DELETE.
+
+El runner B107 exige ahora **57 casos HTTP firmados B86–B117**,
+con inventario completo, checks anti-skips/TODO y runtime Node24.
+Los guards históricos B104–B115 se actualizaron para no aceptar
+un inventario anterior de 53 pruebas como si fuese completo.
+
+```sh
+pnpm test:account-export-b117-signed-head
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+El diagnóstico Node22, source guards, comparación de blobs y
+test nativo aislado **no son** aceptación del runtime S3.
+Los **57 casos HTTP firmados** requieren ejecución completa
+en checkout Node24/pnpm9; pendientes también Jest/Nest,
+Mongo B94 con réplica, AWS/MinIO IAM/lifecycle, backup/restore,
+navegador, calidad global y auditorías #133/#141.
+
+**#353 HOLD**; `STUDY_PROGRESS_ENABLED=false` productivo.
+Sin CI manual ni despliegue.

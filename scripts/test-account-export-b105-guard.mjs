@@ -78,13 +78,13 @@ check('B105 real signed HTTP covers concurrent writes/abort/complete/failure', (
 });
 check('B105 requires all 32 TCP cases, preserving B104 and TAP anti-skips', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 53);
-  assert.equal(new Set(names).size, 53);
+  assert.equal(names.length, 57);
+  assert.equal(new Set(names).size, 57);
   for (const id of ['B86 ', 'B87 ', 'B95 ', 'B96 ', 'B97 ', 'B99 ', 'B100 ',
     'B101 ', 'B102 ', 'B103 ', 'B104 ', 'B105 ']) {
     assert.ok(names.some(name => name.startsWith(id)), id);
   }
-  assert.match(runner, /expectedNames\.length < 53/u);
+  assert.match(runner, /expectedNames\.length < 57/u);
   assert.match(runner, /'B104 ', 'B105 ', 'B106 '/u);
   assert.match(tap, /summary\.skipped !== 0/u);
   assert.match(oldGuard, /names\.length >= 28/u);

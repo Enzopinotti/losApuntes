@@ -80,17 +80,17 @@ check('B115 Jest covers early EOF, overflow, malformed length and voluntary stop
   ]) assert.ok(jest.includes(name), name);
 });
 
-check('B115 signed localhost TCP inventory now requires all 53 cases', () => {
+check('B115 signed localhost TCP inventory now requires all 57 cases', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 53);
-  assert.equal(new Set(names).size, 53);
+  assert.equal(names.length, 57);
+  assert.equal(new Set(names).size, 57);
   assert.equal(names.filter(name => name.startsWith('B115 ')).length, 2);
   assert.match(http, /B115 signed GET verifies a declared exact private object length/u);
   assert.match(http, /B115 signed GET must not accept a prematurely terminated/u);
   assert.match(http, /verifyB87S3SigV4\(\{/u);
-  assert.match(runner, /expectedNames\.length < 53/u);
+  assert.match(runner, /expectedNames\.length < 57/u);
   assert.match(runner, /'B114 ', 'B115 '/u);
-  assert.match(b114, /names\.length, 53/u);
+  assert.match(b114, /names\.length, 57/u);
 });
 
 check('B115 remains release HOLD with native and lifecycle commands', () => {
