@@ -57,6 +57,7 @@ jobs:
         run: |
           node --test scripts/test-account-export-b107-tap-provenance.test.mjs scripts/test-account-export-b107-runtime.test.mjs
           node --test scripts/test-account-export-b87-sigv4.test.mjs
+          node scripts/test-account-export-b107-guard.mjs
           node --experimental-strip-types --test scripts/test-account-export-b120-delete-confirmation.test.mjs
           node scripts/test-account-export-b120-guard.mjs
 
