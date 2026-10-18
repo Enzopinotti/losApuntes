@@ -65,7 +65,7 @@ jobs:
           fi
           git config user.name 'B125 Scoped Formatter'
           git config user.email 'b125-formatter@users.noreply.github.com'
-          git add -- apps/api/src/files/storage/s3-object-storage.spec.ts
+          git add -f -- apps/api/src/files/storage/s3-object-storage.spec.ts
           git diff --cached --check
           git commit -m 'style(b125): canonical Prettier on S3 regression tests'
           test "$(git rev-parse HEAD^)" = "$SHA"
