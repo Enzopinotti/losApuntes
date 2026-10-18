@@ -959,16 +959,18 @@ describe('S3ObjectStorage', () => {
         headers: { 'content-length': '9007199254740992' },
       }),
     );
+    const exposed: Uint8Array[] = [];
     await expect(
       (async () => {
-        for await (const _chunk of storage().readObjectChunks(
+        for await (const chunk of storage().readObjectChunks(
           'b115-invalid',
           1024,
         )) {
-          // No private bytes may reach a caller for invalid metadata.
+          exposed.push(chunk);
         }
       })(),
     ).rejects.toThrow('S3 GET object returned an invalid Content-Length');
+    expect(exposed).toEqual([]);
     expect(cancelled).toBe(1);
   });
 
@@ -1040,7 +1042,12 @@ describe('S3ObjectStorage', () => {
       [Symbol.asyncIterator]();
     const first = await iterator.next();
     expect(first.done).toBe(false);
-    expect(first.value?.byteLength).toBe(1024);
+    const firstChunk: unknown = first.value;
+    expect(firstChunk).toBeInstanceOf(Uint8Array);
+    if (!(firstChunk instanceof Uint8Array)) {
+      throw new Error('Expected a real Uint8Array before cancellation');
+    }
+    expect(firstChunk.byteLength).toBe(1024);
     controller.abort();
     await expect(iterator.next()).rejects.toMatchObject({ name: 'AbortError' });
     expect(cancelled).toBe(1);
