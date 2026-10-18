@@ -58,6 +58,8 @@ check('B107 still runs all 61 actual distinct local signed tests', () => {
   assert.equal(names.length, 61);
   assert.equal(new Set(names).size, names.length);
   assert.match(runner, /expectedNames\.length < 61/u);
+  // B121: Node24's default spec output is not TAP; pin the child reporter.
+  assert.match(runner, /'--test-reporter=tap'/u);
   assert.match(runner, /verifyB101SignedHttpTap\(/u);
   assert.match(originalGuard, /B101 TAP runner enforces full unskipped results/u);
 });
