@@ -2,6 +2,7 @@ import { createHash, createHmac } from 'node:crypto';
 
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
+import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
 import {
   readBoundedS3MultipartCompletionXml,
   readBoundedS3MultipartInitiationXml,
@@ -381,13 +382,6 @@ function xmlEscape(value: string): string {
     .replace(/'/gu, '&apos;');
 }
 
-function hasControlCharacters(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codePoint = character.codePointAt(0);
-    return codePoint !== undefined && (codePoint < 0x20 || codePoint === 0x7f);
-  });
-}
-
 export function createS3ObjectStorage(
   options: S3ObjectStorageOptions,
 ): S3ObjectStorage {
@@ -499,9 +493,8 @@ export function createS3ObjectStorage(
         );
         if (!response.ok)
           throw storageError('Upload multipart part', response.status);
-        const rawEtag = response.headers.get('etag')?.trim();
-        const etag = rawEtag?.replace(/^"|"$/gu, '');
-        if (!etag || hasControlCharacters(etag)) {
+        const etag = normalizeS3MultipartPartEtag(response.headers.get('etag'));
+        if (!etag) {
           throw new Error('S3 multipart part returned an invalid ETag');
         }
         parts.push({
