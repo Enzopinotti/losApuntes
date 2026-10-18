@@ -602,12 +602,13 @@ describe('AccountExportProcessor', () => {
       failed: 0,
     });
     expect(f.sink.commit.mock.calls).toHaveLength(1);
-    expect(
-      f.exports.captureStudyProgressExportEpoch.mock.calls,
-    ).toContainEqual(['owner-1']);
-    expect(
-      f.exports.assertStudyProgressExportEpoch.mock.calls,
-    ).toContainEqual(['owner-1', 7]);
+    expect(f.exports.captureStudyProgressExportEpoch.mock.calls).toContainEqual(
+      ['owner-1'],
+    );
+    expect(f.exports.assertStudyProgressExportEpoch.mock.calls).toContainEqual([
+      'owner-1',
+      7,
+    ]);
     expect(f.exports.complete.mock.calls).toHaveLength(0);
     expect(f.artifacts.deleteArtifact.mock.calls).toHaveLength(0);
     expect(f.sink.abort.mock.calls).toHaveLength(0);
