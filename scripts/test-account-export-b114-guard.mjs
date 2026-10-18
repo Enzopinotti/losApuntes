@@ -30,7 +30,7 @@ check('B114 cancellation is checked before EOF and between yields', () => {
   const scope = adapter.slice(adapter.indexOf('    async *readObjectChunks('),
     adapter.indexOf('    createDownloadIntent('));
   assert.ok([...scope.matchAll(/assertS3FullObjectReadActive\(signal\)/gu)].length >= 4);
-  assert.match(scope, /if \(result\.done\) \{\s*streamEnded = true/u);
+  assert.match(scope, /if \(result\.done\) \{\s*assertS3FullObjectContentLength\(expectedBytes, receivedBytes, true\);\s*streamEnded = true/u);
   assert.match(scope, /await Promise\.resolve\(cancellation\)/u);
 });
 
@@ -62,15 +62,15 @@ check('B114 Jest prevents partial full GET and false EOF on abort', () => {
   assert.match(jest, /pendingRead\)\.rejects\.toMatchObject\(\{ name: 'AbortError' \}\)/u);
 });
 
-check('B114 signed HTTP inventory requires all 51 unique tests', () => {
+check('B114 signed HTTP inventory requires all 53 unique tests', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 51);
-  assert.equal(new Set(names).size, 51);
+  assert.equal(names.length, 53);
+  assert.equal(new Set(names).size, 53);
   assert.equal(names.filter(n => n.startsWith('B114 ')).length, 2);
   assert.match(http, /B114 signed full GET refuses HTTP 206/u);
   assert.match(http, /B114 signed full GET abort between chunks/u);
   assert.match(http, /verifyB87S3SigV4\(\{/u);
-  assert.match(runner, /expectedNames\.length < 51/u);
+  assert.match(runner, /expectedNames\.length < 53/u);
   assert.match(runner, /'B113 ', 'B114 '/u);
 });
 
