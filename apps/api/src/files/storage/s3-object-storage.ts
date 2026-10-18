@@ -1,6 +1,10 @@
 import { createHash, createHmac } from 'node:crypto';
 
 import { readBoundedS3PrefixBody } from './s3-bounded-prefix-body';
+import {
+  assertS3FullObjectReadActive,
+  isConfirmedS3FullObjectGet,
+} from './s3-full-object-read-contract';
 import { collectS3SignedRequestHeaders } from './s3-signed-request-headers';
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
@@ -837,7 +841,13 @@ export function createS3ObjectStorage(
         now: options.now?.(),
       });
 
-      if (!response.ok) throw storageError('GET object', response.status);
+      // B114: neither 202 Accepted nor 206 Partial Content confirms the
+      // full object requested without Range. Never forward partial bytes
+      // to an export integrity check or file scanner.
+      if (!isConfirmedS3FullObjectGet(response.status)) {
+        void response.body?.cancel().catch(() => undefined);
+        throw storageError('GET object', response.status);
+      }
       if (!response.body) throw new Error('S3 GET object returned no body');
 
       const reader = response.body.getReader();
@@ -853,11 +863,19 @@ export function createS3ObjectStorage(
       if (signal?.aborted) cancelReader();
 
       try {
+        assertS3FullObjectReadActive(signal);
         while (true) {
+          assertS3FullObjectReadActive(signal);
           const result = await reader.read();
+          // A cancelled reader may resolve as a successful EOF. Abort is
+          // authoritative before done, after reads, and between yields.
+          assertS3FullObjectReadActive(signal);
           if (result.done) {
             streamEnded = true;
             return;
+          }
+          if (!(result.value instanceof Uint8Array)) {
+            throw new Error('S3 GET object returned invalid bytes');
           }
 
           for (
@@ -865,6 +883,7 @@ export function createS3ObjectStorage(
             offset < result.value.byteLength;
             offset += maximumChunkBytes
           ) {
+            assertS3FullObjectReadActive(signal);
             yield result.value.subarray(
               offset,
               Math.min(offset + maximumChunkBytes, result.value.byteLength),
