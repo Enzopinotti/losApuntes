@@ -1372,3 +1372,42 @@ S3/MinIO con IAM/lifecycle, backup/restore y auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción,
 sin CI manual ni despliegue.
+
+## B110 — Range firmado en GET S3 SigV4
+
+La lectura de prefijo `readPrefix()` enviaba el header Range
+pero este no estaba incluido en `SignedHeaders`. B109 protege
+la cantidad de bytes copiados al proceso, pero sin firma
+del Range, un proxy podía alterar la ventana solicitada sin
+invalidar las credenciales SigV4 de la llamada.
+
+B110 agrega un helper puro para todos los headers adicionales
+de los GET/HEAD/DELETE firmados. `range` ahora participa de
+la CanonicalRequest y de su firma; se rechazan nombres/valores
+malformados, sobrescrituras de host/date/hash/authorization
+y duplicados por casing. GET completo y HEAD mantienen
+su conjunto anterior de headers. Se mantienen B90 readback
+SHA256, B109 límite incremental de lectura y B80/B81
+owner-fenced cleanup para exportaciones privadas.
+
+**Evidencia:** 7/7 pruebas nativas Node22.16.0 PASS sobre
+la función TS genuina (blobs Git cotejados). Dos regresiones
+Jest y dos HTTP localhost SigV4 con mutación de Range
+y verificador independiente B87 agregadas al repositorio.
+Runner de aceptación: **40 casos B86–B110**, sin skips,
+Node24 obligatorio.
+
+```sh
+pnpm test:account-export-b110-signed-range
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+**Pendiente:** ejecutar los 40 casos TCP en checkout Node24
+y las pruebas Nest/Jest, TypeScript, Mongo B94,
+proveedor AWS/MinIO IAM/lifecycle, backup/restore y
+auditorías #133/#141. Los tests nativos y los guards
+no certifican GO.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en
+producción; sin CI manual ni despliegue.

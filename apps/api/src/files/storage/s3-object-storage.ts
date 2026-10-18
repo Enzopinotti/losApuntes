@@ -1,6 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 
 import { readBoundedS3PrefixBody } from './s3-bounded-prefix-body';
+import { collectS3SignedRequestHeaders } from './s3-signed-request-headers';
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
 import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
@@ -250,11 +251,14 @@ async function signedRequest(input: {
   const now = input.now ?? new Date();
   const { amzDate, dateStamp } = awsDate(now);
   const scope = `${dateStamp}/${input.region}/${SERVICE}/aws4_request`;
-  const signingHeaders = new Map<string, string>([
-    ['host', input.endpoint.host],
-    ['x-amz-content-sha256', EMPTY_SHA256],
-    ['x-amz-date', amzDate],
-  ]);
+  // B110: sign Range and all optional request headers in the canonical
+  // request. Otherwise a proxy can change a prefix window undetected.
+  const signingHeaders = collectS3SignedRequestHeaders(
+    input.endpoint.host,
+    EMPTY_SHA256,
+    amzDate,
+    input.headers,
+  );
   const signedHeaders = [...signingHeaders.keys()].sort().join(';');
   const canonicalHeaders = [...signingHeaders.entries()]
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
