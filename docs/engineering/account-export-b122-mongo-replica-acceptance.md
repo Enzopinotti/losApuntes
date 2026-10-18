@@ -72,3 +72,39 @@ escritura, despliegues, Mongo persistente ni credenciales productivas.
 prueba. Restan calidad global del repo, pruebas navegador,
 proveedor S3 real e IAM/lifecycle, backups/restauración,
 auditorías #133/#141 y demás gates de liberación.
+
+## Evidencia ejecutada — primera corrida real
+
+El job `Five real Mongo replica and mocked S3 recovery cases`
+terminó **SUCCESS** en la
+[ejecución #39149219803](https://github.com/Enzopinotti/losApuntes/actions/runs/39149219803),
+sobre el PR #443 y el commit
+`e6ff296d05d8801fcb7a7083f462973501e4c838`.
+
+- Node 24 desde `.nvmrc`; pnpm9 y frozen lockfile instalados.
+- Las pruebas nativas B89 de URL local y el contrato B94 se
+  ejecutaron; **9/9 guards B94 PASS**.
+- MongoDB 7 se levantó como una réplica desechable `rs0`
+  en `127.0.0.1:27017`, con
+  `hello.isWritablePrimary=true`.
+- Jest sobre `study-progress.mongo-int.spec.ts`:
+  `Test Suites: 1 passed, 1 total` y
+  `Tests: 51 skipped, 5 passed, 56 total`.
+  **Los 51 skipped eran pruebas no seleccionadas
+  intencionalmente por B94**; ninguna de las cinco seleccionadas
+  fue skipped ni falló.
+- Comprobante estricto:
+  `B94 local Mongo/S3 acceptance PASS: 5/5 mandatory cases executed.`.
+- Verificación de checkout limpio, SHA exacto y retirada
+  del contenedor pasaron después de Jest.
+
+El resultado prueba un MongoDB **real**, una réplica única
+local y lógica real de la API en Jest. El transporte S3 está
+simulado en los cinco casos de B94. No afirmar que la prueba
+incluya proveedor S3 real ni que reemplace el laboratorio
+HTTP firmado B121, que sí obtuvo 61/61 por separado.
+
+Las modificaciones documentales posteriores al SHA indicado
+no deben confundirse con una nueva ejecución: para certificar
+el árbol definitivo del PR, verificar y registrar su propio run.
+**#353 sigue OPEN/HOLD**, flag apagada en producción.
