@@ -181,6 +181,47 @@ describe('S3ObjectStorage', () => {
     );
   });
 
+  it.each([202, 204, 206])(
+    'B116 rejects ambiguous HTTP %s HEAD despite a plausible object length',
+    async (status) => {
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValueOnce(
+        new Response(null, {
+          status,
+          headers: {
+            'content-length': '8',
+            'content-type': 'application/pdf',
+            etag: '"looks-real"',
+          },
+        }),
+      );
+      await expect(storage().headObject('private/b116-unconfirmed'))
+        .rejects.toThrow('S3 HEAD failed with HTTP ' + status);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['', '01', '8e2', '+8', '8.0', '8, 8', '9007199254740992'])(
+    'B116 rejects noncanonical HEAD Content-Length %j even on HTTP 200',
+    async (invalidLength) => {
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { 'content-length': invalidLength },
+        }),
+      );
+      await expect(storage().headObject('private/b116-bad-length'))
+        .rejects.toThrow('S3 HEAD returned an invalid content length');
+    },
+  );
+
+  it('B116 does not accept successful HEAD without Content-Length', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(
+      new Response(null, { status: 200 }),
+    );
+    await expect(storage().headObject('private/b116-missing-length'))
+      .rejects.toThrow('S3 HEAD returned an invalid content length');
+  });
+
   it('reads only bounded prefixes and rejects oversized provider responses', async () => {
     const fetchSpy = jest
       .spyOn(global, 'fetch')
