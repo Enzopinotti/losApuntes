@@ -1564,3 +1564,41 @@ navegador y auditorías #133/#141.
 
 **#353 HOLD** y `STUDY_PROGRESS_ENABLED=false` productivo;
 no ejecutar CI manual ni desplegar.
+
+## B115 — Verificación de Content-Length en GET completo S3
+
+B114 ya exige HTTP 200 y abortos con `AbortError`, pero
+`readObjectChunks()` no validaba que el cuerpo emitido tuviese
+la longitud declarada por `Content-Length`. B115 incorpora
+contabilidad de bytes en streaming: si hay cabecera, verifica
+formato decimal canónico no negativo, límite de entero seguro,
+rechaza antes de emitir un chunk que desborde la cifra y
+requiere coincidencia exacta al EOF natural. EOF prematuro
+o metadata inválida implica fallo y cancelación del reader.
+El cierre intencional del consumidor no se confunde con EOF
+del proveedor.
+
+Sin Content-Length se conserva la lectura chunked de
+proveedores compatibles; los hashes B90 son imprescindibles
+para verificar integridad de exportaciones privadas. Esta
+defensa no sustituye los controles de autorización B80/B81.
+
+Evidencia: ocho callbacks nativos reproducidos sobre las
+funciones reales en V8 aislado con tipos TS quitados (**8/8**);
+cinco pruebas Jest del adaptador y dos escenarios TCP
+firmados SigV4 B87 añadidos. El inventario ahora exige
+**53 tests B86–B115** en Node24, sin omisiones.
+
+```sh
+pnpm test:account-export-b115-full-get-length
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+Todavía no fueron ejecutados los 53 escenarios firmados
+reales del adaptador en checkout Node24/pnpm9, ni Jest,
+typecheck/lint, Mongo B94, S3/MinIO real, backup/restore
+o auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en
+producción; sin CI manual ni despliegue.
