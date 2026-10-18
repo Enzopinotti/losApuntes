@@ -1258,3 +1258,49 @@ los 34 TCP SigV4 ni Jest/Node24. Persisten pendientes Mongo réplica
 B94, S3/MinIO real IAM/lifecycle, backup/browser y auditorías #133/#141.
 
 **#353 HOLD**, STUDY_PROGRESS_ENABLED=false; sin CI manual ni despliegue.
+
+## B107 — Node 24 obligatorio para aceptación S3 firmada; TAP verificable
+
+A partir de B107, `scripts/run-account-export-b101-signed-http.mjs`
+requerirá **Node24 sin argumentos** para devolver éxito como
+aceptación de los 34 escenarios TCP localhost B86–B106. En Node22,
+el comando normal falla con salida 2 **antes de ejecutar ninguna prueba**;
+solo `--diagnostic-node22` permite diagnosticar en esa versión,
+marcando explícitamente **NOT release acceptance**.
+
+El verificador TAP ya no confía solamente en `# tests` y `# pass`:
+exige plan único `1..34`, subtests en orden, números PASS 1..34,
+nombres exactos y cero fallas/skips/todo/cancelaciones. Mantiene
+verificación de firma SigV4 independiente B87 y la limitación
+127.0.0.1 del servidor local.
+
+Comandos:
+- `pnpm test:account-export-b107-contract`: unidad nativa de gate/TAP y guard de fuente
+- `pnpm test:account-export-b107-release-acceptance`: **Node24** más 34 TCP firmados obligatorios
+- `pnpm test:account-export-signed-http-diagnostic-node22`: diagnóstico explícito sin valor de GO
+- `pnpm test:account-lifecycle-contract`: mantener todos los contratos anteriores y B107
+
+**Evidencia nativa real:** en Node22.16.0 se ejecutaron **13/13
+tests nativos** de B107, con cero fails/skips; los cuatro archivos
+TAP, runtime, gate y runner materializados para esas pruebas
+tienen hashes Git blob idénticos a los de la rama GitHub.
+Las dos pruebas de proceso usan un **inventario sustituto de 34
+nombres** para el preflight, sin realizar peticiones ni ejecutar el
+adaptador S3: verifican que Node22 falle anticipadamente con
+exit 2 y que `STUDY_PROGRESS_ENABLED=true` siga prohibido.
+Esto valida la política de ejecución y el parsing de evidencia,
+**no** la batería TCP real ni la ejecución en Node24.
+
+Siguen pendientes el checkout Node24/pnpm9 y 34 escenarios TCP
+contra el adaptador real, Nest/Jest, Mongo B94, IAM/lifecycle
+AWS/MinIO, backup/restore, navegador y auditorías #133/#141.
+
+**#353 HOLD**, STUDY_PROGRESS_ENABLED=false en producción;
+sin CI manual ni despliegue.
+
+**Evidencia B107 ampliada:** también se ejecutaron los 5 tests B101
+originales del parser TAP/resolver ESM (blobs GitHub exactos),
+con dos módulos TS vacíos únicamente como archivos de existencia.
+El agregado **B101 (5) + B107 (13) pasó 18/18** con `node --test`
+en Node22.16.0, sin fallos, omisiones o todo. Esta unidad nativa
+es distinta de correr el adaptador S3 firmado de producción.

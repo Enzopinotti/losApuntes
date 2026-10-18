@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { verifyB101SignedHttpTap } from './testing/b101-signed-http-tap.mjs';
+import { classifyB107SignedHttpRuntime } from './testing/b107-node-gate.mjs';
 
 if (process.env.STUDY_PROGRESS_ENABLED === 'true') {
   console.error('B101 cannot execute with STUDY_PROGRESS_ENABLED=true.');
@@ -27,8 +28,11 @@ if (expectedNames.length < 34 ||
 }
 
 const nodeMajor = Number(process.versions.node.split('.')[0]);
-if (![22, 24].includes(nodeMajor)) {
-  console.error('B101 requires Node22 diagnostic or Node24 acceptance.');
+let qualification;
+try {
+  qualification = classifyB107SignedHttpRuntime(nodeMajor, process.argv.slice(2));
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);
 }
 const run = spawnSync(process.execPath, [
@@ -49,13 +53,13 @@ try {
     exitCode: run.error || run.signal ? -1 : run.status,
     expectedNames,
   });
-  if (nodeMajor === 24) {
-    console.log('B105 Node24 local signed HTTP PASS: ' + result.passed + '/' + result.expected);
+  if (qualification === 'acceptance') {
+    console.log('B107 Node24 qualified signed HTTP PASS: ' + result.passed + '/' + result.expected);
   } else {
-    console.log('B105 Node22 signed HTTP diagnostic PASS: ' + result.passed +
+    console.log('B107 Node22 signed HTTP diagnostic PASS: ' + result.passed +
       '/' + result.expected + '; NOT release acceptance (Node24 required).');
   }
 } catch {
-  console.error('B105 signed HTTP failed: no complete, unskipped local TAP acceptance.');
+  console.error('B107 signed HTTP failed: no complete, unskipped local TAP acceptance.');
   process.exitCode = 2;
 }
