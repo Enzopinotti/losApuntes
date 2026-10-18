@@ -17,6 +17,7 @@ import {
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
 import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
+import { normalizeS3HeadObjectEtag } from './s3-head-etag';
 import {
   isConfirmedS3WriteAcknowledgement,
   isConfirmedS3MultipartAbort,
@@ -792,7 +793,7 @@ export function createS3ObjectStorage(
       return {
         byteSize,
         contentType: response.headers.get('content-type'),
-        etag: response.headers.get('etag')?.replace(/^"|"$/gu, '') ?? null,
+        etag: normalizeS3HeadObjectEtag(response.headers.get('etag')),
       };
     },
 

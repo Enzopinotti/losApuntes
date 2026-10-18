@@ -1699,3 +1699,36 @@ no libera otros gates.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` productivo.
 Sin CI manual ni deployment.
+
+## B119 — HEAD S3 valida ETag presente y mantiene ausencia opcional
+
+El adapter `headObject()` retiraba comillas inicial/final con una
+expresión regular permisiva, pudiendo devolver como metadata un
+ETag `"unbalanced`, `unbalanced"` o con comillas internas tras HTTP
+200 y tamaño correcto. B119 reutiliza el parser estricto B108
+`normalizeS3MultipartPartEtag`: header presente malformado ahora falla
+cerrado. La cabecera ausente sigue dando `etag: null`; los tokens
+válidos multipart o S3 compatibles se preservan.
+
+Nuevos tests nativos (5), Jest del adapter y 2 grupos HTTP TCP
+localhost firmados, con verificación de ausencia de DELETE para
+respuestas HEAD rechazadas. El inventario activo de aceptación es
+ahora de **59 casos HTTP firmados**, obligatorio en Node24/pnpm9
+sin skips/TODO. El launcher de comprobante B118 ya no puede aceptar
+un histórico 57/57 como 59/59.
+
+```sh
+pnpm test:account-export-b119-head-etag
+pnpm test:account-export-b119-signed-head
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+Los tests de helper y los guards de fuente no sustituyen la ejecución
+integral de **59 casos HTTP** con el adaptador real en Node24.
+Pendientes asimismo Jest/Nest, Mongo réplica B94, AWS/MinIO IAM y
+lifecycle, backup/restore, navegador y auditorías #133/#141.
+El ETag no reemplaza verificación SHA256 B90.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción.
+Sin CI manual ni despliegue.

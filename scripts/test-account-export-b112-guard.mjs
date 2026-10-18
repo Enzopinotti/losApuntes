@@ -71,14 +71,14 @@ check('B112 independent SigV4 loopback has negative injection and compatible pos
   assert.match(http, /captureWriteHeaders/u);
 });
 
-check('B112 release inventory requires 57 distinct signed TCP cases', () => {
+check('B112 release inventory requires 59 distinct signed TCP cases', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 57);
-  assert.equal(new Set(names).size, 57);
+  assert.equal(names.length, 59);
+  assert.equal(new Set(names).size, 59);
   assert.equal(names.filter(n => n.startsWith('B112 ')).length, 2);
-  assert.match(runner, /expectedNames\.length < 57/u);
+  assert.match(runner, /expectedNames\.length < 59/u);
   assert.match(runner, /'B111 ', 'B112 '/u);
-  assert.match(previous, /names\.length, 57/u);
+  assert.match(previous, /names\.length, 59/u);
 });
 
 check('B112 participates in lifecycle without disabling private production HOLD', () => {

@@ -72,7 +72,7 @@ try {
   const inventorySha256 = digest(suite);
   const runnerSha256 = digest(runner);
 
-  // Run the complete original signed 57-case TCP acceptance, not a filtered
+  // Run the complete original signed 59-case TCP acceptance, not a filtered
   // --test-name-pattern or a synthetic TAP transcription.
   const run = spawnSync(process.execPath, [
     fileURLToPath(new URL('./run-account-export-b101-signed-http.mjs', import.meta.url)),
@@ -115,7 +115,7 @@ try {
   writeFileSync(outputFile, JSON.stringify({
     ...proof, measuredAt: new Date().toISOString(),
   }, null, 2) + '\n', { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-  console.log('B118 local Node24 signed HTTP proof: 57/57 PASS');
+  console.log('B118 local Node24 signed HTTP proof: 59/59 PASS');
   console.log('B118 local evidence file: ' + outputFile);
   console.log('B118 release status: HOLD; external provider/Mongo/browser/audit acceptance still missing');
 } catch (error) {

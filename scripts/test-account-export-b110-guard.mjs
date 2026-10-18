@@ -76,14 +76,14 @@ check('B110 localhost signed TCP fixture rejects changed or omitted Range', () =
   assert.match(http, /verifyB87S3SigV4\(\{/u);
 });
 
-check('B110 Node24 release inventory now demands all 57 signed TCP scenarios', () => {
+check('B110 Node24 release inventory now demands all 59 signed TCP scenarios', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 57);
-  assert.equal(new Set(names).size, 57);
+  assert.equal(names.length, 59);
+  assert.equal(new Set(names).size, 59);
   assert.equal(names.filter(n => n.startsWith('B110 ')).length, 2);
-  assert.match(runner, /expectedNames\.length < 57/u);
+  assert.match(runner, /expectedNames\.length < 59/u);
   assert.match(runner, /'B109 ', 'B110 '/u);
-  assert.match(b109, /names\.length, 57/u);
+  assert.match(b109, /names\.length, 59/u);
 });
 
 check('B110 native test and previous release HOLD stay wired into lifecycle', () => {
