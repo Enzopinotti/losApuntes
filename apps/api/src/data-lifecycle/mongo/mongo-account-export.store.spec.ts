@@ -30,7 +30,7 @@ function fixture(input: { active?: unknown } = {}) {
       .mockReturnValue(claimQuery),
     findOne: jest.fn(() => findQuery),
     find: jest.fn(() => expiredQuery),
-    updateOne: jest.fn(() => updateQuery),
+    updateOne: jest.fn((..._args: unknown[]) => updateQuery),
     exists: jest.fn().mockResolvedValue(null),
   };
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
@@ -45,7 +45,7 @@ function fixture(input: { active?: unknown } = {}) {
   };
   const connection = { startSession: jest.fn().mockResolvedValue(session) };
   const orphanWrite = query({ matchedCount: 0, modifiedCount: 0, upsertedCount: 1 });
-  const orphanCleanup = { updateOne: jest.fn(() => orphanWrite) };
+  const orphanCleanup = { updateOne: jest.fn((..._args: unknown[]) => orphanWrite) };
   const store = new MongoAccountExportStore(
     jobs as never, users as never, connection as never,
     orphanCleanup as never,

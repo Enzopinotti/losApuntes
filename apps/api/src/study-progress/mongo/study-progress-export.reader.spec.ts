@@ -100,8 +100,11 @@ describe('B62 Study Progress owner export reader', () => {
     await expect(f.reader.hasOwnedProgress(owner)).rejects.toBe(problem);
   });
   it('rejects malformed persisted plans and corrupted revision metadata', async () => {
+    // Model a malformed persisted record without an excess-property error
+    // in the strictly typed fixture; the reader must still reject its bytes.
+    const malformedPlan = { ...stored(a).plan, unknownField: true };
     const wrong = fixture([{
-      ...stored(a), plan: { ...stored(a).plan, unknownField: true },
+      ...stored(a), plan: malformedPlan,
     }]);
     await expect(wrong.reader.listAccountExportProgress(owner, {
       cursor: null, limit: 2,
