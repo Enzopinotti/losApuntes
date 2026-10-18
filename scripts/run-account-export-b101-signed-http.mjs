@@ -38,6 +38,9 @@ try {
 const run = spawnSync(process.execPath, [
   '--experimental-strip-types',
   '--import', fileURLToPath(new URL('./testing/register-api-typescript.mjs', import.meta.url)),
+  // Node24 defaults to the human-readable spec reporter in this environment;
+  // B101's fail-closed verifier requires machine-checkable TAP v13.
+  '--test-reporter=tap',
   '--test', fileURLToPath(testUrl),
 ], {
   encoding: 'utf8',
