@@ -5,6 +5,10 @@ import {
   assertS3FullObjectReadActive,
   isConfirmedS3FullObjectGet,
 } from './s3-full-object-read-contract';
+import {
+  parseS3FullObjectContentLength,
+  assertS3FullObjectContentLength,
+} from './s3-full-object-length';
 import { collectS3SignedRequestHeaders } from './s3-signed-request-headers';
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
@@ -849,7 +853,12 @@ export function createS3ObjectStorage(
         throw storageError('GET object', response.status);
       }
       if (!response.body) throw new Error('S3 GET object returned no body');
-
+      // B115: validate length before consuming provider bytes. HTTP 200 with
+      // an early EOF is not evidence of a complete object.
+      const expectedBytes = parseS3FullObjectContentLength(
+        response.headers.get('content-length'),
+      );
+      let receivedBytes = 0;
       const reader = response.body.getReader();
       let streamEnded = false;
       let cancellation: Promise<void> | null = null;
@@ -871,12 +880,16 @@ export function createS3ObjectStorage(
           // authoritative before done, after reads, and between yields.
           assertS3FullObjectReadActive(signal);
           if (result.done) {
+            assertS3FullObjectContentLength(expectedBytes, receivedBytes, true);
             streamEnded = true;
             return;
           }
           if (!(result.value instanceof Uint8Array)) {
             throw new Error('S3 GET object returned invalid bytes');
           }
+          // Validate before yielding any portion of a remote chunk.
+          receivedBytes += result.value.byteLength;
+          assertS3FullObjectContentLength(expectedBytes, receivedBytes, false);
 
           for (
             let offset = 0;
