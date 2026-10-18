@@ -73,6 +73,17 @@ test('B109 does not leak a mutable producer buffer into returned bytes', async (
   assert.deepEqual(result, bytes('hello'));
 });
 
+test('B109 tolerates zero-byte chunk floods without retaining them', async () => {
+  const stream = new ReadableStream({
+    start(controller) {
+      for (let i = 0; i < 2048; i++) controller.enqueue(new Uint8Array());
+      controller.enqueue(bytes('OK'));
+      controller.close();
+    },
+  });
+  assert.deepEqual(await read({ body: stream }, 2), bytes('OK'));
+});
+
 test('B109 rejects invalid budgets before getting a stream reader', async () => {
   const response = new Response(bytes('a'));
   for (const invalid of [0, -1, 1.2, Number.NaN, Number.POSITIVE_INFINITY]) {
