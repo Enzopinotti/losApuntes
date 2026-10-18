@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 
+import { readBoundedS3PrefixBody } from './s3-bounded-prefix-body';
 import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
 import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
@@ -790,13 +791,7 @@ export function createS3ObjectStorage(
       });
 
       if (!response.ok) throw storageError('GET prefix', response.status);
-      const bytes = new Uint8Array(await response.arrayBuffer());
-
-      if (bytes.byteLength > maximumBytes) {
-        throw new Error('S3 returned more bytes than the requested prefix');
-      }
-
-      return bytes;
+      return readBoundedS3PrefixBody(response, maximumBytes);
     },
 
     async *readObjectChunks(
