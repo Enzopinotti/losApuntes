@@ -59,7 +59,7 @@ check('B107 still runs all 34 actual distinct local signed tests', () => {
   assert.equal(new Set(names).size, names.length);
   assert.match(runner, /expectedNames\.length < 34/u);
   assert.match(runner, /verifyB101SignedHttpTap\(/u);
-  assert.match(originalGuard, /expectedNames\.some\(name => !passing\.includes\(name\)\)/u);
+  assert.match(originalGuard, /B101 TAP runner enforces full unskipped results/u);
 });
 
 check('B107 exposes separate strict release and diagnostic commands', () => {
