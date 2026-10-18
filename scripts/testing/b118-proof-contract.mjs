@@ -18,7 +18,7 @@ export function assertB118ProofPreconditions(input) {
     throw new Error('B118 requires pnpm 9.15.9');
   }
   if (input.studyProgressEnabled === 'true') {
-    throw new Error('B118 refuses STUＤY_PROGRESS_ENABLED=true in qualification');
+    throw new Error('B118 refuses STUDY_PROGRESS_ENABLED=true in qualification');
   }
   const names = input.testNames;
   if (!Array.isArray(names) || names.length !== 57 ||
