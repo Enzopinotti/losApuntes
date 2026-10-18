@@ -18,9 +18,17 @@ function fixture() {
   const remove = { exec: jest.fn().mockResolvedValue({ deletedCount: 1 }) };
   const retry = { exec: jest.fn().mockResolvedValue({ matchedCount: 1, modifiedCount: 1 }) };
   const model = {
-    updateOne: jest.fn().mockReturnValueOnce(upsert).mockReturnValue(retry),
+    updateOne: jest
+      .fn((...args: [filter: unknown, update: unknown, options?: unknown]) => {
+        void args;
+        return retry;
+      })
+      .mockReturnValueOnce(upsert),
     findOneAndUpdate: jest.fn().mockReturnValue(claim),
-    deleteOne: jest.fn().mockReturnValue(remove),
+    deleteOne: jest.fn((...args: [filter: unknown, options?: unknown]) => {
+      void args;
+      return remove;
+    }),
   };
   return {
     model, upsert, claim, remove, retry,
