@@ -255,6 +255,18 @@ async function signedRequest(input: {
     ['x-amz-content-sha256', EMPTY_SHA256],
     ['x-amz-date', amzDate],
   ]);
+  // B110: sign every extra request header, including Range. Before this,
+  // the prefix GET sent Range outside SignedHeaders, allowing a proxy to
+  // alter the requested byte window without invalidating AWS SigV4.
+  for (const [name, value] of Object.entries(input.headers ?? {})) {
+    const canonicalName = name.toLowerCase();
+    if (!/^[a-z0-9-]+$/u.test(canonicalName) ||
+        signingHeaders.has(canonicalName) ||
+        canonicalName === 'authorization') {
+      throw new Error('S3 signed request contains an invalid or reserved header');
+    }
+    signingHeaders.set(canonicalName, normalizeHeaderValue(value));
+  }
   const signedHeaders = [...signingHeaders.keys()].sort().join(';');
   const canonicalHeaders = [...signingHeaders.entries()]
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
