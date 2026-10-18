@@ -26,7 +26,7 @@ check('B111 HTTP 206 must bind byte-zero window to requested prefix', () => {
 });
 
 check('B111 range metadata rejects unknown lengths and non-canonical ranges', () => {
-  assert.match(range, /\^\s*bytes /u);
+  assert.match(range, /\^bytes /u);
   assert.match(range, /S3 GET prefix returned an invalid Content-Range/u);
   assert.match(range, /S3 GET prefix returned a mismatched Content-Range/u);
   assert.match(native, /unknown-size, unsafe and malformed range metadata/u);
