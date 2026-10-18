@@ -94,7 +94,7 @@ describe('S3ObjectStorage', () => {
       'response-content-disposition',
     );
     expect(contentDisposition).toBe(
-      "attachment; filename=\"Parcial '()+*.pdf__X-Injected: yes\"; " +
+      'attachment; filename="Parcial \'()+*.pdf__X-Injected: yes"; ' +
         "filename*=UTF-8''Parcial%20%27%28%29%2B%2A.pdf%0D%0AX-Injected%3A%20yes",
     );
     expect(contentDisposition).not.toMatch(/[\r\n]/u);
