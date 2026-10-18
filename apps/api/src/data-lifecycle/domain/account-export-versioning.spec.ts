@@ -267,13 +267,24 @@ describe('Account export v2 compatibility — B45', () => {
     await expect(legacy.assembler.writeJsonV2(OWNER, legacy.sink))
       .rejects.toThrow('Unknown account export section: study.collections');
     expect(legacy.commit).not.toHaveBeenCalled();
+    // Version-pinned legacy v2 must remain readable when newer v3+
+    // contributors are mounted. The v2 manifest selects its exact 31
+    // reviewed sections; it must never serialize an unreviewed section.
     const expanded = mounted(true).contributors;
-    const invalid = fixture(new AccountExportContributorRegistry([
+    const compatible = fixture(new AccountExportContributorRegistry([
       ...expanded,
       contributor('unreviewed.private'),
     ]));
-    await expect(invalid.assembler.writeJsonV2(OWNER, invalid.sink))
-      .rejects.toThrow('inventory is incomplete');
-    expect(invalid.commit).not.toHaveBeenCalled();
+    const result = await compatible.assembler.writeJsonV2(OWNER, compatible.sink);
+    const output = JSON.parse(compatible.chunks.join('')) as {
+      version: number;
+      sections: Record<string, unknown[]>;
+    };
+    expect(result.sectionCount).toBe(31);
+    expect(result.formatVersion).toBe(2);
+    expect(Object.keys(output.sections)).toEqual(ACCOUNT_EXPORT_V2_SECTION_IDS);
+    expect(output.sections).not.toHaveProperty('unreviewed.private');
+    expect(output.sections).not.toHaveProperty('study.progress');
+    expect(compatible.commit).toHaveBeenCalledTimes(1);
   });
 });
