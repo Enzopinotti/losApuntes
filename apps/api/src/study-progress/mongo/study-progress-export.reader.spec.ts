@@ -28,7 +28,11 @@ function stored(subjectId: string) {
     _id: 'internal',
   };
 }
-function fixture(rows: ReturnType<typeof stored>[] = []) {
+// Persisted Mongo documents can be malformed even when healthy rows are typed.
+type StoredFixtureRow = Omit<ReturnType<typeof stored>, 'plan'> & {
+  plan: unknown;
+};
+function fixture(rows: StoredFixtureRow[] = []) {
   const query = {
     select: jest.fn().mockReturnThis(),
     sort: jest.fn().mockReturnThis(),
