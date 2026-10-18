@@ -1411,3 +1411,42 @@ no certifican GO.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en
 producción; sin CI manual ni despliegue.
+
+## B111 — HTTP 206 Content-Range coherente con GET de prefijo S3
+
+B109 limitaba los bytes de `readPrefix()` y B110 firmaba el
+encabezado Range de la petición, pero las respuestas **HTTP 206**
+podían declarar cualquier `Content-Range`, incluyendo rangos
+de origen distinto de cero, ventanas incompletas y cuerpos más
+cortos que los declarados. Un escáner no debe tratar esos bytes
+como los primeros del archivo privado.
+
+B111 exige para 206 un `Content-Range: bytes 0-END/TOTAL`
+con enteros seguros, TOTAL mayor al END y
+`END=min(maximumBytes,TOTAL)-1`. La lectura incremental
+debe recibir exactamente END+1 bytes; ante metadata o longitud
+incorrecta se cancela el stream y se rechaza sin publicar ni
+eliminar el objeto. HTTP 200 sigue permitido para objetos completos
+pequeños cuando el proveedor ignora Range; la cota B109 se conserva.
+Se rechazan otros 2xx inesperados para GET de prefijo.
+
+**Evidencia obtenida:** 10/10 casos nuevos nativos B111 y
+8/8 de B109 anteriores pasaron juntos en Node22.16.0,
+usando el loader TypeScript B101 existente (18/18 total,
+sin skips). Los archivos ejecutados coinciden con sus hashes
+Git blob. Tres pruebas Jest del adaptador y dos nuevos
+escenarios localhost SigV4 B87 quedaron definidos.
+El inventario obligatorio pasa a **42 casos B86–B111**.
+
+Comandos en el checkout canónico:
+- `pnpm test:account-export-b111-content-range`
+- `pnpm test:account-export-b107-release-acceptance` (**Node24**)
+- `pnpm test:account-lifecycle-contract`
+
+**No ejecutado/aceptado aún:** los 42 casos TCP firmados
+completos en Node24/pnpm9, Jest/Nest, typecheck/lint, Mongo
+réplica B94, proveedor AWS/MinIO IAM/lifecycle, backup/restore,
+navegadores y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` productivo;
+sin CI manual ni despliegue.
