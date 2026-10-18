@@ -209,6 +209,39 @@ describe('S3ObjectStorage', () => {
     );
   });
 
+  it('B110 signs the exact Range value requested by the prefix GET', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(Buffer.from('%PDF-1.7'), { status: 206 }));
+    await expect(storage().readPrefix('exports/owner/b110.pdf', 8))
+      .resolves.toEqual(new Uint8Array(Buffer.from('%PDF-1.7')));
+    const headers = new Headers(fetchSpy.mock.calls[0]?.[1]?.headers);
+    expect(headers.get('range')).toBe('bytes=0-7');
+    expect(headers.get('authorization')).toContain(
+      'SignedHeaders=host;range;x-amz-content-sha256;x-amz-date,',
+    );
+  });
+
+  it('B110 retains the original signed header set for HEAD and full GET', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { 'content-length': '2' },
+      }))
+      .mockResolvedValueOnce(new Response(Buffer.from('OK'), { status: 200 }));
+    await storage().headObject('exports/b110-full.json');
+    const received: Buffer[] = [];
+    for await (const chunk of storage().readObjectChunks('exports/b110-full.json')) {
+      received.push(Buffer.from(chunk));
+    }
+    expect(Buffer.concat(received).toString()).toBe('OK');
+    for (const call of fetchSpy.mock.calls) {
+      const headers = new Headers(call[1]?.headers);
+      expect(headers.get('range')).toBeNull();
+      expect(headers.get('authorization')).toContain(
+        'SignedHeaders=host;x-amz-content-sha256;x-amz-date,',
+      );
+    }
+  });
+
   it('B109 cancels an oversized streamed GET prefix before full buffering', async () => {
     let cancelled = 0;
     const body = new ReadableStream<Uint8Array>({
