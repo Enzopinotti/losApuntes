@@ -564,6 +564,50 @@ describe('S3ObjectStorage', () => {
     );
   });
 
+  it.each([202, 206])(
+    'B114 rejects HTTP %s on full object GET without yielding untrusted bytes',
+    async (status) => {
+      let cancelled = 0;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) { controller.enqueue(Buffer.from('part-only')); },
+        cancel() { cancelled++; },
+      });
+      const fetchSpy = jest.spyOn(global, 'fetch')
+        .mockResolvedValueOnce(new Response(body, { status }));
+      const seen: Uint8Array[] = [];
+      await expect((async () => {
+        for await (const chunk of storage().readObjectChunks('private/b114', 1024)) {
+          seen.push(chunk);
+        }
+      })()).rejects.toThrow('S3 GET object failed with HTTP ' + status);
+      expect(seen).toEqual([]);
+      expect(cancelled).toBe(1);
+      expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['GET']);
+    },
+  );
+
+  it('B114 abort after first chunk throws AbortError rather than reporting clean EOF', async () => {
+    let cancelled = 0;
+    const controller = new AbortController();
+    const body = new ReadableStream<Uint8Array>({
+      start(streamController) {
+        streamController.enqueue(Buffer.alloc(2048, 0x61));
+      },
+      cancel() { cancelled++; },
+    });
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(body, { status: 200 }));
+    const iterator = storage()
+      .readObjectChunks('private/b114-aborted', 1024, controller.signal)
+      [Symbol.asyncIterator]();
+    const first = await iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value?.byteLength).toBe(1024);
+    controller.abort();
+    await expect(iterator.next()).rejects.toMatchObject({ name: 'AbortError' });
+    expect(cancelled).toBe(1);
+  });
+
   it('cancels the provider response when a downstream stream stops early', async () => {
     let cancelled = false;
     let sent = false;
@@ -621,7 +665,8 @@ describe('S3ObjectStorage', () => {
     const pendingRead = reader.next();
     controller.abort();
 
-    await expect(pendingRead).resolves.toMatchObject({ done: true });
+    // B114: cancellation is not a successful end of a private file scan.
+    await expect(pendingRead).rejects.toMatchObject({ name: 'AbortError' });
     expect(cancelled).toBe(true);
     expect(fetchSpy.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
   });
