@@ -1450,3 +1450,39 @@ navegadores y auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` productivo;
 sin CI manual ni despliegue.
+
+## B112 — Firmas S3 multipart y protección de metadatos reservados
+
+El signer de cuerpos S3 (`signedBodyRequest`, POST/PUT/DELETE)
+admitía encabezados adicionales que podían sobrescribir los valores
+firmados de host, `x-amz-date`, `x-amz-content-sha256` e incluso
+`authorization`. Era un comportamiento distinto al signer
+de lectura reforzado en B110. En B112 ambos usan el mismo
+`collectS3SignedRequestHeaders` para impedir overrides,
+duplicados por mayúsculas e inyecciones CR/LF/NUL antes de fetch.
+
+La iniciación multipart legítima conserva Content-Type
+normalizado y firmado; las partes PUT/finalizaciones sin
+Content-Type preservan sus SignedHeaders anteriores.
+La validación evita cabeceras ambiguas; **no cambia**
+autorizaciones privadas, S3 paths, ni owner-fenced cleanup.
+
+**Evidencia:** 8/8 unidades B112 sobre TypeScript real en
+Node22.16.0, con fuentes cotejadas por Git blob, y comparación
+red/green del mapa de cabeceras del firmador productivo.
+Regresiones Jest y dos casos HTTP localhost firmados B87
+agregados; inventario completo **44 escenarios B86–B112**.
+
+Comandos canónicos:
+- `pnpm test:account-export-b112-signed-body-headers`
+- `pnpm test:account-export-b107-release-acceptance`
+  (Node24 obligatorio)
+- `pnpm test:account-lifecycle-contract`
+
+**Pendientes:** ejecución 44 escenarios TCP firmados
+con adaptador real Node24/pnpm9, Jest/Nest, lint/typecheck,
+Mongo replica B94, AWS/MinIO IAM/lifecycle, backups,
+navegadores y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en
+producción; sin CI manual ni despliegue.
