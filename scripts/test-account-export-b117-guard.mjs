@@ -54,13 +54,13 @@ check('B117 signed HEAD negative lengths preserve object and deny publication', 
   assert.match(http, /calls\.some\(call => call\.method === 'DELETE'\), false/u);
 });
 
-check('B117 TAP gate requires all 59 signed cases without omissions', () => {
+check('B117 TAP gate requires all 61 signed cases without omissions', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(match => match[1]);
-  assert.equal(names.length, 59);
-  assert.equal(new Set(names).size, 59);
+  assert.equal(names.length, 61);
+  assert.equal(new Set(names).size, 61);
   assert.equal(names.filter(name => name.startsWith('B117 ')).length, 4);
-  assert.match(runner, /expectedNames\.length < 59/u);
-  assert.match(runner, /'B115 ', 'B117 ', 'B119 '/u);
+  assert.match(runner, /expectedNames\.length < 61/u);
+  assert.match(runner, /'B115 ', 'B117 ', 'B119 ', 'B120 '/u);
   assert.match(runner, /verifyB101SignedHttpTap\(/u);
   assert.match(runner, /classifyB107SignedHttpRuntime\(/u);
 });

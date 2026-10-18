@@ -59,15 +59,15 @@ check('B108 actual signed localhost fixture now checks corrupt and compatible pa
   assert.match(http, /B108 signed HTTP supports a bounded unquoted compatible part ETag/u);
   assert.match(http, /verifyB87S3SigV4\(\{/u);
 });
-check('B108 signed release runner requires all 59 unique tests under Node24', () => {
+check('B108 signed release runner requires all 61 unique tests under Node24', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 59);
-  assert.equal(new Set(names).size, 59);
+  assert.equal(names.length, 61);
+  assert.equal(new Set(names).size, 61);
   assert.ok(names.some(n => n.startsWith('B108 ')));
-  assert.match(runner, /expectedNames\.length < 59/u);
+  assert.match(runner, /expectedNames\.length < 61/u);
   assert.match(runner, /'B106 ', 'B108 '/u);
   assert.match(gate, /nodeMajor === 24 && argumentsList\.length === 0/u);
-  assert.match(b107, /names\.length, 59/u);
+  assert.match(b107, /names\.length, 61/u);
 });
 check('B108 source is in lifecycle and release authority remains HOLD', () => {
   assert.match(pkg['test:account-export-b108-part-etag'], /test-account-export-b108-part-etag\.test\.mjs/u);

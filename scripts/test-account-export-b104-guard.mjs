@@ -84,7 +84,7 @@ check('B104 TAP runner enforces all 28 signed HTTP cases and fails on skips', ()
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
   assert.ok(names.length >= 28);
   assert.equal(new Set(names).size, names.length);
-  assert.match(runner, /expectedNames\.length < 59/u);
+  assert.match(runner, /expectedNames\.length < 61/u);
   assert.match(runner, /'B102 ', 'B103 ', 'B104 '/u);
   assert.match(tap, /summary\.skipped !== 0/u);
   assert.match(tap, /expectedNames\.some\(name => !passing\.includes\(name\)\)/u);

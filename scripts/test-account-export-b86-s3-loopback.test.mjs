@@ -33,6 +33,7 @@ async function withLoopback(input, scenario) {
   const getFaults = [...(input.getFaults ?? [])];
   const partStatuses = [...(input.partStatuses ?? [])];
   const abortStatuses = [...(input.abortStatuses ?? [])];
+  const deleteStatuses = [...(input.deleteStatuses ?? [])];
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     const method = request.method ?? '';
@@ -122,8 +123,15 @@ async function withLoopback(input, scenario) {
           failDelete -= 1;
           response.writeHead(503); response.end();
         } else {
-          objects.delete(url.pathname);
-          response.writeHead(204); response.end();
+          const status = deleteStatuses.shift() ?? 204;
+          // B120: an ambiguous provider ACK can mean the object is still
+          // present OR already absent. Only the Mongo owner-fenced cleanup
+          // policy may decide how to retry; the adapter cannot assume success.
+          if (status === 200 || status === 204 || status === 404 ||
+              input.commitDeleteOnAmbiguous === true) {
+            objects.delete(url.pathname);
+          }
+          response.writeHead(status); response.end();
         }
       } else if (method === 'HEAD') {
         // B117: HEAD must traverse real localhost TCP with B87 independent
@@ -583,6 +591,45 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B120 signed DELETE rejects 202 and 206 whether provider kept or removed bytes', async () => {
+  for (const status of [202, 206]) {
+    for (const committedDespiteAmbiguousAck of [false, true]) {
+      await withLoopback({
+        deleteStatuses: [status],
+        commitDeleteOnAmbiguous: committedDespiteAmbiguousAck,
+      }, async ({ storage, objects, calls }) => {
+        const writer = newWriter(storage);
+        const bytes = Buffer.from('{"b120":"private-retirement"}');
+        await writer.write(bytes);
+        await writer.complete();
+        await assert.rejects(storage.deleteObject(OBJECT_KEY),
+          new RegExp('S3 DELETE failed with HTTP ' + status, 'u'));
+        assert.deepEqual(calls.map(call => call.method), ['PUT', 'DELETE'],
+          'no unsafe automatic retry of an ambiguous private generation');
+        assert.deepEqual(objects.get(PATH),
+          committedDespiteAmbiguousAck ? undefined : bytes);
+      });
+    }
+  }
+});
+
+test('B120 signed DELETE accepts only terminal 200, 204 and idempotent 404', async () => {
+  for (const status of [200, 204, 404]) {
+    await withLoopback({ deleteStatuses: [status] },
+      async ({ storage, objects, calls }) => {
+        if (status !== 404) {
+          const writer = newWriter(storage);
+          await writer.write(Buffer.from('{"b120":"terminal-delete"}'));
+          await writer.complete();
+        }
+        await assert.doesNotReject(storage.deleteObject(OBJECT_KEY));
+        assert.equal(objects.has(PATH), false);
+        assert.deepEqual(calls.map(call => call.method),
+          status === 404 ? ['DELETE'] : ['PUT', 'DELETE']);
+      });
+  }
 });
 
 test('B119 signed HEAD rejects malformed present ETags without deleting private bytes', async () => {

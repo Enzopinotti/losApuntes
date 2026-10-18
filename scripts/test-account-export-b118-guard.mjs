@@ -38,7 +38,7 @@ check('B118 executes existing signed HTTP runner with unfiltered subprocess', ()
 check('B118 does not attest fake TAP or a Node22 diagnostic', () => {
   assert.match(contract, /B107 Node24 qualified signed HTTP PASS/u);
   assert.match(contract, /markers\.length !== 1/u);
-  assert.match(contract, /markers\[0\]\[1\] !== '59'/u);
+  assert.match(contract, /markers\[0\]\[1\] !== '61'/u);
   assert.match(native, /Node22 signed HTTP diagnostic PASS/u);
   assert.match(native, /B118 never treats failed or incomplete/u);
 });

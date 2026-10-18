@@ -21,6 +21,7 @@ import { normalizeS3HeadObjectEtag } from './s3-head-etag';
 import {
   isConfirmedS3WriteAcknowledgement,
   isConfirmedS3MultipartAbort,
+  isConfirmedS3ObjectDelete,
 } from './s3-write-ack-status';
 import {
   readBoundedS3MultipartCompletionXml,
@@ -429,8 +430,12 @@ export function createS3ObjectStorage(
       now: options.now?.(),
     });
 
-    if (response.status === 404) return;
-    if (!response.ok) throw storageError('DELETE', response.status);
+    // B120: a provider may acknowledge 202 while deletion is still
+    // asynchronous. Do not retire the owner-fenced cleanup claim until a
+    // terminal DELETE result (204/compatible 200/idempotent 404).
+    if (!isConfirmedS3ObjectDelete(response.status)) {
+      throw storageError('DELETE', response.status);
+    }
   };
 
   return Object.freeze({

@@ -852,6 +852,28 @@ describe('S3ObjectStorage', () => {
     );
   });
 
+  it.each([201, 202, 205, 206, 207])(
+    'B120 refuses ambiguous HTTP %s on signed DeleteObject',
+    async (status) => {
+      const spy = jest.spyOn(global, 'fetch')
+        .mockResolvedValueOnce(new Response(null, { status }));
+      await expect(storage().deleteObject('exports/private-generation'))
+        .rejects.toThrow('S3 DELETE failed with HTTP ' + status);
+      expect(spy).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('B120 confirms compatible HTTP 200 and idempotent 404 without retries', async () => {
+    const spy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await expect(storage().deleteObject('exports/committed'))
+      .resolves.toBeUndefined();
+    await expect(storage().deleteObject('exports/absent'))
+      .resolves.toBeUndefined();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
   it('supports the internal endpoint as public endpoint and a custom provider id', async () => {
     const value = createS3ObjectStorage({
       endpoint: 'https://storage.test',

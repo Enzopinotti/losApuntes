@@ -1732,3 +1732,36 @@ El ETag no reemplaza verificación SHA256 B90.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción.
 Sin CI manual ni despliegue.
+
+## B120 — DeleteObject privado exige confirmación terminal
+
+El adaptador S3 `deleteObject()` ya no trata el `response.ok` HTTP 2xx
+como prueba de eliminación. Para cerrar correctamente el ciclo
+owner-fenced B78–B81, ahora **solo 204, 200 compatible y 404
+idempotente** son terminales. Respuestas `202 Accepted`, `206
+Partial Content` y otros 2xx ambiguos originan error, sin retry
+automático ni eliminación adicional. Un proveedor podría haber
+borrado o conservar el objeto: no se declara éxito sin ACK terminal.
+
+B120 añade 5 pruebas nativas de estados (Node22 aislado **5/5
+PASS**, hashes de ambos archivos cotejados con Git), regresiones
+Jest del adapter y 2 grupos de escenarios HTTP localhost firmados
+que ejercitan ambos destinos de una respuesta de borrado ambigua.
+La batería Node24 de aceptación ahora exige **61 casos HTTP
+firmados**, y la evidencia exact-head B118 exige `61/61` en lugar de
+`59/59`; sin skips/TODO ni pruebas omitidas.
+
+```sh
+pnpm test:account-export-b120-delete
+pnpm test:account-export-b120-signed-delete
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+Aún **no** se ejecutó la suite completa de 61 HTTP firmados en
+Node24; los 5/5 nativos Node22 son evidencia limitada. Restan
+Jest/Nest, Mongo réplica B94, S3/MinIO con IAM/lifecycle,
+backup/restore, navegación y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` productivo,
+sin CI manual ni despliegue.
