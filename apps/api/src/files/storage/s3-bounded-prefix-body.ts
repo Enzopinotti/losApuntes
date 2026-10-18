@@ -32,6 +32,9 @@ export async function readBoundedS3PrefixBody(
       if (value.byteLength > maximumBytes - total) {
         throw new Error('S3 returned more bytes than the requested prefix');
       }
+      // Ignore empty chunks; they consume no byte budget but must not
+      // accumulate unlimited array entries if a provider floods empties.
+      if (value.byteLength === 0) continue;
       // Preserve an owned copy of each bounded chunk; the caller cannot
       // depend on the producer keeping its backing buffer unchanged.
       chunks.push(Uint8Array.from(value));
