@@ -1304,3 +1304,35 @@ con dos módulos TS vacíos únicamente como archivos de existencia.
 El agregado **B101 (5) + B107 (13) pasó 18/18** con `node --test`
 en Node22.16.0, sin fallos, omisiones o todo. Esta unidad nativa
 es distinta de correr el adaptador S3 firmado de producción.
+
+## B108 — Validación acotada del ETag de cada parte multipart
+
+Un `HTTP 200` de UploadPart no basta para aceptar un header `ETag`
+arbitrario. Antes de añadir una parte a `CompleteMultipartUpload`,
+el adaptador valida el ETag mediante el módulo B108:
+límite de **256 caracteres** de header, comillas exteriores
+obligatoriamente equilibradas si están presentes, token imprimible
+sin whitespace/controles/comillas interiores ni barras invertidas.
+Se conservan los formatos opacos sin comillas de proveedores
+compatibles y el escape XML `xmlEscape`.
+
+Si el header está malformado, el writer B104 queda fallido, no
+permite `complete()` y conserva el `uploadId` para abortar.
+La exportación privada nunca realiza DELETE Object directo cuando
+`deleteObjectOnAbort:false`: B80/B81 siguen siendo autoridad
+de limpieza y B90 GET+SHA256 continúa antes de publicar.
+
+Comandos:
+- `pnpm test:account-export-b108-part-etag` — 5 casos de parser y guard
+- `pnpm test:account-export-b107-release-acceptance` — **Node24**,
+  los **36 escenarios TCP SigV4 B86–B108** requeridos
+- `pnpm test:account-lifecycle-contract` — cadena completa de contratos
+
+**Evidencia:** B108 parser/test nativos de Node22.16.0 **5/5 PASS**
+con ambos archivos idénticos a sus Git blobs. Los escenarios HTTP
+firmados reales, Jest, typecheck/lint, Mongo replica B94,
+S3/MinIO IAM/lifecycle, backups y auditorías #133/#141
+no se ejecutaron aquí.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`, sin CI manual
+ni despliegue.
