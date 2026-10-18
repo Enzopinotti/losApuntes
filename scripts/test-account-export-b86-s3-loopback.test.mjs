@@ -81,7 +81,7 @@ async function withLoopback(input, scenario) {
           response.writeHead(status); response.end(); return;
         }
         upload[Number(part) - 1] = body;
-        response.writeHead(200, { etag: '"b86-part-etag"' });
+        response.writeHead(200, { etag: input.partEtag ?? '"b86-part-etag"' });
         response.end();
       } else if (method === 'POST' && uploadId) {
         const upload = uploads.get(uploadId);
@@ -525,6 +525,35 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     await assert.doesNotReject(writer.complete());
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+  });
+});
+
+test('B108 signed HTTP rejects malformed UploadPart ETags with ID-only abort', async () => {
+  for (const partEtag of ['"unbalanced', 'unbalanced"', 'x'.repeat(300)]) {
+    await withLoopback({ partEtag }, async ({ storage, calls, objects, uploads }) => {
+      const writer = newWriter(storage);
+      await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x75)),
+        /S3 multipart part returned an invalid ETag/u);
+      await assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      await writer.abort();
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'DELETE']);
+      assert.ok(calls[2].uploadId);
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+      assert.equal(objects.size, 0);
+      assert.equal(uploads.size, 0);
+    });
+  }
+});
+
+test('B108 signed HTTP supports a bounded unquoted compatible part ETag', async () => {
+  await withLoopback({ partEtag: 'opaque&compatible' }, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.alloc(5 * 1024 * 1024, 0x76);
+    await writer.write(bytes);
+    await writer.complete();
+    assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+    assert.deepEqual(objects.get(PATH), bytes);
   });
 });
 

@@ -74,17 +74,17 @@ check('B106 SigV4 loopback ensures over-budget fail closed and uploadId-only abo
   assert.match(http, /verifyB87S3SigV4\(\{/u);
 });
 
-check('B106 signed runner requires all 34 actual named cases without skips', () => {
+check('B106 signed runner requires all 36 actual named cases without skips', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 34);
-  assert.equal(new Set(names).size, 34);
+  assert.equal(names.length, 36);
+  assert.equal(new Set(names).size, 36);
   assert.ok(names.some(n => n.startsWith('B105 ')));
   assert.ok(names.some(n => n.startsWith('B106 ')));
-  assert.match(runner, /expectedNames\.length < 34/u);
+  assert.match(runner, /expectedNames\.length < 36/u);
   assert.match(runner, /'B105 ', 'B106 '/u);
   assert.match(tap, /summary\.skipped !== 0/u);
   assert.match(b104, /names\.length >= 28/u);
-  assert.match(b105, /names\.length, 34/u);
+  assert.match(b105, /names\.length, 36/u);
 });
 
 check('B106 lifecycle command, owner fences and release HOLD stay explicit', () => {

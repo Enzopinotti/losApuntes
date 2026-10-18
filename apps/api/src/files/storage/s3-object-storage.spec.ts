@@ -441,6 +441,67 @@ describe('S3ObjectStorage', () => {
       .toEqual(['PUT', 'DELETE']);
   });
 
+  it.each([
+    ['"part-one', 'missing closing quote'],
+    ['part-one"', 'missing opening quote'],
+    ['"part"two"', 'embedded quote'],
+    ['"  "', 'whitespace-only ETag'],
+    ['"part with space"', 'internal whitespace'],
+    ['part\\two', 'backslash'],
+    ['x'.repeat(300), 'oversized ETag'],
+  ])('B108 rejects invalid UploadPart ETag: %s (%s)', async (rawEtag) => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>b108-private-id</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: rawEtag },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b108-invalid-part.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x78)))
+      .rejects.toThrow('S3 multipart part returned an invalid ETag');
+    await expect(writer.complete())
+      .rejects.toThrow('S3 multipart writer cannot complete after a failed operation');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE']);
+    const abortUrl = new URL(fetchSpy.mock.calls[2]?.[0] as string);
+    expect(abortUrl.searchParams.get('uploadId')).toBe('b108-private-id');
+    expect(abortUrl.searchParams.has('partNumber')).toBe(false);
+  });
+
+  it('B108 keeps unquoted opaque provider ETags and XML-escapes their content', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>b108-quoted</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: 'opaque&compatible' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        '<CompleteMultipartUploadResult><ETag>"complete"</ETag></CompleteMultipartUploadResult>',
+        { status: 200 },
+      ));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b108-valid-part.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x79));
+    await writer.complete();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST']);
+    const xml = Buffer.from(fetchSpy.mock.calls[2]?.[1]?.body as Uint8Array).toString();
+    expect(xml).toContain('<ETag>"opaque&amp;compatible"</ETag>');
+  });
+
   it('B106 rejects a chunk beyond the 16 MiB snapshot budget without contacting S3', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch');
     const writer = storage().createMultipartWriter({
