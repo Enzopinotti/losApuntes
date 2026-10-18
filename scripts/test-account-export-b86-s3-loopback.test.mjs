@@ -528,6 +528,32 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
   });
 });
 
+test('B109 signed HTTP rejects ignored Range before buffering a large private object', async () => {
+  await withLoopback({}, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.alloc(64 * 1024 + 1, 0x71);
+    await writer.write(bytes);
+    await writer.complete();
+    await assert.rejects(storage.readPrefix(OBJECT_KEY, 8),
+      /S3 returned more bytes than the requested prefix/u);
+    assert.deepEqual(objects.get(PATH), bytes);
+    assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+    assert.equal(calls.some(call => call.method === 'DELETE'), false);
+  });
+});
+
+test('B109 signed HTTP returns exact small prefix from a compatible provider', async () => {
+  await withLoopback({}, async ({ storage, calls, objects }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.from('%PDF-1.7');
+    await writer.write(bytes);
+    await writer.complete();
+    assert.deepEqual(await storage.readPrefix(OBJECT_KEY, bytes.byteLength), bytes);
+    assert.deepEqual(objects.get(PATH), bytes);
+    assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+  });
+});
+
 test('B108 signed HTTP rejects malformed UploadPart ETags with ID-only abort', async () => {
   for (const partEtag of ['"unbalanced', 'unbalanced"', 'x'.repeat(300)]) {
     await withLoopback({ partEtag }, async ({ storage, calls, objects, uploads }) => {
