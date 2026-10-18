@@ -1,3 +1,5 @@
+import { expectedS3PrefixBytes } from './s3-prefix-content-range';
+
 /**
  * Read an S3 Range GET incrementally. A provider/proxy may ignore Range and
  * stream an arbitrarily large HTTP 200/206 body. Calling arrayBuffer() first
@@ -7,22 +9,39 @@
  * fetch; reject it before retaining/copying it, then cancel the stream.
  */
 export async function readBoundedS3PrefixBody(
-  response: Pick<Response, 'body'>,
+  response: Pick<Response, 'body'> & Partial<Pick<Response, 'status' | 'headers'>>,
   maximumBytes: number,
 ): Promise<Uint8Array> {
   if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1) {
     throw new Error('maximumBytes must be a positive integer');
   }
-  if (!response.body) return new Uint8Array();
-
-  const reader = response.body.getReader();
+  const reader = response.body?.getReader();
+  // Accept 200 (full object bounded by maximumBytes), but HTTP 206 must
+  // identify the exact byte-0 window of the requested prefix.
+  // Check inside try so an invalid response cancels the provider body.
   const chunks: Uint8Array[] = [];
   let total = 0;
   let finished = false;
   try {
+    const expectedBytes = response.status === undefined
+      ? null
+      : expectedS3PrefixBytes(
+          response.status,
+          response.headers?.get('content-range') ?? null,
+          maximumBytes,
+        );
+    if (!reader) {
+      if (expectedBytes !== null) {
+        throw new Error('S3 GET prefix returned a truncated Content-Range body');
+      }
+      return new Uint8Array();
+    }
     while (true) {
       const { value, done } = await reader.read();
       if (done) {
+        if (expectedBytes !== null && total !== expectedBytes) {
+          throw new Error('S3 GET prefix returned a truncated Content-Range body');
+        }
         finished = true;
         break;
       }
@@ -48,11 +67,12 @@ export async function readBoundedS3PrefixBody(
     }
     return result;
   } finally {
-    if (!finished) {
-      // Never let best-effort cancellation replace the real transport,
-      // invalid-chunk or over-budget error.
-      await reader.cancel().catch(() => undefined);
+    if (reader) {
+      if (!finished) {
+        // Never mask the original range, transport or body-length error.
+        await reader.cancel().catch(() => undefined);
+      }
+      reader.releaseLock();
     }
-    reader.releaseLock();
   }
 }

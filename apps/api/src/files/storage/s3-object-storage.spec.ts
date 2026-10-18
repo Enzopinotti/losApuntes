@@ -185,10 +185,12 @@ describe('S3ObjectStorage', () => {
     const fetchSpy = jest
       .spyOn(global, 'fetch')
       .mockResolvedValueOnce(
-        new Response(Buffer.from('%PDF-1.7'), { status: 206 }),
+        new Response(Buffer.from('%PDF-1.7'), {
+          status: 206, headers: { 'content-range': 'bytes 0-7/8' },
+        }),
       )
       .mockResolvedValueOnce(
-        new Response(Buffer.from('123456789'), { status: 206 }),
+        new Response(Buffer.from('123456789'), { status: 200 }),
       )
       .mockResolvedValueOnce(new Response(null, { status: 500 }));
 
@@ -209,9 +211,54 @@ describe('S3ObjectStorage', () => {
     );
   });
 
+  it('B111 rejects HTTP 206 that reports a foreign offset or partial wrong window', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(Buffer.from('12345678'), {
+        status: 206, headers: { 'content-range': 'bytes 1-8/100' },
+      }))
+      .mockResolvedValueOnce(new Response(Buffer.from('1234'), {
+        status: 206, headers: { 'content-range': 'bytes 0-3/100' },
+      }));
+    await expect(storage().readPrefix('b111-foreign', 8))
+      .rejects.toThrow('S3 GET prefix returned a mismatched Content-Range');
+    await expect(storage().readPrefix('b111-short-window', 8))
+      .rejects.toThrow('S3 GET prefix returned a mismatched Content-Range');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('B111 rejects truncated HTTP 206 body and absent Content-Range', async () => {
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(Buffer.from('1234'), {
+        status: 206, headers: { 'content-range': 'bytes 0-7/100' },
+      }))
+      .mockResolvedValueOnce(new Response(Buffer.from('12345678'), {
+        status: 206,
+      }));
+    await expect(storage().readPrefix('b111-truncated', 8))
+      .rejects.toThrow('S3 GET prefix returned a truncated Content-Range body');
+    await expect(storage().readPrefix('b111-unbound', 8))
+      .rejects.toThrow('S3 GET prefix returned an invalid Content-Range');
+  });
+
+  it('B111 accepts HTTP 206 on a shorter complete object and HTTP 200 small body', async () => {
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(Buffer.from('%PDF'), {
+        status: 206, headers: { 'content-range': 'bytes 0-3/4' },
+      }))
+      .mockResolvedValueOnce(new Response(Buffer.from('%PDF'), {
+        status: 200,
+      }));
+    await expect(storage().readPrefix('b111-short-object', 8))
+      .resolves.toEqual(new Uint8Array(Buffer.from('%PDF')));
+    await expect(storage().readPrefix('b111-200-compat', 8))
+      .resolves.toEqual(new Uint8Array(Buffer.from('%PDF')));
+  });
+
   it('B110 signs the exact Range value requested by the prefix GET', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
-      .mockResolvedValueOnce(new Response(Buffer.from('%PDF-1.7'), { status: 206 }));
+      .mockResolvedValueOnce(new Response(Buffer.from('%PDF-1.7'), {
+          status: 206, headers: { 'content-range': 'bytes 0-7/8' },
+        }));
     await expect(storage().readPrefix('exports/owner/b110.pdf', 8))
       .resolves.toEqual(new Uint8Array(Buffer.from('%PDF-1.7')));
     const headers = new Headers(fetchSpy.mock.calls[0]?.[1]?.headers);
@@ -269,7 +316,7 @@ describe('S3ObjectStorage', () => {
       cancel() { cancelled++; },
     });
     jest.spyOn(global, 'fetch')
-      .mockResolvedValueOnce(new Response(body, { status: 206 }));
+      .mockResolvedValueOnce(new Response(body, { status: 200 }));
     await expect(storage().readPrefix('exports/private/b109-progressive.pdf', 8))
       .rejects.toThrow('S3 returned more bytes than the requested prefix');
     expect(cancelled).toBe(1);
@@ -277,7 +324,9 @@ describe('S3ObjectStorage', () => {
 
   it('B109 retains exact-byte prefix output and accepts an empty response body', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
-      .mockResolvedValueOnce(new Response(Buffer.from('%PDF-1.7'), { status: 206 }))
+      .mockResolvedValueOnce(new Response(Buffer.from('%PDF-1.7'), {
+          status: 206, headers: { 'content-range': 'bytes 0-7/8' },
+        }))
       .mockResolvedValueOnce(new Response(null, { status: 200 }));
     await expect(storage().readPrefix('b109-valid.pdf', 8))
       .resolves.toEqual(new Uint8Array(Buffer.from('%PDF-1.7')));

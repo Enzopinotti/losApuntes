@@ -124,6 +124,19 @@ async function withLoopback(input, scenario) {
         if (fault === '404' || !obj) {
           response.writeHead(404); response.end(); return;
         }
+        // B111: simulate HTTP 206 metadata *after* validating SigV4.
+        // A bad Content-Range must not cause a different byte window to be
+        // accepted as the start of a private object.
+        if (input.prefixResponse && request.headers.range) {
+          const reply = input.prefixResponse;
+          response.writeHead(reply.status ?? 206, {
+            'content-type': CONTENT_TYPE,
+            ...(reply.contentRange === null ? {} :
+              { 'content-range': reply.contentRange }),
+          });
+          response.end(reply.body ?? obj);
+          return;
+        }
         const delivered = Buffer.from(obj);
         if (fault === 'corrupt') {
           delivered[Math.floor(delivered.length / 2)] ^= 0x01;
@@ -529,6 +542,39 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B111 signed HTTP confirms exact byte-zero Content-Range and smaller object', async () => {
+  await withLoopback({ prefixResponse: {
+    contentRange: 'bytes 0-3/4', body: Buffer.from('%PDF'),
+  } }, async ({ storage, calls }) => {
+    const writer = newWriter(storage);
+    await writer.write(Buffer.from('%PDF'));
+    await writer.complete();
+    assert.deepEqual(await storage.readPrefix(OBJECT_KEY, 8), Buffer.from('%PDF'));
+    assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+    assert.equal(calls.some(call => call.method === 'DELETE'), false);
+  });
+});
+
+test('B111 signed HTTP refuses foreign and truncated HTTP 206 ranges', async () => {
+  for (const prefixResponse of [
+    { contentRange: 'bytes 1-8/100', body: Buffer.from('12345678') },
+    { contentRange: 'bytes 0-7/100', body: Buffer.from('123') },
+    { contentRange: null, body: Buffer.from('12345678') },
+  ]) {
+    await withLoopback({ prefixResponse }, async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('12345678');
+      await writer.write(bytes);
+      await writer.complete();
+      await assert.rejects(storage.readPrefix(OBJECT_KEY, 8),
+        /Content-Range/u);
+      assert.deepEqual(objects.get(PATH), bytes);
+      assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
+      assert.equal(calls.some(call => call.method === 'DELETE'), false);
+    });
+  }
 });
 
 test('B110 signed HTTP binds requested Range to SigV4 and rejects tampering', async () => {
