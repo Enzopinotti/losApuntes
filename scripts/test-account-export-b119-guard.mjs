@@ -65,21 +65,21 @@ check('B119 signed fixture exercises 200 with invalid ETag and never deletes pri
   assert.match(http, /calls\.some\(call => call\.method === 'DELETE'\), false/u);
 });
 
-check('B119 complete signed inventory is 59 unique tests including two B119 cases', () => {
+check('B119 complete signed inventory is 61 unique tests including two B119 cases', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(match => match[1]);
-  assert.equal(names.length, 59);
-  assert.equal(new Set(names).size, 59);
+  assert.equal(names.length, 61);
+  assert.equal(new Set(names).size, 61);
   assert.equal(names.filter(name => name.startsWith('B119 ')).length, 2);
   assert.equal(names.filter(name => name.startsWith('B117 ')).length, 4);
-  assert.match(runner, /expectedNames\.length < 59/u);
-  assert.match(runner, /'B117 ', 'B119 '/u);
+  assert.match(runner, /expectedNames\.length < 61/u);
+  assert.match(runner, /'B117 ', 'B119 ', 'B120 '/u);
 });
 
-check('B119 local proof cannot mistake 57/57 for the new 59-case acceptance', () => {
-  assert.match(proof, /names\.length !== 59/u);
-  assert.match(proof, /markers\[0\]\[1\] !== '59'/u);
-  assert.match(proof, /total: 59/u);
-  assert.match(proof, /passed: 59/u);
+check('B119 local proof cannot mistake 57/57 for the new 61-case acceptance', () => {
+  assert.match(proof, /names\.length !== 61/u);
+  assert.match(proof, /markers\[0\]\[1\] !== '61'/u);
+  assert.match(proof, /total: 61/u);
+  assert.match(proof, /passed: 61/u);
 });
 
 check('B119 commands and release HOLD stay intact', () => {
