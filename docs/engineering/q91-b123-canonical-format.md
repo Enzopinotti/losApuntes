@@ -14,3 +14,9 @@ The B116 [global verify #39138147814](https://github.com/Enzopinotti/losApuntes/
 - **Delete this write-enabled workflow immediately after the formatting run.** Permanent read-only exact-HEAD checks must retest the four B123 Jest suites, B115/B116 integrity source tests, API/Web types and global `verify` on the new SHA. A formatter PASS is not a release qualification. Full API lint, privacy, B122 Mongo real-replica evidence, and the governed dependency audit remain separate required gates.
 
 Do not claim all ten critical coverage jobs PASS on the new SHA until `verify` actually reports it. Release #353 remains **HOLD**; Account Export stays at format v1, Study Progress disabled by default. No main merge or production deployment from this carrier.
+
+## Verified formatter execution and permission retirement
+
+[Q91 one-time formatter #39152326315](https://github.com/Enzopinotti/losApuntes/actions/runs/39152326315) completed **SUCCESS** with exact SHA and frozen toolchain. It produced two distinct atomic formatting commits: `53c418a101fc8cd56faef6c45bc15dfe04b11a7b` (API) and `eac2a9114bb74be27067cf47a5900341a73f1ea7` (Web). The exact Git comparison to the initial helper HEAD shows **58 API and 10 Web files** and no other paths. Pinned API, Web and Mobile `format:check` passed on that formatted tree.
+
+This candidate now **deletes the temporary `contents: write` workflow**, replacing it with `q91-canonical-readonly.yml` (read-only exact-head formatting/typecheck/Web lint, B123 Jest, B115/B116 S3 guards and executable tests, and mandatory full API strict lint). All results must be remeasured on the SHA containing this deletion. Global verify/security audit are not waived or represented by the focused gate.

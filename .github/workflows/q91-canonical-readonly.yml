@@ -1,0 +1,138 @@
+name: Q91 current-main canonical quality acceptance
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/q91-canonical-readonly.yml"
+      - "docs/engineering/q91-b123-canonical-format.md"
+      - "apps/api/src/**"
+      - "apps/api/test/**"
+      - "apps/web/src/**"
+      - "apps/web/vite.config.ts"
+      - "apps/web/release-manifest.ts"
+permissions:
+  contents: read
+concurrency:
+  group: q91-readonly-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  format-and-types:
+    name: Exact HEAD all-format plus full API/Web types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Repository canonical formatting
+        run: |
+          pnpm --filter @losapuntes/api format:check
+          pnpm --filter @losapuntes/web format:check
+          pnpm --filter @losapuntes/mobile format:check
+      - name: Full API and Web TypeScript
+        run: |
+          pnpm --filter @losapuntes/api check:types
+          pnpm --filter @losapuntes/web check:types
+      - name: Full Web lint
+        run: pnpm --filter @losapuntes/web lint
+
+  b123-regression:
+    name: B123 four critical Jest suites exact-head
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Four repaired B123 Jest suites with open-handle detection
+        run: |
+          pnpm --filter @losapuntes/api test:ci --runTestsByPath \
+            src/files/storage/s3-object-storage.spec.ts \
+            src/data-lifecycle/data-lifecycle.module.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            src/study-collections/domain/study-collection.service.spec.ts \
+            --passWithNoTests=false --detectOpenHandles
+
+  s3-integrity:
+    name: B115 B116 S3 integrity source and Node unit contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: B115 B116 contract guards
+        run: |
+          node scripts/test-account-export-b115-guard.mjs
+          node scripts/test-account-export-b116-guard.mjs
+      - name: B115 B116 executable integrity oracles
+        run: |
+          node --test scripts/test-account-export-b115-full-get-length.test.mjs scripts/test-account-export-b116-head.test.mjs
+
+  strict-api-lint:
+    name: Full API strict lint mandatory debt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Full strict API lint without exceptions
+        run: pnpm --filter @losapuntes/api lint
