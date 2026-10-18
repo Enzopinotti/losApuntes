@@ -30,7 +30,12 @@ function fixture(input: { active?: unknown } = {}) {
       .mockReturnValue(claimQuery),
     findOne: jest.fn(() => findQuery),
     find: jest.fn(() => expiredQuery),
-    updateOne: jest.fn(() => updateQuery),
+    updateOne: jest.fn(
+      (...args: [filter: unknown, update: unknown, options?: unknown]) => {
+        void args;
+        return updateQuery;
+      },
+    ),
     exists: jest.fn().mockResolvedValue(null),
   };
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
@@ -45,7 +50,14 @@ function fixture(input: { active?: unknown } = {}) {
   };
   const connection = { startSession: jest.fn().mockResolvedValue(session) };
   const orphanWrite = query({ matchedCount: 0, modifiedCount: 0, upsertedCount: 1 });
-  const orphanCleanup = { updateOne: jest.fn(() => orphanWrite) };
+  const orphanCleanup = {
+    updateOne: jest.fn(
+      (...args: [filter: unknown, update: unknown, options?: unknown]) => {
+        void args;
+        return orphanWrite;
+      },
+    ),
+  };
   const store = new MongoAccountExportStore(
     jobs as never, users as never, connection as never,
     orphanCleanup as never,
@@ -368,13 +380,25 @@ describe('MongoAccountExportStore', () => {
       now, claimId: 'new-generation',
       leaseExpiresAt: new Date(now.getTime() + 120_000),
     });
-    const write = f.orphanCleanup.updateOne.mock.calls[0][1] as {
-      $setOnInsert: { nextAttemptAt: Date; verificationUntil: Date };
-    };
-    expect(write.$setOnInsert.nextAttemptAt.getTime())
+    const write: unknown = f.orphanCleanup.updateOne.mock.calls[0]?.[1];
+    if (write === null || typeof write !== 'object' || !('$setOnInsert' in write)) {
+      throw new Error('Expected an orphan write-ahead update');
+    }
+    const dates: unknown = write.$setOnInsert;
+    if (
+      dates === null ||
+      typeof dates !== 'object' ||
+      !('nextAttemptAt' in dates) ||
+      !('verificationUntil' in dates) ||
+      !(dates.nextAttemptAt instanceof Date) ||
+      !(dates.verificationUntil instanceof Date)
+    ) {
+      throw new Error('Expected valid write-ahead lease dates');
+    }
+    expect(dates.nextAttemptAt.getTime())
       .toBeGreaterThan(now.getTime() + 120_000);
-    expect(write.$setOnInsert.verificationUntil.getTime())
-      .toBeGreaterThan(write.$setOnInsert.nextAttemptAt.getTime());
+    expect(dates.verificationUntil.getTime())
+      .toBeGreaterThan(dates.nextAttemptAt.getTime());
   });
 
   it('B74 atomically queues the previous attempt before returning an expired-lease takeover', async () => {
