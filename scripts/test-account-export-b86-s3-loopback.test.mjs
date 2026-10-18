@@ -132,7 +132,10 @@ async function withLoopback(input, scenario) {
         const reply = input.headReply ?? {};
         const status = reply.status ?? (obj ? 200 : 404);
         const headers = {
-          ...(status === 200 ? { 'content-type': CONTENT_TYPE, etag: '"b117-etag"' } : {}),
+          ...(status === 200 ? {
+            'content-type': CONTENT_TYPE,
+            ...(reply.omitEtag ? {} : { etag: reply.etag ?? '"b117-etag"' }),
+          } : {}),
           ...(obj && status !== 404 && status !== 204 && !reply.omitLength
             ? { 'content-length': reply.contentLength ?? String(obj.byteLength) } : {}),
         };
@@ -580,6 +583,46 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B119 signed HEAD rejects malformed present ETags without deleting private bytes', async () => {
+  for (const etag of ['"unbalanced', 'unbalanced"', '"bad"inside"', 'bad etag',
+    'x'.repeat(255)]) {
+    await withLoopback({ headReply: { status: 200, etag } },
+      async ({ storage, objects, calls }) => {
+        const writer = newWriter(storage);
+        const bytes = Buffer.from('{"b119":"private-head-etag"}');
+        await writer.write(bytes);
+        await writer.complete();
+        await assert.rejects(storage.headObject(OBJECT_KEY),
+          /S3 HEAD returned an invalid ETag/u);
+        assert.deepEqual(objects.get(PATH), bytes);
+        assert.deepEqual(calls.map(call => call.method), ['PUT', 'HEAD']);
+        assert.equal(calls.some(call => call.method === 'DELETE'), false);
+      });
+  }
+});
+
+test('B119 signed HEAD preserves balanced opaque tokens and optional missing ETag', async () => {
+  for (const headReply of [
+    { status: 200, etag: '"abcd0123-2"' },
+    { status: 200, etag: 'opaque-compatible' },
+    { status: 200, omitEtag: true },
+  ]) {
+    await withLoopback({ headReply }, async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('{"b119":"compatible-head"}');
+      await writer.write(bytes);
+      await writer.complete();
+      const result = await storage.headObject(OBJECT_KEY);
+      assert.equal(result?.byteSize, bytes.length);
+      assert.equal(result?.contentType, CONTENT_TYPE);
+      assert.equal(result?.etag, headReply.omitEtag ? null :
+        headReply.etag.replace(/^"|"$/gu, ''));
+      assert.deepEqual(objects.get(PATH), bytes);
+      assert.deepEqual(calls.map(call => call.method), ['PUT', 'HEAD']);
+    });
+  }
 });
 
 test('B117 signed HEAD confirms exact private metadata and returns 404 after deletion', async () => {
