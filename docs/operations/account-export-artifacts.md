@@ -1336,3 +1336,39 @@ no se ejecutaron aquí.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`, sin CI manual
 ni despliegue.
+
+## B109 — Lectura acotada del prefijo GET Range S3
+
+Se detectó que `S3ObjectStorage.readPrefix()` enviaba un GET Range
+firmado correctamente, pero llamaba a `response.arrayBuffer()`
+**antes** de comprobar `maximumBytes`. Un proveedor que ignorase
+Range podía obligar a descargar un archivo enorme incluso
+al solicitar un prefijo de pocos bytes.
+
+B109 reemplaza el buffering completo por
+`readBoundedS3PrefixBody()`: lectura incremental sobre el stream,
+verificación de cota **antes de copiar cada chunk**, cancelación
+de la respuesta ante overflow o fallo, resultado de bytes exactos,
+chunks vacíos descartados para que no acumulen referencias.
+Se mantiene el GET firmado SigV4 y la compatibilidad de
+respuesta vacía. El límite se aplica a los bytes retenidos por
+el helper; no impide que un chunk se materialice previamente
+en el cliente HTTP.
+
+**Evidencia:** 8/8 pruebas `node:test` reales de la función
+TypeScript en Node22.16.0, con archivos cotejados por SHA Git.
+Tres casos Jest del adaptador y dos TCP SigV4 B87 agregados;
+inventario firmado obligatorio **38 casos B86–B109**,
+no ejecutado en Node24 todavía.
+
+Ejecutar en checkout canónico:
+- `pnpm test:account-export-b109-bounded-prefix`
+- `pnpm test:account-export-b107-release-acceptance` (**Node24 obligatorio**)
+- `pnpm test:account-lifecycle-contract`
+
+Quedan sin aprobación: 38 escenarios TCP reales en Node24/pnpm9,
+Nest/Jest, typecheck/lint, Mongo replica B94,
+S3/MinIO con IAM/lifecycle, backup/restore y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción,
+sin CI manual ni despliegue.
