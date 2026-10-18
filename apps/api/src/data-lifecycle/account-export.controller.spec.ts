@@ -88,26 +88,39 @@ describe('AccountExportController', () => {
     const sha256 = digest(bytes);
     f.exports.download.mockResolvedValue({
       kind: 'available',
-      formatVersion: 1, generation, byteLength: bytes.length, sha256,
+      formatVersion: 1,
+      generation,
+      byteLength: bytes.length,
+      sha256,
     });
     let release!: () => void;
-    const preflightBlocked = new Promise<void>((resolve) => { release = resolve; });
+    const preflightBlocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     f.artifacts.verifyReadable.mockImplementationOnce(async () => {
       await preflightBlocked;
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
-      (async function* () { yield bytes; })(),
+      (async function* () {
+        yield bytes;
+      })(),
     );
     const raw = Object.assign(new EventEmitter(), {
-      destroyed: false, writableFinished: false,
+      destroyed: false,
+      writableFinished: false,
     });
     const reply = {
       raw,
-      header: jest.fn<unknown, [name: string, value: string | number]>()
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
         .mockReturnThis(),
       send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
-    const downloading = f.controller.download(f.request, exportId, reply as never);
+    const downloading = f.controller.download(
+      f.request,
+      exportId,
+      reply as never,
+    );
     await Promise.resolve();
     await Promise.resolve();
     expect(reply.header).not.toHaveBeenCalled();
@@ -116,7 +129,9 @@ describe('AccountExportController', () => {
     release();
     await downloading;
     expect(f.artifacts.verifyReadable).toHaveBeenCalledWith(
-      exportId, generation, { byteLength: bytes.length, sha256 },
+      exportId,
+      generation,
+      { byteLength: bytes.length, sha256 },
       expect.any(AbortSignal),
     );
     expect(f.artifacts.readObjectChunks).toHaveBeenCalledTimes(1);
@@ -131,26 +146,35 @@ describe('AccountExportController', () => {
       const f = fixture();
       const generation = '123e4567-e89b-42d3-a456-426614174001';
       f.exports.download.mockResolvedValue({
-        kind: 'available', formatVersion: 3, generation,
-        byteLength: 128, sha256: 'a'.repeat(64),
+        kind: 'available',
+        formatVersion: 3,
+        generation,
+        byteLength: 128,
+        sha256: 'a'.repeat(64),
       });
       f.artifacts.verifyReadable.mockRejectedValueOnce(
-        new Error('provider internal object key exports/secret-user/stale.json'),
+        new Error(
+          'provider internal object key exports/secret-user/stale.json',
+        ),
       );
       const raw = Object.assign(new EventEmitter(), {
-        destroyed: false, writableFinished: false,
+        destroyed: false,
+        writableFinished: false,
       });
       const reply = {
         raw,
-        header: jest.fn<unknown, [name: string, value: string | number]>()
+        header: jest
+          .fn<unknown, [name: string, value: string | number]>()
           .mockReturnThis(),
         send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
       };
-      const caught = await f.controller.download(
-        f.request, exportId, reply as never,
-      ).catch((error: unknown) => error);
+      const caught = await f.controller
+        .download(f.request, exportId, reply as never)
+        .catch((error: unknown) => error);
       expect(caught).toBeInstanceOf(ServiceUnavailableException);
-      const message = JSON.stringify((caught as ServiceUnavailableException).getResponse());
+      const message = JSON.stringify(
+        (caught as ServiceUnavailableException).getResponse(),
+      );
       expect(message).toContain('ACCOUNT_EXPORT_STORAGE_UNAVAILABLE');
       expect(message).not.toContain('secret-user');
       expect(reply.header).not.toHaveBeenCalled();
@@ -164,9 +188,11 @@ describe('AccountExportController', () => {
   it('B91 aborts a disconnected client during S3 preflight without starting download', async () => {
     const f = fixture();
     f.exports.download.mockResolvedValue({
-      kind: 'available', formatVersion: 1,
+      kind: 'available',
+      formatVersion: 1,
       generation: '123e4567-e89b-42d3-a456-426614174001',
-      byteLength: 1, sha256: digest('x'),
+      byteLength: 1,
+      sha256: digest('x'),
     });
     let observedSignal: AbortSignal | undefined;
     f.artifacts.verifyReadable.mockImplementationOnce(
@@ -178,11 +204,13 @@ describe('AccountExportController', () => {
       },
     );
     const raw = Object.assign(new EventEmitter(), {
-      destroyed: false, writableFinished: false,
+      destroyed: false,
+      writableFinished: false,
     });
     const reply = {
       raw,
-      header: jest.fn<unknown, [name: string, value: string | number]>()
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
         .mockReturnThis(),
       send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
@@ -207,13 +235,16 @@ describe('AccountExportController', () => {
       const f = fixture();
       f.exports.download
         .mockResolvedValueOnce({
-          kind: 'available', formatVersion: 1,
+          kind: 'available',
+          formatVersion: 1,
           generation: '123e4567-e89b-42d3-a456-426614174001',
-          byteLength: 1, sha256: digest('x'),
+          byteLength: 1,
+          sha256: digest('x'),
         })
         .mockResolvedValueOnce({ kind });
       const raw = Object.assign(new EventEmitter(), {
-        destroyed: false, writableFinished: false,
+        destroyed: false,
+        writableFinished: false,
       });
       const reply = {
         raw,
@@ -237,48 +268,60 @@ describe('AccountExportController', () => {
     [{ byteLength: 99 }, 'size'],
     [{ sha256: 'b'.repeat(64) }, 'digest'],
     [{ formatVersion: 2 }, 'version'],
-  ] as const)('B92 refuses a changed %s after preflight with a safe 409', async (changes) => {
-    const f = fixture();
-    const original = {
-      kind: 'available' as const, formatVersion: 1 as const,
-      generation: '123e4567-e89b-42d3-a456-426614174001',
-      byteLength: 64, sha256: 'a'.repeat(64),
-    };
-    f.exports.download
-      .mockResolvedValueOnce(original)
-      .mockResolvedValueOnce({ ...original, ...changes });
-    const raw = Object.assign(new EventEmitter(), {
-      destroyed: false, writableFinished: false,
-    });
-    const reply = {
-      raw,
-      header: jest.fn().mockReturnThis(),
-      send: jest.fn(),
-    };
-    const rejected = await f.controller.download(
-      f.request, exportId, reply as never,
-    ).catch((error: unknown) => error);
-    expect(rejected).toBeInstanceOf(ConflictException);
-    expect(JSON.stringify((rejected as ConflictException).getResponse()))
-      .toContain('ACCOUNT_EXPORT_CHANGED_DURING_VERIFICATION');
-    expect(reply.header).not.toHaveBeenCalled();
-    expect(reply.send).not.toHaveBeenCalled();
-    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
-  });
+  ] as const)(
+    'B92 refuses a changed %s after preflight with a safe 409',
+    async (changes) => {
+      const f = fixture();
+      const original = {
+        kind: 'available' as const,
+        formatVersion: 1 as const,
+        generation: '123e4567-e89b-42d3-a456-426614174001',
+        byteLength: 64,
+        sha256: 'a'.repeat(64),
+      };
+      f.exports.download
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce({ ...original, ...changes });
+      const raw = Object.assign(new EventEmitter(), {
+        destroyed: false,
+        writableFinished: false,
+      });
+      const reply = {
+        raw,
+        header: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+      const rejected = await f.controller
+        .download(f.request, exportId, reply as never)
+        .catch((error: unknown) => error);
+      expect(rejected).toBeInstanceOf(ConflictException);
+      expect(
+        JSON.stringify((rejected as ConflictException).getResponse()),
+      ).toContain('ACCOUNT_EXPORT_CHANGED_DURING_VERIFICATION');
+      expect(reply.header).not.toHaveBeenCalled();
+      expect(reply.send).not.toHaveBeenCalled();
+      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+    },
+  );
 
   it('B92 owner revocation during preflight keeps service authorization error', async () => {
     const f = fixture();
     f.exports.download
       .mockResolvedValueOnce({
-        kind: 'available', formatVersion: 1,
+        kind: 'available',
+        formatVersion: 1,
         generation: '123e4567-e89b-42d3-a456-426614174001',
-        byteLength: 1, sha256: digest('x'),
+        byteLength: 1,
+        sha256: digest('x'),
       })
-      .mockRejectedValueOnce(new ForbiddenException({
-        code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
-      }));
+      .mockRejectedValueOnce(
+        new ForbiddenException({
+          code: 'ACCOUNT_EXPORT_ACCOUNT_INACTIVE',
+        }),
+      );
     const raw = Object.assign(new EventEmitter(), {
-      destroyed: false, writableFinished: false,
+      destroyed: false,
+      writableFinished: false,
     });
     const reply = {
       raw,
@@ -296,29 +339,40 @@ describe('AccountExportController', () => {
   it('B92 does not send if connection closes while Mongo reauthorization is pending', async () => {
     const f = fixture();
     const original = {
-      kind: 'available' as const, formatVersion: 1 as const,
+      kind: 'available' as const,
+      formatVersion: 1 as const,
       generation: '123e4567-e89b-42d3-a456-426614174001',
-      byteLength: 1, sha256: digest('x'),
+      byteLength: 1,
+      sha256: digest('x'),
     };
     let resume!: (value: typeof original) => void;
-    const rechecked = new Promise<typeof original>((resolve) => { resume = resolve; });
+    const rechecked = new Promise<typeof original>((resolve) => {
+      resume = resolve;
+    });
     f.exports.download
       .mockResolvedValueOnce(original)
       .mockReturnValueOnce(rechecked);
     const raw = Object.assign(new EventEmitter(), {
-      destroyed: false, writableFinished: false,
+      destroyed: false,
+      writableFinished: false,
     });
     const reply = {
       raw,
       header: jest.fn().mockReturnThis(),
       send: jest.fn(),
     };
-    const downloading = f.controller.download(f.request, exportId, reply as never);
+    const downloading = f.controller.download(
+      f.request,
+      exportId,
+      reply as never,
+    );
     await Promise.resolve();
     await Promise.resolve();
     raw.emit('close');
     resume(original);
-    await expect(downloading).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(downloading).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
     expect(reply.header).not.toHaveBeenCalled();
     expect(reply.send).not.toHaveBeenCalled();
   });
@@ -353,7 +407,8 @@ describe('AccountExportController', () => {
     raw.emit('finish');
 
     expect(f.exports.download.mock.calls).toEqual([
-      ['owner-1', exportId], ['owner-1', exportId],
+      ['owner-1', exportId],
+      ['owner-1', exportId],
     ]);
     expect(reply.header).toHaveBeenCalledWith(
       'content-type',
@@ -495,7 +550,10 @@ describe('AccountExportController', () => {
   });
   it('names an owner-authorized v2 artifact as v2, not legacy v1', async () => {
     const f = fixture();
-    const content = Buffer.from('{"format":"los-apuntes-account-export","version":2}', 'utf8');
+    const content = Buffer.from(
+      '{"format":"los-apuntes-account-export","version":2}',
+      'utf8',
+    );
     f.exports.download.mockResolvedValue({
       kind: 'available',
       formatVersion: 2,
@@ -504,20 +562,27 @@ describe('AccountExportController', () => {
       sha256: digest(content),
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
-      (async function* () { yield content; })(),
+      (async function* () {
+        yield content;
+      })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
     const reply = {
       raw,
-      header: jest.fn<unknown,[name:string,value:string|number]>().mockReturnThis(),
-      send: jest.fn<unknown,[payload:unknown]>().mockReturnThis(),
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await f.controller.download(f.request, exportId, reply as never);
     expect(reply.header).toHaveBeenCalledWith(
       'content-disposition',
       'attachment; filename="los-apuntes-account-export-v2.json"',
     );
-    expect(reply.header).toHaveBeenCalledWith('cache-control', 'private, no-store');
+    expect(reply.header).toHaveBeenCalledWith(
+      'cache-control',
+      'private, no-store',
+    );
     raw.emit('finish');
   });
 
@@ -531,12 +596,16 @@ describe('AccountExportController', () => {
       sha256: digest('x'),
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
-      (async function* () { yield Buffer.from('x'); })(),
+      (async function* () {
+        yield Buffer.from('x');
+      })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
     const reply = {
       raw,
-      header: jest.fn<unknown, [name: string, value: string | number]>().mockReturnThis(),
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
       send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await f.controller.download(f.request, exportId, reply as never);
@@ -559,13 +628,14 @@ describe('AccountExportController', () => {
       sha256: 'a'.repeat(64),
     });
     const reply = {
-      header: jest.fn<unknown,[name:string,value:string|number]>().mockReturnThis(),
-      send: jest.fn<unknown,[payload:unknown]>().mockReturnThis(),
+      header: jest
+        .fn<unknown, [name: string, value: string | number]>()
+        .mockReturnThis(),
+      send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await expect(
       f.controller.download(f.request, exportId, reply as never),
     ).rejects.toThrow();
     expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
   });
-
 });

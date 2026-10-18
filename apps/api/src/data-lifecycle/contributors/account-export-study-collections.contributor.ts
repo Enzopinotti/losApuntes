@@ -12,8 +12,7 @@ import type {
  * download or inspect someone else's resources.
  */
 @Injectable()
-export class StudyCollectionsExportContributor
-  implements AccountExportContributor {
+export class StudyCollectionsExportContributor implements AccountExportContributor {
   readonly sectionId = 'study.collections';
 
   constructor(private readonly collections: StudyCollectionExportReader) {}

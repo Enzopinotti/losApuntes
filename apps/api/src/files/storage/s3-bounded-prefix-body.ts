@@ -9,7 +9,8 @@ import { expectedS3PrefixBytes } from './s3-prefix-content-range';
  * fetch; reject it before retaining/copying it, then cancel the stream.
  */
 export async function readBoundedS3PrefixBody(
-  response: Pick<Response, 'body'> & Partial<Pick<Response, 'status' | 'headers'>>,
+  response: Pick<Response, 'body'> &
+    Partial<Pick<Response, 'status' | 'headers'>>,
   maximumBytes: number,
 ): Promise<Uint8Array> {
   if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1) {
@@ -23,16 +24,19 @@ export async function readBoundedS3PrefixBody(
   let total = 0;
   let finished = false;
   try {
-    const expectedBytes = response.status === undefined
-      ? null
-      : expectedS3PrefixBytes(
-          response.status,
-          response.headers?.get('content-range') ?? null,
-          maximumBytes,
-        );
+    const expectedBytes =
+      response.status === undefined
+        ? null
+        : expectedS3PrefixBytes(
+            response.status,
+            response.headers?.get('content-range') ?? null,
+            maximumBytes,
+          );
     if (!reader) {
       if (expectedBytes !== null) {
-        throw new Error('S3 GET prefix returned a truncated Content-Range body');
+        throw new Error(
+          'S3 GET prefix returned a truncated Content-Range body',
+        );
       }
       return new Uint8Array();
     }
@@ -40,7 +44,9 @@ export async function readBoundedS3PrefixBody(
       const { value, done } = await reader.read();
       if (done) {
         if (expectedBytes !== null && total !== expectedBytes) {
-          throw new Error('S3 GET prefix returned a truncated Content-Range body');
+          throw new Error(
+            'S3 GET prefix returned a truncated Content-Range body',
+          );
         }
         finished = true;
         break;

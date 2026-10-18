@@ -570,7 +570,9 @@ export function createS3ObjectStorage(
         async complete(): Promise<void> {
           if (aborted) throw new Error('S3 multipart writer was aborted');
           if (failed) {
-            throw new Error('S3 multipart writer cannot complete after a failed operation');
+            throw new Error(
+              'S3 multipart writer cannot complete after a failed operation',
+            );
           }
           if (completed) return;
           try {
@@ -619,10 +621,12 @@ export function createS3ObjectStorage(
               throw storageError('Complete multipart upload', response.status);
             }
             const xml = await readBoundedS3MultipartCompletionXml(response);
-            if (!isConfirmedS3MultipartCompletion(xml, {
-              bucket: options.bucket,
-              objectKey: input.objectKey,
-            })) {
+            if (
+              !isConfirmedS3MultipartCompletion(xml, {
+                bucket: options.bucket,
+                objectKey: input.objectKey,
+              })
+            ) {
               throw storageError('Complete multipart upload', response.status);
             }
             uploadId = null;
@@ -684,16 +688,29 @@ export function createS3ObjectStorage(
 
       return {
         write(chunk: Uint8Array): Promise<void> {
-          if (completionRequested || abortRequested || completed || aborted || failed) {
-            return Promise.reject(new Error('S3 multipart writer is no longer writable'));
+          if (
+            completionRequested ||
+            abortRequested ||
+            completed ||
+            aborted ||
+            failed
+          ) {
+            return Promise.reject(
+              new Error('S3 multipart writer is no longer writable'),
+            );
           }
           // Fail closed if backpressure is ignored. Rejection must poison
           // this generation: otherwise complete() could commit only the
           // previously accepted chunks after the caller drops the error.
-          if (chunk.byteLength > maximumQueuedSnapshotBytes - queuedSnapshotBytes ||
-              queuedWriteOperations >= maximumQueuedWriteOperations) {
+          if (
+            chunk.byteLength >
+              maximumQueuedSnapshotBytes - queuedSnapshotBytes ||
+            queuedWriteOperations >= maximumQueuedWriteOperations
+          ) {
             failed = true;
-            return Promise.reject(new Error('S3 multipart writer pending writes exceed limits'));
+            return Promise.reject(
+              new Error('S3 multipart writer pending writes exceed limits'),
+            );
           }
           // Snapshots must own their bytes while another signed PUT awaits an
           // ACK. The counters include the active write as well as queued ones.

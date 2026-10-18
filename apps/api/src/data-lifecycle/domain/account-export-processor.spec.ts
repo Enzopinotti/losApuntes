@@ -62,28 +62,40 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     reschedule: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AccountExportService>;
   const assembler = {
-    writeJsonV3: jest.fn<
-      Promise<AccountExportAssemblyResult>,
-      Parameters<AccountExportAssembler['writeJsonV3']>
-    >().mockImplementation(async (_userId: string, targetSink: AccountExportArtifactSink) => {
-      const v3Result: AccountExportAssemblyResult = {
-        ...result, formatVersion: 3, sectionCount: 32,
-      };
-      await targetSink.write('export-v3');
-      await targetSink.commit(v3Result);
-      return v3Result;
-    }),
-    writeJsonV2: jest.fn<
-      Promise<AccountExportAssemblyResult>,
-      Parameters<AccountExportAssembler['writeJsonV2']>
-    >().mockImplementation(async (_userId: string, targetSink: AccountExportArtifactSink) => {
-      const v2Result: AccountExportAssemblyResult = {
-        ...result, formatVersion: 2, sectionCount: 31,
-      };
-      await targetSink.write('export-v2');
-      await targetSink.commit(v2Result);
-      return v2Result;
-    }),
+    writeJsonV3: jest
+      .fn<
+        Promise<AccountExportAssemblyResult>,
+        Parameters<AccountExportAssembler['writeJsonV3']>
+      >()
+      .mockImplementation(
+        async (_userId: string, targetSink: AccountExportArtifactSink) => {
+          const v3Result: AccountExportAssemblyResult = {
+            ...result,
+            formatVersion: 3,
+            sectionCount: 32,
+          };
+          await targetSink.write('export-v3');
+          await targetSink.commit(v3Result);
+          return v3Result;
+        },
+      ),
+    writeJsonV2: jest
+      .fn<
+        Promise<AccountExportAssemblyResult>,
+        Parameters<AccountExportAssembler['writeJsonV2']>
+      >()
+      .mockImplementation(
+        async (_userId: string, targetSink: AccountExportArtifactSink) => {
+          const v2Result: AccountExportAssemblyResult = {
+            ...result,
+            formatVersion: 2,
+            sectionCount: 31,
+          };
+          await targetSink.write('export-v2');
+          await targetSink.commit(v2Result);
+          return v2Result;
+        },
+      ),
     writeJsonV1: jest
       .fn<
         Promise<AccountExportAssemblyResult>,
@@ -100,9 +112,13 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
   const store = {
     findOwned: jest.fn().mockResolvedValue(null),
     isOwnedArtifactCurrent: jest.fn().mockResolvedValue(false),
-    findForOrphanCleanup: jest.fn().mockResolvedValue(claim({
-      state: 'pending', active: true, claimId: null,
-    })),
+    findForOrphanCleanup: jest.fn().mockResolvedValue(
+      claim({
+        state: 'pending',
+        active: true,
+        claimId: null,
+      }),
+    ),
     fenceExpiredClaimForOrphanCleanup: jest.fn().mockResolvedValue(true),
     findExpiredArtifacts: jest.fn().mockResolvedValue([]),
     retireExpiredArtifact: jest.fn().mockResolvedValue(true),
@@ -127,7 +143,13 @@ function fixture(input: { job?: AccountExportJobRecord | null } = {}) {
     store,
     artifacts,
     orphans,
-    processor: new AccountExportProcessor(exports, assembler, store, artifacts, orphans),
+    processor: new AccountExportProcessor(
+      exports,
+      assembler,
+      store,
+      artifacts,
+      orphans,
+    ),
   };
 }
 
@@ -411,7 +433,9 @@ describe('AccountExportProcessor', () => {
     resolveAssembly(result);
     await jest.advanceTimersByTimeAsync(200);
     await expect(iteration).resolves.toMatchObject({
-      stale: 1, orphanEnqueueRetries: 1, orphanEnqueueRecovered: 1,
+      stale: 1,
+      orphanEnqueueRetries: 1,
+      orphanEnqueueRecovered: 1,
       orphanEnqueueFailures: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -426,11 +450,15 @@ describe('AccountExportProcessor', () => {
       { id: claim().id, generation: claim().claimId!, expiresAt },
     ]);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      expiredRetired: 1, expiredDeleted: 0,
-      expirationRetries: 0, claimed: 0,
+      expiredRetired: 1,
+      expiredDeleted: 0,
+      expirationRetries: 0,
+      claimed: 0,
     });
     expect(f.store.retireExpiredArtifact).toHaveBeenCalledWith({
-      id: claim().id, generation: claim().claimId!, expiresAt,
+      id: claim().id,
+      generation: claim().claimId!,
+      expiresAt,
       now: expect.any(Date),
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -445,8 +473,10 @@ describe('AccountExportProcessor', () => {
     ]);
     f.store.retireExpiredArtifact.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      expiredRetired: 0, expirationStale: 1,
-      expiredDeleted: 0, completed: 1,
+      expiredRetired: 0,
+      expirationStale: 1,
+      expiredDeleted: 0,
+      completed: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.exports.complete).toHaveBeenCalledTimes(1);
@@ -454,9 +484,13 @@ describe('AccountExportProcessor', () => {
 
   it('B72 survives an expired-sweep Mongo read outage and continues new exports', async () => {
     const f = fixture();
-    f.store.findExpiredArtifacts.mockRejectedValueOnce(new Error('Mongo read outage'));
+    f.store.findExpiredArtifacts.mockRejectedValueOnce(
+      new Error('Mongo read outage'),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      expirationRetries: 1, expiredRetired: 0, completed: 1,
+      expirationRetries: 1,
+      expiredRetired: 0,
+      completed: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.exports.complete).toHaveBeenCalledTimes(1);
@@ -472,7 +506,9 @@ describe('AccountExportProcessor', () => {
       new Error('Mongo commit acknowledgement unknown'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      expirationRetries: 1, expiredRetired: 0, completed: 1,
+      expirationRetries: 1,
+      expiredRetired: 0,
+      completed: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
@@ -481,17 +517,22 @@ describe('AccountExportProcessor', () => {
   it('routes a persisted v2 job to the v2 assembler without rewriting its format', async () => {
     const f = fixture({ job: claim({ formatVersion: 2 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, completed: 1, retryScheduled: 0,
+      claimed: 1,
+      completed: 1,
+      retryScheduled: 0,
     });
     expect(f.assembler.writeJsonV1).not.toHaveBeenCalled();
     expect(f.assembler.writeJsonV2).toHaveBeenCalledWith(
-      'owner-1', f.sink, expect.any(Function),
+      'owner-1',
+      f.sink,
+      expect.any(Function),
     );
     expect(f.exports.complete).toHaveBeenCalledWith({
       id: claim().id,
       claimId: claim().claimId,
       result: expect.objectContaining({
-        formatVersion: 2, sectionCount: 31,
+        formatVersion: 2,
+        sectionCount: 31,
       }),
     });
   });
@@ -502,13 +543,16 @@ describe('AccountExportProcessor', () => {
       new Error('Study progress changed during account export'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.sink.abort).toHaveBeenCalled();
     expect(f.exports.complete).not.toHaveBeenCalled();
     expect(f.exports.reschedule).toHaveBeenCalledWith(
       expect.objectContaining({
-        state: 'pending', failureCode: 'EXPORT_ASSEMBLY_RETRY',
+        state: 'pending',
+        failureCode: 'EXPORT_ASSEMBLY_RETRY',
       }),
     );
   });
@@ -519,12 +563,16 @@ describe('AccountExportProcessor', () => {
       new Error('Study progress changed during account export'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 0, failed: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 0,
+      failed: 1,
+      completed: 0,
     });
     expect(f.exports.complete).not.toHaveBeenCalled();
     expect(f.exports.reschedule).toHaveBeenCalledWith(
       expect.objectContaining({
-        state: 'failed', failureCode: 'EXPORT_RETRY_EXHAUSTED',
+        state: 'failed',
+        failureCode: 'EXPORT_RETRY_EXHAUSTED',
       }),
     );
   });
@@ -535,19 +583,26 @@ describe('AccountExportProcessor', () => {
       new Error('Study progress changed during account export'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0, failed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
+      failed: 0,
     });
     expect(f.sink.commit).toHaveBeenCalledTimes(1);
-    expect(f.exports.captureStudyProgressExportEpoch)
-      .toHaveBeenCalledWith('owner-1');
-    expect(f.exports.assertStudyProgressExportEpoch)
-      .toHaveBeenCalledWith('owner-1', 7);
+    expect(f.exports.captureStudyProgressExportEpoch).toHaveBeenCalledWith(
+      'owner-1',
+    );
+    expect(f.exports.assertStudyProgressExportEpoch).toHaveBeenCalledWith(
+      'owner-1',
+      7,
+    );
     expect(f.exports.complete).not.toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.sink.abort).not.toHaveBeenCalled();
     expect(f.exports.reschedule).toHaveBeenCalledWith(
       expect.objectContaining({
-        state: 'pending', failureCode: 'EXPORT_ASSEMBLY_RETRY',
+        state: 'pending',
+        failureCode: 'EXPORT_ASSEMBLY_RETRY',
       }),
     );
   });
@@ -555,11 +610,14 @@ describe('AccountExportProcessor', () => {
   it('B65: preserves committed artifact ordering for a stable v3 epoch', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      completed: 1, retryScheduled: 0,
+      completed: 1,
+      retryScheduled: 0,
     });
     const s3Commit = f.sink.commit.mock.invocationCallOrder[0];
-    const epochRead = f.exports.captureStudyProgressExportEpoch.mock.invocationCallOrder[0];
-    const epochCheck = f.exports.assertStudyProgressExportEpoch.mock.invocationCallOrder[0];
+    const epochRead =
+      f.exports.captureStudyProgressExportEpoch.mock.invocationCallOrder[0];
+    const epochCheck =
+      f.exports.assertStudyProgressExportEpoch.mock.invocationCallOrder[0];
     const durableCommit = f.exports.complete.mock.invocationCallOrder[0];
     expect(epochRead).toBeLessThan(s3Commit);
     expect(s3Commit).toBeLessThan(epochCheck);
@@ -575,7 +633,9 @@ describe('AccountExportProcessor', () => {
       new Error('Mongo orphan queue temporarily unavailable'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.exports.complete).not.toHaveBeenCalled();
@@ -586,9 +646,13 @@ describe('AccountExportProcessor', () => {
 
   it('B65: queues S3 cleanup after a confirmed atomic Mongo epoch rejection', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
-    f.exports.complete.mockRejectedValueOnce(new AccountExportEpochConflictError());
+    f.exports.complete.mockRejectedValueOnce(
+      new AccountExportEpochConflictError(),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, completed: 0, retryScheduled: 1,
+      claimed: 1,
+      completed: 0,
+      retryScheduled: 1,
     });
     expect(f.exports.complete).toHaveBeenCalledTimes(1);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -604,7 +668,8 @@ describe('AccountExportProcessor', () => {
     );
     f.exports.reschedule.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1,
+      completed: 0,
     });
     expect(f.sink.commit).toHaveBeenCalledTimes(1);
     expect(f.exports.complete).toHaveBeenCalledTimes(1);
@@ -616,11 +681,16 @@ describe('AccountExportProcessor', () => {
     overrides: Partial<AccountExportJobRecord> = {},
   ): AccountExportJobRecord {
     return claim({
-      state: 'completed', active: false, claimId: null,
-      formatVersion: 3, completedAt: now,
+      state: 'completed',
+      active: false,
+      claimId: null,
+      formatVersion: 3,
+      completedAt: now,
       artifactGeneration: claim().claimId,
-      artifactSectionCount: 32, artifactRecordCount: 1,
-      artifactByteLength: 64, artifactSha256: 'a'.repeat(64),
+      artifactSectionCount: 32,
+      artifactRecordCount: 1,
+      artifactByteLength: 64,
+      artifactSha256: 'a'.repeat(64),
       ...overrides,
     });
   }
@@ -630,16 +700,23 @@ describe('AccountExportProcessor', () => {
     async (version) => {
       const f = fixture({ job: claim({ formatVersion: version }) });
       f.exports.complete.mockRejectedValueOnce(new Error('commit ack lost'));
-      f.store.findOwned.mockResolvedValueOnce(claim({
-        state: 'completed', active: false, claimId: null,
-        completedAt: now, formatVersion: version,
-        artifactGeneration: claim().claimId,
-        artifactSectionCount: version === 1 ? 30 : 31,
-        artifactRecordCount: 1, artifactByteLength: 64,
-        artifactSha256: 'a'.repeat(64),
-      }));
+      f.store.findOwned.mockResolvedValueOnce(
+        claim({
+          state: 'completed',
+          active: false,
+          claimId: null,
+          completedAt: now,
+          formatVersion: version,
+          artifactGeneration: claim().claimId,
+          artifactSectionCount: version === 1 ? 30 : 31,
+          artifactRecordCount: 1,
+          artifactByteLength: 64,
+          artifactSha256: 'a'.repeat(64),
+        }),
+      );
       await expect(f.processor.runIteration()).resolves.toMatchObject({
-        completed: 1, retryScheduled: 0,
+        completed: 1,
+        retryScheduled: 0,
       });
       expect(f.exports.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
       expect(f.exports.reschedule).not.toHaveBeenCalled();
@@ -654,7 +731,10 @@ describe('AccountExportProcessor', () => {
     );
     f.store.findOwned.mockResolvedValueOnce(completedAttempt());
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, completed: 1, stale: 0, retryScheduled: 0,
+      claimed: 1,
+      completed: 1,
+      stale: 0,
+      retryScheduled: 0,
     });
     expect(f.store.findOwned).toHaveBeenCalledWith(claim().id, 'owner-1');
     expect(f.exports.reschedule).not.toHaveBeenCalled();
@@ -665,10 +745,14 @@ describe('AccountExportProcessor', () => {
   it('B66 rechecks after a lost reschedule CAS and recovers late Mongo completion', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
     f.exports.complete.mockRejectedValueOnce(new Error('response lost'));
-    f.store.findOwned.mockResolvedValueOnce(null).mockResolvedValueOnce(completedAttempt());
+    f.store.findOwned
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(completedAttempt());
     f.exports.reschedule.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, completed: 1, retryScheduled: 0,
+      claimed: 1,
+      completed: 1,
+      retryScheduled: 0,
     });
     expect(f.store.findOwned).toHaveBeenCalledTimes(2);
     expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
@@ -680,22 +764,29 @@ describe('AccountExportProcessor', () => {
     f.exports.complete.mockRejectedValueOnce(new Error('response lost'));
     f.store.findOwned.mockResolvedValue(null);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
-    expect(f.exports.reschedule.mock.invocationCallOrder[0])
-      .toBeLessThan(f.orphans.enqueue.mock.invocationCallOrder[0]);
+    expect(f.exports.reschedule.mock.invocationCallOrder[0]).toBeLessThan(
+      f.orphans.enqueue.mock.invocationCallOrder[0],
+    );
     expect(f.store.findOwned).toHaveBeenCalledTimes(1);
   });
 
   it('B66 preserves S3 when claim outcome is unknown and CAS is lost', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
-    f.exports.complete.mockRejectedValueOnce(new Error('unknown write concern'));
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('unknown write concern'),
+    );
     f.exports.reschedule.mockResolvedValueOnce(false);
     f.store.findOwned.mockResolvedValue(null);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, stale: 1, completed: 0,
+      claimed: 1,
+      stale: 1,
+      completed: 0,
     });
     expect(f.store.findOwned).toHaveBeenCalledTimes(2);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -711,11 +802,14 @@ describe('AccountExportProcessor', () => {
       completedAttempt({ completedAt: null }),
     ]) {
       const f = fixture({ job: claim({ formatVersion: 3 }) });
-      f.exports.complete.mockRejectedValueOnce(new Error('unknown Mongo completion'));
+      f.exports.complete.mockRejectedValueOnce(
+        new Error('unknown Mongo completion'),
+      );
       f.store.findOwned.mockResolvedValue(foreign);
       f.exports.reschedule.mockResolvedValueOnce(false);
       await expect(f.processor.runIteration()).resolves.toMatchObject({
-        stale: 1, completed: 0,
+        stale: 1,
+        completed: 0,
       });
       expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     }
@@ -726,7 +820,9 @@ describe('AccountExportProcessor', () => {
     f.exports.complete.mockRejectedValueOnce(new Error('Mongo timeout'));
     f.store.findOwned.mockRejectedValueOnce(new Error('read unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
   });
@@ -736,8 +832,12 @@ describe('AccountExportProcessor', () => {
     f.exports.complete.mockRejectedValueOnce(
       new Error('Mongo completion acknowledgement unknown'),
     );
-    f.store.findOwned.mockRejectedValueOnce(new Error('Mongo read unavailable'));
-    f.exports.reschedule.mockRejectedValueOnce(new Error('Mongo retry CAS unavailable'));
+    f.store.findOwned.mockRejectedValueOnce(
+      new Error('Mongo read unavailable'),
+    );
+    f.exports.reschedule.mockRejectedValueOnce(
+      new Error('Mongo retry CAS unavailable'),
+    );
     await expect(f.processor.runIteration()).rejects.toThrow(
       'Mongo retry CAS unavailable',
     );
@@ -747,11 +847,15 @@ describe('AccountExportProcessor', () => {
 
   it('B66 preserves S3 if both reconciliation reads are unavailable and CAS loses', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
-    f.exports.complete.mockRejectedValueOnce(new Error('Mongo completion unknown'));
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('Mongo completion unknown'),
+    );
     f.store.findOwned.mockRejectedValue(new Error('Mongo reader unavailable'));
     f.exports.reschedule.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0, retryScheduled: 0,
+      stale: 1,
+      completed: 0,
+      retryScheduled: 0,
     });
     expect(f.store.findOwned).toHaveBeenCalledTimes(2);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -759,11 +863,15 @@ describe('AccountExportProcessor', () => {
 
   it('B66 retains a durable retry outcome when orphan enqueue fails', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
-    f.exports.complete.mockRejectedValueOnce(new Error('Mongo response unknown'));
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('Mongo response unknown'),
+    );
     f.store.findOwned.mockResolvedValue(null);
     f.orphans.enqueue.mockRejectedValueOnce(new Error('S3 not reachable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      retryScheduled: 1, completed: 0, stale: 0,
+      retryScheduled: 1,
+      completed: 0,
+      stale: 0,
     });
     expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -771,10 +879,13 @@ describe('AccountExportProcessor', () => {
 
   it('B66 reconciles unknown completion at retry exhaustion without false failure', async () => {
     const f = fixture({ job: claim({ formatVersion: 3, attempts: 5 }) });
-    f.exports.complete.mockRejectedValueOnce(new Error('lost commit acknowledgement'));
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('lost commit acknowledgement'),
+    );
     f.store.findOwned.mockResolvedValueOnce(completedAttempt());
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      completed: 1, failed: 0,
+      completed: 1,
+      failed: 0,
     });
     expect(f.exports.reschedule).not.toHaveBeenCalled();
   });
@@ -784,7 +895,8 @@ describe('AccountExportProcessor', () => {
     f.exports.complete.mockResolvedValueOnce(false);
     f.orphans.enqueue.mockRejectedValueOnce(new Error('S3 unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1,
+      completed: 0,
     });
     expect(f.exports.reschedule).not.toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -796,13 +908,16 @@ describe('AccountExportProcessor', () => {
       new Error('Study progress changed during account export'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      failed: 1, completed: 0, retryScheduled: 0,
+      failed: 1,
+      completed: 0,
+      retryScheduled: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.exports.complete).not.toHaveBeenCalled();
     expect(f.exports.reschedule).toHaveBeenCalledWith(
       expect.objectContaining({
-        state: 'failed', failureCode: 'EXPORT_RETRY_EXHAUSTED',
+        state: 'failed',
+        failureCode: 'EXPORT_RETRY_EXHAUSTED',
       }),
     );
   });
@@ -811,7 +926,8 @@ describe('AccountExportProcessor', () => {
     for (const version of [1, 2]) {
       const f = fixture({ job: claim({ formatVersion: version }) });
       await expect(f.processor.runIteration()).resolves.toMatchObject({
-        claimed: 1, completed: 1,
+        claimed: 1,
+        completed: 1,
       });
       expect(f.exports.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
       expect(f.exports.assertStudyProgressExportEpoch).not.toHaveBeenCalled();
@@ -821,12 +937,16 @@ describe('AccountExportProcessor', () => {
   it('routes persisted v3 jobs to the v3 assembler without modifying legacy claims', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, completed: 1, retryScheduled: 0,
+      claimed: 1,
+      completed: 1,
+      retryScheduled: 0,
     });
     expect(f.assembler.writeJsonV1).not.toHaveBeenCalled();
     expect(f.assembler.writeJsonV2).not.toHaveBeenCalled();
     expect(f.assembler.writeJsonV3).toHaveBeenCalledWith(
-      'owner-1', f.sink, expect.any(Function),
+      'owner-1',
+      f.sink,
+      expect.any(Function),
     );
     expect(f.exports.complete).toHaveBeenCalledWith({
       id: claim().id,
@@ -834,7 +954,8 @@ describe('AccountExportProcessor', () => {
       ownerUserId: 'owner-1',
       expectedProgressEpoch: 7,
       result: expect.objectContaining({
-        formatVersion: 3, sectionCount: 32,
+        formatVersion: 3,
+        sectionCount: 32,
       }),
     });
   });
@@ -842,7 +963,9 @@ describe('AccountExportProcessor', () => {
   it('fails closed on unsupported persisted versions before publishing a file', async () => {
     const f = fixture({ job: claim({ formatVersion: 99 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.assembler.writeJsonV1).not.toHaveBeenCalled();
     expect(f.assembler.writeJsonV2).not.toHaveBeenCalled();
@@ -862,10 +985,14 @@ describe('AccountExportProcessor', () => {
   it('B79 recovers a transient Mongo queue outage without S3 DELETE or a false failure alert', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('private Mongo diagnostic'));
+    f.orphans.enqueue.mockRejectedValueOnce(
+      new Error('private Mongo diagnostic'),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
-      orphanEnqueueRetries: 1, orphanEnqueueRecovered: 1,
+      stale: 1,
+      completed: 0,
+      orphanEnqueueRetries: 1,
+      orphanEnqueueRecovered: 1,
       orphanEnqueueFailures: 0,
     });
     expect(f.orphans.enqueue).toHaveBeenCalledTimes(2);
@@ -876,10 +1003,15 @@ describe('AccountExportProcessor', () => {
   it('B79 preserves per-iteration recovery metrics with two proven orphans', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValue(false);
-    f.orphans.enqueue.mockRejectedValueOnce(new Error('temporary Mongo outage'));
+    f.orphans.enqueue.mockRejectedValueOnce(
+      new Error('temporary Mongo outage'),
+    );
     await expect(f.processor.runIteration(2)).resolves.toMatchObject({
-      claimed: 2, stale: 2, completed: 0,
-      orphanEnqueueRetries: 1, orphanEnqueueRecovered: 1,
+      claimed: 2,
+      stale: 2,
+      completed: 0,
+      orphanEnqueueRetries: 1,
+      orphanEnqueueRecovered: 1,
       orphanEnqueueFailures: 0,
     });
     expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
@@ -890,7 +1022,8 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     await expect(f.processor.runIteration()).resolves.toMatchObject({
       completed: 1,
-      orphanEnqueueRetries: 0, orphanEnqueueRecovered: 0,
+      orphanEnqueueRetries: 0,
+      orphanEnqueueRecovered: 0,
       orphanEnqueueFailures: 0,
     });
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
@@ -901,12 +1034,17 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, stale: 1, orphanDeleted: 0,
+      claimed: 1,
+      stale: 1,
+      orphanDeleted: 0,
     });
-    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: claim().id, generation: claim().claimId,
-      ownerUserId: claim().userId,
-    }));
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: claim().id,
+        generation: claim().claimId,
+        ownerUserId: claim().userId,
+      }),
+    );
     // enqueue may be idempotently matching a task whose nextAttemptAt and
     // verificationUntil were already extended by a newer claim takeover.
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -918,8 +1056,11 @@ describe('AccountExportProcessor', () => {
     f.exports.complete.mockResolvedValueOnce(false);
     f.orphans.enqueue.mockRejectedValue(new Error('Mongo queue unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0, orphanEnqueueRetries: 2,
-      orphanEnqueueRecovered: 0, orphanEnqueueFailures: 1,
+      stale: 1,
+      completed: 0,
+      orphanEnqueueRetries: 2,
+      orphanEnqueueRecovered: 0,
+      orphanEnqueueFailures: 1,
     });
     expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -936,17 +1077,23 @@ describe('AccountExportProcessor', () => {
     f.exports.claimNext.mockResolvedValueOnce(null);
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, claimed: 0, orphanRetries: 0,
+      orphanDeleted: 1,
+      claimed: 0,
+      orphanRetries: 0,
     });
     expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId);
     expect(f.orphans.renewLease).toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
-      orphan.jobId, orphan.generation,
+      orphan.jobId,
+      orphan.generation,
     );
-    expect(f.orphans.acknowledge).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: orphan.jobId, generation: orphan.generation,
-      claimId: orphan.claimId,
-    }));
+    expect(f.orphans.acknowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+        claimId: orphan.claimId,
+      }),
+    );
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
   });
 
@@ -954,11 +1101,16 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1,
+      completed: 0,
     });
-    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: claim().id, ownerUserId: 'owner-1', generation: claim().claimId,
-    }));
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: claim().id,
+        ownerUserId: 'owner-1',
+        generation: claim().claimId,
+      }),
+    );
   });
 
   it('B67 never queues deletion for an uncertain Mongo completion', async () => {
@@ -973,30 +1125,44 @@ describe('AccountExportProcessor', () => {
   it('B67 drains only a confirmed orphan generation and acknowledges it', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'pending', active: true, claimId: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'pending',
+        active: true,
+        claimId: null,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, orphanRetries: 0,
+      orphanDeleted: 1,
+      orphanRetries: 0,
     });
     expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId);
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
-      orphan.jobId, orphan.generation,
+      orphan.jobId,
+      orphan.generation,
     );
-    expect(f.orphans.acknowledge).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: orphan.jobId, generation: orphan.generation, claimId: orphan.claimId,
-    }));
+    expect(f.orphans.acknowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+        claimId: orphan.claimId,
+      }),
+    );
   });
 
   it('B67 preserves a generation referenced by a completed job', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'completed', active: false,
-      artifactGeneration: orphan.generation,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'completed',
+        active: false,
+        artifactGeneration: orphan.generation,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanPreserved: 1, orphanDeleted: 0,
+      orphanPreserved: 1,
+      orphanDeleted: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).toHaveBeenCalledTimes(1);
@@ -1006,33 +1172,51 @@ describe('AccountExportProcessor', () => {
     const f = fixture({ job: null });
     const expiredAt = new Date(Date.now() - 1);
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'processing', active: true, claimId: orphan.generation,
-      leaseExpiresAt: expiredAt, artifactGeneration: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'processing',
+        active: true,
+        claimId: orphan.generation,
+        leaseExpiresAt: expiredAt,
+        artifactGeneration: null,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, orphanRetries: 0, orphanAuthorityBlocked: 0,
+      orphanDeleted: 1,
+      orphanRetries: 0,
+      orphanAuthorityBlocked: 0,
     });
     expect(f.store.fenceExpiredClaimForOrphanCleanup).toHaveBeenCalledWith({
-      id: orphan.jobId, ownerUserId: orphan.ownerUserId,
-      generation: orphan.generation, now: expect.any(Date),
+      id: orphan.jobId,
+      ownerUserId: orphan.ownerUserId,
+      generation: orphan.generation,
+      now: expect.any(Date),
     });
-    expect(f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0])
-      .toBeLessThan(f.orphans.renewLease.mock.invocationCallOrder[0]);
-    expect(f.orphans.renewLease.mock.invocationCallOrder[0])
-      .toBeLessThan(f.artifacts.deleteArtifact.mock.invocationCallOrder[0]);
+    expect(
+      f.store.fenceExpiredClaimForOrphanCleanup.mock.invocationCallOrder[0],
+    ).toBeLessThan(f.orphans.renewLease.mock.invocationCallOrder[0]);
+    expect(f.orphans.renewLease.mock.invocationCallOrder[0]).toBeLessThan(
+      f.artifacts.deleteArtifact.mock.invocationCallOrder[0],
+    );
   });
 
   it('B82 refuses S3 DELETE if a delayed completion wins the revocation CAS', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'processing', claimId: orphan.generation, active: true,
-      leaseExpiresAt: new Date(Date.now() - 1), artifactGeneration: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'processing',
+        claimId: orphan.generation,
+        active: true,
+        leaseExpiresAt: new Date(Date.now() - 1),
+        artifactGeneration: null,
+      }),
+    );
     f.store.fenceExpiredClaimForOrphanCleanup.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1, orphanAuthorityBlocked: 1,
+      orphanDeleted: 0,
+      orphanRetries: 1,
+      orphanAuthorityBlocked: 1,
     });
     expect(f.orphans.renewLease).not.toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1043,12 +1227,18 @@ describe('AccountExportProcessor', () => {
   it('B82 rejects a malformed current lease instead of assuming it expired', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'processing', claimId: orphan.generation, active: true,
-      leaseExpiresAt: null, artifactGeneration: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'processing',
+        claimId: orphan.generation,
+        active: true,
+        leaseExpiresAt: null,
+        artifactGeneration: null,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1,
+      orphanDeleted: 0,
+      orphanRetries: 1,
     });
     expect(f.store.fenceExpiredClaimForOrphanCleanup).not.toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1057,44 +1247,61 @@ describe('AccountExportProcessor', () => {
   it('B82 never revokes a different current generation before deleting an old orphan', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'processing', claimId: '44444444-4444-4444-8444-444444444444',
-      active: true, leaseExpiresAt: new Date(Date.now() + 30_000),
-      artifactGeneration: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'processing',
+        claimId: '44444444-4444-4444-8444-444444444444',
+        active: true,
+        leaseExpiresAt: new Date(Date.now() + 30_000),
+        artifactGeneration: null,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, orphanRetries: 0,
+      orphanDeleted: 1,
+      orphanRetries: 0,
     });
     expect(f.store.fenceExpiredClaimForOrphanCleanup).not.toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
-      orphan.jobId, orphan.generation,
+      orphan.jobId,
+      orphan.generation,
     );
   });
 
   it('B67 waits for a still-live matching claim instead of deleting S3', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      claimId: orphan.generation,
-      leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        claimId: orphan.generation,
+        leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanRetries: 1, orphanDeleted: 0,
+      orphanRetries: 1,
+      orphanDeleted: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
-    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: orphan.jobId, generation: orphan.generation,
-    }));
+    expect(f.orphans.retry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+      }),
+    );
   });
 
   it('B67 rejects inconsistent owner authority before deleting any object', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      userId: 'another-owner', state: 'failed',
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        userId: 'another-owner',
+        state: 'failed',
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanRetries: 1, orphanDeleted: 0, orphanAuthorityBlocked: 1,
+      orphanRetries: 1,
+      orphanDeleted: 0,
+      orphanAuthorityBlocked: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.retry).toHaveBeenCalledTimes(1);
@@ -1104,12 +1311,16 @@ describe('AccountExportProcessor', () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
     f.orphans.acknowledge.mockResolvedValueOnce(false);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'completed', active: false,
-      artifactGeneration: orphan.generation,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'completed',
+        active: false,
+        artifactGeneration: orphan.generation,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanPreserved: 0, orphanRetries: 1,
+      orphanPreserved: 0,
+      orphanRetries: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
   });
@@ -1117,12 +1328,17 @@ describe('AccountExportProcessor', () => {
   it('B67 retries deletion errors without losing durable cleanup claim', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'pending', active: true, claimId: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'pending',
+        active: true,
+        claimId: null,
+      }),
+    );
     f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 offline'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanRetries: 1, orphanDeleted: 0,
+      orphanRetries: 1,
+      orphanDeleted: 0,
     });
     expect(f.orphans.retry).toHaveBeenCalledTimes(1);
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
@@ -1133,20 +1349,29 @@ describe('AccountExportProcessor', () => {
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
     f.orphans.acknowledge.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanRetries: 1, orphanDeleted: 0,
+      orphanRetries: 1,
+      orphanDeleted: 0,
     });
-    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(orphan.jobId, orphan.generation);
+    expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
+      orphan.jobId,
+      orphan.generation,
+    );
   });
 
   it('B68 rechecks ownership after a slow authority lookup before touching S3', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'pending', active: true, claimId: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'pending',
+        active: true,
+        claimId: null,
+      }),
+    );
     f.orphans.renewLease.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1,
+      orphanDeleted: 0,
+      orphanRetries: 1,
     });
     expect(f.orphans.renewLease).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1162,16 +1387,23 @@ describe('AccountExportProcessor', () => {
   it('B68 renews the orphan claim BEFORE starting S3 and then acknowledges', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'pending', active: true, claimId: null,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'pending',
+        active: true,
+        claimId: null,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, orphanRetries: 0,
+      orphanDeleted: 1,
+      orphanRetries: 0,
     });
-    expect(f.orphans.renewLease.mock.invocationCallOrder[0])
-      .toBeLessThan(f.artifacts.deleteArtifact.mock.invocationCallOrder[0]);
-    expect(f.artifacts.deleteArtifact.mock.invocationCallOrder[0])
-      .toBeLessThan(f.orphans.acknowledge.mock.invocationCallOrder[0]);
+    expect(f.orphans.renewLease.mock.invocationCallOrder[0]).toBeLessThan(
+      f.artifacts.deleteArtifact.mock.invocationCallOrder[0],
+    );
+    expect(f.artifacts.deleteArtifact.mock.invocationCallOrder[0]).toBeLessThan(
+      f.orphans.acknowledge.mock.invocationCallOrder[0],
+    );
   });
 
   it('B68 renews its cleanup lease while S3 deletion is still running', async () => {
@@ -1193,7 +1425,8 @@ describe('AccountExportProcessor', () => {
     expect(f.orphans.renewLease.mock.calls.length).toBeGreaterThanOrEqual(2);
     finishDelete?.();
     await expect(running).resolves.toMatchObject({
-      orphanDeleted: 1, orphanRetries: 0,
+      orphanDeleted: 1,
+      orphanRetries: 0,
     });
     expect(f.orphans.acknowledge).toHaveBeenCalledTimes(1);
   });
@@ -1217,7 +1450,8 @@ describe('AccountExportProcessor', () => {
     );
     finishDelete?.();
     await expect(running).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1,
+      orphanDeleted: 0,
+      orphanRetries: 1,
     });
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
     expect(f.orphans.retry).not.toHaveBeenCalled();
@@ -1226,30 +1460,45 @@ describe('AccountExportProcessor', () => {
   it('B77 threads the claimed deadline through both S3 lease renewal and durable recheck retry', async () => {
     const f = fixture({ job: null });
     const until = new Date(Date.now() + 60 * 60_000);
-    f.orphans.claimNext.mockResolvedValueOnce({ ...orphan, verificationUntil: until });
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan,
+      verificationUntil: until,
+    });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanVerificationScheduled: 1,
+      orphanDeleted: 0,
+      orphanVerificationScheduled: 1,
     });
     expect(f.orphans.renewLease).toHaveBeenCalledWith(
       expect.objectContaining({
-        jobId: orphan.jobId, generation: orphan.generation,
-        claimId: orphan.claimId, verificationUntil: until,
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+        claimId: orphan.claimId,
+        verificationUntil: until,
       }),
     );
-    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: orphan.jobId, generation: orphan.generation,
-      claimId: orphan.claimId, verificationUntil: until,
-      nextAttemptAt: expect.any(Date),
-    }));
+    expect(f.orphans.retry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+        claimId: orphan.claimId,
+        verificationUntil: until,
+        nextAttemptAt: expect.any(Date),
+      }),
+    );
   });
 
   it('B77 blocks S3 DELETE when a takeover invalidates cleanup lease renewal', async () => {
     const f = fixture({ job: null });
     const until = new Date(Date.now() + 60 * 60_000);
-    f.orphans.claimNext.mockResolvedValueOnce({ ...orphan, verificationUntil: until });
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan,
+      verificationUntil: until,
+    });
     f.orphans.renewLease.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1, orphanVerificationScheduled: 0,
+      orphanDeleted: 0,
+      orphanRetries: 1,
+      orphanVerificationScheduled: 0,
     });
     expect(f.orphans.renewLease).toHaveBeenCalledWith(
       expect.objectContaining({ verificationUntil: until }),
@@ -1261,10 +1510,16 @@ describe('AccountExportProcessor', () => {
   it('B77 keeps the captured horizon on provider failure backoff', async () => {
     const f = fixture({ job: null });
     const until = new Date(Date.now() + 60 * 60_000);
-    f.orphans.claimNext.mockResolvedValueOnce({ ...orphan, verificationUntil: until });
-    f.artifacts.deleteArtifact.mockRejectedValueOnce(new Error('S3 unavailable'));
+    f.orphans.claimNext.mockResolvedValueOnce({
+      ...orphan,
+      verificationUntil: until,
+    });
+    f.artifacts.deleteArtifact.mockRejectedValueOnce(
+      new Error('S3 unavailable'),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1,
+      orphanDeleted: 0,
+      orphanRetries: 1,
     });
     expect(f.orphans.retry).toHaveBeenCalledWith(
       expect.objectContaining({ verificationUntil: until }),
@@ -1276,19 +1531,27 @@ describe('AccountExportProcessor', () => {
     const f = fixture({ job: null });
     const until = new Date(Date.now() + 60 * 60_000);
     f.orphans.claimNext.mockResolvedValueOnce({
-      ...orphan, verificationUntil: until,
+      ...orphan,
+      verificationUntil: until,
     });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanVerificationScheduled: 1, orphanRetries: 0,
+      orphanDeleted: 0,
+      orphanVerificationScheduled: 1,
+      orphanRetries: 0,
     });
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledWith(
-      orphan.jobId, orphan.generation,
+      orphan.jobId,
+      orphan.generation,
     );
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
-    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: orphan.jobId, generation: orphan.generation,
-      claimId: orphan.claimId, nextAttemptAt: expect.any(Date),
-    }));
+    expect(f.orphans.retry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+        claimId: orphan.claimId,
+        nextAttemptAt: expect.any(Date),
+      }),
+    );
     const next = f.orphans.retry.mock.calls[0][0].nextAttemptAt;
     expect(next.getTime()).toBeLessThanOrEqual(until.getTime());
     expect(next.getTime()).toBeGreaterThan(Date.now());
@@ -1297,16 +1560,20 @@ describe('AccountExportProcessor', () => {
   it('B75 performs a final exact generation DELETE and ACK after verification deadline', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce({
-      ...orphan, verificationUntil: new Date(Date.now() - 1),
+      ...orphan,
+      verificationUntil: new Date(Date.now() - 1),
     });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 1, orphanVerificationScheduled: 0, orphanRetries: 0,
+      orphanDeleted: 1,
+      orphanVerificationScheduled: 0,
+      orphanRetries: 0,
     });
     expect(f.artifacts.deleteArtifact).toHaveBeenCalledTimes(1);
     expect(f.orphans.retry).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).toHaveBeenCalledWith(
       expect.objectContaining({
-        jobId: orphan.jobId, generation: orphan.generation,
+        jobId: orphan.jobId,
+        generation: orphan.generation,
         claimId: orphan.claimId,
       }),
     );
@@ -1315,10 +1582,12 @@ describe('AccountExportProcessor', () => {
   it('B75 never deletes when verification deadline is malformed', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce({
-      ...orphan, verificationUntil: 'invalid' as unknown as Date,
+      ...orphan,
+      verificationUntil: 'invalid' as unknown as Date,
     });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1,
+      orphanDeleted: 0,
+      orphanRetries: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
@@ -1328,11 +1597,14 @@ describe('AccountExportProcessor', () => {
   it('B75 does not ACK a verification task when lease-fenced retry loses', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce({
-      ...orphan, verificationUntil: new Date(Date.now() + 60 * 60_000),
+      ...orphan,
+      verificationUntil: new Date(Date.now() + 60 * 60_000),
     });
     f.orphans.retry.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanVerificationScheduled: 0, orphanRetries: 1,
+      orphanDeleted: 0,
+      orphanVerificationScheduled: 0,
+      orphanRetries: 1,
     });
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
   });
@@ -1340,14 +1612,19 @@ describe('AccountExportProcessor', () => {
   it('B75 protects a re-referenced generation before every S3 verification pass', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce({
-      ...orphan, verificationUntil: new Date(Date.now() + 60 * 60_000),
+      ...orphan,
+      verificationUntil: new Date(Date.now() + 60 * 60_000),
     });
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      state: 'completed', active: false,
-      artifactGeneration: orphan.generation,
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        state: 'completed',
+        active: false,
+        artifactGeneration: orphan.generation,
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanPreserved: 1, orphanDeleted: 0,
+      orphanPreserved: 1,
+      orphanDeleted: 0,
       orphanVerificationScheduled: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1359,18 +1636,23 @@ describe('AccountExportProcessor', () => {
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
     f.store.findForOrphanCleanup.mockResolvedValueOnce(null);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 0, orphanDeleted: 0, orphanPreserved: 0,
-      orphanRetries: 1, orphanAuthorityBlocked: 1,
+      claimed: 0,
+      orphanDeleted: 0,
+      orphanPreserved: 0,
+      orphanRetries: 1,
+      orphanAuthorityBlocked: 1,
     });
     expect(f.store.findForOrphanCleanup).toHaveBeenCalledWith(orphan.jobId);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
-    expect(f.orphans.retry).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: orphan.jobId,
-      generation: orphan.generation,
-      claimId: orphan.claimId,
-      nextAttemptAt: expect.any(Date),
-    }));
+    expect(f.orphans.retry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: orphan.jobId,
+        generation: orphan.generation,
+        claimId: orphan.claimId,
+        nextAttemptAt: expect.any(Date),
+      }),
+    );
   });
 
   it('B70 does not infer absence after an unavailable durable authority read', async () => {
@@ -1380,32 +1662,37 @@ describe('AccountExportProcessor', () => {
       new Error('Mongo primary temporarily unavailable'),
     );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanRetries: 1, orphanDeleted: 0,
+      orphanRetries: 1,
+      orphanDeleted: 0,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
     expect(f.orphans.retry).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    'pending', 'failed', 'processing',
-  ] as const)(
+  it.each(['pending', 'failed', 'processing'] as const)(
     'B70 preserves a generation referenced by an inconsistent %s job',
     async (state) => {
       const f = fixture({ job: null });
       f.orphans.claimNext.mockResolvedValueOnce(orphan);
-      f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-        state, active: state !== 'failed',
-        claimId: null,
-        artifactGeneration: orphan.generation,
-      }));
+      f.store.findForOrphanCleanup.mockResolvedValueOnce(
+        claim({
+          state,
+          active: state !== 'failed',
+          claimId: null,
+          artifactGeneration: orphan.generation,
+        }),
+      );
       await expect(f.processor.runIteration()).resolves.toMatchObject({
-        orphanDeleted: 0, orphanPreserved: 1, orphanRetries: 0,
+        orphanDeleted: 0,
+        orphanPreserved: 1,
+        orphanRetries: 0,
       });
       expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
       expect(f.orphans.acknowledge).toHaveBeenCalledWith(
         expect.objectContaining({
-          jobId: orphan.jobId, generation: orphan.generation,
+          jobId: orphan.jobId,
+          generation: orphan.generation,
           claimId: orphan.claimId,
         }),
       );
@@ -1415,11 +1702,16 @@ describe('AccountExportProcessor', () => {
   it('B70 refuses a queue row pointing at a different durable job ID', async () => {
     const f = fixture({ job: null });
     f.orphans.claimNext.mockResolvedValueOnce(orphan);
-    f.store.findForOrphanCleanup.mockResolvedValueOnce(claim({
-      id: 'different-job', state: 'failed',
-    }));
+    f.store.findForOrphanCleanup.mockResolvedValueOnce(
+      claim({
+        id: 'different-job',
+        state: 'failed',
+      }),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      orphanDeleted: 0, orphanRetries: 1, orphanAuthorityBlocked: 1,
+      orphanDeleted: 0,
+      orphanRetries: 1,
+      orphanAuthorityBlocked: 1,
     });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
@@ -1427,17 +1719,24 @@ describe('AccountExportProcessor', () => {
 
   it('B71 queues S3 cleanup after multipart completion ACK is lost and Mongo retry CAS succeeds', async () => {
     const f = fixture();
-    f.sink.commit.mockRejectedValueOnce(new Error('S3 completed but ACK was lost'));
+    f.sink.commit.mockRejectedValueOnce(
+      new Error('S3 completed but ACK was lost'),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, retryScheduled: 1, completed: 0,
+      claimed: 1,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.sink.abort).toHaveBeenCalledTimes(1);
     expect(f.exports.complete).not.toHaveBeenCalled();
     expect(f.exports.reschedule).toHaveBeenCalledTimes(1);
-    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: claim().id, generation: claim().claimId,
-      ownerUserId: claim().userId,
-    }));
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: claim().id,
+        generation: claim().claimId,
+        ownerUserId: claim().userId,
+      }),
+    );
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     const durableCas = f.exports.reschedule.mock.invocationCallOrder[0];
     const writeAhead = f.orphans.enqueue.mock.invocationCallOrder[0];
@@ -1446,10 +1745,16 @@ describe('AccountExportProcessor', () => {
 
   it('B71 preserves retry result when orphan enqueue fails after unknown S3 ACK', async () => {
     const f = fixture();
-    f.sink.commit.mockRejectedValueOnce(new Error('S3 complete response unknown'));
-    f.orphans.enqueue.mockRejectedValue(new Error('Mongo orphan queue unavailable'));
+    f.sink.commit.mockRejectedValueOnce(
+      new Error('S3 complete response unknown'),
+    );
+    f.orphans.enqueue.mockRejectedValue(
+      new Error('Mongo orphan queue unavailable'),
+    );
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      retryScheduled: 1, completed: 0, orphanEnqueueFailures: 1,
+      retryScheduled: 1,
+      completed: 0,
+      orphanEnqueueFailures: 1,
     });
     expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1461,7 +1766,9 @@ describe('AccountExportProcessor', () => {
     f.sink.commit.mockRejectedValueOnce(new Error('S3 complete ACK unknown'));
     f.exports.reschedule.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, stale: 1, completed: 0,
+      claimed: 1,
+      stale: 1,
+      completed: 0,
     });
     expect(f.sink.abort).toHaveBeenCalledTimes(1);
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
@@ -1471,8 +1778,12 @@ describe('AccountExportProcessor', () => {
   it('B71 preserves S3 when Mongo retry CAS itself is unavailable', async () => {
     const f = fixture();
     f.sink.commit.mockRejectedValueOnce(new Error('S3 complete ACK unknown'));
-    f.exports.reschedule.mockRejectedValueOnce(new Error('Mongo CAS unavailable'));
-    await expect(f.processor.runIteration()).rejects.toThrow('Mongo CAS unavailable');
+    f.exports.reschedule.mockRejectedValueOnce(
+      new Error('Mongo CAS unavailable'),
+    );
+    await expect(f.processor.runIteration()).rejects.toThrow(
+      'Mongo CAS unavailable',
+    );
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
   });
@@ -1482,7 +1793,8 @@ describe('AccountExportProcessor', () => {
     f.sink.commit.mockRejectedValueOnce(new Error('Uncertain S3 commit'));
     f.sink.abort.mockRejectedValueOnce(new Error('S3 multipart abort failed'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      retryScheduled: 1, completed: 0,
+      retryScheduled: 1,
+      completed: 0,
     });
     expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1491,7 +1803,9 @@ describe('AccountExportProcessor', () => {
   it('B71 retains normal successful assembly and completion without orphan cleanup', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      claimed: 1, completed: 1, retryScheduled: 0,
+      claimed: 1,
+      completed: 1,
+      retryScheduled: 0,
     });
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1501,12 +1815,16 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1,
+      completed: 0,
     });
-    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: claim().id, ownerUserId: claim().userId,
-      generation: claim().claimId,
-    }));
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: claim().id,
+        ownerUserId: claim().userId,
+        generation: claim().claimId,
+      }),
+    );
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
   });
@@ -1514,8 +1832,12 @@ describe('AccountExportProcessor', () => {
   it('B69 retains queued intent without performing a pending cancellation', async () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
-    f.orphans.clearPending.mockRejectedValueOnce(new Error('Mongo cleanup ACK unavailable'));
-    await expect(f.processor.runIteration()).resolves.toMatchObject({ stale: 1 });
+    f.orphans.clearPending.mockRejectedValueOnce(
+      new Error('Mongo cleanup ACK unavailable'),
+    );
+    await expect(f.processor.runIteration()).resolves.toMatchObject({
+      stale: 1,
+    });
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
     expect(f.orphans.enqueue).toHaveBeenCalledTimes(1);
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
@@ -1526,7 +1848,8 @@ describe('AccountExportProcessor', () => {
     f.exports.complete.mockResolvedValueOnce(false);
     f.orphans.clearPending.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1,
+      completed: 0,
     });
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
     expect(f.orphans.acknowledge).not.toHaveBeenCalled();
@@ -1538,7 +1861,9 @@ describe('AccountExportProcessor', () => {
     f.exports.complete.mockResolvedValueOnce(false);
     f.orphans.enqueue.mockRejectedValue(new Error('Mongo unavailable'));
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0, orphanEnqueueFailures: 1,
+      stale: 1,
+      completed: 0,
+      orphanEnqueueFailures: 1,
     });
     expect(f.orphans.enqueue).toHaveBeenCalledTimes(3);
     expect(f.artifacts.deleteArtifact).not.toHaveBeenCalled();
@@ -1547,10 +1872,13 @@ describe('AccountExportProcessor', () => {
 
   it('B69 keeps uncertain Mongo completion out of write-ahead cleanup queue', async () => {
     const f = fixture({ job: claim({ formatVersion: 3 }) });
-    f.exports.complete.mockRejectedValueOnce(new Error('Mongo commit reply lost'));
+    f.exports.complete.mockRejectedValueOnce(
+      new Error('Mongo commit reply lost'),
+    );
     f.exports.reschedule.mockResolvedValueOnce(false);
     await expect(f.processor.runIteration()).resolves.toMatchObject({
-      stale: 1, completed: 0,
+      stale: 1,
+      completed: 0,
     });
     expect(f.orphans.enqueue).not.toHaveBeenCalled();
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
@@ -1561,10 +1889,12 @@ describe('AccountExportProcessor', () => {
     const f = fixture();
     f.exports.complete.mockResolvedValueOnce(false);
     await f.processor.runIteration();
-    expect(f.orphans.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: claim().id, generation: claim().claimId,
-    }));
+    expect(f.orphans.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: claim().id,
+        generation: claim().claimId,
+      }),
+    );
     expect(f.orphans.clearPending).not.toHaveBeenCalled();
   });
-
 });

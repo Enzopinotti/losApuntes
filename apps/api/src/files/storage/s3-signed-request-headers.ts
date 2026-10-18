@@ -16,12 +16,16 @@ export function collectS3SignedRequestHeaders(
   ]);
   for (const [name, value] of Object.entries(additional)) {
     const normalizedName = name.toLowerCase();
-    if (!/^[a-z0-9-]+$/u.test(normalizedName) ||
-        signed.has(normalizedName) ||
-        normalizedName === 'authorization' ||
-        typeof value !== 'string' ||
-        /[\r\n\u0000]/u.test(value)) {
-      throw new Error('S3 signed request contains an invalid or reserved header');
+    if (
+      !/^[a-z0-9-]+$/u.test(normalizedName) ||
+      signed.has(normalizedName) ||
+      normalizedName === 'authorization' ||
+      typeof value !== 'string' ||
+      /[\r\n\u0000]/u.test(value)
+    ) {
+      throw new Error(
+        'S3 signed request contains an invalid or reserved header',
+      );
     }
     // Match SigV4 canonical whitespace normalization. A duplicate header
     // under another casing must not silently overwrite signed metadata.

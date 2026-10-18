@@ -83,7 +83,8 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
           result.sha256 !== actualDigest ||
           result.format !== 'los-apuntes-account-export' ||
           ![1, 2, 3].includes(result.formatVersion) ||
-          result.sectionCount !== accountExportSectionIds(result.formatVersion).length
+          result.sectionCount !==
+            accountExportSectionIds(result.formatVersion).length
         ) {
           throw new Error('Account export artifact integrity check failed');
         }
@@ -94,10 +95,10 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
         // GET must match the locally assembled digest and byte count.
         // Failure leaves the sink uncommitted, with no direct S3 DELETE:
         // B80's durable owner-fenced orphan queue handles recovery.
-        await verifyAccountExportStoredBytes(
-          storage.readObjectChunks(key),
-          { byteLength: result.byteLength, sha256: result.sha256 },
-        );
+        await verifyAccountExportStoredBytes(storage.readObjectChunks(key), {
+          byteLength: result.byteLength,
+          sha256: result.sha256,
+        });
         state = 'committed';
       },
 
