@@ -254,6 +254,85 @@ describe('S3ObjectStorage', () => {
       .resolves.toEqual(new Uint8Array(Buffer.from('%PDF')));
   });
 
+  it.each([
+    ['host', 'HOST spoof'],
+    ['x-amz-date', 'timestamp override'],
+    ['X-Amz-Content-Sha256', 'digest override'],
+    ['Authorization', 'authorization override'],
+    ['application/json\r\nx-amz-date: fake', 'newline injection'],
+    ['application/json\u0000data', 'NUL injection'],
+  ])('B112 never starts multipart with unsafe signed content-type: %s (%s)',
+    async (contentType) => {
+      const fetchSpy = jest.spyOn(global, 'fetch');
+      const writer = storage().createMultipartWriter({
+        objectKey: 'exports/job/b112-header-rejected.json',
+        contentType,
+        deleteObjectOnAbort: false,
+      });
+      if (contentType.includes('\r\n') || contentType.includes('\u0000')) {
+        await expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x78)))
+          .rejects.toThrow('S3 signed request contains an invalid or reserved header');
+        await expect(writer.complete()).rejects.toThrow(
+          'S3 multipart writer cannot complete after a failed operation',
+        );
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } else {
+        // Plain opaque content-types do not supply header *names*; they are
+        // valid signed values even if their bytes resemble reserved names.
+        const mockInit = new Response(
+          '<InitiateMultipartUploadResult><UploadId>b112-value</UploadId></InitiateMultipartUploadResult>',
+          { status: 200 },
+        );
+        fetchSpy.mockResolvedValueOnce(mockInit)
+          .mockResolvedValueOnce(new Response(null, {
+            status: 200, headers: { etag: '"part"' },
+          }));
+        await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x79));
+        expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+          .toEqual(['POST', 'PUT']);
+        const headers = new Headers(fetchSpy.mock.calls[0]?.[1]?.headers);
+        expect(headers.get('authorization')).toContain(
+          'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,',
+        );
+      }
+    });
+
+  it('B112 signs content-type for multipart POST, PUT parts and completion', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>b112-parts</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"b112-part"' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        '<CompleteMultipartUploadResult><ETag>"b112-complete"</ETag></CompleteMultipartUploadResult>',
+        { status: 200 },
+      ));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/job/b112-positive.json',
+      contentType: ' application/json;  charset=utf-8 ',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x79));
+    await writer.complete();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST']);
+    const startHeaders = new Headers(fetchSpy.mock.calls[0]?.[1]?.headers);
+    expect(startHeaders.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(startHeaders.get('authorization')).toContain(
+      'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,',
+    );
+    for (const [, init] of fetchSpy.mock.calls.slice(1)) {
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toContain(
+        'SignedHeaders=host;x-amz-content-sha256;x-amz-date,',
+      );
+      expect(headers.get('content-type')).toBeNull();
+    }
+  });
+
   it('B110 signs the exact Range value requested by the prefix GET', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(Buffer.from('%PDF-1.7'), {
