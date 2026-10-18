@@ -10,6 +10,12 @@ import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
  */
 export function normalizeS3HeadObjectEtag(raw: string | null): string | null {
   if (raw === null) return null;
+  // B108 trims padded tokens for multipart compatibility. For HEAD metadata,
+  // reject non-ASCII even if it would be stripped by trim() (e.g. trailing
+  // NBSP) so malformed provider bytes are never silently normalized.
+  if (!/^[\x20-\x7e]+$/u.test(raw)) {
+    throw new Error('S3 HEAD returned an invalid ETag');
+  }
   const normalized = normalizeS3MultipartPartEtag(raw);
   if (normalized === null) {
     throw new Error('S3 HEAD returned an invalid ETag');
