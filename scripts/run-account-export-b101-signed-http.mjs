@@ -27,8 +27,17 @@ if (expectedNames.length < 34 ||
 }
 
 const nodeMajor = Number(process.versions.node.split('.')[0]);
-if (![22, 24].includes(nodeMajor)) {
-  console.error('B101 requires Node22 diagnostic or Node24 acceptance.');
+const diagnosticNode22 = process.argv.slice(2).length === 1 &&
+  process.argv[2] === '--diagnostic-node22';
+if (process.argv.length > 2 && !diagnosticNode22) {
+  console.error('B107 accepts only --diagnostic-node22 as an optional argument.');
+  process.exit(2);
+}
+// The ordinary command is release qualification: it must NEVER return zero
+// on Node22. Node22 is allowed only via a deliberate diagnostic opt-in.
+if (nodeMajor !== 24 && !(diagnosticNode22 && nodeMajor === 22)) {
+  console.error('B107 S3 signed HTTP acceptance REQUIRES Node24. ' +
+    'Node22 diagnostics are opt-in: --diagnostic-node22 (not release acceptance).');
   process.exit(2);
 }
 const run = spawnSync(process.execPath, [
@@ -50,12 +59,12 @@ try {
     expectedNames,
   });
   if (nodeMajor === 24) {
-    console.log('B105 Node24 local signed HTTP PASS: ' + result.passed + '/' + result.expected);
+    console.log('B107 Node24 qualified signed HTTP PASS: ' + result.passed + '/' + result.expected);
   } else {
-    console.log('B105 Node22 signed HTTP diagnostic PASS: ' + result.passed +
+    console.log('B107 Node22 signed HTTP diagnostic PASS: ' + result.passed +
       '/' + result.expected + '; NOT release acceptance (Node24 required).');
   }
 } catch {
-  console.error('B105 signed HTTP failed: no complete, unskipped local TAP acceptance.');
+  console.error('B107 signed HTTP failed: no complete, unskipped local TAP acceptance.');
   process.exitCode = 2;
 }
