@@ -1,0 +1,70 @@
+name: B90 B114-safe Account Export tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/b90-export-current-main-quality.yml'
+      - 'apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts'
+      - 'apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts'
+      - 'docs/engineering/b90-current-main-export-quality.md'
+
+permissions:
+  contents: read
+
+jobs:
+  scoped:
+    name: B90 exact-head strict lint and export regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: B90 two fixture files canonical Prettier
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --check \
+            src/data-lifecycle/domain/account-export-processor.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+      - name: B90 zero-warning strict ESLint
+        run: |
+          pnpm --filter @losapuntes/api exec eslint --max-warnings=0 \
+            src/data-lifecycle/domain/account-export-processor.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+      - name: Processor lease, S3 cleanup and Mongo orphan store Jest
+        run: |
+          pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath \
+            src/data-lifecycle/domain/account-export-processor.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+
+  api-types:
+    name: B90 full API TypeScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Complete API typecheck
+        run: pnpm --filter @losapuntes/api check:types
