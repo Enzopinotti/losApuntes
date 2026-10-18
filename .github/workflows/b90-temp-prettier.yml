@@ -29,7 +29,10 @@ jobs:
         run: |
           pnpm --filter @losapuntes/api exec prettier --write \
             src/data-lifecycle/domain/account-export-processor.spec.ts \
-            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
       - name: Reject unexpected path changes and commit
         shell: bash
         run: |
@@ -37,13 +40,13 @@ jobs:
           git diff --check
           while IFS= read -r p; do
             case "$p" in
-              apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts|apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts) ;;
+              apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts|apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts|apps/api/src/data-lifecycle/mongo/mongo-account-export.store.spec.ts|apps/api/src/data-lifecycle/account-export.controller.spec.ts|apps/api/src/study-progress/mongo/study-progress-export.reader.spec.ts) ;;
               *) echo "Unexpected formatter output: $p" >&2; exit 1 ;;
             esac
           done < <(git diff --name-only)
           if git diff --quiet; then exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+          git add -- apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts apps/api/src/data-lifecycle/mongo/mongo-account-export.store.spec.ts apps/api/src/data-lifecycle/account-export.controller.spec.ts apps/api/src/study-progress/mongo/study-progress-export.reader.spec.ts
           git commit -m 'style(test): B90 canonical Prettier on B114 export fixtures'
           git push origin HEAD:refs/heads/tmp/b90-b114-export-prettier-20261018
