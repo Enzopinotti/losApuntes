@@ -31,6 +31,9 @@ Se agregan **4 grupos top-level** con escenarios internos:
 3. HEAD 204 y HEAD 200 sin Content-Length no acreditan metadata.
 4. HEAD 200 con `Content-Length` vacío, ceros a la izquierda,
    exponentes, duplicado o fuera de rango no puede publicar éxito.
+   El cliente HTTP nativo puede rechazar esas cabeceras en el transporte
+   antes de llegar al parser S3: ambos caminos de rechazo son válidos.
+   El motivo específico del error se verifica en los tests de contrato B116.
 
 Conserva contrato B116 y tests nativos previos. No cambia `headObject()`
 ni las reglas de autorización; los casos hacen ejecutar el **adapter
