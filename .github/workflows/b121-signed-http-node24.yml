@@ -9,7 +9,6 @@ on:
       - scripts/testing/b101-signed-http-tap.mjs
       - scripts/testing/b107-node-gate.mjs
       - apps/api/src/files/storage/**
-  workflow_dispatch:
 
 permissions:
   contents: read
