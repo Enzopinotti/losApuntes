@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { classifyB107SignedHttpRuntime as classify } from './testing/b107-node-gate.mjs';
 
@@ -29,7 +30,7 @@ test('B107 Node22 default runner terminates before any API/network test', {
   skip: Number(process.versions.node.split('.')[0]) !== 22,
 }, () => {
   const runner = new URL('./run-account-export-b101-signed-http.mjs', import.meta.url);
-  const started = spawnSync(process.execPath, [new URL(runner).pathname], {
+  const started = spawnSync(process.execPath, [fileURLToPath(runner)], {
     encoding: 'utf8', timeout: 10_000,
     env: { ...process.env, STUDY_PROGRESS_ENABLED: 'false' },
   });
@@ -43,7 +44,7 @@ test('B107 release runner still refuses STUDY_PROGRESS_ENABLED=true', {
   skip: Number(process.versions.node.split('.')[0]) !== 22,
 }, () => {
   const runner = new URL('./run-account-export-b101-signed-http.mjs', import.meta.url);
-  const started = spawnSync(process.execPath, [new URL(runner).pathname], {
+  const started = spawnSync(process.execPath, [fileURLToPath(runner)], {
     encoding: 'utf8', timeout: 10_000,
     env: { ...process.env, STUDY_PROGRESS_ENABLED: 'true' },
   });
