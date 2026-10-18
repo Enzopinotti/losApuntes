@@ -1297,3 +1297,10 @@ AWS/MinIO, backup/restore, navegador y auditorías #133/#141.
 
 **#353 HOLD**, STUDY_PROGRESS_ENABLED=false en producción;
 sin CI manual ni despliegue.
+
+**Evidencia B107 ampliada:** también se ejecutaron los 5 tests B101
+originales del parser TAP/resolver ESM (blobs GitHub exactos),
+con dos módulos TS vacíos únicamente como archivos de existencia.
+El agregado **B101 (5) + B107 (13) pasó 18/18** con `node --test`
+en Node22.16.0, sin fallos, omisiones o todo. Esta unidad nativa
+es distinta de correr el adaptador S3 firmado de producción.
