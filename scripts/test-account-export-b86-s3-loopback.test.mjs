@@ -941,10 +941,13 @@ test('B112 signed HTTP preserves canonical content-type for real multipart write
       assert.equal(initHeaders['content-type'], 'application/json; charset=utf-8');
       assert.match(initHeaders.authorization,
         /SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,/u);
-      for (const call of calls.slice(1)) {
+      for (const [index, call] of calls.slice(1).entries()) {
+        // UploadPart and CompleteMultipartUpload sign content-type too.
+        // Confirm both the canonical header value AND its SigV4 coverage.
+        const expectedType = index === 0 ? 'application/octet-stream' : 'application/xml';
         assert.match(call.requestHeaders.authorization,
-          /SignedHeaders=host;x-amz-content-sha256;x-amz-date,/u);
-        assert.equal(call.requestHeaders['content-type'], undefined);
+          /SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,/u);
+        assert.equal(call.requestHeaders['content-type'], expectedType);
       }
       assert.deepEqual(objects.get(PATH), bytes);
     });
@@ -957,7 +960,7 @@ test('B111 signed HTTP confirms exact byte-zero Content-Range and smaller object
     const writer = newWriter(storage);
     await writer.write(Buffer.from('%PDF'));
     await writer.complete();
-    assert.deepEqual(await storage.readPrefix(OBJECT_KEY, 8), Buffer.from('%PDF'));
+    assert.deepEqual(Buffer.from(await storage.readPrefix(OBJECT_KEY, 8)), Buffer.from('%PDF'));
     assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
     assert.equal(calls.some(call => call.method === 'DELETE'), false);
   });
@@ -990,7 +993,7 @@ test('B110 signed HTTP binds requested Range to SigV4 and rejects tampering', as
       const bytes = Buffer.from('%PDF-1.7');
       await writer.write(bytes);
       await writer.complete();
-      assert.deepEqual(await storage.readPrefix(OBJECT_KEY, 8), bytes);
+      assert.deepEqual(Buffer.from(await storage.readPrefix(OBJECT_KEY, 8)), bytes);
       const received = calls.find(call => call.method === 'GET');
       assert.ok(received?.requestHeaders);
       const headers = received.requestHeaders;
@@ -1051,7 +1054,7 @@ test('B109 signed HTTP returns exact small prefix from a compatible provider', a
     const bytes = Buffer.from('%PDF-1.7');
     await writer.write(bytes);
     await writer.complete();
-    assert.deepEqual(await storage.readPrefix(OBJECT_KEY, bytes.byteLength), bytes);
+    assert.deepEqual(Buffer.from(await storage.readPrefix(OBJECT_KEY, bytes.byteLength)), bytes);
     assert.deepEqual(objects.get(PATH), bytes);
     assert.deepEqual(calls.map(call => call.method), ['PUT', 'GET']);
   });

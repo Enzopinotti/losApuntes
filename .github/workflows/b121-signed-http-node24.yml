@@ -1,0 +1,74 @@
+name: B121 Node24 signed S3 HTTP acceptance
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b121-signed-http-node24.yml
+      - scripts/test-account-export-b86-s3-loopback.test.mjs
+      - scripts/run-account-export-b101-signed-http.mjs
+      - scripts/testing/b101-signed-http-tap.mjs
+      - scripts/testing/b107-node-gate.mjs
+      - apps/api/src/files/storage/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b121-signed-http-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  signed-s3-local-tcp:
+    name: Signed local S3 TCP 61/61 on Node24
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact unmerged commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact unmodified source SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up Node 24 (no dependency installation)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Enforce runtime and disabled Study Progress
+        shell: bash
+        env:
+          STUDY_PROGRESS_ENABLED: "false"
+        run: |
+          node --version
+          node -e "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(2)"
+          test "$STUDY_PROGRESS_ENABLED" = false
+
+      - name: Run strict native release and signed request provenance tests
+        env:
+          STUDY_PROGRESS_ENABLED: "false"
+        run: |
+          node --test scripts/test-account-export-b107-tap-provenance.test.mjs scripts/test-account-export-b107-runtime.test.mjs
+          node --test scripts/test-account-export-b87-sigv4.test.mjs
+          node scripts/test-account-export-b107-guard.mjs
+          node --experimental-strip-types --test scripts/test-account-export-b120-delete-confirmation.test.mjs
+          node scripts/test-account-export-b120-guard.mjs
+
+      - name: Execute all 61 local TCP signed S3 cases with strict TAP
+        env:
+          STUDY_PROGRESS_ENABLED: "false"
+        run: node scripts/run-account-export-b101-signed-http.mjs
+
+      - name: Recheck exact HEAD and clean checkout after acceptance
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
