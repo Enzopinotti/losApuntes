@@ -233,11 +233,11 @@ describe('AccountExportController', () => {
   );
 
   it.each([
-    [{ generation: '123e4567-e89b-42d3-a456-426614174002' }, 'generation'],
-    [{ byteLength: 99 }, 'size'],
-    [{ sha256: 'b'.repeat(64) }, 'digest'],
-    [{ formatVersion: 2 }, 'version'],
-  ] as const)('B92 refuses a changed %s after preflight with a safe 409', async (changes) => {
+    { changes: { generation: '123e4567-e89b-42d3-a456-426614174002' }, field: 'generation' },
+    { changes: { byteLength: 99 }, field: 'size' },
+    { changes: { sha256: 'b'.repeat(64) }, field: 'digest' },
+    { changes: { formatVersion: 2 }, field: 'version' },
+  ])('B92 refuses a changed $field after preflight with a safe 409', async ({ changes }) => {
     const f = fixture();
     const original = {
       kind: 'available' as const, formatVersion: 1 as const,
