@@ -76,7 +76,7 @@ describe('AccountExportController', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(f.exports.download.mock.calls).toEqual([['other-user', exportId]]);
-    expect(f.artifacts.verifyReadable).not.toHaveBeenCalled();
+    expect(f.artifacts.verifyReadable.mock.calls).toHaveLength(0);
     expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
     expect(reply.send.mock.calls).toHaveLength(0);
   });
@@ -102,7 +102,7 @@ describe('AccountExportController', () => {
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
-        yield bytes;
+        yield await Promise.resolve(bytes);
       })(),
     );
     const raw = Object.assign(new EventEmitter(), {
@@ -125,16 +125,16 @@ describe('AccountExportController', () => {
     await Promise.resolve();
     expect(reply.header).not.toHaveBeenCalled();
     expect(reply.send).not.toHaveBeenCalled();
-    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
     release();
     await downloading;
-    expect(f.artifacts.verifyReadable).toHaveBeenCalledWith(
+    expect(f.artifacts.verifyReadable.mock.calls).toContainEqual([
       exportId,
       generation,
       { byteLength: bytes.length, sha256 },
       expect.any(AbortSignal),
-    );
-    expect(f.artifacts.readObjectChunks).toHaveBeenCalledTimes(1);
+    ]);
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(1);
     expect(reply.header).toHaveBeenCalledWith('content-length', bytes.length);
     expect(reply.send).toHaveBeenCalledTimes(1);
     raw.emit('finish');
@@ -179,7 +179,7 @@ describe('AccountExportController', () => {
       expect(message).not.toContain('secret-user');
       expect(reply.header).not.toHaveBeenCalled();
       expect(reply.send).not.toHaveBeenCalled();
-      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+      expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
       expect(raw.listenerCount('close')).toBe(0);
       expect(raw.listenerCount('finish')).toBe(0);
     },
@@ -254,11 +254,11 @@ describe('AccountExportController', () => {
       await expect(
         f.controller.download(f.request, exportId, reply as never),
       ).rejects.toBeInstanceOf(exceptionType);
-      expect(f.artifacts.verifyReadable).toHaveBeenCalledTimes(1);
-      expect(f.exports.download).toHaveBeenCalledTimes(2);
+      expect(f.artifacts.verifyReadable.mock.calls).toHaveLength(1);
+      expect(f.exports.download.mock.calls).toHaveLength(2);
       expect(reply.header).not.toHaveBeenCalled();
       expect(reply.send).not.toHaveBeenCalled();
-      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+      expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
       expect(raw.listenerCount('close')).toBe(0);
     },
   );
@@ -310,7 +310,7 @@ describe('AccountExportController', () => {
       ).toContain('ACCOUNT_EXPORT_CHANGED_DURING_VERIFICATION');
       expect(reply.header).not.toHaveBeenCalled();
       expect(reply.send).not.toHaveBeenCalled();
-      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+      expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
     },
   );
 
@@ -573,7 +573,7 @@ describe('AccountExportController', () => {
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
-        yield content;
+        yield await Promise.resolve(content);
       })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
@@ -607,7 +607,7 @@ describe('AccountExportController', () => {
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
-        yield Buffer.from('x');
+        yield await Promise.resolve(Buffer.from('x'));
       })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
@@ -646,6 +646,6 @@ describe('AccountExportController', () => {
     await expect(
       f.controller.download(f.request, exportId, reply as never),
     ).rejects.toThrow();
-    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
   });
 });
