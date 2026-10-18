@@ -42,7 +42,8 @@ async function withLoopback(input, scenario) {
       const uploadId = url.searchParams.get('uploadId');
       const part = url.searchParams.get('partNumber');
       calls.push({ method, path: url.pathname, uploadId, part, bytes: body.length,
-        ...(method === 'GET' && input.captureGetHeaders
+        ...((method === 'GET' && input.captureGetHeaders) ||
+          ((method === 'POST' || method === 'PUT') && input.captureWriteHeaders)
           ? { requestHeaders: { ...request.headers } } : {}),
       });
       const trusted = verifyB87S3SigV4({
@@ -542,6 +543,52 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B112 signed HTTP rejects injected content-type before any multipart request', async () => {
+  for (const contentType of [
+    'application/json\r\nX-Amz-Date: forged',
+    'application/json\u0000override',
+  ]) {
+    await withLoopback({}, async ({ storage, calls, objects, uploads }) => {
+      const writer = storage.createMultipartWriter({
+        objectKey: OBJECT_KEY, contentType, deleteObjectOnAbort: false,
+      });
+      await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x51)),
+        /S3 signed request contains an invalid or reserved header/u);
+      await assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      await writer.abort();
+      assert.deepEqual(calls, []);
+      assert.equal(objects.size, 0);
+      assert.equal(uploads.size, 0);
+    });
+  }
+});
+
+test('B112 signed HTTP preserves canonical content-type for real multipart writes', async () => {
+  await withLoopback({ captureWriteHeaders: true },
+    async ({ storage, calls, objects }) => {
+      const writer = storage.createMultipartWriter({
+        objectKey: OBJECT_KEY,
+        contentType: ' application/json;   charset=utf-8 ',
+        deleteObjectOnAbort: false,
+      });
+      const bytes = Buffer.alloc(5 * 1024 * 1024, 0x52);
+      await writer.write(bytes);
+      await writer.complete();
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
+      const initHeaders = calls[0].requestHeaders;
+      assert.equal(initHeaders['content-type'], 'application/json; charset=utf-8');
+      assert.match(initHeaders.authorization,
+        /SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,/u);
+      for (const call of calls.slice(1)) {
+        assert.match(call.requestHeaders.authorization,
+          /SignedHeaders=host;x-amz-content-sha256;x-amz-date,/u);
+        assert.equal(call.requestHeaders['content-type'], undefined);
+      }
+      assert.deepEqual(objects.get(PATH), bytes);
+    });
 });
 
 test('B111 signed HTTP confirms exact byte-zero Content-Range and smaller object', async () => {
