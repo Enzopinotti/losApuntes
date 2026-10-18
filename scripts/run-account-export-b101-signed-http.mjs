@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { verifyB101SignedHttpTap } from './testing/b101-signed-http-tap.mjs';
+import { classifyB107SignedHttpRuntime } from './testing/b107-node-gate.mjs';
 
 if (process.env.STUDY_PROGRESS_ENABLED === 'true') {
   console.error('B101 cannot execute with STUDY_PROGRESS_ENABLED=true.');
@@ -27,17 +28,11 @@ if (expectedNames.length < 34 ||
 }
 
 const nodeMajor = Number(process.versions.node.split('.')[0]);
-const diagnosticNode22 = process.argv.slice(2).length === 1 &&
-  process.argv[2] === '--diagnostic-node22';
-if (process.argv.length > 2 && !diagnosticNode22) {
-  console.error('B107 accepts only --diagnostic-node22 as an optional argument.');
-  process.exit(2);
-}
-// The ordinary command is release qualification: it must NEVER return zero
-// on Node22. Node22 is allowed only via a deliberate diagnostic opt-in.
-if (nodeMajor !== 24 && !(diagnosticNode22 && nodeMajor === 22)) {
-  console.error('B107 S3 signed HTTP acceptance REQUIRES Node24. ' +
-    'Node22 diagnostics are opt-in: --diagnostic-node22 (not release acceptance).');
+let qualification;
+try {
+  qualification = classifyB107SignedHttpRuntime(nodeMajor, process.argv.slice(2));
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);
 }
 const run = spawnSync(process.execPath, [
@@ -58,7 +53,7 @@ try {
     exitCode: run.error || run.signal ? -1 : run.status,
     expectedNames,
   });
-  if (nodeMajor === 24) {
+  if (qualification === 'acceptance') {
     console.log('B107 Node24 qualified signed HTTP PASS: ' + result.passed + '/' + result.expected);
   } else {
     console.log('B107 Node22 signed HTTP diagnostic PASS: ' + result.passed +
