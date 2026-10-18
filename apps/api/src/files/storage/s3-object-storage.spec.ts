@@ -81,6 +81,43 @@ describe('S3ObjectStorage', () => {
     expect(result.expiresAt.toISOString()).toBe('2026-09-23T13:05:00.000Z');
   });
 
+  it('B125 percent-encodes RFC 5987 punctuation and sanitizes untrusted display filenames', async () => {
+    const value = await storage().createDownloadIntent({
+      objectKey: 'resource-assets/id/private-file.pdf',
+      filename: "Parcial '()+*.pdf\r\nX-Injected: yes",
+      contentType: 'application/pdf',
+      disposition: 'attachment',
+      expiresInSeconds: 300,
+    });
+    const url = new URL(value.url);
+    const contentDisposition = url.searchParams.get(
+      'response-content-disposition',
+    );
+    expect(contentDisposition).toBe(
+      'attachment; filename="Parcial \'()+*.pdf__X-Injected: yes"; ' +
+        "filename*=UTF-8''Parcial%20%27%28%29%2B%2A.pdf%0D%0AX-Injected%3A%20yes",
+    );
+    expect(contentDisposition).not.toMatch(/[\r\n]/u);
+    expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/u);
+  });
+
+  it('B125 rejects malformed internal and public endpoint strings before creating a signed URL', () => {
+    const config = {
+      endpoint: 'http://object-storage:9000',
+      publicEndpoint: 'http://localhost:9000',
+      bucket: 'losapuntes-files',
+      region: 'us-east-1',
+      accessKeyId: 'test-access',
+      secretAccessKey: 'test-secret',
+    };
+    expect(() =>
+      createS3ObjectStorage({ ...config, endpoint: 'not an absolute url' }),
+    ).toThrow('FILES_S3_ENDPOINT must be an absolute HTTP(S) URL');
+    expect(() =>
+      createS3ObjectStorage({ ...config, publicEndpoint: 'not a url' }),
+    ).toThrow('FILES_S3_PUBLIC_ENDPOINT must be an absolute HTTP(S) URL');
+  });
+
   it('rejects invalid endpoint roots and invalid presign expiries', () => {
     expect(() =>
       createS3ObjectStorage({
@@ -826,6 +863,36 @@ describe('S3ObjectStorage', () => {
     },
   );
 
+  it('B125 preserves the fail-closed GET error when provider stream cancellation rejects', async () => {
+    let cancellations = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from('partial private payload'));
+      },
+      cancel() {
+        cancellations++;
+        return Promise.reject(new Error('provider refused cancellation'));
+      },
+    });
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(body, { status: 206 }));
+    const exposed: Uint8Array[] = [];
+    await expect(
+      (async () => {
+        for await (const chunk of storage().readObjectChunks(
+          'exports/private/b125-rejected-provider',
+          1024,
+        )) {
+          exposed.push(chunk);
+        }
+      })(),
+    ).rejects.toThrow('S3 GET object failed with HTTP 206');
+    await Promise.resolve();
+    expect(cancellations).toBe(1);
+    expect(exposed).toEqual([]);
+  });
+
   it('B115 rejects a truncated full GET at natural EOF despite HTTP 200', async () => {
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -892,16 +959,18 @@ describe('S3ObjectStorage', () => {
         headers: { 'content-length': '9007199254740992' },
       }),
     );
+    const exposed: Uint8Array[] = [];
     await expect(
       (async () => {
-        for await (const _chunk of storage().readObjectChunks(
+        for await (const chunk of storage().readObjectChunks(
           'b115-invalid',
           1024,
         )) {
-          // No private bytes may reach a caller for invalid metadata.
+          exposed.push(chunk);
         }
       })(),
     ).rejects.toThrow('S3 GET object returned an invalid Content-Length');
+    expect(exposed).toEqual([]);
     expect(cancelled).toBe(1);
   });
 
@@ -973,7 +1042,12 @@ describe('S3ObjectStorage', () => {
       [Symbol.asyncIterator]();
     const first = await iterator.next();
     expect(first.done).toBe(false);
-    expect(first.value?.byteLength).toBe(1024);
+    const firstChunk: unknown = first.value;
+    expect(firstChunk).toBeInstanceOf(Uint8Array);
+    if (!(firstChunk instanceof Uint8Array)) {
+      throw new Error('Expected a real Uint8Array before cancellation');
+    }
+    expect(firstChunk.byteLength).toBe(1024);
     controller.abort();
     await expect(iterator.next()).rejects.toMatchObject({ name: 'AbortError' });
     expect(cancelled).toBe(1);
