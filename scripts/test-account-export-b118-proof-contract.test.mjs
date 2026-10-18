@@ -11,13 +11,14 @@ const hex = 'b'.repeat(64);
 const names = [
   ...Array.from({ length: 53 }, (_, i) => 'B86 existing ' + i),
   ...Array.from({ length: 4 }, (_, i) => 'B117 signed HEAD ' + i),
+  ...Array.from({ length: 2 }, (_, i) => 'B119 signed HEAD ETag ' + i),
 ];
 const base = {
   expectedSha: sha, currentSha: sha, gitPorcelain: '',
   nodeVersion: '24.5.0', pnpmVersion: '9.15.9',
   studyProgressEnabled: 'false', testNames: names,
   exitCode: 0, signal: null,
-  stdout: 'TAP version 13\nB107 Node24 qualified signed HTTP PASS: 57/57\n',
+  stdout: 'TAP version 13\nB107 Node24 qualified signed HTTP PASS: 59/59\n',
   inventorySha256: hex, runnerSha256: hex, tapSha256: hex,
 };
 
@@ -33,17 +34,17 @@ test('B118 only exact clean HEAD and Node24/pnpm9 qualify', () => {
 
 test('B118 rejects incomplete, duplicated and manipulated signed inventory', () => {
   for (const testNames of [
-    names.slice(0, 56), [...names.slice(0, 56), names[0]],
+    names.slice(0, 58), [...names.slice(0, 58), names[0]],
     names.map(n => n.replace('B117', 'B118')),
-  ]) assert.throws(() => preflight({ ...base, testNames }), /57 unique/u);
+  ]) assert.throws(() => preflight({ ...base, testNames }), /59 unique/u);
 });
 
 test('B118 never treats failed or incomplete TAP wrapper as successful proof', () => {
   assert.doesNotThrow(() => result(base));
   for (const update of [
     { exitCode: 1 }, { signal: 'SIGTERM' }, { stdout: '' },
-    { stdout: 'B107 Node22 signed HTTP diagnostic PASS: 57/57' },
-    { stdout: 'B107 Node24 qualified signed HTTP PASS: 56/57' },
+    { stdout: 'B107 Node22 signed HTTP diagnostic PASS: 59/59' },
+    { stdout: 'B107 Node24 qualified signed HTTP PASS: 58/59' },
     { stdout: base.stdout + base.stdout },
   ]) assert.throws(() => result({ ...base, ...update }));
 });
@@ -51,8 +52,8 @@ test('B118 never treats failed or incomplete TAP wrapper as successful proof', (
 test('B118 evidence is minimal, hash-bound and keeps launch HOLD', () => {
   const value = record(base);
   assert.equal(value.gitSha, sha);
-  assert.equal(value.total, 57);
-  assert.equal(value.passed, 57);
+  assert.equal(value.total, 59);
+  assert.equal(value.passed, 59);
   assert.equal(value.releaseGate, 'HOLD');
   assert.equal(value.studyProgressProductionEnabled, false);
   assert.equal(value.tapSha256, hex);
