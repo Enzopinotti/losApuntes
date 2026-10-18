@@ -21,7 +21,12 @@ function stored(subjectId: string) {
     ownerUserId: owner, excludedField: 'not-exported', _id: 'internal',
   };
 }
-function fixture(rows: ReturnType<typeof stored>[] = []) {
+// Mongo rows are not trusted even when the healthy fixture is well typed:
+// negative tests must be able to supply invalid persisted plan structures.
+type StoredFixtureRow = Omit<ReturnType<typeof stored>, 'plan'> & {
+  plan: unknown;
+};
+function fixture(rows: StoredFixtureRow[] = []) {
   const query = {
     select: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(), lean: jest.fn().mockReturnThis(),
