@@ -222,6 +222,46 @@ describe('S3ObjectStorage', () => {
       .rejects.toThrow('S3 HEAD returned an invalid content length');
   });
 
+  it.each(['"unbalanced', 'unbalanced"', '"inside"quote"', 'bad etag', 'x'.repeat(255)])(
+    'B119 rejects a malformed present HEAD ETag %j without confirming metadata',
+    async (invalidEtag) => {
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { 'content-length': '8', etag: invalidEtag },
+        }),
+      );
+      await expect(storage().headObject('private/b119-invalid-etag'))
+        .rejects.toThrow('S3 HEAD returned an invalid ETag');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('B119 keeps missing HEAD ETag optional on confirmed HTTP 200', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(
+      new Response(null, {
+        status: 200, headers: { 'content-length': '8' },
+      }),
+    );
+    await expect(storage().headObject('private/b119-no-etag')).resolves.toEqual({
+      byteSize: 8, contentType: null, etag: null,
+    });
+  });
+
+  it('B119 preserves balanced multipart-format and compatible opaque HEAD ETags', async () => {
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { 'content-length': '8', etag: '"abcd0123-2"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { 'content-length': '8', etag: 'compatible-opaque' },
+      }));
+    const first = await storage().headObject('private/b119-multipart');
+    const second = await storage().headObject('private/b119-compatible');
+    expect(first?.etag).toBe('abcd0123-2');
+    expect(second?.etag).toBe('compatible-opaque');
+  });
+
   it('reads only bounded prefixes and rejects oversized provider responses', async () => {
     const fetchSpy = jest
       .spyOn(global, 'fetch')
