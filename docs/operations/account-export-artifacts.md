@@ -1765,3 +1765,35 @@ backup/restore, navegación y auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` productivo,
 sin CI manual ni despliegue.
+
+## B121 — Ejecución efectiva Node24 de 61 casos TCP firmados
+
+El PR #442 agregó el job **read-only** `B121 Node24 signed S3 HTTP acceptance`
+sobre HEAD exacto del PR, sin secrets S3, sin Mongo externo,
+sin despliegues y con `STUDY_PROGRESS_ENABLED=false`. La
+primera ejecución real descubrió cuatro expectativas de tests
+incorrectas (3 comparaciones Buffer vs Uint8Array con bytes
+idénticos y 1 firma multipart con Content-Type efectivamente firmado).
+Se corrigieron conservando las comprobaciones de bytes/SigV4.
+
+La segunda corrida ejecutó **61/61 casos PASS** pero el wrapper de
+release correctamente rechazó la salida spec de Node24 por no ser TAP.
+B121 fijó `--test-reporter=tap` y reforzó el guard B107 para prevenir
+la regresión.
+
+**Evidencia real Node24, GitHub Actions #39147403904**:
+- `TAP version 13`, plan `1..61`.
+- `61/61 PASS`, **0 failures, 0 skips, 0 TODO, 0 cancelled**.
+- `B107 Node24 qualified signed HTTP PASS: 61/61`.
+- HEAD Git exacto antes/después, runner local firmado y 127.0.0.1.
+- No es aceptación de S3 AWS/MinIO externo ni de release.
+
+El control de aceptación aislado está en
+`.github/workflows/b121-signed-http-node24.yml`; se activa
+automáticamente en PRs pertinentes y carece de permisos de escritura,
+`workflow_dispatch`, claves cloud y pasos de despliegue.
+
+Pendientes en **#353 HOLD**: Jest/Nest/API lint y typecheck,
+Mongo réplica B94, proveedor S3 real IAM/lifecycle,
+backup/restore, navegadores, calidad global y auditorías #133/#141.
+`STUDY_PROGRESS_ENABLED=false` en producción.
