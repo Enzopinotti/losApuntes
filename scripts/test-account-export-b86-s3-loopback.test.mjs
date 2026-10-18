@@ -44,6 +44,7 @@ async function withLoopback(input, scenario) {
       const part = url.searchParams.get('partNumber');
       calls.push({ method, path: url.pathname, uploadId, part, bytes: body.length,
         ...((method === 'GET' && input.captureGetHeaders) ||
+          (method === 'HEAD' && input.captureHeadHeaders) ||
           ((method === 'POST' || method === 'PUT') && input.captureWriteHeaders)
           ? { requestHeaders: { ...request.headers } } : {}),
       });
@@ -124,6 +125,19 @@ async function withLoopback(input, scenario) {
           objects.delete(url.pathname);
           response.writeHead(204); response.end();
         }
+      } else if (method === 'HEAD') {
+        // B117: HEAD must traverse real localhost TCP with B87 independent
+        // SigV4 verification *before* returning provider metadata.
+        const obj = objects.get(url.pathname);
+        const reply = input.headReply ?? {};
+        const status = reply.status ?? (obj ? 200 : 404);
+        const headers = {
+          ...(status === 200 ? { 'content-type': CONTENT_TYPE, etag: '"b117-etag"' } : {}),
+          ...(obj && status !== 404 && status !== 204 && !reply.omitLength
+            ? { 'content-length': reply.contentLength ?? String(obj.byteLength) } : {}),
+        };
+        response.writeHead(status, headers);
+        response.end();
       } else if (method === 'GET') {
         const obj = objects.get(url.pathname);
         const fault = getFaults.shift() ?? 'healthy';
@@ -566,6 +580,81 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B117 signed HEAD confirms exact private metadata and returns 404 after deletion', async () => {
+  await withLoopback({ captureHeadHeaders: true }, async ({ storage, objects, calls }) => {
+    const writer = newWriter(storage);
+    const bytes = Buffer.from('{"b117":"private-head-metadata"}');
+    await writer.write(bytes);
+    await writer.complete();
+
+    const head = await storage.headObject(OBJECT_KEY);
+    assert.deepEqual(head, {
+      byteSize: bytes.length, contentType: CONTENT_TYPE, etag: 'b117-etag',
+    });
+    assert.deepEqual(objects.get(PATH), bytes);
+    assert.equal(calls[1].method, 'HEAD');
+    assert.equal(calls[1].path, PATH);
+    assert.match(calls[1].requestHeaders.authorization,
+      /SignedHeaders=host;x-amz-content-sha256;x-amz-date,/u);
+
+    await storage.deleteObject(OBJECT_KEY);
+    assert.equal(await storage.headObject(OBJECT_KEY), null);
+    assert.deepEqual(calls.map(call => call.method), ['PUT', 'HEAD', 'DELETE', 'HEAD']);
+    assert.equal(objects.has(PATH), false);
+  });
+});
+
+test('B117 signed HEAD rejects unconfirmed HTTP 202 and partial HTTP 206 metadata', async () => {
+  for (const status of [202, 206]) {
+    await withLoopback({ headReply: { status } }, async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('{"b117":"cannot-confirm-head"}');
+      await writer.write(bytes);
+      await writer.complete();
+      await assert.rejects(storage.headObject(OBJECT_KEY),
+        new RegExp('S3 HEAD failed with HTTP ' + status, 'u'));
+      assert.deepEqual(objects.get(PATH), bytes,
+        'a failed metadata read cannot mutate the private object');
+      assert.deepEqual(calls.map(call => call.method), ['PUT', 'HEAD']);
+      assert.equal(calls.some(call => call.method === 'DELETE'), false);
+    });
+  }
+});
+
+test('B117 signed HEAD denies 204 and an HTTP 200 missing Content-Length', async () => {
+  for (const reply of [{ status: 204 }, { status: 200, omitLength: true }]) {
+    await withLoopback({ headReply: reply }, async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('{"b117":"no-head-proof"}');
+      await writer.write(bytes);
+      await writer.complete();
+      await assert.rejects(storage.headObject(OBJECT_KEY),
+        reply.status === 204
+          ? /S3 HEAD failed with HTTP 204/u
+          : /S3 HEAD returned an invalid content length/u);
+      assert.deepEqual(objects.get(PATH), bytes);
+      assert.deepEqual(calls.map(call => call.method), ['PUT', 'HEAD']);
+    });
+  }
+});
+
+test('B117 signed HEAD fails closed for noncanonical and unsafe Content-Length', async () => {
+  for (const contentLength of ['', '01', '8e2', '8, 8', '9007199254740992']) {
+    await withLoopback({ headReply: { status: 200, contentLength } },
+      async ({ storage, objects, calls }) => {
+        const writer = newWriter(storage);
+        const bytes = Buffer.from('{"b117":"bad-head-length"}');
+        await writer.write(bytes);
+        await writer.complete();
+        await assert.rejects(storage.headObject(OBJECT_KEY),
+          /S3 HEAD returned an invalid content length/u);
+        assert.deepEqual(objects.get(PATH), bytes);
+        assert.deepEqual(calls.map(call => call.method), ['PUT', 'HEAD']);
+        assert.equal(calls.some(call => call.method === 'DELETE'), false);
+      });
+  }
 });
 
 test('B115 signed GET verifies a declared exact private object length', async () => {
