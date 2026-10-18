@@ -69,12 +69,12 @@ check('B109 localhost SigV4 fixtures verify oversized and correct GET prefix', (
   assert.match(http, /objects\.get\(PATH\)/u);
 });
 
-check('B109 release runner requires all 59 current signed HTTP scenarios', () => {
+check('B109 release runner requires all 61 current signed HTTP scenarios', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 59);
-  assert.equal(new Set(names).size, 59);
+  assert.equal(names.length, 61);
+  assert.equal(new Set(names).size, 61);
   assert.equal(names.filter(name => name.startsWith('B109 ')).length, 2);
-  assert.match(runner, /expectedNames\.length < 59/u);
+  assert.match(runner, /expectedNames\.length < 61/u);
   assert.match(runner, /'B108 ', 'B109 '/u);
   assert.match(tap, /summary\.skipped !== 0/u);
 });
