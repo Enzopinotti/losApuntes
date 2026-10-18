@@ -555,7 +555,8 @@ test('B110 signed HTTP binds requested Range to SigV4 and rejects tampering', as
       assert.equal(verifyB87S3SigV4({
         ...request, headers: { ...headers, range: 'bytes=1-8' },
       }), false, 'changing signed Range must invalidate request');
-      const { range, ...withoutRange } = headers;
+      const withoutRange = { ...headers };
+      delete withoutRange.range;
       assert.equal(verifyB87S3SigV4({
         ...request, headers: withoutRange,
       }), false, 'removing signed Range must invalidate request');
