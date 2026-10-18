@@ -324,15 +324,15 @@ async function signedBodyRequest(input: {
   const scope = `${dateStamp}/${input.region}/${SERVICE}/aws4_request`;
   const body = input.body ?? new Uint8Array();
   const payloadHash = createHash('sha256').update(body).digest('hex');
-  const headers = new Map<string, string>([
-    ['host', input.endpoint.host],
-    ['x-amz-content-sha256', payloadHash],
-    ['x-amz-date', amzDate],
-    ...Object.entries(input.headers ?? {}).map(
-      ([key, value]) =>
-        [key.toLowerCase(), normalizeHeaderValue(value)] as const,
-    ),
-  ]);
+  // B112: multipart POST/PUT/DELETE must enforce the same reserved-header
+  // ownership as B110 GET/HEAD. A supplied content-type is signed, but it
+  // must never overwrite host, payload hash, date or authorization.
+  const headers = collectS3SignedRequestHeaders(
+    input.endpoint.host,
+    payloadHash,
+    amzDate,
+    input.headers,
+  );
   const signedHeaders = [...headers.keys()].sort().join(';');
   const canonicalHeaders = [...headers.entries()]
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
