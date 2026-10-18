@@ -36,6 +36,8 @@ check('B119 shares B108 safe bounded quote parser rather than inventing another 
   assert.match(headEtag, /import \{ normalizeS3MultipartPartEtag \}/u);
   assert.match(headEtag, /if \(raw === null\) return null/u);
   assert.match(headEtag, /normalizeS3MultipartPartEtag\(raw\)/u);
+  assert.match(headEtag, /\\x20-\\x7e/u);
+  assert.match(native, /abc\\u00a0/u);
   assert.match(headEtag, /S3 HEAD returned an invalid ETag/u);
   assert.match(partEtag, /startsQuote !== endsQuote/u);
   assert.match(partEtag, /token\.length > 254/u);
