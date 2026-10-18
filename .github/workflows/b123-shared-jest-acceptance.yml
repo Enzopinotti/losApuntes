@@ -61,6 +61,31 @@ jobs:
             src/study-collections/domain/study-collection.service.spec.ts \
             --passWithNoTests=false --detectOpenHandles
 
+      - name: Prepare canonical Prettier output for source correction
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --write \
+            src/files/storage/s3-object-storage.spec.ts \
+            src/data-lifecycle/data-lifecycle.module.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            src/study-collections/domain/study-collection.service.ts
+          node --input-type=module <<'B123FORMAT'
+          import { readFileSync } from 'node:fs';
+          const files = [
+            'src/files/storage/s3-object-storage.spec.ts',
+            'src/data-lifecycle/data-lifecycle.module.spec.ts',
+            'src/data-lifecycle/domain/account-export-versioning.spec.ts',
+            'src/study-collections/domain/study-collection.service.ts',
+          ];
+          for (const path of files) {
+            const b64 = readFileSync('apps/api/' + path).toString('base64');
+            console.log('B123_FORMAT_BEGIN ' + path);
+            for (const chunk of b64.match(/.{1,1200}/gu) ?? []) {
+              console.log('B123_FORMAT_CHUNK ' + chunk);
+            }
+            console.log('B123_FORMAT_END ' + path);
+          }
+          B123FORMAT
+
       - name: Check B123 affected TypeScript formatting
         run: |
           pnpm --filter @losapuntes/api exec prettier --check \
