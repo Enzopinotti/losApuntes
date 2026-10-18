@@ -209,6 +209,50 @@ describe('S3ObjectStorage', () => {
     );
   });
 
+  it('B109 cancels an oversized streamed GET prefix before full buffering', async () => {
+    let cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.alloc(64 * 1024 + 1, 0x61));
+      },
+      cancel() { cancelled++; },
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(body, { status: 200 }));
+    await expect(storage().readPrefix('exports/private/b109.pdf', 8))
+      .rejects.toThrow('S3 returned more bytes than the requested prefix');
+    expect(cancelled).toBe(1);
+    const headers = new Headers(fetchSpy.mock.calls[0]?.[1]?.headers);
+    expect(headers.get('range')).toBe('bytes=0-7');
+  });
+
+  it('B109 cancels a progressive prefix overflow with a small byte budget', async () => {
+    let cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from('1234567'));
+        controller.enqueue(Buffer.from('89'));
+      },
+      cancel() { cancelled++; },
+    });
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(body, { status: 206 }));
+    await expect(storage().readPrefix('exports/private/b109-progressive.pdf', 8))
+      .rejects.toThrow('S3 returned more bytes than the requested prefix');
+    expect(cancelled).toBe(1);
+  });
+
+  it('B109 retains exact-byte prefix output and accepts an empty response body', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(Buffer.from('%PDF-1.7'), { status: 206 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    await expect(storage().readPrefix('b109-valid.pdf', 8))
+      .resolves.toEqual(new Uint8Array(Buffer.from('%PDF-1.7')));
+    await expect(storage().readPrefix('b109-empty.pdf', 8))
+      .resolves.toEqual(new Uint8Array());
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it('streams full objects in bounded chunks for safety scanners', async () => {
     const fetchSpy = jest
       .spyOn(global, 'fetch')
