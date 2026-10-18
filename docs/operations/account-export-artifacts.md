@@ -1797,3 +1797,33 @@ Pendientes en **#353 HOLD**: Jest/Nest/API lint y typecheck,
 Mongo réplica B94, proveedor S3 real IAM/lifecycle,
 backup/restore, navegadores, calidad global y auditorías #133/#141.
 `STUDY_PROGRESS_ENABLED=false` en producción.
+
+## B122 — MongoDB réplica real con cinco casos de recuperación privada
+
+Se añadió el workflow de solo lectura
+`.github/workflows/b122-mongo-replica-acceptance.yml`
+para ejecutar el **runner B94 ya existente** sobre un MongoDB 7
+desechable, réplica `rs0` con primaria real en
+`127.0.0.1:27017`, Node24 y dependencias frozen lockfile.
+El job verifica checkout Git exacto antes/después, inicia un
+primario validado, y destruye siempre el contenedor. No usa
+Mongo remoto, autenticación de producción, IAM S3, flags activas,
+`workflow_dispatch` ni despliegue.
+
+**Evidencia ejecutada:** PR #443,
+[GitHub Actions #39149219803](https://github.com/Enzopinotti/losApuntes/actions/runs/39149219803),
+job `SUCCESS`, cinco aserciones Jest B86/B90/B93
+**5/5 PASS**. El archivo contenía 56 tests; **51 se omitieron
+intencionalmente por estar fuera del filtro B94**, no se atribuyen
+como ejecutados. El reporte estricto B94 confirmó:
+`B94 local Mongo/S3 acceptance PASS: 5/5 mandatory cases executed.`.
+
+El alcance es recuperación owner-fenced y autoridad del reloj
+Mongo con S3 simulado dentro de Jest. **No** prueba S3
+AWS/MinIO externo; B121 conserva evidencia independiente
+de 61/61 HTTP S3 firmados con fixture localhost. Quedan
+pendientes chequeos de calidad completos (CI `verify`),
+integración multiusuario navegador, proveedor S3 externo
+IAM/lifecycle y restore, y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en producción.
