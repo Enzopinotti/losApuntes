@@ -70,10 +70,7 @@ function parseCursor(value?: string): Record<string, unknown> | null {
       return invalidCursor();
     }
     const bytes = Buffer.from(value, 'base64url');
-    if (
-      bytes.length > 256 ||
-      bytes.toString('base64url') !== value
-    ) {
+    if (bytes.length > 256 || bytes.toString('base64url') !== value) {
       return invalidCursor();
     }
     const decoded: unknown = JSON.parse(bytes.toString('utf8'));
@@ -192,7 +189,11 @@ export class StudyCollectionService {
   }
 
   async list(ownerUserId: string, limit: number, cursor?: string) {
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > STUDY_COLLECTION_MAX_PAGE) {
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > STUDY_COLLECTION_MAX_PAGE
+    ) {
       return invalidCursor();
     }
     const after = listCursor(cursor, ownerUserId);
@@ -293,13 +294,15 @@ export class StudyCollectionService {
       if (current.revision !== expectedRevision) {
         throw new ConflictException({
           code: 'STUDY_COLLECTION_REVISION_CONFLICT',
-          message: 'Collection changed; inspect it again before removing a link',
+          message:
+            'Collection changed; inspect it again before removing a link',
         });
       }
       if (!current.resourceIds.includes(resourceId)) {
         throw new ConflictException({
           code: 'STUDY_COLLECTION_REFERENCE_CHANGED',
-          message: 'Reference was already changed; inspect the collection again',
+          message:
+            'Reference was already changed; inspect the collection again',
         });
       }
       try {
@@ -308,17 +311,30 @@ export class StudyCollectionService {
         // Only confirmed authorization / not-found failures permit removing
         // a broken reference. Any other error (including network/5xx)
         // stops recovery rather than treating the Resource as absent.
-        if (!(error instanceof NotFoundException) &&
-            !(error instanceof ForbiddenException)) throw error;
+        if (
+          !(error instanceof NotFoundException) &&
+          !(error instanceof ForbiddenException)
+        )
+          throw error;
         // The Mongo mutation below checks revision again atomically.
         const removed = await this.store.removeResource(
-          id, ownerUserId, resourceId, expectedRevision,
+          id,
+          ownerUserId,
+          resourceId,
+          expectedRevision,
         );
         if (!removed) this.notFound();
-        if (removed.revision !== expectedRevision + 1) {
+        // A confirmed recovery must actually unlink the inaccessible
+        // Resource, not merely return an incremented collection revision.
+        // An ambiguous store outcome must never be presented as success.
+        if (
+          removed.revision !== expectedRevision + 1 ||
+          removed.resourceIds.includes(resourceId)
+        ) {
           throw new ConflictException({
             code: 'STUDY_COLLECTION_REVISION_CONFLICT',
-            message: 'Collection changed; inspect it again before removing a link',
+            message:
+              'Collection changed; inspect it again before removing a link',
           });
         }
         return { collection: projection(removed) };
