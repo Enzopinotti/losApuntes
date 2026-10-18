@@ -115,7 +115,7 @@ describe('S3ObjectStorage', () => {
     ).toThrow('FILES_S3_ENDPOINT must be an absolute HTTP(S) URL');
     expect(() =>
       createS3ObjectStorage({ ...config, publicEndpoint: 'not a url' }),
-    ).toThrow('FILES_PUBLIC_URL must be an absolute HTTP(S) URL');
+    ).toThrow('FILES_S3_PUBLIC_ENDPOINT must be an absolute HTTP(S) URL');
   });
 
   it('rejects invalid endpoint roots and invalid presign expiries', () => {
@@ -862,6 +862,36 @@ describe('S3ObjectStorage', () => {
       ]);
     },
   );
+
+  it('B125 preserves the fail-closed GET error when provider stream cancellation rejects', async () => {
+    let cancellations = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from('partial private payload'));
+      },
+      cancel() {
+        cancellations++;
+        return Promise.reject(new Error('provider refused cancellation'));
+      },
+    });
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(body, { status: 206 }));
+    const exposed: Uint8Array[] = [];
+    await expect(
+      (async () => {
+        for await (const chunk of storage().readObjectChunks(
+          'exports/private/b125-rejected-provider',
+          1024,
+        )) {
+          exposed.push(chunk);
+        }
+      })(),
+    ).rejects.toThrow('S3 GET object failed with HTTP 206');
+    await Promise.resolve();
+    expect(cancellations).toBe(1);
+    expect(exposed).toEqual([]);
+  });
 
   it('B115 rejects a truncated full GET at natural EOF despite HTTP 200', async () => {
     const body = new ReadableStream<Uint8Array>({
