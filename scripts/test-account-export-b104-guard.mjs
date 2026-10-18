@@ -53,7 +53,7 @@ check('B104 abort after write failure remains owner-fenced and uploadId-specific
 });
 check('B104 signed HTTP server models failed part response after SigV4 authorization', () => {
   const verified = http.indexOf('const trusted = verifyB87S3SigV4(');
-  const denied = http.indexOf('response.writeHead(403)');
+  const denied = http.indexOf('response.writeHead(423)');
   const error = http.indexOf('const status = partStatuses.shift()');
   assert.ok(verified > 0 && denied > verified && error > denied);
   assert.match(http, /const partStatuses = \[\.\.\.\(input\.partStatuses \?\? \[\]\)\]/u);
@@ -84,7 +84,7 @@ check('B104 TAP runner enforces all 28 signed HTTP cases and fails on skips', ()
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
   assert.ok(names.length >= 28);
   assert.equal(new Set(names).size, names.length);
-  assert.match(runner, /expectedNames\.length < 40/u);
+  assert.match(runner, /expectedNames\.length < 42/u);
   assert.match(runner, /'B102 ', 'B103 ', 'B104 '/u);
   assert.match(tap, /summary\.skipped !== 0/u);
   assert.match(tap, /expectedNames\.some\(name => !passing\.includes\(name\)\)/u);
