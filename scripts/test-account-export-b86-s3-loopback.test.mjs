@@ -32,6 +32,7 @@ async function withLoopback(input, scenario) {
   // Every GET still traverses the real signed S3 adapter and real TCP.
   const getFaults = [...(input.getFaults ?? [])];
   const partStatuses = [...(input.partStatuses ?? [])];
+  const abortStatuses = [...(input.abortStatuses ?? [])];
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     const method = request.method ?? '';
@@ -75,14 +76,16 @@ async function withLoopback(input, scenario) {
         if (input.initiationDelayMs) {
           await new Promise(resolve => setTimeout(resolve, input.initiationDelayMs));
         }
-        response.writeHead(200, { 'content-type': 'application/xml' });
+        response.writeHead(input.initiationStatus ?? 200, { 'content-type': 'application/xml' });
         response.end(input.initiateMultipartBody ?? `<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`);
       } else if (method === 'PUT' && uploadId && part) {
         const upload = uploads.get(uploadId);
         if (!upload) { response.writeHead(404); response.end(); return; }
         const status = partStatuses.shift() ?? 200;
         if (status !== 200) {
-          response.writeHead(status); response.end(); return;
+          response.writeHead(status, input.partNon200Etag
+            ? { etag: '"plausible-but-unconfirmed"' } : undefined);
+          response.end(); return;
         }
         upload[Number(part) - 1] = body;
         response.writeHead(200, { etag: input.partEtag ?? '"b86-part-etag"' });
@@ -95,7 +98,7 @@ async function withLoopback(input, scenario) {
         if (input.loseMultipartAck) {
           response.destroy();
         } else {
-          response.writeHead(200, { 'content-type': 'application/xml' });
+          response.writeHead(input.completeStatus ?? 200, { 'content-type': 'application/xml' });
           response.end(input.completeMultipartBody ??
             `<CompleteMultipartUploadResult><Bucket>${BUCKET}</Bucket>` +
             `<Key>${OBJECT_KEY}</Key><ETag>"fixture-etag"</ETag>` +
@@ -104,10 +107,15 @@ async function withLoopback(input, scenario) {
       } else if (method === 'PUT' && !uploadId) {
         objects.set(url.pathname, body);
         if (input.losePutAck) response.destroy();
-        else { response.writeHead(200); response.end(); }
+        else { response.writeHead(input.singlePutStatus ?? 200); response.end(); }
       } else if (method === 'DELETE' && uploadId) {
-        uploads.delete(uploadId);
-        response.writeHead(204); response.end();
+        const status = abortStatuses.shift() ?? 204;
+        // 202 means the server *accepted* abort asynchronously, not that
+        // this multipart generation has been removed. B113 must retry.
+        if (status === 204 || status === 200 || status === 404) {
+          uploads.delete(uploadId);
+        }
+        response.writeHead(status); response.end();
       } else if (method === 'DELETE') {
         if (failDelete > 0) {
           failDelete -= 1;
