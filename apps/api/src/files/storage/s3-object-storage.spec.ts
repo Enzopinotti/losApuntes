@@ -297,6 +297,132 @@ describe('S3ObjectStorage', () => {
       }
     });
 
+  it.each([202, 204, 206])(
+    'B113 rejects single PutObject HTTP %s without marking a private object complete',
+    async (status) => {
+      const fetchSpy = jest.spyOn(global, 'fetch')
+        .mockResolvedValueOnce(new Response(null, { status }));
+      const writer = storage().createMultipartWriter({
+        objectKey: 'exports/private/b113-put.json',
+        contentType: 'application/json',
+        deleteObjectOnAbort: false,
+      });
+      await writer.write(Buffer.from('{"private":"b113"}'));
+      await expect(writer.complete())
+        .rejects.toThrow('S3 PUT object failed with HTTP ' + status);
+      await expect(writer.complete()).rejects.toThrow(
+        'S3 multipart writer cannot complete after a failed operation',
+      );
+      await writer.abort();
+      expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['PUT']);
+    },
+  );
+
+  it('B113 rejects HTTP 202 even when multipart initiation XML contains a plausible ID', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(
+      '<InitiateMultipartUploadResult><UploadId>b113-untrusted-id</UploadId></InitiateMultipartUploadResult>',
+      { status: 202 },
+    ));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/private/b113-init.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61)))
+      .rejects.toThrow('S3 Create multipart upload failed with HTTP 202');
+    await expect(writer.complete()).rejects.toThrow(
+      'S3 multipart writer cannot complete after a failed operation',
+    );
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method)).toEqual(['POST']);
+  });
+
+  it('B113 rejects HTTP 206 part ACK even when it contains a valid ETag', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>b113-part</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 206, headers: { etag: '"valid-but-not-confirmed"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/private/b113-part.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await expect(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x62)))
+      .rejects.toThrow('S3 Upload multipart part failed with HTTP 206');
+    await expect(writer.complete()).rejects.toThrow(
+      'S3 multipart writer cannot complete after a failed operation',
+    );
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[2]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('b113-part');
+  });
+
+  it('B113 rejects HTTP 202 completion with valid-looking XML and only aborts uploadId', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>b113-complete</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"b113-part"' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        '<CompleteMultipartUploadResult><ETag>"b113-ok"</ETag></CompleteMultipartUploadResult>',
+        { status: 202 },
+      ))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/private/b113-complete.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x63));
+    await expect(writer.complete())
+      .rejects.toThrow('S3 Complete multipart upload failed with HTTP 202');
+    await expect(writer.complete()).rejects.toThrow(
+      'S3 multipart writer cannot complete after a failed operation',
+    );
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'POST', 'DELETE']);
+    expect(new URL(fetchSpy.mock.calls[3]?.[0] as string)
+      .searchParams.get('uploadId')).toBe('b113-complete');
+  });
+
+  it('B113 ambiguous HTTP 202 abort cannot be mistaken for completed cancellation', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(
+        '<InitiateMultipartUploadResult><UploadId>b113-abort</UploadId></InitiateMultipartUploadResult>',
+        { status: 200 },
+      ))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 200, headers: { etag: '"b113-part"' },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const writer = storage().createMultipartWriter({
+      objectKey: 'exports/private/b113-abort.json',
+      contentType: 'application/json',
+      deleteObjectOnAbort: false,
+    });
+    await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x64));
+    await expect(writer.abort())
+      .rejects.toThrow('S3 Abort multipart upload failed with HTTP 202');
+    await writer.abort();
+    expect(fetchSpy.mock.calls.map(([, init]) => init?.method))
+      .toEqual(['POST', 'PUT', 'DELETE', 'DELETE']);
+    const abortedIds = fetchSpy.mock.calls.slice(2).map(([url]) =>
+      new URL(url as string).searchParams.get('uploadId'));
+    expect(abortedIds).toEqual(['b113-abort', 'b113-abort']);
+  });
+
   it('B112 signs content-type for multipart POST, PUT parts and completion', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(

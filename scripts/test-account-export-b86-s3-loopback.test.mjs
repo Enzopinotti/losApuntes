@@ -32,6 +32,7 @@ async function withLoopback(input, scenario) {
   // Every GET still traverses the real signed S3 adapter and real TCP.
   const getFaults = [...(input.getFaults ?? [])];
   const partStatuses = [...(input.partStatuses ?? [])];
+  const abortStatuses = [...(input.abortStatuses ?? [])];
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     const method = request.method ?? '';
@@ -75,14 +76,16 @@ async function withLoopback(input, scenario) {
         if (input.initiationDelayMs) {
           await new Promise(resolve => setTimeout(resolve, input.initiationDelayMs));
         }
-        response.writeHead(200, { 'content-type': 'application/xml' });
+        response.writeHead(input.initiationStatus ?? 200, { 'content-type': 'application/xml' });
         response.end(input.initiateMultipartBody ?? `<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`);
       } else if (method === 'PUT' && uploadId && part) {
         const upload = uploads.get(uploadId);
         if (!upload) { response.writeHead(404); response.end(); return; }
         const status = partStatuses.shift() ?? 200;
         if (status !== 200) {
-          response.writeHead(status); response.end(); return;
+          response.writeHead(status, input.partNon200Etag
+            ? { etag: '"plausible-but-unconfirmed"' } : undefined);
+          response.end(); return;
         }
         upload[Number(part) - 1] = body;
         response.writeHead(200, { etag: input.partEtag ?? '"b86-part-etag"' });
@@ -95,7 +98,7 @@ async function withLoopback(input, scenario) {
         if (input.loseMultipartAck) {
           response.destroy();
         } else {
-          response.writeHead(200, { 'content-type': 'application/xml' });
+          response.writeHead(input.completeStatus ?? 200, { 'content-type': 'application/xml' });
           response.end(input.completeMultipartBody ??
             `<CompleteMultipartUploadResult><Bucket>${BUCKET}</Bucket>` +
             `<Key>${OBJECT_KEY}</Key><ETag>"fixture-etag"</ETag>` +
@@ -104,10 +107,15 @@ async function withLoopback(input, scenario) {
       } else if (method === 'PUT' && !uploadId) {
         objects.set(url.pathname, body);
         if (input.losePutAck) response.destroy();
-        else { response.writeHead(200); response.end(); }
+        else { response.writeHead(input.singlePutStatus ?? 200); response.end(); }
       } else if (method === 'DELETE' && uploadId) {
-        uploads.delete(uploadId);
-        response.writeHead(204); response.end();
+        const status = abortStatuses.shift() ?? 204;
+        // 202 means the server *accepted* abort asynchronously, not that
+        // this multipart generation has been removed. B113 must retry.
+        if (status === 204 || status === 200 || status === 404) {
+          uploads.delete(uploadId);
+        }
+        response.writeHead(status); response.end();
       } else if (method === 'DELETE') {
         if (failDelete > 0) {
           failDelete -= 1;
@@ -543,6 +551,93 @@ test('B99 signed HTTP accepts a canonical AWS completion envelope with ETag', as
     assert.equal(objects.has(PATH), true);
     assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST']);
   });
+});
+
+test('B113 signed HTTP refuses 202 single PUT even when provider persisted private bytes', async () => {
+  await withLoopback({ singlePutStatus: 202 },
+    async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.from('{"b113":"ambiguous"}');
+      await writer.write(bytes);
+      await assert.rejects(writer.complete(), /S3 PUT object failed with HTTP 202/u);
+      await assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      await writer.abort();
+      assert.deepEqual(objects.get(PATH), bytes,
+        'private cleanup remains owner-fenced even when provider already stored bytes');
+      assert.deepEqual(calls.map(call => call.method), ['PUT']);
+    });
+});
+
+test('B113 signed HTTP refuses 202 initiation XML without issuing unsigned parts', async () => {
+  await withLoopback({ initiationStatus: 202 },
+    async ({ storage, objects, calls, uploads }) => {
+      const writer = newWriter(storage);
+      await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x61)),
+        /S3 Create multipart upload failed with HTTP 202/u);
+      await assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      await writer.abort();
+      assert.deepEqual(calls.map(call => call.method), ['POST']);
+      assert.equal(objects.size, 0);
+      assert.equal(uploads.size, 1,
+        'unconfirmed provider initiation must be left to configured S3 multipart lifecycle');
+    });
+});
+
+test('B113 signed HTTP refuses 206 UploadPart even with valid-looking ETag and aborts ID', async () => {
+  await withLoopback({ partStatuses: [206], partNon200Etag: true },
+    async ({ storage, objects, calls, uploads }) => {
+      const writer = newWriter(storage);
+      await assert.rejects(writer.write(Buffer.alloc(5 * 1024 * 1024, 0x62)),
+        /S3 Upload multipart part failed with HTTP 206/u);
+      await assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      await writer.abort();
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'DELETE']);
+      assert.ok(calls[2].uploadId);
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+      assert.equal(objects.size, 0);
+      assert.equal(uploads.size, 0);
+    });
+});
+
+test('B113 signed HTTP refuses 202 completion XML and keeps committed private generation', async () => {
+  await withLoopback({ completeStatus: 202 },
+    async ({ storage, objects, calls }) => {
+      const writer = newWriter(storage);
+      const bytes = Buffer.alloc(5 * 1024 * 1024, 0x63);
+      await writer.write(bytes);
+      await assert.rejects(writer.complete(),
+        /S3 Complete multipart upload failed with HTTP 202/u);
+      await assert.rejects(writer.complete(),
+        /S3 multipart writer cannot complete after a failed operation/u);
+      await writer.abort();
+      assert.deepEqual(calls.map(call => call.method), ['POST', 'PUT', 'POST', 'DELETE']);
+      assert.ok(calls[3].uploadId);
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+      assert.deepEqual(objects.get(PATH), bytes,
+        'only B80/B81 owner-fenced cleanup may remove this ambiguous committed generation');
+    });
+});
+
+test('B113 signed HTTP refuses accepted-only 202 abort and retries the same upload ID', async () => {
+  await withLoopback({ abortStatuses: [202, 204] },
+    async ({ storage, calls, objects, uploads }) => {
+      const writer = newWriter(storage);
+      await writer.write(Buffer.alloc(5 * 1024 * 1024, 0x64));
+      await assert.rejects(writer.abort(),
+        /S3 Abort multipart upload failed with HTTP 202/u);
+      assert.equal(uploads.size, 1);
+      await writer.abort();
+      assert.equal(uploads.size, 0);
+      assert.equal(objects.size, 0);
+      assert.deepEqual(calls.map(call => call.method),
+        ['POST', 'PUT', 'DELETE', 'DELETE']);
+      assert.ok(calls[2].uploadId);
+      assert.equal(calls[2].uploadId, calls[3].uploadId);
+      assert.equal(calls.some(call => call.method === 'DELETE' && !call.uploadId), false);
+    });
 });
 
 test('B112 signed HTTP rejects injected content-type before any multipart request', async () => {

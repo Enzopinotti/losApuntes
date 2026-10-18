@@ -1486,3 +1486,47 @@ navegadores y auditorías #133/#141.
 
 **#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` en
 producción; sin CI manual ni despliegue.
+
+## B113 — Estado HTTP exacto en los ACK de escritura S3
+
+B113 elimina `response.ok` como evidencia suficiente de las
+escrituras al almacenamiento. Cada `PutObject`, inicio multipart,
+`UploadPart` y `CompleteMultipartUpload` exige **HTTP 200**;
+el XML de finalización confirmado y el GET+SHA256 de B90 siguen
+siendo obligatorios. `HTTP 202 Accepted` no demuestra persistencia,
+`204` no es ACK de escritura y `206` no acredita una parte,
+aunque incluya ETag.
+
+Una respuesta ambigua detiene la generación del writer B104,
+impide `complete()` y preserva el `uploadId` conocido para
+abort owner-safe. `AbortMultipartUpload` confirma únicamente
+con 200/204/404; un 202 no borra el ID y permite reintentar.
+No eliminar directamente objetos privados con
+`deleteObjectOnAbort:false`: la limpieza sigue B80/B81.
+
+**Advertencia operativa:** un proveedor que haya iniciado multipart
+pero conteste 202 deja un posible upload remoto de estado incierto.
+Conservar una regla de lifecycle S3 para abortar subidas
+multipart incompletas; no inventar ni confiar en un `uploadId`
+no confirmado. Un PUT o Complete con 202 **podría** haber
+persistido bytes; resolver mediante la generación registrada,
+readback y cleanup owner-fenced.
+
+**Evidencia:** 8/8 `node:test` nativos en Node22.16.0,
+con helper y test B113 verificados por hash Git. Pruebas Jest
+del adaptador y cinco escenarios HTTP localhost SigV4 B87
+incorporados; inventario total **49 casos firmados B86–B113**,
+pendientes de ejecución completa en Node24.
+
+```sh
+pnpm test:account-export-b113-write-ack
+pnpm test:account-export-b107-release-acceptance
+pnpm test:account-lifecycle-contract
+```
+
+**No aprobado todavía:** 49 casos TCP firmados en checkout Node24,
+Nest/Jest, typecheck/lint, Mongo replica B94, proveedor AWS/MinIO
+con IAM/lifecycle y backups, navegador y auditorías #133/#141.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false`; no CI manual
+ni despliegue.

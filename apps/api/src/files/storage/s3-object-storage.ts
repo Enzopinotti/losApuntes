@@ -6,6 +6,10 @@ import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
 import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
 import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
 import {
+  isConfirmedS3WriteAcknowledgement,
+  isConfirmedS3MultipartAbort,
+} from './s3-write-ack-status';
+import {
   readBoundedS3MultipartCompletionXml,
   readBoundedS3MultipartInitiationXml,
 } from './s3-multipart-response-body';
@@ -464,8 +468,10 @@ export function createS3ObjectStorage(
           undefined,
           input.contentType,
         );
-        if (!response.ok)
+        if (!isConfirmedS3WriteAcknowledgement(response.status)) {
+          void response.body?.cancel().catch(() => undefined);
           throw storageError('Create multipart upload', response.status);
+        }
         // A 2xx initiation response must not be buffered without a limit or
         // treated as proof of a valid upload generation without parsing.
         const xml = await readBoundedS3MultipartInitiationXml(response);
@@ -496,8 +502,10 @@ export function createS3ObjectStorage(
           bytes,
           'application/octet-stream',
         );
-        if (!response.ok)
+        if (!isConfirmedS3WriteAcknowledgement(response.status)) {
+          void response.body?.cancel().catch(() => undefined);
           throw storageError('Upload multipart part', response.status);
+        }
         const etag = normalizeS3MultipartPartEtag(response.headers.get('etag'));
         if (!etag) {
           throw new Error('S3 multipart part returned an invalid ETag');
@@ -556,7 +564,10 @@ export function createS3ObjectStorage(
                 bytes,
                 input.contentType,
               );
-              if (!response.ok) throw storageError('PUT object', response.status);
+              if (!isConfirmedS3WriteAcknowledgement(response.status)) {
+                void response.body?.cancel().catch(() => undefined);
+                throw storageError('PUT object', response.status);
+              }
               completed = true;
               return;
             }
@@ -585,7 +596,7 @@ export function createS3ObjectStorage(
             // check: a malicious/broken provider might stream indefinitely.
             // Keep the uploadId when completion is ambiguous. In the private
             // export path, abort() can only target that multipart ID.
-            if (!response.ok) {
+            if (!isConfirmedS3WriteAcknowledgement(response.status)) {
               void response.body?.cancel().catch(() => undefined);
               throw storageError('Complete multipart upload', response.status);
             }
@@ -613,7 +624,8 @@ export function createS3ObjectStorage(
             const response = await request('DELETE', [
               ['uploadId', currentUploadId],
             ]);
-            if (!response.ok && response.status !== 404) {
+            if (!isConfirmedS3MultipartAbort(response.status)) {
+              void response.body?.cancel().catch(() => undefined);
               throw storageError('Abort multipart upload', response.status);
             }
           }
