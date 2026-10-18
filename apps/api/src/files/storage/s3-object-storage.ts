@@ -853,11 +853,6 @@ export function createS3ObjectStorage(
         throw storageError('GET object', response.status);
       }
       if (!response.body) throw new Error('S3 GET object returned no body');
-      // B115: validate length before consuming provider bytes. HTTP 200 with
-      // an early EOF is not evidence of a complete object.
-      const expectedBytes = parseS3FullObjectContentLength(
-        response.headers.get('content-length'),
-      );
       let receivedBytes = 0;
       const reader = response.body.getReader();
       let streamEnded = false;
@@ -873,6 +868,11 @@ export function createS3ObjectStorage(
 
       try {
         assertS3FullObjectReadActive(signal);
+        // B115 parse metadata *inside* the reader's cleanup scope, so an
+        // invalid Content-Length cancels the provider stream as well.
+        const expectedBytes = parseS3FullObjectContentLength(
+          response.headers.get('content-length'),
+        );
         while (true) {
           assertS3FullObjectReadActive(signal);
           const result = await reader.read();
