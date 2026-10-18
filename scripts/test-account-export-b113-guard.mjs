@@ -75,12 +75,12 @@ check('B113 real signed TCP fixtures simulate provider ambiguity for five operat
   assert.match(signed, /deleteObjectOnAbort: false/u);
 });
 
-check('B113 release gate requires all 57 unique signed HTTP cases in Node24', () => {
+check('B113 release gate requires all 59 unique signed HTTP cases in Node24', () => {
   const names = [...signed.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 57);
-  assert.equal(new Set(names).size, 57);
+  assert.equal(names.length, 59);
+  assert.equal(new Set(names).size, 59);
   assert.equal(names.filter(name => name.startsWith('B113 ')).length, 5);
-  assert.match(runner, /expectedNames\.length < 57/u);
+  assert.match(runner, /expectedNames\.length < 59/u);
   assert.match(runner, /'B112 ', 'B113 '/u);
   assert.match(tap, /summary\.skipped !== 0/u);
   assert.match(runner, /classifyB107SignedHttpRuntime\(/u);
