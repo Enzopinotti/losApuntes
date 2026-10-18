@@ -64,17 +64,17 @@ check('B111 Nest/Jest verifies 206 wrong offset, length and correct small object
   assert.match(jest, /bytes 0-7\/8/u);
 });
 
-check('B111 signed HTTP requires all 57 real test groups and provider 206 faults', () => {
+check('B111 signed HTTP requires all 59 real test groups and provider 206 faults', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 57);
-  assert.equal(new Set(names).size, 57);
+  assert.equal(names.length, 59);
+  assert.equal(new Set(names).size, 59);
   assert.equal(names.filter(n => n.startsWith('B111 ')).length, 2);
   assert.match(http, /B111 signed HTTP confirms exact byte-zero Content-Range/u);
   assert.match(http, /B111 signed HTTP refuses foreign and truncated HTTP 206 ranges/u);
   assert.match(http, /verifyB87S3SigV4\(\{/u);
-  assert.match(runner, /expectedNames\.length < 57/u);
+  assert.match(runner, /expectedNames\.length < 59/u);
   assert.match(runner, /'B110 ', 'B111 '/u);
-  assert.match(b110, /names\.length, 57/u);
+  assert.match(b110, /names\.length, 59/u);
 });
 
 check('B111 commands preserve Node24 gate, release HOLD and disabled production', () => {
