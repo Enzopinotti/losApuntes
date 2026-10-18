@@ -315,7 +315,13 @@ export class StudyCollectionService {
           id, ownerUserId, resourceId, expectedRevision,
         );
         if (!removed) this.notFound();
-        if (removed.revision !== expectedRevision + 1) {
+        // A confirmed recovery must actually unlink the inaccessible
+        // Resource, not merely return an incremented collection revision.
+        // An ambiguous store outcome must never be presented as success.
+        if (
+          removed.revision !== expectedRevision + 1 ||
+          removed.resourceIds.includes(resourceId)
+        ) {
           throw new ConflictException({
             code: 'STUDY_COLLECTION_REVISION_CONFLICT',
             message: 'Collection changed; inspect it again before removing a link',
