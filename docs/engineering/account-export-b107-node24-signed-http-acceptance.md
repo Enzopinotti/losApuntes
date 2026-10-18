@@ -91,3 +91,28 @@ Jest, Mongo replica B94, AWS/MinIO IAM/lifecycle, backups y
 auditorías #133/#141 antes de cualquier GO.
 
 **Issue #353 permanece OPEN/HOLD.**
+
+## Verificación nativa ampliada B101 + B107
+
+Además se recuperaron literalmente y cotejaron por Git blob SHA
+el resolver B101
+(`d82804f4cad1e9083dd931c8179358f978a81982`) y su test de carga
+(`5e14e681490978237d8e1ddb68a1f23f990ae746`).
+Se creó un árbol local mínimo, con archivos TypeScript vacíos
+solo para que el test de existencia/resolución del loader encuentre
+los dos módulos esperados, y con un inventario S3 sintético de 34
+nombres únicamente para probar que el runner rechaza Node22
+**antes de iniciar los tests HTTP**.
+
+Ejecutadas juntas por el runner real de `node:test` en Node22.16.0:
+
+- B101: cinco tests originales de TAP/resolver.
+- B107: ocho tests nuevos de TAP.
+- B107: cinco tests nuevos de Node24/Node22 runtime y preflight.
+
+**Resultado 18/18 PASS, 0 failed, 0 cancelled, 0 skipped, 0 todo.**
+El código de parser, gate, runner y tests es byte a byte
+idéntico a sus blobs de GitHub; los dos archivos TS auxiliares
+son marcadores vacíos, **no el código de producción**.
+No confundir esta prueba aislada con ejecutar la suite TCP SigV4
+real o con validación Node24.
