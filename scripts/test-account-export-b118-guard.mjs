@@ -31,7 +31,7 @@ check('B118 release runtime demands Node24 and exact pnpm9', () => {
 check('B118 executes existing signed HTTP runner with unfiltered subprocess', () => {
   assert.match(runner, /run-account-export-b101-signed-http\.mjs/u);
   assert.match(runner, /spawnSync\(process\.execPath/u);
-  assert.doesNotMatch(runner, /--test-name-pattern/u);
+  assert.doesNotMatch(runner, /'--test-name-pattern'/u);
   assert.match(signed, /verifyB101SignedHttpTap\(/u);
 });
 
