@@ -531,12 +531,14 @@ describe('S3ObjectStorage', () => {
     expect(startHeaders.get('authorization')).toContain(
       'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,',
     );
-    for (const [, init] of fetchSpy.mock.calls.slice(1)) {
+    for (const [index, [, init]] of fetchSpy.mock.calls.slice(1).entries()) {
       const headers = new Headers(init?.headers);
       expect(headers.get('authorization')).toContain(
-        'SignedHeaders=host;x-amz-content-sha256;x-amz-date,',
+        'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,',
       );
-      expect(headers.get('content-type')).toBeNull();
+      expect(headers.get('content-type')).toBe(
+        index === 0 ? 'application/octet-stream' : 'application/xml',
+      );
     }
   });
 
