@@ -62,15 +62,15 @@ check('B114 Jest prevents partial full GET and false EOF on abort', () => {
   assert.match(jest, /pendingRead\)\.rejects\.toMatchObject\(\{ name: 'AbortError' \}\)/u);
 });
 
-check('B114 signed HTTP inventory requires all 57 unique tests', () => {
+check('B114 signed HTTP inventory requires all 59 unique tests', () => {
   const names = [...http.matchAll(/test\('([^']+)'/gu)].map(m => m[1]);
-  assert.equal(names.length, 57);
-  assert.equal(new Set(names).size, 57);
+  assert.equal(names.length, 59);
+  assert.equal(new Set(names).size, 59);
   assert.equal(names.filter(n => n.startsWith('B114 ')).length, 2);
   assert.match(http, /B114 signed full GET refuses HTTP 206/u);
   assert.match(http, /B114 signed full GET abort between chunks/u);
   assert.match(http, /verifyB87S3SigV4\(\{/u);
-  assert.match(runner, /expectedNames\.length < 57/u);
+  assert.match(runner, /expectedNames\.length < 59/u);
   assert.match(runner, /'B113 ', 'B114 '/u);
 });
 
