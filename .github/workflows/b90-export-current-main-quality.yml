@@ -6,6 +6,9 @@ on:
       - '.github/workflows/b90-export-current-main-quality.yml'
       - 'apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts'
       - 'apps/api/src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts'
+      - 'apps/api/src/data-lifecycle/mongo/mongo-account-export.store.spec.ts'
+      - 'apps/api/src/data-lifecycle/account-export.controller.spec.ts'
+      - 'apps/api/src/study-progress/mongo/study-progress-export.reader.spec.ts'
       - 'docs/engineering/b90-current-main-export-quality.md'
 
 permissions:
@@ -35,17 +38,26 @@ jobs:
         run: |
           pnpm --filter @losapuntes/api exec prettier --check \
             src/data-lifecycle/domain/account-export-processor.spec.ts \
-            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
       - name: B90 zero-warning strict ESLint
         run: |
           pnpm --filter @losapuntes/api exec eslint --max-warnings=0 \
             src/data-lifecycle/domain/account-export-processor.spec.ts \
-            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
-      - name: Processor lease, S3 cleanup and Mongo orphan store Jest
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
+      - name: B90 five owner-private S3/Mongo/export Jest suites
         run: |
           pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath \
             src/data-lifecycle/domain/account-export-processor.spec.ts \
-            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts
+            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts
 
   api-types:
     name: B90 full API TypeScript
