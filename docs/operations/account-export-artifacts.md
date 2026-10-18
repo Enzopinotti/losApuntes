@@ -1667,3 +1667,35 @@ navegador, calidad global y auditorías #133/#141.
 
 **#353 HOLD**; `STUDY_PROGRESS_ENABLED=false` productivo.
 Sin CI manual ni despliegue.
+
+## B118 — Evidencia local exact-head para HTTP S3 firmado
+
+B117 dejó definidos **57 escenarios firmados**, pero no una
+constancia persistente que relacione su ejecución con un commit exacto,
+el inventario probado y el runtime Node24. B118 incorpora
+`scripts/run-account-export-b118-local-proof.mjs`, ejecutable
+localmente sobre un checkout Git limpio. No dispara CI ni despliegues.
+
+Preflight: `--expected-sha` de 40 hex; Git HEAD exacto sin cambios
+trackeados/no trackeados; Node24, pnpm 9.15.9, Study Progress no habilitado;
+57 nombres distintos con 4 casos B117. Ejecuta el runner firmado
+B101/B107 completo y exige su TAP 57/57 sin skips, failures ni TODO.
+Vuelve a comprobar SHA/worktree/hashes de fuentes luego de ejecutar.
+Solo ante prueba positiva crea JSON compacto en directorio temporal
+privado con hashes SHA256 de inventario, runner y TAP; excluye secretos,
+cuerpos HTTP, bytes privados, nombres de usuarios y credenciales.
+
+```sh
+pnpm test:account-export-b118-contract
+node scripts/run-account-export-b118-local-proof.mjs --expected-sha=<COMMIT_SHA_DE_40_HEX>
+```
+
+**El agregado del ejecutor no significa que se hayan corrido 57
+escenarios HTTP**. En este entorno Node22 se puede probar la lógica
+pura pero no la aceptación Node24. Continúan pendientes Mongo
+réplica B94, S3/MinIO externo y lifecycle IAM, browser, backup,
+Jest/lint/typecheck, auditorías #133/#141. Un comprobante local firmado
+no libera otros gates.
+
+**#353 HOLD**, `STUDY_PROGRESS_ENABLED=false` productivo.
+Sin CI manual ni deployment.
