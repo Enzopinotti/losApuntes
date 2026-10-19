@@ -15,6 +15,10 @@ on:
       - scripts/test-account-export-b69-writeahead.mjs
       - scripts/test-account-export-b70-authority.mjs
       - scripts/test-account-export-b132-legacy-contracts.mjs
+      - scripts/test-study-progress-bootstrap-contract.mjs
+      - apps/api/src/study-progress/study-progress.module.ts
+      - apps/api/src/study-progress/study-progress.controller.ts
+      - apps/api/src/users/users.module.ts
       - .github/workflows/b132-no-audit-waivers.yml
 
 permissions:
@@ -62,6 +66,7 @@ jobs:
           node scripts/test-account-export-b69-writeahead.mjs
           node scripts/test-account-export-b70-authority.mjs
           node scripts/test-account-export-b132-legacy-contracts.mjs
+          node --test scripts/test-study-progress-bootstrap-contract.mjs
       - name: Verify source remained unchanged
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
