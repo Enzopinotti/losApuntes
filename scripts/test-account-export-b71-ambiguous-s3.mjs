@@ -50,7 +50,7 @@ check('new Jest matrix covers lost multipart ACK and failed/unknown retry CAS', 
   assert.match(tests, /B71 preserves retry result when orphan enqueue fails/u);
   assert.match(tests, /B71 does not delete uncertain multipart generation when Mongo retry CAS loses/u);
   assert.match(tests, /B71 preserves S3 when Mongo retry CAS itself is unavailable/u);
-  assert.match(tests, /B71 still cleans up after an abort error/u);
+  assert.match(tests, /B71 still queues cleanup after an abort error when a durable retry CAS wins/u);
 });
 check('new Mongo opt-in simulates S3 ACK loss, durable retry, crash recovery', () => {
   assert.match(mongo, /B71 recovers an ambiguous S3 multipart completion with real Mongo retry CAS/u);
