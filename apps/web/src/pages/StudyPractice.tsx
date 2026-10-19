@@ -1743,9 +1743,8 @@ export default function StudyPractice() {
                   </h3>
                   <p>
                     Elegí una meta concreta para tus propias marcas. No es una
-                    calificación ni una medida de aprendizaje. Solo se
-                    conserva en este intento y se pierde al reiniciar, pausar
-                    o salir.
+                    calificación ni una medida de aprendizaje. Solo se conserva
+                    en este intento y se pierde al reiniciar, pausar o salir.
                   </p>
                   <div className="study-practice-goal-controls">
                     <label>
@@ -1786,13 +1785,12 @@ export default function StudyPractice() {
                   </div>
                   <div className="study-practice-actions">
                     <button type="button" onClick={savePracticeGoal}>
-                      {selectedGoal ? "Actualizar objetivo" : "Definir objetivo"}
+                      {selectedGoal
+                        ? "Actualizar objetivo"
+                        : "Definir objetivo"}
                     </button>
                     {selectedGoal && (
-                      <button
-                        type="button"
-                        onClick={() => setGoalState(null)}
-                      >
+                      <button type="button" onClick={() => setGoalState(null)}>
                         Quitar objetivo
                       </button>
                     )}
@@ -1812,7 +1810,10 @@ export default function StudyPractice() {
                       </p>
                       <progress
                         aria-label="Avance del objetivo personal"
-                        value={Math.min(goalProgress.achieved, goalProgress.target)}
+                        value={Math.min(
+                          goalProgress.achieved,
+                          goalProgress.target,
+                        )}
                         max={goalProgress.target}
                       />
                       <p>
