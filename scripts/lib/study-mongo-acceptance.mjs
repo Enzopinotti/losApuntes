@@ -8,9 +8,9 @@ import { validateB89LocalMongoUri } from "../testing/b89-local-mongo-uri.mjs";
  */
 
 const EXPECTED = Object.freeze([
-  "commits all five mutation paths before closure",
+  "commits all five mutation paths before closure and deletes owner data at closure",
   "refuses every mutation when account closure wins first",
-  "deletes only the closing owner",
+  "deletes only the closing owner and preserves another account's collections",
   "never resurrects a collection when creation and closure start together",
   "never leaves owner documents after edit races a successful closure",
   "never leaves owner documents after add resource races a successful closure",
