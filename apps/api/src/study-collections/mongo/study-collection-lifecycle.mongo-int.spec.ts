@@ -35,6 +35,7 @@ import {
   StudyProgressSchema,
 } from '../../study-progress/mongo/study-progress.schema';
 import { StudyCollectionExportReader } from './study-collection-export.reader';
+import { StudyProgressExportReader } from '../../study-progress/mongo/study-progress-export.reader';
 
 /**
  * Explicit opt-in only. Never run against a shared or production database:
@@ -558,6 +559,7 @@ runMongo(
         { hasActiveAccount: () => Promise.resolve(true) } as never,
         { get: () => false } as never,
         exportReader,
+        new StudyProgressExportReader(models.progress),
       );
 
       const before = await request.request(alice);
