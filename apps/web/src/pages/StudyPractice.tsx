@@ -224,9 +224,9 @@ export default function StudyPractice() {
       : null;
   const closureOpen = Boolean(
     round &&
-      closureState?.scope === scope &&
-      closureState.pass === round.pass &&
-      closureState.activation === activationId,
+    closureState?.scope === scope &&
+    closureState.pass === round.pass &&
+    closureState.activation === activationId,
   );
   const nextPendingPosition =
     round && subjectId
@@ -1066,7 +1066,8 @@ export default function StudyPractice() {
   };
 
   const finishRound = () => {
-    if (!round || !closure || !closureOpen || status !== "authenticated") return;
+    if (!round || !closure || !closureOpen || status !== "authenticated")
+      return;
     const message =
       closure.pending > 0
         ? "Todavía hay preguntas sin clasificar. ¿Terminar y descartar las notas, respuestas y marcas temporales? No se guardará un resultado."
@@ -1593,15 +1594,16 @@ export default function StudyPractice() {
                         resolverlas antes de terminar.
                       </li>
                       <li>
-                        {closure.review} para repasar: {closure.estimatedReviewMinutes}{" "}
-                        minutos estimados según tu planificación.
+                        {closure.review} para repasar:{" "}
+                        {closure.estimatedReviewMinutes} minutos estimados según
+                        tu planificación.
                       </li>
                     </ol>
                     {closure.phase === "classify" ? (
                       <p>
-                        Primer paso sugerido: revisar lo que aún no clasificaste.
-                        Podés terminar igual, pero esas preguntas quedarán sin
-                        una marca de autoevaluación.
+                        Primer paso sugerido: revisar lo que aún no
+                        clasificaste. Podés terminar igual, pero esas preguntas
+                        quedarán sin una marca de autoevaluación.
                       </p>
                     ) : closure.phase === "review" ? (
                       <p>
@@ -1610,9 +1612,9 @@ export default function StudyPractice() {
                       </p>
                     ) : (
                       <p>
-                        Todas las preguntas de este intento tienen tu marca
-                        «Lo pude explicar». Podés terminar o guardar tu
-                        resumen personal sin registrar notas oficiales.
+                        Todas las preguntas de este intento tienen tu marca «Lo
+                        pude explicar». Podés terminar o guardar tu resumen
+                        personal sin registrar notas oficiales.
                       </p>
                     )}
                     <div className="study-practice-actions">
@@ -1640,10 +1642,7 @@ export default function StudyPractice() {
                         Guardar resumen privado
                       </button>
                       {closure.review > 0 && (
-                        <button
-                          type="button"
-                          onClick={openPendingInPlanner}
-                        >
+                        <button type="button" onClick={openPendingInPlanner}>
                           Preparar plan de repaso
                         </button>
                       )}
