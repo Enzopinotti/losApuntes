@@ -11,6 +11,7 @@ on:
       - scripts/release/candidate-evidence-lib.test.mjs
       - docs/security/dependency-audit-exceptions.md
       - scripts/test-account-export-b65-atomic-completion.mjs
+      - scripts/test-account-export-b68-concurrency.mjs
       - .github/workflows/b132-no-audit-waivers.yml
 
 permissions:
@@ -54,6 +55,7 @@ jobs:
           node --test scripts/security/check-audit-exceptions.test.mjs scripts/release/candidate-evidence-lib.test.mjs
           node --test scripts/security/check-api-runtime-dependency-boundary.test.mjs
           node scripts/test-account-export-b65-atomic-completion.mjs
+          node scripts/test-account-export-b68-concurrency.mjs
       - name: Verify source remained unchanged
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
