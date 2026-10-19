@@ -14,6 +14,7 @@ on:
       - scripts/test-account-export-b68-concurrency.mjs
       - scripts/test-account-export-b69-writeahead.mjs
       - scripts/test-account-export-b70-authority.mjs
+      - scripts/test-account-export-b132-legacy-contracts.mjs
       - .github/workflows/b132-no-audit-waivers.yml
 
 permissions:
@@ -60,6 +61,7 @@ jobs:
           node scripts/test-account-export-b68-concurrency.mjs
           node scripts/test-account-export-b69-writeahead.mjs
           node scripts/test-account-export-b70-authority.mjs
+          node scripts/test-account-export-b132-legacy-contracts.mjs
       - name: Verify source remained unchanged
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
