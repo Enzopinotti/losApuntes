@@ -26,7 +26,7 @@ function contributor(
     readPage: jest
       .fn()
       .mockImplementation(
-        async ({
+        ({
           userId,
           cursor,
           limit,
@@ -36,9 +36,11 @@ function contributor(
           limit: number;
         }) => {
           if (userId !== OWNER || limit !== 100 || cursor !== null) {
-            throw new Error('Export read exceeded owner/pagination boundary');
+            return Promise.reject(
+              new Error('Export read exceeded owner/pagination boundary'),
+            );
           }
-          return { records: rows, nextCursor: null };
+          return Promise.resolve({ records: rows, nextCursor: null });
         },
       ),
   };
@@ -274,14 +276,16 @@ describe('Account export v2 compatibility — B45', () => {
     const order: string[] = [];
     f.service.captureStudyProgressExportEpoch.mockResolvedValue(9);
     f.service.assertStudyProgressExportEpoch.mockImplementation(
-      async (userId: string, expected: number) => {
+      (userId: string, expected: number) => {
         expect(userId).toBe(OWNER);
         expect(expected).toBe(9);
         order.push('recheck');
+        return Promise.resolve();
       },
     );
-    f.sink.commit = jest.fn().mockImplementation(async () => {
+    f.sink.commit = jest.fn().mockImplementation(() => {
       order.push('commit');
+      return Promise.resolve();
     });
     await f.assembler.writeJsonV3(OWNER, f.sink);
     expect(order).toEqual(['recheck', 'commit']);
