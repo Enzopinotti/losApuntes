@@ -33,6 +33,12 @@ import {
 } from "../features/study/study-recall-planning.mjs";
 import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
 import {
+  forgetRecallPause,
+  inspectRecallPause,
+  pauseRecallRound,
+  takeRecallPause,
+} from "../features/study/study-recall-pause.mjs";
+import {
   isPracticeQuestionForSubject,
   practiceQuestionFromParams,
 } from "../features/study/study-practice-question-link.mjs";
@@ -160,9 +166,17 @@ export default function StudyPractice() {
       ? reviewSettings
       : { scope, startsAt: "", minutes: 20 };
   const [roundState, setRoundState] = useState<Round | null>(null);
+  const [activationId, setActivationId] = useState(0);
   const round = roundState?.scope === scope ? roundState : null;
+  const paused =
+    !round &&
+    status === "authenticated" &&
+    subjectId &&
+    questionSelection.kind !== "invalid"
+      ? inspectRecallPause(scope, subjectId)
+      : null;
   const currentId = round?.ids[round.position] ?? null;
-  const detailKey = `${scope}:attempt-${round?.pass ?? 0}:${currentId ?? "none"}`;
+  const detailKey = `${scope}:attempt-${round?.pass ?? 0}:activation-${activationId}:${currentId ?? "none"}`;
   const [detailState, setDetailState] = useState<QuestionDetail | null>(null);
   const detail = detailState?.key === detailKey ? detailState : null;
   const revealed = Boolean(currentId && round?.revealedIds.includes(currentId));
@@ -530,6 +544,8 @@ export default function StudyPractice() {
     if (!subjectId || ids.length === 0) return;
     try {
       const queue = normalizeRecallQueue(subjectId, ids);
+      forgetRecallPause(scope, subjectId);
+      setActivationId((value) => value + 1);
       setRoundState({
         scope,
         pass: 1,
@@ -688,6 +704,91 @@ export default function StudyPractice() {
     }
   };
 
+  const pauseRound = () => {
+    if (!round || !subjectId || status !== "authenticated") return;
+    if (
+      !window.confirm(
+        "¿Pausar esta ronda por diez minutos? Guardaremos solo las preguntas, tu posición y tus marcas. Se descartarán los intentos escritos y las respuestas mostradas.",
+      )
+    )
+      return;
+    try {
+      pauseRecallRound(scope, subjectId, {
+        ids: round.ids,
+        position: round.position,
+        pass: round.pass,
+        history: round.history,
+        outcomes: round.outcomes,
+        startsAt: review.startsAt,
+        minutes: review.minutes,
+      });
+      setRoundState(null);
+      setFeedbackState({
+        scope,
+        error: false,
+        message:
+          "Ronda pausada en esta pestaña. Podés volver a la Mesa y continuar dentro de diez minutos, sin conservar respuestas escritas.",
+      });
+    } catch {
+      setFeedbackState({
+        scope,
+        error: true,
+        message:
+          "No pudimos pausar esta ronda. El intento actual sigue abierto.",
+      });
+    }
+  };
+
+  const resumeRound = () => {
+    if (round || !subjectId || status !== "authenticated") return;
+    const saved = takeRecallPause(scope, subjectId);
+    if (!saved) {
+      setFeedbackState({
+        scope,
+        error: true,
+        message:
+          "La pausa venció o ya fue utilizada. Elegí las preguntas otra vez.",
+      });
+      return;
+    }
+    setActivationId((value) => value + 1);
+    setReviewSettings({
+      scope,
+      startsAt: saved.startsAt,
+      minutes: saved.minutes,
+    });
+    setRoundState({
+      scope,
+      pass: saved.pass,
+      history: saved.history,
+      ids: saved.ids,
+      position: saved.position,
+      outcomes: saved.outcomes,
+      revealedIds: [],
+      reflections: {},
+    });
+    setFeedbackState({
+      scope,
+      error: false,
+      message:
+        "Ronda retomada. La pregunta se consulta de nuevo y sus respuestas permanecen ocultas.",
+    });
+  };
+
+  const discardPause = () => {
+    if (
+      !subjectId ||
+      !paused ||
+      !window.confirm(
+        "¿Descartar esta pausa? Se perderán las marcas y la posición guardadas.",
+      )
+    )
+      return;
+    if (forgetRecallPause(scope, subjectId)) {
+      setFeedbackState({ scope, error: false, message: "Pausa descartada." });
+    }
+  };
+
   const resetRound = () => {
     if (!round) return;
     if (
@@ -772,6 +873,35 @@ export default function StudyPractice() {
             </section>
           ) : !round ? (
             <>
+              {paused && (
+                <section
+                  className="study-practice-panel study-practice-paused"
+                  aria-labelledby="study-practice-paused-title"
+                >
+                  <h2 id="study-practice-paused-title">
+                    Continuar ronda pausada
+                  </h2>
+                  <p>
+                    Intento {paused.checkpoint.pass} · Pregunta{" "}
+                    {paused.checkpoint.position + 1} de{" "}
+                    {paused.checkpoint.ids.length}. Conservamos solamente tus
+                    marcas, el orden y el horario elegido durante diez minutos
+                    en esta pestaña.
+                  </p>
+                  <p>
+                    Al continuar, volveremos a consultar la pregunta. Las
+                    respuestas y los intentos escritos no se recuperan.
+                  </p>
+                  <div className="study-practice-actions">
+                    <button type="button" onClick={resumeRound}>
+                      Continuar ronda pausada
+                    </button>
+                    <button type="button" onClick={discardPause}>
+                      Descartar pausa
+                    </button>
+                  </div>
+                </section>
+              )}
               {focusId && (
                 <section
                   className="study-practice-panel study-practice-focused"
@@ -939,13 +1069,22 @@ export default function StudyPractice() {
                       {round.ids.length}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="study-practice-secondary"
-                    onClick={resetRound}
-                  >
-                    Salir de la ronda
-                  </button>
+                  <div className="study-practice-actions">
+                    <button
+                      type="button"
+                      className="study-practice-secondary"
+                      onClick={pauseRound}
+                    >
+                      Pausar ronda
+                    </button>
+                    <button
+                      type="button"
+                      className="study-practice-secondary"
+                      onClick={resetRound}
+                    >
+                      Salir de la ronda
+                    </button>
+                  </div>
                 </div>
                 {detail?.loading || !detail ? (
                   <p role="status">Cargando la pregunta vigente…</p>

@@ -144,3 +144,12 @@
 @media (max-width: 640px) {
   .study-practice-review-settings { grid-template-columns: 1fr; }
 }
+
+.study-practice-paused {
+  margin-bottom: 1rem;
+  background: #f5f5fc;
+  border-color: #b8b5d6;
+}
+.study-practice-paused .study-practice-actions {
+  margin-bottom: 0;
+}
