@@ -53,7 +53,7 @@ verify('worker uses a shared captured horizon fence on renew/retry/ACK', () => {
   assert.match(drain, /const fence = \{/u);
   assert.match(drain, /verificationUntil: candidate\.verificationUntil \?\? null/u);
   assert.match(drain, /const owned = await this\.orphans\.renewLease\(\{\s*\.\.\.fence/u);
-  assert.match(drain, /renewalInFlight = this\.orphans\.renewLease\(\{\s*\.\.\.fence/u);
+  assert.match(drain, /renewalInFlight = this\.orphans\s*\.renewLease\(\{\s*\.\.\.fence/u);
   assert.match(drain, /const deferred = await this\.orphans\.retry\(\{\s*\.\.\.fence/u);
 });
 verify('worker carries fence on failure backoff and final ACK', () => {
