@@ -1,0 +1,56 @@
+name: B141 fail-closed production audit classification
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/b141-production-audit-triage.yml'
+      - 'scripts/security/triage-production-audit.mjs'
+      - 'scripts/security/triage-production-audit.test.mjs'
+      - 'docs/engineering/b141-multiple-advisory-audit-triage.md'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/b141-production-audit-triage.yml'
+      - 'scripts/security/triage-production-audit.mjs'
+      - 'scripts/security/triage-production-audit.test.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-advisory-triage:
+    name: B141 Node24 advisory parser adversarial acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout immutable candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Prove exact SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use repository Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Check JavaScript syntax
+        run: |
+          node --check scripts/security/triage-production-audit.mjs
+          node --check scripts/security/triage-production-audit.test.mjs
+      - name: Enforce adversarial legacy and npm audit contract tests
+        run: node --test scripts/security/triage-production-audit.test.mjs
+      - name: Audit exception policy remains empty
+        run: node scripts/security/check-audit-exceptions.mjs
+      - name: Confirm exact HEAD and clean tracked files
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
