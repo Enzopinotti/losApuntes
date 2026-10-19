@@ -70,8 +70,8 @@ const types = readFileSync(
   "utf8",
 );
 assert.match(types, /export declare function nextRecallFocus\(/u);
-assert.match(page, /nextRecallFocus\(subjectId, round\.ids, round\.position, round\.outcomes, "pending"\)/u);
-assert.match(page, /nextRecallFocus\(subjectId, round\.ids, round\.position, round\.outcomes, "review"\)/u);
+assert.match(page, /nextRecallFocus\(\s*subjectId,\s*round\.ids,\s*round\.position,\s*round\.outcomes,\s*"pending",?\s*\)/u);
+assert.match(page, /nextRecallFocus\(\s*subjectId,\s*round\.ids,\s*round\.position,\s*round\.outcomes,\s*"review",?\s*\)/u);
 assert.match(page, /const jumpToRecallCategory = \(category: RecallFocusCategory\)/u);
 assert.match(page, /previous\.pass === round\.pass && previous\.position === round\.position/u);
 assert.match(page, /\? \{ \.\.\.previous, position: next \}/u);
