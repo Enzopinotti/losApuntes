@@ -45,7 +45,7 @@ check('B105 serializes write/complete/abort against a single operation tail', ()
 check('B105 fences writes immediately after complete or abort request', () => {
   assert.match(wrapper, /completionRequested = true/u);
   assert.match(wrapper, /abortRequested = true/u);
-  assert.match(wrapper, /completionRequested \|\| abortRequested \|\| completed \|\| aborted \|\| failed/u);
+  assert.match(wrapper, /completionRequested\s*\|\|\s*abortRequested\s*\|\|\s*completed\s*\|\|\s*aborted\s*\|\|\s*failed/u);
   assert.match(wrapper, /if \(abortRequested\)/u);
   assert.match(wrapper, /S3 multipart writer is no longer writable/u);
 });
