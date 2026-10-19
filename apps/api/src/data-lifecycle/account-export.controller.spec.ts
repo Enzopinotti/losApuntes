@@ -76,7 +76,7 @@ describe('AccountExportController', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(f.exports.download.mock.calls).toEqual([['other-user', exportId]]);
-    expect(f.artifacts.verifyReadable).not.toHaveBeenCalled();
+    expect(f.artifacts.verifyReadable.mock.calls).toHaveLength(0);
     expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
     expect(reply.send.mock.calls).toHaveLength(0);
   });
@@ -102,7 +102,7 @@ describe('AccountExportController', () => {
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
-        yield bytes;
+        yield await Promise.resolve(bytes);
       })(),
     );
     const raw = Object.assign(new EventEmitter(), {
@@ -123,20 +123,20 @@ describe('AccountExportController', () => {
     );
     await Promise.resolve();
     await Promise.resolve();
-    expect(reply.header).not.toHaveBeenCalled();
-    expect(reply.send).not.toHaveBeenCalled();
-    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+    expect(reply.header.mock.calls).toHaveLength(0);
+    expect(reply.send.mock.calls).toHaveLength(0);
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
     release();
     await downloading;
-    expect(f.artifacts.verifyReadable).toHaveBeenCalledWith(
+    expect(f.artifacts.verifyReadable.mock.calls).toContainEqual([
       exportId,
       generation,
       { byteLength: bytes.length, sha256 },
       expect.any(AbortSignal),
-    );
-    expect(f.artifacts.readObjectChunks).toHaveBeenCalledTimes(1);
-    expect(reply.header).toHaveBeenCalledWith('content-length', bytes.length);
-    expect(reply.send).toHaveBeenCalledTimes(1);
+    ]);
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(1);
+    expect(reply.header.mock.calls).toContainEqual(['content-length', bytes.length]);
+    expect(reply.send.mock.calls).toHaveLength(1);
     raw.emit('finish');
   });
 
@@ -177,9 +177,9 @@ describe('AccountExportController', () => {
       );
       expect(message).toContain('ACCOUNT_EXPORT_STORAGE_UNAVAILABLE');
       expect(message).not.toContain('secret-user');
-      expect(reply.header).not.toHaveBeenCalled();
-      expect(reply.send).not.toHaveBeenCalled();
-      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+      expect(reply.header.mock.calls).toHaveLength(0);
+      expect(reply.send.mock.calls).toHaveLength(0);
+      expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
       expect(raw.listenerCount('close')).toBe(0);
       expect(raw.listenerCount('finish')).toBe(0);
     },
@@ -221,8 +221,8 @@ describe('AccountExportController', () => {
     raw.emit('close');
     await expect(running).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(observedSignal?.aborted).toBe(true);
-    expect(reply.send).not.toHaveBeenCalled();
-    expect(reply.header).not.toHaveBeenCalled();
+    expect(reply.send.mock.calls).toHaveLength(0);
+    expect(reply.header.mock.calls).toHaveLength(0);
   });
 
   it.each([
@@ -254,11 +254,11 @@ describe('AccountExportController', () => {
       await expect(
         f.controller.download(f.request, exportId, reply as never),
       ).rejects.toBeInstanceOf(exceptionType);
-      expect(f.artifacts.verifyReadable).toHaveBeenCalledTimes(1);
-      expect(f.exports.download).toHaveBeenCalledTimes(2);
-      expect(reply.header).not.toHaveBeenCalled();
-      expect(reply.send).not.toHaveBeenCalled();
-      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+      expect(f.artifacts.verifyReadable.mock.calls).toHaveLength(1);
+      expect(f.exports.download.mock.calls).toHaveLength(2);
+      expect(reply.header.mock.calls).toHaveLength(0);
+      expect(reply.send.mock.calls).toHaveLength(0);
+      expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
       expect(raw.listenerCount('close')).toBe(0);
     },
   );
@@ -301,9 +301,9 @@ describe('AccountExportController', () => {
       expect(
         JSON.stringify((rejected as ConflictException).getResponse()),
       ).toContain('ACCOUNT_EXPORT_CHANGED_DURING_VERIFICATION');
-      expect(reply.header).not.toHaveBeenCalled();
-      expect(reply.send).not.toHaveBeenCalled();
-      expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+      expect(reply.header.mock.calls).toHaveLength(0);
+      expect(reply.send.mock.calls).toHaveLength(0);
+      expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
     },
   );
 
@@ -334,8 +334,8 @@ describe('AccountExportController', () => {
     await expect(
       f.controller.download(f.request, exportId, reply as never),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(reply.header).not.toHaveBeenCalled();
-    expect(reply.send).not.toHaveBeenCalled();
+    expect(reply.header.mock.calls).toHaveLength(0);
+    expect(reply.send.mock.calls).toHaveLength(0);
     expect(raw.listenerCount('close')).toBe(0);
   });
 
@@ -376,8 +376,8 @@ describe('AccountExportController', () => {
     await expect(downloading).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
-    expect(reply.header).not.toHaveBeenCalled();
-    expect(reply.send).not.toHaveBeenCalled();
+    expect(reply.header.mock.calls).toHaveLength(0);
+    expect(reply.send.mock.calls).toHaveLength(0);
   });
 
   it('streams an owner-authorized artifact with private no-store headers', async () => {
@@ -413,22 +413,22 @@ describe('AccountExportController', () => {
       ['owner-1', exportId],
       ['owner-1', exportId],
     ]);
-    expect(reply.header).toHaveBeenCalledWith(
+    expect(reply.header.mock.calls).toContainEqual([
       'content-type',
       'application/json; charset=utf-8',
-    );
-    expect(reply.header).toHaveBeenCalledWith(
+    ]);
+    expect(reply.header.mock.calls).toContainEqual([
       'content-disposition',
       'attachment; filename="los-apuntes-account-export-v1.json"',
-    );
-    expect(reply.header).toHaveBeenCalledWith(
+    ]);
+    expect(reply.header.mock.calls).toContainEqual([
       'cache-control',
       'private, no-store',
-    );
-    expect(reply.header).toHaveBeenCalledWith(
+    ]);
+    expect(reply.header.mock.calls).toContainEqual([
       'content-length',
       content.byteLength,
-    );
+    ]);
     const headerCalls = reply.header.mock.calls as Array<
       [string, string | number]
     >;
@@ -566,7 +566,7 @@ describe('AccountExportController', () => {
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
-        yield content;
+        yield await Promise.resolve(content);
       })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
@@ -578,14 +578,14 @@ describe('AccountExportController', () => {
       send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await f.controller.download(f.request, exportId, reply as never);
-    expect(reply.header).toHaveBeenCalledWith(
+    expect(reply.header.mock.calls).toContainEqual([
       'content-disposition',
       'attachment; filename="los-apuntes-account-export-v2.json"',
-    );
-    expect(reply.header).toHaveBeenCalledWith(
+    ]);
+    expect(reply.header.mock.calls).toContainEqual([
       'cache-control',
       'private, no-store',
-    );
+    ]);
     raw.emit('finish');
   });
 
@@ -600,7 +600,7 @@ describe('AccountExportController', () => {
     });
     f.artifacts.readObjectChunks.mockReturnValueOnce(
       (async function* () {
-        yield Buffer.from('x');
+        yield await Promise.resolve(Buffer.from('x'));
       })(),
     );
     const raw = Object.assign(new EventEmitter(), { writableFinished: true });
@@ -612,10 +612,10 @@ describe('AccountExportController', () => {
       send: jest.fn<unknown, [payload: unknown]>().mockReturnThis(),
     };
     await f.controller.download(f.request, exportId, reply as never);
-    expect(reply.header).toHaveBeenCalledWith(
+    expect(reply.header.mock.calls).toContainEqual([
       'content-disposition',
       'attachment; filename="los-apuntes-account-export-v3.json"',
-    );
+    ]);
     raw.emit('finish');
   });
 
@@ -639,6 +639,6 @@ describe('AccountExportController', () => {
     await expect(
       f.controller.download(f.request, exportId, reply as never),
     ).rejects.toThrow();
-    expect(f.artifacts.readObjectChunks).not.toHaveBeenCalled();
+    expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(0);
   });
 });
