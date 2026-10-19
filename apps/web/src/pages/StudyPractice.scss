@@ -107,3 +107,40 @@
   align-items: center;
   min-height: 2.5rem;
 }
+
+.study-practice-review-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .9rem;
+  margin: 1rem 0;
+}
+.study-practice-review-settings label {
+  display: grid;
+  gap: .4rem;
+  font-weight: 600;
+}
+.study-practice-review-settings :is(input, select) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #afb2c9;
+  border-radius: 9px;
+  background: #fff;
+  color: #252641;
+  font: inherit;
+  padding: .65rem;
+}
+.study-practice-attempt-history {
+  margin-top: 1.2rem;
+  border-top: 1px solid #e2e3ef;
+  padding-top: .7rem;
+}
+.study-practice-attempt-history ol {
+  padding-left: 1.3rem;
+}
+.study-practice-attempt-history li {
+  margin-bottom: .4rem;
+}
+@media (max-width: 640px) {
+  .study-practice-review-settings { grid-template-columns: 1fr; }
+}
