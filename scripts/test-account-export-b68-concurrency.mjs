@@ -22,7 +22,7 @@ function verify(name, fn) {
 
 verify('durable owner probe cannot hide mismatched owner through scoped query', () => {
   assert.match(exportStore, /findForOrphanCleanup\(id: string\)/u);
-  assert.match(mongoExports, /async findForOrphanCleanup\(id: string\)/u);
+  assert.match(mongoExports, /async findForOrphanCleanup\(\s*id: string,?\s*\)/u);
   const method = mongoExports.slice(mongoExports.indexOf('  async findForOrphanCleanup('),
     mongoExports.indexOf('  async claimNext('));
   assert.match(method, /\.findOne\(\{ id \}\)/u);
