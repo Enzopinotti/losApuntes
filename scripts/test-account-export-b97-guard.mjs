@@ -39,7 +39,7 @@ check('B97 checks HTTP success and bounded XML before marking the writer committ
   const start = s3.indexOf("async complete(): Promise<void>");
   const end = s3.indexOf("async abort(): Promise<void>", start);
   const body = s3.slice(start, end);
-  const status = body.indexOf('if (!response.ok)');
+  const status = body.lastIndexOf('if (!isConfirmedS3WriteAcknowledgement(response.status))');
   const bounded = body.indexOf('readBoundedS3MultipartCompletionXml(response)');
   const semantic = body.indexOf('isConfirmedS3MultipartCompletion(xml, {');
   const committed = body.lastIndexOf('completed = true;');
