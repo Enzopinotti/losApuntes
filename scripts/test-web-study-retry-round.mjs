@@ -8,9 +8,9 @@ import {
 } from "../apps/web/src/features/study/study-active-recall.mjs";
 
 const subject = "11111111-1111-4111-8111-111111111111";
-const q1 = "22222222-2222-4222-8222-222222222222";
-const q2 = "33333333-3333-4333-8333-333333333333";
-const q3 = "44444444-4444-4444-8444-444444444444";
+const q1 = "a2222222-2222-4222-8222-222222222222";
+const q2 = "b3333333-3333-4333-8333-333333333333";
+const q3 = "c4444444-4444-4444-8444-444444444444";
 const queue = normalizeRecallQueue(subject, [q1, q2, q3]);
 
 // A manual retry preserves the user's original question order, but includes
