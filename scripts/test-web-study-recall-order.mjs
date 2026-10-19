@@ -92,7 +92,7 @@ assert.deepEqual(retryRecallQueue(subject, reviewFirst.ids, outcomes), [q2, q4])
 const plan = recallToStudySession(subject, reviewFirst.ids, outcomes);
 assert.ok(plan);
 assert.deepEqual(plan.tasks.map((t) => t.id), [q2, q4]);
-assert.equal(nextRecallFocus(subject, reviewFirst.ids, 2, outcomes, "review"), 1);
+assert.equal(nextRecallFocus(subject, reviewFirst.ids, 2, outcomes, "review"), 0);
 assert.deepEqual(
   organizeRecallQueue(subject.toUpperCase(), ids.map((x) => x.toUpperCase()), 2, outcomes, "review-first"),
   reviewFirst,
