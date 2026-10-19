@@ -16,6 +16,10 @@ const makeStorage = () => createS3ObjectStorage({
 const writerInput = {
   objectKey, contentType: 'application/json; charset=utf-8',
 };
+const confirmedInitiationXml = (uploadId) =>
+  '<InitiateMultipartUploadResult><Bucket>private-export</Bucket>' +
+  '<Key>' + objectKey + '</Key><UploadId>' + uploadId +
+  '</UploadId></InitiateMultipartUploadResult>';
 
 async function mockedFetch(handler, run) {
   const original = globalThis.fetch;
@@ -61,7 +65,7 @@ test('B81 multipart completion lost ACK: abort only cancels uploadId, not object
   await mockedFetch((call, _url, method) => {
     if (call === 1) {
       assert.equal(method, 'POST');
-      return new Response('<UploadId>private-u1</UploadId>', { status: 200 });
+      return new Response(confirmedInitiationXml('private-u1'), { status: 200 });
     }
     if (call === 2) {
       assert.equal(method, 'PUT');
@@ -91,7 +95,7 @@ test('B81 default S3 consumer still deletes object when aborting multipart write
   await mockedFetch((call, _url, method) => {
     if (call === 1) {
       assert.equal(method, 'POST');
-      return new Response('<UploadId>files-u1</UploadId>', { status: 200 });
+      return new Response(confirmedInitiationXml('files-u1'), { status: 200 });
     }
     if (call === 2) {
       assert.equal(method, 'PUT');
@@ -110,7 +114,7 @@ test('B81 default S3 consumer still deletes object when aborting multipart write
 
 test('B81 active private multipart can be aborted with no naked object DELETE', async () => {
   await mockedFetch((call, _url, method) => {
-    if (call === 1) return new Response('<UploadId>private-u2</UploadId>', { status: 200 });
+    if (call === 1) return new Response(confirmedInitiationXml('private-u2'), { status: 200 });
     if (call === 2) return new Response(null, { status: 200, headers: { etag: '"etag-3"' } });
     assert.equal(method, 'DELETE');
     return new Response(null, { status: 204 });
