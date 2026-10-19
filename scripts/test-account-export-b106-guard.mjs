@@ -29,7 +29,7 @@ check('B106 caps both outstanding snapshot bytes and number of calls per writer'
 });
 
 check('B106 refuses over-budget snapshots before allocating or adding queue work', () => {
-  const budgetCheck = wrapper.indexOf('chunk.byteLength > maximumQueuedSnapshotBytes - queuedSnapshotBytes');
+  const budgetCheck = wrapper.search(/chunk\.byteLength\s*>\s*maximumQueuedSnapshotBytes\s*-\s*queuedSnapshotBytes/u);
   const operationCheck = wrapper.indexOf('queuedWriteOperations >= maximumQueuedWriteOperations');
   const copy = wrapper.indexOf('snapshot = Buffer.from(chunk)');
   const enqueue = wrapper.indexOf('return serialize(async () => {');
