@@ -1,5 +1,8 @@
 import {
-  CanActivate, ExecutionContext, Injectable, ServiceUnavailableException,
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 

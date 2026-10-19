@@ -31,7 +31,9 @@ export async function verifyAccountExportStoredBytes(
     // Do not permit a corrupt or malicious provider response to consume
     // unbounded CPU or memory beyond the already known export byte length.
     if (chunk.byteLength > expected.byteLength - bytesRead) {
-      throw new Error('Account export S3 readback exceeds expected byte length');
+      throw new Error(
+        'Account export S3 readback exceeds expected byte length',
+      );
     }
     bytesRead += chunk.byteLength;
     digest.update(chunk);

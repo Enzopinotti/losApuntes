@@ -22,7 +22,10 @@ import type { FastifyReply } from 'fastify';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
-import { AccountExportService, type AccountExportDownload } from './domain/account-export.service';
+import {
+  AccountExportService,
+  type AccountExportDownload,
+} from './domain/account-export.service';
 import { reauthorizeAccountExportDownload } from './domain/account-export-download-reauthorization';
 import { verifyAccountExportDownload } from './storage/account-export-download-integrity';
 import { ACCOUNT_EXPORT_ARTIFACT_STORAGE } from './storage/account-export-artifact-storage';
@@ -129,7 +132,6 @@ export class AccountExportController {
       });
     }
 
-
     // B92: the owner/account and artifact reference may have changed
     // during the full S3 preflight (account closure, TTL retirement or
     // generation replacement). Recheck the CURRENT durable authorization
@@ -162,7 +164,8 @@ export class AccountExportController {
       if (authority === 'changed') {
         throw new ConflictException({
           code: 'ACCOUNT_EXPORT_CHANGED_DURING_VERIFICATION',
-          message: 'Account export changed during download verification. Retry the request.',
+          message:
+            'Account export changed during download verification. Retry the request.',
         });
       }
       // A disconnected client must never start a late response, even if
