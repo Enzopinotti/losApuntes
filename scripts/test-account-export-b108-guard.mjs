@@ -25,7 +25,7 @@ check('B108 validates a bounded ETag header before making XML parts', () => {
   assert.match(parser, /token\.includes\('\\\\'\)/u);
 });
 check('B108 rejects malformed controls, whitespace and non-ASCII ETags', () => {
-  assert.match(parser, /\\u0000-\\u001f/u);
+  assert.match(parser, /point <= 31 \|\| point === 127/u);
   assert.match(parser, /\\x21-\\x7e/u);
   assert.match(native, /malformed or unmatched quotes/u);
   assert.match(native, /invalid HTTP whitespace and control characters/u);
