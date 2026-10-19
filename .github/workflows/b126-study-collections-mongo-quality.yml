@@ -65,7 +65,7 @@ jobs:
         run: pnpm --filter @losapuntes/api check:types
 
   mongo-replica-real:
-    name: Nine real owner-scoped Mongo replica and closure tests
+    name: Thirteen real owner-scoped Mongo replica and closure tests
     runs-on: ubuntu-24.04
     timeout-minutes: 22
     env:
@@ -129,7 +129,7 @@ jobs:
           done
           test "$primary" = true
 
-      - name: Run all nine actual Mongo closure and revision cases
+      - name: Run all thirteen actual Mongo closure and revision cases
         shell: bash
         env:
           STUDY_COLLECTIONS_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
@@ -150,13 +150,13 @@ jobs:
               result.numPassedTestSuites !== 1 ||
               result.numFailedTests !== 0 ||
               result.numPendingTests !== 0 ||
-              result.numTotalTests !== 9 ||
-              result.numPassedTests !== 9 ||
-              cases.length !== 9 ||
+              result.numTotalTests !== 13 ||
+              result.numPassedTests !== 13 ||
+              cases.length !== 13 ||
               cases.some((test) => test.status !== 'passed')) {
-            throw new Error('B126 mandatory real Mongo acceptance is not 9/9 PASS');
+            throw new Error('B126 mandatory real Mongo acceptance is not 13/13 PASS');
           }
-          console.log('B126 real Mongo replica owner-scoped acceptance PASS: 9/9 mandatory cases.');
+          console.log('B126 real Mongo replica owner-scoped acceptance PASS: 13/13 mandatory cases.');
           B126_PROOF
 
       - name: Verify exact clean HEAD after tests
