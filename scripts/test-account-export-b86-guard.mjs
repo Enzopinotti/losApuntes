@@ -64,9 +64,9 @@ check('B86 Mongo opt-in proves transient S3 DELETE followed by durable retry and
 });
 check('B86 Mongo opt-in preserves durable published generation', () => {
   assert.match(acceptance, /B86 preserves a published generation/u);
-  assert.match(acceptance, /orphanPreserved: 1, orphanDeleted: 0/u);
-  assert.match(acceptance, /artifactGeneration\)\.toBe\(generation\)/u);
-  assert.match(acceptance, /httpMethods\)\.toEqual\(\['PUT'\]\)/u);
+  assert.match(acceptance, /orphanPreserved:\s*1,\s*orphanDeleted:\s*0/u);
+  assert.match(acceptance, /artifactGeneration\)\.toBe\(\s*generation,?\s*\)/u);
+  assert.match(acceptance, /httpMethods\)\.toEqual\(\['PUT', 'GET'\]\)/u);
 });
 check('B86 standalone guard delegates local URI to B89 and exact cases to B94', () => {
   assert.match(runner, /STUDY_PROGRESS_TEST_MONGO_URI/u);
