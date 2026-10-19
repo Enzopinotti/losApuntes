@@ -58,6 +58,11 @@ jobs:
           pnpm --filter @losapuntes/web check:types
       - name: Check Web hooks and lint
         run: pnpm --filter @losapuntes/web lint
+      - name: B115 B116 S3 signed integrity guards after formatting
+        run: |
+          node scripts/test-account-export-b115-guard.mjs
+          node scripts/test-account-export-b116-guard.mjs
+          node --test scripts/test-account-export-b115-full-get-length.test.mjs scripts/test-account-export-b116-head.test.mjs
       - name: Source remains exact and clean
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
