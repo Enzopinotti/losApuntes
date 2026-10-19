@@ -27,6 +27,10 @@ import {
 import { serializeStudySession } from "../features/study/study-session-plan.mjs";
 import { buildPrivateRecallReport } from "../features/study/study-recall-private-report.mjs";
 import {
+  nextRecallFocus,
+  type RecallFocusCategory,
+} from "../features/study/study-recall-focus.mjs";
+import {
   RECALL_REVIEW_DURATIONS,
   organizeRecallSession,
   recordRecallAttempt,
@@ -195,6 +199,14 @@ export default function StudyPractice() {
   const detail = detailState?.key === detailKey ? detailState : null;
   const revealed = Boolean(currentId && round?.revealedIds.includes(currentId));
   const summary = round ? recallSummary(round.ids, round.outcomes) : null;
+  const nextPendingPosition =
+    round && subjectId
+      ? nextRecallFocus(subjectId, round.ids, round.position, round.outcomes, "pending")
+      : null;
+  const nextReviewPosition =
+    round && subjectId
+      ? nextRecallFocus(subjectId, round.ids, round.position, round.outcomes, "review")
+      : null;
   const [feedbackState, setFeedbackState] = useState<Feedback | null>(null);
   const feedback = feedbackState?.scope === scope ? feedbackState : null;
   const [revealState, setRevealState] = useState<{
@@ -584,6 +596,31 @@ export default function StudyPractice() {
     setRoundState((previous) =>
       previous?.scope === scope ? update(previous) : previous,
     );
+  };
+
+  const jumpToRecallCategory = (category: RecallFocusCategory) => {
+    if (!round || !subjectId) return;
+    try {
+      const next = nextRecallFocus(
+        subjectId,
+        round.ids,
+        round.position,
+        round.outcomes,
+        category,
+      );
+      if (next === null) return;
+      changeRound((previous) =>
+        previous.pass === round.pass && previous.position === round.position
+          ? { ...previous, position: next }
+          : previous,
+      );
+    } catch {
+      setFeedbackState({
+        scope,
+        error: true,
+        message: "No pudimos ubicar esa pregunta. Elegí una de la lista.",
+      });
+    }
   };
 
   const markOutcome = (outcome: "understood" | "review") => {
@@ -1339,6 +1376,40 @@ export default function StudyPractice() {
                     </ol>
                   </section>
                 )}
+                <section
+                  className="study-practice-guided-navigation"
+                  aria-labelledby="study-practice-guided-title"
+                >
+                  <h3 id="study-practice-guided-title">Recorrer lo que falta</h3>
+                  <p>
+                    Saltá a otra pregunta sin clasificar o marcada para
+                    repasar. El recorrido da la vuelta a la lista, no
+                    califica preguntas automáticamente ni borra tus notas.
+                  </p>
+                  <div className="study-practice-actions">
+                    <button
+                      type="button"
+                      disabled={nextPendingPosition === null}
+                      onClick={() => jumpToRecallCategory("pending")}
+                    >
+                      Siguiente sin clasificar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={nextReviewPosition === null}
+                      onClick={() => jumpToRecallCategory("review")}
+                    >
+                      Siguiente para repasar
+                    </button>
+                  </div>
+                  {nextPendingPosition === null &&
+                    nextReviewPosition === null && (
+                      <p>
+                        No hay otras preguntas pendientes de estas categorías.
+                        Podés seguir revisando la actual o usar la lista.
+                      </p>
+                    )}
+                </section>
                 <ol className="study-practice-outline">
                   {round.ids.map((id, index) => (
                     <li key={id}>
