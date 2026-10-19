@@ -201,11 +201,23 @@ export default function StudyPractice() {
   const summary = round ? recallSummary(round.ids, round.outcomes) : null;
   const nextPendingPosition =
     round && subjectId
-      ? nextRecallFocus(subjectId, round.ids, round.position, round.outcomes, "pending")
+      ? nextRecallFocus(
+          subjectId,
+          round.ids,
+          round.position,
+          round.outcomes,
+          "pending",
+        )
       : null;
   const nextReviewPosition =
     round && subjectId
-      ? nextRecallFocus(subjectId, round.ids, round.position, round.outcomes, "review")
+      ? nextRecallFocus(
+          subjectId,
+          round.ids,
+          round.position,
+          round.outcomes,
+          "review",
+        )
       : null;
   const [feedbackState, setFeedbackState] = useState<Feedback | null>(null);
   const feedback = feedbackState?.scope === scope ? feedbackState : null;
@@ -1380,11 +1392,13 @@ export default function StudyPractice() {
                   className="study-practice-guided-navigation"
                   aria-labelledby="study-practice-guided-title"
                 >
-                  <h3 id="study-practice-guided-title">Recorrer lo que falta</h3>
+                  <h3 id="study-practice-guided-title">
+                    Recorrer lo que falta
+                  </h3>
                   <p>
-                    Saltá a otra pregunta sin clasificar o marcada para
-                    repasar. El recorrido da la vuelta a la lista, no
-                    califica preguntas automáticamente ni borra tus notas.
+                    Saltá a otra pregunta sin clasificar o marcada para repasar.
+                    El recorrido da la vuelta a la lista, no califica preguntas
+                    automáticamente ni borra tus notas.
                   </p>
                   <div className="study-practice-actions">
                     <button
