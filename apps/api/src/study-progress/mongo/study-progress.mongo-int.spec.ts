@@ -3080,7 +3080,7 @@ runMongo(
       // transport. It never contacts a remote object-storage provider.
       const fetchSpy = jest
         .spyOn(globalThis, 'fetch')
-        .mockImplementation(async (url, init) => {
+        .mockImplementation((url, init) => {
           const request = new URL(
             typeof url === 'string'
               ? url
@@ -3095,15 +3095,15 @@ runMongo(
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            throw new Error('B86 S3 PUT ACK lost after object commit');
+            return Promise.reject(new Error('B86 S3 PUT ACK lost after object commit'));
           }
           if (method === 'DELETE') {
             if (deleteFailures-- > 0)
-              return new Response(null, { status: 503 });
+              return Promise.resolve(new Response(null, { status: 503 }));
             objects.delete(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           }
-          throw new Error('Unexpected B86 S3 method');
+          return Promise.reject(new Error('Unexpected B86 S3 method'));
         });
       try {
         const s3 = createS3ObjectStorage({
@@ -3233,7 +3233,7 @@ runMongo(
       const httpMethods: string[] = [];
       const fetchSpy = jest
         .spyOn(globalThis, 'fetch')
-        .mockImplementation(async (url, init) => {
+        .mockImplementation((url, init) => {
           const request = new URL(
             typeof url === 'string'
               ? url
@@ -3246,19 +3246,21 @@ runMongo(
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            return new Response(null, { status: 200 });
+            return Promise.resolve(new Response(null, { status: 200 }));
           }
           if (method === 'GET') {
             const bytes = objects.get(key);
-            return bytes
-              ? new Response(new Uint8Array(bytes), { status: 200 })
-              : new Response(null, { status: 404 });
+            return Promise.resolve(
+              bytes
+                ? new Response(new Uint8Array(bytes), { status: 200 })
+                : new Response(null, { status: 404 }),
+            );
           }
           if (method === 'DELETE') {
             objects.delete(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           }
-          throw new Error('Unexpected method');
+          return Promise.reject(new Error('Unexpected method'));
         });
       try {
         const s3 = createS3ObjectStorage({
