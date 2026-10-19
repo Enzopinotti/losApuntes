@@ -39,8 +39,10 @@ check('B106 refuses over-budget snapshots before allocating or adding queue work
 });
 
 check('B106 budget rejection poisons completion but leaves private abort available', () => {
-  const overflow = wrapper.slice(wrapper.indexOf('if (chunk.byteLength >'),
-    wrapper.indexOf('let snapshot: Buffer'));
+  const overflowStart = wrapper.search(/if\s*\(\s*chunk\.byteLength\s*>/u);
+  const overflowEnd = wrapper.indexOf('let snapshot: Buffer', overflowStart);
+  assert.ok(overflowStart >= 0 && overflowEnd > overflowStart);
+  const overflow = wrapper.slice(overflowStart, overflowEnd);
   assert.match(overflow, /failed = true/u);
   assert.match(writer, /S3 multipart writer cannot complete after a failed operation/u);
   assert.match(wrapper, /return serialize\(\(\) => underlyingWriter.abort\(\)\)/u);
