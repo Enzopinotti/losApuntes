@@ -58,7 +58,7 @@ check('B95 keeps original real TCP signature and lost-ACK cases', () => {
   assert.match(loop, /B87 loopback rejects a forged SigV4/u);
 });
 check('B95 shared adapter retains bounded read and S3 GET status validation', () => {
-  assert.match(s3, /if \(!response\.ok\) throw storageError\('GET object', response\.status\)/u);
+  assert.match(s3, /!isConfirmedS3FullObjectGet\(response\.status\)[\s\S]*?throw storageError\('GET object', response\.status\)/u);
   assert.match(s3, /maximumChunkBytes = 64 \* 1024/u);
   assert.match(s3, /async \*readObjectChunks\(/u);
 });
