@@ -25,6 +25,7 @@ import {
   type RecallOutcomes,
 } from "../features/study/study-active-recall.mjs";
 import { serializeStudySession } from "../features/study/study-session-plan.mjs";
+import { buildPrivateRecallReport } from "../features/study/study-recall-private-report.mjs";
 import {
   RECALL_REVIEW_DURATIONS,
   organizeRecallSession,
@@ -112,6 +113,19 @@ function downloadReviewPlan(contents: string): void {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = "los-apuntes-preguntas-para-repasar.json";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadPrivateRecallSummary(contents: string): void {
+  const url = URL.createObjectURL(
+    new Blob([contents], { type: "text/markdown;charset=utf-8" }),
+  );
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "los-apuntes-mi-resumen-de-practica.md";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -649,6 +663,35 @@ export default function StudyPractice() {
         error: true,
         message:
           "No pudimos preparar el repaso. Revisá la fecha elegida o descargá el JSON.",
+      });
+    }
+  };
+
+  const downloadPrivateSummary = () => {
+    if (!round || !summary || status !== "authenticated") return;
+    try {
+      const report = buildPrivateRecallReport({
+        history: round.history,
+        current: {
+          pass: round.pass,
+          total: summary.total,
+          understood: summary.understood,
+          review: summary.review,
+          pending: summary.pending,
+        },
+        minutes: review.minutes,
+      });
+      downloadPrivateRecallSummary(report);
+      setFeedbackState({
+        scope,
+        error: false,
+        message: "Se descargó tu resumen personal sin preguntas ni respuestas.",
+      });
+    } catch {
+      setFeedbackState({
+        scope,
+        error: true,
+        message: "No pudimos preparar el resumen de esta práctica.",
       });
     }
   };
@@ -1326,6 +1369,22 @@ export default function StudyPractice() {
                     </li>
                   ))}
                 </ol>
+                <section
+                  className="study-practice-private-report"
+                  aria-labelledby="study-practice-private-report-title"
+                >
+                  <h3 id="study-practice-private-report-title">
+                    Guardá un resumen de tu práctica
+                  </h3>
+                  <p>
+                    Descargá un resumen con tus propios recuentos de intentos y
+                    tiempo estimado para el repaso. No incluye preguntas,
+                    respuestas escritas ni datos de otras personas.
+                  </p>
+                  <button type="button" onClick={downloadPrivateSummary}>
+                    Descargar resumen privado
+                  </button>
+                </section>
                 <h3>Volver a practicar las pendientes</h3>
                 <p>
                   Reintentá solo las preguntas marcadas «Necesito repasar». El
