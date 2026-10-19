@@ -53,7 +53,7 @@ verify('an active claim is still retained and CAS fenced before S3', () => {
 verify('missing/mismatch authority is counted without exposing identifying fields', () => {
   assert.match(processor, /orphanAuthorityBlocked: number/u);
   assert.match(processor, /orphanAuthorityBlocked: 0/u);
-  assert.ok((drain.match(/orphanAuthorityBlocked \+= 1/gu) || []).length === 2);
+  assert.equal((drain.match(/orphanAuthorityBlocked \+= 1/gu) || []).length, 3); // missing job, foreign owner, revoked claim CAS
   assert.match(logging, /iteration\.orphanAuthorityBlocked > 0/u);
   assert.match(logging, /\.\.\.iteration/u);
 });
