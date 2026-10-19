@@ -101,11 +101,6 @@
       "react-devtools-core>shell-quote": "1.11.0",
       "postcss>source-map-js": "1.2.2",
       "sass>source-map-js": "1.2.2"
-    },
-    "auditConfig": {
-      "ignoreCves": [
-        "CVE-2026-85393"
-      ]
     }
   },
   "devDependencies": {
