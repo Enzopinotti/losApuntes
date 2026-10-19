@@ -4,28 +4,33 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Re-run existing single-process Bxx source/contract checks independently.
+ * Re-run existing single-process Bxx source and Node regression tests independently.
  * The root pnpm check remains mandatory; this makes multiple stale structural
  * assertions visible together instead of stopping at the first failing script.
- * Only previously configured standalone 'node scripts/test-account-export-b*.mjs'
- * commands are executed. No providers, containers, migrations or deploy actions.
+ * Only the  configured source guards and standalone local Node tests are run.
+ * No external providers, containers, migrations or deploy actions.
  */
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const configured = manifest.scripts['test:account-lifecycle-contract'].split(' && ');
-const checks = configured.filter((command) =>
-  /^node scripts\/test-account-export-b\d+[a-z0-9-]*\.mjs$/u.test(command.trim()),
-);
-assert.ok(checks.length >= 15, 'Unexpectedly few configured standalone Account Export source checks');
+const checks = configured.filter((command) => {
+  const value = command.trim();
+  return (
+    /^node scripts\/test-account-export-b\d+[a-z0-9-]*\.mjs$/u.test(value) ||
+    /^node (?:--experimental-strip-types )?(?:--import \.\/scripts\/testing\/register-api-typescript\.mjs )?--test scripts\/test-account-export-b\d+[a-z0-9-]*\.test\.mjs$/u.test(value)
+  );
+});
+assert.ok(checks.length >= 75, 'Unexpectedly few configured Account Export source and Node tests');
 
 const failures = [];
 for (const command of checks) {
-  const [_, path] = command.trim().split(' ');
-  const execution = spawnSync(process.execPath, [path], {
+  const args = command.trim().split(/\s+/u).slice(1);
+  const path = args[args.length - 1];
+  const execution = spawnSync(process.execPath, args, {
     cwd: root,
     encoding: 'utf8',
-    timeout: 20_000,
-    maxBuffer: 512 * 1024,
+    timeout: 45_000,
+    maxBuffer: 2 * 1024 * 1024,
     env: { ...process.env, STUDY_PROGRESS_ENABLED: 'false' },
   });
 
@@ -43,7 +48,7 @@ for (const command of checks) {
   console.error('FAIL', path, JSON.stringify(diagnostic));
 }
 console.log(JSON.stringify({
-  event: 'quality.account_export_legacy_source_contracts',
+  event: 'quality.account_export_legacy_contracts_and_node_tests',
   total: checks.length,
   passed: checks.length - failures.length,
   failed: failures.length,
