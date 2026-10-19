@@ -21,3 +21,16 @@ The remediation asserts against **`.mock.calls`** on typed `jest.fn` mocks rathe
 Read-only `.github/workflows/b128-export-processor-typed-lint.yml` checks frozen Node24/pnpm, strict zero-warning ESLint and pinned Prettier on the touched file, entire processor Jest suite, full API TypeScript and clean Git SHA. A separate diagnostic job measures **full unchanged API lint**, requiring an actual reduction from 451 errors and no increase from 77 warnings; this inventory is **not a waiver** and cannot replace the existing failing `pnpm check` / global `verify` gate.
 
 B128 makes no change to product code, account export format, S3 signing, Mongo schema, dependency policy or release features. Audit exception for `node-forge@1.4.0` / CVE-2026-85393 expired 2026-10-15, issue #133; this remains a hard security HOLD. #141 and external S3/browser/restore are also not certified.
+
+## Executed red-green evidence and quantified improvement
+
+**First exact-head run**, [B128 #39185154372](https://github.com/Enzopinotti/losApuntes/actions/runs/39185154372), SHA `58e9c1349298e105eb5880dc3a3b51156a0416bb`: **2/2 scoped jobs SUCCESS**:
+- Targeted `eslint --max-warnings=0` of the processor spec: **0 errors / 0 warnings**.
+- Pinned Prettier of the spec: **PASS**.
+- Full Jest file, with unfiltered test names: **86/86 tests PASS, 1/1 suites**; its **83 distinct named scenario declarations** preserve the original parameterized cases.
+- Whole API TypeScript: **PASS**.
+- Global API strict lint inventory, unchanged commands: **249 errors / 77 warnings**, versus previous **451 errors / 77 warnings**: **202 errors eliminated (44.8% fewer)**. The inventory report does not waive the canonical `pnpm check`: API strict lint is still a genuine FAIL.
+
+[Global `verify #39185154347`](https://github.com/Enzopinotti/losApuntes/actions/runs/39185154347) on that same SHA: **all 10 critical coverage jobs PASS**, Quality Gate still FAIL (remaining strict lint), Production dependency audit FAIL due the pre-existing expired 2026-10-15 `node-forge` exception, smoke skipped. The next largest lint blocker is `study-progress.mongo-int.spec.ts` (~164 errors plus all 77 warnings); separate real-Mongo acceptance and typing review is required.
+
+The documentation commit changes the SHA; final PR integration must confirm new exact-head checks remain consistent rather than treating the preceding run as proof for a later SHA.
