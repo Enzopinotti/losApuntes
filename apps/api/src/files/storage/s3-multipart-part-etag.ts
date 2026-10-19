@@ -3,9 +3,15 @@
  * generation. Reject malformed/massive headers before building Complete XML.
  * Compatibility: standard quoted and S3-compatible unquoted opaque tokens.
  */
-export function normalizeS3MultipartPartEtag(raw: string | null): string | null {
-  if (typeof raw !== 'string' || raw.length === 0 || raw.length > 256 ||
-      /[\u0000-\u001f\u007f]/u.test(raw)) {
+export function normalizeS3MultipartPartEtag(
+  raw: string | null,
+): string | null {
+  if (
+    typeof raw !== 'string' ||
+    raw.length === 0 ||
+    raw.length > 256 ||
+    /[\u0000-\u001f\u007f]/u.test(raw)
+  ) {
     return null;
   }
   const value = raw.trim();
@@ -16,8 +22,13 @@ export function normalizeS3MultipartPartEtag(raw: string | null): string | null 
   // ETags are opaque printable HTTP tokens. Internal whitespace, embedded
   // quotes and non-ASCII are not valid here, even if XML escaping would
   // prevent markup injection. Leave XML escaping to the caller.
-  if (!token || token.length > 254 || !/^[\x21-\x7e]+$/u.test(token) ||
-      token.includes('"') || token.includes('\\')) {
+  if (
+    !token ||
+    token.length > 254 ||
+    !/^[\x21-\x7e]+$/u.test(token) ||
+    token.includes('"') ||
+    token.includes('\\')
+  ) {
     return null;
   }
   return token;

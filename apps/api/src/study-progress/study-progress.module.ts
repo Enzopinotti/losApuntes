@@ -5,7 +5,10 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { StudyProgressController } from './study-progress.controller';
 import { StudyProgressFeatureGuard } from './study-progress.feature.guard';
 import { StudyProgressService } from './study-progress.service';
-import { StudyProgress, StudyProgressSchema } from './mongo/study-progress.schema';
+import {
+  StudyProgress,
+  StudyProgressSchema,
+} from './mongo/study-progress.schema';
 
 @Module({
   imports: [

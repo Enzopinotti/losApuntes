@@ -10,11 +10,7 @@ import type { AccountExportDownload } from './account-export.service';
  * 'changed' to a stable conflict, without leaking object generations.
  */
 export type AccountExportDownloadReauthorization =
-  | 'unchanged'
-  | 'not_found'
-  | 'not_ready'
-  | 'expired'
-  | 'changed';
+  'unchanged' | 'not_found' | 'not_ready' | 'expired' | 'changed';
 
 export function reauthorizeAccountExportDownload(
   before: AccountExportDownload,
@@ -27,6 +23,7 @@ export function reauthorizeAccountExportDownload(
     before.formatVersion !== after.formatVersion ||
     before.byteLength !== after.byteLength ||
     before.sha256 !== after.sha256
-  ) return 'changed';
+  )
+    return 'changed';
   return 'unchanged';
 }

@@ -24,7 +24,13 @@ describe('B61 study progress portable plan integrity', () => {
     expect(result.tasks[1]?.done).toBe(true);
     expect(result.subjectId).toBe(subject);
     expect(Object.keys(result).sort()).toEqual([
-      'format', 'notes', 'startsAt', 'subjectId', 'tasks', 'title', 'version',
+      'format',
+      'notes',
+      'startsAt',
+      'subjectId',
+      'tasks',
+      'title',
+      'version',
     ]);
   });
   it('rejects cross-subject authority and noncanonical data', () => {
@@ -35,7 +41,10 @@ describe('B61 study progress portable plan integrity', () => {
       { ...valid, title: '  ' },
       { ...valid, title: 'a'.repeat(101) },
       { ...valid, version: 2 },
-      { ...valid, tasks: [{ ...valid.tasks[0], accessUrl: 'https://private.example' }] },
+      {
+        ...valid,
+        tasks: [{ ...valid.tasks[0], accessUrl: 'https://private.example' }],
+      },
       { ...valid, tasks: [valid.tasks[0], valid.tasks[0]] },
       { ...valid, tasks: Array.from({ length: 25 }, () => valid.tasks[0]) },
       { ...valid, tasks: [{ ...valid.tasks[0], done: 'yes' }] },
@@ -43,16 +52,23 @@ describe('B61 study progress portable plan integrity', () => {
       { ...valid, tasks: [{ ...valid.tasks[0], minutes: 17 }] },
       { ...valid, startsAt: '2026-02-31T12:00' },
     ]) {
-      expect(() => parseStudyProgressPlan(payload, subject))
-        .toThrow(UnprocessableEntityException);
+      expect(() => parseStudyProgressPlan(payload, subject)).toThrow(
+        UnprocessableEntityException,
+      );
     }
   });
   it('rejects unknown and duplicate ids across kind and subject', () => {
-    expect(() => parseStudyProgressPlan({
-      ...valid,
-      tasks: [{ ...valid.tasks[0], id: 'not-a-uuid' }],
-    }, subject)).toThrow(UnprocessableEntityException);
-    expect(() => parseStudyProgressPlan(valid, resource))
-      .toThrow(UnprocessableEntityException);
+    expect(() =>
+      parseStudyProgressPlan(
+        {
+          ...valid,
+          tasks: [{ ...valid.tasks[0], id: 'not-a-uuid' }],
+        },
+        subject,
+      ),
+    ).toThrow(UnprocessableEntityException);
+    expect(() => parseStudyProgressPlan(valid, resource)).toThrow(
+      UnprocessableEntityException,
+    );
   });
 });

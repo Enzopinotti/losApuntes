@@ -1,0 +1,88 @@
+name: B127 current-main canonical quality reconciliation
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b127-canonical-main-quality.yml
+      - apps/api/src/**
+      - apps/api/test/**
+      - apps/web/src/**
+      - apps/web/vite.config.ts
+      - apps/web/release-manifest.ts
+      - docs/engineering/b127-canonical-main-quality.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b127-canonical-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-format-and-types:
+    name: Node24 full API Web Mobile Prettier and TS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 23
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Validate exact SHA and unmodified checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup exact Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen workspace
+        run: pnpm install --frozen-lockfile
+      - name: Check all canonical formatting without modifying source
+        run: |
+          pnpm --filter @losapuntes/api format:check
+          pnpm --filter @losapuntes/web format:check
+          pnpm --filter @losapuntes/mobile format:check
+      - name: Check API and Web types
+        run: |
+          pnpm --filter @losapuntes/api check:types
+          pnpm --filter @losapuntes/web check:types
+      - name: Check Web hooks and lint
+        run: pnpm --filter @losapuntes/web lint
+      - name: B115 B116 S3 signed integrity guards after formatting
+        run: |
+          node scripts/test-account-export-b115-guard.mjs
+          node scripts/test-account-export-b116-guard.mjs
+          node --test scripts/test-account-export-b115-full-get-length.test.mjs scripts/test-account-export-b116-head.test.mjs
+      - name: Source remains exact and clean
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  strict-api-lint:
+    name: Full strict API lint no waivers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @losapuntes/api lint

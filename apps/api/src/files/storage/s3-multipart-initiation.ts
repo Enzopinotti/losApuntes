@@ -9,25 +9,36 @@ function decodeXmlScalar(value: string): string | null {
   if (value.replace(entity, '').includes('&')) return null;
   const decoded = value.replace(entity, (token) => {
     switch (token) {
-      case '&amp;': return '&';
-      case '&lt;': return '<';
-      case '&gt;': return '>';
-      case '&quot;': return '"';
-      case '&apos;': return "'";
+      case '&amp;':
+        return '&';
+      case '&lt;':
+        return '<';
+      case '&gt;':
+        return '>';
+      case '&quot;':
+        return '"';
+      case '&apos;':
+        return "'";
       default: {
         const hex = token.startsWith('&#x');
         const numeric = token.slice(hex ? 3 : 2, -1);
         const point = Number.parseInt(numeric, hex ? 16 : 10);
-        if (!Number.isSafeInteger(point) ||
-            point > 0x10ffff ||
-            (point >= 0xd800 && point <= 0xdfff) ||
-            (point < 32 && ![9, 10, 13].includes(point)) ||
-            point === 0xfffe || point === 0xffff) return '\u0000';
+        if (
+          !Number.isSafeInteger(point) ||
+          point > 0x10ffff ||
+          (point >= 0xd800 && point <= 0xdfff) ||
+          (point < 32 && ![9, 10, 13].includes(point)) ||
+          point === 0xfffe ||
+          point === 0xffff
+        )
+          return '\u0000';
         return String.fromCodePoint(point);
       }
     }
   });
-  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffe\uffff]/u.test(decoded)) {
+  if (
+    /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffe\uffff]/u.test(decoded)
+  ) {
     return null;
   }
   // Reject broken UTF-16 even if the provider returned valid UTF-8 originally.
@@ -49,10 +60,14 @@ export function parseConfirmedS3MultipartUploadId(
   if (typeof xml !== 'string' || xml.length === 0 || xml.length > 64 * 1024) {
     return null;
   }
-  const body = xml.replace(/^\uFEFF/u, '').trim()
+  const body = xml
+    .replace(/^\uFEFF/u, '')
+    .trim()
     .replace(/^<\?xml\s+[^<>]*\?>\s*/u, '');
   const root =
-    /^<InitiateMultipartUploadResult(?:\s+xmlns=(["'])http:\/\/s3\.amazonaws\.com\/doc\/2006-03-01\/\1)?\s*>([\s\S]*)<\/InitiateMultipartUploadResult>$/u.exec(body);
+    /^<InitiateMultipartUploadResult(?:\s+xmlns=(["'])http:\/\/s3\.amazonaws\.com\/doc\/2006-03-01\/\1)?\s*>([\s\S]*)<\/InitiateMultipartUploadResult>$/u.exec(
+      body,
+    );
   if (!root) return null;
   const inside = root[2];
   const fields = /<(Bucket|Key|UploadId)>([^<]*)<\/\1>/gu;
@@ -73,11 +88,18 @@ export function parseConfirmedS3MultipartUploadId(
     if (name === 'Key') responseKey = text;
     cursor = match.index + match[0].length;
   }
-  if (inside.slice(cursor).trim() || !uploadId ||
-      uploadId.length > 2048 || /[\s\u007f]/u.test(uploadId)) return null;
-  if (expected && (
-    (responseBucket !== null && responseBucket !== expected.bucket) ||
-    (responseKey !== null && responseKey !== expected.objectKey)
-  )) return null;
+  if (
+    inside.slice(cursor).trim() ||
+    !uploadId ||
+    uploadId.length > 2048 ||
+    /[\s\u007f]/u.test(uploadId)
+  )
+    return null;
+  if (
+    expected &&
+    ((responseBucket !== null && responseBucket !== expected.bucket) ||
+      (responseKey !== null && responseKey !== expected.objectKey))
+  )
+    return null;
   return uploadId;
 }

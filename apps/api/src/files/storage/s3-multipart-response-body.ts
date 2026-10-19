@@ -34,7 +34,9 @@ export async function readBoundedS3MultipartCompletionXml(
         return xml;
       }
       if (!(value instanceof Uint8Array)) {
-        throw new Error(`S3 multipart ${purpose} response returned invalid bytes`);
+        throw new Error(
+          `S3 multipart ${purpose} response returned invalid bytes`,
+        );
       }
       // Fail before retaining/decoding unbounded data, even if a provider
       // incorrectly omits Content-Length or responds with chunked HTTP.

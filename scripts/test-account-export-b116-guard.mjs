@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const adapter = read('apps/api/src/files/storage/s3-object-storage.ts');
 const helper = read('apps/api/src/files/storage/s3-head-object-contract.ts');
+const etagHelper = read('apps/api/src/files/storage/s3-head-etag.ts');
 const native = read('scripts/test-account-export-b116-head.test.mjs');
 const jest = read('apps/api/src/files/storage/s3-object-storage.spec.ts');
 const pkg = JSON.parse(read('package.json')).scripts;
@@ -40,7 +41,14 @@ check('B116 adapter preserves signed HEAD and legacy metadata projection', () =>
     adapter.indexOf('    async readPrefix('));
   assert.match(head, /method: 'HEAD'/u);
   assert.match(head, /contentType: response\.headers\.get\('content-type'\)/u);
-  assert.match(head, /etag: response\.headers\.get\('etag'\)/u);
+  // B119 hardened HEAD metadata by validating optional ETags instead of
+  // exposing untrusted raw response bytes from the storage provider.
+  assert.match(
+    head,
+    /etag: normalizeS3HeadObjectEtag\(response\.headers\.get\('etag'\)\)/u,
+  );
+  assert.match(etagHelper, /if \(raw === null\) return null/u);
+  assert.match(etagHelper, /throw new Error\('S3 HEAD returned an invalid ETag'\)/u);
 });
 
 check('B116 tests include 2xx denial, canonical metadata and positive behavior', () => {

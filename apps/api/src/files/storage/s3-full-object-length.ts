@@ -6,7 +6,9 @@
  * Missing Content-Length is accepted for S3-compatible chunked responses;
  * readback SHA256 and higher-level integrity controls remain authoritative.
  */
-export function parseS3FullObjectContentLength(raw: string | null): number | null {
+export function parseS3FullObjectContentLength(
+  raw: string | null,
+): number | null {
   if (raw === null) return null;
   if (!/^(0|[1-9][0-9]*)$/u.test(raw)) {
     throw new Error('S3 GET object returned an invalid Content-Length');
