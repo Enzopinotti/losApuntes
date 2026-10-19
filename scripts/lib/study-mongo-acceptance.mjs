@@ -2,8 +2,9 @@ import { validateB89LocalMongoUri } from "../testing/b89-local-mongo-uri.mjs";
 
 /**
  * B52 private-collection acceptance gate.
- * No filesystem, network or process access: the runner and unit checks use
- * these pure validators to reject skipped/incomplete suites.
+ * No Mongo/database mutations, filesystem writes or child-process side effects.
+ * The URI validator resolves loopback DNS before the runner starts Jest;
+ * the Jest-report checker remains a pure skipped/incomplete-suite guard.
  */
 
 const EXPECTED = Object.freeze([
