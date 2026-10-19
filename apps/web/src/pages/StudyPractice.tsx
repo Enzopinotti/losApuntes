@@ -25,6 +25,12 @@ import {
   type RecallOutcomes,
 } from "../features/study/study-active-recall.mjs";
 import { serializeStudySession } from "../features/study/study-session-plan.mjs";
+import {
+  RECALL_REVIEW_DURATIONS,
+  organizeRecallSession,
+  recordRecallAttempt,
+  type RecallAttemptSnapshot,
+} from "../features/study/study-recall-planning.mjs";
 import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
 import {
   isPracticeQuestionForSubject,
@@ -54,6 +60,7 @@ type QuestionList = {
 type Round = {
   scope: string;
   pass: number;
+  history: RecallAttemptSnapshot[];
   ids: string[];
   position: number;
   revealedIds: string[];
@@ -143,6 +150,15 @@ export default function StudyPractice() {
     ids: string[];
   } | null>(null);
   const chosen = selectionState?.scope === scope ? selectionState.ids : [];
+  const [reviewSettings, setReviewSettings] = useState<{
+    scope: string;
+    startsAt: string;
+    minutes: number;
+  } | null>(null);
+  const review =
+    reviewSettings?.scope === scope
+      ? reviewSettings
+      : { scope, startsAt: "", minutes: 20 };
   const [roundState, setRoundState] = useState<Round | null>(null);
   const round = roundState?.scope === scope ? roundState : null;
   const currentId = round?.ids[round.position] ?? null;
@@ -517,6 +533,7 @@ export default function StudyPractice() {
       setRoundState({
         scope,
         pass: 1,
+        history: [],
         ids: queue,
         position: 0,
         revealedIds: [],
@@ -557,7 +574,12 @@ export default function StudyPractice() {
     try {
       const plan = recallToStudySession(subjectId, round.ids, round.outcomes);
       if (!plan) return;
-      downloadReviewPlan(serializeStudySession(plan));
+      const organized = organizeRecallSession(
+        plan,
+        review.startsAt,
+        review.minutes,
+      );
+      downloadReviewPlan(serializeStudySession(organized));
       setFeedbackState({
         scope,
         error: false,
@@ -568,7 +590,8 @@ export default function StudyPractice() {
       setFeedbackState({
         scope,
         error: true,
-        message: "No pudimos generar el archivo.",
+        message:
+          "No pudimos generar el archivo. Revisá la fecha: debe ser futura y dentro de los próximos 180 días.",
       });
     }
   };
@@ -595,7 +618,12 @@ export default function StudyPractice() {
     try {
       const plan = recallToStudySession(subjectId, round.ids, round.outcomes);
       if (!plan) return;
-      const handoff = createStudyHandoff(plan, scope);
+      const organized = organizeRecallSession(
+        plan,
+        review.startsAt,
+        review.minutes,
+      );
+      const handoff = createStudyHandoff(organized, scope);
       navigate(`/study/session?subjectId=${encodeURIComponent(subjectId)}`, {
         state: handoff,
       });
@@ -604,7 +632,7 @@ export default function StudyPractice() {
         scope,
         error: true,
         message:
-          "No pudimos pasar las preguntas al Planificador. Podés exportar el JSON.",
+          "No pudimos preparar el repaso. Revisá la fecha elegida o descargá el JSON.",
       });
     }
   };
@@ -628,11 +656,19 @@ export default function StudyPractice() {
     try {
       const ids = retryRecallQueue(subjectId, round.ids, round.outcomes);
       if (!ids) return;
+      const history = recordRecallAttempt(
+        subjectId,
+        round.history,
+        round.pass,
+        round.ids,
+        round.outcomes,
+      );
       setRoundState((previous) =>
         previous?.scope === scope && previous.pass === round.pass
           ? {
               scope,
               pass: previous.pass + 1,
+              history,
               ids,
               position: 0,
               revealedIds: [],
@@ -1100,6 +1136,27 @@ export default function StudyPractice() {
                     <strong>{summary?.pending ?? 0}</strong> sin clasificar
                   </span>
                 </div>
+                {round.history.length > 0 && (
+                  <section
+                    className="study-practice-attempt-history"
+                    aria-label="Intentos anteriores de esta ronda"
+                  >
+                    <h3>Repasos anteriores en esta pestaña</h3>
+                    <p>
+                      Son recuentos de tus propias marcas, no notas ni medidas
+                      de aprendizaje. Se borran al salir de la ronda.
+                    </p>
+                    <ol>
+                      {round.history.map((attempt) => (
+                        <li key={attempt.pass}>
+                          Intento {attempt.pass}: {attempt.review} para repasar,{" "}
+                          {attempt.understood} explicadas y {attempt.pending}{" "}
+                          sin clasificar.
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                )}
                 <ol className="study-practice-outline">
                   {round.ids.map((id, index) => (
                     <li key={id}>
@@ -1146,11 +1203,49 @@ export default function StudyPractice() {
                     Reintentar {summary?.review ?? 0} para repasar
                   </button>
                 </div>
-                <h3>Continuar en el planificador</h3>
+                <h3>Organizá tu próximo repaso</h3>
                 <p>
-                  Exportá las preguntas marcadas para repasar como un plan JSON.
-                  El archivo incluye solo IDs; la Mesa vuelve a comprobar su
-                  acceso al importarlo.
+                  Elegí un horario opcional y los minutos por pregunta. El plan
+                  incluye solo los IDs marcados para repasar; no incluye
+                  respuestas ni tus notas temporales.
+                </p>
+                <div className="study-practice-review-settings">
+                  <label>
+                    Fecha y hora del próximo repaso (opcional)
+                    <input
+                      type="datetime-local"
+                      value={review.startsAt}
+                      onChange={(event) =>
+                        setReviewSettings({
+                          ...review,
+                          startsAt: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Minutos por pregunta
+                    <select
+                      value={review.minutes}
+                      onChange={(event) =>
+                        setReviewSettings({
+                          ...review,
+                          minutes: Number(event.target.value),
+                        })
+                      }
+                    >
+                      {RECALL_REVIEW_DURATIONS.map((minutes) => (
+                        <option key={minutes} value={minutes}>
+                          {minutes} minutos
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <p>
+                  Si elegís fecha, debe ser futura y estar dentro de 180 días.
+                  El horario se mantiene en tu hora local. No se envían
+                  recordatorios automáticos.
                 </p>
                 <div className="study-practice-actions">
                   <button
