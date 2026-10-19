@@ -45,6 +45,11 @@ jobs:
           cache: pnpm
       - name: Install frozen workspace dependencies
         run: pnpm install --frozen-lockfile
+      - name: Show canonical StudyPractice formatting delta without editing checkout
+        shell: bash
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyPractice.tsx > "$RUNNER_TEMP/StudyPractice.formatted.tsx"
+          diff -u apps/web/src/pages/StudyPractice.tsx "$RUNNER_TEMP/StudyPractice.formatted.tsx" || true
       - name: Test retry model and UI integration
         run: |
           pnpm test:web-study-retry-round
