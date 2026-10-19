@@ -27,7 +27,7 @@ verify("owner progress mutations share the transacted User revision", () => {
   assert.match(mongoStore, /\$inc: \{ account_lifecycle_revision: 1 \}/u);
 });
 verify("pre-S3 and post-S3 owner epochs are both fenced", () => {
-  assert.match(processor, /captureStudyProgressExportEpoch\(job\.userId\)/u);
+  assert.match(processor, /captureStudyProgressExportEpoch\(\s*job\.userId,?\s*\)/u);
   assert.match(processor, /assertStudyProgressExportEpoch\(/u);
   const staged = processor.indexOf("artifactCommitted = true");
   const post = processor.indexOf("await this.exports.assertStudyProgressExportEpoch(");
@@ -45,7 +45,7 @@ verify("Mongo v3 completion atomically compares user and claim", () => {
   const sub = mongoStore.slice(start, end);
   assert.match(sub, /this\.connection\.startSession\(\)/u);
   assert.match(sub, /session\.withTransaction\(async/u);
-  assert.match(sub, /this\.users\s*\.updateOne\(ownerFilter,/u);
+  assert.match(sub, /this\.users\s*\.updateOne\(\s*ownerFilter,/u);
   assert.match(sub, /this\.jobs\s*\.updateOne\(\{ \.\.\.filter, userId: ownerUserId \}, update, \{ session \}\)/u);
   assert.match(sub, /account_lifecycle_revision: expectedEpoch/u);
   assert.match(sub, /account_lifecycle_revision: \{ \$exists: false \}/u);

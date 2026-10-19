@@ -57,16 +57,16 @@ check('B86 Mongo opt-in uses real store, real private adapter and B80 ledger', (
 });
 check('B86 Mongo opt-in proves transient S3 DELETE followed by durable retry and ACK', () => {
   assert.match(acceptance, /B86 S3 PUT ACK lost after object commit/u);
-  assert.match(acceptance, /orphanRetries: 1, orphanAuthorityBlocked: 0/u);
-  assert.match(acceptance, /orphanDeleted: 1, orphanRetries: 0/u);
+  assert.match(acceptance, /orphanRetries:\s*1,\s*orphanAuthorityBlocked:\s*0/u);
+  assert.match(acceptance, /orphanDeleted:\s*1,\s*orphanRetries:\s*0/u);
   assert.match(acceptance, /expect\(httpMethods\)\.toEqual\(\['PUT', 'DELETE', 'DELETE'\]\)/u);
   assert.match(processor, /await this\.orphans\.renewLease\(/u);
 });
 check('B86 Mongo opt-in preserves durable published generation', () => {
   assert.match(acceptance, /B86 preserves a published generation/u);
-  assert.match(acceptance, /orphanPreserved: 1, orphanDeleted: 0/u);
-  assert.match(acceptance, /artifactGeneration\)\.toBe\(generation\)/u);
-  assert.match(acceptance, /httpMethods\)\.toEqual\(\['PUT'\]\)/u);
+  assert.match(acceptance, /orphanPreserved:\s*1,\s*orphanDeleted:\s*0/u);
+  assert.match(acceptance, /artifactGeneration\)\.toBe\(\s*generation,?\s*\)/u);
+  assert.match(acceptance, /httpMethods\)\.toEqual\(\['PUT', 'GET'\]\)/u);
 });
 check('B86 standalone guard delegates local URI to B89 and exact cases to B94', () => {
   assert.match(runner, /STUDY_PROGRESS_TEST_MONGO_URI/u);

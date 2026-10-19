@@ -4,31 +4,14 @@ import test from "node:test";
 
 import {
   CANDIDATE_REQUIRED_GATES,
-  EXCEPTION_REVIEW_WINDOW_MS,
   evaluateCandidateEvidence,
 } from "./candidate-evidence-lib.mjs";
 
 const SHA = "a".repeat(40);
 const OTHER_SHA = "b".repeat(40);
-const EXPIRY = "2026-10-15T00:00:00.000Z";
 const WELL_BEFORE_EXPIRY = Date.parse("2026-10-12T00:00:00.000Z");
-const NEAR_EXPIRY = Date.parse("2026-10-14T20:00:00.000Z");
 
-const reviewedPolicy = {
-  version: 1,
-  exceptions: [{
-    cve: "CVE-2026-85393",
-    ghsa: "GHSA-86w9-cpqp-85rv",
-    package: "node-forge",
-    version: "1.4.0",
-    expiresAt: EXPIRY,
-    trackingIssue: "https://github.com/Enzopinotti/losApuntes/issues/133",
-    allowedSnapshotParentPrefixes: [
-      "@expo/cli@",
-      "@expo/code-signing-certificates@",
-    ],
-  }],
-};
+const reviewedPolicy = { version: 1, exceptions: [] };
 
 function fullEvidence() {
   return {
@@ -53,7 +36,7 @@ function assess(overrides = {}) {
     expectedSourceSha: SHA,
     dirtyWorktree: false,
     exceptionPolicy: reviewedPolicy,
-    auditIgnoreCves: ["CVE-2026-85393"],
+    auditIgnoreCves: undefined,
     nowMs: WELL_BEFORE_EXPIRY,
     ...overrides,
   });
@@ -151,44 +134,54 @@ test("rejects references with tokens, auth info, non-HTTPS or control characters
   }
 });
 
-test("the exact reviewed node-forge exception can never silently outlive its deadline", () => {
-  const beforeReviewWindow = assess({
-    nowMs: Date.parse(EXPIRY) - EXCEPTION_REVIEW_WINDOW_MS - 1,
-  });
-  assert.equal(beforeReviewWindow.reasonCodes.includes("AUDIT_EXCEPTION_REVIEW_DUE"), false);
-
-  const near = assess({ nowMs: NEAR_EXPIRY });
-  assert.equal(near.status, "HOLD");
-  assert.ok(near.reasonCodes.includes("AUDIT_EXCEPTION_REVIEW_DUE"));
-
-  const exactExpiry = assess({ nowMs: Date.parse(EXPIRY) });
-  assert.ok(exactExpiry.reasonCodes.includes("AUDIT_EXCEPTION_EXPIRED"));
-  const after = assess({ nowMs: Date.parse(EXPIRY) + 1 });
-  assert.ok(after.reasonCodes.includes("AUDIT_EXCEPTION_EXPIRED"));
+test("retired exception policy never becomes authorized by extending its expiry", () => {
+  for (const expiresAt of [
+    "2026-10-15T00:00:00.000Z",
+    "2027-10-15T00:00:00.000Z",
+  ]) {
+    const legacy = {
+      version: 1,
+      exceptions: [{
+        cve: "CVE-2026-85393",
+        ghsa: "GHSA-86w9-cpqp-85rv",
+        package: "node-forge",
+        version: "1.4.0",
+        expiresAt,
+      }],
+    };
+    const result = assess({ exceptionPolicy: legacy });
+    assert.equal(result.status, "HOLD");
+    assert.ok(result.reasonCodes.includes("AUDIT_EXCEPTION_POLICY_UNEXPECTED"));
+  }
 });
 
-test("changing the CVE, version, path or ignore policy forces HOLD", () => {
-  const changed = structuredClone(reviewedPolicy);
-  changed.exceptions[0].version = "1.4.1";
-  assert.ok(assess({ exceptionPolicy: changed }).reasonCodes.includes(
-    "AUDIT_EXCEPTION_POLICY_UNEXPECTED",
-  ));
-  const extendedDeadline = structuredClone(reviewedPolicy);
-  extendedDeadline.exceptions[0].expiresAt = "2026-11-30T00:00:00.000Z";
-  assert.ok(assess({ exceptionPolicy: extendedDeadline }).reasonCodes.includes(
-    "AUDIT_EXCEPTION_POLICY_UNEXPECTED",
-  ));
-  const modifiedParents = structuredClone(reviewedPolicy);
-  modifiedParents.exceptions[0].allowedSnapshotParentPrefixes = [
-    "@expo/cli@", "unexpected@",
-  ];
-  assert.ok(assess({ exceptionPolicy: modifiedParents }).reasonCodes.includes(
-    "AUDIT_EXCEPTION_POLICY_UNEXPECTED",
-  ));
-  assert.ok(assess({ auditIgnoreCves: [] }).reasonCodes.includes("AUDIT_IGNORE_LIST_MISMATCH"));
-  assert.ok(assess({
-    auditIgnoreCves: ["CVE-2026-85393", "CVE-2026-93687"],
-  }).reasonCodes.includes("AUDIT_IGNORE_LIST_MISMATCH"));
+test("any non-empty or malformed ignore policy forces release HOLD", () => {
+  for (const auditIgnoreCves of [
+    [],
+    ["CVE-2026-85393"],
+    ["CVE-2026-93687"],
+    ["CVE-2026-85393", "CVE-2026-93687"],
+  ]) {
+    const result = assess({ auditIgnoreCves });
+    assert.ok(result.reasonCodes.includes("AUDIT_IGNORE_LIST_MISMATCH"));
+  }
+  for (const exceptionPolicy of [
+    { version: 2, exceptions: [] },
+    { version: 1, exceptions: [], extra: true },
+    { version: 1, exceptions: ["unreviewed"] },
+  ]) {
+    assert.ok(assess({ exceptionPolicy }).reasonCodes.includes(
+      "AUDIT_EXCEPTION_POLICY_UNEXPECTED",
+    ));
+  }
+});
+
+test("clean waiver configuration never masks a missing production dependency audit", () => {
+  const evidence = fullEvidence();
+  delete evidence.gates.productionDependencyAudit;
+  const result = assess({ evidence });
+  assert.equal(result.status, "HOLD");
+  assert.ok(result.reasonCodes.includes("GATE_productionDependencyAudit_NOT_PASS"));
 });
 
 test("an empty or malformed evidence document cannot be interpreted as success", () => {

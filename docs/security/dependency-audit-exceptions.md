@@ -1,38 +1,32 @@
-# Dependency audit exceptions
+# Dependency audit exceptions — B132 removal
 
-**Status:** security control  
-**Tracking issue:** #133
+**Current policy:** no active exceptions. **Release:** HOLD. **Source:** [#133](https://github.com/Enzopinotti/losApuntes/issues/133), [#141](https://github.com/Enzopinotti/losApuntes/issues/141), [#353](https://github.com/Enzopinotti/losApuntes/issues/353).
 
-Los Apuntes does not use a permanent or blanket "ignore unfixable vulnerabilities" policy.
+## Removed on B132
 
-An exception is accepted only for an exact vulnerability, exact package/version, reviewed dependency path and short expiry. CI must fail if the graph changes or the exception expires.
+The temporary node-forge waiver for CVE-2026-85393 / GHSA-86w9-cpqp-85rv expired on **2026-10-15T00:00:00Z**. B132 removes the obsolete entry from `security/audit-exceptions.json` and removes `pnpm.auditConfig.ignoreCves` from the workspace manifest. The expiry is not prolonged and no new CVE, GHSA, package, scope or version is exempted.
 
-## Active exception
+`pnpm security:audit-exceptions` now verifies that the policy contains **exactly zero exceptions** and the root manifest has **no `pnpm.auditConfig`**. The dedicated Node test rejects legacy/re-dated exceptions, targeted/blanket CVE and GHSA ignore entries, malformed policy and unknown fields. Release qualification independently fails closed when exceptions or ignore lists reappear.
 
-- CVE: `CVE-2026-85393`
-- GHSA: `GHSA-86w9-cpqp-85rv`
-- package/version: `node-forge@1.4.0`
-- discovered: 2026-10-01
-- expires: 2026-10-15T00:00:00Z
-- tracking: #133
-- reviewed parents: `@expo/cli`, `@expo/code-signing-certificates`
-- API direct dependency: no
-- Web direct dependency: no
+## What remains vulnerable and blocked
 
-At discovery time there is no released patched upstream node-forge version. This exception is temporary containment; it is not a claim that build/signing tooling is harmless or production-qualified.
+The monorepo production graph still includes the Expo/Metro toolchain, including:
 
-## Enforcement
+- `node-forge@1.4.0`, CVE-2026-85393 / GHSA-86w9-cpqp-85rv ([#133](https://github.com/Enzopinotti/losApuntes/issues/133)).
+- `braces@3.0.3`, CVE-2026-93687 / GHSA-vfj7-8cjw-p6xm ([#141](https://github.com/Enzopinotti/losApuntes/issues/141)).
 
-`scripts/security/check-audit-exceptions.mjs` runs before the production audit and under the repository test contract.
+At B132 design review the reviewed advisories listed no patched release. **Neither vulnerable package has been remediated by changing this policy.** Without a reviewed upstream fix or dependency removal, `pnpm audit:prod` is expected to remain red with the affected advisories now unignored. Inspect its **actual exact-head output**; the policy checker is not the audit.
 
-It fails if the exception expires, the pnpm ignore list differs, node-forge becomes direct in API/Web/Mobile, the version changes, the parent graph changes, or the package becomes a direct workspace importer.
+## Quality and release semantics
 
-The production audit still runs at `high`; only this one exact CVE is tolerated temporarily.
+- `pnpm check` checks product quality, including the no-waiver policy regression. It does **not** replace `pnpm audit:prod`.
+- `Production dependency audit` remains a separate mandatory failed release gate until the graph is actually corrected and audited on the candidate SHA.
+- A passing `security:audit-exceptions` means **zero ignored advisories**, not zero vulnerabilities.
+- `scripts/release/candidate-evidence-lib.mjs` still requires exact-SHA `productionDependencyAudit: PASS` evidence; none of this change can promote `#353` to GO.
+- The filtered API Docker pnpm-store boundary still checks that neither vulnerable tooling package enters API runtime, independent of the full monorepo production audit.
 
-## Removal
+Do not mark security, production, the release, external S3/browser tests or Study Progress as ready. `STUDY_PROGRESS_ENABLED=false`; no deployment is authorized.
 
-When upstream or Expo resolves the graph, remove the pnpm ignore, delete the policy entry, run exact-head production audit + Mobile verification, and close #133 with replacement-version evidence.
+## Resolution
 
-## API runtime graph separation
-
-The API Docker image separately checks its **filtered production pnpm install** for unexpected `braces` or `node-forge` packages. See `docs/security/api-production-runtime-boundary.md`. This image-build assertion is independent from the monorepo production audit: passing one never suppresses the other.
+Only close #133/#141 after a verified patched upstream version or reviewed graph removal, `pnpm install --frozen-lockfile`, exact-head production audit, applicable Mobile signing/build verification, and release evidence. Do not add unreviewed forks, overrides or new exceptions to make the gate appear green.

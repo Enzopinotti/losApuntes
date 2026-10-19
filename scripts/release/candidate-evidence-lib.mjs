@@ -29,8 +29,6 @@ export const CANDIDATE_REQUIRED_GATES = Object.freeze([
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const MAX_REFERENCE_LENGTH = 512;
-export const EXCEPTION_REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
-const REVIEWED_EXCEPTION_EXPIRY = "2026-10-15T00:00:00.000Z";
 
 function object(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -115,41 +113,17 @@ export function evaluateCandidateEvidence({
     }
   }
 
-  const exceptions = exceptionPolicy?.exceptions;
+  // No scoped exceptions remain authorized. Missing audit evidence still
+  // causes HOLD via the mandatory productionDependencyAudit gate above.
+  // A clean exception policy alone can never certify a public release.
   if (exceptionPolicy?.version !== 1 ||
-    !Array.isArray(exceptions) ||
-    exceptions.length !== 1) {
+    !Array.isArray(exceptionPolicy?.exceptions) ||
+    exceptionPolicy.exceptions.length !== 0 ||
+    Object.keys(exceptionPolicy).sort().join(",") !== "exceptions,version") {
     add("AUDIT_EXCEPTION_POLICY_UNEXPECTED");
-  } else {
-    const exception = exceptions[0];
-    if (!object(exception) ||
-      exception.cve !== "CVE-2026-85393" ||
-      exception.ghsa !== "GHSA-86w9-cpqp-85rv" ||
-      exception.package !== "node-forge" ||
-      exception.version !== "1.4.0" ||
-      exception.expiresAt !== REVIEWED_EXCEPTION_EXPIRY ||
-      !validUtcTimestamp(exception.expiresAt) ||
-      exception.trackingIssue !== "https://github.com/Enzopinotti/losApuntes/issues/133" ||
-      !Array.isArray(exception.allowedSnapshotParentPrefixes) ||
-      exception.allowedSnapshotParentPrefixes.length !== 2 ||
-      !exception.allowedSnapshotParentPrefixes.includes("@expo/cli@") ||
-      !exception.allowedSnapshotParentPrefixes.includes("@expo/code-signing-certificates@")) {
-      add("AUDIT_EXCEPTION_POLICY_UNEXPECTED");
-    } else {
-      const expiresAt = Date.parse(exception.expiresAt);
-      if (nowMs >= expiresAt) {
-        add("AUDIT_EXCEPTION_EXPIRED");
-      } else if (expiresAt - nowMs <= EXCEPTION_REVIEW_WINDOW_MS) {
-        // Fail closed near expiry; re-evaluation is an explicit owner action.
-        // Neither this tool nor its template can extend the exception.
-        add("AUDIT_EXCEPTION_REVIEW_DUE");
-      }
-      if (!Array.isArray(auditIgnoreCves) ||
-        auditIgnoreCves.length !== 1 ||
-        auditIgnoreCves[0] !== exception.cve) {
-        add("AUDIT_IGNORE_LIST_MISMATCH");
-      }
-    }
+  }
+  if (auditIgnoreCves !== undefined) {
+    add("AUDIT_IGNORE_LIST_MISMATCH");
   }
 
   const reasonCodes = [...blockers].sort();

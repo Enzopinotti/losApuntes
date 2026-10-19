@@ -39,7 +39,7 @@ test('Mongo CAS revokes current generation and allows new pending attempt', () =
 });
 test('Mongo store uses one atomic updateOne on job document and exact result', () => {
   assert.match(fence, /planAccountExportExpiredClaimFence\(input\)/u);
-  assert.match(fence, /this\.jobs\.updateOne\(\s*plan\.filter, plan\.update,/u);
+  assert.match(fence, /this\.jobs\.updateOne\(\s*plan\.filter,\s*plan\.update\)/u);
   assert.match(fence, /revoked\.modifiedCount === 1/u);
 });
 test('drainer revokes only current processing generation with expired valid Date lease', () => {

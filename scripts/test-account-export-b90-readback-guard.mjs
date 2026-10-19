@@ -60,7 +60,7 @@ check('B90 storage Jest rejects truncation, corruption and GET failure', () => {
 check('B90 replica-set integration rejects S3 corruption and retains B80 writeahead', () => {
   assert.match(mongo, /B90 refuses to publish corrupt same-size S3 GET bytes/u);
   assert.match(mongo, /expect\(methods\)\.toEqual\(\['PUT', 'GET'\]\)/u);
-  assert.match(mongo, /expect\(await orphanJobs\.countDocuments\(\{ jobId: id, generation \}\)\)\.toBe\(1\)/u);
+  assert.match(mongo, /expect\(await orphanJobs\.countDocuments\(\{ jobId: id, generation \}\)\)\.toBe\(\s*1,?\s*\)/u);
 });
 check('B90 previous B86 published case now includes a GET verification', () => {
   const start = mongo.indexOf('B86 preserves a published generation');

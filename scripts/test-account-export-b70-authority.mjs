@@ -36,10 +36,10 @@ verify('mismatched job and owner both fail closed', () => {
 });
 verify('any durable referenced artifact is preserved irrespective of job state', () => {
   assert.match(drain, /if \(job\.artifactGeneration === candidate\.generation\) \{/u);
-  const guard = drain.slice(
-    drain.indexOf('if (job.artifactGeneration === candidate.generation)'),
-    drain.indexOf("if (job.state === 'processing'"),
-  );
+  const guardStart = drain.indexOf('if (job.artifactGeneration === candidate.generation)');
+  const guardEnd = drain.search(/if\s*\(\s*job\.state === 'processing'/u);
+  assert.ok(guardStart >= 0 && guardEnd > guardStart);
+  const guard = drain.slice(guardStart, guardEnd);
   assert.match(guard, /this\.orphans\.acknowledge/u);
   assert.doesNotMatch(guard, /job\.state === 'completed'/u);
   assert.doesNotMatch(guard, /this\.artifacts\.deleteArtifact/u);
@@ -53,7 +53,7 @@ verify('an active claim is still retained and CAS fenced before S3', () => {
 verify('missing/mismatch authority is counted without exposing identifying fields', () => {
   assert.match(processor, /orphanAuthorityBlocked: number/u);
   assert.match(processor, /orphanAuthorityBlocked: 0/u);
-  assert.ok((drain.match(/orphanAuthorityBlocked \+= 1/gu) || []).length === 2);
+  assert.equal((drain.match(/orphanAuthorityBlocked \+= 1/gu) || []).length, 3); // missing job, foreign owner, revoked claim CAS
   assert.match(logging, /iteration\.orphanAuthorityBlocked > 0/u);
   assert.match(logging, /\.\.\.iteration/u);
 });
@@ -64,7 +64,7 @@ verify('unit tests model missing authority and malformed referenced states', () 
   assert.match(tests, /B70 refuses a queue row pointing at a different durable job ID/u);
 });
 verify('Jest B68 tests still have durable pending-job fixture', () => {
-  assert.match(tests, /findForOrphanCleanup: jest\.fn\(\)\.mockResolvedValue\(claim\(/u);
+  assert.match(tests, /findForOrphanCleanup: jest\.fn\(\)\.mockResolvedValue\(\s*claim\(/u);
   assert.doesNotMatch(tests, /findForOrphanCleanup: jest\.fn\(\)\.mockResolvedValue\(null\)/u);
 });
 verify('real local Mongo acceptance includes missing and still-referenced job', () => {
@@ -72,7 +72,7 @@ verify('real local Mongo acceptance includes missing and still-referenced job', 
   assert.match(mongo, /B70 preserves a referenced generation even if durable job state is nonterminal/u);
 });
 verify('authoritative Mongo job read by ID remains in force', () => {
-  assert.match(exports, /async findForOrphanCleanup\(id: string\)/u);
+  assert.match(exports, /async findForOrphanCleanup\(\s*id: string,?\s*\)/u);
   assert.match(exports, /\.findOne\(\{ id \}\)/u);
 });
 verify('exact-head acceptance refuses remote Mongo and records incomplete release gates', () => {

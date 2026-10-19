@@ -35,7 +35,7 @@ check('B112 multipart signer uses existing B110 validated header collection', ()
 check('B112 rejects signed reserved fields, duplicates and CRLF/NUL injection', () => {
   assert.match(collector, /signed\.has\(normalizedName\)/u);
   assert.match(collector, /normalizedName === 'authorization'/u);
-  assert.match(collector, /\[\\r\\n\\u0000\]/u);
+  assert.match(collector, /value\.includes\('\\r'\)[\s\S]*?value\.includes\('\\n'\)[\s\S]*?value\.includes\('\\0'\)/u);
   assert.match(collector, /typeof value !== 'string'/u);
   assert.match(collector, /invalid or reserved header/u);
 });
