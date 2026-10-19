@@ -1,0 +1,127 @@
+name: B130 Export Jest strict-lint acceptance
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b130-export-jest-quality.yml
+      - apps/api/src/data-lifecycle/domain/account-export.service.spec.ts
+      - apps/api/src/data-lifecycle/account-export.controller.spec.ts
+      - apps/api/src/data-lifecycle/domain/account-export-versioning.spec.ts
+      - docs/engineering/b130-export-jest-quality.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b130-export-jest-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  typed-jest-acceptance:
+    name: Strict 3-file API lint, Prettier, types and complete Jest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      STUDY_PROGRESS_ENABLED: 'false'
+    steps:
+      - name: Exact candidate checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Check HEAD and tree before execution
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Setup pnpm9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Setup project Node24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Strict typed ESLint on the three changed fixtures (zero warnings)
+        run: |
+          pnpm --filter @losapuntes/api exec eslint --max-warnings=0 \
+            src/data-lifecycle/domain/account-export.service.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts
+
+      - name: Check canonical Prettier on exact sources
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --check \
+            src/data-lifecycle/domain/account-export.service.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts
+
+      - name: Run all selected actual Jest cases
+        run: |
+          pnpm --filter @losapuntes/api exec jest --runInBand \
+            --runTestsByPath \
+            src/data-lifecycle/domain/account-export.service.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            --passWithNoTests=false --detectOpenHandles
+
+      - name: Whole API TypeScript compile
+        run: pnpm --filter @losapuntes/api check:types
+
+      - name: Confirm immutable HEAD, no source dirt after tests
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  debt-inventory:
+    name: Global API lint must shrink from 85 errors with no waivers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run unchanged lint rules and measure remaining debt
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$(mktemp)"
+          trap 'rm -f "$report"' EXIT
+          set +e
+          pnpm --filter @losapuntes/api exec eslint '{src,test}/**/*.ts' \
+            --max-warnings=0 --format json --output-file "$report"
+          status=$?
+          set -e
+          node - "$report" "$status" <<'B130_DEBT'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const code = Number(process.argv[3]);
+          const errors = report.reduce((sum, file) => sum + file.errorCount, 0);
+          const warnings = report.reduce((sum, file) => sum + file.warningCount, 0);
+          if (warnings !== 0 || errors >= 85) {
+            throw new Error('B130 did not reduce the 85-error baseline without warning regression: ' + errors + '/' + warnings);
+          }
+          if ((errors === 0 && code !== 0) || (errors !== 0 && code === 0)) {
+            throw new Error('ESLint exit status and diagnostics disagree');
+          }
+          console.log('B130 actual API lint count: ' + errors + ' errors / ' + warnings + ' warnings (baseline 85/0).');
+          console.log('Canonical verify remains blocking until global ESLint errors=0 and security audit is resolved.');
+          B130_DEBT
