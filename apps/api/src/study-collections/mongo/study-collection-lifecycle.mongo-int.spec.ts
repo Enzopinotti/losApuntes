@@ -47,7 +47,6 @@ import { StudyCollectionExportReader } from './study-collection-export.reader';
  */
 const uri = process.env.STUDY_COLLECTIONS_TEST_MONGO_URI;
 const runMongo = uri ? describe : describe.skip;
-const localHosts = new Set(['localhost', '127.0.0.1', 'mongo']);
 const uniqueDbName = `losapuntes_b50_${randomUUID().replace(/-/gu, '')}`;
 
 type Models = {
@@ -79,12 +78,15 @@ runMongo(
         throw new Error('Local test Mongo URI is malformed');
       }
       if (
-        !['mongodb:', 'mongodb+srv:'].includes(parsed.protocol) ||
-        !parsed.hostname ||
-        !localHosts.has(parsed.hostname) ||
+        parsed.protocol !== 'mongodb:' ||
+        parsed.hostname !== '127.0.0.1' ||
+        parsed.port !== '27017' ||
+        parsed.pathname !== '/' ||
         parsed.username ||
         parsed.password ||
-        !parsed.searchParams.get('replicaSet')
+        parsed.hash !== '' ||
+        parsed.searchParams.size !== 1 ||
+        parsed.searchParams.get('replicaSet') !== 'rs0'
       ) {
         throw new Error(
           'B50 Mongo acceptance requires an uncredentialed local replica-set URI',
@@ -105,6 +107,7 @@ runMongo(
       const hello = response as Record<string, unknown>;
       const membersOf = (value: unknown): unknown[] =>
         Array.isArray(value) ? (value as unknown[]) : [];
+      const localHosts = new Set(['127.0.0.1']);
       const reportedMembers: unknown[] = [
         ...membersOf(hello.hosts),
         ...membersOf(hello.passives),
