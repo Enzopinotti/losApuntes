@@ -14,6 +14,11 @@ export declare function normalizeRecallQueue(
   subjectId: string,
   ids: string[],
 ): string[];
+export declare function retryRecallQueue(
+  subjectId: string,
+  ids: string[],
+  outcomes: Readonly<RecallOutcomes>,
+): string[] | null;
 export declare function nextRecallOutcomes(
   queue: string[],
   previous: Readonly<Record<string, RecallOutcome>>,

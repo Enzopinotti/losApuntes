@@ -21,6 +21,7 @@ import {
   normalizeRecallQueue,
   recallSummary,
   recallToStudySession,
+  retryRecallQueue,
   type RecallOutcomes,
 } from "../features/study/study-active-recall.mjs";
 import { serializeStudySession } from "../features/study/study-session-plan.mjs";
@@ -52,6 +53,7 @@ type QuestionList = {
 };
 type Round = {
   scope: string;
+  pass: number;
   ids: string[];
   position: number;
   revealedIds: string[];
@@ -144,7 +146,7 @@ export default function StudyPractice() {
   const [roundState, setRoundState] = useState<Round | null>(null);
   const round = roundState?.scope === scope ? roundState : null;
   const currentId = round?.ids[round.position] ?? null;
-  const detailKey = `${scope}:${currentId ?? "none"}`;
+  const detailKey = `${scope}:attempt-${round?.pass ?? 0}:${currentId ?? "none"}`;
   const [detailState, setDetailState] = useState<QuestionDetail | null>(null);
   const detail = detailState?.key === detailKey ? detailState : null;
   const revealed = Boolean(currentId && round?.revealedIds.includes(currentId));
@@ -514,6 +516,7 @@ export default function StudyPractice() {
       const queue = normalizeRecallQueue(subjectId, ids);
       setRoundState({
         scope,
+        pass: 1,
         ids: queue,
         position: 0,
         revealedIds: [],
@@ -602,6 +605,49 @@ export default function StudyPractice() {
         error: true,
         message:
           "No pudimos pasar las preguntas al Planificador. Podés exportar el JSON.",
+      });
+    }
+  };
+
+  const retryMarkedQuestions = () => {
+    if (
+      !round ||
+      !subjectId ||
+      status !== "authenticated" ||
+      !summary?.review
+    ) {
+      return;
+    }
+    if (
+      !window.confirm(
+        "¿Reintentar las preguntas marcadas para repasar? Se borrarán las respuestas escritas y marcas temporales de esta ronda.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const ids = retryRecallQueue(subjectId, round.ids, round.outcomes);
+      if (!ids) return;
+      setRoundState((previous) =>
+        previous?.scope === scope && previous.pass === round.pass
+          ? {
+              scope,
+              pass: previous.pass + 1,
+              ids,
+              position: 0,
+              revealedIds: [],
+              outcomes: {},
+              reflections: {},
+            }
+          : previous,
+      );
+      setFeedbackState(null);
+    } catch {
+      setFeedbackState({
+        scope,
+        error: true,
+        message:
+          "No pudimos preparar el nuevo intento. Salí de la ronda y elegí las preguntas nuevamente.",
       });
     }
   };
@@ -853,7 +899,8 @@ export default function StudyPractice() {
                   <div>
                     <h2 id="study-practice-round">2. Ronda de práctica</h2>
                     <p>
-                      Pregunta {round.position + 1} de {round.ids.length}
+                      Intento {round.pass} · Pregunta {round.position + 1} de{" "}
+                      {round.ids.length}
                     </p>
                   </div>
                   <button
@@ -1083,6 +1130,22 @@ export default function StudyPractice() {
                     </li>
                   ))}
                 </ol>
+                <h3>Volver a practicar las pendientes</h3>
+                <p>
+                  Reintentá solo las preguntas marcadas «Necesito repasar». El
+                  nuevo intento empieza con las respuestas ocultas y consulta
+                  otra vez cada pregunta. Tus notas y marcas del intento actual
+                  no se conservan.
+                </p>
+                <div className="study-practice-actions">
+                  <button
+                    type="button"
+                    disabled={!summary?.review}
+                    onClick={retryMarkedQuestions}
+                  >
+                    Reintentar {summary?.review ?? 0} para repasar
+                  </button>
+                </div>
                 <h3>Continuar en el planificador</h3>
                 <p>
                   Exportá las preguntas marcadas para repasar como un plan JSON.

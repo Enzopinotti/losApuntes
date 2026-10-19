@@ -36,6 +36,37 @@ export function normalizeRecallQueue(subjectId, ids) {
   });
 }
 
+/**
+ * Choose only questions explicitly marked for review for a new, manual
+ * practice attempt. IDs remain opaque and subject-scoped; the caller must
+ * fetch each question again before displaying its content or answers.
+ *
+ * No saved answers, titles, scores, or cross-session persistence.
+ */
+export function retryRecallQueue(subjectId, ids, outcomes) {
+  const queue = normalizeRecallQueue(subjectId, ids);
+  if (
+    outcomes === null ||
+    typeof outcomes !== "object" ||
+    Array.isArray(outcomes) ||
+    (Object.getPrototypeOf(outcomes) !== Object.prototype &&
+      Object.getPrototypeOf(outcomes) !== null)
+  ) {
+    invalid("ACTIVE_RECALL_RETRY_INVALID");
+  }
+  const known = new Set(queue);
+  if (Object.keys(outcomes).length > queue.length) {
+    invalid("ACTIVE_RECALL_RETRY_INVALID");
+  }
+  for (const [id, outcome] of Object.entries(outcomes)) {
+    if (!known.has(id) || !OUTCOMES.has(outcome)) {
+      invalid("ACTIVE_RECALL_RETRY_INVALID");
+    }
+  }
+  const retry = queue.filter((id) => outcomes[id] === "review");
+  return retry.length ? retry : null;
+}
+
 export function nextRecallOutcomes(queue, previous, questionId, outcome) {
   if (
     !Array.isArray(queue) ||

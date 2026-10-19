@@ -86,7 +86,7 @@ assert.match(practice, /focusedState\?\.key === focusedKey/u);
 assert.match(practice, /if \(!focusedCurrent\(ticket\)\) return/u);
 assert.match(practice, /Empezar práctica enfocada/u);
 assert.match(practice, /startRound\(\[focused\.question!\.id\]\)/u);
-assert.match(practice, /No abrimos otra pregunta ni iniciamos una práctica general/u);
+assert.match(practice, /No\s+abrimos otra pregunta ni iniciamos una práctica general/u);
 assert.match(practice, /Las respuestas se mantienen ocultas/u);
 assert.match(practice, /response\.question\.academic\.subject\.id !== subjectId/u);
 assert.doesNotMatch(practice, /localStorage|sessionStorage/u);
