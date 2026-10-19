@@ -610,7 +610,12 @@ export default function StudyPractice() {
   };
 
   const retryMarkedQuestions = () => {
-    if (!round || !subjectId || status !== "authenticated" || !summary?.review) {
+    if (
+      !round ||
+      !subjectId ||
+      status !== "authenticated" ||
+      !summary?.review
+    ) {
       return;
     }
     if (
