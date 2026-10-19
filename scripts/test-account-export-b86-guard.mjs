@@ -58,7 +58,7 @@ check('B86 Mongo opt-in uses real store, real private adapter and B80 ledger', (
 check('B86 Mongo opt-in proves transient S3 DELETE followed by durable retry and ACK', () => {
   assert.match(acceptance, /B86 S3 PUT ACK lost after object commit/u);
   assert.match(acceptance, /orphanRetries:\s*1,\s*orphanAuthorityBlocked:\s*0/u);
-  assert.match(acceptance, /orphanDeleted: 1, orphanRetries: 0/u);
+  assert.match(acceptance, /orphanDeleted:\s*1,\s*orphanRetries:\s*0/u);
   assert.match(acceptance, /expect\(httpMethods\)\.toEqual\(\['PUT', 'DELETE', 'DELETE'\]\)/u);
   assert.match(processor, /await this\.orphans\.renewLease\(/u);
 });
