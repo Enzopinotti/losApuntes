@@ -10,7 +10,10 @@ export function normalizeS3MultipartPartEtag(
     typeof raw !== 'string' ||
     raw.length === 0 ||
     raw.length > 256 ||
-    /[\u0000-\u001f\u007f]/u.test(raw)
+    [...raw].some((char) => {
+      const point = char.charCodeAt(0);
+      return point <= 31 || point === 127;
+    })
   ) {
     return null;
   }

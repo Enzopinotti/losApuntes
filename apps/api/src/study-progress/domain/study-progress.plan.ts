@@ -37,7 +37,13 @@ function keys(value: Record<string, unknown>, expected: string[]): boolean {
 function clean(value: unknown, max: number): string {
   if (typeof value !== 'string' || value.length > max * 4) return invalid();
   const result = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
-  if (result.length > max || /[\u0000-\u001f\u007f]/u.test(result))
+  if (
+    result.length > max ||
+    [...result].some((char) => {
+      const point = char.charCodeAt(0);
+      return point <= 31 || point === 127;
+    })
+  )
     return invalid();
   return result;
 }
@@ -107,7 +113,7 @@ export function parseStudyProgressPlan(
     seen.add(key);
     total += task.minutes as number;
     return {
-      kind: task.kind as StudyProgressTask['kind'],
+      kind: task.kind,
       id,
       minutes: task.minutes as number,
       done: task.done,
@@ -120,7 +126,7 @@ export function parseStudyProgressPlan(
     subjectId: subjectId.toLowerCase(),
     title,
     notes,
-    startsAt: value.startsAt as string | null,
+    startsAt: value.startsAt,
     tasks,
   };
   if (Buffer.byteLength(JSON.stringify(parsed), 'utf8') > 64_000)

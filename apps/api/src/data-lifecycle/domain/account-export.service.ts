@@ -213,6 +213,8 @@ export class AccountExportService {
     id: string,
     _now = new Date(),
   ): Promise<AccountExportDownload> {
+    // Preserve legacy caller compatibility; Mongo primary owns expiry authority.
+    void _now;
     await this.assertActiveAccount(userId);
     const job = await this.store.findOwned(id, userId);
     if (!job) return { kind: 'not_found' };

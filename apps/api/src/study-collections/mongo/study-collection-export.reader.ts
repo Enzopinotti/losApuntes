@@ -177,7 +177,7 @@ export class StudyCollectionExportReader {
       items: page.map(project),
       nextCursor:
         documents.length > input.limit && page.length > 0
-          ? nextCursor(ownerUserId, page[page.length - 1]!.id)
+          ? nextCursor(ownerUserId, page[page.length - 1].id)
           : null,
     };
   }

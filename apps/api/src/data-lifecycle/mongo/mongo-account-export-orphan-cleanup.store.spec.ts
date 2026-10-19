@@ -210,16 +210,12 @@ describe('B67 durable account export orphan cleanup', () => {
       nextAttemptAt: new Date(now.getTime() + 60_000),
     });
     const required = accountExportOrphanOwnedAndDueOnMongoServer();
-    expect(f.model.updateOne.mock.calls[0]?.[0]).not.toHaveProperty('$expr');
-    expect(f.model.updateOne.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining(required),
-    );
-    expect(f.model.deleteOne.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining(required),
-    );
-    expect(f.model.updateOne.mock.calls[2]?.[0]).toEqual(
-      expect.objectContaining(required),
-    );
+    const updateCalls = f.model.updateOne.mock.calls as unknown[][];
+    const deleteCalls = f.model.deleteOne.mock.calls as unknown[][];
+    expect(updateCalls[0]?.[0]).not.toHaveProperty('$expr');
+    expect(updateCalls[1]?.[0]).toEqual(expect.objectContaining(required));
+    expect(deleteCalls[0]?.[0]).toEqual(expect.objectContaining(required));
+    expect(updateCalls[2]?.[0]).toEqual(expect.objectContaining(required));
   });
 
   it('B77 lease renewal requires the claimant’s exact verification horizon', async () => {

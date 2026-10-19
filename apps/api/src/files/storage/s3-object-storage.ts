@@ -719,7 +719,13 @@ export function createS3ObjectStorage(
             snapshot = Buffer.from(chunk);
           } catch (error) {
             failed = true;
-            return Promise.reject(error);
+            return Promise.reject(
+              error instanceof Error
+                ? error
+                : new Error('S3 multipart chunk could not be copied', {
+                    cause: error,
+                  }),
+            );
           }
           queuedSnapshotBytes += snapshot.byteLength;
           queuedWriteOperations += 1;

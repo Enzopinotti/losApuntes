@@ -20,7 +20,9 @@ describe('S3AccountExportArtifactStorage', () => {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
       readObjectChunks: jest.fn().mockImplementation(() =>
         (async function* () {
-          yield Buffer.from('{"format":"los-apuntes-account-export"}');
+          yield await Promise.resolve(
+            Buffer.from('{"format":"los-apuntes-account-export"}'),
+          );
         })(),
       ),
       deleteObject: jest.fn().mockResolvedValue(undefined),
@@ -68,7 +70,7 @@ describe('S3AccountExportArtifactStorage', () => {
         createMultipartWriter: jest.fn().mockReturnValue(writer),
         readObjectChunks: jest.fn().mockImplementation(() =>
           (async function* () {
-            yield Buffer.from('{"export":true}');
+            yield await Promise.resolve(Buffer.from('{"export":true}'));
           })(),
         ),
         deleteObject: jest.fn().mockResolvedValue(undefined),
@@ -157,7 +159,7 @@ describe('S3AccountExportArtifactStorage', () => {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
       readObjectChunks: jest.fn().mockImplementation(() =>
         (async function* () {
-          yield Buffer.from('{"valid":');
+          yield await Promise.resolve(Buffer.from('{"valid":'));
         })(),
       ),
       deleteObject: jest.fn().mockResolvedValue(undefined),
@@ -193,7 +195,7 @@ describe('S3AccountExportArtifactStorage', () => {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
       readObjectChunks: jest.fn().mockImplementation(() =>
         (async function* () {
-          yield Buffer.from('{"valid":null}');
+          yield await Promise.resolve(Buffer.from('{"valid":null}'));
         })(),
       ),
       deleteObject: jest.fn().mockResolvedValue(undefined),
@@ -207,7 +209,7 @@ describe('S3AccountExportArtifactStorage', () => {
     const corrupted = '{"valid":null}';
     storage.readObjectChunks.mockImplementationOnce(() =>
       (async function* () {
-        yield Buffer.from(corrupted);
+        yield await Promise.resolve(Buffer.from(corrupted));
       })(),
     );
     await expect(
@@ -233,7 +235,7 @@ describe('S3AccountExportArtifactStorage', () => {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
       readObjectChunks: jest.fn().mockImplementation(() =>
         (async function* () {
-          throw new Error('S3 GET 503');
+          yield await Promise.reject(new Error('S3 GET 503'));
         })(),
       ),
       deleteObject: jest.fn().mockResolvedValue(undefined),
@@ -341,8 +343,8 @@ describe('S3AccountExportArtifactStorage', () => {
     const bytes = Buffer.from('{"private":"correct"}');
     const readObjectChunks = jest.fn().mockImplementation(() =>
       (async function* () {
-        yield bytes.subarray(0, 7);
-        yield bytes.subarray(7);
+        yield await Promise.resolve(bytes.subarray(0, 7));
+        yield await Promise.resolve(bytes.subarray(7));
       })(),
     );
     const store: jest.Mocked<AccountExportArtifactObjectStorage> = {
@@ -377,13 +379,13 @@ describe('S3AccountExportArtifactStorage', () => {
     invalid[7] ^= 1;
     const responses = [
       (async function* () {
-        yield invalid;
+        yield await Promise.resolve(invalid);
       })(),
       (async function* () {
-        yield bytes.subarray(0, bytes.length - 1);
+        yield await Promise.resolve(bytes.subarray(0, bytes.length - 1));
       })(),
       (async function* () {
-        throw new Error('S3 unavailable');
+        yield await Promise.reject(new Error('S3 unavailable'));
       })(),
     ];
     const readObjectChunks = jest.fn();

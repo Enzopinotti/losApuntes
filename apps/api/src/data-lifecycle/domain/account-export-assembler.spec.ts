@@ -93,7 +93,7 @@ describe('AccountExportAssembler', () => {
     await expect(assembler.writeJsonV1('user-1', sink)).rejects.toThrow(
       'Unknown account export section: academic.affiliations',
     );
-    expect(sink.commit).not.toHaveBeenCalled();
+    expect(sink.commit.mock.calls).toHaveLength(0);
     expect(sink.chunks).toHaveLength(0);
   });
 
