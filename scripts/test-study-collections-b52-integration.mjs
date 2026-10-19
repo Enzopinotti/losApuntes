@@ -27,7 +27,7 @@ assert.match(suite, /uniqueDbName =/u);
 assert.match(suite, /connection\.dropDatabase\(\)/u);
 assert.match(suite, /reportedMembers\.every/u);
 assert.match(suite, /verifiedLocalReplica = true/u);
-assert.match(suite, /if \(verifiedLocalReplica && connection\?\.readyState === 1\)/u);
+assert.match(suite, /verifiedLocalReplica &&\s*connection\?\.readyState === ConnectionStates\.connected/u);
 assert.match(suite, /const runMongo = uri \? describe : describe\.skip/u);
 assert.match(runner, /validateStudyMongoGateUri/u);
 assert.match(runner, /validateStudyMongoJestReport/u);
