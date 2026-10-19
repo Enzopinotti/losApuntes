@@ -31,3 +31,20 @@ On the clean exact PR SHA `82d25bc6ad6fcd81c6ebfa151df0f36aae235259`:
 - [Global verify #39189017191](https://github.com/Enzopinotti/losApuntes/actions/runs/39189017191) is the mandatory gate. It must be checked before merge for all 10 critical coverages and the remaining Quality Gate and dependency audit failures.
 
 This documentation edit advances the PR commit SHA, so final exact-head acceptance must be rechecked. There is **no production launch GO**, no deployment, no security exception extension and no Study Progress enablement. B131 should resolve the remaining **43** errors across storage fixtures, Mongo mocks and boundary modules; separate dependency audit issues #133/#141 remain blocking.
+
+## Cross-workflow regression found before merge: B89 ↔ B129 Mongo URI
+
+The first otherwise green B130 exact-head [B122 run #39189172120](https://github.com/Enzopinotti/losApuntes/actions/runs/39189172120) **FAILED 5/5 real B94 Mongo acceptance cases** at B61 fixture setup, before their bodies executed. This was a pre-existing integration incompatibility from B129, not an export runtime change:
+
+- Security guard `scripts/testing/b89-local-mongo-uri.mjs` first verifies real loopback DNS and pins an IP address. It then **appends `directConnection=true`** to prevent the Mongo driver from being redirected to a remotely advertised replica host.
+- B129's test-only `study-progress.mongo-int.spec.ts` required the URI to have **exactly one query option** `replicaSet=rs0`, rejecting B89's safe, stronger, two-option URI.
+- B130 retains the original **numeric loopback host `127.0.0.1:27017`, `rs0` requirement, no credentials/path/hash and verified local writable PRIMARY**; its option allowlist now permits either `replicaSet=rs0` only (standalone B129) or `replicaSet=rs0&directConnection=true` (B89/B122), with **no other option names or values accepted**. It does not relax hostname rules or permit remote Mongo.
+
+**Red-green test evidence on the source commit `0a87bfa45669d25d892a656d6d952448db499e80`:**
+- [B122 real Mongo/S3 #39189413723](https://github.com/Enzopinotti/losApuntes/actions/runs/39189413723): **SUCCESS, all 5 named B86/B90/B93 cases PASS**, S3 HTTP transport mocked, Mongo 7 `rs0` genuine.
+- [B129 Study Progress real Mongo #39189413699](https://github.com/Enzopinotti/losApuntes/actions/runs/39189413699): **2/2 jobs SUCCESS, 56/56 actual Mongo cases, 0 skips**, touched-file strict lint, Prettier and full API TypeScript green.
+- [B130 strict Jest/ESLint #39189413649](https://github.com/Enzopinotti/losApuntes/actions/runs/39189413649): **2/2 jobs SUCCESS, 97/97 Jest cases, 43/0 global remaining ESLint diagnostics**.
+
+This fix was discovered by executing workflows from separate previous blocks together rather than assuming each passing in isolation meant their composition was safe. It is a test infrastructure safety correction; **no external Mongo provider, production credentials, release flag, or account-data mutation was introduced**.
+
+The documentation update advances the Git SHA; repeat exact-head checks before merge. The release remains **#353 OPEN/HOLD** and the dependency security audit is still a veto.
