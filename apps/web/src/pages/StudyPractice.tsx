@@ -1150,8 +1150,8 @@ export default function StudyPractice() {
                       {round.history.map((attempt) => (
                         <li key={attempt.pass}>
                           Intento {attempt.pass}: {attempt.review} para repasar,{" "}
-                          {attempt.understood} explicadas y {attempt.pending} sin
-                          clasificar.
+                          {attempt.understood} explicadas y {attempt.pending}{" "}
+                          sin clasificar.
                         </li>
                       ))}
                     </ol>
@@ -1205,9 +1205,9 @@ export default function StudyPractice() {
                 </div>
                 <h3>Organizá tu próximo repaso</h3>
                 <p>
-                  Elegí un horario opcional y los minutos por pregunta.
-                  El plan incluye solo los IDs marcados para repasar; no
-                  incluye respuestas ni tus notas temporales.
+                  Elegí un horario opcional y los minutos por pregunta. El plan
+                  incluye solo los IDs marcados para repasar; no incluye
+                  respuestas ni tus notas temporales.
                 </p>
                 <div className="study-practice-review-settings">
                   <label>
