@@ -22,3 +22,17 @@ Existing mandatory `verify` still evaluates all 10 critical coverage groups, ful
 ## Scope and handoff
 
 This B127 branch is the canonical replacement for the older Q91 formatting branch; Q91 must not be merged blindly. Review exact diffs and validated tests before merging. Continue release dependencies #133/#141 and #353 separately and keep HOLD until they are resolved with actual evidence.
+
+## Executed B127 red-green evidence
+
+The initial [B127 read-only #39182347518](https://github.com/Enzopinotti/losApuntes/actions/runs/39182347518) reported only **3 outstanding API Prettier files** after 64 provenance-checked Q91 blobs were carried forward; these were the B124 fixtures `account-export.controller.spec.ts`, `mongo-account-export.store.spec.ts` and `study-progress-export.reader.spec.ts`. The canonical output was produced in the repository's **actual frozen Node24** environment. All three were then committed **together** to the B127 branch, with their B124 typed fixture semantics preserved. The temporary formatter dump step was deleted; final checks run without modifying the checkout.
+
+On [B127 format run #39182596510](https://github.com/Enzopinotti/losApuntes/actions/runs/39182596510), the exact branch passed **full API, full Web and full Mobile Prettier**, **full API and Web TypeScript** and **Web lint** under `contents:read`. The final SHA after this document and the B116 guard must independently rerun those same checks.
+
+The old Q91 branch had additionally repaired `scripts/test-account-export-b116-guard.mjs`: its source assertion still expected unvalidated raw S3 HEAD ETags, despite B119 having made `normalizeS3HeadObjectEtag` mandatory. B127 ports **only this targeted guard correction** onto main, then runs B115/B116 native checks from read-only CI so formatting cannot conceal a changed source contract.
+
+**Remaining failures are explicit, not silently skipped:** the independent full API strict lint job reported **886 errors and 77 warnings** on the initial B127 SHA (old fixture/lint backlog), despite all API/Web/Mobile format checks being fixed. Global `verify` still has Quality Gate FAIL and Production dependency audit FAIL while all 10 coverage groups PASS. Separate B90/B89 quality fixture PRs and a future type-safe lint remediation need careful fresh-main reconciliation.
+
+The production audit expiration remains a **security veto**, not a cosmetic warning: `security/audit-exceptions.json` expired **2026-10-15T00:00:00.000Z** for `node-forge@1.4.0` / `CVE-2026-85393` / `GHSA-86w9-cpqp-85rv`, transitively from Mobile Expo code-signing tools. [GitHub's reviewed advisory](https://github.com/advisories/GHSA-86w9-cpqp-85rv) currently lists affected `<=1.4.0` with **no patched version**. B127 does not extend the expired exception, patch vulnerable code without evidence, remove the audit, or misrepresent this as a resolved release issue. It calls for a separate upstream/removal/migration evaluation under issue #133.
+
+**No deployment and #353 remains OPEN/HOLD.**
