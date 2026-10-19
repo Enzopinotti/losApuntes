@@ -90,6 +90,13 @@ runMongo(
     beforeAll(async () => {
       if (!uri) throw new Error('Explicit opt-in URI required');
       const parsed = new URL(uri);
+      // The B89 runner pins a verified loopback IP and adds this exact
+      // direct-connection option to prevent Mongo topology redirection.
+      // Standalone B129 rs0 acceptance has no such extra option.
+      const safeOptions =
+        parsed.searchParams.size === 1 ||
+        (parsed.searchParams.size === 2 &&
+          parsed.searchParams.get('directConnection') === 'true');
       if (
         parsed.protocol !== 'mongodb:' ||
         parsed.hostname !== '127.0.0.1' ||
@@ -98,7 +105,7 @@ runMongo(
         parsed.username ||
         parsed.password ||
         parsed.hash !== '' ||
-        parsed.searchParams.size !== 1 ||
+        !safeOptions ||
         parsed.searchParams.get('replicaSet') !== 'rs0'
       ) {
         throw new Error(
