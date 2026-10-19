@@ -8,7 +8,6 @@ import {
 import type { ResourceService } from '../../resources/domain/resource.service';
 import type {
   StudyCollectionRecord,
-  StudyCollectionStore,
 } from './study-collection.store';
 import { StudyCollectionService } from './study-collection.service';
 

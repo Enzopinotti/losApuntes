@@ -210,8 +210,8 @@ describe('B67 durable account export orphan cleanup', () => {
       nextAttemptAt: new Date(now.getTime() + 60_000),
     });
     const required = accountExportOrphanOwnedAndDueOnMongoServer();
-    const updateCalls: unknown[][] = f.model.updateOne.mock.calls;
-    const deleteCalls: unknown[][] = f.model.deleteOne.mock.calls;
+    const updateCalls = f.model.updateOne.mock.calls as unknown[][];
+    const deleteCalls = f.model.deleteOne.mock.calls as unknown[][];
     expect(updateCalls[0]?.[0]).not.toHaveProperty('$expr');
     expect(updateCalls[1]?.[0]).toEqual(
       expect.objectContaining(required),
