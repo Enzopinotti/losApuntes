@@ -15,7 +15,7 @@ const check = (name, run) => { run(); passed++; console.log('PASS ' + name); };
 
 check('B99 requires typed, shallow S3 result fields and ETag', () => {
   assert.match(parser, /RESULT_FIELDS = new Set/u);
-  assert.match(parser, /etagSeen && index === body\.length/u);
+  assert.match(parser, /etagSeen\s*&&\s*index === body\.length/u);
   assert.match(parser, /seenFields\.has\(tag\.name\)/u);
 });
 check('B99 validates closing tags and rejects nested markup', () => {
