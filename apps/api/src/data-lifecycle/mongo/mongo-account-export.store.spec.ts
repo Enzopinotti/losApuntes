@@ -38,12 +38,14 @@ function fixture(input: { active?: unknown } = {}) {
   };
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
   const users = {
-    updateOne: jest.fn((_filter: unknown, _update: unknown, _options?: unknown) => {
-      void _filter;
-      void _update;
-      void _options;
-      return ownerUpdate;
-    }),
+    updateOne: jest.fn(
+      (_filter: unknown, _update: unknown, _options?: unknown) => {
+        void _filter;
+        void _update;
+        void _options;
+        return ownerUpdate;
+      },
+    ),
   };
   const session = {
     withTransaction: jest.fn(async (callback: () => Promise<void>) =>

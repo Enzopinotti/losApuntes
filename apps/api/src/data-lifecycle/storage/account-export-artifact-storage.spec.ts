@@ -20,7 +20,9 @@ describe('S3AccountExportArtifactStorage', () => {
       createMultipartWriter: jest.fn().mockReturnValue(writer),
       readObjectChunks: jest.fn().mockImplementation(() =>
         (async function* () {
-          yield await Promise.resolve(Buffer.from('{"format":"los-apuntes-account-export"}'));
+          yield await Promise.resolve(
+            Buffer.from('{"format":"los-apuntes-account-export"}'),
+          );
         })(),
       ),
       deleteObject: jest.fn().mockResolvedValue(undefined),

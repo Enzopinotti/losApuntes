@@ -722,7 +722,9 @@ export function createS3ObjectStorage(
             return Promise.reject(
               error instanceof Error
                 ? error
-                : new Error('S3 multipart chunk could not be copied', { cause: error }),
+                : new Error('S3 multipart chunk could not be copied', {
+                    cause: error,
+                  }),
             );
           }
           queuedSnapshotBytes += snapshot.byteLength;

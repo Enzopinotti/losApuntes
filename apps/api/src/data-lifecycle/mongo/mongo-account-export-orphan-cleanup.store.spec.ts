@@ -213,15 +213,9 @@ describe('B67 durable account export orphan cleanup', () => {
     const updateCalls = f.model.updateOne.mock.calls as unknown[][];
     const deleteCalls = f.model.deleteOne.mock.calls as unknown[][];
     expect(updateCalls[0]?.[0]).not.toHaveProperty('$expr');
-    expect(updateCalls[1]?.[0]).toEqual(
-      expect.objectContaining(required),
-    );
-    expect(deleteCalls[0]?.[0]).toEqual(
-      expect.objectContaining(required),
-    );
-    expect(updateCalls[2]?.[0]).toEqual(
-      expect.objectContaining(required),
-    );
+    expect(updateCalls[1]?.[0]).toEqual(expect.objectContaining(required));
+    expect(deleteCalls[0]?.[0]).toEqual(expect.objectContaining(required));
+    expect(updateCalls[2]?.[0]).toEqual(expect.objectContaining(required));
   });
 
   it('B77 lease renewal requires the claimant’s exact verification horizon', async () => {

@@ -6,9 +6,7 @@ import {
 } from '@nestjs/common';
 
 import type { ResourceService } from '../../resources/domain/resource.service';
-import type {
-  StudyCollectionRecord,
-} from './study-collection.store';
+import type { StudyCollectionRecord } from './study-collection.store';
 import { StudyCollectionService } from './study-collection.service';
 
 const ownerId = 'owner-1';
@@ -44,7 +42,9 @@ function setup(row: StudyCollectionRecord | null = collection()) {
     findOwned: jest
       .fn()
       .mockImplementation((id: string, actor: string) =>
-        Promise.resolve(row?.id === id && row.ownerUserId === actor ? row : null),
+        Promise.resolve(
+          row?.id === id && row.ownerUserId === actor ? row : null,
+        ),
       ),
     updateOwned: jest.fn().mockResolvedValue(row),
     addResource: jest.fn().mockResolvedValue(row),
@@ -60,10 +60,9 @@ function setup(row: StudyCollectionRecord | null = collection()) {
       },
     }),
   );
-  const service = new StudyCollectionService(
-    store,
-    { get } as unknown as ResourceService,
-  );
+  const service = new StudyCollectionService(store, {
+    get,
+  } as unknown as ResourceService);
   return { service, store, get };
 }
 

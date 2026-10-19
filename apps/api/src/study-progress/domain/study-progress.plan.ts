@@ -37,10 +37,13 @@ function keys(value: Record<string, unknown>, expected: string[]): boolean {
 function clean(value: unknown, max: number): string {
   if (typeof value !== 'string' || value.length > max * 4) return invalid();
   const result = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
-  if (result.length > max || [...result].some((char) => {
-    const point = char.charCodeAt(0);
-    return point <= 31 || point === 127;
-  }))
+  if (
+    result.length > max ||
+    [...result].some((char) => {
+      const point = char.charCodeAt(0);
+      return point <= 31 || point === 127;
+    })
+  )
     return invalid();
   return result;
 }
