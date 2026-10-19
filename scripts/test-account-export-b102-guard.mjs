@@ -43,7 +43,7 @@ check('B102 rejects another owner bucket/key and preserves B99 XML rules', () =>
   assert.match(unit, /fails closed if S3 HTTP 200 completion/u);
   assert.match(unit, /rejects B86 legacy empty ACK/u);
   assert.match(result, /seenFields\.has\(tag\.name\)/u);
-  assert.match(result, /etagSeen && index === body\.length/u);
+  assert.match(result, /etagSeen\s*&&\s*index === body\.length/u);
 });
 check('B102 Jest checks private-generation 200 mismatch with multipart-ID-only abort', () => {
   assert.match(jest, /B102 rejects multipart completion from/u);
