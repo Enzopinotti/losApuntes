@@ -194,7 +194,10 @@ runMongo(
     }, 30_000);
 
     afterAll(async () => {
-      if (verifiedReplica && connection?.readyState === ConnectionStates.connected) {
+      if (
+        verifiedReplica &&
+        connection?.readyState === ConnectionStates.connected
+      ) {
         await connection.dropDatabase();
       }
       await connection?.close();
@@ -428,7 +431,8 @@ runMongo(
             ? source
             : {
                 sectionId,
-                readPage: () => Promise.resolve({ records: [], nextCursor: null }),
+                readPage: () =>
+                  Promise.resolve({ records: [], nextCursor: null }),
               },
         );
       let mutated = false;
@@ -1870,7 +1874,8 @@ runMongo(
       });
       const blockedQueue = {
         updateOne: () => ({
-          exec: () => Promise.reject(new Error('B74 injected takeover queue failure')),
+          exec: () =>
+            Promise.reject(new Error('B74 injected takeover queue failure')),
         }),
       };
       const broken = new MongoAccountExportStore(
@@ -2699,7 +2704,8 @@ runMongo(
       });
       const failing = {
         updateOne: () => ({
-          exec: () => Promise.reject(new Error('B80 injected new claim ledger failure')),
+          exec: () =>
+            Promise.reject(new Error('B80 injected new claim ledger failure')),
         }),
       };
       const broken = new MongoAccountExportStore(
@@ -3095,7 +3101,9 @@ runMongo(
           httpMethods.push(method);
           if (method === 'PUT') {
             objects.set(key, Buffer.from(init?.body as Uint8Array));
-            return Promise.reject(new Error('B86 S3 PUT ACK lost after object commit'));
+            return Promise.reject(
+              new Error('B86 S3 PUT ACK lost after object commit'),
+            );
           }
           if (method === 'DELETE') {
             if (deleteFailures-- > 0)
