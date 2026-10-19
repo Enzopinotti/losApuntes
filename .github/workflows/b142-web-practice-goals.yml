@@ -1,0 +1,77 @@
+name: B142 Web private per-attempt practice goals
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/features/study/study-recall-goals.mjs
+      - apps/web/src/features/study/study-recall-goals.d.mts
+      - apps/web/src/pages/StudyPractice.tsx
+      - apps/web/src/pages/StudyPractice.scss
+      - scripts/test-web-study-recall-goals.mjs
+      - package.json
+      - docs/engineering/b142-web-private-practice-goals.md
+      - .github/workflows/b142-web-practice-goals.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b142-goals-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  personal-goals:
+    name: Node24 exact-head goals and Web quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout exact PR HEAD read-only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert expected candidate SHA and clean tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Read-only canonical formatting diagnostic
+        shell: bash
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyPractice.tsx > "$RUNNER_TEMP/StudyPractice.canonical.tsx"
+          diff -u apps/web/src/pages/StudyPractice.tsx "$RUNNER_TEMP/StudyPractice.canonical.tsx" || true
+      - name: Test B142 and earlier study regressions
+        run: |
+          pnpm test:web-study-recall-goals
+          pnpm test:web-study-recall-closure
+          pnpm test:web-study-recall-order
+          pnpm test:web-study-review-plan-import
+          pnpm test:web-study-recall-focus
+          pnpm test:web-study-private-report
+          pnpm test:web-study-recall-pause
+          pnpm test:web-study-recall-planning
+          pnpm test:web-study-retry-round
+          node scripts/test-web-study-active-recall.mjs
+          node scripts/test-web-study-practice-integration.mjs
+      - name: Check full Web TypeScript strict lint and canonical format
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web lint
+          pnpm --filter @losapuntes/web format:check
+      - name: Check HEAD and worktree unchanged
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

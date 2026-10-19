@@ -173,3 +173,37 @@
 .study-practice-closure .study-practice-actions {
   margin-bottom: 0;
 }
+
+.study-practice-goal {
+  margin: 1rem 0;
+  border: 1px solid #bdb5ec;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #fbfaff;
+}
+.study-practice-goal h3 { margin-top: 0; }
+.study-practice-goal-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .8rem;
+}
+.study-practice-goal-controls label { display: grid; gap: .35rem; font-weight: 600; }
+.study-practice-goal-controls select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #afb2c9;
+  border-radius: 9px;
+  background: #fff;
+  color: #252641;
+  font: inherit;
+  padding: .6rem;
+}
+.study-practice-goal-progress {
+  border-top: 1px solid #e2e3ef;
+  padding-top: .5rem;
+}
+.study-practice-goal-progress progress { width: 100%; accent-color: #544a9c; }
+@media (max-width: 640px) {
+  .study-practice-goal-controls { grid-template-columns: 1fr; }
+}
