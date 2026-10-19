@@ -167,7 +167,7 @@ describe('MongoStudyCollectionStore closure serialization', () => {
           { session: f.session },
         );
       } else {
-        const call = f.collections.findOneAndUpdate.mock.calls[0];
+        const call: unknown[] = f.collections.findOneAndUpdate.mock.calls[0];
         expect(call[0]).toMatchObject({ id: input.id, ownerUserId: owner });
         expect(call[2]).toMatchObject({ new: true, session: f.session });
       }

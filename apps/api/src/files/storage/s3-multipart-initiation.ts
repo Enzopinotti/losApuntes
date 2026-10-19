@@ -36,10 +36,15 @@ function decodeXmlScalar(value: string): string | null {
       }
     }
   });
-  if (
-    /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffe\uffff]/u.test(decoded)
-  ) {
-    return null;
+  // Match forbidden XML scalar controls by code point, without a control regexp.
+  for (const character of decoded) {
+    const point = character.codePointAt(0);
+    if (
+      point !== undefined &&
+      (point <= 8 || point === 11 || point === 12 ||
+        (point >= 14 && point <= 31) || point === 127 ||
+        point === 0xfffe || point === 0xffff)
+    ) return null;
   }
   // Reject broken UTF-16 even if the provider returned valid UTF-8 originally.
   for (let i = 0; i < decoded.length; i += 1) {

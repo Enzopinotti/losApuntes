@@ -30,14 +30,20 @@ function fixture(input: { active?: unknown } = {}) {
       .mockReturnValue(claimQuery),
     findOne: jest.fn(() => findQuery),
     find: jest.fn(() => expiredQuery),
-    updateOne: jest.fn((..._args: unknown[]) => updateQuery),
+    updateOne: jest.fn((...args: unknown[]) => {
+      void args;
+      return updateQuery;
+    }),
     exists: jest.fn().mockResolvedValue(null),
   };
   const ownerUpdate = query({ matchedCount: 1, modifiedCount: 1 });
   const users = {
-    updateOne: jest.fn(
-      (_filter: unknown, _update: unknown, _options?: unknown) => ownerUpdate,
-    ),
+    updateOne: jest.fn((_filter: unknown, _update: unknown, _options?: unknown) => {
+      void _filter;
+      void _update;
+      void _options;
+      return ownerUpdate;
+    }),
   };
   const session = {
     withTransaction: jest.fn(async (callback: () => Promise<void>) =>
@@ -52,7 +58,10 @@ function fixture(input: { active?: unknown } = {}) {
     upsertedCount: 1,
   });
   const orphanCleanup = {
-    updateOne: jest.fn((..._args: unknown[]) => orphanWrite),
+    updateOne: jest.fn((...args: unknown[]) => {
+      void args;
+      return orphanWrite;
+    }),
   };
   const store = new MongoAccountExportStore(
     jobs as never,
@@ -557,18 +566,20 @@ describe('MongoAccountExportStore', () => {
       { session: f.session },
     );
     expect(f.orphanCleanup.updateOne).toHaveBeenCalledTimes(4);
+    const expectedInsertDate: unknown = expect.any(Date);
+    const expectedInsertedOrphan: unknown = expect.objectContaining({
+      jobId: previous.id,
+      ownerUserId: previous.userId,
+      generation: 'new-claim',
+      verificationUntil: expectedInsertDate,
+    });
     expect(f.orphanCleanup.updateOne).toHaveBeenCalledWith(
       {
         jobId: previous.id,
         generation: 'new-claim',
       },
       {
-        $setOnInsert: expect.objectContaining({
-          jobId: previous.id,
-          ownerUserId: previous.userId,
-          generation: 'new-claim',
-          verificationUntil: expect.any(Date),
-        }),
+        $setOnInsert: expectedInsertedOrphan,
       },
       { upsert: true, session: f.session },
     );
@@ -1033,6 +1044,10 @@ describe('MongoAccountExportStore', () => {
       { $inc: { account_lifecycle_revision: 1 } },
       { session: f.session },
     );
+    const expectedCompletion: unknown = expect.objectContaining({
+      state: 'completed',
+      artifactSectionCount: 32,
+    });
     expect(f.jobs.updateOne).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'export-1',
@@ -1041,10 +1056,7 @@ describe('MongoAccountExportStore', () => {
         userId: 'user-1',
       }),
       expect.objectContaining({
-        $set: expect.objectContaining({
-          state: 'completed',
-          artifactSectionCount: 32,
-        }),
+        $set: expectedCompletion,
       }),
       { session: f.session },
     );

@@ -21,7 +21,9 @@ export function collectS3SignedRequestHeaders(
       signed.has(normalizedName) ||
       normalizedName === 'authorization' ||
       typeof value !== 'string' ||
-      /[\r\n\u0000]/u.test(value)
+      value.includes('\r') ||
+      value.includes('\n') ||
+      value.includes('\0')
     ) {
       throw new Error(
         'S3 signed request contains an invalid or reserved header',

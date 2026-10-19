@@ -1,6 +1,5 @@
 import {
   CanActivate,
-  ExecutionContext,
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -14,7 +13,7 @@ import { ConfigService } from '@nestjs/config';
 export class StudyCollectionsFeatureGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
 
-  canActivate(_context: ExecutionContext): boolean {
+  canActivate(): boolean {
     if (this.config.get<boolean>('STUDY_COLLECTIONS_ENABLED') !== true) {
       throw new ServiceUnavailableException({
         code: 'STUDY_COLLECTIONS_NOT_ENABLED',
