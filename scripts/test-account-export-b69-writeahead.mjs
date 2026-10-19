@@ -41,7 +41,7 @@ check('legacy clearPending helper remains narrowly fenced even though B78 does n
     queueMongo.indexOf('  async clearPending('),
     queueMongo.indexOf('  async claimNext('),
   );
-  assert.match(impl, /this\.cleanup\.deleteOne\(/u);
+  assert.match(impl, /this\.cleanup\s*\.deleteOne\(/u);
   assert.match(impl, /state: 'pending'/u);
   assert.match(impl, /claimId: null/u);
   assert.doesNotMatch(impl, /state: 'processing'/u);
