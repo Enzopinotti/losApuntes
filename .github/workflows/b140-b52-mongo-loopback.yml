@@ -7,6 +7,7 @@ on:
       - 'scripts/lib/study-mongo-acceptance.mjs'
       - 'scripts/run-study-collections-mongo-acceptance.mjs'
       - 'scripts/test-study-collections-b52-gate.mjs'
+      - 'scripts/test-study-collections-b52-integration.mjs'
       - 'scripts/testing/b89-local-mongo-uri.mjs'
       - 'apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts'
       - 'docs/engineering/b140-b52-mongo-loopback.md'
