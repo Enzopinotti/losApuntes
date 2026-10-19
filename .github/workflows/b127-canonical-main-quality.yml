@@ -47,28 +47,6 @@ jobs:
           cache: pnpm
       - name: Install frozen workspace
         run: pnpm install --frozen-lockfile
-      - name: Temporary diagnostic capture of canonical B124 formatter output
-        run: |
-          pnpm --filter @losapuntes/api exec prettier --write \
-            src/data-lifecycle/account-export.controller.spec.ts \
-            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
-            src/study-progress/mongo/study-progress-export.reader.spec.ts
-          node <<'B127_CAPTURE'
-          const fs = require('node:fs');
-          const files = [
-            'apps/api/src/data-lifecycle/account-export.controller.spec.ts',
-            'apps/api/src/data-lifecycle/mongo/mongo-account-export.store.spec.ts',
-            'apps/api/src/study-progress/mongo/study-progress-export.reader.spec.ts',
-          ];
-          for (const path of files) {
-            const data = fs.readFileSync(path).toString('base64');
-            console.log('B127_FMT_BEGIN ' + path);
-            for (const chunk of data.match(/.{1,1200}/gu) ?? []) {
-              console.log('B127_FMT_CHUNK ' + chunk);
-            }
-            console.log('B127_FMT_END ' + path);
-          }
-          B127_CAPTURE
       - name: Check all canonical formatting without modifying source
         run: |
           pnpm --filter @losapuntes/api format:check
