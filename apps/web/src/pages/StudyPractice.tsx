@@ -169,7 +169,9 @@ export default function StudyPractice() {
   const [activationId, setActivationId] = useState(0);
   const round = roundState?.scope === scope ? roundState : null;
   const paused =
-    !round && status === "authenticated" && subjectId &&
+    !round &&
+    status === "authenticated" &&
+    subjectId &&
     questionSelection.kind !== "invalid"
       ? inspectRecallPause(scope, subjectId)
       : null;
@@ -704,9 +706,12 @@ export default function StudyPractice() {
 
   const pauseRound = () => {
     if (!round || !subjectId || status !== "authenticated") return;
-    if (!window.confirm(
-      "¿Pausar esta ronda por diez minutos? Guardaremos solo las preguntas, tu posición y tus marcas. Se descartarán los intentos escritos y las respuestas mostradas.",
-    )) return;
+    if (
+      !window.confirm(
+        "¿Pausar esta ronda por diez minutos? Guardaremos solo las preguntas, tu posición y tus marcas. Se descartarán los intentos escritos y las respuestas mostradas.",
+      )
+    )
+      return;
     try {
       pauseRecallRound(scope, subjectId, {
         ids: round.ids,
@@ -728,7 +733,8 @@ export default function StudyPractice() {
       setFeedbackState({
         scope,
         error: true,
-        message: "No pudimos pausar esta ronda. El intento actual sigue abierto.",
+        message:
+          "No pudimos pausar esta ronda. El intento actual sigue abierto.",
       });
     }
   };
@@ -740,7 +746,8 @@ export default function StudyPractice() {
       setFeedbackState({
         scope,
         error: true,
-        message: "La pausa venció o ya fue utilizada. Elegí las preguntas otra vez.",
+        message:
+          "La pausa venció o ya fue utilizada. Elegí las preguntas otra vez.",
       });
       return;
     }
@@ -769,9 +776,14 @@ export default function StudyPractice() {
   };
 
   const discardPause = () => {
-    if (!subjectId || !paused || !window.confirm(
-      "¿Descartar esta pausa? Se perderán las marcas y la posición guardadas.",
-    )) return;
+    if (
+      !subjectId ||
+      !paused ||
+      !window.confirm(
+        "¿Descartar esta pausa? Se perderán las marcas y la posición guardadas.",
+      )
+    )
+      return;
     if (forgetRecallPause(scope, subjectId)) {
       setFeedbackState({ scope, error: false, message: "Pausa descartada." });
     }
@@ -866,13 +878,15 @@ export default function StudyPractice() {
                   className="study-practice-panel study-practice-paused"
                   aria-labelledby="study-practice-paused-title"
                 >
-                  <h2 id="study-practice-paused-title">Continuar ronda pausada</h2>
+                  <h2 id="study-practice-paused-title">
+                    Continuar ronda pausada
+                  </h2>
                   <p>
                     Intento {paused.checkpoint.pass} · Pregunta{" "}
                     {paused.checkpoint.position + 1} de{" "}
-                    {paused.checkpoint.ids.length}. Conservamos solamente
-                    tus marcas, el orden y el horario elegido durante diez
-                    minutos en esta pestaña.
+                    {paused.checkpoint.ids.length}. Conservamos solamente tus
+                    marcas, el orden y el horario elegido durante diez minutos
+                    en esta pestaña.
                   </p>
                   <p>
                     Al continuar, volveremos a consultar la pregunta. Las
