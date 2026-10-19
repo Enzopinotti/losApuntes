@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -25,6 +25,10 @@ import {
   type RecallOutcomes,
 } from "../features/study/study-active-recall.mjs";
 import { serializeStudySession } from "../features/study/study-session-plan.mjs";
+import {
+  ACTIVE_RECALL_PLAN_FILE_LIMIT,
+  importRecallReviewPlan,
+} from "../features/study/study-recall-plan-import.mjs";
 import { buildPrivateRecallReport } from "../features/study/study-recall-private-report.mjs";
 import {
   nextRecallFocus,
@@ -183,6 +187,11 @@ export default function StudyPractice() {
     reviewSettings?.scope === scope
       ? reviewSettings
       : { scope, startsAt: "", minutes: 20 };
+  const [importState, setImportState] = useState<{
+    scope: string;
+    busy: boolean;
+  } | null>(null);
+  const importBusy = importState?.scope === scope && importState.busy;
   const [roundState, setRoundState] = useState<Round | null>(null);
   const [activationId, setActivationId] = useState(0);
   const round = roundState?.scope === scope ? roundState : null;
@@ -258,6 +267,12 @@ export default function StudyPractice() {
     isCurrent: revealCurrent,
     finish: finishReveal,
   } = useAsyncAuthorityFence(`practice-reveal:${detailKey}`);
+
+  const {
+    begin: beginImport,
+    isCurrent: importCurrent,
+    finish: finishImport,
+  } = useAsyncAuthorityFence(`practice-import:${scope}`);
 
   const loadContext = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -566,7 +581,7 @@ export default function StudyPractice() {
   }, [currentId, loadDetail]);
 
   const toggleChoice = (id: string) => {
-    if (!subjectId || round) return;
+    if (!subjectId || round || importBusy) return;
     setSelectionState((previous) => {
       const items = previous?.scope === scope ? previous.ids : [];
       if (items.includes(id)) {
@@ -578,8 +593,10 @@ export default function StudyPractice() {
     });
   };
 
-  const startRound = (ids: string[]) => {
-    if (!subjectId || ids.length === 0) return;
+  const startRound = (ids: string[], fromVerifiedImport = false) => {
+    if (!subjectId || ids.length === 0 || (importBusy && !fromVerifiedImport)) {
+      return;
+    }
     try {
       const queue = normalizeRecallQueue(subjectId, ids);
       forgetRecallPause(scope, subjectId);
@@ -602,6 +619,81 @@ export default function StudyPractice() {
         message: "La selección tiene preguntas inválidas.",
       });
     }
+  };
+
+  const importReviewFile = async (file: File) => {
+    if (
+      !subjectId ||
+      status !== "authenticated" ||
+      round ||
+      importBusy ||
+      questionSelection.kind === "invalid"
+    ) {
+      return;
+    }
+    if (
+      paused &&
+      !window.confirm(
+        "¿Reemplazar tu ronda pausada por este plan? Perderás su posición y sus marcas temporales.",
+      )
+    ) {
+      return;
+    }
+    const ticket = beginImport();
+    if (!importCurrent(ticket)) return;
+    setImportState({ scope, busy: true });
+    try {
+      if (file.size > ACTIVE_RECALL_PLAN_FILE_LIMIT) {
+        throw new Error("RECALL_PLAN_FILE_TOO_LARGE");
+      }
+      const imported = importRecallReviewPlan(subjectId, await file.text());
+      if (!importCurrent(ticket)) return;
+      // ID membership and JSON structure never grant access. Validate *each*
+      // question with the server before beginning the round. Fail as a unit:
+      // do not start with a partial or stale selection.
+      for (const id of imported.ids) {
+        const response = await communityApi.question(id, ticket.signal);
+        if (!importCurrent(ticket)) return;
+        if (
+          response.question.id !== id ||
+          response.question.academic.subject.id !== subjectId
+        ) {
+          throw new Error("RECALL_PLAN_QUESTION_NOT_ACCESSIBLE");
+        }
+      }
+      if (!importCurrent(ticket)) return;
+      setReviewSettings({
+        scope,
+        startsAt: imported.startsAt,
+        minutes: imported.minutes,
+      });
+      startRound(imported.ids, true);
+      setFeedbackState({
+        scope,
+        error: false,
+        message:
+          "Plan importado y preguntas comprobadas. Las respuestas están ocultas. Revisá el horario antes de exportar otro plan.",
+      });
+    } catch {
+      if (importCurrent(ticket)) {
+        setFeedbackState({
+          scope,
+          error: true,
+          message:
+            "No pudimos importar el plan. Debe ser un JSON v1 de esta materia, con 1 a 10 preguntas pendientes, igual duración permitida y acceso vigente a todas.",
+        });
+      }
+    } finally {
+      if (finishImport(ticket)) {
+        setImportState({ scope, busy: false });
+      }
+    }
+  };
+
+  const onReviewFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void importReviewFile(file);
   };
 
   const changeRound = (update: (value: Round) => Round) => {
@@ -1034,6 +1126,7 @@ export default function StudyPractice() {
                       <div className="study-practice-actions">
                         <button
                           type="button"
+                          disabled={importBusy}
                           onClick={() => startRound([focused.question!.id])}
                         >
                           Empezar práctica enfocada
@@ -1068,14 +1161,14 @@ export default function StudyPractice() {
                 <div className="study-practice-actions">
                   <button
                     type="button"
-                    disabled={chosen.length === 0}
+                    disabled={chosen.length === 0 || importBusy}
                     onClick={() => startRound(chosen)}
                   >
                     Practicar {chosen.length} seleccionadas
                   </button>
                   <button
                     type="button"
-                    disabled={!list?.items.length}
+                    disabled={!list?.items.length || importBusy}
                     onClick={() =>
                       startRound(
                         (list?.items ?? []).slice(0, 5).map((item) => item.id),
@@ -1091,6 +1184,26 @@ export default function StudyPractice() {
                   >
                     Actualizar preguntas
                   </button>
+                </div>
+                <div className="study-practice-import-review">
+                  <label>
+                    Retomar preguntas desde un plan JSON
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      disabled={importBusy}
+                      onChange={onReviewFileChange}
+                      aria-label="Importar plan de preguntas pendientes"
+                    />
+                  </label>
+                  <p>
+                    Importá un plan de repaso de esta materia (hasta diez
+                    preguntas). Verificamos el acceso a cada pregunta antes
+                    de iniciar y no recuperamos respuestas anteriores.
+                  </p>
+                  {importBusy && (
+                    <p role="status">Verificando todas las preguntas del plan…</p>
+                  )}
                 </div>
                 {list?.error && (
                   <p className="study-practice-error" role="alert">
