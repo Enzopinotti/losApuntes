@@ -135,7 +135,10 @@ describe('AccountExportController', () => {
       expect.any(AbortSignal),
     ]);
     expect(f.artifacts.readObjectChunks.mock.calls).toHaveLength(1);
-    expect(reply.header.mock.calls).toContainEqual(['content-length', bytes.length]);
+    expect(reply.header.mock.calls).toContainEqual([
+      'content-length',
+      bytes.length,
+    ]);
     expect(reply.send.mock.calls).toHaveLength(1);
     raw.emit('finish');
   });
