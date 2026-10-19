@@ -113,9 +113,10 @@ jobs:
           const data = JSON.parse(fs.readFileSync(process.env.B129_REPORT,'utf8'));
           const tests = (data.testResults ?? []).flatMap(s => s.assertionResults ?? []);
           const passed = tests.filter(x => x.status === 'passed').length;
-          if (data.numTotalTestSuites !== 1 || data.numFailedTests !== 0 ||
-              data.numPendingTests !== 0 || data.numPassedTests < 54 ||
-              tests.length !== passed) {
+          if (data.numTotalTestSuites !== 1 || data.numPassedTestSuites !== 1 ||
+              data.numFailedTests !== 0 || data.numPendingTests !== 0 ||
+              data.numTotalTests !== 56 || data.numPassedTests !== 56 ||
+              tests.length !== 56 || passed !== 56) {
             throw new Error('B129 real Mongo acceptance missing expected owner-scoped cases');
           }
           console.log('B129 real rs0 acceptance: ' + passed + ' actual tests PASS, 0 skipped.');
