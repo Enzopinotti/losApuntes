@@ -140,6 +140,7 @@ import {
   ],
   controllers: [AuthController, GoogleAuthController],
   exports: [
+    UsersModule,
     AuthService,
     AuthActionTokenService,
     PasswordService,
