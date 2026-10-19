@@ -1198,11 +1198,13 @@ export default function StudyPractice() {
                   </label>
                   <p>
                     Importá un plan de repaso de esta materia (hasta diez
-                    preguntas). Verificamos el acceso a cada pregunta antes
-                    de iniciar y no recuperamos respuestas anteriores.
+                    preguntas). Verificamos el acceso a cada pregunta antes de
+                    iniciar y no recuperamos respuestas anteriores.
                   </p>
                   {importBusy && (
-                    <p role="status">Verificando todas las preguntas del plan…</p>
+                    <p role="status">
+                      Verificando todas las preguntas del plan…
+                    </p>
                   )}
                 </div>
                 {list?.error && (
