@@ -40,39 +40,6 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Temporary canonical formatter capture for touched B131 sources
-        run: |
-          pnpm --filter @losapuntes/api exec prettier --write \
-            src/data-lifecycle/domain/account-export-assembler.spec.ts \
-            src/data-lifecycle/domain/account-export.service.ts \
-            src/data-lifecycle/mongo/mongo-account-export-orphan-cleanup.store.spec.ts \
-            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
-            src/data-lifecycle/storage/account-export-artifact-storage.spec.ts \
-            src/files/storage/s3-multipart-initiation.ts \
-            src/files/storage/s3-multipart-part-etag.ts \
-            src/files/storage/s3-object-storage.ts \
-            src/files/storage/s3-signed-request-headers.ts \
-            src/study-collections/domain/study-collection.service.spec.ts \
-            src/study-collections/mongo/mongo-study-collection.store.spec.ts \
-            src/study-collections/mongo/study-collection-export.reader.ts \
-            src/study-collections/study-collections-feature.guard.ts \
-            src/study-progress/domain/study-progress.plan.ts \
-            src/study-progress/mongo/study-progress-export.reader.ts \
-            src/study-progress/study-progress.feature.guard.ts
-          node <<'B131_CAPTURE'
-          const { execFileSync } = require('node:child_process');
-          const fs = require('node:fs');
-          const paths = execFileSync('git', ['diff', '--name-only', '--', 'apps/api/src'], {encoding:'utf8'}).trim().split('\n').filter(Boolean);
-          if (paths.length === 0) throw new Error('B131 expected formatter differences');
-          console.log('B131_CHANGED_COUNT ' + paths.length);
-          for (const path of paths) {
-            if (!path.startsWith('apps/api/src/')) throw new Error('Unexpected path');
-            const base64 = fs.readFileSync(path).toString('base64');
-            console.log('B131_FMT_BEGIN ' + path);
-            for (const part of base64.match(/.{1,1200}/gu) ?? []) console.log('B131_FMT_CHUNK ' + part);
-            console.log('B131_FMT_END ' + path);
-          }
-          B131_CAPTURE
       - name: Full unmodified strict API ESLint
         run: pnpm --filter @losapuntes/api lint
       - name: Full API canonical Prettier
