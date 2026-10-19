@@ -32,6 +32,10 @@ import {
 import { buildPrivateRecallReport } from "../features/study/study-recall-private-report.mjs";
 import { planRecallClosure } from "../features/study/study-recall-closure.mjs";
 import {
+  measureRecallGoal,
+  type RecallGoalKind,
+} from "../features/study/study-recall-goals.mjs";
+import {
   organizeRecallQueue,
   type RecallOrderAction,
 } from "../features/study/study-recall-order.mjs";
@@ -204,6 +208,20 @@ export default function StudyPractice() {
     activation: number;
   } | null>(null);
   const [activationId, setActivationId] = useState(0);
+  const [goalDraftState, setGoalDraftState] = useState<{
+    scope: string;
+    pass: number;
+    activation: number;
+    kind: RecallGoalKind;
+    target: number;
+  } | null>(null);
+  const [goalState, setGoalState] = useState<{
+    scope: string;
+    pass: number;
+    activation: number;
+    kind: RecallGoalKind;
+    target: number;
+  } | null>(null);
   const round = roundState?.scope === scope ? roundState : null;
   const paused =
     !round &&
@@ -218,6 +236,36 @@ export default function StudyPractice() {
   const detail = detailState?.key === detailKey ? detailState : null;
   const revealed = Boolean(currentId && round?.revealedIds.includes(currentId));
   const summary = round ? recallSummary(round.ids, round.outcomes) : null;
+  const goalDraft =
+    round &&
+    goalDraftState?.scope === scope &&
+    goalDraftState.pass === round.pass &&
+    goalDraftState.activation === activationId
+      ? goalDraftState
+      : {
+          scope,
+          pass: round?.pass ?? 0,
+          activation: activationId,
+          kind: "classified" as RecallGoalKind,
+          target: Math.min(3, round?.ids.length ?? 1),
+        };
+  const selectedGoal =
+    round &&
+    goalState?.scope === scope &&
+    goalState.pass === round.pass &&
+    goalState.activation === activationId
+      ? goalState
+      : null;
+  const goalProgress =
+    round && subjectId && selectedGoal
+      ? measureRecallGoal(
+          subjectId,
+          round.ids,
+          round.outcomes,
+          selectedGoal.kind,
+          selectedGoal.target,
+        )
+      : null;
   const closure =
     round && subjectId
       ? planRecallClosure(subjectId, round.ids, round.outcomes, review.minutes)
@@ -639,6 +687,8 @@ export default function StudyPractice() {
     }
     try {
       const queue = normalizeRecallQueue(subjectId, ids);
+      setGoalDraftState(null);
+      setGoalState(null);
       setClosureState(null);
       forgetRecallPause(scope, subjectId);
       setActivationId((value) => value + 1);
@@ -948,6 +998,8 @@ export default function StudyPractice() {
           : previous,
       );
       setClosureState(null);
+      setGoalDraftState(null);
+      setGoalState(null);
       setFeedbackState(null);
     } catch {
       setFeedbackState({
@@ -979,6 +1031,8 @@ export default function StudyPractice() {
       });
       setRoundState(null);
       setClosureState(null);
+      setGoalDraftState(null);
+      setGoalState(null);
       setFeedbackState({
         scope,
         error: false,
@@ -1009,6 +1063,8 @@ export default function StudyPractice() {
     }
     setActivationId((value) => value + 1);
     setClosureState(null);
+    setGoalDraftState(null);
+    setGoalState(null);
     setReviewSettings({
       scope,
       startsAt: saved.startsAt,
@@ -1043,6 +1099,26 @@ export default function StudyPractice() {
       return;
     if (forgetRecallPause(scope, subjectId)) {
       setFeedbackState({ scope, error: false, message: "Pausa descartada." });
+    }
+  };
+
+  const savePracticeGoal = () => {
+    if (!round || !subjectId || status !== "authenticated") return;
+    try {
+      measureRecallGoal(
+        subjectId,
+        round.ids,
+        round.outcomes,
+        goalDraft.kind,
+        goalDraft.target,
+      );
+      setGoalState({ ...goalDraft });
+    } catch {
+      setFeedbackState({
+        scope,
+        error: true,
+        message: "No pudimos establecer el objetivo. Elegí una meta válida.",
+      });
     }
   };
 
@@ -1658,6 +1734,95 @@ export default function StudyPractice() {
                     </div>
                   </section>
                 )}
+                <section
+                  className="study-practice-goal"
+                  aria-labelledby="study-practice-goal-title"
+                >
+                  <h3 id="study-practice-goal-title">
+                    Objetivo de este intento
+                  </h3>
+                  <p>
+                    Elegí una meta concreta para tus propias marcas. No es una
+                    calificación ni una medida de aprendizaje. Solo se
+                    conserva en este intento y se pierde al reiniciar, pausar
+                    o salir.
+                  </p>
+                  <div className="study-practice-goal-controls">
+                    <label>
+                      Qué quiero hacer
+                      <select
+                        value={goalDraft.kind}
+                        onChange={(event) =>
+                          setGoalDraftState({
+                            ...goalDraft,
+                            kind: event.target.value as RecallGoalKind,
+                          })
+                        }
+                      >
+                        <option value="classified">Clasificar preguntas</option>
+                        <option value="explained">
+                          Marcar preguntas como explicadas
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      Cuántas preguntas
+                      <select
+                        value={goalDraft.target}
+                        onChange={(event) =>
+                          setGoalDraftState({
+                            ...goalDraft,
+                            target: Number(event.target.value),
+                          })
+                        }
+                      >
+                        {round.ids.map((_, index) => (
+                          <option key={index + 1} value={index + 1}>
+                            {index + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="study-practice-actions">
+                    <button type="button" onClick={savePracticeGoal}>
+                      {selectedGoal ? "Actualizar objetivo" : "Definir objetivo"}
+                    </button>
+                    {selectedGoal && (
+                      <button
+                        type="button"
+                        onClick={() => setGoalState(null)}
+                      >
+                        Quitar objetivo
+                      </button>
+                    )}
+                  </div>
+                  {goalProgress && (
+                    <div
+                      className="study-practice-goal-progress"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p>
+                        {goalProgress.met
+                          ? "Objetivo personal alcanzado"
+                          : "Objetivo personal en curso"}
+                        : {goalProgress.achieved} de {goalProgress.target}{" "}
+                        preguntas según tus marcas.
+                      </p>
+                      <progress
+                        aria-label="Avance del objetivo personal"
+                        value={Math.min(goalProgress.achieved, goalProgress.target)}
+                        max={goalProgress.target}
+                      />
+                      <p>
+                        {goalProgress.met
+                          ? "Podés seguir estudiando: alcanzar la meta no cierra ni califica la ronda."
+                          : `Faltan ${goalProgress.remaining} para tu objetivo personal.`}
+                      </p>
+                    </div>
+                  )}
+                </section>
                 <div className="study-practice-stats" aria-live="polite">
                   <span>
                     <strong>{summary?.completed ?? 0}</strong> revisadas
