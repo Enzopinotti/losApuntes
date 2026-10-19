@@ -69,7 +69,7 @@ check('B91 tests include block-until-preflight, stable 503 and client close', ()
   assert.match(controllerTests, /B91 preflights exact owner and generation/u);
   assert.match(controllerTests, /B91 refuses an unverified/u);
   assert.match(controllerTests, /B91 aborts a disconnected client/u);
-  assert.match(controllerTests, /expect\(reply\.header\)\.not\.toHaveBeenCalled\(\)/u);
+  assert.match(controllerTests, /expect\(reply\.header\.mock\.calls\)\.toHaveLength\(0\)/u);
 });
 check('B91 adapter tests cover corruption, truncation and provider errors', () => {
   assert.match(adapterTests, /B91 preflight accepts only exact-generation/u);
