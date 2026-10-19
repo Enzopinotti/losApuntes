@@ -26,3 +26,21 @@ The immutable, read-only `.github/workflows/b131-api-lint-closeout.yml` workflow
 Even if full lint is fixed, the governance control `Production dependency audit` still **FAILS** because the `node-forge@1.4.0` CVE-2026-85393 exception expired 2026-10-15, issue #133 (see also #141). This is a separate release veto. B131 must not extend the exception or claim S3 remote/browser/restore acceptance.
 
 **No release GO, no deployment, #353 OPEN/HOLD.**
+
+## B131 executed red/green evidence
+
+Initial Node24 PR run [#39191051738](https://github.com/Enzopinotti/losApuntes/actions/runs/39191051738) found **30 remaining diagnostics**: canonical Prettier, two Jest mocks inferred as `any` and historical NestJS feature guard callers that require the `canActivate(context)` signature. It also caught TypeScript errors in 2 guard specs. Those **were real failures**: not waived, excluded, or converted to skip.
+
+The guards retain `canActivate(_context: ExecutionContext)`, use `void _context` to keep the NestJS contract without unused-value lint, and remain fail-closed. Mongo fixtures cast untyped Jest invocation tuples into **`unknown[][]`** and assert only expected owner/transaction data. An exact pinned Node24 Prettier pass generated the canonical output for seven affected files, which was committed byte-for-byte. The temporary auto-format/capture step was **removed**; the accepted workflow now verifies that all sources are already formatted and the checkout remains clean.
+
+**Actual exact-head scoped run [B131 #39191431506](https://github.com/Enzopinotti/losApuntes/actions/runs/39191431506)** on `e2ba31d0d2e310f954f67792fcc8766877f1ea99`: **2/2 jobs SUCCESS**.
+- Whole API `pnpm --filter @losapuntes/api lint`: **0 errors, 0 warnings** using unchanged ESLint rules.
+- Whole API `format:check` and `check:types`: **PASS**. Full Web and Mobile Prettier: **PASS**.
+- Unfiltered `jest --findRelatedTests`: **19 suites PASS, 459 tests PASS**, 2 opt-in Mongo suites intentionally skipped (**69 skipped cases**), not counted as accepted.
+- S3 guards B115 **8/8 PASS** and B116 **6/6 PASS**, with accompanying Node native tests. SHA exact and source clean after tests.
+
+Real replica acceptance remains mandatory in independent B122/B129 workflows (do **not** count skipped Mongo here as real coverage), and signed HTTP B121, regression B123/B124 and global `verify` must be checked for the **final merged candidate SHA**.
+
+Security exception `node-forge@1.4.0` expired 2026-10-15, issues #133/#141. A fixed full quality gate **does not** override an expired production dependency audit. The smoke/runtime gate may still skip if the audit fails. #353 must remain OPEN/HOLD and production flags off until explicit release criteria are met.
+
+This document edit advances the PR SHA. Re-run exact-head PR validation before merging.
