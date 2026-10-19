@@ -57,7 +57,7 @@ verify('worker uses a shared captured horizon fence on renew/retry/ACK', () => {
   assert.match(drain, /const deferred = await this\.orphans\.retry\(\{\s*\.\.\.fence/u);
 });
 verify('worker carries fence on failure backoff and final ACK', () => {
-  assert.match(drain, /this\.orphans\.retry\(\{\s*\.\.\.fence, now: new Date\(\)/u);
+  assert.match(drain, /this\.orphans\.retry\(\{\s*\.\.\.fence,\s*now: new Date\(\)/u);
   assert.match(drain, /this\.orphans\.acknowledge\(\{\s*\.\.\.fence/u);
 });
 verify('unit Jest tests cover due, stale renew and retry and captured processor horizon', () => {
