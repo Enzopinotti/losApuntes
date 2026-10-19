@@ -13,6 +13,7 @@ on:
       - scripts/test-account-export-b65-atomic-completion.mjs
       - scripts/test-account-export-b68-concurrency.mjs
       - scripts/test-account-export-b69-writeahead.mjs
+      - scripts/test-account-export-b70-authority.mjs
       - .github/workflows/b132-no-audit-waivers.yml
 
 permissions:
@@ -58,6 +59,7 @@ jobs:
           node scripts/test-account-export-b65-atomic-completion.mjs
           node scripts/test-account-export-b68-concurrency.mjs
           node scripts/test-account-export-b69-writeahead.mjs
+          node scripts/test-account-export-b70-authority.mjs
       - name: Verify source remained unchanged
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
