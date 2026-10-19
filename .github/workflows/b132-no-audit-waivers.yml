@@ -16,6 +16,9 @@ on:
       - scripts/test-account-export-b70-authority.mjs
       - scripts/test-account-export-b132-legacy-contracts.mjs
       - scripts/test-study-progress-bootstrap-contract.mjs
+      - apps/api/src/auth/auth.module.ts
+      - apps/api/src/study-collections/study-collections.module.ts
+      - apps/api/src/study-collections/study-collections.controller.ts
       - apps/api/src/study-progress/study-progress.module.ts
       - apps/api/src/study-progress/study-progress.controller.ts
       - apps/api/src/users/users.module.ts
