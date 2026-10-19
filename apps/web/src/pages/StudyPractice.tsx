@@ -30,6 +30,7 @@ import {
   importRecallReviewPlan,
 } from "../features/study/study-recall-plan-import.mjs";
 import { buildPrivateRecallReport } from "../features/study/study-recall-private-report.mjs";
+import { planRecallClosure } from "../features/study/study-recall-closure.mjs";
 import {
   organizeRecallQueue,
   type RecallOrderAction,
@@ -197,6 +198,11 @@ export default function StudyPractice() {
   } | null>(null);
   const importBusy = importState?.scope === scope && importState.busy;
   const [roundState, setRoundState] = useState<Round | null>(null);
+  const [closureState, setClosureState] = useState<{
+    scope: string;
+    pass: number;
+    activation: number;
+  } | null>(null);
   const [activationId, setActivationId] = useState(0);
   const round = roundState?.scope === scope ? roundState : null;
   const paused =
@@ -212,6 +218,16 @@ export default function StudyPractice() {
   const detail = detailState?.key === detailKey ? detailState : null;
   const revealed = Boolean(currentId && round?.revealedIds.includes(currentId));
   const summary = round ? recallSummary(round.ids, round.outcomes) : null;
+  const closure =
+    round && subjectId
+      ? planRecallClosure(subjectId, round.ids, round.outcomes, review.minutes)
+      : null;
+  const closureOpen = Boolean(
+    round &&
+    closureState?.scope === scope &&
+    closureState.pass === round.pass &&
+    closureState.activation === activationId,
+  );
   const nextPendingPosition =
     round && subjectId
       ? nextRecallFocus(
@@ -623,6 +639,7 @@ export default function StudyPractice() {
     }
     try {
       const queue = normalizeRecallQueue(subjectId, ids);
+      setClosureState(null);
       forgetRecallPause(scope, subjectId);
       setActivationId((value) => value + 1);
       setRoundState({
@@ -930,6 +947,7 @@ export default function StudyPractice() {
             }
           : previous,
       );
+      setClosureState(null);
       setFeedbackState(null);
     } catch {
       setFeedbackState({
@@ -960,6 +978,7 @@ export default function StudyPractice() {
         minutes: review.minutes,
       });
       setRoundState(null);
+      setClosureState(null);
       setFeedbackState({
         scope,
         error: false,
@@ -989,6 +1008,7 @@ export default function StudyPractice() {
       return;
     }
     setActivationId((value) => value + 1);
+    setClosureState(null);
     setReviewSettings({
       scope,
       startsAt: saved.startsAt,
@@ -1026,17 +1046,48 @@ export default function StudyPractice() {
     }
   };
 
-  const resetRound = () => {
-    if (!round) return;
-    if (
-      !window.confirm(
-        "¿Salir de la ronda? Las notas y marcas temporales se perderán.",
-      )
-    ) {
+  const requestCloseRound = () => {
+    if (!round || !closure || status !== "authenticated") return;
+    setClosureState({
+      scope,
+      pass: round.pass,
+      activation: activationId,
+    });
+  };
+
+  const focusClosureQuestion = (position: number | null) => {
+    if (!round || !closureOpen || position === null) return;
+    changeRound((previous) =>
+      previous.pass === round.pass && previous.ids === round.ids
+        ? { ...previous, position }
+        : previous,
+    );
+    setClosureState(null);
+  };
+
+  const finishRound = () => {
+    if (!round || !closure || !closureOpen || status !== "authenticated")
       return;
-    }
-    setRoundState(null);
-    setFeedbackState(null);
+    const message =
+      closure.pending > 0
+        ? "Todavía hay preguntas sin clasificar. ¿Terminar y descartar las notas, respuestas y marcas temporales? No se guardará un resultado."
+        : closure.review > 0
+          ? "Hay preguntas marcadas para repasar. ¿Terminar y descartar las notas y marcas temporales? Guardá tu plan antes de salir si querés continuar después."
+          : "¿Terminar la ronda y borrar las notas, respuestas y marcas temporales? No se guarda una calificación.";
+    if (!window.confirm(message)) return;
+    setRoundState((previous) =>
+      previous?.scope === scope &&
+      previous.pass === round.pass &&
+      previous.ids === round.ids
+        ? null
+        : previous,
+    );
+    setClosureState(null);
+    setFeedbackState({
+      scope,
+      error: false,
+      message: "Ronda terminada. Las notas y marcas temporales se descartaron.",
+    });
   };
 
   const question = detail?.question ?? null;
@@ -1340,9 +1391,9 @@ export default function StudyPractice() {
                     <button
                       type="button"
                       className="study-practice-secondary"
-                      onClick={resetRound}
+                      onClick={requestCloseRound}
                     >
-                      Salir de la ronda
+                      Revisar cierre de ronda
                     </button>
                   </div>
                 </div>
@@ -1521,6 +1572,92 @@ export default function StudyPractice() {
                   Estas marcas son privadas y temporales: no son una puntuación
                   académica.
                 </p>
+                {closureOpen && closure && (
+                  <section
+                    className="study-practice-closure"
+                    aria-labelledby="study-practice-closure-title"
+                  >
+                    <h3 id="study-practice-closure-title">
+                      Antes de terminar esta ronda
+                    </h3>
+                    <p>
+                      Revisá tus propias marcas. Esto no es una calificación ni
+                      implica que una pregunta sin clasificar esté mal resuelta.
+                    </p>
+                    <ol>
+                      <li>
+                        {closure.understood} preguntas que marcaste como
+                        explicadas.
+                      </li>
+                      <li>
+                        {closure.pending} sin clasificar: podés intentar
+                        resolverlas antes de terminar.
+                      </li>
+                      <li>
+                        {closure.review} para repasar:{" "}
+                        {closure.estimatedReviewMinutes} minutos estimados según
+                        tu planificación.
+                      </li>
+                    </ol>
+                    {closure.phase === "classify" ? (
+                      <p>
+                        Primer paso sugerido: revisar lo que aún no
+                        clasificaste. Podés terminar igual, pero esas preguntas
+                        quedarán sin una marca de autoevaluación.
+                      </p>
+                    ) : closure.phase === "review" ? (
+                      <p>
+                        Ya clasificaste todas las preguntas. Podés reintentar
+                        las dudas o guardarlas en un plan antes de salir.
+                      </p>
+                    ) : (
+                      <p>
+                        Todas las preguntas de este intento tienen tu marca «Lo
+                        pude explicar». Podés terminar o guardar tu resumen
+                        personal sin registrar notas oficiales.
+                      </p>
+                    )}
+                    <div className="study-practice-actions">
+                      {closure.firstPending !== null && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            focusClosureQuestion(closure.firstPending)
+                          }
+                        >
+                          Ir a la primera sin clasificar
+                        </button>
+                      )}
+                      {closure.firstReview !== null && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            focusClosureQuestion(closure.firstReview)
+                          }
+                        >
+                          Revisar una pregunta marcada
+                        </button>
+                      )}
+                      <button type="button" onClick={downloadPrivateSummary}>
+                        Guardar resumen privado
+                      </button>
+                      {closure.review > 0 && (
+                        <button type="button" onClick={openPendingInPlanner}>
+                          Preparar plan de repaso
+                        </button>
+                      )}
+                      <button type="button" onClick={finishRound}>
+                        Terminar y descartar notas temporales
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setClosureState(null)}
+                      >
+                        Seguir practicando
+                      </button>
+                    </div>
+                  </section>
+                )}
                 <div className="study-practice-stats" aria-live="polite">
                   <span>
                     <strong>{summary?.completed ?? 0}</strong> revisadas
