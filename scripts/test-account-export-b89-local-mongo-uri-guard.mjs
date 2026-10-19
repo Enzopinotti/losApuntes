@@ -54,7 +54,7 @@ check('B89 rejects invalid destination BEFORE spawning Jest', () => {
 check('B89 preserves project release and exact B86 Jest selection', () => {
   assert.match(runner, /STUDY_PROGRESS_ENABLED === 'true'/u);
   assert.match(runner, /process\.versions\.node/u);
-  assert.match(runner, /--testNamePattern', 'B86'/u);
+  assert.match(runner, /--testNamePattern', B94_MONGO_TEST_PATTERN/u);
   assert.match(runner, /--passWithNoTests=false/u);
 });
 check('B89 leaves original database-level guards and random isolated db intact', () => {
