@@ -46,6 +46,11 @@ jobs:
           cache: pnpm
       - name: Install frozen dependency graph
         run: pnpm install --frozen-lockfile
+      - name: Show read-only canonical StudyPractice formatting diff
+        shell: bash
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyPractice.tsx > "$RUNNER_TEMP/StudyPractice.canonical.tsx"
+          diff -u apps/web/src/pages/StudyPractice.tsx "$RUNNER_TEMP/StudyPractice.canonical.tsx" || true
       - name: Run pure and integration regression contracts
         run: |
           pnpm test:web-study-recall-planning
