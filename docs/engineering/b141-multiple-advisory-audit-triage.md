@@ -23,6 +23,6 @@ Legacy pnpm audit JSON can expose `advisories` with one direct finding per entry
 
 ## CI and acceptance
 
-Read-only `b141-production-audit-triage.yml` checks the exact PR SHA with Node 24, syntax, adversarial parser regression cases and zero-exception policy. The root `verify` pipeline still independently runs `pnpm audit --prod --audit-level high`; it must **continue to fail** until the underlying vulnerabilities disappear through reviewed upstream changes.
+The pre-existing read-only `.github/workflows/b133-production-audit-triage.yml` already checks the exact PR SHA with Node 24, adversarial parser regressions and zero-exception policy. Its run #39293981469 passed on the initial B141 source; rerun on the final SHA is mandatory. No duplicate B141 workflow is retained. The root `verify` pipeline still independently runs `pnpm audit --prod --audit-level high`; it must **continue to fail** until the underlying vulnerabilities disappear through reviewed upstream changes.
 
 **No readiness promotion:** issue #353 HOLD; #133 and #141 OPEN. Do not automatically merge this block while a global release gate is failing. Do not reintroduce expired audit exceptions, forks or unreviewed overrides.
