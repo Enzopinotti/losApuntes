@@ -35,7 +35,7 @@ check('B92 no headers or response until second authorization completes', () => {
 check('B92 rechecks account activity and TTL via canonical service', () => {
   assert.match(service, /async download\(/u);
   assert.match(service, /await this\.assertActiveAccount\(userId\)/u);
-  assert.match(service, /job\.artifactExpiresAt\.getTime\(\) <= now\.getTime\(\)/u);
+  assert.match(service, /await this\.store\.isOwnedArtifactCurrent\(\{/u);
 });
 check('B92 compares exact generation and bytes metadata', () => {
   assert.match(helper, /before\.generation !== after\.generation/u);
