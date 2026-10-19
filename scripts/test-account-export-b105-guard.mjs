@@ -63,7 +63,7 @@ check('B105 Jest exercises in-flight initiation, queued parts, failure, and one 
     'B105 concurrent complete calls on one single PUT',
   ]) assert.ok(jest.includes(name), name);
   assert.match(jest, /private-b105-abort/u);
-  assert.match(jest, /toEqual\(\['POST', 'PUT', 'DELETE'\]\)/u);
+  assert.match(jest, /toEqual\(\[\s*'POST',\s*'PUT',\s*'DELETE',?\s*\]\)/u);
 });
 check('B105 real signed HTTP covers concurrent writes/abort/complete/failure', () => {
   for (const name of [
