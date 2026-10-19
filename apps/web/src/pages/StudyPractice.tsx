@@ -31,6 +31,10 @@ import {
 } from "../features/study/study-recall-plan-import.mjs";
 import { buildPrivateRecallReport } from "../features/study/study-recall-private-report.mjs";
 import {
+  organizeRecallQueue,
+  type RecallOrderAction,
+} from "../features/study/study-recall-order.mjs";
+import {
   nextRecallFocus,
   type RecallFocusCategory,
 } from "../features/study/study-recall-focus.mjs";
@@ -226,6 +230,26 @@ export default function StudyPractice() {
           round.position,
           round.outcomes,
           "review",
+        )
+      : null;
+  const reviewFirstOrder =
+    round && subjectId
+      ? organizeRecallQueue(
+          subjectId,
+          round.ids,
+          round.position,
+          round.outcomes,
+          "review-first",
+        )
+      : null;
+  const pendingFirstOrder =
+    round && subjectId
+      ? organizeRecallQueue(
+          subjectId,
+          round.ids,
+          round.position,
+          round.outcomes,
+          "pending-first",
         )
       : null;
   const [feedbackState, setFeedbackState] = useState<Feedback | null>(null);
@@ -700,6 +724,35 @@ export default function StudyPractice() {
     setRoundState((previous) =>
       previous?.scope === scope ? update(previous) : previous,
     );
+  };
+
+  const reorderRound = (action: RecallOrderAction) => {
+    if (!round || !subjectId || status !== "authenticated") return;
+    try {
+      const result = organizeRecallQueue(
+        subjectId,
+        round.ids,
+        round.position,
+        round.outcomes,
+        action,
+      );
+      if (!result) return;
+      changeRound((previous) =>
+        previous.pass === round.pass &&
+        previous.ids.length === round.ids.length &&
+        previous.ids.every((id, index) => id === round.ids[index]) &&
+        previous.ids[previous.position] === round.ids[round.position]
+          ? { ...previous, ids: result.ids, position: result.position }
+          : previous,
+      );
+    } catch {
+      setFeedbackState({
+        scope,
+        error: true,
+        message:
+          "No pudimos reorganizar estas preguntas. Podés seguir con el orden actual.",
+      });
+    }
   };
 
   const jumpToRecallCategory = (category: RecallFocusCategory) => {
@@ -1538,6 +1591,51 @@ export default function StudyPractice() {
                         Podés seguir revisando la actual o usar la lista.
                       </p>
                     )}
+                </section>
+                <section
+                  className="study-practice-priority-order"
+                  aria-labelledby="study-practice-priority-title"
+                >
+                  <h3 id="study-practice-priority-title">
+                    Personalizá el orden
+                  </h3>
+                  <p>
+                    Priorizá las preguntas que marcaste para repasar o las que
+                    aún no clasificaste. También podés mover la pregunta actual.
+                    Tus respuestas escritas y marcas permanecen intactas.
+                  </p>
+                  <div className="study-practice-actions">
+                    <button
+                      type="button"
+                      disabled={reviewFirstOrder === null}
+                      onClick={() => reorderRound("review-first")}
+                    >
+                      Repasar primero
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pendingFirstOrder === null}
+                      onClick={() => reorderRound("pending-first")}
+                    >
+                      Sin clasificar primero
+                    </button>
+                    <button
+                      type="button"
+                      disabled={round.position === 0}
+                      onClick={() => reorderRound("earlier")}
+                      aria-label="Subir la pregunta actual una posición"
+                    >
+                      Subir esta pregunta
+                    </button>
+                    <button
+                      type="button"
+                      disabled={round.position === round.ids.length - 1}
+                      onClick={() => reorderRound("later")}
+                      aria-label="Bajar la pregunta actual una posición"
+                    >
+                      Bajar esta pregunta
+                    </button>
+                  </div>
                 </section>
                 <ol className="study-practice-outline">
                   {round.ids.map((id, index) => (
