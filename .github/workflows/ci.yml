@@ -386,6 +386,13 @@ jobs:
       - name: Validate governed audit exceptions
         run: pnpm security:audit-exceptions
 
+      - name: Classify live advisories (diagnostic only, not a release gate)
+        continue-on-error: true
+        shell: bash
+        run: |
+          pnpm audit --prod --json > "$RUNNER_TEMP/los-apuntes-production-audit.json" || true
+          node scripts/security/triage-production-audit.mjs "$RUNNER_TEMP/los-apuntes-production-audit.json"
+
       - name: Audit production dependency graph
         run: pnpm audit --prod --audit-level high
 

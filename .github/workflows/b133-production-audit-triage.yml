@@ -1,0 +1,55 @@
+name: B133 production audit triage contract (diagnostic only)
+
+on:
+  pull_request:
+    paths:
+      - scripts/security/triage-production-audit.mjs
+      - scripts/security/triage-production-audit.test.mjs
+      - scripts/security/check-audit-exceptions.mjs
+      - security/audit-exceptions.json
+      - package.json
+      - docs/security/b133-production-audit-triage.md
+      - .github/workflows/b133-production-audit-triage.yml
+      - .github/workflows/ci.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b133-triage-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  audit-classification-tests:
+    name: Node24 exact-head audit classification tests (NOT a production approval)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Read-only exact-head checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert head and clean checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Assert no audit exceptions and run fail-closed tests
+        run: |
+          node scripts/security/check-audit-exceptions.mjs
+          node --test scripts/security/triage-production-audit.test.mjs
+      - name: Assert checkout remains read-only
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
