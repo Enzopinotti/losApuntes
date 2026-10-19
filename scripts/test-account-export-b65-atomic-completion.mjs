@@ -27,7 +27,7 @@ verify("owner progress mutations share the transacted User revision", () => {
   assert.match(mongoStore, /\$inc: \{ account_lifecycle_revision: 1 \}/u);
 });
 verify("pre-S3 and post-S3 owner epochs are both fenced", () => {
-  assert.match(processor, /captureStudyProgressExportEpoch\(job\.userId\)/u);
+  assert.match(processor, /captureStudyProgressExportEpoch\(\s*job\.userId,?\s*\)/u);
   assert.match(processor, /assertStudyProgressExportEpoch\(/u);
   const staged = processor.indexOf("artifactCommitted = true");
   const post = processor.indexOf("await this.exports.assertStudyProgressExportEpoch(");
