@@ -1,0 +1,128 @@
+name: B128 typed Account Export processor quality
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b128-export-processor-typed-lint.yml
+      - apps/api/src/data-lifecycle/domain/account-export-processor.spec.ts
+      - docs/engineering/b128-processor-jest-strict-lint.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b128-export-processor-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  strict-touched-file:
+    name: Node24 strict processor lint, full Jest and API types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      STUDY_PROGRESS_ENABLED: 'false'
+    steps:
+      - name: Checkout exact unmerged SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Assert SHA and clean source before tests
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Pinned Node24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Strict zero-warning ESLint on modified processor test
+        run: |
+          pnpm --filter @losapuntes/api exec eslint \
+            src/data-lifecycle/domain/account-export-processor.spec.ts \
+            --max-warnings=0
+
+      - name: Exact Prettier source
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --check \
+            src/data-lifecycle/domain/account-export-processor.spec.ts
+
+      - name: Run entire Account Export processor Jest suite
+        run: |
+          pnpm --filter @losapuntes/api exec jest --runInBand \
+            --runTestsByPath src/data-lifecycle/domain/account-export-processor.spec.ts \
+            --detectOpenHandles --passWithNoTests=false
+
+      - name: Full API TypeScript with no exclusions
+        run: pnpm --filter @losapuntes/api check:types
+
+      - name: Verify source still exactly matches PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  lint-debt-inventory:
+    name: Verify global API lint debt actually decreases without suppressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Measure full API strict ESLint without bypassing global gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$(mktemp)"
+          trap 'rm -f "$report"' EXIT
+          set +e
+          pnpm --filter @losapuntes/api exec eslint '{src,test}/**/*.ts' \
+            --max-warnings=0 --format json --output-file "$report"
+          status=$?
+          set -e
+          test "$status" != 0
+          node - "$report" <<'B128_COUNTS'
+          const fs = require('node:fs');
+          const files = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const errors = files.reduce((sum, f) => sum + f.errorCount, 0);
+          const warnings = files.reduce((sum, f) => sum + f.warningCount, 0);
+          const processor = files.find(f => f.filePath.endsWith('/account-export-processor.spec.ts'));
+          if (!processor || processor.errorCount !== 0 || processor.warningCount !== 0) {
+            throw new Error('B128 strict lint is not zero for touched processor source');
+          }
+          if (errors >= 451 || warnings > 77) {
+            throw new Error('B128 global lint debt did not decrease without warning regression');
+          }
+          console.log('B128 API lint debt remains blocking: ' + errors + ' errors / ' +
+            warnings + ' warnings; before: 451 errors / 77 warnings.');
+          console.log('The canonical global pnpm check remains RED until errors=0 and warnings=0.');
+          B128_COUNTS
