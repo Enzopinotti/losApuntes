@@ -646,7 +646,8 @@ export default function StudyPractice() {
       setFeedbackState({
         scope,
         error: true,
-        message: "No pudimos preparar el nuevo intento. Salí de la ronda y elegí las preguntas nuevamente.",
+        message:
+          "No pudimos preparar el nuevo intento. Salí de la ronda y elegí las preguntas nuevamente.",
       });
     }
   };
@@ -899,7 +900,7 @@ export default function StudyPractice() {
                     <h2 id="study-practice-round">2. Ronda de práctica</h2>
                     <p>
                       Intento {round.pass} · Pregunta {round.position + 1} de{" "}
-                       {round.ids.length}
+                      {round.ids.length}
                     </p>
                   </div>
                   <button
@@ -1130,22 +1131,22 @@ export default function StudyPractice() {
                   ))}
                 </ol>
                 <h3>Volver a practicar las pendientes</h3>
-                 <p>
-                   Reintentá solo las preguntas marcadas «Necesito repasar».
-                   El nuevo intento empieza con las respuestas ocultas y
-                   consulta otra vez cada pregunta. Tus notas y marcas del
-                   intento actual no se conservan.
-                 </p>
-                 <div className="study-practice-actions">
-                   <button
-                     type="button"
-                     disabled={!summary?.review}
-                     onClick={retryMarkedQuestions}
-                   >
-                     Reintentar {summary?.review ?? 0} para repasar
-                   </button>
-                 </div>
-                 <h3>Continuar en el planificador</h3>
+                <p>
+                  Reintentá solo las preguntas marcadas «Necesito repasar». El
+                  nuevo intento empieza con las respuestas ocultas y consulta
+                  otra vez cada pregunta. Tus notas y marcas del intento actual
+                  no se conservan.
+                </p>
+                <div className="study-practice-actions">
+                  <button
+                    type="button"
+                    disabled={!summary?.review}
+                    onClick={retryMarkedQuestions}
+                  >
+                    Reintentar {summary?.review ?? 0} para repasar
+                  </button>
+                </div>
+                <h3>Continuar en el planificador</h3>
                 <p>
                   Exportá las preguntas marcadas para repasar como un plan JSON.
                   El archivo incluye solo IDs; la Mesa vuelve a comprobar su
