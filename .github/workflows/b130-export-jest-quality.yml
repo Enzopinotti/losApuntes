@@ -50,6 +50,26 @@ jobs:
       - name: Frozen pnpm install
         run: pnpm install --frozen-lockfile
 
+      - name: Temporary canonical Prettier diagnostic source capture
+        run: |
+          pnpm --filter @losapuntes/api exec prettier --write \
+            src/data-lifecycle/domain/account-export.service.spec.ts \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts
+          node <<'B130_FORMAT'
+          const fs = require('node:fs');
+          for (const p of [
+            'apps/api/src/data-lifecycle/domain/account-export.service.spec.ts',
+            'apps/api/src/data-lifecycle/account-export.controller.spec.ts',
+            'apps/api/src/data-lifecycle/domain/account-export-versioning.spec.ts',
+          ]) {
+            const b64 = fs.readFileSync(p).toString('base64');
+            console.log('B130_FORMAT_BEGIN ' + p);
+            for (const part of b64.match(/.{1,1200}/gu) ?? [])
+              console.log('B130_FORMAT_CHUNK ' + part);
+            console.log('B130_FORMAT_END ' + p);
+          }
+          B130_FORMAT
       - name: Strict typed ESLint on the three changed fixtures (zero warnings)
         run: |
           pnpm --filter @losapuntes/api exec eslint --max-warnings=0 \
