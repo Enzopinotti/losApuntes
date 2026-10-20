@@ -48,8 +48,11 @@ function fixture(
   const connections = {
     findOne: jest.fn().mockReturnValue(connectionRow),
   };
-  const getPublicProfile = jest.fn().mockResolvedValue({ profile: { id: profileId } });
-  if (options.profileError) getPublicProfile.mockRejectedValue(options.profileError);
+  const getPublicProfile = jest
+    .fn()
+    .mockResolvedValue({ profile: { id: profileId } });
+  if (options.profileError)
+    getPublicProfile.mockRejectedValue(options.profileError);
   const resolveUserIdByProfileId = jest.fn().mockResolvedValue(target);
   const service = new SocialRelationshipService(
     follows as never,
@@ -234,7 +237,9 @@ describe('B150 profile relationship snapshot', () => {
       { connection: connection({ id: 'not-a-uuid' }) },
       { connection: connection({ status: 'unknown' }) },
       { connection: connection({ status: 'pending', respondedAt }) },
-      { connection: connection({ status: 'accepted', respondedAt: 'invalid' }) },
+      {
+        connection: connection({ status: 'accepted', respondedAt: 'invalid' }),
+      },
     ]) {
       const f = fixture(state);
       await expect(f.service.get('viewer-a', profileId)).rejects.toBeInstanceOf(
