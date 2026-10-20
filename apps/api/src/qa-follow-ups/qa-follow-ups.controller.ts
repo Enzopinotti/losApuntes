@@ -2,7 +2,10 @@ import { Controller, Get, Header, Req, UseGuards } from '@nestjs/common';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
-import { QaFollowUpsService, type QaFollowUpInbox } from './qa-follow-ups.service';
+import {
+  QaFollowUpsService,
+  type QaFollowUpInbox,
+} from './qa-follow-ups.service';
 
 @Controller('qa/me')
 @UseGuards(AuthSessionGuard)
