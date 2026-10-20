@@ -15,7 +15,9 @@ describe('B145 own questions HTTP route', () => {
   it('requires authenticated owner and disables intermediary caching', () => {
     const method = Reflect.get(QuestionsController.prototype, 'mine') as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('questions/mine');
-    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(RequestMethod.GET);
+    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(
+      RequestMethod.GET,
+    );
     expect(Reflect.getMetadata(GUARDS_METADATA, method)).toEqual([
       AuthSessionGuard,
     ]);
@@ -27,7 +29,9 @@ describe('B145 own questions HTTP route', () => {
 
   it('uses the authenticated principal rather than a client-supplied author', async () => {
     const mine = jest.fn().mockResolvedValue({ items: [], nextCursor: null });
-    const controller = new QuestionsController({ mine } as unknown as QaService);
+    const controller = new QuestionsController({
+      mine,
+    } as unknown as QaService);
     const query = { status: 'open' as const, limit: 25 };
     const request = { user: { id: 'owner-a' } } as AuthenticatedRequest;
 
@@ -43,10 +47,9 @@ describe('B145 own questions HTTP route', () => {
     const mine = jest.fn().mockRejectedValue(new Error('db-down'));
     const controller = new QuestionsController({ mine } as unknown as QaService);
     await expect(
-      controller.mine(
-        { user: { id: 'owner-a' } } as AuthenticatedRequest,
-        { limit: 25 },
-      ),
+      controller.mine({ user: { id: 'owner-a' } } as AuthenticatedRequest, {
+        limit: 25,
+      }),
     ).rejects.toThrow('db-down');
   });
 });
