@@ -180,6 +180,31 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
     );
   }
 
+  async reorderResources(
+    input: Parameters<StudyCollectionStore['reorderResources']>[0],
+  ): Promise<StudyCollectionRecord | null> {
+    return this.withActiveOwnerTransaction(input.ownerUserId, (session) =>
+      this.collections
+        .findOneAndUpdate(
+          {
+            id: input.id,
+            ownerUserId: input.ownerUserId,
+            revision: input.expectedRevision,
+            // Exact array equality also guards against a missing revision bump
+            // from any legacy writer, not only cooperating CAS mutations.
+            resourceIds: input.originalResourceIds,
+          },
+          {
+            $set: { resourceIds: input.orderedResourceIds },
+            $inc: { revision: 1 },
+          },
+          { new: true, session },
+        )
+        .lean<StudyCollectionRecord>()
+        .exec(),
+    );
+  }
+
   async addResource(
     id: string,
     ownerUserId: string,
