@@ -42,9 +42,9 @@ function fixture(rows: unknown[] = [], count = 2) {
   const countExec = jest.fn().mockResolvedValue(count);
   const find = jest.fn().mockReturnValue(query);
   const countDocuments = jest.fn().mockReturnValue({ exec: countExec });
-  const getAttributionsForUsers = jest.fn().mockResolvedValue(
-    new Map([['follower-a', profile]]),
-  );
+  const getAttributionsForUsers = jest
+    .fn()
+    .mockResolvedValue(new Map([['follower-a', profile]]));
   const service = new FollowersService(
     { find, countDocuments } as never,
     { getAttributionsForUsers } as unknown as ProfileService,
@@ -61,7 +61,10 @@ function fixture(rows: unknown[] = [], count = 2) {
 
 describe('B148 private followers service', () => {
   it('filters by authenticated followee before projecting only public profiles', async () => {
-    const f = fixture([row(), row({ id: secondId, followerUserId: 'follower-c' })]);
+    const f = fixture([
+      row(),
+      row({ id: secondId, followerUserId: 'follower-c' }),
+    ]);
     const result = await f.service.list('owner-b', 1);
     expect(f.find).toHaveBeenCalledWith({
       $and: [{ followeeUserId: 'owner-b' }],
@@ -76,10 +79,8 @@ describe('B148 private followers service', () => {
     expect(f.query.sort).toHaveBeenCalledWith({ createdAt: -1, id: 1 });
     expect(f.query.limit).toHaveBeenCalledWith(2);
     expect(f.getAttributionsForUsers).toHaveBeenCalledWith(['follower-a']);
-    expect(result).toEqual({
-      items: [{ profile, followedAt: at.toISOString() }],
-      nextCursor: expect.any(String),
-    });
+    expect(result.items).toEqual([{ profile, followedAt: at.toISOString() }]);
+    expect(result.nextCursor).toEqual(expect.any(String));
     expect(JSON.stringify(result)).not.toContain('follower-a');
     expect(JSON.stringify(result)).not.toContain('owner-b');
     expect(JSON.stringify(result)).not.toContain('privateNotes');
@@ -96,10 +97,7 @@ describe('B148 private followers service', () => {
       $and: [
         { followeeUserId: 'owner-b' },
         {
-          $or: [
-            { createdAt: { $lt: at } },
-            { createdAt: at, id: { $gt: id } },
-          ],
+          $or: [{ createdAt: { $lt: at } }, { createdAt: at, id: { $gt: id } }],
         },
       ],
     });
@@ -107,7 +105,10 @@ describe('B148 private followers service', () => {
   });
 
   it('skips accounts without a visible Profile but advances over scanned edges', async () => {
-    const f = fixture([row(), row({ id: secondId, followerUserId: 'missing' })]);
+    const f = fixture([
+      row(),
+      row({ id: secondId, followerUserId: 'missing' }),
+    ]);
     f.getAttributionsForUsers.mockResolvedValue(new Map());
     const result = await f.service.list('owner-b', 1);
     expect(result.items).toEqual([]);
@@ -174,6 +175,8 @@ describe('B148 private followers service', () => {
   it('does not mask database failures as empty follower lists', async () => {
     const f = fixture();
     f.query.exec.mockRejectedValue(new Error('database-down'));
-    await expect(f.service.list('owner-b', 25)).rejects.toThrow('database-down');
+    await expect(f.service.list('owner-b', 25)).rejects.toThrow(
+      'database-down',
+    );
   });
 });
