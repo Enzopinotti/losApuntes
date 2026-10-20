@@ -33,11 +33,7 @@ function invalidStoredSummary(): never {
 }
 
 function finiteCount(value: unknown): number {
-  if (
-    typeof value !== 'number' ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     invalidStoredSummary();
   }
   return value;
