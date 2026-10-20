@@ -79,7 +79,7 @@ test('B142 reads pnpm v9 snapshots and isolates both families to Mobile producti
     path: ['apps/mobile', 'expo@57.0.25', 'metro@0.84.5',
       'micromatch@4.0.8', 'braces@3.0.3'],
   });
-  assert.equal(result.importerEvidence['apps/mobile'].inspectedNodes, 8);
+  assert.equal(result.importerEvidence['apps/mobile'].inspectedNodes, 9);
 });
 
 test('B142 excludes root devDependencies from production reachability', () => {
