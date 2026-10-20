@@ -31,11 +31,13 @@ function facets(
     recent({ resourceId: resourceB, savedAt: earlier }),
   ],
 ) {
-  return [{
-    totals: savedResourcesCount ? [{ count: savedResourcesCount }] : [],
-    subjects: subjectsCount ? [{ count: subjectsCount }] : [],
-    recent: rows,
-  }];
+  return [
+    {
+      totals: savedResourcesCount ? [{ count: savedResourcesCount }] : [],
+      subjects: subjectsCount ? [{ count: subjectsCount }] : [],
+      recent: rows,
+    },
+  ];
 }
 
 function fixture(result: unknown = facets()) {
@@ -86,7 +88,18 @@ describe('B154 private saved library overview', () => {
     const facet = pipeline?.at(-1);
     expect(facet).toHaveProperty('$facet');
     const filters = pipeline?.filter((stage) => '$match' in stage);
-    expect(filters?.length).toBeGreaterThanOrEqual(3);
+    expect(filters?.length).toBeGreaterThanOrEqual(2);
+    expect(lookups?.[0]).toMatchObject({
+      $lookup: {
+        pipeline: [
+          { $match: { moderationState: 'available' } },
+          expect.anything(),
+        ],
+      },
+    });
+    expect(lookups?.[1]).toMatchObject({
+      $lookup: { pipeline: [{ $match: { userId: 'owner-a' } }, { $limit: 1 }, expect.anything()] },
+    });
     expect(f.option).toHaveBeenCalledWith({
       allowDiskUse: true,
       maxTimeMS: 8000,
@@ -124,9 +137,7 @@ describe('B154 private saved library overview', () => {
         recent: unknown[];
       };
     };
-    expect(facetsStage.$facet.totals).toEqual([
-      { $count: 'count' },
-    ]);
+    expect(facetsStage.$facet.totals).toEqual([{ $count: 'count' }]);
     expect(facetsStage.$facet.subjects).toEqual([
       { $group: { _id: '$__resource.subjectId' } },
       { $count: 'count' },
@@ -176,16 +187,20 @@ describe('B154 private saved library overview', () => {
       [{ totals: null, subjects: [], recent: [] }],
       [{ totals: [], subjects: null, recent: [] }],
       [{ totals: [], subjects: [], recent: null }],
-      [{
-        totals: [{ count: 1 }, { count: 2 }],
-        subjects: [],
-        recent: [],
-      }],
-      [{
-        totals: [{ count: 2 }],
-        subjects: [{ count: 1 }, { count: 2 }],
-        recent: [],
-      }],
+      [
+        {
+          totals: [{ count: 1 }, { count: 2 }],
+          subjects: [],
+          recent: [],
+        },
+      ],
+      [
+        {
+          totals: [{ count: 2 }],
+          subjects: [{ count: 1 }, { count: 2 }],
+          recent: [],
+        },
+      ],
       facets(6, 2, Array(6).fill(recent())),
     ]) {
       const f = fixture(result);
@@ -202,16 +217,20 @@ describe('B154 private saved library overview', () => {
       facets(1, 0, [recent()]),
       facets(2, 1, [recent()]),
       facets(0, 0, [recent()]),
-      [{
-        totals: [{ count: '2' }],
-        subjects: [{ count: 1 }],
-        recent: [],
-      }],
-      [{
-        totals: [{ count: 2.5 }],
-        subjects: [{ count: 1 }],
-        recent: [],
-      }],
+      [
+        {
+          totals: [{ count: '2' }],
+          subjects: [{ count: 1 }],
+          recent: [],
+        },
+      ],
+      [
+        {
+          totals: [{ count: 2.5 }],
+          subjects: [{ count: 1 }],
+          recent: [],
+        },
+      ],
     ]) {
       const f = fixture(result);
       await expect(f.service.get('owner-a')).rejects.toBeInstanceOf(
@@ -246,10 +265,7 @@ describe('B154 private saved library overview', () => {
   it('rejects misordered timestamps and ascending ID ties', async () => {
     for (const rows of [
       [recent({ savedAt: earlier }), recent({ resourceId: resourceB })],
-      [
-        recent({ resourceId: resourceB }),
-        recent({ resourceId: resourceA }),
-      ],
+      [recent({ resourceId: resourceB }), recent({ resourceId: resourceA })],
     ]) {
       const f = fixture(facets(2, 1, rows));
       await expect(f.service.get('owner-a')).rejects.toBeInstanceOf(
@@ -269,8 +285,6 @@ describe('B154 private saved library overview', () => {
   it('does not replace Mongo outages with an empty overview', async () => {
     const f = fixture();
     f.exec.mockRejectedValue(new Error('mongo-offline'));
-    await expect(f.service.get('owner-a')).rejects.toThrow(
-      'mongo-offline',
-    );
+    await expect(f.service.get('owner-a')).rejects.toThrow('mongo-offline');
   });
 });
