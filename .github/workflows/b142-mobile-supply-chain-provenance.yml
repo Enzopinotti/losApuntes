@@ -1,0 +1,64 @@
+name: B142 Mobile supply-chain provenance boundary
+
+on:
+  pull_request:
+    paths:
+      - pnpm-lock.yaml
+      - scripts/security/check-mobile-supply-chain-provenance.mjs
+      - scripts/security/check-mobile-supply-chain-provenance.test.mjs
+      - docs/security/b142-mobile-supply-chain-provenance.md
+      - .github/workflows/b142-mobile-supply-chain-provenance.yml
+  push:
+    branches:
+      - main
+    paths:
+      - pnpm-lock.yaml
+      - scripts/security/check-mobile-supply-chain-provenance.mjs
+      - scripts/security/check-mobile-supply-chain-provenance.test.mjs
+      - .github/workflows/b142-mobile-supply-chain-provenance.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b142-provenance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-graph-boundary:
+    name: B142 exact-head production graph exposure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Read-only exact-head checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Prove immutable candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use repository Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Syntax
+        run: |
+          node --check scripts/security/check-mobile-supply-chain-provenance.mjs
+          node --check scripts/security/check-mobile-supply-chain-provenance.test.mjs
+      - name: Test adversarial lock graphs
+        run: node --test scripts/security/check-mobile-supply-chain-provenance.test.mjs
+      - name: Check real committed frozen lockfile boundaries
+        run: node scripts/security/check-mobile-supply-chain-provenance.mjs
+      - name: Audit waiver policy remains closed
+        run: node scripts/security/check-audit-exceptions.mjs
+      - name: No writes or SHA drift
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
