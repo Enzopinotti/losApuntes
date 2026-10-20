@@ -14,13 +14,15 @@ describe('B147 private request inbox cursor', () => {
       id,
       at,
     });
-    expect(decodeConnectionRequestCursor('private-account', 'incoming', value))
-      .toEqual({ id, at });
+    expect(
+      decodeConnectionRequestCursor('private-account', 'incoming', value),
+    ).toEqual({ id, at });
     expect(Buffer.from(value, 'base64url').toString('utf8')).not.toContain(
       'private-account',
     );
-    expect(decodeConnectionRequestCursor('private-account', 'incoming'))
-      .toBeUndefined();
+    expect(
+      decodeConnectionRequestCursor('private-account', 'incoming'),
+    ).toBeUndefined();
   });
 
   it('rejects moving a cursor between accounts or request directions', () => {
@@ -28,10 +30,12 @@ describe('B147 private request inbox cursor', () => {
       id,
       at,
     });
-    expect(() => decodeConnectionRequestCursor('owner-b', 'incoming', cursor))
-      .toThrow(UnprocessableEntityException);
-    expect(() => decodeConnectionRequestCursor('owner-a', 'outgoing', cursor))
-      .toThrow(UnprocessableEntityException);
+    expect(() =>
+      decodeConnectionRequestCursor('owner-b', 'incoming', cursor),
+    ).toThrow(UnprocessableEntityException);
+    expect(() =>
+      decodeConnectionRequestCursor('owner-a', 'outgoing', cursor),
+    ).toThrow(UnprocessableEntityException);
   });
 
   it('rejects altered, noncanonical or unexpected cursor contents', () => {
