@@ -75,10 +75,7 @@ describe('B148 private followers HTTP', () => {
   it('declares inbound follow index without changing B147 connection indexes', () => {
     expect(SocialFollowSchema.indexes()).toEqual(
       expect.arrayContaining([
-        [
-          { followeeUserId: 1, createdAt: -1, id: 1 },
-          { background: true },
-        ],
+        [{ followeeUserId: 1, createdAt: -1, id: 1 }, { background: true }],
       ]),
     );
   });
