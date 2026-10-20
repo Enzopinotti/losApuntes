@@ -173,18 +173,22 @@ describe('B147 connection requests inbox domain', () => {
   it('returns a scoped incoming pending count, including zero and real datastore failures', async () => {
     const { service, countIncomingConnectionRequests, listConnections } =
       setup();
-    await expect(service.countIncomingConnectionRequests('owner-a')).resolves
-      .toEqual({ pendingIncomingCount: 3 });
+    await expect(
+      service.countIncomingConnectionRequests('owner-a'),
+    ).resolves.toEqual({ pendingIncomingCount: 3 });
     expect(countIncomingConnectionRequests).toHaveBeenCalledWith('owner-a');
     countIncomingConnectionRequests.mockResolvedValue(0);
-    await expect(service.countIncomingConnectionRequests('owner-a')).resolves
-      .toEqual({ pendingIncomingCount: 0 });
+    await expect(
+      service.countIncomingConnectionRequests('owner-a'),
+    ).resolves.toEqual({ pendingIncomingCount: 0 });
     expect(listConnections).not.toHaveBeenCalled();
     countIncomingConnectionRequests.mockResolvedValue(-1);
-    await expect(service.countIncomingConnectionRequests('owner-a')).rejects
-      .toBeInstanceOf(ServiceUnavailableException);
+    await expect(
+      service.countIncomingConnectionRequests('owner-a'),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
     countIncomingConnectionRequests.mockRejectedValue(new Error('mongo-down'));
-    await expect(service.countIncomingConnectionRequests('owner-a')).rejects
-      .toThrow('mongo-down');
+    await expect(
+      service.countIncomingConnectionRequests('owner-a'),
+    ).rejects.toThrow('mongo-down');
   });
 });
