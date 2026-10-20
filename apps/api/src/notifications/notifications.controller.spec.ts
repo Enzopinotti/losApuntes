@@ -20,9 +20,9 @@ describe('B144 private notification unread counter HTTP', () => {
 
     expect(Reflect.getMetadata(PATH_METADATA, route)).toBe('unread-count');
     expect(Reflect.getMetadata(METHOD_METADATA, route)).toBe(RequestMethod.GET);
-    expect(Reflect.getMetadata(GUARDS_METADATA, NotificationsController)).toEqual([
-      AuthSessionGuard,
-    ]);
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, NotificationsController),
+    ).toEqual([AuthSessionGuard]);
     expect(Reflect.getMetadata(HEADERS_METADATA, route)).toContainEqual({
       name: 'Cache-Control',
       value: 'private, no-store',
