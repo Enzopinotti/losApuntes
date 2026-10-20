@@ -7,8 +7,12 @@ import {
 import { NetworkOverviewService } from './network-overview.service';
 
 function fixture(following: number[], connections: number[]) {
-  const followCount = jest.fn();
-  const connectionCount = jest.fn();
+  const followCount = jest.fn((_query: Record<string, unknown>) => ({
+    exec: jest.fn().mockResolvedValue(0),
+  }));
+  const connectionCount = jest.fn((_query: Record<string, unknown>) => ({
+    exec: jest.fn().mockResolvedValue(0),
+  }));
 
   for (const result of following) {
     followCount.mockReturnValueOnce({
@@ -107,12 +111,12 @@ describe('B158 private social network overview', () => {
   });
 
   it('propagates database failures instead of returning fake or partial totals', async () => {
-    const followCount = jest.fn().mockReturnValue({
+    const followCount = jest.fn((_query: Record<string, unknown>) => ({
       exec: jest.fn().mockRejectedValue(new Error('database unavailable')),
-    });
-    const connectionCount = jest.fn().mockReturnValue({
+    }));
+    const connectionCount = jest.fn((_query: Record<string, unknown>) => ({
       exec: jest.fn().mockResolvedValue(0),
-    });
+    }));
     const service = new NetworkOverviewService(
       { countDocuments: followCount } as unknown as Model<SocialFollow>,
       { countDocuments: connectionCount } as unknown as Model<SocialConnection>,
