@@ -11,8 +11,7 @@ import "./Dashboard.scss";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [activeJourney, setActiveJourney] =
-    useState<DashboardJourneyId>("study");
+  const [activeJourney, setActiveJourney] = useState<DashboardJourneyId>("study");
   const [query, setQuery] = useState("");
   const [searchError, setSearchError] = useState<string | null>(null);
   const selectedJourney = dashboardJourneyById(activeJourney);
@@ -41,7 +40,10 @@ const Dashboard = () => {
         </p>
       </header>
 
-      <section className="dashboard-search" aria-labelledby="dashboard-search-title">
+      <section
+        className="dashboard-search"
+        aria-labelledby="dashboard-search-title"
+      >
         <div>
           <h2 id="dashboard-search-title">Encontrá algo para avanzar</h2>
           <p>
@@ -74,19 +76,30 @@ const Dashboard = () => {
             Entre 2 y 120 caracteres; podés cambiar filtros en los resultados.
           </p>
           {searchError && (
-            <p id="dashboard-search-error" className="dashboard-search-error" role="alert">
+            <p
+              id="dashboard-search-error"
+              className="dashboard-search-error"
+              role="alert"
+            >
               {searchError}
             </p>
           )}
         </form>
       </section>
 
-      <section className="dashboard-journeys" aria-labelledby="dashboard-journeys-title">
+      <section
+        className="dashboard-journeys"
+        aria-labelledby="dashboard-journeys-title"
+      >
         <div className="dashboard-section-heading">
           <h2 id="dashboard-journeys-title">Elegí por dónde empezar</h2>
           <p>Cuatro caminos simples, sin métricas de actividad inventadas.</p>
         </div>
-        <div className="dashboard-journey-filters" role="group" aria-label="Tipo de actividad">
+        <div
+          className="dashboard-journey-filters"
+          role="group"
+          aria-label="Tipo de actividad"
+        >
           {dashboardJourneys.map((journey) => (
             <button
               key={journey.id}
@@ -99,7 +112,10 @@ const Dashboard = () => {
             </button>
           ))}
         </div>
-        <div className="dashboard-journey-detail" aria-labelledby="dashboard-journey-title">
+        <div
+          className="dashboard-journey-detail"
+          aria-labelledby="dashboard-journey-title"
+        >
           <h3 id="dashboard-journey-title">{selectedJourney.title}</h3>
           <p>{selectedJourney.description}</p>
           <ul className="dashboard-action-grid">
