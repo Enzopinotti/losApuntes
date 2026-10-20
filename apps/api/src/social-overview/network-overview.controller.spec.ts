@@ -21,9 +21,7 @@ describe('B158 social network overview HTTP contract', () => {
       NetworkOverviewController.prototype,
       'getOverview',
     ) as object;
-    expect(Reflect.getMetadata(PATH_METADATA, method)).toBe(
-      'network-overview',
-    );
+    expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('network-overview');
     expect(Reflect.getMetadata(HEADERS_METADATA, method)).toContainEqual({
       name: 'Cache-Control',
       value: 'private, no-store',
