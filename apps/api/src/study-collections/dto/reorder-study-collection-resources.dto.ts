@@ -1,4 +1,11 @@
-import { ArrayMaxSize, ArrayUnique, IsArray, IsInt, IsUUID, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsInt,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 import { STUDY_COLLECTION_MAX_ITEMS } from '../domain/study-collection.store';
 
