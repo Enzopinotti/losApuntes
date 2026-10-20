@@ -59,8 +59,7 @@ export function decodeMineCursor(
     }
     const row = parsed as Record<string, unknown>;
     if (
-      Object.keys(row).sort().join(',') !==
-        'id,ownerTag,updatedAt,version' ||
+      Object.keys(row).sort().join(',') !== 'id,ownerTag,updatedAt,version' ||
       row.version !== 1 ||
       row.ownerTag !== ownerTag(ownerUserId) ||
       typeof row.id !== 'string' ||
