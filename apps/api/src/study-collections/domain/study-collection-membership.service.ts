@@ -74,11 +74,7 @@ export class StudyCollectionMembershipService {
         message: 'Membership page size must be between 1 and 25',
       });
     }
-    const after = decodeMembershipCursor(
-      ownerUserId,
-      resourceId,
-      input.cursor,
-    );
+    const after = decodeMembershipCursor(ownerUserId, resourceId, input.cursor);
 
     // A resource identifier is not an access grant. Deny a missing or
     // unreadable resource using existing ResourceService authority.
@@ -129,7 +125,9 @@ export class StudyCollectionMembershipService {
         !Array.isArray(row.resourceIds) ||
         row.resourceIds.length > MAX_COLLECTION_ITEMS ||
         !row.resourceIds.includes(resourceId) ||
-        row.resourceIds.some((id) => typeof id !== 'string' || !UUID_V4.test(id)) ||
+        row.resourceIds.some(
+          (id) => typeof id !== 'string' || !UUID_V4.test(id),
+        ) ||
         new Set(row.resourceIds).size !== row.resourceIds.length ||
         !(row.updatedAt instanceof Date) ||
         !Number.isFinite(row.updatedAt.getTime())
