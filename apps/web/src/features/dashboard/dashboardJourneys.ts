@@ -1,4 +1,5 @@
-export type DashboardJourneyId = "study" | "contribute" | "community" | "account";
+export type DashboardJourneyId =
+  "study" | "contribute" | "community" | "account";
 
 export type DashboardAction = Readonly<{
   id: string;
@@ -39,7 +40,8 @@ export const dashboardJourneys: readonly DashboardJourney[] = [
       {
         id: "portable-kits",
         label: "Mis colecciones portátiles",
-        description: "Prepará kits locales y revisá su alcance antes de compartirlos.",
+        description:
+          "Prepará kits locales y revisá su alcance antes de compartirlos.",
         href: "/study/kits",
       },
     ],
@@ -64,7 +66,8 @@ export const dashboardJourneys: readonly DashboardJourney[] = [
       {
         id: "search",
         label: "Explorar materias",
-        description: "Buscá contenidos, materias y personas desde un solo lugar.",
+        description:
+          "Buscá contenidos, materias y personas desde un solo lugar.",
         href: "/search",
       },
     ],
