@@ -17,10 +17,9 @@ describe('B143 private study-progress index route', () => {
       'list',
     ) as object;
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('/');
-    expect(Reflect.getMetadata(GUARDS_METADATA, StudyProgressController)).toEqual([
-      AuthSessionGuard,
-      StudyProgressFeatureGuard,
-    ]);
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, StudyProgressController),
+    ).toEqual([AuthSessionGuard, StudyProgressFeatureGuard]);
     expect(Reflect.getMetadata(HEADERS_METADATA, method)).toContainEqual({
       name: 'Cache-Control',
       value: 'private, no-store',
