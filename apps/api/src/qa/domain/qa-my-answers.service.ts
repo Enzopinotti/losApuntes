@@ -51,10 +51,7 @@ export class QaMyAnswersService {
     private readonly answers: Model<Answer>,
   ) {}
 
-  async list(
-    ownerUserId: string,
-    input: { limit: number; cursor?: string },
-  ) {
+  async list(ownerUserId: string, input: { limit: number; cursor?: string }) {
     if (!ownerUserId || !ownerUserId.trim()) {
       throw new UnprocessableEntityException({
         code: 'QA_MY_ANSWERS_OWNER_REQUIRED',
@@ -129,7 +126,9 @@ export class QaMyAnswersService {
         },
       },
     ];
-    const rows = await this.answers.aggregate<VisibleAnswerRow>(pipeline).exec();
+    const rows = await this.answers
+      .aggregate<VisibleAnswerRow>(pipeline)
+      .exec();
     if (!Array.isArray(rows) || rows.length > input.limit + 1) {
       return unavailable();
     }
