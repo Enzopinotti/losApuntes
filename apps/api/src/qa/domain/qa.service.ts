@@ -18,6 +18,7 @@ import type {
   UpdateQuestionDto,
 } from '../dto/qa.dto';
 import { QA_STORE, type QaStore } from './qa.store';
+import { decodeMineCursor, encodeMineCursor } from './qa-mine-cursor';
 import type {
   AnswerCursor,
   AnswerAccountExportRow,
@@ -294,6 +295,51 @@ export class QaService {
       nextCursor:
         result.hasMore && last
           ? encodeCursor({ updatedAt: last.updatedAt, id: last.id })
+          : null,
+    };
+  }
+
+  /**
+   * Authenticated owner's available Q&A history. The DB predicate enforces
+   * authorship before pagination; rendering still uses the public-safe
+   * question projection and does not override moderation.
+   */
+  async mine(ownerUserId: string, dto: QuestionSearchDto) {
+    if (!ownerUserId.trim()) {
+      throw new UnprocessableEntityException({
+        code: 'QUESTION_MINE_OWNER_REQUIRED',
+        message: 'Authenticated account is required',
+      });
+    }
+    if (!Number.isSafeInteger(dto.limit) || dto.limit < 1 || dto.limit > 50) {
+      throw new UnprocessableEntityException({
+        code: 'QUESTION_PAGE_LIMIT_INVALID',
+        message: 'Page size must be between 1 and 50',
+      });
+    }
+    const after = decodeMineCursor(ownerUserId, dto.cursor);
+    const subjectId = dto.subjectId
+      ? (await this.academic.resolveResourceContext(dto.subjectId)).subjectId
+      : undefined;
+    const page = await this.store.searchQuestions({
+      authorUserId: ownerUserId,
+      ...(dto.q ? { q: cleanText(dto.q).toLocaleLowerCase('es-AR') } : {}),
+      ...(subjectId ? { subjectId } : {}),
+      ...(dto.status ? { state: dto.status } : {}),
+      limit: dto.limit,
+      ...(after ? { after } : {}),
+    });
+    const last = page.items.at(-1);
+    return {
+      items: await Promise.all(
+        page.items.map((row) => this.questionProjection(row, ownerUserId)),
+      ),
+      nextCursor:
+        page.hasMore && last
+          ? encodeMineCursor(ownerUserId, {
+              updatedAt: last.updatedAt,
+              id: last.id,
+            })
           : null,
     };
   }
