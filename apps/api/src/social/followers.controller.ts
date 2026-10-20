@@ -12,10 +12,7 @@ export class FollowersController {
 
   @Get()
   @Header('Cache-Control', 'private, no-store')
-  list(
-    @Req() request: AuthenticatedRequest,
-    @Query() query: FollowersPageDto,
-  ) {
+  list(@Req() request: AuthenticatedRequest, @Query() query: FollowersPageDto) {
     return this.followers.list(request.user.id, query.limit, query.cursor);
   }
 
