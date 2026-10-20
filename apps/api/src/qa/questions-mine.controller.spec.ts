@@ -45,7 +45,9 @@ describe('B145 own questions HTTP route', () => {
 
   it('does not mask service failures as an empty page', async () => {
     const mine = jest.fn().mockRejectedValue(new Error('db-down'));
-    const controller = new QuestionsController({ mine } as unknown as QaService);
+    const controller = new QuestionsController({
+      mine,
+    } as unknown as QaService);
     await expect(
       controller.mine({ user: { id: 'owner-a' } } as AuthenticatedRequest, {
         limit: 25,
