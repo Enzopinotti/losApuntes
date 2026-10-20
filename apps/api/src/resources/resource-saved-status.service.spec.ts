@@ -113,8 +113,10 @@ describe('B155 owner-safe batch bookmark status', () => {
     await expect(f.service.check('owner-a', [first])).resolves.toEqual({
       items: [{ resourceId: first, isSaved: false }],
     });
-    const ids = Array.from({ length: 50 }, (_, index) =>
-      `00000000-0000-4000-8000-${(index + 1).toString(16).padStart(12, '0')}`,
+    const ids = Array.from(
+      { length: 50 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${(index + 1).toString(16).padStart(12, '0')}`,
     );
     const rows = await f.service.check('owner-a', ids);
     expect(rows.items).toHaveLength(50);
