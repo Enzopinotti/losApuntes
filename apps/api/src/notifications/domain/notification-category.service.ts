@@ -111,7 +111,8 @@ export class NotificationCategoryService {
     if (!Array.isArray(rows) || rows.length > input.limit + 1) {
       return unavailable();
     }
-    const allowedTypes: readonly string[] = CATEGORY_NOTIFICATION_TYPES[category];
+    const allowedTypes: readonly string[] =
+      CATEGORY_NOTIFICATION_TYPES[category];
     for (const row of rows) {
       if (
         !row ||
@@ -121,8 +122,7 @@ export class NotificationCategoryService {
         row.targetType !== CATEGORY_TARGET_TYPES[row.type] ||
         !UUID_V4.test(row.targetId) ||
         (row.actorUserId !== null &&
-          (typeof row.actorUserId !== 'string' ||
-            !row.actorUserId.trim())) ||
+          (typeof row.actorUserId !== 'string' || !row.actorUserId.trim())) ||
         (row.readAt !== null &&
           (!(row.readAt instanceof Date) ||
             !Number.isFinite(row.readAt.getTime()))) ||
