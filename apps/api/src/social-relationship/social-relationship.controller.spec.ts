@@ -29,7 +29,9 @@ describe('B150 authenticated relationship lookup HTTP', () => {
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe(
       ':profileId/relationship',
     );
-    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(RequestMethod.GET);
+    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(
+      RequestMethod.GET,
+    );
     expect(Reflect.getMetadata(HEADERS_METADATA, method)).toContainEqual({
       name: 'Cache-Control',
       value: 'private, no-store',
