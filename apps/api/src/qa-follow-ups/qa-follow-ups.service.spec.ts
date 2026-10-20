@@ -20,9 +20,7 @@ function item(id: string, hasVisibleAnswer: boolean) {
   };
 }
 
-function fixture(
-  rows: unknown = [{ needsReview: [], awaitingReplies: [] }],
-) {
+function fixture(rows: unknown = [{ needsReview: [], awaitingReplies: [] }]) {
   const exec = jest.fn().mockResolvedValue(rows);
   const option = jest.fn().mockReturnValue({ exec });
   const aggregate = jest.fn<unknown, [unknown[]]>().mockReturnValue({ option });
