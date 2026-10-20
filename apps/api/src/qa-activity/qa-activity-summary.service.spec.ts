@@ -1,0 +1,145 @@
+import { ServiceUnavailableException } from '@nestjs/common';
+import type { Model } from 'mongoose';
+
+import { Answer, Question } from '../qa/mongo/qa.mongo-schemas';
+import { QaActivitySummaryService } from './qa-activity-summary.service';
+
+function createFixture(
+  questionRows: unknown[],
+  answerRows: unknown[],
+) {
+  const questionAggregate = jest.fn<unknown, [unknown[]]>();
+  const answerAggregate = jest.fn<unknown, [unknown[]]>();
+
+  questionAggregate.mockReturnValue({
+    exec: jest.fn().mockResolvedValue(questionRows),
+  });
+  answerAggregate.mockReturnValue({
+    exec: jest.fn().mockResolvedValue(answerRows),
+  });
+
+  const service = new QaActivitySummaryService(
+    { aggregate: questionAggregate } as unknown as Model<Question>,
+    { aggregate: answerAggregate } as unknown as Model<Answer>,
+  );
+
+  return { service, questionAggregate, answerAggregate };
+}
+
+describe('B159 Q&A activity summary', () => {
+  it('aggregates available owner questions and answers on available parents', async () => {
+    const { service, questionAggregate, answerAggregate } = createFixture(
+      [{
+        questionsTotal: 8,
+        questionsOpen: 5,
+        questionsClosed: 3,
+        questionsOpenWithoutAcceptedAnswer: 2,
+      }],
+      [{ answersVisible: 12, answersAccepted: 4 }],
+    );
+
+    await expect(service.forOwner('session-owner')).resolves.toEqual({
+      questionsTotal: 8,
+      questionsOpen: 5,
+      questionsClosed: 3,
+      questionsOpenWithoutAcceptedAnswer: 2,
+      answersVisible: 12,
+      answersAccepted: 4,
+    });
+
+    const questionPipeline = questionAggregate.mock.calls[0]?.[0];
+    const answerPipeline = answerAggregate.mock.calls[0]?.[0];
+    expect(questionPipeline?.[0]).toEqual({
+      $match: {
+        authorUserId: 'session-owner',
+        moderationState: 'available',
+        state: { $in: ['open', 'closed'] },
+      },
+    });
+    expect(answerPipeline?.[0]).toEqual({
+      $match: {
+        authorUserId: 'session-owner',
+        moderationState: 'available',
+      },
+    });
+    expect(answerPipeline?.[1]).toEqual({
+      $lookup: {
+        from: 'questions',
+        let: { questionId: '$questionId' },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ['$id', '$$questionId'] },
+              moderationState: 'available',
+              state: { $in: ['open', 'closed'] },
+            },
+          },
+          { $project: { _id: 0, acceptedAnswerId: 1 } },
+          { $limit: 1 },
+        ],
+        as: 'visibleQuestion',
+      },
+    });
+    expect(answerPipeline?.[2]).toEqual({ $unwind: '$visibleQuestion' });
+    expect(questionAggregate).toHaveBeenCalledTimes(1);
+    expect(answerAggregate).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns all zero counts for an empty account', async () => {
+    const { service } = createFixture([], []);
+    await expect(service.forOwner('fresh-user')).resolves.toEqual({
+      questionsTotal: 0,
+      questionsOpen: 0,
+      questionsClosed: 0,
+      questionsOpenWithoutAcceptedAnswer: 0,
+      answersVisible: 0,
+      answersAccepted: 0,
+    });
+  });
+
+  it.each([
+    [{ questionsTotal: 3, questionsOpen: 1, questionsClosed: 1, questionsOpenWithoutAcceptedAnswer: 0 }, []],
+    [{ questionsTotal: 2, questionsOpen: 1, questionsClosed: 1, questionsOpenWithoutAcceptedAnswer: 2 }, []],
+    [{ questionsTotal: -1, questionsOpen: 0, questionsClosed: 0, questionsOpenWithoutAcceptedAnswer: 0 }, []],
+    [{ questionsTotal: 1.4, questionsOpen: 1.4, questionsClosed: 0, questionsOpenWithoutAcceptedAnswer: 0 }, []],
+    [{ questionsTotal: 1, questionsOpen: Number.NaN, questionsClosed: 0, questionsOpenWithoutAcceptedAnswer: 0 }, []],
+  ])('fails closed for corrupt question aggregate totals', async (row) => {
+    const { service } = createFixture([row], []);
+    await expect(service.forOwner('owner')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('does not invent accepted answers when aggregate counts are inconsistent', async () => {
+    const { service } = createFixture([], [{
+      answersVisible: 1,
+      answersAccepted: 2,
+    }]);
+    await expect(service.forOwner('owner')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('rejects duplicate or malformed aggregate group rows', async () => {
+    const one = {
+      questionsTotal: 0,
+      questionsOpen: 0,
+      questionsClosed: 0,
+      questionsOpenWithoutAcceptedAnswer: 0,
+    };
+    const { service } = createFixture([one, one], []);
+    await expect(service.forOwner('owner')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('propagates database errors instead of returning synthetic zeros', async () => {
+    const { service, answerAggregate } = createFixture([], []);
+    answerAggregate.mockReturnValue({
+      exec: jest.fn().mockRejectedValue(new Error('Mongo unavailable')),
+    });
+    await expect(service.forOwner('owner')).rejects.toThrow(
+      'Mongo unavailable',
+    );
+  });
+});
