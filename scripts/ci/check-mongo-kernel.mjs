@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 // mongod safety check with flags, sysctls, or undocumented patches.
 export function classifyMongoCiKernel(release) {
   assert.equal(typeof release, "string", "Linux kernel release must be text");
-  const match = /^(\\d+)\\.(\\d+)\\.(\\d+)(?:[-+][A-Za-z0-9._+-]+)?$/u.exec(
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+][A-Za-z0-9._+-]+)?$/u.exec(
     release.trim(),
   );
   assert.ok(match, "Unrecognized Linux kernel release; cannot prove MongoDB compatibility");
