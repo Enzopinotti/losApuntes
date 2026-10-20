@@ -4,7 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import type { FilterQuery, Model } from 'mongoose';
 
 import { ProfileService } from '../../profile/domain/profile.service';
 import { SocialFollow } from '../mongo/social.mongo-schemas';
@@ -51,7 +51,7 @@ export class FollowersService {
     }
     const after = decodeFollowersCursor(ownerUserId, cursor);
 
-    const filters: Record<string, unknown>[] = [
+    const filters: FilterQuery<SocialFollow>[] = [
       { followeeUserId: ownerUserId },
     ];
     if (after) {
