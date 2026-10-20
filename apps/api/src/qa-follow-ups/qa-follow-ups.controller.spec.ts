@@ -14,9 +14,9 @@ describe('B161 private follow-ups HTTP route', () => {
     expect(Reflect.getMetadata(PATH_METADATA, QaFollowUpsController)).toBe(
       'qa/me',
     );
-    expect(
-      Reflect.getMetadata(GUARDS_METADATA, QaFollowUpsController),
-    ).toEqual([AuthSessionGuard]);
+    expect(Reflect.getMetadata(GUARDS_METADATA, QaFollowUpsController)).toEqual(
+      [AuthSessionGuard],
+    );
 
     const handler = Reflect.get(
       QaFollowUpsController.prototype,
