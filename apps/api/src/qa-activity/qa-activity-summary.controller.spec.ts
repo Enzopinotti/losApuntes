@@ -11,9 +11,9 @@ import type { QaActivitySummaryService } from './qa-activity-summary.service';
 
 describe('B159 private Q&A summary HTTP route', () => {
   it('is a private non-cacheable authenticated endpoint', () => {
-    expect(Reflect.getMetadata(PATH_METADATA, QaActivitySummaryController)).toBe(
-      'qa/me',
-    );
+    expect(
+      Reflect.getMetadata(PATH_METADATA, QaActivitySummaryController),
+    ).toBe('qa/me');
     expect(
       Reflect.getMetadata(GUARDS_METADATA, QaActivitySummaryController),
     ).toEqual([AuthSessionGuard]);
