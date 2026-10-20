@@ -82,6 +82,21 @@ describe('B153 Mongo collection order lifecycle and compare-and-swap', () => {
     expect(f.session.endSession).toHaveBeenCalledTimes(1);
   });
 
+  it('aborts before commit when Mongo returns a corrupted post-write row', async () => {
+    const f = fixture(true, {
+      id: collectionId,
+      ownerUserId: owner,
+      resourceIds: [first, second],
+      revision: 5,
+      updatedAt: new Date('2026-10-20T12:00:00.000Z'),
+    });
+    await expect(f.store.reorderResources(mutation())).rejects.toMatchObject({
+      response: { code: 'STUDY_COLLECTION_ORDER_DATA_INVALID' },
+    });
+    expect(f.findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(f.session.endSession).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects inactive owners without issuing a collection write', async () => {
     const f = fixture(false, null);
     await expect(f.store.reorderResources(mutation())).rejects.toBeInstanceOf(
