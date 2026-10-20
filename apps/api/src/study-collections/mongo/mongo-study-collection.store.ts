@@ -184,14 +184,14 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
   async reorderResources(
     input: Parameters<StudyCollectionStore['reorderResources']>[0],
   ): Promise<StudyCollectionRecord | null> {
-    return this.withActiveOwnerTransaction(input.ownerUserId, async (session) => {
+    const mutation = async (session: ClientSession) => {
       const updated = await this.collections
         .findOneAndUpdate(
           {
             id: input.id,
             ownerUserId: input.ownerUserId,
             revision: input.expectedRevision,
-            // Exact equality catches legacy writers that forgot to bump revision.
+            // Protect against legacy writers that missed the revision bump.
             resourceIds: input.originalResourceIds,
           },
           {
@@ -203,9 +203,8 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
         .lean<StudyCollectionRecord>()
         .exec();
 
-      // Validate before the transaction commits. An inconsistent post-write
-      // result aborts the entire transaction, including the User lifecycle
-      // revision write, instead of returning a misleading 200.
+      // Fail before committing the transaction if Mongo reports an
+      // inconsistent post-write document. Account lifecycle is rolled back.
       if (
         updated &&
         (updated.id !== input.id ||
@@ -225,7 +224,9 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
         });
       }
       return updated;
-    });
+    };
+
+    return this.withActiveOwnerTransaction(input.ownerUserId, mutation);
   }
 
   async addResource(
