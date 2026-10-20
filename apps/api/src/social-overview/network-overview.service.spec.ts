@@ -107,10 +107,12 @@ describe('B158 private social network overview', () => {
   });
 
   it('propagates database failures instead of returning fake or partial totals', async () => {
-    const followCount = jest.fn<unknown, [Record<string, unknown>]>().mockReturnValue({
+    const followCount = jest.fn<unknown, [Record<string, unknown>]>();
+    followCount.mockReturnValue({
       exec: jest.fn().mockRejectedValue(new Error('database unavailable')),
     });
-    const connectionCount = jest.fn<unknown, [Record<string, unknown>]>().mockReturnValue({
+    const connectionCount = jest.fn<unknown, [Record<string, unknown>]>();
+    connectionCount.mockReturnValue({
       exec: jest.fn().mockResolvedValue(0),
     });
     const service = new NetworkOverviewService(
