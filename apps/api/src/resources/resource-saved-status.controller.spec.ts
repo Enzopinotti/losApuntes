@@ -96,10 +96,9 @@ describe('B155 private bookmark-status batch HTTP', () => {
       check,
     } as unknown as ResourceSavedStatusService);
     await expect(
-      controller.check(
-        { user: { id: 'owner-a' } } as AuthenticatedRequest,
-        { resourceIds: [first] },
-      ),
+      controller.check({ user: { id: 'owner-a' } } as AuthenticatedRequest, {
+        resourceIds: [first],
+      }),
     ).rejects.toThrow('db-offline');
   });
 });
