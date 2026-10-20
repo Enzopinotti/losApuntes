@@ -42,12 +42,12 @@ function fixture(
     updatedAt: later,
   },
 ) {
-  const findOwned = jest.fn().mockResolvedValue(
-    current === null ? null : row(current),
-  );
-  const reorderResources = jest.fn().mockResolvedValue(
-    updated === null ? null : row(updated),
-  );
+  const findOwned = jest
+    .fn()
+    .mockResolvedValue(current === null ? null : row(current));
+  const reorderResources = jest
+    .fn()
+    .mockResolvedValue(updated === null ? null : row(updated));
   const service = new StudyCollectionOrderService({
     findOwned,
     reorderResources,
@@ -157,9 +157,9 @@ describe('B153 owner-scoped resource order service', () => {
 
   it('rejects stale revisions, including replay of the same order', async () => {
     const f = fixture();
-    await expect(
-      attempt(f.service, [a, b, c], 3),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(attempt(f.service, [a, b, c], 3)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     expect(f.reorderResources).not.toHaveBeenCalled();
   });
 
@@ -188,9 +188,9 @@ describe('B153 owner-scoped resource order service', () => {
       { updatedAt: new Date(Number.NaN) },
     ]) {
       const f = fixture(bad as RowPatch);
-      await expect(
-        attempt(f.service, [a, b, c]),
-      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      await expect(attempt(f.service, [a, b, c])).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
       expect(f.reorderResources).not.toHaveBeenCalled();
     }
   });
@@ -212,15 +212,18 @@ describe('B153 owner-scoped resource order service', () => {
       { resourceIds: [c, a] },
       { updatedAt: new Date(Number.NaN) },
     ]) {
-      const f = fixture({}, {
-        resourceIds: [c, a, b],
-        revision: 5,
-        updatedAt: later,
-        ...bad,
-      });
-      await expect(
-        attempt(f.service, [c, a, b]),
-      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      const f = fixture(
+        {},
+        {
+          resourceIds: [c, a, b],
+          revision: 5,
+          updatedAt: later,
+          ...bad,
+        },
+      );
+      await expect(attempt(f.service, [c, a, b])).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
     }
   });
 
