@@ -2,6 +2,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import type { PipelineStage } from 'mongoose';
 
 import { StudyCollectionOverviewService } from './study-collection-overview.service';
 
@@ -45,9 +46,13 @@ function fixture(
   ],
 ) {
   const exec = jest.fn().mockResolvedValue(result);
-  const aggregate = jest.fn().mockReturnValue({ exec });
+  let lastPipeline: PipelineStage[] | undefined;
+  const aggregate = jest.fn((pipeline: PipelineStage[]) => {
+    lastPipeline = pipeline;
+    return { exec };
+  });
   const overview = new StudyCollectionOverviewService({ aggregate } as never);
-  return { overview, exec, aggregate };
+  return { overview, exec, aggregate, getPipeline: () => lastPipeline };
 }
 
 describe('B152 study collection overview owner-only aggregation', () => {
@@ -55,18 +60,20 @@ describe('B152 study collection overview owner-only aggregation', () => {
     const f = fixture();
     const result = await f.overview.get('owner-a');
     expect(f.aggregate).toHaveBeenCalledTimes(1);
-    const pipeline = f.aggregate.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >;
-    expect(pipeline[0]).toEqual({ $match: { ownerUserId: 'owner-a' } });
-    expect(pipeline[1]).toEqual({ $sort: { updatedAt: -1, id: 1 } });
-    expect(pipeline[2]).toHaveProperty('$project');
-    const facet = pipeline[3]?.$facet as Record<string, unknown[]>;
-    expect(facet.totals).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ $group: expect.any(Object) }),
-      ]),
-    );
+    const pipeline = f.getPipeline();
+    expect(pipeline?.[0]).toEqual({ $match: { ownerUserId: 'owner-a' } });
+    expect(pipeline?.[1]).toEqual({ $sort: { updatedAt: -1, id: 1 } });
+    expect(pipeline?.[2]).toHaveProperty('$project');
+    const facet = (
+      pipeline?.[3] as {
+        $facet: { totals: unknown[]; recent: unknown[] };
+      }
+    ).$facet;
+    expect(
+      facet.totals.some(
+        (stage) => typeof stage === 'object' && stage !== null && '$group' in stage,
+      ),
+    ).toBe(true);
     expect(facet.recent[0]).toEqual({ $limit: 5 });
     expect(facet.recent[1]).toHaveProperty('$project');
     expect(result).toEqual({
@@ -105,7 +112,7 @@ describe('B152 study collection overview owner-only aggregation', () => {
       storedResourceReferences: 0,
       recentCollections: [],
     });
-    expect(f.aggregate.mock.calls[0]?.[0]?.[0]).toEqual({
+    expect(f.getPipeline()?.[0]).toEqual({
       $match: { ownerUserId: 'empty-account' },
     });
   });
@@ -124,7 +131,10 @@ describe('B152 study collection overview owner-only aggregation', () => {
     for (const invalid of [
       [],
       null,
-      [{ totals: [], recent: [] }, { totals: [], recent: [] }],
+      [
+        { totals: [], recent: [] },
+        { totals: [], recent: [] },
+      ],
       [{ totals: null, recent: [] }],
       [{ totals: [], recent: null }],
       [{ totals: [metrics(), metrics()], recent: [] }],
@@ -151,9 +161,7 @@ describe('B152 study collection overview owner-only aggregation', () => {
       { invalidCollectionsCount: 1 },
       { invalidCollectionsCount: -1 },
     ]) {
-      const f = fixture([
-        { totals: [metrics(broken)], recent: [recent()] },
-      ]);
+      const f = fixture([{ totals: [metrics(broken)], recent: [recent()] }]);
       await expect(f.overview.get('owner-a')).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
@@ -173,9 +181,7 @@ describe('B152 study collection overview owner-only aggregation', () => {
       { updatedAt: 'not-a-date' },
       { updatedAt: new Date(Number.NaN) },
     ]) {
-      const f = fixture([
-        { totals: [metrics()], recent: [recent(bad)] },
-      ]);
+      const f = fixture([{ totals: [metrics()], recent: [recent(bad)] }]);
       await expect(f.overview.get('owner-a')).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
