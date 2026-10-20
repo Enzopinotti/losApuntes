@@ -25,6 +25,8 @@ import {
   ResourceShare,
   ResourceShareSchema,
 } from './mongo/resource.mongo-schemas';
+import { ResourceSavedStatusController } from './resource-saved-status.controller';
+import { ResourceSavedStatusService } from './resource-saved-status.service';
 import { ResourcesController } from './resources.controller';
 import { ResourceSavedSearchController } from './resource-saved-search.controller';
 
@@ -47,6 +49,7 @@ import { ResourceSavedSearchController } from './resource-saved-search.controlle
   providers: [
     ResourceService,
     ResourceSavedSearchService,
+    ResourceSavedStatusService,
     MongoResourceExportStore,
     MongoResourceStore,
     {
@@ -62,7 +65,11 @@ import { ResourceSavedSearchController } from './resource-saved-search.controlle
       useExisting: MongoResourceStore,
     },
   ],
-  controllers: [ResourcesController, ResourceSavedSearchController],
+  controllers: [
+    ResourcesController,
+    ResourceSavedSearchController,
+    ResourceSavedStatusController,
+  ],
   exports: [ResourceService],
 })
 export class ResourcesModule {}
