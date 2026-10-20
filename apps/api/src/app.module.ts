@@ -22,6 +22,7 @@ import { SearchDiscoveryModule } from './search/search-discovery.module';
 import { StudyCollectionsModule } from './study-collections/study-collections.module';
 import { StudyProgressModule } from './study-progress/study-progress.module';
 import { SocialModule } from './social/social.module';
+import { NetworkOverviewModule } from './social-overview/network-overview.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -52,6 +53,7 @@ import { UsersModule } from './users/users.module';
     OrganizationsModule,
     PilotModule,
     SocialModule,
+    NetworkOverviewModule,
     QaModule,
     HealthModule,
   ],
