@@ -20,8 +20,9 @@ describe('B151 collection membership scoped cursor', () => {
     expect(Buffer.from(cursor, 'base64url').toString('utf8')).not.toContain(
       'sensitive-user-id',
     );
-    expect(decodeMembershipCursor('sensitive-user-id', resourceId, cursor))
-      .toEqual({ id, updatedAt });
+    expect(
+      decodeMembershipCursor('sensitive-user-id', resourceId, cursor),
+    ).toEqual({ id, updatedAt });
     expect(
       decodeMembershipCursor('sensitive-user-id', resourceId),
     ).toBeUndefined();
@@ -32,9 +33,9 @@ describe('B151 collection membership scoped cursor', () => {
       id,
       updatedAt,
     });
-    expect(() =>
-      decodeMembershipCursor('owner-b', resourceId, cursor),
-    ).toThrow(UnprocessableEntityException);
+    expect(() => decodeMembershipCursor('owner-b', resourceId, cursor)).toThrow(
+      UnprocessableEntityException,
+    );
     expect(() =>
       decodeMembershipCursor('owner-a', otherResourceId, cursor),
     ).toThrow(UnprocessableEntityException);
@@ -66,8 +67,9 @@ describe('B151 collection membership scoped cursor', () => {
       encode({ ...object, id: 'not-a-uuid' }),
       encode({}),
     ]) {
-      expect(() => decodeMembershipCursor('owner-a', resourceId, value))
-        .toThrow(UnprocessableEntityException);
+      expect(() =>
+        decodeMembershipCursor('owner-a', resourceId, value),
+      ).toThrow(UnprocessableEntityException);
     }
   });
 });
