@@ -11,7 +11,8 @@ import "./Dashboard.scss";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [activeJourney, setActiveJourney] = useState<DashboardJourneyId>("study");
+  const [activeJourney, setActiveJourney] =
+    useState<DashboardJourneyId>("study");
   const [query, setQuery] = useState("");
   const [searchError, setSearchError] = useState<string | null>(null);
   const selectedJourney = dashboardJourneyById(activeJourney);
@@ -47,8 +48,8 @@ const Dashboard = () => {
         <div>
           <h2 id="dashboard-search-title">Encontrá algo para avanzar</h2>
           <p>
-            Buscá apuntes, materias o personas. Solo se envía la búsqueda
-            cuando la confirmás.
+            Buscá apuntes, materias o personas. Solo se envía la búsqueda cuando
+            la confirmás.
           </p>
         </div>
         <form role="search" onSubmit={submitSearch} noValidate>
