@@ -5,7 +5,10 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
-import type { StudyCollectionRecord, StudyCollectionStore } from './study-collection.store';
+import type {
+  StudyCollectionRecord,
+  StudyCollectionStore,
+} from './study-collection.store';
 import { StudyCollectionOrderService } from './study-collection-order.service';
 
 const collectionId = '11111111-1111-4111-8111-111111111111';
@@ -14,8 +17,9 @@ const b = '33333333-3333-4333-8333-333333333333';
 const c = '44444444-4444-4444-8444-444444444444';
 const now = new Date('2026-10-20T12:00:00.000Z');
 const later = new Date('2026-10-20T12:01:00.000Z');
+type RowPatch = Partial<StudyCollectionRecord>;
 
-function row(overrides: Partial<StudyCollectionRecord> = {}): StudyCollectionRecord {
+function row(overrides: RowPatch = {}): StudyCollectionRecord {
   return {
     id: collectionId,
     ownerUserId: 'owner-a',
@@ -30,13 +34,20 @@ function row(overrides: Partial<StudyCollectionRecord> = {}): StudyCollectionRec
   };
 }
 
-function fixture(current: StudyCollectionRecord | null = row(), updated: StudyCollectionRecord | null = row({
-  resourceIds: [c, a, b],
-  revision: 5,
-  updatedAt: later,
-})) {
-  const findOwned = jest.fn().mockResolvedValue(current);
-  const reorderResources = jest.fn().mockResolvedValue(updated);
+function fixture(
+  current: RowPatch | null = {},
+  updated: RowPatch | null = {
+    resourceIds: [c, a, b],
+    revision: 5,
+    updatedAt: later,
+  },
+) {
+  const findOwned = jest.fn().mockResolvedValue(
+    current === null ? null : row(current),
+  );
+  const reorderResources = jest.fn().mockResolvedValue(
+    updated === null ? null : row(updated),
+  );
   const service = new StudyCollectionOrderService({
     findOwned,
     reorderResources,
@@ -44,13 +55,22 @@ function fixture(current: StudyCollectionRecord | null = row(), updated: StudyCo
   return { service, findOwned, reorderResources };
 }
 
+function attempt(
+  service: StudyCollectionOrderService,
+  resourceIds: string[],
+  expectedRevision = 4,
+) {
+  return service.reorder('owner-a', collectionId, {
+    expectedRevision,
+    resourceIds,
+  });
+}
+
 describe('B153 owner-scoped resource order service', () => {
-  it('reorders only a full permutation with an atomic prior-array and revision condition', async () => {
+  it('atomically reorders a full existing permutation', async () => {
     const f = fixture();
-    await expect(f.service.reorder('owner-a', collectionId, {
-      expectedRevision: 4,
-      resourceIds: [c, a, b],
-    })).resolves.toEqual({
+    const result = await attempt(f.service, [c, a, b]);
+    expect(result).toEqual({
       changed: true,
       collection: {
         id: collectionId,
@@ -70,12 +90,10 @@ describe('B153 owner-scoped resource order service', () => {
     });
   });
 
-  it('is an unchanged no-op without a write or revision bump', async () => {
+  it('keeps the revision and timestamp unchanged for an identical order', async () => {
     const f = fixture();
-    await expect(f.service.reorder('owner-a', collectionId, {
-      expectedRevision: 4,
-      resourceIds: [a, b, c],
-    })).resolves.toEqual({
+    const result = await attempt(f.service, [a, b, c]);
+    expect(result).toEqual({
       changed: false,
       collection: {
         id: collectionId,
@@ -88,75 +106,78 @@ describe('B153 owner-scoped resource order service', () => {
     expect(f.reorderResources).not.toHaveBeenCalled();
   });
 
-  it('allows a no-op for an empty owned collection, without manufacturing references', async () => {
-    const f = fixture(row({ resourceIds: [], revision: 2 }));
-    await expect(f.service.reorder('owner-a', collectionId, {
-      expectedRevision: 2,
-      resourceIds: [],
-    })).resolves.toMatchObject({
+  it('accepts an empty array only for an already empty collection', async () => {
+    const f = fixture({ resourceIds: [], revision: 2 });
+    const result = await attempt(f.service, [], 2);
+    expect(result).toMatchObject({
       changed: false,
       collection: { resourceIds: [], resourceCount: 0, revision: 2 },
     });
     expect(f.reorderResources).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid input before consulting the repository', async () => {
-    const invalid: Array<{ expectedRevision: number; resourceIds: string[] }> = [
-      { expectedRevision: 0, resourceIds: [a, b, c] },
-      { expectedRevision: 1.5, resourceIds: [a, b, c] },
-      { expectedRevision: Number.NaN, resourceIds: [a, b, c] },
-      { expectedRevision: 4, resourceIds: [a, a, b] },
-      { expectedRevision: 4, resourceIds: [a, 'not-uuid'] },
-      { expectedRevision: 4, resourceIds: Array(101).fill(a) as string[] },
-    ];
+  it('rejects duplicate, malformed and oversized inputs before storage', async () => {
     const f = fixture();
-    for (const input of invalid) {
-      await expect(f.service.reorder('owner-a', collectionId, input))
-        .rejects.toBeInstanceOf(UnprocessableEntityException);
+    for (const ids of [
+      [a, a, b],
+      [a, 'not-uuid'],
+      Array(101).fill(a) as string[],
+    ]) {
+      await expect(attempt(f.service, ids)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
     }
-    await expect(f.service.reorder('', collectionId, {
-      expectedRevision: 4, resourceIds: [a, b, c],
-    })).rejects.toBeInstanceOf(UnprocessableEntityException);
-    await expect(f.service.reorder('owner-a', 'bad-id', {
-      expectedRevision: 4, resourceIds: [a, b, c],
-    })).rejects.toBeInstanceOf(UnprocessableEntityException);
+    for (const revision of [0, -1, 1.5, Number.NaN]) {
+      await expect(
+        attempt(f.service, [a, b, c], revision),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    }
+    await expect(
+      f.service.reorder('', collectionId, {
+        expectedRevision: 4,
+        resourceIds: [a, b, c],
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      f.service.reorder('owner-a', 'bad-id', {
+        expectedRevision: 4,
+        resourceIds: [a, b, c],
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(f.findOwned).not.toHaveBeenCalled();
   });
 
-  it('hides foreign or deleted collection behind the owner-scoped 404', async () => {
+  it('returns owner-scoped 404 for another account or deleted collection', async () => {
     const f = fixture(null);
-    await expect(f.service.reorder('owner-a', collectionId, {
-      expectedRevision: 4,
-      resourceIds: [a, b, c],
-    })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(attempt(f.service, [c, a, b])).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(f.reorderResources).not.toHaveBeenCalled();
   });
 
-  it('refuses a stale revision even when proposed order is unchanged', async () => {
+  it('rejects stale revisions, including replay of the same order', async () => {
     const f = fixture();
-    await expect(f.service.reorder('owner-a', collectionId, {
-      expectedRevision: 3,
-      resourceIds: [a, b, c],
-    })).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      attempt(f.service, [a, b, c], 3),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(f.reorderResources).not.toHaveBeenCalled();
   });
 
-  it('refuses additions, omissions or substitutions rather than modifying collection membership', async () => {
+  it('prevents additions, removals and substitutions through reordering', async () => {
     const f = fixture();
     for (const ids of [
       [a, b],
       [a, b, c, '66666666-6666-4666-8666-666666666666'],
       [a, b, '66666666-6666-4666-8666-666666666666'],
     ]) {
-      await expect(f.service.reorder('owner-a', collectionId, {
-        expectedRevision: 4,
-        resourceIds: ids,
-      })).rejects.toBeInstanceOf(ConflictException);
+      await expect(attempt(f.service, ids)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     }
     expect(f.reorderResources).not.toHaveBeenCalled();
   });
 
-  it('fails closed on malformed owned collection records', async () => {
+  it('fails closed on invalid owned documents', async () => {
     for (const bad of [
       { ownerUserId: 'other' },
       { id: 'not-uuid' },
@@ -166,24 +187,23 @@ describe('B153 owner-scoped resource order service', () => {
       { resourceIds: 'wrong-type' },
       { updatedAt: new Date(Number.NaN) },
     ]) {
-      const f = fixture(row(bad as Partial<StudyCollectionRecord>));
-      await expect(f.service.reorder('owner-a', collectionId, {
-        expectedRevision: 4,
-        resourceIds: [a, b, c],
-      })).rejects.toBeInstanceOf(ServiceUnavailableException);
+      const f = fixture(bad as RowPatch);
+      await expect(
+        attempt(f.service, [a, b, c]),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
       expect(f.reorderResources).not.toHaveBeenCalled();
     }
   });
 
-  it('reports the CAS conflict if another writer changes the collection before commit', async () => {
-    const f = fixture(row(), null);
-    await expect(f.service.reorder('owner-a', collectionId, {
-      expectedRevision: 4,
-      resourceIds: [c, a, b],
-    })).rejects.toBeInstanceOf(ConflictException);
+  it('reports an atomic compare-and-swap conflict without retrying', async () => {
+    const f = fixture({}, null);
+    await expect(attempt(f.service, [c, a, b])).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(f.reorderResources).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects inconsistent mutation results instead of declaring success', async () => {
+  it('rejects malformed mutation results instead of claiming success', async () => {
     for (const bad of [
       { revision: 4 },
       { revision: 6 },
@@ -192,22 +212,23 @@ describe('B153 owner-scoped resource order service', () => {
       { resourceIds: [c, a] },
       { updatedAt: new Date(Number.NaN) },
     ]) {
-      const f = fixture(row(), row({
-        resourceIds: [c, a, b], revision: 5, updatedAt: later, ...bad,
-      }));
-      await expect(f.service.reorder('owner-a', collectionId, {
-        expectedRevision: 4,
+      const f = fixture({}, {
         resourceIds: [c, a, b],
-      })).rejects.toBeInstanceOf(ServiceUnavailableException);
+        revision: 5,
+        updatedAt: later,
+        ...bad,
+      });
+      await expect(
+        attempt(f.service, [c, a, b]),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
     }
   });
 
-  it('does not turn repository outages into a synthetic 404 or conflict', async () => {
+  it('preserves Mongo failures rather than inventing success or a 404', async () => {
     const f = fixture();
     f.reorderResources.mockRejectedValue(new Error('mongo-offline'));
-    await expect(f.service.reorder('owner-a', collectionId, {
-      expectedRevision: 4,
-      resourceIds: [c, a, b],
-    })).rejects.toThrow('mongo-offline');
+    await expect(attempt(f.service, [c, a, b])).rejects.toThrow(
+      'mongo-offline',
+    );
   });
 });
