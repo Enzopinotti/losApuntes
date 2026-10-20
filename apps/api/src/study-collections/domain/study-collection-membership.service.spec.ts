@@ -6,9 +6,7 @@ import {
 } from '@nestjs/common';
 
 import type { ResourceService } from '../../resources/domain/resource.service';
-import {
-  encodeMembershipCursor,
-} from './study-collection-membership.cursor';
+import { encodeMembershipCursor } from './study-collection-membership.cursor';
 import { StudyCollectionMembershipService } from './study-collection-membership.service';
 
 const resourceId = '11111111-1111-4111-8111-111111111111';
@@ -52,20 +50,14 @@ function setup(rows: unknown[] = []) {
 
 describe('B151 private resource collection membership', () => {
   it('checks resource authority before querying only the authenticated collections', async () => {
-    const f = setup([
-      row(),
-      row({ id: otherId, title: 'Prácticos' }),
-    ]);
+    const f = setup([row(), row({ id: otherId, title: 'Prácticos' })]);
     const result = await f.service.list('owner-a', resourceId, {
       limit: 1,
     });
 
     expect(f.get).toHaveBeenCalledWith(resourceId, 'owner-a');
     expect(f.find).toHaveBeenCalledWith({
-      $and: [
-        { ownerUserId: 'owner-a' },
-        { resourceIds: resourceId },
-      ],
+      $and: [{ ownerUserId: 'owner-a' }, { resourceIds: resourceId }],
     });
     expect(f.query.select).toHaveBeenCalledWith({
       _id: 0,
@@ -78,13 +70,15 @@ describe('B151 private resource collection membership', () => {
     });
     expect(f.query.sort).toHaveBeenCalledWith({ updatedAt: -1, id: 1 });
     expect(f.query.limit).toHaveBeenCalledWith(2);
-    expect(result.items).toEqual([{
-      id: collectionId,
-      title: 'Parciales de Análisis',
-      resourceCount: 1,
-      revision: 3,
-      updatedAt: updatedAt.toISOString(),
-    }]);
+    expect(result.items).toEqual([
+      {
+        id: collectionId,
+        title: 'Parciales de Análisis',
+        resourceCount: 1,
+        revision: 3,
+        updatedAt: updatedAt.toISOString(),
+      },
+    ]);
     expect(result.nextCursor).toEqual(expect.any(String));
     expect(JSON.stringify(result)).not.toContain('owner-a');
     expect(JSON.stringify(result)).not.toContain('privateNote');
