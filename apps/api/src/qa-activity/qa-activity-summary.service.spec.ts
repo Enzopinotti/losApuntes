@@ -4,10 +4,7 @@ import type { Model } from 'mongoose';
 import { Answer, Question } from '../qa/mongo/qa.mongo-schemas';
 import { QaActivitySummaryService } from './qa-activity-summary.service';
 
-function createFixture(
-  questionRows: unknown[],
-  answerRows: unknown[],
-) {
+function createFixture(questionRows: unknown[], answerRows: unknown[]) {
   const questionAggregate = jest.fn<unknown, [unknown[]]>();
   const answerAggregate = jest.fn<unknown, [unknown[]]>();
 
@@ -28,13 +25,16 @@ function createFixture(
 
 describe('B159 Q&A activity summary', () => {
   it('aggregates available owner questions and answers on available parents', async () => {
-    const { service, questionAggregate, answerAggregate } = createFixture(
-      [{
+    const questionRows = [
+      {
         questionsTotal: 8,
         questionsOpen: 5,
         questionsClosed: 3,
         questionsOpenWithoutAcceptedAnswer: 2,
-      }],
+      },
+    ];
+    const { service, questionAggregate, answerAggregate } = createFixture(
+      questionRows,
       [{ answersVisible: 12, answersAccepted: 4 }],
     );
 
@@ -98,23 +98,35 @@ describe('B159 Q&A activity summary', () => {
   });
 
   it.each([
-    [{ questionsTotal: 3, questionsOpen: 1, questionsClosed: 1, questionsOpenWithoutAcceptedAnswer: 0 }, []],
-    [{ questionsTotal: 2, questionsOpen: 1, questionsClosed: 1, questionsOpenWithoutAcceptedAnswer: 2 }, []],
-    [{ questionsTotal: -1, questionsOpen: 0, questionsClosed: 0, questionsOpenWithoutAcceptedAnswer: 0 }, []],
-    [{ questionsTotal: 1.4, questionsOpen: 1.4, questionsClosed: 0, questionsOpenWithoutAcceptedAnswer: 0 }, []],
-    [{ questionsTotal: 1, questionsOpen: Number.NaN, questionsClosed: 0, questionsOpenWithoutAcceptedAnswer: 0 }, []],
-  ])('fails closed for corrupt question aggregate totals', async (row) => {
-    const { service } = createFixture([row], []);
-    await expect(service.forOwner('owner')).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
-  });
+    [3, 1, 1, 0],
+    [2, 1, 1, 2],
+    [-1, 0, 0, 0],
+    [1.4, 1.4, 0, 0],
+    [1, Number.NaN, 0, 0],
+  ])(
+    'fails closed for corrupt question aggregate totals',
+    async (total, open, closed, missingAccepted) => {
+      const { service } = createFixture(
+        [
+          {
+            questionsTotal: total,
+            questionsOpen: open,
+            questionsClosed: closed,
+            questionsOpenWithoutAcceptedAnswer: missingAccepted,
+          },
+        ],
+        [],
+      );
+      await expect(service.forOwner('owner')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    },
+  );
 
   it('does not invent accepted answers when aggregate counts are inconsistent', async () => {
-    const { service } = createFixture([], [{
-      answersVisible: 1,
-      answersAccepted: 2,
-    }]);
+    const { service } = createFixture([], [
+      { answersVisible: 1, answersAccepted: 2 },
+    ]);
     await expect(service.forOwner('owner')).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
