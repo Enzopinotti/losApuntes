@@ -20,7 +20,8 @@ const UUID_V4 =
 function invalidInput(): never {
   throw new UnprocessableEntityException({
     code: 'STUDY_COLLECTION_ORDER_INVALID',
-    message: 'Resource order must contain unique valid identifiers, at most 100',
+    message:
+      'Resource order must contain unique valid identifiers, at most 100',
   });
 }
 
@@ -56,7 +57,9 @@ function validStored(row: StudyCollectionRecord, id: string, owner: string) {
     row.revision >= 1 &&
     Array.isArray(row.resourceIds) &&
     row.resourceIds.length <= STUDY_COLLECTION_MAX_ITEMS &&
-    row.resourceIds.every((ref) => typeof ref === 'string' && UUID_V4.test(ref)) &&
+    row.resourceIds.every(
+      (ref) => typeof ref === 'string' && UUID_V4.test(ref),
+    ) &&
     new Set(row.resourceIds).size === row.resourceIds.length &&
     row.updatedAt instanceof Date &&
     Number.isFinite(row.updatedAt.getTime())
@@ -88,7 +91,9 @@ export class StudyCollectionOrderService {
       input.expectedRevision < 1 ||
       !Array.isArray(input.resourceIds) ||
       input.resourceIds.length > STUDY_COLLECTION_MAX_ITEMS ||
-      !input.resourceIds.every((id) => typeof id === 'string' && UUID_V4.test(id)) ||
+      !input.resourceIds.every(
+        (id) => typeof id === 'string' && UUID_V4.test(id),
+      ) ||
       new Set(input.resourceIds).size !== input.resourceIds.length
     ) {
       return invalidInput();
@@ -113,7 +118,9 @@ export class StudyCollectionOrderService {
 
     // A true no-op must not bump the revision or update timestamp. No
     // visibility is inferred from IDs: these are existing owned references.
-    if (current.resourceIds.every((id, index) => id === input.resourceIds[index])) {
+    if (
+      current.resourceIds.every((id, index) => id === input.resourceIds[index])
+    ) {
       return { collection: projection(current), changed: false };
     }
 
