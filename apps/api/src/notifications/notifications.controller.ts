@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -26,6 +27,16 @@ export class NotificationsController {
     @Query() query: NotificationListDto,
   ) {
     return this.notifications.list(request.user.id, query);
+  }
+
+  /**
+   * Private badge counter: the client never needs notification contents or
+   * another account's identity just to show unread status.
+   */
+  @Get('unread-count')
+  @Header('Cache-Control', 'private, no-store')
+  countUnread(@Req() request: AuthenticatedRequest) {
+    return this.notifications.countUnread(request.user.id);
   }
 
   @Patch(':id/read')
