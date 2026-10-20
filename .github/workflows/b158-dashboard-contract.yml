@@ -1,0 +1,74 @@
+name: B158 web dashboard journey contract
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/pages/Dashboard.tsx
+      - apps/web/src/pages/Dashboard.scss
+      - apps/web/src/features/dashboard/**
+      - scripts/test-web-dashboard-b158.test.mjs
+      - package.json
+      - .github/workflows/b158-dashboard-contract.yml
+      - docs/contracts/b158-dashboard-journeys.md
+  push:
+    branches:
+      - main
+    paths:
+      - apps/web/src/pages/Dashboard.tsx
+      - apps/web/src/pages/Dashboard.scss
+      - apps/web/src/features/dashboard/**
+      - scripts/test-web-dashboard-b158.test.mjs
+      - package.json
+      - .github/workflows/b158-dashboard-contract.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b158-web-dashboard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-web-dashboard:
+    name: B158 exact-head dashboard Web checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install locked Web workspace
+        run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
+      - name: Exercise dashboard task and search contract
+        run: pnpm test:web-dashboard-b158
+      - name: Compile Web types
+        run: pnpm --filter @losapuntes/web check:types
+      - name: Enforce strict Web lint
+        run: pnpm --filter @losapuntes/web lint
+      - name: Enforce canonical Web formatting
+        run: pnpm --filter @losapuntes/web format:check
+      - name: Build production Web output
+        run: pnpm --filter @losapuntes/web build
+      - name: Exact SHA and clean tracked files
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
