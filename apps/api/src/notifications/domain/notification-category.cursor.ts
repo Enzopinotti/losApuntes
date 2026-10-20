@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 
 import { UnprocessableEntityException } from '@nestjs/common';
 
-import type { NotificationType, NotificationTargetType } from './notification.types';
+import type {
+  NotificationType,
+  NotificationTargetType,
+} from './notification.types';
 
 export const NOTIFICATION_CATEGORIES = ['social', 'qa'] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
@@ -19,7 +22,10 @@ export const CATEGORY_NOTIFICATION_TYPES: Record<
   qa: ['qa.question_answered', 'qa.answer_accepted'],
 };
 
-export const CATEGORY_TARGET_TYPES: Record<NotificationType, NotificationTargetType> = {
+export const CATEGORY_TARGET_TYPES: Record<
+  NotificationType,
+  NotificationTargetType
+> = {
   'social.followed': 'profile',
   'social.connection_requested': 'connection',
   'social.connection_accepted': 'connection',
