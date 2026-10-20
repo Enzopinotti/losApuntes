@@ -71,7 +71,8 @@ export class SocialRelationshipService {
     // Reuse the public profile visibility and lifecycle boundary, including
     // closed profiles returning Not Found. Do not return its full projection.
     await this.profiles.getPublicProfile(profileId);
-    const targetUserId = await this.profiles.resolveUserIdByProfileId(profileId);
+    const targetUserId =
+      await this.profiles.resolveUserIdByProfileId(profileId);
     if (!targetUserId) return unknownProfile();
 
     if (viewerUserId === targetUserId) {
