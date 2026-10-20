@@ -64,6 +64,17 @@ jobs:
         run: pnpm --filter @losapuntes/web lint
       - name: Enforce canonical Web formatting
         run: pnpm --filter @losapuntes/web format:check
+      - name: Show canonical dashboard formatter diff on failure (read-only)
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/b158-format"
+          for relative in apps/web/src/pages/Dashboard.tsx apps/web/src/features/dashboard/dashboardJourneys.ts; do
+            output="$RUNNER_TEMP/b158-format/$(basename "$relative")"
+            pnpm --filter @losapuntes/web exec prettier "$GITHUB_WORKSPACE/$relative" > "$output"
+            diff -u "$relative" "$output" || true
+          done
+
       - name: Build production Web output
         run: pnpm --filter @losapuntes/web build
       - name: Exact SHA and clean tracked files
