@@ -11,9 +11,7 @@ const updatedAt = new Date('2026-10-19T18:00:00.000Z');
 function setup(rows: QuestionRecord[] = [], hasMore = false) {
   const searchQuestions = jest.fn().mockResolvedValue({ items: rows, hasMore });
   const store = { searchQuestions };
-  const resolveResourceContext = jest
-    .fn()
-    .mockResolvedValue({ subjectId });
+  const resolveResourceContext = jest.fn().mockResolvedValue({ subjectId });
   const getCatalogNode = jest.fn().mockResolvedValue({
     node: { id: subjectId, name: 'Base de Datos' },
   });
@@ -106,13 +104,13 @@ describe('B145 own questions service', () => {
   it('rejects impossible paging and missing principal before touching storage', async () => {
     const { service, searchQuestions } = setup();
     for (const limit of [0, 51, 1.5, Number.NaN]) {
-      await expect(
-        service.mine('owner-a', { limit }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      await expect(service.mine('owner-a', { limit })).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
     }
-    await expect(
-      service.mine('', { limit: 25 }),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(service.mine('', { limit: 25 })).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
     expect(searchQuestions).not.toHaveBeenCalled();
   });
 
