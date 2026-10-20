@@ -20,12 +20,12 @@ describe('B147 HTTP connection requests inbox', () => {
     ]);
     for (const [methodName, path] of [
       ['connectionRequests', 'me/connection-requests'],
-      [
-        'incomingRequestCount',
-        'me/connection-requests/incoming-count',
-      ],
+      ['incomingRequestCount', 'me/connection-requests/incoming-count'],
     ]) {
-      const method = Reflect.get(SocialController.prototype, methodName) as object;
+      const method = Reflect.get(
+        SocialController.prototype,
+        methodName,
+      ) as object;
       expect(Reflect.getMetadata(PATH_METADATA, method)).toBe(path);
       expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(
         RequestMethod.GET,
