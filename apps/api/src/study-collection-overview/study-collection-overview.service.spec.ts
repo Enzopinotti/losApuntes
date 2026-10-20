@@ -71,7 +71,8 @@ describe('B152 study collection overview owner-only aggregation', () => {
     ).$facet;
     expect(
       facet.totals.some(
-        (stage) => typeof stage === 'object' && stage !== null && '$group' in stage,
+        (stage) =>
+          typeof stage === 'object' && stage !== null && '$group' in stage,
       ),
     ).toBe(true);
     expect(facet.recent[0]).toEqual({ $limit: 5 });
