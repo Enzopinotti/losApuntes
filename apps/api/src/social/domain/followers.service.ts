@@ -8,7 +8,10 @@ import type { FilterQuery, Model } from 'mongoose';
 
 import { ProfileService } from '../../profile/domain/profile.service';
 import { SocialFollow } from '../mongo/social.mongo-schemas';
-import { decodeFollowersCursor, encodeFollowersCursor } from './followers.cursor';
+import {
+  decodeFollowersCursor,
+  encodeFollowersCursor,
+} from './followers.cursor';
 
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -99,12 +102,17 @@ export class FollowersService {
       ? await this.profiles.getAttributionsForUsers(
           pageRows.map((row) => row.followerUserId),
         )
-      : new Map<string, Awaited<ReturnType<ProfileService['getAttributionForUser']>>>();
+      : new Map<
+          string,
+          Awaited<ReturnType<ProfileService['getAttributionForUser']>>
+        >();
     const items = pageRows.flatMap((row) => {
       const profile = attributions.get(row.followerUserId);
       // Accounts without a retrievable Profile are not returned. The cursor
       // still advances over scanned rows, so repeated requests terminate.
-      return profile ? [{ profile, followedAt: row.createdAt.toISOString() }] : [];
+      return profile
+        ? [{ profile, followedAt: row.createdAt.toISOString() }]
+        : [];
     });
     const last = pageRows.at(-1);
 
