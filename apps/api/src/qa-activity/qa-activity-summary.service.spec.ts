@@ -124,9 +124,10 @@ describe('B159 Q&A activity summary', () => {
   );
 
   it('does not invent accepted answers when aggregate counts are inconsistent', async () => {
-    const { service } = createFixture([], [
-      { answersVisible: 1, answersAccepted: 2 },
-    ]);
+    const { service } = createFixture(
+      [],
+      [{ answersVisible: 1, answersAccepted: 2 }],
+    );
     await expect(service.forOwner('owner')).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
