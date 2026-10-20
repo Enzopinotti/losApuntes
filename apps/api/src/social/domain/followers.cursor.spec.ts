@@ -1,6 +1,9 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 
-import { decodeFollowersCursor, encodeFollowersCursor } from './followers.cursor';
+import {
+  decodeFollowersCursor,
+  encodeFollowersCursor,
+} from './followers.cursor';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const at = new Date('2026-10-20T14:00:00.000Z');
