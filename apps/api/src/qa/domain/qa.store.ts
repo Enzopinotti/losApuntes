@@ -40,6 +40,7 @@ export interface QaStore {
   createQuestion: (input: CreateQuestionRecord) => Promise<QuestionRecord>;
   findQuestion: (id: string) => Promise<QuestionRecord | null>;
   searchQuestions: (input: {
+    authorUserId?: string;
     q?: string;
     subjectId?: string;
     state?: QuestionState;
