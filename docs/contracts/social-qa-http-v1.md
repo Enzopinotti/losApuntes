@@ -83,6 +83,37 @@ Optional query:
 
 Returns available Questions only.
 
+### GET /questions/mine (B145 — backend-only)
+
+Authenticated, owner-scoped list of the student's **available authored questions**.
+Authorization is based solely on the existing authenticated session; no `authorId`
+query parameter is accepted. Unlike the public search route, Mongo adds the
+`authorUserId` predicate **before** sorting and limiting, and retains
+`moderationState: available`. Moderation-hidden content is not restored by
+authorship.
+
+Optional query parameters: `q` (2..120), `subjectId` (UUIDv4),
+`status` (open/closed), `limit` (1..50, default 25) and
+`cursor` (owner-bound opaque continuation, max 512 characters).
+Results have the **existing question projection** and response shape:
+
+```json
+{ "items": [], "nextCursor": null }
+```
+
+- `Cache-Control: private, no-store`; no other user's questions.
+- Stable order `updatedAt DESC, id ASC`. Cursor encodes the last position
+  and a hash-based owner scope, not the internal account ID or an access grant.
+- A cursor from another account, a malformed timestamp or noncanonical encoding
+  yields 422 `QUESTION_MINE_CURSOR_INVALID`.
+- Academic aliases/merges still resolve through Academic Graph and projection
+  reuse; a hidden record never bypasses moderation.
+- Pagination is a best-effort live list: concurrent edits can reorder items,
+  so clients must refresh on changes instead of treating the cursor as a snapshot.
+- Does not create notification, resource read grants, marks, or recruiting signals.
+- No frontend implementation is included. Client team can consume this contract
+  without duplicating visibility decisions.
+
 ### GET /questions/:id
 
 Returns one available Question and bounded available Answers.
