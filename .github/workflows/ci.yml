@@ -422,6 +422,12 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
+      - name: Verify host Linux kernel is compatible with MongoDB 8.0
+        run: |
+          node --check scripts/ci/check-mongo-kernel.mjs
+          node --test scripts/ci/check-mongo-kernel.test.mjs
+          node scripts/ci/check-mongo-kernel.mjs
+
       - name: Install root and Web workspace dependencies
         run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
 
