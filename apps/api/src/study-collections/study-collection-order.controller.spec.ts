@@ -23,13 +23,17 @@ const b = '33333333-3333-4333-8333-333333333333';
 
 describe('B153 PATCH study collection resource order', () => {
   it('requires Auth, existing collections feature flag, private no-store and a UUIDv4 path', () => {
-    const fn = Reflect.get(StudyCollectionOrderController.prototype, 'reorder') as object;
-    expect(Reflect.getMetadata(PATH_METADATA, StudyCollectionOrderController))
-      .toBe('study-collections');
-    expect(Reflect.getMetadata(GUARDS_METADATA, StudyCollectionOrderController))
-      .toEqual([AuthSessionGuard, StudyCollectionsFeatureGuard]);
-    expect(Reflect.getMetadata(PATH_METADATA, fn))
-      .toBe(':id/resources/order');
+    const fn = Reflect.get(
+      StudyCollectionOrderController.prototype,
+      'reorder',
+    ) as object;
+    expect(
+      Reflect.getMetadata(PATH_METADATA, StudyCollectionOrderController),
+    ).toBe('study-collections');
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, StudyCollectionOrderController),
+    ).toEqual([AuthSessionGuard, StudyCollectionsFeatureGuard]);
+    expect(Reflect.getMetadata(PATH_METADATA, fn)).toBe(':id/resources/order');
     expect(Reflect.getMetadata(METHOD_METADATA, fn)).toBe(RequestMethod.PATCH);
     expect(Reflect.getMetadata(HEADERS_METADATA, fn)).toContainEqual({
       name: 'Cache-Control',
@@ -67,8 +71,9 @@ describe('B153 PATCH study collection resource order', () => {
       expectedRevision: 4,
       resourceIds: [b, a],
     });
-    await expect(controller.reorder(request, collectionId, dto)).resolves
-      .toEqual(expected);
+    await expect(
+      controller.reorder(request, collectionId, dto),
+    ).resolves.toEqual(expected);
     expect(reorder).toHaveBeenCalledWith('owner-a', collectionId, dto);
   });
 
@@ -96,8 +101,9 @@ describe('B153 PATCH study collection resource order', () => {
     const disabled = new StudyCollectionsFeatureGuard({
       get: jest.fn().mockReturnValue(false),
     } as unknown as ConfigService);
-    expect(() => disabled.canActivate({} as never))
-      .toThrow(ServiceUnavailableException);
+    expect(() => disabled.canActivate({} as never)).toThrow(
+      ServiceUnavailableException,
+    );
     const enabled = new StudyCollectionsFeatureGuard({
       get: jest.fn().mockReturnValue(true),
     } as unknown as ConfigService);
@@ -109,10 +115,12 @@ describe('B153 PATCH study collection resource order', () => {
     const controller = new StudyCollectionOrderController({
       reorder,
     } as unknown as StudyCollectionOrderService);
-    await expect(controller.reorder(
-      { user: { id: 'owner-a' } } as AuthenticatedRequest,
-      collectionId,
-      { expectedRevision: 4, resourceIds: [b, a] },
-    )).rejects.toThrow('mongo-down');
+    await expect(
+      controller.reorder(
+        { user: { id: 'owner-a' } } as AuthenticatedRequest,
+        collectionId,
+        { expectedRevision: 4, resourceIds: [b, a] },
+      ),
+    ).rejects.toThrow('mongo-down');
   });
 });
