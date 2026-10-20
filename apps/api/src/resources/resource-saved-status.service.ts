@@ -48,9 +48,7 @@ export class ResourceSavedStatusService {
       !Array.isArray(resourceIds) ||
       resourceIds.length < 1 ||
       resourceIds.length > SAVED_STATUS_MAX_RESOURCES ||
-      !resourceIds.every(
-        (id) => typeof id === 'string' && UUID_V4.test(id),
-      ) ||
+      !resourceIds.every((id) => typeof id === 'string' && UUID_V4.test(id)) ||
       new Set(resourceIds).size !== resourceIds.length
     ) {
       return invalidInput();
