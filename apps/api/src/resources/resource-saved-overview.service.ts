@@ -122,6 +122,7 @@ export class ResourceSavedOverviewService {
       !count(savedResourcesCount) ||
       !count(subjectsCount) ||
       subjectsCount > savedResourcesCount ||
+      (savedResourcesCount > 0 && subjectsCount === 0) ||
       recent.length !== Math.min(savedResourcesCount, RECENT_SAVES_LIMIT)
     ) {
       return invalidData();
