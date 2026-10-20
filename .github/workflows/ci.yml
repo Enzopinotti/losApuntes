@@ -399,7 +399,7 @@ jobs:
   runtime-smoke:
     name: Container runtime smoke
     needs: [quality, auth-critical-coverage, academic-critical-coverage, profile-critical-coverage, files-resources-critical-coverage, search-critical-coverage, social-qa-critical-coverage, feeds-critical-coverage, pilot-critical-coverage, organizations-critical-coverage, alumni-critical-coverage]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
       - name: Checkout exact candidate
