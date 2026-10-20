@@ -60,9 +60,10 @@ describe('B145 Mongo authored question index', () => {
 
   it('keeps public search semantics unchanged when author is not provided', async () => {
     const { store, questions } = setup([]);
-    await expect(
-      store.searchQuestions({ limit: 25 }),
-    ).resolves.toEqual({ items: [], hasMore: false });
+    await expect(store.searchQuestions({ limit: 25 })).resolves.toEqual({
+      items: [],
+      hasMore: false,
+    });
     expect(questions.find).toHaveBeenCalledWith({
       $and: [{ moderationState: 'available' }],
     });
@@ -78,7 +79,7 @@ describe('B145 Mongo authored question index', () => {
             updatedAt: -1,
             id: 1,
           },
-          {},
+          { background: true },
         ],
       ]),
     );
