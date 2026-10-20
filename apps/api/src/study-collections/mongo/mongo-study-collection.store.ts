@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, Model } from 'mongoose';
@@ -183,15 +184,14 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
   async reorderResources(
     input: Parameters<StudyCollectionStore['reorderResources']>[0],
   ): Promise<StudyCollectionRecord | null> {
-    return this.withActiveOwnerTransaction(input.ownerUserId, (session) =>
-      this.collections
+    return this.withActiveOwnerTransaction(input.ownerUserId, async (session) => {
+      const updated = await this.collections
         .findOneAndUpdate(
           {
             id: input.id,
             ownerUserId: input.ownerUserId,
             revision: input.expectedRevision,
-            // Exact array equality also guards against a missing revision bump
-            // from any legacy writer, not only cooperating CAS mutations.
+            // Exact equality catches legacy writers that forgot to bump revision.
             resourceIds: input.originalResourceIds,
           },
           {
@@ -201,8 +201,31 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
           { new: true, session },
         )
         .lean<StudyCollectionRecord>()
-        .exec(),
-    );
+        .exec();
+
+      // Validate before the transaction commits. An inconsistent post-write
+      // result aborts the entire transaction, including the User lifecycle
+      // revision write, instead of returning a misleading 200.
+      if (
+        updated &&
+        (updated.id !== input.id ||
+          updated.ownerUserId !== input.ownerUserId ||
+          updated.revision !== input.expectedRevision + 1 ||
+          !Array.isArray(updated.resourceIds) ||
+          updated.resourceIds.length !== input.orderedResourceIds.length ||
+          updated.resourceIds.some(
+            (id, index) => id !== input.orderedResourceIds[index],
+          ) ||
+          !(updated.updatedAt instanceof Date) ||
+          !Number.isFinite(updated.updatedAt.getTime()))
+      ) {
+        throw new ServiceUnavailableException({
+          code: 'STUDY_COLLECTION_ORDER_DATA_INVALID',
+          message: 'Collection order could not be changed safely',
+        });
+      }
+      return updated;
+    });
   }
 
   async addResource(
