@@ -181,12 +181,10 @@ describe('B149 notification categories private data access', () => {
         limit: 30,
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
-    const cursor = encodeNotificationCategoryCursor(
-      'owner-a',
-      'social',
-      true,
-      { id, createdAt },
-    );
+    const cursor = encodeNotificationCategoryCursor('owner-a', 'social', true, {
+      id,
+      createdAt,
+    });
     await expect(
       f.service.list('owner-b', 'social', {
         unreadOnly: true,
