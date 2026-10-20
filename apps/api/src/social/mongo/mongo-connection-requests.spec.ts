@@ -42,10 +42,7 @@ describe('B147 Mongo private connection requests', () => {
         { status: 'pending' },
         { requestedByUserId: { $ne: 'owner-a' } },
         {
-          $or: [
-            { updatedAt: { $lt: at } },
-            { updatedAt: at, id: { $gt: id } },
-          ],
+          $or: [{ updatedAt: { $lt: at } }, { updatedAt: at, id: { $gt: id } }],
         },
       ],
     });
@@ -79,8 +76,9 @@ describe('B147 Mongo private connection requests', () => {
 
   it('counts only received pending requests, never sent ones', async () => {
     const { store, connections, countExec } = setup([], 7);
-    await expect(store.countIncomingConnectionRequests('owner-a'))
-      .resolves.toBe(7);
+    await expect(
+      store.countIncomingConnectionRequests('owner-a'),
+    ).resolves.toBe(7);
     expect(connections.countDocuments).toHaveBeenCalledWith({
       status: 'pending',
       requestedByUserId: { $ne: 'owner-a' },
