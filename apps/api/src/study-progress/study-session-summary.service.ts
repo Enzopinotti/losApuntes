@@ -7,11 +7,16 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 
-import { parseStudyProgressPlan } from './domain/study-progress.plan';
+import {
+  parseStudyProgressPlan,
+  type StudyProgressTask,
+} from './domain/study-progress.plan';
 import { StudyProgress } from './mongo/study-progress.schema';
 
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+type NextTask = Pick<StudyProgressTask, 'kind' | 'id' | 'minutes'>;
 
 interface SummaryRow {
   ownerUserId: string;
@@ -86,8 +91,7 @@ export class StudySessionSummaryService {
     let completedTasks = 0;
     let plannedMinutes = 0;
     let completedMinutes = 0;
-    let nextTask: { kind: 'question' | 'resource'; id: string; minutes: number } | null =
-      null;
+    let nextTask: NextTask | null = null;
     for (const task of plan.tasks) {
       plannedMinutes += task.minutes;
       if (task.done) {
