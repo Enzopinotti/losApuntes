@@ -149,6 +149,7 @@ export class MongoQaStore implements QaStore {
   }
 
   async searchQuestions(input: {
+    authorUserId?: string;
     q?: string;
     subjectId?: string;
     state?: QuestionState;
@@ -157,6 +158,7 @@ export class MongoQaStore implements QaStore {
   }): Promise<{ items: QuestionRecord[]; hasMore: boolean }> {
     const filters: FilterQuery<Question>[] = [{ moderationState: 'available' }];
 
+    if (input.authorUserId) filters.push({ authorUserId: input.authorUserId });
     if (input.subjectId) filters.push({ subjectId: input.subjectId });
     if (input.state) filters.push({ state: input.state });
 
