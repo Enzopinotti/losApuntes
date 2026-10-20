@@ -6,9 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model, PipelineStage } from 'mongoose';
 
-import {
-  STUDY_COLLECTION_MAX_ITEMS,
-} from '../study-collections/domain/study-collection.store';
+import { STUDY_COLLECTION_MAX_ITEMS } from '../study-collections/domain/study-collection.store';
 import { StudyCollection } from '../study-collections/mongo/study-collection.mongo-schema';
 
 const RECENT_LIMIT = 5;
