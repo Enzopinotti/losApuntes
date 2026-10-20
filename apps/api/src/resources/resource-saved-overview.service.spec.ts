@@ -98,7 +98,13 @@ describe('B154 private saved library overview', () => {
       },
     });
     expect(lookups?.[1]).toMatchObject({
-      $lookup: { pipeline: [{ $match: { userId: 'owner-a' } }, { $limit: 1 }, expect.anything()] },
+      $lookup: {
+        pipeline: [
+          { $match: { userId: 'owner-a' } },
+          { $limit: 1 },
+          expect.anything(),
+        ],
+      },
     });
     expect(f.option).toHaveBeenCalledWith({
       allowDiskUse: true,
