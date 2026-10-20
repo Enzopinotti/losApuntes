@@ -25,10 +25,12 @@ describe('B146 private answer-history HTTP', () => {
       'answers',
     );
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('mine');
-    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(RequestMethod.GET);
-    expect(Reflect.getMetadata(GUARDS_METADATA, QaMyAnswersController)).toEqual([
-      AuthSessionGuard,
-    ]);
+    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(
+      RequestMethod.GET,
+    );
+    expect(Reflect.getMetadata(GUARDS_METADATA, QaMyAnswersController)).toEqual(
+      [AuthSessionGuard],
+    );
     expect(Reflect.getMetadata(HEADERS_METADATA, method)).toContainEqual({
       name: 'Cache-Control',
       value: 'private, no-store',
@@ -80,10 +82,9 @@ describe('B146 private answer-history HTTP', () => {
       list,
     } as unknown as QaMyAnswersService);
     await expect(
-      controller.list(
-        { user: { id: 'owner-a' } } as AuthenticatedRequest,
-        { limit: 25 },
-      ),
+      controller.list({ user: { id: 'owner-a' } } as AuthenticatedRequest, {
+        limit: 25,
+      }),
     ).rejects.toThrow('mongo-down');
   });
 });
