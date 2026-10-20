@@ -90,10 +90,7 @@ describe('B149 private category notifications HTTP', () => {
   it('registers owner-category paging indexes before the module compiles them', () => {
     expect(NotificationSchema.indexes()).toEqual(
       expect.arrayContaining([
-        [
-          { userId: 1, type: 1, createdAt: -1, id: 1 },
-          { background: true },
-        ],
+        [{ userId: 1, type: 1, createdAt: -1, id: 1 }, { background: true }],
         [
           { userId: 1, type: 1, readAt: 1, createdAt: -1, id: 1 },
           { background: true },
