@@ -81,10 +81,7 @@ describe('B152 private overview HTTP and release guard', () => {
   it('declares an owner plus updated-at index for pre-facet sorting', () => {
     expect(StudyCollectionSchema.indexes()).toEqual(
       expect.arrayContaining([
-        [
-          { ownerUserId: 1, updatedAt: -1, id: 1 },
-          { background: true },
-        ],
+        [{ ownerUserId: 1, updatedAt: -1, id: 1 }, { background: true }],
       ]),
     );
   });
