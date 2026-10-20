@@ -72,9 +72,8 @@ describe('B146 private My Answers service', () => {
     expect(JSON.stringify(page)).not.toContain('owner-a');
     expect(JSON.stringify(page)).not.toContain('secretInternalField');
 
-    const pipeline = aggregate.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >;
+    const calls = aggregate.mock.calls as unknown as Array<[unknown]>;
+    const pipeline = calls[0]?.[0] as Array<Record<string, unknown>>;
     expect(pipeline[0]).toEqual({
       $match: {
         authorUserId: 'owner-a',
@@ -118,7 +117,9 @@ describe('B146 private My Answers service', () => {
       service.list('owner-a', { limit: 10, cursor }),
     ).resolves.toEqual({ items: [], nextCursor: null });
 
-    expect(aggregate.mock.calls[0]?.[0]?.[0]).toEqual({
+    const calls = aggregate.mock.calls as unknown as Array<[unknown]>;
+    const pipeline = calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(pipeline[0]).toEqual({
       $match: {
         authorUserId: 'owner-a',
         moderationState: 'available',
@@ -140,13 +141,13 @@ describe('B146 private My Answers service', () => {
       service.list('owner-b', { limit: 10, cursor }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     for (const limit of [0, 26, -1, 1.1, Number.NaN]) {
-      await expect(
-        service.list('owner-a', { limit }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      await expect(service.list('owner-a', { limit })).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
     }
-    await expect(
-      service.list('', { limit: 25 }),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(service.list('', { limit: 25 })).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
     expect(aggregate).not.toHaveBeenCalled();
   });
 
