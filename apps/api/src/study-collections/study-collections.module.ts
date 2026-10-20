@@ -43,6 +43,9 @@ StudyCollectionSchema.index({
       useExisting: MongoStudyCollectionStore,
     },
   ],
-  controllers: [StudyCollectionsController, StudyCollectionMembershipController],
+  controllers: [
+    StudyCollectionsController,
+    StudyCollectionMembershipController,
+  ],
 })
 export class StudyCollectionsModule {}
