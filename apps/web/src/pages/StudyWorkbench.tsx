@@ -31,6 +31,7 @@ import {
 import { practiceQuestionHref } from "../features/study/study-practice-question-link.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
+import StudyFocusClock from "./StudyFocusClock";
 import "./StudyWorkbench.scss";
 
 type PageState<T> = {
@@ -531,6 +532,7 @@ export default function StudyWorkbench() {
               <Link to="/questions">Hacer una pregunta</Link>
               <Link to="/academic/lifecycle">Mis materias</Link>
             </div>
+            <StudyFocusClock key={`${authScope}:${selectedSubject.id}`} />
             {currentMessage && (
               <p
                 className={
