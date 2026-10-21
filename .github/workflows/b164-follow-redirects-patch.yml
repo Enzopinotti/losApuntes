@@ -1,0 +1,77 @@
+name: B164 follow-redirects patched package verification
+
+on:
+  push:
+    branches:
+      - security/b164-follow-redirects-patch-20261020
+  pull_request:
+    paths:
+      - pnpm-lock.yaml
+      - scripts/security/check-follow-redirects-lock.mjs
+      - scripts/security/test-follow-redirects-regression.mjs
+      - .github/workflows/b164-follow-redirects-patch.yml
+      - docs/security/b164-follow-redirects-remediation.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b164-follow-redirects-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trusted-registry-metadata:
+    name: B164 verify npm official patched tarball integrity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Check out exact branch SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Set up canonical Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Query pinned package version directly from official npm registry
+        env:
+          npm_config_registry: https://registry.npmjs.org/
+        run: |
+          set -Eeuo pipefail
+          VERSION=$(npm view follow-redirects@1.16.1 version --json)
+          INTEGRITY=$(npm view follow-redirects@1.16.1 dist.integrity --json)
+          test "$VERSION" = '"1.16.1"'
+          printf '%s' "$INTEGRITY" | node -e '
+            let s="";
+            process.stdin.on("data", c => s += c);
+            process.stdin.on("end", () => {
+              const integrity = JSON.parse(s);
+              if (!/^sha512-[A-Za-z0-9+/]{86}==$/.test(integrity)) process.exit(1);
+              console.log(JSON.stringify({event:"security.follow_redirects.registry",version:"1.16.1",integrity,registry:"https://registry.npmjs.org/"}));
+            });
+          '
+      - name: Configure canonical pnpm version
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen workspace; refuse lock drift
+        run: pnpm install --frozen-lockfile
+      - name: Prove Axios chain and npm package integrity in committed lockfile
+        run: |
+          node --check scripts/security/check-follow-redirects-lock.mjs
+          node --check scripts/security/test-follow-redirects-regression.mjs
+          node scripts/security/check-follow-redirects-lock.mjs
+      - name: Run live loopback HTTP redirect regressions
+        run: node --test scripts/security/test-follow-redirects-regression.mjs
+      - name: Verify audit waiver policy is still closed
+        run: node scripts/security/check-audit-exceptions.mjs
+      - name: Typecheck and bundle affected Web client
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web build
+      - name: Verify immutable checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
