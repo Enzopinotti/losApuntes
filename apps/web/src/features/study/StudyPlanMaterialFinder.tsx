@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
 
 import type { QuestionState } from "../community/interfaces";
@@ -55,7 +61,8 @@ type Props = {
 
 function errorMessage(error: unknown): string {
   if (isCommunityApiError(error) || isResourcesApiError(error)) {
-    if (error.status === 401) return "La sesión venció. Volvé a iniciar sesión.";
+    if (error.status === 401)
+      return "La sesión venció. Volvé a iniciar sesión.";
     if (error.status === 403 || error.status === 404) {
       return "Este contenido dejó de estar disponible o accesible.";
     }
@@ -84,7 +91,9 @@ export function StudyPlanMaterialFinder({
     begin: beginSearch,
     isCurrent: isSearchCurrent,
     finish: finishSearch,
-  } = useAsyncAuthorityFence(`study-plan-material-search:${searchScope ?? "empty"}`);
+  } = useAsyncAuthorityFence(
+    `study-plan-material-search:${searchScope ?? "empty"}`,
+  );
   const {
     begin: beginAdd,
     isCurrent: isAddCurrent,
@@ -95,7 +104,8 @@ export function StudyPlanMaterialFinder({
   const pendingAdd = useRef(false);
   const [pageState, setPageState] = useState<Page | null>(null);
   const [addFeedback, setAddFeedback] = useState<AddFeedback | null>(null);
-  const page = searchScope && pageState?.scope === searchScope ? pageState : null;
+  const page =
+    searchScope && pageState?.scope === searchScope ? pageState : null;
   const validDraft = normalizeStudyMaterialSearchFilter(draft);
   const addBusy = addFeedback?.busy ?? false;
 
@@ -109,7 +119,9 @@ export function StudyPlanMaterialFinder({
         scope: searchScope,
         items: isMore && previous?.scope === searchScope ? previous.items : [],
         nextCursor:
-          isMore && previous?.scope === searchScope ? previous.nextCursor : null,
+          isMore && previous?.scope === searchScope
+            ? previous.nextCursor
+            : null,
         loading: true,
         error: null,
         retryCursor: null,
@@ -126,8 +138,7 @@ export function StudyPlanMaterialFinder({
                   q: applied.q,
                   subjectId,
                   status: (applied.status || undefined) as
-                    | QuestionState
-                    | undefined,
+                    QuestionState | undefined,
                   limit: 15,
                   cursor,
                 },
@@ -163,7 +174,8 @@ export function StudyPlanMaterialFinder({
         if (!isSearchCurrent(ticket)) return;
         setPageState((previous) => ({
           scope: searchScope,
-          items: isMore && previous?.scope === searchScope ? previous.items : [],
+          items:
+            isMore && previous?.scope === searchScope ? previous.items : [],
           nextCursor:
             isMore && previous?.scope === searchScope
               ? previous.nextCursor
@@ -176,7 +188,14 @@ export function StudyPlanMaterialFinder({
         finishSearch(ticket);
       }
     },
-    [applied, searchScope, subjectId, beginSearch, isSearchCurrent, finishSearch],
+    [
+      applied,
+      searchScope,
+      subjectId,
+      beginSearch,
+      isSearchCurrent,
+      finishSearch,
+    ],
   );
 
   useEffect(() => {
@@ -266,7 +285,10 @@ export function StudyPlanMaterialFinder({
   };
 
   return (
-    <section className="study-session-material-finder" aria-labelledby="study-plan-finder-title">
+    <section
+      className="study-session-material-finder"
+      aria-labelledby="study-plan-finder-title"
+    >
       <h3 id="study-plan-finder-title">Encontrar material para tu plan</h3>
       <p>
         Buscá un tema dentro de esta materia y agregá un apunte o una pregunta
@@ -322,7 +344,10 @@ export function StudyPlanMaterialFinder({
           </p>
         )}
         <div className="study-session-quick-actions">
-          <button type="submit" disabled={!validDraft || Boolean(page?.loading)}>
+          <button
+            type="submit"
+            disabled={!validDraft || Boolean(page?.loading)}
+          >
             Buscar material
           </button>
           <button type="button" onClick={clear} disabled={!draft.q && !applied}>
