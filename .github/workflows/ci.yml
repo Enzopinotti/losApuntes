@@ -479,6 +479,8 @@ jobs:
           node scripts/smoke-organizations-lifecycle.mjs
           node scripts/smoke-alumni-lifecycle.mjs
           node scripts/smoke-account-export-lifecycle.mjs
+          node --check scripts/browser-study-journey-live-b184.mjs
+          node scripts/browser-study-journey-live-b184.mjs
 
       - name: Runtime logs on failure
         if: failure()
