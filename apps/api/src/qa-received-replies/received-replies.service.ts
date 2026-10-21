@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import type { Model, PipelineStage } from 'mongoose';
 
 import { Question } from '../qa/mongo/qa.mongo-schemas';
 import {
@@ -87,9 +87,36 @@ export class ReceivedRepliesService {
   ): Promise<ReceivedRepliesPage> {
     const cursor = decodeReceivedRepliesCursor(rawCursor, ownerUserId);
 
+    // Bound each parent join at pageSize+1 AFTER applying the keyset.
+    // Without this cap, a high-volume question could materialize an
+    // unbounded Mongo lookup array even though the final output is small.
+    const answerLookup: PipelineStage[] = [
+      {
+        $match: {
+          $expr: { $eq: ['$questionId', '$questionId'] },
+          moderationState: 'available',
+        },
+      },
+    ];
+    if (cursor) {
+      answerLookup.push({
+        $match: {
+          $or: [
+            { createdAt: { $lt: cursor.createdAt } },
+            { createdAt: cursor.createdAt, id: { $gt: cursor.id } },
+          ],
+        },
+      });
+    }
+    answerLookup.push(
+      { $sort: { createdAt: -1, id: 1 } },
+      { $limit: RECEIVED_REPLIES_LIMIT + 1 },
+      { $project: { _id: 0, id: 1, createdAt: 1 } },
+    );
+
     // Begin with visible questions owned by this session, not with
     // globally visible answers. Hidden parents and answers never appear.
-    const pipeline: Record<string, unknown>[] = [
+    const pipeline: PipelineStage[] = [
       {
         $match: {
           authorUserId: ownerUserId,
@@ -101,34 +128,12 @@ export class ReceivedRepliesService {
         $lookup: {
           from: 'answers',
           let: { questionId: '$id' },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ['$questionId', '$$questionId'] },
-                moderationState: 'available',
-              },
-            },
-            { $project: { _id: 0, id: 1, createdAt: 1 } },
-          ],
+          pipeline: answerLookup,
           as: 'visibleReplies',
         },
       },
       { $unwind: '$visibleReplies' },
     ];
-
-    if (cursor) {
-      pipeline.push({
-        $match: {
-          $or: [
-            { 'visibleReplies.createdAt': { $lt: cursor.createdAt } },
-            {
-              'visibleReplies.createdAt': cursor.createdAt,
-              'visibleReplies.id': { $gt: cursor.id },
-            },
-          ],
-        },
-      });
-    }
 
     pipeline.push(
       {
