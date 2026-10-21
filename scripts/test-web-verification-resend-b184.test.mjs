@@ -70,6 +70,8 @@ test("B184 does not auto-send on mount or while the tab is hidden", async () => 
   assert.match(page, /inFlight\.current = false/u);
   assert.match(page, /if \(!mounted\.current\) return/u);
   assert.match(page, /window\.clearInterval\(timer\)/u);
+  assert.match(page, /if \(now >= cooldown\.untilMs\)/u);
+  assert.match(page, /setCooldown\(\(current\) => \(current === cooldown \? null : current\)\)/u);
   assert.match(page, /visibilitychange/u);
   assert.match(page, /performance\.now\(\)/u);
   assert.doesNotMatch(page, /localStorage|sessionStorage|sendBeacon|Notification|setTimeout\(/u);
