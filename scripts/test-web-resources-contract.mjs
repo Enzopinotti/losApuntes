@@ -139,6 +139,22 @@ assert.match(
   /savedView\s*\?\s*unsave\(resource\)\s*:\s*save\(resource\)/u,
 );
 assert.match(page, /Quitar de guardados/u);
+assert.match(page, /import \{ ResourceStudyHandoff \}/u);
+assert.match(page, /<ResourceStudyHandoff/u);
+assert.match(page, /resource\.id\.toLowerCase\(\) === resourceId\.toLowerCase\(\)/u);
+assert.match(page, /session\?\.id \?\? "none"/u);
+assert.match(page, /status,\s*user\?\.id \?\? "anonymous"/u);
+assert.match(page, /resourceId=\{resource\.id\}/u);
+const studyHandoff = await read(
+  'apps/web/src/features/study/ResourceStudyHandoff.tsx',
+);
+assert.match(studyHandoff, /resourcesApi\.get\(resourceId, ticket\.signal\)/u);
+assert.match(studyHandoff, /searchApi\.contextual\(/u);
+assert.match(studyHandoff, /resourceToStudyHandoffPlan\(/u);
+assert.match(studyHandoff, /createStudyHandoff\(/u);
+assert.match(studyHandoff, /useAsyncAuthorityFence/u);
+assert.doesNotMatch(studyHandoff, /localStorage|sessionStorage|indexedDB/u);
+
 assert.match(page, /appendResources/u);
 assert.match(page, /nextCursor: result\.nextCursor/u);
 assert.match(page, /load\(nextCursor, true\)/u);
