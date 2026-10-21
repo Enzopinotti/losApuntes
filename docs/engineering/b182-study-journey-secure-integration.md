@@ -18,7 +18,7 @@ Los cuatro bloques se prueban sobre **la misma base B181 / PR #516**, que ya inc
 - `main` original: `6bd965c71f6426da3d49fc7c0555e0e5afda06a9`.
 - Base de seguridad y runtime: `adcbd25c40f586803e4be59c4cbfae7e400200fd` (B181).
 - Fuentes inmutables: PR #509 `c700d93a96307fedb10461feb15de73b7bd5482e` (7 archivos), PR #511 `42cb9ca22ea57e92c213dd3ff40ef5192a446a77` (8), PR #514 `27e799250cb81e798cff83248d44a2706286ce1e` (9) y PR #515 `ea6024532c8d09a255fa11b8c7a9b896e4a451e3` (8).
-- **32 archivos idénticos** a los blobs Git originales, reproducibles por `scripts/integration/b182-study-journey-sources.json` y validados por hash en `scripts/test-b182-study-journey-integration.mjs`.
+- **32 registros de procedencia Git**: 30 archivos idénticos a sus blobs originales y 2 extensiones **B185** explícitas (`SearchSaveAction.tsx` y su contrato Search) para permitir guardar → quitar de guardados → volver a guardar desde búsqueda. `scripts/test-b182-study-journey-integration.mjs` verifica el hash original de cada archivo no extendido y rechaza extensiones no declaradas.
 - **Conflicto lógico reconciliado:** #514 y #515 modificaban `scripts/test-web-study-handoff-integration.mjs`. Se conserva la versión #514, que suma casos de permiso, sujeto, ámbito de cuenta/sesión y expiración. B180 se integra excluyendo únicamente su copia menos completa de ese archivo. Su buscador y los demás archivos quedan sin alteraciones.
 - Se preservan los workflows focalizados de #511, #514 y #515. El B182 agrega **una** prueba de procedencia y contratos cruzados; cada transición tiene un commit de adopción distinto.
 
@@ -32,7 +32,7 @@ Los cuatro bloques se prueban sobre **la misma base B181 / PR #516**, que ya inc
 
 ## Criterios de aceptación
 
-1. Exact-head: hashes de los 32 blobs, prueba de seguridad B181, 4 contratos de origen + handoff + planner y `pnpm --filter @losapuntes/web check:types` / `lint` / `format:check` / `build` aprobarán juntos.
+1. Exact-head: 30 hashes originales + 2 extensiones B185 auditadas, prueba de seguridad B181, 4 contratos de origen + handoff + planner y `pnpm --filter @losapuntes/web check:types` / `lint` / `format:check` / `build` aprobarán juntos.
 2. Quality Gate y diez coberturas críticas deben pasar en el **SHA combinado**, no extrapolar estados de los PR de origen.
 3. El smoke global de Chromium Auth + API, MongoDB 8, Files, Search, Q&A y demás servicios debe pasar en ese mismo commit, con cleanup de Docker.
 4. Browser acceptance específico de UI: estudiante autenticado busca → guarda → abre recurso → transfiere al plan → agrega preguntas de la materia → organiza kit; con segunda página, límites de duración, cuenta alterna y pérdida de permisos durante la operación.
