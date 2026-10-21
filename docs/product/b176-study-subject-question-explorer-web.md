@@ -41,4 +41,4 @@ Comprobar antes de considerar Ready:
 8. Desde una pregunta, abrir discusión y Practicar se mantienen en la materia.
 9. Navegación por teclado y viewport móvil, con error/red caída y reintento.
 
-Gates: candidato exact-head Node 24, `pnpm test:web-study-workbench`, `pnpm check`, `pnpm audit --prod --audit-level high`, browser/API real. Release #353 HOLD no se relaja. Audits HIGH #133/#141 y follow-redirects #492 persisten en main hasta remediación segura.
+Gates: candidato exact-head Node 24, `node scripts/test-web-study-workbench.mjs`, `pnpm check`, `pnpm audit --prod --audit-level high`, browser/API real. Release #353 HOLD no se relaja. Audits HIGH #133/#141 y follow-redirects #492 persisten en main hasta remediación segura.
