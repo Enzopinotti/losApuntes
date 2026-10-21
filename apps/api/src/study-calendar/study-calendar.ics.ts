@@ -40,7 +40,10 @@ export function foldIcsLine(logical: string): string {
 }
 
 function utcBasic(date: Date): string {
-  return date.toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z');
+  return date
+    .toISOString()
+    .replace(/[-:]/gu, '')
+    .replace(/\.\d{3}Z$/u, 'Z');
 }
 
 function localBasic(date: string): string {
