@@ -12,6 +12,10 @@ import {
   saveFailureMessage,
 } from '../apps/web/src/features/search/search-save-feedback.mjs';
 
+import {
+  unsaveFailureMessage,
+} from '../apps/web/src/features/search/search-unsave-feedback.mjs';
+
 const root = process.cwd();
 
 // A feature PR must not weaken the repository-wide hygiene gate just to
@@ -278,8 +282,32 @@ assert.match(saveAction, /isSaveConfirmed\(response\)/u);
 assert.match(saveAction, /saveFailureMessage\(error\)/u);
 assert.match(saveAction, /pendingRef\.current/u);
 assert.match(saveAction, /useAsyncAuthorityFence\(scopeKey\)/u);
-assert.match(saveAction, /disabled=\{saving \|\| saved\}/u);
-assert.match(saveAction, /role=\{current\.phase === "failed" \? "alert" : "status"\}/u);
+assert.match(saveAction, /resourcesApi\.unsave\(resourceId, ticket\.signal\)/u);
+assert.match(saveAction, /unsaveFailureMessage\(error\)/u);
+assert.match(saveAction, /disabled=\{busy\}/u);
+assert.match(saveAction, /action === "remove" \? "remove-failed" : "save-failed"/u);
+assert.match(saveAction, /current\.phase === "remove-failed"/u);
+assert.match(saveAction, /role=\{/u);
+assert.match(saveAction, /Reintentar quitar/u);
+assert.match(saveAction, /Quitar de guardados/u);
+assert.match(saveAction, /Quitado de guardados/u);
+assert.match(saveAction, /pendingRef\.current = true/u);
+assert.match(saveAction, /pendingRef\.current = false/u);
+assert.match(saveAction, /if \(!isCurrent\(ticket\)\) return/u);
+for (const status of [401, 403, 404, 410]) {
+  assert.match(
+    unsaveFailureMessage({ status }),
+    /Ya no podés modificar este guardado/u,
+    'Authorization loss must not be presented as a confirmed removal',
+  );
+}
+for (const error of [null, new Error('offline'), { status: 503 }, { status: 0 }]) {
+  assert.match(
+    unsaveFailureMessage(error),
+    /No pudimos confirmar si se quitó/u,
+    'A failed DELETE may have committed and must remain inconclusive',
+  );
+}
 assert.doesNotMatch(saveAction, /localStorage|sessionStorage|setItem/u);
 assert.doesNotMatch(saveAction, /Authorization\s*:|Bearer\s+/iu);
 assert.match(page, /import \{ SearchSaveAction \} from/u);
@@ -302,6 +330,8 @@ const resourcesService = await read(
 assert.match(resourcesService, /save: \(resourceId: string, signal\?: AbortSignal\)/u);
 assert.match(resourcesService, /\/resources\/\$\{encodeURIComponent\(resourceId\)\}\/save/u);
 assert.match(resourcesService, /method: "PUT", signal/u);
+assert.match(resourcesService, /unsave: \(resourceId: string, signal\?: AbortSignal\)/u);
+assert.match(resourcesService, /method: "DELETE",/u);
 
 const resourcesPage = await read('apps/web/src/pages/Resources.tsx');
 assert.match(resourcesPage, /searchReturnHref\(location\.state\)/u);
