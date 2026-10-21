@@ -1079,7 +1079,7 @@ export default function StudyKits() {
                     <StudyKitResourceSearch
                       key={`${scope}:${selectedKit.id}`}
                       authorityScope={scope}
-                      subjectId={subjectId}
+                      subjectId={subject.id}
                       resourceIds={selectedKit.resourceIds}
                       limitReached={
                         selectedKit.resourceIds.length >=
