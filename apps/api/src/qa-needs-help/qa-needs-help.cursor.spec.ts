@@ -26,7 +26,9 @@ describe('B166 unanswered-question cursor', () => {
       createdAt: CREATED,
       questionId: QUESTION_ID,
     });
-    expect(decodeNeedsHelpCursor(undefined, SUBJECT_ID, 'viewer-one')).toBeUndefined();
+    expect(
+      decodeNeedsHelpCursor(undefined, SUBJECT_ID, 'viewer-one'),
+    ).toBeUndefined();
   });
 
   it('rejects reuse across other student sessions and other subjects', () => {
@@ -35,12 +37,12 @@ describe('B166 unanswered-question cursor', () => {
       SUBJECT_ID,
       'viewer-one',
     );
-    expect(() => decodeNeedsHelpCursor(token, SUBJECT_ID, 'viewer-two')).toThrow(
-      UnprocessableEntityException,
-    );
-    expect(() => decodeNeedsHelpCursor(token, OTHER_SUBJECT_ID, 'viewer-one')).toThrow(
-      UnprocessableEntityException,
-    );
+    expect(() =>
+      decodeNeedsHelpCursor(token, SUBJECT_ID, 'viewer-two'),
+    ).toThrow(UnprocessableEntityException);
+    expect(() =>
+      decodeNeedsHelpCursor(token, OTHER_SUBJECT_ID, 'viewer-one'),
+    ).toThrow(UnprocessableEntityException);
   });
 
   it.each([
@@ -84,12 +86,12 @@ describe('B166 unanswered-question cursor', () => {
       { ...fields, extra: true },
     ];
     for (const row of corrupt) {
-      expect(() => decodeNeedsHelpCursor(encodeRaw(row), SUBJECT_ID, 'viewer-one')).toThrow(
-        UnprocessableEntityException,
-      );
+      expect(() =>
+        decodeNeedsHelpCursor(encodeRaw(row), SUBJECT_ID, 'viewer-one'),
+      ).toThrow(UnprocessableEntityException);
     }
-    expect(() => decodeNeedsHelpCursor(token + '=', SUBJECT_ID, 'viewer-one')).toThrow(
-      UnprocessableEntityException,
-    );
+    expect(() =>
+      decodeNeedsHelpCursor(token + '=', SUBJECT_ID, 'viewer-one'),
+    ).toThrow(UnprocessableEntityException);
   });
 });
