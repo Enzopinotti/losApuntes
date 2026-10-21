@@ -1,5 +1,7 @@
 import {
   GUARDS_METADATA,
+  HTTP_CODE_METADATA,
+  METHOD_METADATA,
   HEADERS_METADATA,
   PATH_METADATA,
 } from '@nestjs/common/constants';
@@ -28,6 +30,8 @@ describe('B168 Q&A batch refresh HTTP contract', () => {
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe(
       'batch-question-status',
     );
+    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(1);
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, method)).toBe(200);
     expect(Reflect.getMetadata(HEADERS_METADATA, method)).toContainEqual({
       name: 'Cache-Control',
       value: 'private, no-store',
