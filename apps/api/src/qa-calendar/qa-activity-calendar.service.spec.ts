@@ -145,7 +145,7 @@ describe('B165 private Q&A UTC activity calendar', () => {
     expect(questionPipeline?.[4]).toEqual({
       $limit: QA_ACTIVITY_CALENDAR_DAYS + 1,
     });
-    expect(answerPipeline?.[5]).toEqual({
+    expect(answerPipeline?.[6]).toEqual({
       $limit: QA_ACTIVITY_CALENDAR_DAYS + 1,
     });
     expect(questionOption).toHaveBeenCalledWith({ maxTimeMS: 5000 });
