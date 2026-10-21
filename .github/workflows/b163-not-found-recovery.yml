@@ -64,6 +64,11 @@ jobs:
         run: pnpm --filter @losapuntes/web lint
       - name: Web canonical format
         run: pnpm --filter @losapuntes/web format:check
+      - name: Show exact canonical JSX format diff on failure (read-only)
+        if: failure()
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/NotFound.tsx > "$RUNNER_TEMP/b163-NotFound.formatted.tsx"
+          diff -u apps/web/src/pages/NotFound.tsx "$RUNNER_TEMP/b163-NotFound.formatted.tsx" || true
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
       - name: Real guest and member unknown-route browser tests
