@@ -242,7 +242,7 @@ async function run() {
     await save.click();
     await page
       .getByRole("button", {
-        name: "Apunte guardado: Resumen de integrales",
+        name: "Quitar de guardados: Resumen de integrales",
       })
       .waitFor();
     assert.equal(events.saves, 1, "A confirmed save must execute once");
