@@ -1,12 +1,23 @@
-import { ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { Model } from 'mongoose';
 
 import { Question } from '../qa/mongo/qa.mongo-schemas';
-import { decodeReceivedRepliesCursor, encodeReceivedRepliesCursor } from './received-replies-cursor';
-import { ReceivedRepliesService, RECEIVED_REPLIES_LIMIT } from './received-replies.service';
+import {
+  decodeReceivedRepliesCursor,
+  encodeReceivedRepliesCursor,
+} from './received-replies-cursor';
+import {
+  ReceivedRepliesService,
+  RECEIVED_REPLIES_LIMIT,
+} from './received-replies.service';
 
-const ANSWER_IDS = Array.from({ length: 13 }, (_, index) =>
-  '9a73b180-ef29-4489-b7c5-' + String(index + 1).padStart(12, '0'),
+const ANSWER_IDS = Array.from(
+  { length: 13 },
+  (_, index) =>
+    '9a73b180-ef29-4489-b7c5-' + String(index + 1).padStart(12, '0'),
 );
 
 function answerRow(index: number, extra: Record<string, unknown> = {}) {
@@ -36,7 +47,8 @@ function fixture(rows: unknown[]) {
 describe('B164 received replies feed', () => {
   it('selects owner questions before a bounded visible answers lookup', async () => {
     const { service, aggregate, option } = fixture([answerRow(0)]);
-    await expect(service.forOwner('session-owner', undefined)).resolves.toEqual({
+    const result = await service.forOwner('session-owner', undefined);
+    expect(result).toEqual({
       items: [
         {
           answerId: ANSWER_IDS[0],
@@ -86,10 +98,8 @@ describe('B164 received replies feed', () => {
 
   it('returns an empty page when no parent question has a visible reply', async () => {
     const { service } = fixture([]);
-    await expect(service.forOwner('empty-account', undefined)).resolves.toEqual({
-      items: [],
-      nextCursor: null,
-    });
+    const result = await service.forOwner('empty-account', undefined);
+    expect(result).toEqual({ items: [], nextCursor: null });
   });
 
   it('uses 11 rows to generate a next cursor tied to the tenth visible answer', async () => {
@@ -103,9 +113,9 @@ describe('B164 received replies feed', () => {
       createdAt: answerRow(9).answeredAt,
       id: ANSWER_IDS[9],
     });
-    expect(() => decodeReceivedRepliesCursor(page.nextCursor, 'other-owner')).toThrow(
-      UnprocessableEntityException,
-    );
+    const crossOwner = () =>
+      decodeReceivedRepliesCursor(page.nextCursor, 'other-owner');
+    expect(crossOwner).toThrow(UnprocessableEntityException);
   });
 
   it('applies the keyset before per-question sorting and limiting', async () => {
@@ -157,11 +167,13 @@ describe('B164 received replies feed', () => {
 
   it('fails closed for duplicate answer rows and unexpected unbounded results', async () => {
     const duplicate = fixture([answerRow(0), answerRow(0)]);
-    await expect(duplicate.service.forOwner('owner', undefined)).rejects.toBeInstanceOf(
+    const duplicated = duplicate.service.forOwner('owner', undefined);
+    await expect(duplicated).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
     const excess = fixture(Array.from({ length: 12 }, (_, i) => answerRow(i)));
-    await expect(excess.service.forOwner('owner', undefined)).rejects.toBeInstanceOf(
+    const tooMany = excess.service.forOwner('owner', undefined);
+    await expect(tooMany).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
   });
