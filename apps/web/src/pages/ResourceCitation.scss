@@ -1,0 +1,94 @@
+.resource-citation {
+  margin-top: 1rem;
+}
+
+.resource-citation-toggle,
+.resource-citation-copy {
+  min-height: 44px;
+  border: 1px solid #5261a4;
+  border-radius: 10px;
+  padding: 0.65rem 0.95rem;
+  background: #fff;
+  color: #283e88;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.resource-citation-copy {
+  background: #293f86;
+  color: #fff;
+}
+
+.resource-citation-preview {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  margin-top: 0.7rem;
+  border: 1px solid #d6daea;
+  border-radius: 12px;
+  background: #f8f9ff;
+  color: #26324f;
+}
+
+.resource-citation-preview p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.resource-citation-notice {
+  color: #48536c;
+}
+
+.resource-citation-private {
+  padding: 0.7rem 0.85rem;
+  border-left: 4px solid #7c6399;
+  background: #f1ecfa;
+}
+
+.resource-citation-public {
+  padding: 0.7rem 0.85rem;
+  border-left: 4px solid #4777a6;
+  background: #edf5fc;
+}
+
+.resource-citation-label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 700;
+}
+
+.resource-citation-label textarea {
+  box-sizing: border-box;
+  min-height: 106px;
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid #a3aecb;
+  border-radius: 9px;
+  color: #172c4e;
+  background: #fff;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.resource-citation-copy {
+  justify-self: start;
+}
+
+.resource-citation :is(button, textarea):focus-visible {
+  outline: 3px solid #3a70b6;
+  outline-offset: 3px;
+}
+
+@media (max-width: 580px) {
+  .resource-citation-copy {
+    justify-self: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resource-citation * {
+    scroll-behavior: auto;
+  }
+}
