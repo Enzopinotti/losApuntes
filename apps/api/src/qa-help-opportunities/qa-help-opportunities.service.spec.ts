@@ -29,7 +29,9 @@ function fixture(participationRows: unknown[], questionRows: unknown[]) {
     .mockReturnValue({ option: questionOption });
 
   const service = new QaHelpOpportunitiesService(
-    { aggregate: participationAggregate } as unknown as Model<AcademicSubjectParticipation>,
+    {
+      aggregate: participationAggregate,
+    } as unknown as Model<AcademicSubjectParticipation>,
     { aggregate: questionAggregate } as unknown as Model<Question>,
   );
   return {
@@ -165,22 +167,46 @@ describe('B167 private current-subject help opportunities', () => {
     [[{ subjectId: 'not-uuid' }], []],
     [[{ subjectId: SUBJECT_IDS[0] }, { subjectId: SUBJECT_IDS[0] }], []],
     [SUBJECT_IDS.map((subjectId) => ({ subjectId })), []],
-    [[{ subjectId: SUBJECT_IDS[0] }], [{ subjectId: SUBJECT_IDS[1], count: 2 }]],
-    [[{ subjectId: SUBJECT_IDS[0] }], [{ subjectId: SUBJECT_IDS[0], count: 0 }]],
-    [[{ subjectId: SUBJECT_IDS[0] }], [{ subjectId: SUBJECT_IDS[0], count: -1 }]],
-    [[{ subjectId: SUBJECT_IDS[0] }], [{ subjectId: SUBJECT_IDS[0], count: 2.5 }]],
-    [[{ subjectId: SUBJECT_IDS[0] }], [{ subjectId: SUBJECT_IDS[0], count: '2' }]],
-    [[{ subjectId: SUBJECT_IDS[0] }], [{ subjectId: SUBJECT_IDS[0], count: Number.MAX_SAFE_INTEGER + 1 }]],
-    [[{ subjectId: SUBJECT_IDS[0] }], [
-      { subjectId: SUBJECT_IDS[0], count: 1 },
-      { subjectId: SUBJECT_IDS[0], count: 2 },
-    ]],
-  ])('fails closed on corrupt subject or count aggregates', async (subjects, counts) => {
-    const { service } = fixture(subjects, counts);
-    await expect(service.forOwner('student')).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
-  });
+    [
+      [{ subjectId: SUBJECT_IDS[0] }],
+      [{ subjectId: SUBJECT_IDS[1], count: 2 }],
+    ],
+    [
+      [{ subjectId: SUBJECT_IDS[0] }],
+      [{ subjectId: SUBJECT_IDS[0], count: 0 }],
+    ],
+    [
+      [{ subjectId: SUBJECT_IDS[0] }],
+      [{ subjectId: SUBJECT_IDS[0], count: -1 }],
+    ],
+    [
+      [{ subjectId: SUBJECT_IDS[0] }],
+      [{ subjectId: SUBJECT_IDS[0], count: 2.5 }],
+    ],
+    [
+      [{ subjectId: SUBJECT_IDS[0] }],
+      [{ subjectId: SUBJECT_IDS[0], count: '2' }],
+    ],
+    [
+      [{ subjectId: SUBJECT_IDS[0] }],
+      [{ subjectId: SUBJECT_IDS[0], count: Number.MAX_SAFE_INTEGER + 1 }],
+    ],
+    [
+      [{ subjectId: SUBJECT_IDS[0] }],
+      [
+        { subjectId: SUBJECT_IDS[0], count: 1 },
+        { subjectId: SUBJECT_IDS[0], count: 2 },
+      ],
+    ],
+  ])(
+    'fails closed on corrupt subject or count aggregates',
+    async (subjects, counts) => {
+      const { service } = fixture(subjects, counts);
+      await expect(service.forOwner('student')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    },
+  );
 
   it('does not hide Mongo failures as zero unanswered questions', async () => {
     const { service, questionExec } = fixture(
