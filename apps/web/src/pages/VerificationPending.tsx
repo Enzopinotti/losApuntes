@@ -48,7 +48,13 @@ const VerificationPending = () => {
   // Monotonic elapsed time survives tab throttling without counting ticks.
   useEffect(() => {
     if (!cooldown) return;
-    const reconcile = () => setNowMs(performance.now());
+    const reconcile = () => {
+      const now = performance.now();
+      setNowMs(now);
+      if (now >= cooldown.untilMs) {
+        setCooldown((current) => (current === cooldown ? null : current));
+      }
+    };
     const timer = window.setInterval(reconcile, 1000);
     document.addEventListener("visibilitychange", reconcile);
     window.addEventListener("focus", reconcile);
