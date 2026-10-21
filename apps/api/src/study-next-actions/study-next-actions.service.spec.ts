@@ -14,6 +14,7 @@ const SUBJECT_IDS = Array.from(
 );
 const RESOURCE_ID = '269f2da7-f70c-418d-9151-000000000001';
 const QUESTION_ID = '269f2da7-f70c-418d-9151-000000000002';
+const SECOND_RESOURCE_ID = '269f2da7-f70c-418d-9151-000000000003';
 
 function stored(
   index: number,
@@ -35,7 +36,7 @@ function stored(
       tasks: [
         { kind: 'resource', id: RESOURCE_ID, minutes: 30, done: true },
         { kind: 'question', id: QUESTION_ID, minutes: 45, done: false },
-        { kind: 'resource', id: RESOURCE_ID, minutes: 20, done: false },
+        { kind: 'resource', id: SECOND_RESOURCE_ID, minutes: 20, done: false },
       ],
     },
     ...changes,
