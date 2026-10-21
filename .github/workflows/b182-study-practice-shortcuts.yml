@@ -1,0 +1,84 @@
+name: B182 study practice keyboard controls
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/pages/StudyPractice.tsx
+      - apps/web/src/pages/StudyPracticeShortcuts.tsx
+      - apps/web/src/pages/StudyPracticeShortcuts.scss
+      - apps/web/src/features/study/study-practice-shortcuts.mjs
+      - apps/web/src/features/study/study-practice-shortcuts.d.mts
+      - scripts/test-web-study-practice-shortcuts-b182.test.mjs
+      - scripts/test-web-study-practice-shortcuts-b182-browser.mjs
+      - .github/workflows/b182-study-practice-shortcuts.yml
+      - package.json
+      - docs/contracts/b182-study-practice-shortcuts.md
+  push:
+    branches:
+      - feat/b182-study-practice-keyboard-controls-20261021
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b182-practice-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-shortcuts:
+    name: B182 exact-head keyboard and Chromium acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Assert source SHA and clean checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen Web workspace
+        run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
+      - name: Adversarial keyboard test suite
+        run: pnpm test:web-study-practice-shortcuts-b182
+      - name: Web TypeScript
+        run: pnpm --filter @losapuntes/web check:types
+      - name: Web strict ESLint
+        run: pnpm --filter @losapuntes/web lint
+      - name: Web canonical Prettier
+        run: pnpm --filter @losapuntes/web format:check
+      - name: Show formatter diff if canonical formatting failed
+        if: failure()
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyPracticeShortcuts.tsx > "$RUNNER_TEMP/b182-shortcuts.tsx"
+          diff -u apps/web/src/pages/StudyPracticeShortcuts.tsx "$RUNNER_TEMP/b182-shortcuts.tsx" || true
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyPractice.tsx > "$RUNNER_TEMP/b182-practice.tsx"
+          diff -u apps/web/src/pages/StudyPractice.tsx "$RUNNER_TEMP/b182-practice.tsx" || true
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Actual keyboard UX on authorized academic subject
+        run: node scripts/test-web-study-practice-shortcuts-b182-browser.mjs
+      - name: Production Web build
+        run: pnpm --filter @losapuntes/web build
+      - name: Assert unchanged source HEAD and clean tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# A green Web feature test is never permission to merge or deploy while
+# pnpm audit:prod is red for GHSA blockers #133 and #141.
