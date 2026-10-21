@@ -49,10 +49,7 @@ type ActionState = {
 };
 
 function messageFor(error: unknown): string {
-  if (
-    isSearchApiError(error) ||
-    isResourcesApiError(error)
-  ) {
+  if (isSearchApiError(error) || isResourcesApiError(error)) {
     if (error.code === "RESOURCE_SAVED_SEARCH_CURSOR_STALE") {
       return "Tus guardados cambiaron en otro dispositivo. Recargá la lista.";
     }
