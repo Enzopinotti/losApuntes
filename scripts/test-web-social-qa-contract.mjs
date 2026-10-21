@@ -127,16 +127,16 @@ assert.match(questions, /await loadListRef\.current\(\)/u);
 assert.match(questions, /loadDetailRef\.current\(\)/u);
 assert.match(questions, /questionDetailSearchParams\(params, result\.question\.id\)/u);
 assert.match(questions, /Cargando pregunta…/u);
-assert.match(questions, /subjectId: discoverySubjectId \\?\\? undefined/u);
-assert.match(questions, /if \\(discoverySubjectId === undefined\\)/u);
+assert.match(questions, /subjectId: discoverySubjectId \?\? undefined/u);
+assert.match(questions, /if \(discoverySubjectId === undefined\)/u);
 assert.match(questions, /<QuestionSubjectFilter/u);
-assert.match(questions, /onSelect=\\{selectDiscoverySubject\\}/u);
-assert.match(questions, /new URL\\(href, window\\.location\\.origin\\)/u);
-assert.match(questions, /questionDetailSearchParams\\(params, id\\)/u);
+assert.match(questions, /onSelect=\{selectDiscoverySubject\}/u);
+assert.match(questions, /new URL\(href, window\.location\.origin\)/u);
+assert.match(questions, /questionDetailSearchParams\(params, id\)/u);
 const qaFilter = await read(
   'apps/web/src/features/community/QuestionSubjectFilter.tsx',
 );
-assert.match(qaFilter, /resourcesApi\\.searchSubjects\\(q, ticket\\.signal\\)/u);
+assert.match(qaFilter, /resourcesApi\.searchSubjects\(q, ticket\.signal\)/u);
 assert.match(qaFilter, /useAsyncAuthorityFence/u);
 assert.match(qaFilter, /Ver todas las materias/u);
 assert.match(qaFilter, /Copiar enlace de esta materia/u);
@@ -174,7 +174,7 @@ const preservedQuestion = questionDetailSearchParams(
 );
 assert.equal(preservedQuestion.get('subjectId'), canonicalSubjectUuid);
 assert.equal(preservedQuestion.get('id'), 'new-question');
-assert.match(communityStyles, /\\.community-discovery-filter button:focus-visible/u);
+assert.match(communityStyles, /\.community-discovery-filter button:focus-visible/u);
 assert.match(questions, /feedReturnHref\(location\.state\)/u);
 assert.match(
   questions,
