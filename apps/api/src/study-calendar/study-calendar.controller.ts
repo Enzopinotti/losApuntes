@@ -13,7 +13,10 @@ export class StudyCalendarController {
   @Get('calendar.ics')
   @Header('Cache-Control', 'private, no-store')
   @Header('Content-Type', 'text/calendar; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="los-apuntes-sesiones.ics"')
+  @Header(
+    'Content-Disposition',
+    'attachment; filename="los-apuntes-sesiones.ics"',
+  )
   @Header('X-Content-Type-Options', 'nosniff')
   exportCalendar(@Req() request: AuthenticatedRequest): Promise<string> {
     return this.calendar.forOwner(request.user.id);
