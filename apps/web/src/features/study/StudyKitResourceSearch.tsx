@@ -187,7 +187,9 @@ export function StudyKitResourceSearch({
         </div>
       )}
       {page && !page.loading && !page.error && page.items.length === 0 && (
-        <p>No encontramos apuntes visibles con esas palabras en esta materia.</p>
+        <p>
+          No encontramos apuntes visibles con esas palabras en esta materia.
+        </p>
       )}
       {page && page.items.length > 0 && (
         <ul className="study-kits-discovery">
@@ -198,7 +200,9 @@ export function StudyKitResourceSearch({
               </Link>
               <button
                 type="button"
-                disabled={page.loading || limitReached || knownIds.has(resource.id)}
+                disabled={
+                  page.loading || limitReached || knownIds.has(resource.id)
+                }
                 aria-label={`Agregar apunte ${resource.title} al kit`}
                 onClick={() => onAdd(resource.id)}
               >
