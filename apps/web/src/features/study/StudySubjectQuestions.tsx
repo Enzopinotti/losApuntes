@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import type {
-  QuestionState,
-  QuestionView,
-} from "../community/interfaces";
+import type { QuestionState, QuestionView } from "../community/interfaces";
 import {
   communityApi,
   isCommunityApiError,
@@ -35,9 +32,15 @@ type Props = {
 
 function questionError(error: unknown): string {
   if (isCommunityApiError(error)) {
-    if (error.status === 401) return "La sesión venció. Iniciá sesión nuevamente.";
-    if (error.status === 403) return "Ya no tenés permiso para consultar estas preguntas.";
-    if (error.status === 404) return "La materia o las preguntas ya no están disponibles.";
+    if (error.status === 401) {
+      return "La sesión venció. Iniciá sesión nuevamente.";
+    }
+    if (error.status === 403) {
+      return "Ya no tenés permiso para consultar estas preguntas.";
+    }
+    if (error.status === 404) {
+      return "La materia o las preguntas ya no están disponibles.";
+    }
     return error.message;
   }
   return "No pudimos consultar las preguntas. Reintentá desde esta materia.";
@@ -64,7 +67,9 @@ export function StudySubjectQuestions({
     begin: beginQuestions,
     isCurrent: isQuestionsCurrent,
     finish: finishQuestions,
-  } = useAsyncAuthorityFence(`study-question-explorer:${filterScope ?? "invalid"}`);
+  } = useAsyncAuthorityFence(
+    `study-question-explorer:${filterScope ?? "invalid"}`,
+  );
   const [pageState, setPageState] = useState<QuestionPage | null>(null);
   const currentPage =
     filterScope !== null && pageState?.scope === filterScope
@@ -72,6 +77,10 @@ export function StudySubjectQuestions({
       : null;
   const validation = normalizeStudyQuestionFilter(draft);
   const questions = currentPage?.items ?? [];
+  const statusDescription =
+    applied.status === ""
+      ? "todas las preguntas"
+      : `preguntas ${applied.status === "open" ? "abiertas" : "cerradas"}`;
 
   const load = useCallback(
     async (cursor?: string, append = false) => {
@@ -232,7 +241,7 @@ export function StudySubjectQuestions({
       </form>
       {(applied.q || applied.status !== "open") && (
         <p className="study-workbench-question-summary">
-          Mostrando {applied.status === "" ? "todas las preguntas" : `preguntas ${applied.status === "open" ? "abiertas" : "cerradas"}`}
+          Mostrando {statusDescription}
           {applied.q ? ` sobre «${applied.q}»` : ""}.
         </p>
       )}
@@ -285,9 +294,7 @@ export function StudySubjectQuestions({
           type="button"
           className="study-workbench-secondary"
           disabled={currentPage.loading}
-          onClick={() =>
-            void load(currentPage.nextCursor ?? undefined, true)
-          }
+          onClick={() => void load(currentPage.nextCursor ?? undefined, true)}
         >
           {currentPage.loading ? "Cargando…" : "Más preguntas"}
         </button>
