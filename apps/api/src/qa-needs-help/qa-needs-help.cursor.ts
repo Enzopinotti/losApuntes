@@ -52,7 +52,11 @@ export function decodeNeedsHelpCursor(
       invalidCursor();
     }
     const parsed: unknown = JSON.parse(bytes.toString('utf8'));
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed)
+    ) {
       invalidCursor();
     }
     const value = parsed as Record<string, unknown>;
