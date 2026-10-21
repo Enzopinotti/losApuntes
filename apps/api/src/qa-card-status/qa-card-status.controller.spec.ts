@@ -20,9 +20,9 @@ describe('B168 Q&A batch refresh HTTP contract', () => {
     expect(Reflect.getMetadata(PATH_METADATA, QaCardStatusController)).toBe(
       'qa/discovery',
     );
-    expect(Reflect.getMetadata(GUARDS_METADATA, QaCardStatusController)).toEqual(
-      [AuthSessionGuard],
-    );
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, QaCardStatusController),
+    ).toEqual([AuthSessionGuard]);
     const method = Reflect.get(
       QaCardStatusController.prototype,
       'refresh',
@@ -62,8 +62,10 @@ describe('B168 Q&A batch refresh HTTP contract', () => {
   it.each([
     [],
     [ID, ID],
-    Array.from({ length: 21 }, (_, index) =>
-      '269f2da7-f70c-418d-9151-' + String(index + 1).padStart(12, '0'),
+    Array.from(
+      { length: 21 },
+      (_, index) =>
+        '269f2da7-f70c-418d-9151-' + String(index + 1).padStart(12, '0'),
     ),
     ['not-uuid'],
     [3],
