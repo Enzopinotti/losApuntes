@@ -27,6 +27,7 @@ const VerificationPending = () => {
   const [email, setEmail] = useState(initialEmail);
   const emailRef = useRef(initialEmail);
   const inFlight = useRef(false);
+  const cooldownHistory = useRef(new Map<string, VerificationResendCooldown>());
   const mounted = useRef(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(Boolean(initialEmail));
@@ -63,6 +64,9 @@ const VerificationPending = () => {
   const onEmailChange = (next: string) => {
     emailRef.current = next;
     setEmail(next);
+    const key = verificationEmailKey(next);
+    const prior = key ? cooldownHistory.current.get(key) : undefined;
+    setCooldown(prior && prior.untilMs > performance.now() ? prior : null);
     setSent(false);
     setError(null);
     setRequestId(undefined);
@@ -93,7 +97,23 @@ const VerificationPending = () => {
       await authApi.requestEmailVerification(submitted);
       if (!mounted.current) return;
       const acceptedAtMs = performance.now();
-      setCooldown(acceptVerificationResend(submitted, acceptedAtMs));
+      const accepted = acceptVerificationResend(submitted, acceptedAtMs);
+      // Keep a small, ephemeral per-address history so changing the email
+      // cannot accidentally bypass the local wait for an earlier address.
+      for (const [key, value] of cooldownHistory.current) {
+        if (value.untilMs <= acceptedAtMs) cooldownHistory.current.delete(key);
+      }
+      cooldownHistory.current.delete(accepted.key);
+      cooldownHistory.current.set(accepted.key, accepted);
+      if (cooldownHistory.current.size > 8) {
+        const oldestKey = cooldownHistory.current.keys().next().value;
+        if (oldestKey) cooldownHistory.current.delete(oldestKey);
+      }
+      setCooldown(
+        verificationEmailKey(emailRef.current) === accepted.key
+          ? accepted
+          : null,
+      );
       setNowMs(acceptedAtMs);
       if (verificationEmailKey(emailRef.current) === verificationEmailKey(submitted)) {
         setSent(true);
