@@ -26,10 +26,10 @@ describe('B173 private ICS download HTTP contract', () => {
       'exportCalendar',
     ) as object;
     expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe('calendar.ics');
-    const headers = Reflect.getMetadata(
-      HEADERS_METADATA,
-      handler,
-    ) as Array<{ name: string; value: string }>;
+    const headers = Reflect.getMetadata(HEADERS_METADATA, handler) as Array<{
+      name: string;
+      value: string;
+    }>;
     expect(headers).toContainEqual({
       name: 'Cache-Control',
       value: 'private, no-store',
