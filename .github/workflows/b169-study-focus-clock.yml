@@ -62,6 +62,11 @@ jobs:
         run: pnpm --filter @losapuntes/web lint
       - name: Enforce canonical Web format
         run: pnpm --filter @losapuntes/web format:check
+      - name: Show canonical component formatting diff (diagnostic only)
+        if: failure()
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyFocusClock.tsx > "$RUNNER_TEMP/b169-focus-formatted.tsx"
+          diff -u apps/web/src/pages/StudyFocusClock.tsx "$RUNNER_TEMP/b169-focus-formatted.tsx" || true
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
       - name: Real Chromium focus and session transitions
