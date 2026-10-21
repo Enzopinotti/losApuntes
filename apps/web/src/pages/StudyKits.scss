@@ -46,3 +46,45 @@
 .study-kits-sync-report p{margin:.15rem 0 .65rem;line-height:1.5;}
 .study-kits-sync-report a{font-weight:700;display:inline-block;}
 .study-kits-sync-report[role="alert"]{border-color:#bb7c91;background:#fff4f6;}
+
+.study-kits-lookup {
+  margin: 0.85rem 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #dcdceb;
+  border-radius: 12px;
+  background: #f8f8fe;
+}
+.study-kits-lookup h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.study-kits-lookup p {
+  color: #52556b;
+  font-size: 0.91rem;
+  line-height: 1.45;
+}
+.study-kits-lookup-form {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 0.8rem;
+}
+.study-kits-lookup-form label {
+  font-weight: 600;
+}
+.study-kits-lookup-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid #afb1c9;
+  border-radius: 9px;
+}
+.study-kits-lookup .study-kits-discovery {
+  max-height: 300px;
+  margin: 0.7rem 0;
+}
+.study-kits-lookup button {
+  min-height: 44px;
+}
+.study-kits-lookup .study-kits-error {
+  color: #822d3d;
+}
