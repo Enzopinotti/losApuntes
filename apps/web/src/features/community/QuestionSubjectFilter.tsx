@@ -75,22 +75,35 @@ export function QuestionSubjectFilter({
   };
 
   return (
-    <section className="community-card community-discovery-filter" aria-label="Filtrar preguntas por materia">
+    <section
+      className="community-card community-discovery-filter"
+      aria-label="Filtrar preguntas por materia"
+    >
       <h2>Encontrá dudas de tu materia</h2>
-      <p>Buscá una materia del catálogo para ver sus preguntas abiertas y resueltas.</p>
+      <p>
+        Buscá una materia del catálogo para ver sus preguntas abiertas y
+        resueltas.
+      </p>
       {subjectId === undefined ? (
         <p className="community-error" role="alert">
           El enlace de materia no es válido. Elegí una materia o quitá el filtro.
         </p>
       ) : subjectId ? (
         <p role="status">
-          Viendo preguntas de <strong>{activeName ?? "la materia del enlace"}</strong>.
+          Viendo preguntas de{" "}
+          <strong>{activeName ?? "la materia del enlace"}</strong>.
         </p>
       ) : (
         <p>Se muestran preguntas de todas las materias.</p>
       )}
-      <form className="community-inline" onSubmit={(event) => void search(event)}>
-        <label className="community-filter-label" htmlFor="qa-subject-filter-query">
+      <form
+        className="community-inline"
+        onSubmit={(event) => void search(event)}
+      >
+        <label
+          className="community-filter-label"
+          htmlFor="qa-subject-filter-query"
+        >
           Buscar materia
         </label>
         <input
@@ -102,14 +115,24 @@ export function QuestionSubjectFilter({
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Ej. Análisis Matemático"
         />
-        <button type="submit" disabled={current?.busy || query.trim().length < 2}>
+        <button
+          type="submit"
+          disabled={current?.busy || query.trim().length < 2}
+        >
           {current?.busy ? "Buscando…" : "Buscar materias"}
         </button>
       </form>
-      {current?.error && <p className="community-error" role="alert">{current.error}</p>}
-      {current && !current.busy && !current.error && current.items.length === 0 && (
-        <p role="status">No encontramos materias con ese nombre.</p>
+      {current?.error && (
+        <p className="community-error" role="alert">
+          {current.error}
+        </p>
       )}
+      {current &&
+        !current.busy &&
+        !current.error &&
+        current.items.length === 0 && (
+          <p role="status">No encontramos materias con ese nombre.</p>
+        )}
       {current && current.items.length > 0 && (
         <ul className="community-list compact">
           {current.items.map((item) => (
@@ -130,7 +153,11 @@ export function QuestionSubjectFilter({
       )}
       <div className="community-actions community-discovery-actions">
         {subjectId !== null && (
-          <button type="button" className="secondary" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => onSelect(null)}
+          >
             Ver todas las materias
           </button>
         )}
