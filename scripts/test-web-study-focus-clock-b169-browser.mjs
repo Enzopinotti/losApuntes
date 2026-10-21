@@ -135,7 +135,7 @@ async function main() {
     await page.clock.fastForward(1_490_000);
     await panel.getByText("Intervalo terminado.", { exact: false }).waitFor();
     assert.equal(await time.innerText(), "00:00");
-    assert.equal(await panel.getByRole("button", { name: "Iniciar" }).count(), 0,
+    assert.equal(await panel.getByRole("button", { name: "Iniciar", exact: true }).count(), 0,
       "clock restarted without user consent");
     await panel.getByRole("button", { name: "Reiniciar intervalo" }).click();
     assert.equal(await time.innerText(), "25:00");
@@ -152,7 +152,7 @@ async function main() {
     await page.waitForURL(ORIGIN + "/study?subjectId=" + SUBJECT_B);
     await page.waitForFunction(() =>
       document.querySelector(".study-focus-card time")?.textContent === "25:00");
-    assert.equal(await panel.getByRole("button", { name: "Iniciar" }).count(), 1);
+    assert.equal(await panel.getByRole("button", { name: "Iniciar", exact: true }).count(), 1);
     assert.ok(outbound > 0, "valid server context was never resolved");
 
     // Losing the account forces the PrivateRoute guard to remove the timer.
