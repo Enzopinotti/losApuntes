@@ -26,6 +26,7 @@ const AUTH = {
 const questions = [QUESTION_ONE, QUESTION_TWO].map((id, index) => ({
   id,
   subjectId: SUBJECT,
+  academic: { subject: { id: SUBJECT, name: "Álgebra" } },
   title: "Pregunta de prueba " + (index + 1),
   body: "Explicá la solución de prueba " + (index + 1),
   state: "open",
