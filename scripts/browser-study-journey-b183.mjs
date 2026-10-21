@@ -129,6 +129,7 @@ async function run() {
     page.on("pageerror", (error) => pageErrors.push(error.message));
     const events = {
       saves: 0,
+      removes: 0,
       resourceReads: 0,
       questionsSearched: 0,
       deniedHandoff: false,
@@ -180,6 +181,10 @@ async function run() {
       if (method === "PUT" && path === `/resources/${resourceId}/save`) {
         events.saves++;
         return json({ saved: true });
+      }
+      if (method === "DELETE" && path === `/resources/${resourceId}/save`) {
+        events.removes++;
+        return route.fulfill({ status: 204, headers: cors, body: "" });
       }
       if (method === "GET" && path === `/resources/${resourceId}`) {
         events.resourceReads++;
@@ -241,6 +246,18 @@ async function run() {
       })
       .waitFor();
     assert.equal(events.saves, 1, "A confirmed save must execute once");
+    await page
+      .getByRole("button", { name: "Quitar de guardados: Resumen de integrales" })
+      .click();
+    await page
+      .getByRole("button", { name: "Guardar apunte: Resumen de integrales" })
+      .waitFor();
+    assert.equal(events.removes, 1, "Undo must call the DELETE exactly once");
+    await save.click();
+    await page
+      .getByRole("button", { name: "Quitar de guardados: Resumen de integrales" })
+      .waitFor();
+    assert.equal(events.saves, 2, "Re-saving after undo must be possible");
     await page.getByRole("link", { name: "Ver recurso" }).click();
     await page.waitForURL("**/resources/" + resourceId);
     const prepare = page.getByRole("button", {
