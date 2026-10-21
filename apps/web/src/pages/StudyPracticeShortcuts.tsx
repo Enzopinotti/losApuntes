@@ -42,7 +42,10 @@ export default function StudyPracticeShortcuts({
   }, [allowed, enabled, onPrevious, onNext, onReveal]);
 
   return (
-    <aside className="study-practice-shortcuts" aria-label="Atajos de esta ronda">
+    <aside
+      className="study-practice-shortcuts"
+      aria-label="Atajos de esta ronda"
+    >
       <div className="study-practice-shortcuts-top">
         <div>
           <h3>Atajos opcionales de teclado</h3>
@@ -71,8 +74,8 @@ export default function StudyPracticeShortcuts({
             ))}
           </ul>
           <p>
-            Revelar respuestas requiere una pregunta cargada. Para clasificar
-            tu aprendizaje, seguí usando los botones explícitos.
+            Revelar respuestas requiere una pregunta cargada. Para clasificar tu
+            aprendizaje, seguí usando los botones explícitos.
           </p>
         </div>
       )}
