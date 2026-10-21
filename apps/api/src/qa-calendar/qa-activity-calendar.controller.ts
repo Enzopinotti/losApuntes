@@ -14,9 +14,7 @@ export class QaActivityCalendarController {
 
   @Get('activity-calendar')
   @Header('Cache-Control', 'private, no-store')
-  getCalendar(
-    @Req() request: AuthenticatedRequest,
-  ): Promise<QaActivityCalendar> {
+  getCalendar(@Req() request: AuthenticatedRequest): Promise<QaActivityCalendar> {
     return this.calendar.forOwner(request.user.id);
   }
 }
