@@ -8,12 +8,7 @@ import {
 import { unsaveFailureMessage } from "./search-unsave-feedback.mjs";
 
 type SavePhase =
-  | "saving"
-  | "saved"
-  | "removing"
-  | "removed"
-  | "save-failed"
-  | "remove-failed";
+  "saving" | "saved" | "removing" | "removed" | "save-failed" | "remove-failed";
 
 type SaveState = {
   scopeKey: string;
@@ -129,8 +124,7 @@ export function SearchSaveAction({
       {current?.message && (
         <p
           role={
-            current.phase === "save-failed" ||
-            current.phase === "remove-failed"
+            current.phase === "save-failed" || current.phase === "remove-failed"
               ? "alert"
               : "status"
           }
