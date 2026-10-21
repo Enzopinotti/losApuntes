@@ -13,6 +13,13 @@ function git(args, cwd = process.cwd()) {
     cwd, encoding: "utf8", maxBuffer: 8 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 120000,
+    // Ephemeral merge commits must be byte-for-byte identical across jobs.
+    // All source heads and parent order are pinned; do not use runner wall time.
+    env: {
+      ...process.env,
+      GIT_AUTHOR_DATE: "2026-10-21T00:00:00+00:00",
+      GIT_COMMITTER_DATE: "2026-10-21T00:00:00+00:00",
+    },
   }).trim();
 }
 function fail(reason, details = {}) {
@@ -140,6 +147,7 @@ async function main() {
       event: "ci.b173.integration_rehearsal", status: "COMPOSED",
       originalHead, baseSha: manifest.baseSha,
       combinedSha: git(["rev-parse", "HEAD"], candidateDirectory),
+      combinedTreeSha: git(["rev-parse", "HEAD^{tree}"], candidateDirectory),
       candidateShas: manifest.candidates.map(x => ({ pr: x.pr, sha: x.sha })),
       reconciliations, worktree: candidateDirectory,
       pushed: false, deployed: false,
