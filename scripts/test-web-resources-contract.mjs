@@ -141,7 +141,7 @@ assert.match(
 assert.match(page, /Quitar de guardados/u);
 assert.match(page, /import \{ ResourceStudyHandoff \}/u);
 assert.match(page, /<ResourceStudyHandoff/u);
-assert.match(page, /resource\.id\.toLowerCase\(\) === resourceId\.toLowerCase\(\)/u);
+assert.match(page, /resource\.id\.toLowerCase\(\) ===\s*resourceId\.toLowerCase\(\)/u);
 assert.match(page, /session\?\.id \?\? "none"/u);
 assert.match(page, /status,\s*user\?\.id \?\? "anonymous"/u);
 assert.match(page, /resourceId=\{resource\.id\}/u);
