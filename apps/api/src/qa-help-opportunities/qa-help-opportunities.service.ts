@@ -84,6 +84,7 @@ export class QaHelpOpportunitiesService {
     }
 
     const subjectIds = [...subjects].slice(0, QA_HELP_SUBJECT_LIMIT);
+    const selected = new Set(subjectIds);
     if (subjectIds.length === 0) {
       return { items: [], hasMoreSubjects: false };
     }
@@ -134,7 +135,7 @@ export class QaHelpOpportunitiesService {
       if (
         !row ||
         !isSubjectId(row.subjectId) ||
-        !subjects.has(row.subjectId) ||
+        !selected.has(row.subjectId) ||
         counts.has(row.subjectId) ||
         typeof row.count !== 'number' ||
         !Number.isSafeInteger(row.count) ||
