@@ -18,7 +18,7 @@ const sessionStyles = src("apps/web/src/pages/StudySession.scss");
 assert.match(practice, /useNavigate/u);
 assert.match(practice, /const openPendingInPlanner = \(\) =>/u);
 assert.match(practice, /recallToStudySession\(subjectId, round\.ids, round\.outcomes\)/u);
-assert.match(practice, /createStudyHandoff\(plan, scope\)/u);
+assert.match(practice, /createStudyHandoff\(organized, scope\)/u);
 assert.match(practice, /state: handoff/u);
 assert.match(practice, /window\.confirm/u);
 assert.match(practice, /Pasar pendientes al Planificador/u);
