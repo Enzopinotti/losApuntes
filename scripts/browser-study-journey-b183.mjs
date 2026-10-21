@@ -58,7 +58,14 @@ const question = {
 async function startVite() {
   const child = spawn(
     process.execPath,
-    ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", "5186", "--strictPort"],
+    [
+      "node_modules/vite/bin/vite.js",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "5186",
+      "--strictPort",
+    ],
     {
       cwd: resolve(root, "apps/web"),
       env: { ...process.env, VITE_API_BASE_URL: apiOrigin },
@@ -66,10 +73,16 @@ async function startVite() {
     },
   );
   let logs = "";
-  child.stdout.on("data", (bytes) => { logs = (logs + bytes.toString()).slice(-4000); });
-  child.stderr.on("data", (bytes) => { logs = (logs + bytes.toString()).slice(-4000); });
+  child.stdout.on("data", (bytes) => {
+    logs = (logs + bytes.toString()).slice(-4000);
+  });
+  child.stderr.on("data", (bytes) => {
+    logs = (logs + bytes.toString()).slice(-4000);
+  });
   let exited = false;
-  child.once("exit", () => { exited = true; });
+  child.once("exit", () => {
+    exited = true;
+  });
   try {
     for (let attempt = 0; attempt < 90; attempt++) {
       if (exited) throw new Error("Vite exited: " + logs);
@@ -135,7 +148,8 @@ async function run() {
       };
       const json = async (body, status = 200) =>
         route.fulfill({ status, headers: cors, body: JSON.stringify(body) });
-      if (method === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      if (method === "OPTIONS")
+        return route.fulfill({ status: 204, headers: cors });
       if (method === "GET" && path === "/auth/me") {
         return json({
           user: { id: studentId, email: "browser-student@example.test" },
@@ -150,7 +164,11 @@ async function run() {
         });
       }
       if (method === "GET" && path === "/discovery/contextual") {
-        return json({ subjects: [{ subject: resource.academic.subject, resources: [resource] }] });
+        return json({
+          subjects: [
+            { subject: resource.academic.subject, resources: [resource] },
+          ],
+        });
       }
       if (method === "GET" && path === "/search") {
         return json({
@@ -175,7 +193,10 @@ async function run() {
       if (method === "GET" && path === "/resources/saved/search") {
         return json({ items: [], nextCursor: null });
       }
-      if (method === "GET" && (path === "/resources" || path === "/resources/saved")) {
+      if (
+        method === "GET" &&
+        (path === "/resources" || path === "/resources/saved")
+      ) {
         return json({
           items: url.searchParams.has("q") ? [resource] : [],
           nextCursor: null,
@@ -190,14 +211,20 @@ async function run() {
       }
       if (method === "GET" && path === `/questions/${questionId}`) {
         return json({
-          question, answers: [], answersNextCursor: null, answersLimit: 25,
+          question,
+          answers: [],
+          answersNextCursor: null,
+          answersLimit: 25,
         });
       }
       if (method === "GET" && path === "/academic/catalog/search") {
         return json({ items: [] });
       }
       unsafeRequests.push(method + " " + path);
-      return json({ code: "NOT_FOUND", message: "Fixture API path not configured" }, 404);
+      return json(
+        { code: "NOT_FOUND", message: "Fixture API path not configured" },
+        404,
+      );
     });
 
     // Real React UI, with a deterministic test-only API adapter; no real
@@ -208,9 +235,11 @@ async function run() {
     });
     await save.waitFor();
     await save.click();
-    await page.getByRole("button", {
-      name: "Apunte guardado: Resumen de integrales",
-    }).waitFor();
+    await page
+      .getByRole("button", {
+        name: "Apunte guardado: Resumen de integrales",
+      })
+      .waitFor();
     assert.equal(events.saves, 1, "A confirmed save must execute once");
     await page.getByRole("link", { name: "Ver recurso" }).click();
     await page.waitForURL("**/resources/" + resourceId);
@@ -220,20 +249,28 @@ async function run() {
     await prepare.waitFor();
     events.rejectNextResourceRead = true;
     await prepare.click();
-    await page.getByRole("alert").getByText(
-      "Este apunte o tu materia dejaron de estar disponibles.",
-    ).waitFor();
+    await page
+      .getByRole("alert")
+      .getByText("Este apunte o tu materia dejaron de estar disponibles.")
+      .waitFor();
     assert.equal(events.deniedHandoff, true);
     assert.equal(new URL(page.url()).pathname, "/resources/" + resourceId);
 
     await prepare.click();
     await page.waitForURL((url) => url.pathname === "/study/session");
     assert.equal(new URL(page.url()).searchParams.get("subjectId"), subjectId);
-    await page.getByRole("button", {
-      name: "Sumar actividades sin perder mi plan",
-    }).click();
-    await page.getByText("Se incorporaron 1 actividades verificadas.").waitFor();
-    await page.locator(".study-session-summary strong").getByText("1 actividades").waitFor();
+    await page
+      .getByRole("button", {
+        name: "Sumar actividades sin perder mi plan",
+      })
+      .click();
+    await page
+      .getByText("Se incorporaron 1 actividades verificadas.")
+      .waitFor();
+    await page
+      .locator(".study-session-summary strong")
+      .getByText("1 actividades")
+      .waitFor();
 
     const finder = page.getByRole("region", {
       name: "Encontrar material para tu plan",
@@ -242,12 +279,20 @@ async function run() {
     await finder.getByLabel("Buscar por tema").fill("integrales");
     await finder.getByRole("button", { name: "Buscar material" }).click();
     await finder.getByRole("button", { name: "Sumar al plan" }).click();
-    await page.locator(".study-session-summary strong").getByText("2 actividades").waitFor();
+    await page
+      .locator(".study-session-summary strong")
+      .getByText("2 actividades")
+      .waitFor();
     await page.getByText("45 minutos previstos").waitFor();
     assert.ok(events.questionsSearched >= 1);
-    assert.equal(await finder.getByRole("button", { name: "Agregado" }).count(), 1);
+    assert.equal(
+      await finder.getByRole("button", { name: "Agregado" }).count(),
+      1,
+    );
 
-    await page.getByRole("link", { name: "Mis colecciones portátiles" }).click();
+    await page
+      .getByRole("link", { name: "Mis colecciones portátiles" })
+      .click();
     await page.waitForURL((url) => url.pathname === "/study/kits");
     const kitForm = page.locator(".study-kits-form").first();
     await kitForm.getByLabel("Nombre").fill("Parcial de integrales");
@@ -255,26 +300,40 @@ async function run() {
     const kitFinder = page.getByRole("region", {
       name: "Encontrar un apunte específico",
     });
-    await kitFinder.getByLabel("Título, descripción o etiqueta").fill("integrales");
+    await kitFinder
+      .getByLabel("Título, descripción o etiqueta")
+      .fill("integrales");
     await kitFinder.getByRole("button", { name: "Buscar apuntes" }).click();
-    await kitFinder.getByRole("button", {
-      name: "Agregar apunte Resumen de integrales al kit",
-    }).click();
+    await kitFinder
+      .getByRole("button", {
+        name: "Agregar apunte Resumen de integrales al kit",
+      })
+      .click();
     await page.getByText("1/").first().waitFor();
 
-    assert.deepEqual(pageErrors, [], "The combined UI cannot throw browser errors");
-    assert.deepEqual(unsafeRequests, [], "Unexpected API calls indicate a missing fixture or new authority");
-    console.log(JSON.stringify({
-      event: "b183.browser_student_journey",
-      status: "PASS",
-      studentFlow: "search-save-resource-reauthorize-plan-qa-kit",
-      simulatedApi: true,
-      realBrowser: "Chromium",
-      savesConfirmed: events.saves,
-      staleAccessRejected: events.deniedHandoff,
-      releaseAuthorized: false,
-      backendE2EAccepted: false,
-    }));
+    assert.deepEqual(
+      pageErrors,
+      [],
+      "The combined UI cannot throw browser errors",
+    );
+    assert.deepEqual(
+      unsafeRequests,
+      [],
+      "Unexpected API calls indicate a missing fixture or new authority",
+    );
+    console.log(
+      JSON.stringify({
+        event: "b183.browser_student_journey",
+        status: "PASS",
+        studentFlow: "search-save-resource-reauthorize-plan-qa-kit",
+        simulatedApi: true,
+        realBrowser: "Chromium",
+        savesConfirmed: events.saves,
+        staleAccessRejected: events.deniedHandoff,
+        releaseAuthorized: false,
+        backendE2EAccepted: false,
+      }),
+    );
   } finally {
     if (browser) await browser.close();
     await stopVite(server);
