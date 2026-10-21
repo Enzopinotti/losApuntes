@@ -144,7 +144,9 @@ export class StudyTaskReferenceCheckService {
       items.push(...checked);
     }
 
-    const available = items.filter((item) => item.status === 'available').length;
+    const available = items.filter(
+      (item) => item.status === 'available',
+    ).length;
     return {
       subjectId: record.subjectId,
       revision: record.revision,
