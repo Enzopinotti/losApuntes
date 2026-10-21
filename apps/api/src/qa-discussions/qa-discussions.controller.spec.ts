@@ -11,9 +11,9 @@ import type { QaDiscussionsService } from './qa-discussions.service';
 
 describe('B162 private discussions route', () => {
   it('requires AuthSessionGuard and sets private no-store on responses', () => {
-    expect(
-      Reflect.getMetadata(PATH_METADATA, QaDiscussionsController),
-    ).toBe('qa/me');
+    expect(Reflect.getMetadata(PATH_METADATA, QaDiscussionsController)).toBe(
+      'qa/me',
+    );
     expect(
       Reflect.getMetadata(GUARDS_METADATA, QaDiscussionsController),
     ).toEqual([AuthSessionGuard]);
