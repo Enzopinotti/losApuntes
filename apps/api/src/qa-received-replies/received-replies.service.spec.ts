@@ -173,9 +173,7 @@ describe('B164 received replies feed', () => {
     );
     const excess = fixture(Array.from({ length: 12 }, (_, i) => answerRow(i)));
     const tooMany = excess.service.forOwner('owner', undefined);
-    await expect(tooMany).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    await expect(tooMany).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('rejects malicious or cross-user cursors before querying the database', async () => {
