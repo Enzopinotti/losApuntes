@@ -22,6 +22,7 @@ import { QaHelpOpportunitiesModule } from './qa-help-opportunities/qa-help-oppor
 import { QaNeedsHelpModule } from './qa-needs-help/qa-needs-help.module';
 import { QaActivityCalendarModule } from './qa-calendar/qa-activity-calendar.module';
 import { QaModule } from './qa/qa.module';
+import { ReceivedRepliesModule } from './qa-received-replies/received-replies.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
 import { StudyAgendaModule } from './study-agenda/study-agenda.module';
@@ -69,6 +70,7 @@ import { UsersModule } from './users/users.module';
     QaHelpOpportunitiesModule,
     QaNeedsHelpModule,
     QaActivityCalendarModule,
+    ReceivedRepliesModule,
     HealthModule,
   ],
   controllers: [AppController],
