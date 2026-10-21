@@ -181,7 +181,10 @@ export class QaSolvedLibraryService {
       nextCursor:
         last && cards.length > QA_SOLVED_LIBRARY_PAGE_SIZE
           ? encodeSolvedQaCursor(
-              { createdAt: new Date(last.createdAt), questionId: last.questionId },
+              {
+                createdAt: new Date(last.createdAt),
+                questionId: last.questionId,
+              },
               subjectId,
               viewerUserId,
             )
