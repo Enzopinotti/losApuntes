@@ -40,8 +40,7 @@ describe('B172 study task reference-check HTTP route', () => {
     ) as Record<string, { data?: string; pipes?: unknown[] }>;
     expect(
       Object.values(params).some(
-        (entry) =>
-          entry.data === 'subjectId' && (entry.pipes?.length ?? 0) > 0,
+        (entry) => entry.data === 'subjectId' && (entry.pipes?.length ?? 0) > 0,
       ),
     ).toBe(true);
   });
