@@ -78,7 +78,11 @@ function mongoEval(script) {
 async function actor(label) {
   const email = `b184-${label}-${randomUUID()}@example.test`;
   const password = `Browser ${randomUUID()} ${randomUUID()}!`;
-  await expected("/auth/register", { method: "POST", body: { email, password } }, 202);
+  await expected(
+    "/auth/register",
+    { method: "POST", body: { email, password } },
+    202,
+  );
   mongoEval(
     `const result=db.users.updateOne({email:${JSON.stringify(email)}},{$set:{email_verified_at:new Date()}});if(result.matchedCount!==1)quit(2);`,
   );
@@ -101,12 +105,18 @@ async function catalogNode(kind, name) {
   const query = new URLSearchParams({ kind, q: name, limit: "20" });
   const result = await expected(`/academic/catalog/search?${query}`, {}, 200);
   const node = result.items.find((item) => item.name === name);
-  assert.ok(node?.id && UUID_V4.test(node.id), `Missing seeded ${kind}: ${name}`);
+  assert.ok(
+    node?.id && UUID_V4.test(node.id),
+    `Missing seeded ${kind}: ${name}`,
+  );
   return node;
 }
 
 async function prepareSubject(student) {
-  const institution = await catalogNode("institution", "Universidad Runtime Smoke");
+  const institution = await catalogNode(
+    "institution",
+    "Universidad Runtime Smoke",
+  );
   const program = await catalogNode("program", "Ingeniería Runtime");
   const curriculum = await catalogNode("curriculum", "Plan 2026");
   const subject = await catalogNode("subject", "Base de Datos");
@@ -228,7 +238,14 @@ async function createQuestion(student, subject) {
 async function startWeb() {
   const child = spawn(
     process.execPath,
-    ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", "5173", "--strictPort"],
+    [
+      "node_modules/vite/bin/vite.js",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "5173",
+      "--strictPort",
+    ],
     {
       cwd: `${ROOT}/apps/web`,
       env: { ...process.env, VITE_API_BASE_URL: API_ORIGIN },
@@ -237,14 +254,26 @@ async function startWeb() {
   );
   let exited = false;
   let logs = "";
-  child.on("exit", () => { exited = true; });
-  child.stdout.on("data", (chunk) => { logs = (logs + chunk.toString()).slice(-4000); });
-  child.stderr.on("data", (chunk) => { logs = (logs + chunk.toString()).slice(-4000); });
+  child.on("exit", () => {
+    exited = true;
+  });
+  child.stdout.on("data", (chunk) => {
+    logs = (logs + chunk.toString()).slice(-4000);
+  });
+  child.stderr.on("data", (chunk) => {
+    logs = (logs + chunk.toString()).slice(-4000);
+  });
   try {
     for (let attempt = 0; attempt < 120; attempt++) {
       assert.equal(exited, false, "Vite exited before ready: " + logs);
       try {
-        if ((await fetch(WEB_ORIGIN + "/login", { signal: AbortSignal.timeout(700) })).ok) {
+        if (
+          (
+            await fetch(WEB_ORIGIN + "/login", {
+              signal: AbortSignal.timeout(700),
+            })
+          ).ok
+        ) {
           return { child, isExited: () => exited };
         }
       } catch {
@@ -261,18 +290,28 @@ async function startWeb() {
 
 async function stopWeb(server) {
   if (server.isExited()) return;
-  const stopped = new Promise((resolveExit) => server.child.once("exit", resolveExit));
+  const stopped = new Promise((resolveExit) =>
+    server.child.once("exit", resolveExit),
+  );
   server.child.kill("SIGTERM");
   await Promise.race([stopped, delay(2500)]);
   if (!server.isExited()) server.child.kill("SIGKILL");
 }
 
-async function browserJourney(student, author, subject, initialResource, question) {
+async function browserJourney(
+  student,
+  author,
+  subject,
+  initialResource,
+  question,
+) {
   const server = await startWeb();
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+    });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -283,18 +322,26 @@ async function browserJourney(student, author, subject, initialResource, questio
     await page.getByRole("button", { name: "Iniciar sesión" }).click();
     await page.waitForURL((url) => url.pathname === "/dashboard");
     const cookies = await context.cookies(API_ORIGIN);
-    assert.ok(cookies.some((cookie) => cookie.httpOnly && /losapuntes_session/u.test(cookie.name)));
+    assert.ok(
+      cookies.some(
+        (cookie) => cookie.httpOnly && /losapuntes_session/u.test(cookie.name),
+      ),
+    );
 
     await page.goto(
       `${WEB_ORIGIN}/search?q=${encodeURIComponent(initialResource.title)}&scope=resources`,
     );
     await page.getByText(initialResource.title).first().waitFor();
-    await page.getByRole("button", {
-      name: `Guardar apunte: ${initialResource.title}`,
-    }).click();
-    await page.getByRole("button", {
-      name: `Apunte guardado: ${initialResource.title}`,
-    }).waitFor();
+    await page
+      .getByRole("button", {
+        name: `Guardar apunte: ${initialResource.title}`,
+      })
+      .click();
+    await page
+      .getByRole("button", {
+        name: `Apunte guardado: ${initialResource.title}`,
+      })
+      .waitFor();
     const saved = await expected(
       "/resources/saved?limit=25",
       { bearer: student.bearer },
@@ -303,64 +350,103 @@ async function browserJourney(student, author, subject, initialResource, questio
     assert.ok(saved.items.some((item) => item.id === initialResource.id));
 
     await page.getByRole("link", { name: "Ver recurso" }).click();
-    await page.waitForURL((url) => url.pathname === `/resources/${initialResource.id}`);
-    const prepare = page.getByRole("button", { name: "Preparar sesión con este apunte" });
+    await page.waitForURL(
+      (url) => url.pathname === `/resources/${initialResource.id}`,
+    );
+    const prepare = page.getByRole("button", {
+      name: "Preparar sesión con este apunte",
+    });
     await prepare.waitFor();
 
-    let currentResource = await changeVisibility(author, initialResource, "private");
+    let currentResource = await changeVisibility(
+      author,
+      initialResource,
+      "private",
+    );
     await prepare.click();
-    await page.getByRole("alert").getByText(
-      "Este apunte o tu materia dejaron de estar disponibles.",
-    ).waitFor();
-    assert.equal(new URL(page.url()).pathname, `/resources/${initialResource.id}`);
+    await page
+      .getByRole("alert")
+      .getByText("Este apunte o tu materia dejaron de estar disponibles.")
+      .waitFor();
+    assert.equal(
+      new URL(page.url()).pathname,
+      `/resources/${initialResource.id}`,
+    );
     const denied = await request(`/resources/${initialResource.id}`, {
       bearer: student.bearer,
     });
-    assert.ok([403, 404].includes(denied.status), "Revoked student access must fail at API");
+    assert.ok(
+      [403, 404].includes(denied.status),
+      "Revoked student access must fail at API",
+    );
 
     currentResource = await changeVisibility(author, currentResource, "public");
     await prepare.click();
     await page.waitForURL((url) => url.pathname === "/study/session");
     assert.equal(new URL(page.url()).searchParams.get("subjectId"), subject.id);
-    await page.getByRole("button", { name: "Sumar actividades sin perder mi plan" }).click();
-    await page.locator(".study-session-summary strong").getByText("1 actividades").waitFor();
+    await page
+      .getByRole("button", { name: "Sumar actividades sin perder mi plan" })
+      .click();
+    await page
+      .locator(".study-session-summary strong")
+      .getByText("1 actividades")
+      .waitFor();
 
-    const finder = page.getByRole("region", { name: "Encontrar material para tu plan" });
+    const finder = page.getByRole("region", {
+      name: "Encontrar material para tu plan",
+    });
     await finder.getByLabel("Qué querés repasar").selectOption("question");
     await finder.getByLabel("Buscar por tema").fill("integrales b184");
     await finder.getByRole("button", { name: "Buscar material" }).click();
     await finder.getByRole("link", { name: question.title }).waitFor();
     await finder.getByRole("button", { name: "Sumar al plan" }).click();
-    await page.locator(".study-session-summary strong").getByText("2 actividades").waitFor();
+    await page
+      .locator(".study-session-summary strong")
+      .getByText("2 actividades")
+      .waitFor();
     await page.getByText("45 minutos previstos").waitFor();
 
-    await page.getByRole("link", { name: "Mis colecciones portátiles" }).click();
+    await page
+      .getByRole("link", { name: "Mis colecciones portátiles" })
+      .click();
     await page.waitForURL((url) => url.pathname === "/study/kits");
     const kitForm = page.locator(".study-kits-form").first();
     await kitForm.getByLabel("Nombre").fill("Parcial B184");
     await kitForm.getByRole("button", { name: "Crear colección" }).click();
-    const kitFinder = page.getByRole("region", { name: "Encontrar un apunte específico" });
-    await kitFinder.getByLabel("Título, descripción o etiqueta").fill("integrales b184");
+    const kitFinder = page.getByRole("region", {
+      name: "Encontrar un apunte específico",
+    });
+    await kitFinder
+      .getByLabel("Título, descripción o etiqueta")
+      .fill("integrales b184");
     await kitFinder.getByRole("button", { name: "Buscar apuntes" }).click();
-    await kitFinder.getByRole("button", {
-      name: `Agregar apunte ${initialResource.title} al kit`,
-    }).click();
+    await kitFinder
+      .getByRole("button", {
+        name: `Agregar apunte ${initialResource.title} al kit`,
+      })
+      .click();
     await page.getByText("1/").first().waitFor();
 
-    assert.deepEqual(errors, [], "Real backend student journey must not throw page errors");
-    console.log(JSON.stringify({
-      event: "b184.live_student_browser",
-      status: "PASS",
-      api: "real disposable Compose",
-      database: "real MongoDB",
-      browser: "Chromium",
-      savedResource: true,
-      revokedAccessRejected: true,
-      subjectScopedSession: true,
-      questionInPlan: true,
-      kitResourceAdded: true,
-      releaseAuthorized: false,
-    }));
+    assert.deepEqual(
+      errors,
+      [],
+      "Real backend student journey must not throw page errors",
+    );
+    console.log(
+      JSON.stringify({
+        event: "b184.live_student_browser",
+        status: "PASS",
+        api: "real disposable Compose",
+        database: "real MongoDB",
+        browser: "Chromium",
+        savedResource: true,
+        revokedAccessRejected: true,
+        subjectScopedSession: true,
+        questionInPlan: true,
+        kitResourceAdded: true,
+        releaseAuthorized: false,
+      }),
+    );
   } finally {
     if (browser) await browser.close();
     await stopWeb(server);
