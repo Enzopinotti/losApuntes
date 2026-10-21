@@ -50,22 +50,21 @@ describe('B170 study agenda HTTP route and feature flag', () => {
   });
 
   it('rejects access while saved study progress is disabled', () => {
-    const config = {
-      get: jest.fn().mockReturnValue(false),
-    } as unknown as ConfigService;
+    const get = jest.fn().mockReturnValue(false);
+    const config = { get } as unknown as ConfigService;
     const guard = new StudyProgressFeatureGuard(config);
     expect(() => guard.canActivate({} as never)).toThrow(
       ServiceUnavailableException,
     );
-    expect(config.get).toHaveBeenCalledWith('STUDY_PROGRESS_ENABLED');
+    expect(get).toHaveBeenCalledWith('STUDY_PROGRESS_ENABLED');
   });
 
   it('allows the route to proceed when saved study progress is enabled', () => {
     const config = {
       get: jest.fn().mockReturnValue(true),
     } as unknown as ConfigService;
-    expect(
-      new StudyProgressFeatureGuard(config).canActivate({} as never),
-    ).toBe(true);
+    expect(new StudyProgressFeatureGuard(config).canActivate({} as never)).toBe(
+      true,
+    );
   });
 });
