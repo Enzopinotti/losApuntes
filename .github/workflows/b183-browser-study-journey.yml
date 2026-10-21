@@ -41,9 +41,12 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
-      - name: Check source syntax and canonical formatting
+      - name: Read-only canonical formatting diff and check syntax
+        shell: bash
         run: |
           node --check scripts/browser-study-journey-b183.mjs
+          pnpm exec prettier scripts/browser-study-journey-b183.mjs > "$RUNNER_TEMP/b183-browser.canonical.mjs"
+          diff -u scripts/browser-study-journey-b183.mjs "$RUNNER_TEMP/b183-browser.canonical.mjs" || true
           pnpm exec prettier --check scripts/browser-study-journey-b183.mjs
       - name: Exercise student journey in a real Chromium page
         run: node scripts/browser-study-journey-b183.mjs
