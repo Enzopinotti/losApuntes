@@ -20,13 +20,14 @@ export function inspectFollowRedirectsLock(source) {
   assert.equal(typeof source, "string");
   assert.match(source, /^lockfileVersion: '9\.0'\r?\n/u, "unexpected pnpm lockfile format");
 
-  const versions = [...source.matchAll(/^  follow-redirects@([^:\n]+):\s*$/gmu)]
-    .map((match) => match[1]);
-  assert.deepEqual(versions, [PATCHED_VERSION, PATCHED_VERSION],
-    "exactly one package and one snapshot at the patched version required");
-
   const [packages, snapshots] = source.split(/\r?\nsnapshots:\r?\n/u);
   assert.ok(packages && snapshots, "lockfile snapshot section missing");
+  const versions = [packages, snapshots].map((section) =>
+    [...section.matchAll(/^  follow-redirects@([^:\n]+):/gmu)]
+      .map((match) => match[1]),
+  );
+  assert.deepEqual(versions, [[PATCHED_VERSION], [PATCHED_VERSION]],
+    "exactly one package and one snapshot at the patched version required");
 
   const resolution = packages.match(
     /^  follow-redirects@1\.16\.1:\s*\r?\n    resolution: \{integrity: (sha512-[A-Za-z0-9+/=]+)\}/mu,
