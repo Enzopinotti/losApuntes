@@ -6,6 +6,7 @@ import { Question } from '../qa/mongo/qa.mongo-schemas';
 import {
   decodeReceivedRepliesCursor,
   encodeReceivedRepliesCursor,
+  isReceivedReplyAnswerId,
 } from './received-replies-cursor';
 
 export const RECEIVED_REPLIES_LIMIT = 10;
@@ -52,7 +53,7 @@ function nonblankId(value: unknown): value is string {
 
 function readRow(row: StoredReplyRow): ReceivedReplyItem {
   if (
-    !nonblankId(row.answerId) ||
+    !isReceivedReplyAnswerId(row.answerId) ||
     !nonblankId(row.questionId) ||
     !nonblankId(row.subjectId) ||
     typeof row.questionTitle !== 'string' ||
