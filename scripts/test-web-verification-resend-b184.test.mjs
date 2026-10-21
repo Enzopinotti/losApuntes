@@ -82,7 +82,7 @@ test("B184 UI preserves generic anti-enumeration feedback and server errors", as
   assert.match(page, /authErrorRequestId\(/u);
   assert.match(page, /waitSeconds > 0/u);
   assert.match(page, /disabled=\{sending\}/u);
-  assert.match(page, /Los límites de seguridad y los reintentos válidos los controla el servidor/u);
+  assert.match(page, /límites de seguridad y los reintentos válidos los controla el servidor/u);
 });
 
 test("B184 only calls the preexisting verification endpoint, never changes credentials", async () => {
