@@ -39,8 +39,8 @@ describe('B173 safe RFC5545 calendar renderer', () => {
   it('escapes potentially structural text and cannot inject a new VEVENT', () => {
     const title = 'Trabajo, entrega; final\\bibliografía\r\nBEGIN:VEVENT';
     const output = renderStudyCalendar('owner', [event(title)], GENERATED);
-    expect(output.match(/BEGIN:VEVENT/gmu)).toHaveLength(1);
-    expect(output.match(/END:VEVENT/gmu)).toHaveLength(1);
+    expect(output.split('\r\n').filter((line) => line === 'BEGIN:VEVENT')).toHaveLength(1);
+    expect(output.split('\r\n').filter((line) => line === 'END:VEVENT')).toHaveLength(1);
     expect(output.replace(/\r\n /gu, '')).toContain(
       'SUMMARY:Trabajo\\, entrega\\; final\\\\bibliografía\\nBEGIN:VEVENT',
     );
