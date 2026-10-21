@@ -21,7 +21,7 @@ export function reconcilePackageScripts(baseText, sources) {
   const scriptsToAdd = new Map();
   const sourceNumbers = new Set();
 
-  for (const source of sources) {
+  for (const source of [...sources].sort((a, b) => a.pr - b.pr)) {
     assert.ok(Number.isSafeInteger(source.pr) && source.pr > 0);
     assert.ok(!sourceNumbers.has(source.pr), "duplicate PR cannot be reconciled");
     sourceNumbers.add(source.pr);
