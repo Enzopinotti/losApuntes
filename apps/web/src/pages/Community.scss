@@ -321,3 +321,46 @@
 .network-relationships .community-list > li:last-child {
   border-bottom: 0;
 }
+
+.community-notification-categories {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #dedfea;
+  border-radius: 12px;
+  min-width: 0;
+}
+.community-notification-categories legend {
+  padding: 0 0.3rem;
+  font-weight: 700;
+}
+.community-notification-category-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.community-notification-category-options button {
+  font: inherit;
+  min-height: 44px;
+  border-radius: 9px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #9297ac;
+  background: #fff;
+  color: #24273b;
+  cursor: pointer;
+}
+.community-notification-category-options button[aria-pressed="true"] {
+  background: #edf0ff;
+  border-color: #4b54af;
+  color: #272c84;
+  font-weight: 700;
+}
+.community-notification-category-options button:focus-visible {
+  outline: 3px solid #5a61b9;
+  outline-offset: 3px;
+}
+.community-notification-scope {
+  margin: 0.8rem 0 0;
+  color: #52576c;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
