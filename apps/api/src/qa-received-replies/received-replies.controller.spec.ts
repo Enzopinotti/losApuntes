@@ -14,9 +14,9 @@ describe('B164 authenticated received replies endpoint', () => {
     expect(Reflect.getMetadata(PATH_METADATA, ReceivedRepliesController)).toBe(
       'qa/me',
     );
-    expect(Reflect.getMetadata(GUARDS_METADATA, ReceivedRepliesController)).toEqual(
-      [AuthSessionGuard],
-    );
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, ReceivedRepliesController),
+    ).toEqual([AuthSessionGuard]);
     const method = Reflect.get(
       ReceivedRepliesController.prototype,
       'list',
