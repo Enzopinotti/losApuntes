@@ -14,9 +14,7 @@ export class QaDiscussionsController {
 
   @Get('discussions')
   @Header('Cache-Control', 'private, no-store')
-  preview(
-    @Req() request: AuthenticatedRequest,
-  ): Promise<QaDiscussionsPreview> {
+  preview(@Req() request: AuthenticatedRequest): Promise<QaDiscussionsPreview> {
     return this.discussions.previewForOwner(request.user.id);
   }
 }
