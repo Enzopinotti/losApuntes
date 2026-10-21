@@ -23,7 +23,9 @@ describe('B164 received Q&A replies cursor', () => {
       createdAt: FIRST_DATE,
       id: FIRST_ID,
     });
-    expect(decodeReceivedRepliesCursor(undefined, 'session-owner')).toBeUndefined();
+    expect(
+      decodeReceivedRepliesCursor(undefined, 'session-owner'),
+    ).toBeUndefined();
   });
 
   it('rejects a cursor generated for a different user', () => {
@@ -48,7 +50,13 @@ describe('B164 received Q&A replies cursor', () => {
     encoded({ v: 2, t: FIRST_DATE.toISOString(), id: FIRST_ID, owner: 'test' }),
     encoded({ v: 1, t: 'not-date', id: FIRST_ID, owner: 'test' }),
     encoded({ v: 1, t: FIRST_DATE.toISOString(), id: 'bad', owner: 'test' }),
-    encoded({ v: 1, t: FIRST_DATE.toISOString(), id: FIRST_ID, owner: 'test', extra: 1 }),
+    encoded({
+      v: 1,
+      t: FIRST_DATE.toISOString(),
+      id: FIRST_ID,
+      owner: 'test',
+      extra: 1,
+    }),
     Buffer.from('{', 'utf8').toString('base64url'),
   ])('fails closed for malformed cursor values', (bad) => {
     expect(() => decodeReceivedRepliesCursor(bad, 'session-owner')).toThrow(
@@ -71,7 +79,9 @@ describe('B164 received Q&A replies cursor', () => {
       { createdAt: FIRST_DATE, id: FIRST_ID },
       'owner',
     );
-    const fields = JSON.parse(Buffer.from(good, 'base64url').toString('utf8')) as Record<string, unknown>;
+    const fields = JSON.parse(
+      Buffer.from(good, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
     const bad = encoded({ ...fields, t: '2026-10-19T14:31:04Z' });
     expect(() => decodeReceivedRepliesCursor(bad, 'owner')).toThrow(
       UnprocessableEntityException,
