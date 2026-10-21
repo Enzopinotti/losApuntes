@@ -14,9 +14,7 @@ export class QaHelpOpportunitiesController {
 
   @Get('help-opportunities')
   @Header('Cache-Control', 'private, no-store')
-  list(
-    @Req() request: AuthenticatedRequest,
-  ): Promise<QaHelpOpportunities> {
+  list(@Req() request: AuthenticatedRequest): Promise<QaHelpOpportunities> {
     return this.opportunities.forOwner(request.user.id);
   }
 }
