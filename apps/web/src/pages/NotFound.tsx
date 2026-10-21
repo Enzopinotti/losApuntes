@@ -23,7 +23,10 @@ const NotFound = () => {
           lugar conocido sin perder el control de tu cuenta.
         </p>
 
-        <nav className="not-found-actions" aria-label="Opciones para continuar">
+        <nav
+          className="not-found-actions"
+          aria-label="Opciones para continuar"
+        >
           <Link className="not-found-primary" to="/">
             Ir al inicio
           </Link>
