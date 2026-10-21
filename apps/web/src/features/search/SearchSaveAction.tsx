@@ -69,7 +69,13 @@ export function SearchSaveAction({
     <div className="search-save-action">
       <button
         type="button"
-        aria-label={`Guardar apunte: ${resourceTitle}`}
+        aria-label={
+          saving
+            ? `Guardando apunte: ${resourceTitle}`
+            : saved
+              ? `Apunte guardado: ${resourceTitle}`
+              : `Guardar apunte: ${resourceTitle}`
+        }
         disabled={saving || saved}
         onClick={() => void save()}
       >
