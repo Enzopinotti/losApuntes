@@ -178,9 +178,7 @@ describe('B169 solved Q&A library', () => {
       'someone-else',
     );
     const response = service.forSubject('viewer', SUBJECT_ID, token);
-    await expect(response).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    await expect(response).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(aggregate).not.toHaveBeenCalled();
   });
 
@@ -196,9 +194,7 @@ describe('B169 solved Q&A library', () => {
   ])('fails closed for malformed aggregation rows', async ({ change }) => {
     const { service } = fixture([card(0, change)]);
     const response = service.forSubject('viewer', SUBJECT_ID, undefined);
-    await expect(response).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    await expect(response).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('rejects duplicate, misordered and oversized aggregation results', async () => {
