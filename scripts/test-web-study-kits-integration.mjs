@@ -126,7 +126,7 @@ assert.match(finder, /Más resultados de búsqueda/u);
 assert.doesNotMatch(finder, /localStorage|sessionStorage|indexedDB/u);
 assert.match(kits, /<StudyKitResourceSearch/u);
 assert.match(kits, /authorityScope=\{scope\}/u);
-assert.match(kits, /subjectId=\{subjectId\}/u);
+assert.match(kits, /subjectId=\{subject\.id\}/u);
 assert.match(kits, /resourceIds=\{selectedKit\.resourceIds\}/u);
 assert.match(kits, /updateSelected\(\(value\) =>/u);
 const finderStyles = read("apps/web/src/pages/StudyKits.scss");
