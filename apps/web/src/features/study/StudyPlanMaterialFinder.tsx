@@ -89,7 +89,9 @@ export function StudyPlanMaterialFinder({
     begin: beginAdd,
     isCurrent: isAddCurrent,
     finish: finishAdd,
-  } = useAsyncAuthorityFence(`study-plan-material-add:${authorityScope}`);
+  } = useAsyncAuthorityFence(
+    `study-plan-material-add:${searchScope ?? "empty"}`,
+  );
   const pendingAdd = useRef(false);
   const [pageState, setPageState] = useState<Page | null>(null);
   const [addFeedback, setAddFeedback] = useState<AddFeedback | null>(null);
@@ -201,6 +203,8 @@ export function StudyPlanMaterialFinder({
   const add = async (item: Result) => {
     if (
       pendingAdd.current ||
+      !applied ||
+      item.kind !== applied.kind ||
       disabled ||
       !mayAddStudyMaterial(
         item.kind,
