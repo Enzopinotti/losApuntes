@@ -37,8 +37,8 @@ Una entrada incorrecta produce HTTP 400 con código
 `QA_CARD_STATUS_INPUT_INVALID` en el chequeo del servicio (el
 `ValidationPipe` global puede responder su 400 estándar previamente).
 
-Respuesta HTTP 201 por semántica estándar de NestJS `@Post` sin
-`@HttpCode`, con `Cache-Control: private, no-store`:
+Respuesta HTTP **200** (`@HttpCode(200)` sobre este POST de solo
+lectura), con `Cache-Control: private, no-store`:
 
 ```json
 {
