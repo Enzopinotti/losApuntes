@@ -184,7 +184,10 @@ describe('B171 private cross-subject next study actions', () => {
     },
     { name: 'invalid subject', change: { subjectId: 'not-uuid' } },
     { name: 'invalid revision', change: { revision: 0 } },
-    { name: 'unsafe revision', change: { revision: Number.MAX_SAFE_INTEGER + 1 } },
+    {
+      name: 'unsafe revision',
+      change: { revision: Number.MAX_SAFE_INTEGER + 1 },
+    },
     { name: 'missing date', change: { updatedAt: null } },
     { name: 'bad date', change: { updatedAt: new Date('bad') } },
     {
