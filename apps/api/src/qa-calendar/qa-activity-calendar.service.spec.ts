@@ -51,9 +51,7 @@ describe('B165 private Q&A UTC activity calendar', () => {
     const result = await service.forOwner('student-one', NOW);
     expect(result.asOfUtc).toBe('2026-10-20T23:40:01.000Z');
     expect(result.windowStartUtc).toBe('2026-09-23T00:00:00.000Z');
-    expect(result.windowEndUtcExclusive).toBe(
-      '2026-10-21T00:00:00.000Z',
-    );
+    expect(result.windowEndUtcExclusive).toBe('2026-10-21T00:00:00.000Z');
     expect(result.days).toHaveLength(QA_ACTIVITY_CALENDAR_DAYS);
     expect(result.days[0]).toEqual({
       dateUtc: '2026-09-23',
@@ -162,9 +160,7 @@ describe('B165 private Q&A UTC activity calendar', () => {
     );
     expect(today.days[27]?.dateUtc).toBe('2026-10-21');
     expect(today.windowStartUtc).toBe('2026-09-24T00:00:00.000Z');
-    expect(today.windowEndUtcExclusive).toBe(
-      '2026-10-22T00:00:00.000Z',
-    );
+    expect(today.windowEndUtcExclusive).toBe('2026-10-22T00:00:00.000Z');
   });
 
   it.each([
@@ -174,14 +170,23 @@ describe('B165 private Q&A UTC activity calendar', () => {
     [[{ day: '2026-10-20', count: 1.3 }], []],
     [[{ day: '2026-10-20', count: Number.NaN }], []],
     [[{ day: '2026-10-20', count: '3' }], []],
-    [[{ day: '2026-10-20', count: 2 }, { day: '2026-10-20', count: 4 }], []],
+    [
+      [
+        { day: '2026-10-20', count: 2 },
+        { day: '2026-10-20', count: 4 },
+      ],
+      [],
+    ],
     [[], [{ day: '2026-10-20', count: Number.MAX_SAFE_INTEGER + 1 }]],
-  ])('rejects impossible or duplicate Mongo rows', async (questions, answers) => {
-    const { service } = fixture(questions, answers);
-    await expect(service.forOwner('owner', NOW)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
-  });
+  ])(
+    'rejects impossible or duplicate Mongo rows',
+    async (questions, answers) => {
+      const { service } = fixture(questions, answers);
+      await expect(service.forOwner('owner', NOW)).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    },
+  );
 
   it('rejects unsafe cross-collection integer addition', async () => {
     const { service } = fixture(
@@ -204,9 +209,9 @@ describe('B165 private Q&A UTC activity calendar', () => {
       count: 1,
     }));
     const excessive = fixture(rows, []);
-    await expect(excessive.service.forOwner('owner', NOW)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    await expect(
+      excessive.service.forOwner('owner', NOW),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('propagates Mongo failures instead of fabricating zero-activity days', async () => {
