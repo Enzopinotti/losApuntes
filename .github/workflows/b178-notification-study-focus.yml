@@ -1,0 +1,66 @@
+name: B178 Web notification study focus
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/features/community/notification-category.mjs
+      - apps/web/src/features/community/notification-category.d.mts
+      - apps/web/src/pages/Notifications.tsx
+      - apps/web/src/pages/Community.scss
+      - scripts/test-web-social-qa-contract.mjs
+      - docs/product/b178-notification-study-focus-web.md
+      - .github/workflows/b178-notification-study-focus.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b178-notification-focus-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  notification-focus:
+    name: Node24 exact-head notification focus Web checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify expected SHA and clean tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Read-only canonical format diagnostics
+        shell: bash
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/Notifications.tsx > "$RUNNER_TEMP/b178.canonical.tsx"
+          diff -u apps/web/src/pages/Notifications.tsx "$RUNNER_TEMP/b178.canonical.tsx" || true
+      - name: Exercise complete social Q&A and notification contract
+        run: pnpm test:web-social-qa-contract
+      - name: Check Web TypeScript, lint, format and build
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web lint
+          pnpm --filter @losapuntes/web format:check
+          pnpm --filter @losapuntes/web build
+      - name: Verify pristine exact HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
