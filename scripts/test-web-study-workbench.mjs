@@ -102,7 +102,7 @@ for (const invalid of [
   { q: "a", status: "open" },
   { q: " ".repeat(3) + "a", status: "closed" },
   { q: "x".repeat(121), status: "" },
-  { q: "al\\nn", status: "open" },
+  { q: `al${String.fromCharCode(10)}nn`, status: "open" },
   { q: "álgebra", status: "hidden" },
   { q: "álgebra", status: undefined },
   { q: null, status: "open" },
@@ -155,7 +155,10 @@ assert.match(explorer, /No hay preguntas visibles con estos filtros/u);
 assert.match(explorer, /estado/u);
 assert.doesNotMatch(explorer, /localStorage|sessionStorage|indexedDB/u);
 assert.match(workbench, /<StudySubjectQuestions/u);
-assert.match(workbench, /key=\{\`\$\{authScope\}:\$\{selectedSubject\.id\}\`\}/u);
+assert.ok(
+  workbench.includes('key={`${authScope}:${selectedSubject.id}`}'),
+  "The explorer must remount on viewer and subject changes",
+);
 assert.doesNotMatch(
   workbench,
   /communityApi\.questions\(/u,
