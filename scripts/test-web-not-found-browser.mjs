@@ -118,13 +118,11 @@ async function main() {
 
     await guest.page.getByRole("link", { name: "Explorar apuntes y materias" }).click();
     await guest.page.waitForURL(ORIGIN + "/search", { timeout: 10000 });
-    assert.equal(await guest.page.locator("#not-found-title").count(), 0,
-      "recovery must leave wildcard route");
+    await guest.page.locator("#not-found-title").waitFor({ state: "detached", timeout: 12000 });
 
     await guest.page.goto(ORIGIN + "/dashboard", { waitUntil: "domcontentloaded" });
     await guest.page.waitForURL(ORIGIN + "/login", { timeout: 12000 });
-    assert.equal(await guest.page.locator("#not-found-title").count(), 0,
-      "existing private routes must stay guarded");
+    await guest.page.locator("#not-found-title").waitFor({ state: "detached", timeout: 12000 });
 
     await guest.page.goto(ORIGIN + "/", { waitUntil: "domcontentloaded" });
     assert.equal(await guest.page.locator("#not-found-title").count(), 0,
