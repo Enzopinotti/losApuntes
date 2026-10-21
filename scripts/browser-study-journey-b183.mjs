@@ -247,7 +247,9 @@ async function run() {
       .waitFor();
     assert.equal(events.saves, 1, "A confirmed save must execute once");
     await page
-      .getByRole("button", { name: "Quitar de guardados: Resumen de integrales" })
+      .getByRole("button", {
+        name: "Quitar de guardados: Resumen de integrales",
+      })
       .click();
     await page
       .getByRole("button", { name: "Guardar apunte: Resumen de integrales" })
@@ -255,7 +257,9 @@ async function run() {
     assert.equal(events.removes, 1, "Undo must call the DELETE exactly once");
     await save.click();
     await page
-      .getByRole("button", { name: "Quitar de guardados: Resumen de integrales" })
+      .getByRole("button", {
+        name: "Quitar de guardados: Resumen de integrales",
+      })
       .waitFor();
     assert.equal(events.saves, 2, "Re-saving after undo must be possible");
     await page.getByRole("link", { name: "Ver recurso" }).click();
