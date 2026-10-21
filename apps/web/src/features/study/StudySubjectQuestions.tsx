@@ -72,9 +72,7 @@ export function StudySubjectQuestions({
   );
   const [pageState, setPageState] = useState<QuestionPage | null>(null);
   const currentPage =
-    filterScope !== null && pageState?.scope === filterScope
-      ? pageState
-      : null;
+    filterScope !== null && pageState?.scope === filterScope ? pageState : null;
   const validation = normalizeStudyQuestionFilter(draft);
   const questions = currentPage?.items ?? [];
   const statusDescription =
@@ -89,8 +87,7 @@ export function StudySubjectQuestions({
       if (!isQuestionsCurrent(ticket)) return;
       setPageState((previous) => ({
         scope: filterScope,
-        items:
-          append && previous?.scope === filterScope ? previous.items : [],
+        items: append && previous?.scope === filterScope ? previous.items : [],
         nextCursor:
           append && previous?.scope === filterScope
             ? previous.nextCursor
