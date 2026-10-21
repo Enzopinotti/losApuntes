@@ -1,0 +1,167 @@
+name: B173 six-PR read-only integration rehearsal
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b173-integration-rehearsal.yml
+      - scripts/ci/b173-candidates.json
+      - scripts/ci/b173-reconcile-package-scripts.mjs
+      - scripts/ci/b173-reconcile-package-scripts.test.mjs
+      - scripts/ci/b173-compose-candidates.mjs
+      - docs/engineering/b173-six-pr-integration-rehearsal.md
+  push:
+    branches:
+      - ci/b173-six-pr-integration-rehearsal-20261021
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b173-integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  composed-quality:
+    name: B173 combined Web, Chromium and full monorepo quality
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout immutable B173 head with full graph
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Compose six pinned approved SHA heads without remote changes
+        run: node scripts/ci/b173-compose-candidates.mjs
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen composed workspace
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm install --frozen-lockfile
+      - name: Re-run reconciler's adversarial fixtures
+        run: node --test scripts/ci/b173-reconcile-package-scripts.test.mjs
+      - name: Verify all six combined root test scripts and Axios security
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: |
+          pnpm test:web-dashboard-b158
+          pnpm test:web-study-focus-clock-b169
+          pnpm test:web-resource-citation-b170
+          node scripts/test-web-navigation-contract.mjs
+          node scripts/security/check-follow-redirects-lock.mjs
+          node --test scripts/security/test-follow-redirects-regression.mjs
+      - name: Full repository quality contract on combined candidate
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm check
+      - name: Install real Chromium
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run real Web multi-feature browser regressions
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: |
+          node scripts/test-web-not-found-browser.mjs
+          node scripts/test-web-study-focus-clock-b169-browser.mjs
+          node scripts/test-web-resource-citation-b170-browser.mjs
+      - name: Verify clean composed tree
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  composed-audit:
+    name: B173 mandatory HIGH production audit (must not be suppressed)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout immutable B173 head with full graph
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Compose six pinned approved SHA heads without remote changes
+        run: node scripts/ci/b173-compose-candidates.mjs
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen composed workspace
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm install --frozen-lockfile
+      - name: Confirm no supply-chain audit exceptions
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: node scripts/security/check-audit-exceptions.mjs
+      - name: Mandatory HIGH-level production audit
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm audit:prod
+
+  composed-runtime:
+    name: B173 Mongo8 full Compose and API lifecycle smoke
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout immutable B173 head with full graph
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Compose six pinned approved SHA heads without remote changes
+        run: node scripts/ci/b173-compose-candidates.mjs
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen composed workspace
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm install --frozen-lockfile
+      - name: Verify host kernel is safe for MongoDB 8
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: node scripts/ci/check-mongo-kernel.mjs
+      - name: Start actual Mongo, API, workers and storage
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm runtime:up
+      - name: Full API runtime lifecycle smoke
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm runtime:smoke
+      - name: Compose logs if smoke failed
+        if: failure()
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm runtime:logs
+      - name: Tear down test containers and volumes
+        if: always()
+        working-directory: ${{ env.B173_WORKTREE }}
+        run: pnpm runtime:down
