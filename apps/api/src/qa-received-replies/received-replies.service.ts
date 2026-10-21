@@ -91,7 +91,9 @@ export class ReceivedRepliesService {
     // Bound each parent join at pageSize+1 AFTER applying the keyset.
     // Without this cap, a high-volume question could materialize an
     // unbounded Mongo lookup array even though the final output is small.
-    const answerLookup: NonNullable<PipelineStage.Lookup['$lookup']['pipeline']> = [
+    const answerLookup: NonNullable<
+      PipelineStage.Lookup['$lookup']['pipeline']
+    > = [
       {
         $match: {
           $expr: { $eq: ['$questionId', '$questionId'] },
