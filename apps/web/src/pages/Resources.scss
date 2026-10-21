@@ -242,3 +242,30 @@ button.secondary {
     flex-direction: column;
   }
 }
+
+.resource-study-handoff {
+  display: grid;
+  gap: 0.5rem;
+  max-width: min(100%, 26rem);
+}
+
+.resource-study-handoff button {
+  min-height: 44px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.65rem 0.8rem;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.resource-study-handoff button:focus-visible {
+  outline: 3px solid #5b5bd6;
+  outline-offset: 3px;
+}
+
+.resource-study-handoff p[role="alert"] {
+  margin: 0;
+  line-height: 1.5;
+  color: #8b1e1e;
+  overflow-wrap: anywhere;
+}
