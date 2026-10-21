@@ -68,12 +68,16 @@ export default function StudyFocusClock() {
       <header>
         <h2 id="study-focus-title">Tiempo para concentrarte</h2>
         <p>
-          Un intervalo corto y voluntario para tu materia. Nada se registra ni se
-          comparte.
+          Un intervalo corto y voluntario para tu materia. Nada se registra ni
+          se comparte.
         </p>
       </header>
 
-      <div className="study-focus-modes" role="group" aria-label="Elegir intervalo">
+      <div
+        className="study-focus-modes"
+        role="group"
+        aria-label="Elegir intervalo"
+      >
         <button
           type="button"
           aria-pressed={clock.mode === "study"}
@@ -99,8 +103,8 @@ export default function StudyFocusClock() {
         <p className="study-focus-phase">{phaseText}</p>
         {done && !completionAcknowledged && (
           <p role="status" aria-live="polite" className="study-focus-complete">
-            Intervalo terminado. Elegí si querés descansar o continuar.
-            No iniciamos otro intervalo automáticamente.
+            Intervalo terminado. Elegí si querés descansar o continuar. No
+            iniciamos otro intervalo automáticamente.
           </p>
         )}
       </div>
