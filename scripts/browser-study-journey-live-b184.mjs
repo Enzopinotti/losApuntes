@@ -349,6 +349,48 @@ async function browserJourney(
     );
     assert.ok(saved.items.some((item) => item.id === initialResource.id));
 
+    await page
+      .getByRole("button", {
+        name: `Quitar de guardados: ${initialResource.title}`,
+      })
+      .click();
+    await page
+      .getByRole("button", {
+        name: `Guardar apunte: ${initialResource.title}`,
+      })
+      .waitFor();
+    const afterUndo = await expected(
+      "/resources/saved?limit=25",
+      { bearer: student.bearer },
+      200,
+    );
+    assert.equal(
+      afterUndo.items.some((item) => item.id === initialResource.id),
+      false,
+      "Acknowledged DELETE must remove the real DB saved record",
+    );
+
+    await page
+      .getByRole("button", {
+        name: `Guardar apunte: ${initialResource.title}`,
+      })
+      .click();
+    await page
+      .getByRole("button", {
+        name: `Quitar de guardados: ${initialResource.title}`,
+      })
+      .waitFor();
+    const savedAgain = await expected(
+      "/resources/saved?limit=25",
+      { bearer: student.bearer },
+      200,
+    );
+    assert.equal(
+      savedAgain.items.some((item) => item.id === initialResource.id),
+      true,
+      "Save after undo must restore the real DB saved record",
+    );
+
     await page.getByRole("link", { name: "Ver recurso" }).click();
     await page.waitForURL(
       (url) => url.pathname === `/resources/${initialResource.id}`,
@@ -440,6 +482,8 @@ async function browserJourney(
         database: "real MongoDB",
         browser: "Chromium",
         savedResource: true,
+      unsavedResource: true,
+      resavedResource: true,
         revokedAccessRejected: true,
         subjectScopedSession: true,
         questionInPlan: true,
