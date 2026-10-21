@@ -52,6 +52,23 @@ jobs:
               console.log(JSON.stringify({event:"security.follow_redirects.registry",version:"1.16.1",integrity,registry:"https://registry.npmjs.org/"}));
             });
           '
+      - name: Configure canonical pnpm version
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen workspace; refuse lock drift
+        run: pnpm install --frozen-lockfile
+      - name: Prove Axios chain and npm package integrity in committed lockfile
+        run: |
+          node --check scripts/security/check-follow-redirects-lock.mjs
+          node --check scripts/security/test-follow-redirects-regression.mjs
+          node scripts/security/check-follow-redirects-lock.mjs
+      - name: Run live loopback HTTP redirect regressions
+        run: node --test scripts/security/test-follow-redirects-regression.mjs
+      - name: Verify audit waiver policy is still closed
+        run: node scripts/security/check-audit-exceptions.mjs
+      - name: Typecheck and bundle affected Web client
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web build
       - name: Verify immutable checkout
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
