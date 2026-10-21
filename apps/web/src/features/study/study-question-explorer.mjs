@@ -16,7 +16,10 @@ export function normalizeStudyQuestionFilter(input) {
   if (
     (q.length > 0 && q.length < 2) ||
     q.length > STUDY_QUESTION_QUERY_MAX_LENGTH ||
-    /[\u0000-\u001f\u007f]/u.test(q)
+    [...q].some((character) => {
+      const codePoint = character.charCodeAt(0);
+      return codePoint < 32 || codePoint === 127;
+    })
   ) {
     return null;
   }
