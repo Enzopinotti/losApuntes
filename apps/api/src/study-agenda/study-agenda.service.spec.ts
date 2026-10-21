@@ -145,20 +145,68 @@ describe('B170 private saved study session agenda', () => {
   });
 
   it.each([
-    { name: 'foreign owner', mutate: (row: ReturnType<typeof stored>) => ({ ...row, ownerUserId: 'foreign' }) },
-    { name: 'bad subject ID', mutate: (row: ReturnType<typeof stored>) => ({ ...row, subjectId: 'bad' }) },
-    { name: 'invalid revision', mutate: (row: ReturnType<typeof stored>) => ({ ...row, revision: 0 }) },
-    { name: 'invalid updatedAt', mutate: (row: ReturnType<typeof stored>) => ({ ...row, updatedAt: new Date('bad') }) },
-    { name: 'invalid plan title', mutate: (row: ReturnType<typeof stored>) => ({ ...row, plan: { ...row.plan, title: '' } }) },
-    { name: 'cross-subject plan', mutate: (row: ReturnType<typeof stored>) => ({ ...row, plan: { ...row.plan, subjectId: SUBJECT_IDS[1] } }) },
-    { name: 'unexpected extra fields in plan', mutate: (row: ReturnType<typeof stored>) => ({ ...row, plan: { ...row.plan, token: 'secret' } }) },
-    { name: 'malformed start time', mutate: (row: ReturnType<typeof stored>) => ({ ...row, plan: { ...row.plan, startsAt: 'yesterday' } }) },
-  ])('rejects $name instead of emitting a partial agenda', async ({ mutate }) => {
-    const { service } = fixture([mutate(stored(0, null))]);
-    await expect(service.forOwner('session-owner')).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
-  });
+    {
+      name: 'foreign owner',
+      mutate: (row: ReturnType<typeof stored>) => ({
+        ...row,
+        ownerUserId: 'foreign',
+      }),
+    },
+    {
+      name: 'bad subject ID',
+      mutate: (row: ReturnType<typeof stored>) => ({
+        ...row,
+        subjectId: 'bad',
+      }),
+    },
+    {
+      name: 'invalid revision',
+      mutate: (row: ReturnType<typeof stored>) => ({ ...row, revision: 0 }),
+    },
+    {
+      name: 'invalid updatedAt',
+      mutate: (row: ReturnType<typeof stored>) => ({
+        ...row,
+        updatedAt: new Date('bad'),
+      }),
+    },
+    {
+      name: 'invalid plan title',
+      mutate: (row: ReturnType<typeof stored>) => ({
+        ...row,
+        plan: { ...row.plan, title: '' },
+      }),
+    },
+    {
+      name: 'cross-subject plan',
+      mutate: (row: ReturnType<typeof stored>) => ({
+        ...row,
+        plan: { ...row.plan, subjectId: SUBJECT_IDS[1] },
+      }),
+    },
+    {
+      name: 'unexpected extra fields in plan',
+      mutate: (row: ReturnType<typeof stored>) => ({
+        ...row,
+        plan: { ...row.plan, token: 'secret' },
+      }),
+    },
+    {
+      name: 'malformed start time',
+      mutate: (row: ReturnType<typeof stored>) => ({
+        ...row,
+        plan: { ...row.plan, startsAt: 'yesterday' },
+      }),
+    },
+  ])(
+    'rejects $name instead of emitting a partial agenda',
+    async ({ mutate }) => {
+      const { service } = fixture([mutate(stored(0, null))]);
+      await expect(service.forOwner('session-owner')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    },
+  );
 
   it('rejects duplicate subjects even when Mongo returns a bounded result', async () => {
     const { service } = fixture([stored(0, null), stored(0, null)]);
