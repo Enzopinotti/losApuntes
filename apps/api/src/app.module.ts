@@ -21,6 +21,7 @@ import { QaCardStatusModule } from './qa-card-status/qa-card-status.module';
 import { QaHelpOpportunitiesModule } from './qa-help-opportunities/qa-help-opportunities.module';
 import { QaNeedsHelpModule } from './qa-needs-help/qa-needs-help.module';
 import { QaActivityCalendarModule } from './qa-calendar/qa-activity-calendar.module';
+import { QaDiscussionsModule } from './qa-discussions/qa-discussions.module';
 import { QaModule } from './qa/qa.module';
 import { ReceivedRepliesModule } from './qa-received-replies/received-replies.module';
 import { ResourcesModule } from './resources/resources.module';
@@ -71,6 +72,7 @@ import { UsersModule } from './users/users.module';
     QaNeedsHelpModule,
     QaActivityCalendarModule,
     ReceivedRepliesModule,
+    QaDiscussionsModule,
     HealthModule,
   ],
   controllers: [AppController],
