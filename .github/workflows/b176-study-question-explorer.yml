@@ -52,7 +52,7 @@ jobs:
           pnpm --filter @losapuntes/web exec prettier src/features/study/StudySubjectQuestions.tsx > "$RUNNER_TEMP/b176.canonical.tsx"
           diff -u apps/web/src/features/study/StudySubjectQuestions.tsx "$RUNNER_TEMP/b176.canonical.tsx" || true
       - name: B176 plus Study Workbench regression contract
-        run: pnpm test:web-study-workbench
+        run: node scripts/test-web-study-workbench.mjs
       - name: Exact-head Web TypeScript lint and format
         run: |
           pnpm --filter @losapuntes/web check:types
