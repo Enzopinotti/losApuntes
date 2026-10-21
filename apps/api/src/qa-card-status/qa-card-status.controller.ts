@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Header,
+  HttpCode,
   Post,
   Req,
   UseGuards,
@@ -21,6 +22,7 @@ export class QaCardStatusController {
   constructor(private readonly statuses: QaCardStatusService) {}
 
   @Post('batch-question-status')
+  @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   refresh(
     @Req() request: AuthenticatedRequest,
