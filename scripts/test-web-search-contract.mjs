@@ -343,7 +343,10 @@ assert.match(page, /\{authenticated && \(/u);
 assert.match(page, /<SearchSaveAction/u);
 assert.match(page, /authorityScope=\{authorityScope\}/u);
 assert.match(page, /resourceId=\{resource\.id\}/u);
-assert.match(page, /key=\{\`\$\{authorityScope\}:\$\{resource\.id\}\`\}/u);
+assert.ok(
+  page.includes('key={`${authorityScope}:${resource.id}`}'),
+  'Save state must be isolated per session and resource',
+);
 assert.match(page, /subjectId: submittedSubjectId \|\| undefined/u);
 assert.match(page, /Iniciá sesión/u);
 const saveStyles = await read('apps/web/src/pages/Search.scss');
