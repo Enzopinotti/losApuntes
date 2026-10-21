@@ -113,7 +113,7 @@ async function main() {
     const guestBody = await guest.page.locator("body").innerText();
     assert.ok(!guestBody.includes(secret), "unknown URL token leaked into text content");
     assert.equal(await guest.page.getByRole("link", { name: "Abrir mi panel académico" }).count(), 0);
-    assert.equal(await guest.page.getByRole("link", { name: "Ir al inicio" }).getAttribute("href"), "/");
+    assert.equal(await guest.page.getByRole("link", { name: "Ir al inicio", exact: true }).getAttribute("href"), "/");
     assert.equal(await guest.page.getByRole("link", { name: "Explorar apuntes y materias" }).getAttribute("href"), "/search");
 
     await guest.page.getByRole("link", { name: "Explorar apuntes y materias" }).click();
