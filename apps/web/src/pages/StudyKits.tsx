@@ -1082,11 +1082,16 @@ export default function StudyKits() {
                       subjectId={subjectId}
                       resourceIds={selectedKit.resourceIds}
                       limitReached={
-                        selectedKit.resourceIds.length >= STUDY_KIT_MAX_RESOURCES
+                        selectedKit.resourceIds.length >=
+                        STUDY_KIT_MAX_RESOURCES
                       }
                       onAdd={(resourceId) =>
                         updateSelected((value) =>
-                          addStudyKitResource(value, selectedKit.id, resourceId),
+                          addStudyKitResource(
+                            value,
+                            selectedKit.id,
+                            resourceId,
+                          ),
                         )
                       }
                     />
