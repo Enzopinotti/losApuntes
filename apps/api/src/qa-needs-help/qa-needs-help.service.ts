@@ -144,7 +144,10 @@ export class QaNeedsHelpService {
     let previous: QaNeedsHelpCard | undefined;
     const items = rows.map((raw) => {
       const item = readRow(raw);
-      if (item.subjectId !== subjectId || seen.has(item.questionId)) {
+      if (
+        item.subjectId !== subjectId ||
+        seen.has(item.questionId)
+      ) {
         invalidRow();
       }
       if (
