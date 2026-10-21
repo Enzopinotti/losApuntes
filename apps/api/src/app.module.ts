@@ -19,6 +19,7 @@ import { ProfileModule } from './profile/profile.module';
 import { QaModule } from './qa/qa.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
+import { StudyAgendaModule } from './study-agenda/study-agenda.module';
 import { StudyCollectionsModule } from './study-collections/study-collections.module';
 import { StudyProgressModule } from './study-progress/study-progress.module';
 import { SocialModule } from './social/social.module';
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module';
     SearchDiscoveryModule,
     StudyCollectionsModule,
     StudyProgressModule,
+    StudyAgendaModule,
     FeedsModule,
     NotificationsModule,
     OrganizationsModule,
