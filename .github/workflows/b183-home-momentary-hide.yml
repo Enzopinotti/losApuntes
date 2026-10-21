@@ -1,0 +1,83 @@
+name: B183 local reversible home feed preview
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/pages/Home.tsx
+      - apps/web/src/pages/Pilot.scss
+      - apps/web/src/features/feeds/home-feed-momentary-hide.mjs
+      - apps/web/src/features/feeds/home-feed-momentary-hide.d.mts
+      - scripts/test-web-home-momentary-hide-b183.test.mjs
+      - scripts/test-web-home-momentary-hide-b183-browser.mjs
+      - .github/workflows/b183-home-momentary-hide.yml
+      - docs/product/b183-home-feed-momentary-hide.md
+      - package.json
+  push:
+    branches:
+      - feat/b183-home-feed-momentary-hide-20261021
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b183-home-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-home-preview:
+    name: B183 frozen, type-safe and Chromium preview acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact SHA and clean checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Setup canonical pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install exact frozen Web dependencies
+        run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
+      - name: Run all B183 privacy and boundary tests
+        run: pnpm test:web-home-momentary-hide-b183
+      - name: Web type safety
+        run: pnpm --filter @losapuntes/web check:types
+      - name: ESLint Web
+        run: pnpm --filter @losapuntes/web lint
+      - name: Canonical Web format
+        run: pnpm --filter @losapuntes/web format:check
+      - name: Show read-only canonical diff on failure
+        if: failure()
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/Home.tsx > "$RUNNER_TEMP/b183-home.tsx"
+          diff -u apps/web/src/pages/Home.tsx "$RUNNER_TEMP/b183-home.tsx" || true
+          pnpm --filter @losapuntes/web exec prettier src/pages/Pilot.scss > "$RUNNER_TEMP/b183-pilot.scss"
+          diff -u apps/web/src/pages/Pilot.scss "$RUNNER_TEMP/b183-pilot.scss" || true
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Test real guest / authenticated UX without mutations
+        run: node scripts/test-web-home-momentary-hide-b183-browser.mjs
+      - name: Bundle production Web
+        run: pnpm --filter @losapuntes/web build
+      - name: Verify immutable candidate after QA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# Browser / UI success does not change the mandatory global audit result or
+# authorize merge/deploy when production HIGH advisories remain.
