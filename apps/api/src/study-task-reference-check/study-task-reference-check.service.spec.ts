@@ -22,11 +22,7 @@ const RESOURCE_1 = '269f2da7-f70c-418d-9151-000000000001';
 const QUESTION_1 = '269f2da7-f70c-418d-9151-000000000002';
 const RESOURCE_2 = '269f2da7-f70c-418d-9151-000000000003';
 
-function task(
-  kind: 'resource' | 'question',
-  id: string,
-  done = false,
-) {
+function task(kind: 'resource' | 'question', id: string, done = false) {
   return { kind, id, minutes: 25, done };
 }
 
@@ -80,14 +76,8 @@ function fixture(row: unknown) {
 
 describe('B172 saved study task reference status', () => {
   it('reuses canonical authorization reads and skips completed tasks', async () => {
-    const {
-      service,
-      resourceGet,
-      questionGet,
-      findOne,
-      select,
-      maxTimeMS,
-    } = fixture(stored());
+    const { service, resourceGet, questionGet, findOne, select, maxTimeMS } =
+      fixture(stored());
     resourceGet.mockRejectedValue(new NotFoundException());
     const result = await service.forOwner('current-student', SUBJECT);
     expect(result).toEqual({
@@ -125,16 +115,19 @@ describe('B172 saved study task reference status', () => {
     { name: 'forbidden', exception: new ForbiddenException() },
     { name: 'missing', exception: new NotFoundException() },
     { name: 'gone', exception: new GoneException() },
-  ])('maps $name links to identical unavailable status', async ({ exception }) => {
-    const { service, questionGet } = fixture(
-      stored([task('question', QUESTION_1)]),
-    );
-    questionGet.mockRejectedValue(exception);
-    const result = await service.forOwner('current-student', SUBJECT);
-    expect(result.items).toEqual([
-      { kind: 'question', id: QUESTION_1, status: 'unavailable' },
-    ]);
-  });
+  ])(
+    'maps $name links to identical unavailable status',
+    async ({ exception }) => {
+      const { service, questionGet } = fixture(
+        stored([task('question', QUESTION_1)]),
+      );
+      questionGet.mockRejectedValue(exception);
+      const result = await service.forOwner('current-student', SUBJECT);
+      expect(result.items).toEqual([
+        { kind: 'question', id: QUESTION_1, status: 'unavailable' },
+      ]);
+    },
+  );
 
   it('returns zero checks without querying foreign content when all tasks are done', async () => {
     const { service, resourceGet, questionGet } = fixture(
@@ -166,7 +159,10 @@ describe('B172 saved study task reference status', () => {
     { name: 'different owner', patch: { ownerUserId: 'other' } },
     { name: 'other subject', patch: { subjectId: FOREIGN_SUBJECT } },
     { name: 'invalid revision', patch: { revision: 0 } },
-    { name: 'unsafe revision', patch: { revision: Number.MAX_SAFE_INTEGER + 1 } },
+    {
+      name: 'unsafe revision',
+      patch: { revision: Number.MAX_SAFE_INTEGER + 1 },
+    },
     { name: 'bad ID', patch: { subjectId: 'invalid' } },
     { name: 'nonexistent plan', patch: { plan: null } },
     {
