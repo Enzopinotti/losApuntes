@@ -7,6 +7,10 @@ export interface ReceivedRepliesCursor {
 }
 
 const ANSWER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+export function isReceivedReplyAnswerId(value: unknown): value is string {
+  return typeof value === 'string' && ANSWER_ID.test(value);
+}
 const ENCODED_CURSOR = /^[A-Za-z0-9_-]{1,512}$/u;
 
 function rejectCursor(): never {
@@ -59,7 +63,7 @@ export function decodeReceivedRepliesCursor(
       fields.v !== 1 ||
       typeof fields.t !== 'string' ||
       typeof fields.id !== 'string' ||
-      !ANSWER_ID.test(fields.id) ||
+      !isReceivedReplyAnswerId(fields.id) ||
       fields.owner !== ownerTag(ownerUserId)
     ) {
       rejectCursor();
