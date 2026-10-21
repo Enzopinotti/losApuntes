@@ -1,4 +1,7 @@
-import { ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { Model } from 'mongoose';
 
 import type { AcademicService } from '../academic/domain/academic.service';
@@ -16,7 +19,8 @@ const SUBJECT_ID = 'bbde8519-5796-429c-b078-7b705edc5a0b';
 const OTHER_SUBJECT_ID = 'b14211d1-6f33-4e14-a946-6a9218e716c9';
 const QUESTION_IDS = Array.from(
   { length: 17 },
-  (_, index) => '269f2da7-f70c-418d-9151-' + String(index + 1).padStart(12, '0'),
+  (_, index) =>
+    '269f2da7-f70c-418d-9151-' + String(index + 1).padStart(12, '0'),
 );
 const CREATED = new Date('2026-10-20T11:00:01.000Z');
 
@@ -51,13 +55,16 @@ describe('B166 questions needing help discovery', () => {
     const { service, aggregate, option, resolveResourceContext } = fixture([
       card(0),
     ]);
-    await expect(service.forSubject('viewer-one', SUBJECT_ID, undefined)).resolves.toEqual({
-      items: [{
-        questionId: QUESTION_IDS[0],
-        subjectId: SUBJECT_ID,
-        title: 'Necesito ayuda con el parcial',
-        createdAt: CREATED.toISOString(),
-      }],
+    const result = await service.forSubject('viewer-one', SUBJECT_ID, undefined);
+    expect(result).toEqual({
+      items: [
+        {
+          questionId: QUESTION_IDS[0],
+          subjectId: SUBJECT_ID,
+          title: 'Necesito ayuda con el parcial',
+          createdAt: CREATED.toISOString(),
+        },
+      ],
       nextCursor: null,
     });
     expect(resolveResourceContext).toHaveBeenCalledWith(SUBJECT_ID);
@@ -106,10 +113,8 @@ describe('B166 questions needing help discovery', () => {
 
   it('returns empty page for subjects without visible unanswered peer questions', async () => {
     const { service } = fixture([]);
-    await expect(service.forSubject('viewer', SUBJECT_ID, undefined)).resolves.toEqual({
-      items: [],
-      nextCursor: null,
-    });
+    const result = await service.forSubject('viewer', SUBJECT_ID, undefined);
+    expect(result).toEqual({ items: [], nextCursor: null });
   });
 
   it('limits to fifteen questions and returns a scoped next cursor', async () => {
@@ -120,7 +125,9 @@ describe('B166 questions needing help discovery', () => {
     expect(result.items).toHaveLength(15);
     expect(result.items[0]?.questionId).toBe(QUESTION_IDS[0]);
     expect(result.items[14]?.questionId).toBe(QUESTION_IDS[14]);
-    expect(decodeNeedsHelpCursor(result.nextCursor, SUBJECT_ID, 'viewer')).toEqual({
+    expect(
+      decodeNeedsHelpCursor(result.nextCursor, SUBJECT_ID, 'viewer'),
+    ).toEqual({
       createdAt: CREATED,
       questionId: QUESTION_IDS[14],
     });
@@ -156,7 +163,8 @@ describe('B166 questions needing help discovery', () => {
       SUBJECT_ID,
       'someone-else',
     );
-    await expect(service.forSubject('viewer', SUBJECT_ID, token)).rejects.toBeInstanceOf(
+    const request = service.forSubject('viewer', SUBJECT_ID, token);
+    await expect(request).rejects.toBeInstanceOf(
       UnprocessableEntityException,
     );
     expect(aggregate).not.toHaveBeenCalled();
@@ -172,31 +180,42 @@ describe('B166 questions needing help discovery', () => {
     [{ createdAt: new Date('invalid') }],
   ])('fails closed for unexpected stored rows', async (change) => {
     const { service } = fixture([card(0, change)]);
-    await expect(service.forSubject('viewer', SUBJECT_ID, undefined)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    const request = service.forSubject('viewer', SUBJECT_ID, undefined);
+    await expect(request).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('rejects duplicates, misordered rows and oversized results', async () => {
     const duplicate = fixture([card(0), card(0)]);
-    await expect(duplicate.service.forSubject('viewer', SUBJECT_ID, undefined)).rejects.toBeInstanceOf(
+    const duplicated = duplicate.service.forSubject(
+      'viewer',
+      SUBJECT_ID,
+      undefined,
+    );
+    await expect(duplicated).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
     const wrongOrder = fixture([card(1), card(0)]);
-    await expect(wrongOrder.service.forSubject('viewer', SUBJECT_ID, undefined)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
+    const unordered = wrongOrder.service.forSubject(
+      'viewer',
+      SUBJECT_ID,
+      undefined,
     );
-    const oversized = fixture(Array.from({ length: 17 }, (_, index) => card(index)));
-    await expect(oversized.service.forSubject('viewer', SUBJECT_ID, undefined)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
+    await expect(unordered).rejects.toBeInstanceOf(ServiceUnavailableException);
+    const oversized = fixture(
+      Array.from({ length: 17 }, (_, index) => card(index)),
     );
+    const tooMany = oversized.service.forSubject(
+      'viewer',
+      SUBJECT_ID,
+      undefined,
+    );
+    await expect(tooMany).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('propagates backend failure instead of silently inventing no questions', async () => {
     const { service, exec } = fixture([]);
     exec.mockRejectedValue(new Error('Mongo unavailable'));
-    await expect(service.forSubject('viewer', SUBJECT_ID, undefined)).rejects.toThrow(
-      'Mongo unavailable',
-    );
+    const request = service.forSubject('viewer', SUBJECT_ID, undefined);
+    await expect(request).rejects.toThrow('Mongo unavailable');
   });
 });
