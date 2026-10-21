@@ -59,6 +59,8 @@ jobs:
           diff -u scripts/test-b182-study-journey-integration.mjs "$RUNNER_TEMP/b182.test.canonical.mjs" || true
           pnpm exec prettier scripts/integration/b182-study-journey-sources.json > "$RUNNER_TEMP/b182.manifest.canonical.json"
           diff -u scripts/integration/b182-study-journey-sources.json "$RUNNER_TEMP/b182.manifest.canonical.json" || true
+          pnpm --filter @losapuntes/web exec prettier src/features/search/SearchSaveAction.tsx > "$RUNNER_TEMP/b185.save.canonical.tsx"
+          diff -u apps/web/src/features/search/SearchSaveAction.tsx "$RUNNER_TEMP/b185.save.canonical.tsx" || true
       - name: Verify source hashes and full student journey regression
         run: |
           node scripts/test-b182-study-journey-integration.mjs
