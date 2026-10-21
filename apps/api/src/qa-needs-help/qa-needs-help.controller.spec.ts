@@ -32,7 +32,11 @@ describe('B166 needs-help controller', () => {
       QaNeedsHelpController,
       'list',
     ) as Record<string, { data?: string; pipes?: unknown[] }>;
-    expect(Object.values(args).some((value) => value.data === 'subjectId' && (value.pipes?.length ?? 0) > 0)).toBe(true);
+    expect(
+      Object.values(args).some(
+        (value) => value.data === 'subjectId' && (value.pipes?.length ?? 0) > 0,
+      ),
+    ).toBe(true);
   });
 
   it('uses the validated session owner, not user IDs from the caller', async () => {
