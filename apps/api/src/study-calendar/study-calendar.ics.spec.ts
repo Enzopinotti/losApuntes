@@ -64,7 +64,8 @@ describe('B173 safe RFC5545 calendar renderer', () => {
     const first = renderStudyCalendar('owner-one', [event('A')], GENERATED);
     const second = renderStudyCalendar('owner-one', [event('B')], GENERATED);
     const other = renderStudyCalendar('owner-two', [event('A')], GENERATED);
-    const uid = (data: string) => data.match(/UID:([^\r\n]+)/u)?.[1];
+    const uid = (data: string) =>
+      data.replace(/\r\n /gu, '').match(/UID:([^\r\n]+)/u)?.[1];
     expect(uid(first)).toBe(uid(second));
     expect(uid(first)).not.toBe(uid(other));
     expect(uid(first)).toMatch(/^[a-f0-9]{64}@calendar\.losapuntes\.invalid$/u);
