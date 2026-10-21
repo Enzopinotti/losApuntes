@@ -96,7 +96,7 @@ export class ReceivedRepliesService {
     > = [
       {
         $match: {
-          $expr: { $eq: ['$questionId', '$questionId'] },
+          $expr: { $eq: ['$questionId', '$$questionId'] },
           moderationState: 'available',
         },
       },
