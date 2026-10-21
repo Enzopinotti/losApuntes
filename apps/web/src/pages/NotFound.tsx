@@ -23,10 +23,7 @@ const NotFound = () => {
           lugar conocido sin perder el control de tu cuenta.
         </p>
 
-        <nav
-          className="not-found-actions"
-          aria-label="Opciones para continuar"
-        >
+        <nav className="not-found-actions" aria-label="Opciones para continuar">
           <Link className="not-found-primary" to="/">
             Ir al inicio
           </Link>
@@ -40,8 +37,8 @@ const NotFound = () => {
           )}
         </nav>
         <p className="not-found-hint">
-          Si buscabas un apunte o perfil concreto, probá encontrarlo mediante
-          la búsqueda. No mostramos la dirección original por privacidad.
+          Si buscabas un apunte o perfil concreto, probá encontrarlo mediante la
+          búsqueda. No mostramos la dirección original por privacidad.
         </p>
       </div>
     </section>
