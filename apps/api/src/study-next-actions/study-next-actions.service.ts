@@ -158,10 +158,7 @@ export class StudyNextActionsService {
 
     for (const row of rows) {
       const projected = projectPlan(ownerUserId, row);
-      if (
-        typeof row.subjectId !== 'string' ||
-        subjects.has(row.subjectId)
-      ) {
+      if (typeof row.subjectId !== 'string' || subjects.has(row.subjectId)) {
         invalidStoredProgress();
       }
       subjects.add(row.subjectId);
