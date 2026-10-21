@@ -21,7 +21,11 @@ function event(title: string): StudyCalendarEvent {
 
 describe('B173 safe RFC5545 calendar renderer', () => {
   it('preserves floating wall time without Z or server timezone', () => {
-    const output = renderStudyCalendar('owner-one', [event('Repasar')], GENERATED);
+    const output = renderStudyCalendar(
+      'owner-one',
+      [event('Repasar')],
+      GENERATED,
+    );
     expect(output).toContain('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n');
     expect(output).toContain('BEGIN:VEVENT\r\n');
     expect(output).toContain('DTSTAMP:20261021T114509Z\r\n');
@@ -39,8 +43,12 @@ describe('B173 safe RFC5545 calendar renderer', () => {
   it('escapes potentially structural text and cannot inject a new VEVENT', () => {
     const title = 'Trabajo, entrega; final\\bibliografía\r\nBEGIN:VEVENT';
     const output = renderStudyCalendar('owner', [event(title)], GENERATED);
-    expect(output.split('\r\n').filter((line) => line === 'BEGIN:VEVENT')).toHaveLength(1);
-    expect(output.split('\r\n').filter((line) => line === 'END:VEVENT')).toHaveLength(1);
+    expect(
+      output.split('\r\n').filter((line) => line === 'BEGIN:VEVENT'),
+    ).toHaveLength(1);
+    expect(
+      output.split('\r\n').filter((line) => line === 'END:VEVENT'),
+    ).toHaveLength(1);
     expect(output.replace(/\r\n /gu, '')).toContain(
       'SUMMARY:Trabajo\\, entrega\\; final\\\\bibliografía\\nBEGIN:VEVENT',
     );
