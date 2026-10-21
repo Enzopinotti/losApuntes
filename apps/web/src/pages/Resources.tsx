@@ -1425,7 +1425,8 @@ const Resources = () => {
                       {savedView ? "Quitar de guardados" : "Guardar"}
                     </button>
                     {resourceId &&
-                      resource.id.toLowerCase() === resourceId.toLowerCase() && (
+                      resource.id.toLowerCase() ===
+                        resourceId.toLowerCase() && (
                         <ResourceStudyHandoff
                           key={`${authScopeKey}:${resource.id}`}
                           resourceId={resource.id}
