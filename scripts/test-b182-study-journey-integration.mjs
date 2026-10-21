@@ -19,6 +19,16 @@ assert.deepEqual(
   [509, 511, 514, 515],
 );
 
+// B185 intentionally extends exactly two source blobs from PR #509.
+// Keep their original SHA provenance in the manifest; require every other
+// source blob to remain byte-identical, and detect undocumented changes.
+const overlays = new Set([
+  "apps/web/src/features/search/SearchSaveAction.tsx",
+  "scripts/test-web-search-contract.mjs",
+]);
+let unchangedSources = 0;
+let verifiedOverlays = 0;
+
 const paths = new Set();
 for (const source of manifest.sources) {
   assert.match(source.path, /^(apps\/web\/|docs\/product\/|scripts\/|\.github\/)/u);
@@ -31,12 +41,26 @@ for (const source of manifest.sources) {
     .update(`blob ${bytes.length}\0`)
     .update(bytes)
     .digest("hex");
-  assert.equal(
-    blobHash,
-    source.blobSha,
-    `Source drift in ${source.path} from PR #${source.pr}`,
-  );
+  if (overlays.has(source.path)) {
+    assert.equal(source.pr, 509, "Only PR #509 search actions may be extended");
+    assert.notEqual(
+      blobHash,
+      source.blobSha,
+      `B185 extension ${source.path} unexpectedly replaced by original`,
+    );
+    verifiedOverlays++;
+  } else {
+    assert.equal(
+      blobHash,
+      source.blobSha,
+      `Source drift in ${source.path} from PR #${source.pr}`,
+    );
+    unchangedSources++;
+  }
 }
+
+assert.equal(unchangedSources, 30);
+assert.equal(verifiedOverlays, overlays.size, "Every intended B185 overlay must be tracked");
 
 const search = text("apps/web/src/pages/Search.tsx");
 const searchAction = text("apps/web/src/features/search/SearchSaveAction.tsx");
@@ -54,6 +78,8 @@ const frozenLock = text("pnpm-lock.yaml");
 
 assert.match(search, /<SearchSaveAction/u);
 assert.match(searchAction, /resourcesApi\.save\(/u);
+assert.match(searchAction, /resourcesApi\.unsave\(/u);
+assert.match(searchAction, /Reintentar quitar/u);
 assert.match(kits, /<StudyKitResourceSearch/u);
 assert.match(kitFinder, /resourcesApi\.search\(/u);
 assert.match(kitFinder, /useAsyncAuthorityFence/u);
@@ -84,7 +110,9 @@ console.log(
   JSON.stringify({
     event: "b182.study_security.integration",
     status: "SOURCE_AND_FLOW_CONTRACT_PASS",
-    originalFilesVerified: manifest.sources.length,
+    originalSourceRecords: manifest.sources.length,
+    byteIdenticalSourceFiles: unchangedSources,
+    documentedExtensions: verifiedOverlays,
     studentFlows: [
       "search-to-save",
       "subject-kit-finder",
