@@ -17,6 +17,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { PilotModule } from './pilot/pilot.module';
 import { ProfileModule } from './profile/profile.module';
 import { QaSolvedLibraryModule } from './qa-solved-library/qa-solved-library.module';
+import { QaCardStatusModule } from './qa-card-status/qa-card-status.module';
 import { QaModule } from './qa/qa.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
@@ -61,6 +62,7 @@ import { UsersModule } from './users/users.module';
     SocialModule,
     QaModule,
     QaSolvedLibraryModule,
+    QaCardStatusModule,
     HealthModule,
   ],
   controllers: [AppController],
