@@ -108,10 +108,7 @@ export class StudyCalendarService {
     for (const row of rows) {
       // Validate and count all records, including unscheduled ones.
       const event = toCalendarEvent(row, ownerUserId);
-      if (
-        typeof row.subjectId !== 'string' ||
-        seen.has(row.subjectId)
-      ) {
+      if (typeof row.subjectId !== 'string' || seen.has(row.subjectId)) {
         invalidStoredPlan();
       }
       seen.add(row.subjectId);
