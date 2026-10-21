@@ -79,7 +79,8 @@ export class QaNeedsHelpService {
     rawCursor: unknown,
   ): Promise<QaNeedsHelpPage> {
     // Same canonical academic subject resolution as the existing Q&A search.
-    const { subjectId } = await this.academic.resolveResourceContext(rawSubjectId);
+    const { subjectId } =
+      await this.academic.resolveResourceContext(rawSubjectId);
     const cursor = decodeNeedsHelpCursor(rawCursor, subjectId, viewerUserId);
 
     const match: Record<string, unknown> = {
@@ -143,7 +144,9 @@ export class QaNeedsHelpService {
     let previous: QaNeedsHelpCard | undefined;
     const items = rows.map((raw) => {
       const item = readRow(raw);
-      if (item.subjectId !== subjectId || seen.has(item.questionId)) invalidRow();
+      if (item.subjectId !== subjectId || seen.has(item.questionId)) {
+        invalidRow();
+      }
       if (
         previous &&
         (item.createdAt < previous.createdAt ||
@@ -164,7 +167,10 @@ export class QaNeedsHelpService {
       nextCursor:
         last && items.length > QA_NEEDS_HELP_LIMIT
           ? encodeNeedsHelpCursor(
-              { createdAt: new Date(last.createdAt), questionId: last.questionId },
+              {
+                createdAt: new Date(last.createdAt),
+                questionId: last.questionId,
+              },
               subjectId,
               viewerUserId,
             )
