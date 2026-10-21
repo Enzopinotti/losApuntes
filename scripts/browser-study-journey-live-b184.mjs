@@ -339,7 +339,7 @@ async function browserJourney(
       .click();
     await page
       .getByRole("button", {
-        name: `Apunte guardado: ${initialResource.title}`,
+        name: `Quitar de guardados: ${initialResource.title}`,
       })
       .waitFor();
     const saved = await expected(
