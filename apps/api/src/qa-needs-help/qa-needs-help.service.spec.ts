@@ -55,7 +55,11 @@ describe('B166 questions needing help discovery', () => {
     const { service, aggregate, option, resolveResourceContext } = fixture([
       card(0),
     ]);
-    const result = await service.forSubject('viewer-one', SUBJECT_ID, undefined);
+    const result = await service.forSubject(
+      'viewer-one',
+      SUBJECT_ID,
+      undefined,
+    );
     expect(result).toEqual({
       items: [
         {
@@ -164,9 +168,7 @@ describe('B166 questions needing help discovery', () => {
       'someone-else',
     );
     const request = service.forSubject('viewer', SUBJECT_ID, token);
-    await expect(request).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    await expect(request).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(aggregate).not.toHaveBeenCalled();
   });
 
