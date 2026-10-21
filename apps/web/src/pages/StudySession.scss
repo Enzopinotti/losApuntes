@@ -98,3 +98,57 @@
 .study-session-handoff h2 { margin-top: 0; }
 .study-session-handoff .study-session-export-actions { margin: .9rem 0; }
 .study-session-handoff .study-session-info { margin-bottom: 0; }
+
+.study-session-material-finder {
+  padding: 1rem;
+  margin: 1rem 0 1.25rem;
+  border: 1px solid #cfd0e6;
+  background: #f8f8ff;
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.study-session-material-finder h3 {
+  margin: 0 0 0.55rem;
+}
+
+.study-session-material-finder > p {
+  font-size: 0.93rem;
+  line-height: 1.5;
+  color: #555972;
+}
+
+.study-session-material-form {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.9rem 0;
+}
+
+.study-session-material-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.study-session-material-form :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.study-session-material-finder button {
+  min-height: 44px;
+}
+
+.study-session-material-finder .study-session-sources {
+  max-height: 360px;
+  margin: 0.75rem 0;
+}
+
+.study-session-material-finder .study-session-alert {
+  margin: 0.75rem 0;
+}
+
+.study-session-material-finder .study-session-info {
+  overflow-wrap: anywhere;
+}
