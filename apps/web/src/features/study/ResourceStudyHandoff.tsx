@@ -5,10 +5,7 @@ import {
   isResourcesApiError,
   resourcesApi,
 } from "../resources/services/resourcesService";
-import {
-  isSearchApiError,
-  searchApi,
-} from "../search/services/searchService";
+import { isSearchApiError, searchApi } from "../search/services/searchService";
 import { useAsyncAuthorityFence } from "../../shared/useAsyncAuthorityFence";
 import { resourceToStudyHandoffPlan } from "./resource-study-handoff.mjs";
 import { createStudyHandoff } from "./study-session-handoff.mjs";
@@ -36,10 +33,7 @@ function messageFor(error: unknown): string {
   return "No pudimos verificar el apunte y tu materia. Revisá la conexión y reintentá.";
 }
 
-export function ResourceStudyHandoff({
-  resourceId,
-  authorityScope,
-}: Props) {
+export function ResourceStudyHandoff({ resourceId, authorityScope }: Props) {
   const navigate = useNavigate();
   const scope = `resource-study-handoff:${authorityScope}:${resourceId}`;
   const { begin, isCurrent, finish } = useAsyncAuthorityFence(scope);
@@ -108,7 +102,9 @@ export function ResourceStudyHandoff({
         disabled={current?.busy ?? false}
         onClick={() => void prepare()}
       >
-        {current?.busy ? "Verificando materia…" : "Preparar sesión con este apunte"}
+        {current?.busy
+          ? "Verificando materia…"
+          : "Preparar sesión con este apunte"}
       </button>
       {current?.error && <p role="alert">{current.error}</p>}
     </div>
