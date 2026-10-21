@@ -131,7 +131,10 @@ assert.match(questions, /communityApi\.reportQuestion\([\s\S]{0,160}signal/u);
 assert.match(questions, /communityApi\.reportAnswer\([\s\S]{0,160}signal/u);
 assert.match(questions, /await loadListRef\.current\(\)/u);
 assert.match(questions, /loadDetailRef\.current\(\)/u);
-assert.match(questions, /questionDetailSearchParams\(params, result\.question\.id\)/u);
+assert.match(
+  questions,
+  /questionDetailSearchParams\(params, result\.question\.id\)/u,
+);
 assert.match(questions, /Cargando pregunta…/u);
 assert.match(questions, /subjectId: discoverySubjectId \?\? undefined/u);
 assert.match(questions, /if \(discoverySubjectId === undefined\)/u);
@@ -155,7 +158,9 @@ assert.equal(
   'missing filter is an intentionally global Q&A list',
 );
 assert.equal(
-  questionSubjectIdFromSearchParams(new URLSearchParams(`subjectId=${subjectUuid}`)),
+  questionSubjectIdFromSearchParams(
+    new URLSearchParams(`subjectId=${subjectUuid}`),
+  ),
   canonicalSubjectUuid,
 );
 for (const unsafe of [
@@ -171,7 +176,10 @@ for (const unsafe of [
   );
 }
 assert.equal(questionListHref(null), '/questions');
-assert.equal(questionListHref(subjectUuid), `/questions?subjectId=${canonicalSubjectUuid}`);
+assert.equal(
+  questionListHref(subjectUuid),
+  `/questions?subjectId=${canonicalSubjectUuid}`,
+);
 assert.equal(questionListHref('bad%26id%3Dother'), null);
 assert.equal(questionListHref(undefined), null);
 const preservedQuestion = questionDetailSearchParams(
@@ -180,7 +188,10 @@ const preservedQuestion = questionDetailSearchParams(
 );
 assert.equal(preservedQuestion.get('subjectId'), canonicalSubjectUuid);
 assert.equal(preservedQuestion.get('id'), 'new-question');
-assert.match(communityStyles, /\.community-discovery-filter button:focus-visible/u);
+assert.match(
+  communityStyles,
+  /\.community-discovery-filter button:focus-visible/u,
+);
 assert.match(questions, /feedReturnHref\(location\.state\)/u);
 assert.match(
   questions,
