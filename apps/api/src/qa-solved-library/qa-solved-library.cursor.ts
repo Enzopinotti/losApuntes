@@ -54,7 +54,11 @@ export function decodeSolvedQaCursor(
     if (bytes.length > 384 || bytes.toString('base64url') !== input) invalid();
 
     const parsed: unknown = JSON.parse(bytes.toString('utf8'));
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed)
+    ) {
       invalid();
     }
     const fields = parsed as Record<string, unknown>;
