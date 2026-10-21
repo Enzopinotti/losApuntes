@@ -1,0 +1,110 @@
+.study-focus-card {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  border: 1px solid #d6d9ed;
+  border-radius: 18px;
+  background: #f7f8ff;
+  color: #262a4c;
+
+  h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.3rem;
+  }
+
+  header p,
+  .study-focus-help {
+    margin: 0;
+    max-width: 70ch;
+    color: #505471;
+    line-height: 1.55;
+  }
+}
+
+.study-focus-modes,
+.study-focus-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+
+  button {
+    min-height: 44px;
+    border: 1px solid #7d82ac;
+    border-radius: 10px;
+    padding: 0.65rem 0.95rem;
+    background: #fff;
+    color: #252959;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  button[aria-pressed="true"] {
+    background: #252959;
+    color: #fff;
+    border-color: #252959;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  button:focus-visible {
+    outline: 3px solid #5966c0;
+    outline-offset: 3px;
+  }
+}
+
+.study-focus-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem 1rem;
+}
+
+.study-focus-time {
+  margin: 0;
+  font-size: clamp(2.2rem, 5vw, 3.7rem);
+  line-height: 1.1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #1a2454;
+}
+
+.study-focus-phase {
+  margin: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  background: #e7eaff;
+  color: #2b316e;
+  font-weight: 700;
+}
+
+.study-focus-complete {
+  flex: 1 0 100%;
+  margin: 0;
+  border-left: 4px solid #4b5d9a;
+  padding: 0.75rem 0.9rem;
+  border-radius: 6px;
+  background: #ecf2ff;
+  color: #273a72;
+}
+
+.study-focus-help {
+  font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .study-focus-modes button,
+  .study-focus-controls button {
+    flex: 1 1 140px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .study-focus-card * {
+    scroll-behavior: auto;
+  }
+}
