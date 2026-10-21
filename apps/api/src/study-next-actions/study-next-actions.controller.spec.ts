@@ -14,9 +14,9 @@ import type { StudyNextActionsService } from './study-next-actions.service';
 
 describe('B171 private next study actions HTTP route', () => {
   it('requires revocable auth, enabled progress and no shared caching', () => {
-    expect(
-      Reflect.getMetadata(PATH_METADATA, StudyNextActionsController),
-    ).toBe('study-progress/me');
+    expect(Reflect.getMetadata(PATH_METADATA, StudyNextActionsController)).toBe(
+      'study-progress/me',
+    );
     expect(
       Reflect.getMetadata(GUARDS_METADATA, StudyNextActionsController),
     ).toEqual([AuthSessionGuard, StudyProgressFeatureGuard]);
