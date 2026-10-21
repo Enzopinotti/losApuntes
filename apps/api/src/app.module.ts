@@ -17,6 +17,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { PilotModule } from './pilot/pilot.module';
 import { ProfileModule } from './profile/profile.module';
 import { QaModule } from './qa/qa.module';
+import { ReceivedRepliesModule } from './qa-received-replies/received-replies.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
 import { StudyCollectionsModule } from './study-collections/study-collections.module';
@@ -53,6 +54,7 @@ import { UsersModule } from './users/users.module';
     PilotModule,
     SocialModule,
     QaModule,
+    ReceivedRepliesModule,
     HealthModule,
   ],
   controllers: [AppController],
