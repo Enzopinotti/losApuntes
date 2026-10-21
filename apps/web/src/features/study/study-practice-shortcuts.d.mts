@@ -9,10 +9,7 @@ export type ShortcutKeyEvent = {
   ctrlKey?: boolean;
   altKey?: boolean;
   metaKey?: boolean;
-  target?: {
-    isContentEditable?: boolean;
-    closest?: (selector: string) => unknown;
-  } | null;
+  target?: EventTarget | null;
 };
 export const PRACTICE_SHORTCUTS: readonly Readonly<{
   key: "J" | "K" | "R";
