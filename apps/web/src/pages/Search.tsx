@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
+import { SearchQuickSaveAction } from "../features/search/SearchQuickSaveAction";
 import {
   searchSelectionFromSearchParams,
   searchSelectionHref,
@@ -376,17 +377,29 @@ const Search = () => {
                           />
                         </small>
                       </div>
-                      <Link
-                        to={`/resources/${encodeURIComponent(resource.id)}`}
-                        state={{
-                          searchReturnTo: searchSelectionHref({
-                            q: submittedQuery,
-                            scope: submittedScope,
-                          }),
-                        }}
-                      >
-                        Ver recurso
-                      </Link>
+                      <div className="search-result-actions">
+                        <Link
+                          to={`/resources/${encodeURIComponent(resource.id)}`}
+                          state={{
+                            searchReturnTo: searchSelectionHref({
+                              q: submittedQuery,
+                              scope: submittedScope,
+                              subjectId: submittedSubjectId || undefined,
+                            }),
+                          }}
+                        >
+                          Ver recurso
+                        </Link>
+                        {authenticated ? (
+                          <SearchQuickSaveAction
+                            resourceId={resource.id}
+                            resourceTitle={resource.title}
+                            authorityScope={authorityScope}
+                          />
+                        ) : (
+                          <Link to="/login">Iniciá sesión para guardar</Link>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -483,6 +496,7 @@ const Search = () => {
                                 searchSelectionHref({
                                   q: submittedQuery,
                                   scope: submittedScope,
+                                  subjectId: submittedSubjectId || undefined,
                                 }) ?? "/search",
                             }}
                           >
