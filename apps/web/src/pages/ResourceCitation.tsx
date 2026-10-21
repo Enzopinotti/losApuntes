@@ -75,7 +75,11 @@ export default function ResourceCitation({ resource }: Props) {
               onFocus={(event) => event.target.select()}
             />
           </label>
-          <button type="button" className="resource-citation-copy" onClick={() => void copy()}>
+          <button
+            type="button"
+            className="resource-citation-copy"
+            onClick={() => void copy()}
+          >
             Copiar referencia
           </button>
           {feedback === "copied" && (
@@ -83,8 +87,8 @@ export default function ResourceCitation({ resource }: Props) {
           )}
           {feedback === "manual" && (
             <p role="alert">
-              No pudimos copiar automáticamente. Seleccioná el texto anterior
-              y copialo manualmente.
+              No pudimos copiar automáticamente. Seleccioná el texto anterior y
+              copialo manualmente.
             </p>
           )}
         </section>
