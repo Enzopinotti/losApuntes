@@ -1,0 +1,81 @@
+name: B170 academic resource attribution acceptance
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/features/resources/resource-citation.mjs
+      - apps/web/src/features/resources/resource-citation.d.mts
+      - apps/web/src/pages/ResourceCitation.tsx
+      - apps/web/src/pages/ResourceCitation.scss
+      - apps/web/src/pages/Resources.tsx
+      - scripts/test-web-resource-citation-b170.test.mjs
+      - scripts/test-web-resource-citation-b170-browser.mjs
+      - .github/workflows/b170-resource-academic-citation.yml
+      - package.json
+      - docs/contracts/b170-resource-academic-citation.md
+  push:
+    branches:
+      - feat/b170-resource-academic-citation-20261021
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b170-resource-citation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-citation:
+    name: B170 immutable Web citation and Chromium privacy checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout immutable candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Check exact SHA and clean source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use canonical Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install canonical frozen Web workspace
+        run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
+      - name: Unit citation, privacy and hostile-metadata regression tests
+        run: |
+          node --check scripts/test-web-resource-citation-b170.test.mjs
+          pnpm test:web-resource-citation-b170
+      - name: Web TypeScript
+        run: pnpm --filter @losapuntes/web check:types
+      - name: Web ESLint
+        run: pnpm --filter @losapuntes/web lint
+      - name: Web canonical Prettier
+        run: pnpm --filter @losapuntes/web format:check
+      - name: Show exact canonical JSX difference when formatting fails
+        if: failure()
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/ResourceCitation.tsx > "$RUNNER_TEMP/b170-citation-formatted.tsx"
+          diff -u apps/web/src/pages/ResourceCitation.tsx "$RUNNER_TEMP/b170-citation-formatted.tsx" || true
+      - name: Install Chromium for real accessibility and copy flow
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Real Chromium private and public citation acceptance
+        run: node scripts/test-web-resource-citation-b170-browser.mjs
+      - name: Produce production Web bundle
+        run: pnpm --filter @losapuntes/web build
+      - name: Verify exact SHA and no unexpected files
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
