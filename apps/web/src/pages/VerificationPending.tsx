@@ -115,12 +115,18 @@ const VerificationPending = () => {
           : null,
       );
       setNowMs(acceptedAtMs);
-      if (verificationEmailKey(emailRef.current) === verificationEmailKey(submitted)) {
+      if (
+        verificationEmailKey(emailRef.current) ===
+        verificationEmailKey(submitted)
+      ) {
         setSent(true);
       }
     } catch (nextError) {
       if (!mounted.current) return;
-      if (verificationEmailKey(emailRef.current) === verificationEmailKey(submitted)) {
+      if (
+        verificationEmailKey(emailRef.current) ===
+        verificationEmailKey(submitted)
+      ) {
         setError(
           authErrorMessage(
             nextError,
@@ -172,8 +178,8 @@ const VerificationPending = () => {
 
         {waitSeconds > 0 && (
           <p role="status" aria-live="off" data-verification-wait>
-            Podés volver a solicitar un enlace para este email en{" "}
-            {waitSeconds} segundos.
+            Podés volver a solicitar un enlace para este email en {waitSeconds}{" "}
+            segundos.
           </p>
         )}
 
@@ -186,8 +192,8 @@ const VerificationPending = () => {
       </form>
 
       <p>
-        La espera de esta pantalla evita envíos accidentales repetidos.
-        Los límites de seguridad y los reintentos válidos los controla el servidor.
+        La espera de esta pantalla evita envíos accidentales repetidos. Los
+        límites de seguridad y los reintentos válidos los controla el servidor.
       </p>
 
       <p>
