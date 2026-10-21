@@ -1,0 +1,89 @@
+name: B182 secure end-to-end study journey integration
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/features/search/**
+      - apps/web/src/features/study/**
+      - apps/web/src/pages/Search.tsx
+      - apps/web/src/pages/Search.scss
+      - apps/web/src/pages/StudyKits.tsx
+      - apps/web/src/pages/StudyKits.scss
+      - apps/web/src/pages/Resources.tsx
+      - apps/web/src/pages/Resources.scss
+      - apps/web/src/pages/StudySession.tsx
+      - apps/web/src/pages/StudySession.scss
+      - scripts/integration/b182-study-journey-sources.json
+      - scripts/test-b182-study-journey-integration.mjs
+      - docs/engineering/b182-study-journey-secure-integration.md
+      - .github/workflows/b182-study-journey-integration.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b182-study-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  study-journey:
+    name: Node24 exact-head study journey and security regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable combined PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact candidate and clean source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen exact-version install
+        run: pnpm install --frozen-lockfile
+      - name: Read-only formatting diagnostics for integration-only artifacts
+        shell: bash
+        run: |
+          pnpm exec prettier scripts/test-b182-study-journey-integration.mjs > "$RUNNER_TEMP/b182.test.canonical.mjs"
+          diff -u scripts/test-b182-study-journey-integration.mjs "$RUNNER_TEMP/b182.test.canonical.mjs" || true
+          pnpm exec prettier scripts/integration/b182-study-journey-sources.json > "$RUNNER_TEMP/b182.manifest.canonical.json"
+          diff -u scripts/integration/b182-study-journey-sources.json "$RUNNER_TEMP/b182.manifest.canonical.json" || true
+      - name: Verify source hashes and full student journey regression
+        run: |
+          node scripts/test-b182-study-journey-integration.mjs
+          node scripts/test-web-search-contract.mjs
+          node scripts/test-web-study-kits-integration.mjs
+          node scripts/test-web-resources-contract.mjs
+          node scripts/test-web-study-handoff-integration.mjs
+          node scripts/test-web-study-plan-material-finder.mjs
+          node scripts/test-web-study-session-integration.mjs
+      - name: Preserve patched redirect and Mongo kernel contracts
+        run: |
+          node scripts/test-b181-security-runtime-integration.mjs
+          node scripts/security/check-follow-redirects-lock.mjs
+          node --test scripts/security/test-follow-redirects-regression.mjs
+          node --test scripts/ci/check-mongo-kernel.test.mjs
+          pnpm security:audit-exceptions
+      - name: Strict Web TypeScript lint format and production bundle
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web lint
+          pnpm --filter @losapuntes/web format:check
+          pnpm --filter @losapuntes/web build
+      - name: Verify original immutable tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
