@@ -472,6 +472,7 @@ const Search = () => {
                               resource.author?.displayName ??
                               "Usuario de Los Apuntes"
                             }
+                            avatarUrl={resource.author?.avatarUrl}
                           />
                         </small>
                       </div>
