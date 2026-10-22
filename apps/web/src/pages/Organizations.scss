@@ -235,6 +235,18 @@
   margin-bottom: 0.5rem;
 }
 
+.organization-event-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.organization-event-filter[aria-pressed="true"] {
+  border-color: #3446a2;
+  background: #eef1ff;
+}
+
 .organization-event-cancelled {
   color: #8b1e1e;
   font-weight: 700;
