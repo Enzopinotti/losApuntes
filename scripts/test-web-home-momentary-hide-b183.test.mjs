@@ -1,11 +1,29 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { HOME_DISMISS_LIMIT, homeFeedItemKey, projectHomeFeed, hideHomeFeedItem, undoHomeFeedHide } from "../apps/web/src/features/feeds/home-feed-momentary-hide.mjs";
+import {
+  HOME_DISMISS_LIMIT,
+  homeFeedItemKey,
+  projectHomeFeed,
+  hideHomeFeedItem,
+  undoHomeFeedHide,
+} from "../apps/web/src/features/feeds/home-feed-momentary-hide.mjs";
 const items = [
-  { type: "question", id: "67fe8f36-2c8d-4c85-897d-46702ebf127a", title: "Pregunta A" },
-  { type: "resource", id: "8e4a8f43-4e3c-4af3-88df-37e8a5ac7937", title: "Apunte B" },
-  { type: "organization_post", id: "91e9c9f6-e2bb-45d4-9c5d-13669536c5be", title: "Publicación C" },
+  {
+    type: "question",
+    id: "67fe8f36-2c8d-4c85-897d-46702ebf127a",
+    title: "Pregunta A",
+  },
+  {
+    type: "resource",
+    id: "8e4a8f43-4e3c-4af3-88df-37e8a5ac7937",
+    title: "Apunte B",
+  },
+  {
+    type: "organization_post",
+    id: "91e9c9f6-e2bb-45d4-9c5d-13669536c5be",
+    title: "Publicación C",
+  },
 ];
 test("B183 preserves order and source data", () => {
   const original = structuredClone(items);
@@ -33,7 +51,10 @@ test("B183 feed types with equal ids remain distinct", () => {
   assert.deepEqual(view.visible, [items[1]]);
 });
 test("B183 all-hidden is distinct from server-empty", () => {
-  const hidden = items.reduce((keys, item) => hideHomeFeedItem(items, keys, item), []);
+  const hidden = items.reduce(
+    (keys, item) => hideHomeFeedItem(items, keys, item),
+    [],
+  );
   assert.equal(projectHomeFeed(items, hidden).visible.length, 0);
   assert.equal(projectHomeFeed(items, hidden).hiddenCount, 3);
   assert.equal(projectHomeFeed([], []).hiddenCount, 0);
@@ -44,23 +65,46 @@ test("B183 stale hidden items are excluded from refreshed response counts", () =
   assert.equal(next.hiddenCount, 0);
 });
 test("B183 rejects an item outside this authorized preview", () => {
-  assert.throws(() => hideHomeFeedItem(items, [], { type: "question", id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }));
+  assert.throws(() =>
+    hideHomeFeedItem(items, [], {
+      type: "question",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    }),
+  );
   assert.throws(() => homeFeedItemKey({ type: "private", id: items[0].id }));
-  assert.throws(() => homeFeedItemKey({ type: "question", id: "../../passwords" }));
+  assert.throws(() =>
+    homeFeedItemKey({ type: "question", id: "../../passwords" }),
+  );
 });
 test("B183 enforces hard cap and rejects malformed lists", () => {
   assert.equal(HOME_DISMISS_LIMIT, 16);
-  assert.throws(() => projectHomeFeed(Array.from({ length: 17 }, (_, i) => ({ type: "question", id: "item-" + i })), []));
+  assert.throws(() =>
+    projectHomeFeed(
+      Array.from({ length: 17 }, (_, i) => ({
+        type: "question",
+        id: "item-" + i,
+      })),
+      [],
+    ),
+  );
   assert.throws(() => projectHomeFeed([], Array(17).fill("question:test")));
   assert.throws(() => projectHomeFeed(items, "question:x"));
   assert.throws(() => undoHomeFeedHide(null, "question:x"));
 });
 test("B183 UI isolates state by session and feed and never writes remote", async () => {
   const src = await readFile("apps/web/src/pages/Home.tsx", "utf8");
-  assert.ok(src.includes("key={") && src.includes("authScopeKey") && src.includes("activeHomeFeed"));
+  assert.ok(
+    src.includes("key={") &&
+      src.includes("authScopeKey") &&
+      src.includes("activeHomeFeed"),
+  );
   assert.ok(src.includes("const [hiddenKeys, setHiddenKeys]"));
-  for (const label of ["Apartar por ahora", "Deshacer último", "Mostrar todo"]) assert.ok(src.includes(label));
-  assert.doesNotMatch(src, /localStorage|sessionStorage|setFeedback\(|setPreferences\(|navigator\.sendBeacon/u);
+  for (const label of ["Apartar por ahora", "Deshacer último", "Mostrar todo"])
+    assert.ok(src.includes(label));
+  assert.doesNotMatch(
+    src,
+    /localStorage|sessionStorage|setFeedback\(|setPreferences\(|navigator\.sendBeacon/u,
+  );
 });
 test("B183 user-facing copy distinguishes all-hidden from server empty", async () => {
   const src = await readFile("apps/web/src/pages/Home.tsx", "utf8");

@@ -10,7 +10,10 @@ const ORIGIN = "http://127.0.0.1:5193";
 const API = "http://127.0.0.1:4000";
 const VITE = resolve(ROOT, "apps/web/node_modules/vite/bin/vite.js");
 const AUTH = {
-  user: { id: "6f421f06-1cc0-49c1-96c7-3325c5a3edc7", email: "b183@example.invalid" },
+  user: {
+    id: "6f421f06-1cc0-49c1-96c7-3325c5a3edc7",
+    email: "b183@example.invalid",
+  },
   session: {
     id: "b3f1c920-f2c4-41ac-984b-1c0da61c92b7",
     clientType: "web",
@@ -26,9 +29,15 @@ const items = [1, 2, 3].map((n) => ({
   id: id(n),
   title: "Contenido de prueba " + n,
   summary: "Detalle académico breve " + n,
-  author: { profileId: null, displayName: "Persona de prueba", avatarUrl: null },
+  author: {
+    profileId: null,
+    displayName: "Persona de prueba",
+    avatarUrl: null,
+  },
   source: { kind: "personal_user" },
-  academic: { subject: { id: "104b311b-852c-497d-982c-4d8146a9874a", name: "Álgebra" } },
+  academic: {
+    subject: { id: "104b311b-852c-497d-982c-4d8146a9874a", name: "Álgebra" },
+  },
   why: ["current_subject"],
   createdAt: "2026-01-01T12:00:00Z",
 }));
@@ -45,33 +54,56 @@ const snapshot = {
     followsTruncated: false,
     followsLimit: 25,
   },
-  academic: { currentContext: null, currentSubjectIds: [items[0].academic.subject.id] },
+  academic: {
+    currentContext: null,
+    currentSubjectIds: [items[0].academic.subject.id],
+  },
   homeFeed: { kind: "subjects", items, nextCursor: null, stopReason: "end" },
-  academicFeed: { context: { subjectIds: [items[0].academic.subject.id] },
-    items: [], nextCursor: null, stopReason: "end" },
-  forYou: { items: [items[2], items[0]], nextCursor: null, stopReason: "end",
-    effectiveSignals: { academic: true, social: false, interests: false,
-      relationWindowTruncated: false } },
+  academicFeed: {
+    context: { subjectIds: [items[0].academic.subject.id] },
+    items: [],
+    nextCursor: null,
+    stopReason: "end",
+  },
+  forYou: {
+    items: [items[2], items[0]],
+    nextCursor: null,
+    stopReason: "end",
+    effectiveSignals: {
+      academic: true,
+      social: false,
+      interests: false,
+      relationWindowTruncated: false,
+    },
+  },
   notifications: { unreadCount: 0 },
 };
 
 async function boot() {
-  const child = spawn(process.execPath, [VITE, "--host", "127.0.0.1",
-    "--port", "5193", "--strictPort"], {
-    cwd: resolve(ROOT, "apps/web"),
-    env: { ...process.env, CI: "true", VITE_API_BASE_URL: API },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const child = spawn(
+    process.execPath,
+    [VITE, "--host", "127.0.0.1", "--port", "5193", "--strictPort"],
+    {
+      cwd: resolve(ROOT, "apps/web"),
+      env: { ...process.env, CI: "true", VITE_API_BASE_URL: API },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   let output = "";
   let exited = false;
-  child.on("exit", () => { exited = true; });
+  child.on("exit", () => {
+    exited = true;
+  });
   for (const stream of [child.stdout, child.stderr]) {
-    stream.on("data", (chunk) => { output = (output + chunk.toString()).slice(-4000); });
+    stream.on("data", (chunk) => {
+      output = (output + chunk.toString()).slice(-4000);
+    });
   }
   for (let i = 0; i < 120; i++) {
     if (exited) throw new Error("Vite exited: " + output);
     try {
-      if ((await fetch(ORIGIN, { signal: AbortSignal.timeout(800) })).ok) return child;
+      if ((await fetch(ORIGIN, { signal: AbortSignal.timeout(800) })).ok)
+        return child;
     } catch {
       // Loopback only.
     }
@@ -112,52 +144,105 @@ async function main() {
       await route.fulfill({
         status: code,
         contentType: "application/json",
-        headers: { "access-control-allow-origin": ORIGIN,
-          "access-control-allow-credentials": "true" },
+        headers: {
+          "access-control-allow-origin": ORIGIN,
+          "access-control-allow-credentials": "true",
+        },
         body: JSON.stringify(body),
       });
     });
 
     const page = await ctx.newPage();
     await page.goto(ORIGIN + "/", { waitUntil: "domcontentloaded" });
-    await page.getByText("Tu universidad, organizada", { exact: false })
+    await page
+      .getByText("Tu universidad, organizada", { exact: false })
       .waitFor({ timeout: 15000 });
-    assert.equal(await page.getByRole("button", { name: /Apartar de esta tanda:/u }).count(), 0);
+    assert.equal(
+      await page
+        .getByRole("button", { name: /Apartar de esta tanda:/u })
+        .count(),
+      0,
+    );
 
     authorized = true;
     await page.reload({ waitUntil: "domcontentloaded" });
     const card = page.locator(".pilot-home-feed");
-    await card.getByRole("heading", { name: "Contenido de prueba 1" })
+    await card
+      .getByRole("heading", { name: "Contenido de prueba 1" })
       .waitFor({ timeout: 15000 });
-    assert.equal(await card.getByRole("button", { name: /Apartar de esta tanda:/u }).count(), 3);
+    assert.equal(
+      await card
+        .getByRole("button", { name: /Apartar de esta tanda:/u })
+        .count(),
+      3,
+    );
 
-    await card.getByRole("button", { name: "Apartar de esta tanda: Contenido de prueba 2" })
+    await card
+      .getByRole("button", {
+        name: "Apartar de esta tanda: Contenido de prueba 2",
+      })
       .click();
-    assert.equal(await card.getByRole("heading", { name: "Contenido de prueba 2" }).count(), 0);
+    assert.equal(
+      await card
+        .getByRole("heading", { name: "Contenido de prueba 2" })
+        .count(),
+      0,
+    );
     await card.getByRole("button", { name: "Deshacer último" }).click();
-    await card.getByRole("heading", { name: "Contenido de prueba 2" }).waitFor();
+    await card
+      .getByRole("heading", { name: "Contenido de prueba 2" })
+      .waitFor();
 
     for (const n of [1, 2, 3]) {
-      await card.getByRole("button", { name: "Apartar de esta tanda: Contenido de prueba " + n }).click();
+      await card
+        .getByRole("button", {
+          name: "Apartar de esta tanda: Contenido de prueba " + n,
+        })
+        .click();
     }
-    await card.getByText("Apartaste todos los elementos", { exact: false }).waitFor();
-    assert.equal(await card.getByRole("heading", { name: /Contenido de prueba/u }).count(), 0);
+    await card
+      .getByText("Apartaste todos los elementos", { exact: false })
+      .waitFor();
+    assert.equal(
+      await card.getByRole("heading", { name: /Contenido de prueba/u }).count(),
+      0,
+    );
     await card.getByRole("button", { name: "Mostrar todo" }).click();
-    assert.equal(await card.getByRole("heading", { name: /Contenido de prueba/u }).count(), 3);
+    assert.equal(
+      await card.getByRole("heading", { name: /Contenido de prueba/u }).count(),
+      3,
+    );
 
-    await card.getByRole("button", { name: "Apartar de esta tanda: Contenido de prueba 1" }).click();
+    await card
+      .getByRole("button", {
+        name: "Apartar de esta tanda: Contenido de prueba 1",
+      })
+      .click();
     await card.getByRole("button", { name: "Para vos" }).click();
-    await card.getByRole("heading", { name: "Contenido de prueba 1" }).waitFor();
+    await card
+      .getByRole("heading", { name: "Contenido de prueba 1" })
+      .waitFor();
     await card.getByRole("button", { name: "Mis materias" }).click();
-    await card.getByRole("heading", { name: "Contenido de prueba 1" }).waitFor();
+    await card
+      .getByRole("heading", { name: "Contenido de prueba 1" })
+      .waitFor();
 
     authorized = false;
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByText("Tu universidad, organizada", { exact: false }).waitFor();
-    assert.equal(await card.getByRole("button", { name: /Apartar de esta tanda:/u }).count(), 0);
+    await page
+      .getByText("Tu universidad, organizada", { exact: false })
+      .waitFor();
+    assert.equal(
+      await card
+        .getByRole("button", { name: /Apartar de esta tanda:/u })
+        .count(),
+      0,
+    );
     assert.equal(mutationCount, 0);
     await ctx.close();
-    console.log("PASS B183 Chromium: guest isolation, private preview hide, undo, restore all, feed reset, auth loss, zero writes");
+    console.log(
+      "PASS B183 Chromium: guest isolation, private preview hide, undo, restore all, feed reset, auth loss, zero writes",
+    );
   } finally {
     await browser?.close();
     await shutdown(child);
