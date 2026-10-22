@@ -13,6 +13,7 @@ const [
   deepLinks,
   forgotPassword,
   register,
+  openEmailApp,
   app,
   pkg,
 ] = await Promise.all([
@@ -25,6 +26,7 @@ const [
   read("apps/mobile/src/features/auth/auth-deep-link.ts"),
   read("apps/mobile/src/app/forgot-password.tsx"),
   read("apps/mobile/src/app/register.tsx"),
+  read("apps/mobile/src/features/auth/open-email-app.ts"),
   read("apps/mobile/app.json"),
   read("apps/mobile/package.json"),
 ]);
@@ -63,6 +65,10 @@ assert.match(
 assert.match(register, /authActionResendSecondsRemaining/u);
 assert.match(register, /authActionResendAvailableAt/u);
 assert.match(register, /disabled=\{pending \|\| resendCooldownSeconds > 0\}/u);
+assert.match(openEmailApp, /android\.intent\.action\.MAIN/u);
+assert.match(openEmailApp, /android\.intent\.category\.APP_EMAIL/u);
+assert.match(register, /showSuccess && Platform\.OS === "android"/u);
+assert.match(register, /Abrir app de correo/u);
 
 const appJson = JSON.parse(app);
 assert.equal(appJson.expo.scheme, "losapuntes");
@@ -72,3 +78,4 @@ assert.equal(appJson.expo.experiments.typedRoutes, true);
 const packageJson = JSON.parse(pkg);
 assert.equal(packageJson.dependencies["@losapuntes/contracts"], "workspace:*");
 assert.ok(packageJson.dependencies["expo-secure-store"]);
+assert.ok(packageJson.dependencies["expo-intent-launcher"]);
