@@ -173,8 +173,24 @@ export function shouldResetCommunityAnswerDraft(
   next: { questionId: string; authorityKey: string | null },
 ): boolean {
   if (previous.questionId !== next.questionId) return true;
-  if (!previous.authorityKey || !next.authorityKey) return false;
-  return previous.authorityKey !== next.authorityKey;
+  return communityDraftAuthorityTransition(
+    previous.authorityKey,
+    next.authorityKey,
+  ).resetDraft;
+}
+
+export function communityDraftAuthorityTransition(
+  previousAuthorityKey: string | null,
+  nextAuthorityKey: string | null,
+): { authorityKey: string | null; resetDraft: boolean } {
+  return {
+    authorityKey: nextAuthorityKey ?? previousAuthorityKey,
+    resetDraft: Boolean(
+      previousAuthorityKey &&
+      nextAuthorityKey &&
+      previousAuthorityKey !== nextAuthorityKey,
+    ),
+  };
 }
 
 export function shouldClearCommunityAnswerDraft(
