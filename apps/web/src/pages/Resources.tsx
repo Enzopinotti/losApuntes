@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../contexts/useAuth";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import { ResourceStudyHandoff } from "../features/study/ResourceStudyHandoff";
+import ResourceCitation from "./ResourceCitation";
 import {
   feedReturnHref,
   feedReturnRestoreState,
@@ -1452,6 +1453,11 @@ const Resources = () => {
                   <Link to="/login">Iniciar sesión para abrir</Link>
                 )}
               </div>
+
+              <ResourceCitation
+                key={`${authScopeKey}:${resource.id}:${resource.visibility}:${resource.title}`}
+                resource={resource}
+              />
 
               {resource.capabilities.edit && (
                 <div className="resource-owner-controls">
