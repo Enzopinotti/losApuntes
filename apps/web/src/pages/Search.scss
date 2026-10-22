@@ -178,6 +178,43 @@
   opacity: 0.75;
 }
 
+/* Use the same reachable button size in results as the Resources detail
+ * handoff; no hidden swipe or hover-only affordance on mobile. */
+.search-result-actions .resource-study-handoff {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+}
+
+.search-result-actions .resource-study-handoff button {
+  min-height: 44px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #5b5bd6;
+  border-radius: 9px;
+  background: #f8f8fe;
+  color: #3535a4;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-result-actions .resource-study-handoff button:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.search-result-actions .resource-study-handoff button:focus-visible {
+  outline: 3px solid #7474d9;
+  outline-offset: 3px;
+}
+
+.search-result-actions .resource-study-handoff p[role="alert"] {
+  margin: 0;
+  max-width: 22rem;
+  color: #8b1e1e;
+  font-size: 0.86rem;
+}
+
 .search-save-action button:focus-visible,
 .search-result-actions a:focus-visible {
   outline: 3px solid #7474d9;
