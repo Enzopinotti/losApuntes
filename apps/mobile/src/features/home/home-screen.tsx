@@ -963,6 +963,25 @@ export function HomeScreen() {
       <HomeSavedReturnCard authorityKey={activeHomeAuthority} />
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel="Abrir temporizador de estudio"
+        accessibilityHint="Elegí estudiar 25 minutos o descansar 5. El tiempo no se guarda ni se sincroniza."
+        onPress={() => router.push("/study-focus")}
+        style={({ pressed }) => [
+          styles.notificationsCard,
+          pressed && styles.notificationsPressed,
+        ]}
+      >
+        <View style={styles.notificationsCopy}>
+          <Text style={styles.title}>Tiempo para concentrarte</Text>
+          <Text style={styles.copy}>
+            Elegí un intervalo de estudio o descanso. No registramos tu
+            actividad.
+          </Text>
+        </View>
+        <Text style={styles.focusAction}>Abrir</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel={`Abrir notificaciones, ${data.notifications.unreadCount} sin leer`}
         onPress={() => router.push("/notifications")}
         style={({ pressed }) => [
@@ -1200,6 +1219,12 @@ const styles = StyleSheet.create({
   notificationsCopy: {
     flex: 1,
     gap: 6,
+  },
+  focusAction: {
+    color: "#43376a",
+    fontSize: 15,
+    fontWeight: "800",
+    paddingHorizontal: 8,
   },
   notificationsCount: {
     minWidth: 38,
