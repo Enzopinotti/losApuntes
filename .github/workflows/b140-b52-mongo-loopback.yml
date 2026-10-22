@@ -1,0 +1,124 @@
+name: B140 B52 Mongo loopback and direct-connection acceptance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/b140-b52-mongo-loopback.yml'
+      - 'scripts/lib/study-mongo-acceptance.mjs'
+      - 'scripts/run-study-collections-mongo-acceptance.mjs'
+      - 'scripts/test-study-collections-b52-gate.mjs'
+      - 'scripts/test-study-collections-b52-integration.mjs'
+      - 'scripts/testing/b89-local-mongo-uri.mjs'
+      - 'apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts'
+      - 'docs/engineering/b140-b52-mongo-loopback.md'
+
+permissions:
+  contents: read
+
+jobs:
+  guards-and-types:
+    name: Exact-head local Mongo URI guards and API contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact candidate HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify HEAD identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Use pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use pinned Node24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Syntax of all modified Node scripts
+        run: |
+          node --check scripts/lib/study-mongo-acceptance.mjs
+          node --check scripts/run-study-collections-mongo-acceptance.mjs
+          node --check scripts/test-study-collections-b52-gate.mjs
+      - name: B89 local Mongo DNS/loopback adversarial tests
+        run: node --test scripts/test-account-export-b89-local-mongo-uri.test.mjs
+      - name: B52 required scenarios and hostile URI tests
+        run: node scripts/test-study-collections-b52-gate.mjs
+      - name: B52 fixture/runner integration assertions
+        run: node scripts/test-study-collections-b52-integration.mjs
+      - name: Canonical fixture format
+        run: pnpm --filter @losapuntes/api exec prettier --check src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+      - name: Strict fixture ESLint
+        run: pnpm --filter @losapuntes/api exec eslint --max-warnings=0 src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+      - name: Complete API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+
+  real-mongo:
+    name: Real isolated Mongo B52 thirteen-case acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      STUDY_PROGRESS_ENABLED: 'false'
+      CI: 'true'
+    steps:
+      - name: Checkout exact candidate HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Bring up disposable loopback Mongo 7 PRIMARY
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$STUDY_PROGRESS_ENABLED" = false
+          docker run -d --name b140-study-mongo --rm \
+            --publish 127.0.0.1:27017:27017 \
+            mongo:7.0 --replSet rs0 --bind_ip_all --port 27017
+          ready=false
+          for _ in $(seq 1 60); do
+            if docker exec b140-study-mongo mongosh --quiet --eval \
+              'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -qx 1; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = true
+          docker exec b140-study-mongo mongosh --quiet --eval \
+            "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          primary=false
+          for _ in $(seq 1 40); do
+            if docker exec b140-study-mongo mongosh --quiet --eval \
+              'db.adminCommand({hello:1}).isWritablePrimary' 2>/dev/null | grep -qx true; then
+              primary=true
+              break
+            fi
+            sleep 2
+          done
+          test "$primary" = true
+      - name: Fail-closed runner must pass all thirteen real Mongo cases
+        env:
+          STUDY_COLLECTIONS_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
+        run: node scripts/run-study-collections-mongo-acceptance.mjs
+      - name: Verify exact HEAD after execution
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Destroy disposable Mongo (also on failures)
+        if: always()
+        run: docker rm -f b140-study-mongo >/dev/null 2>&1 || true
