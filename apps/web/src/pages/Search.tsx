@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import { SearchSaveAction } from "../features/search/SearchSaveAction";
+import { ResourceStudyHandoff } from "../features/study/ResourceStudyHandoff";
 import {
   searchSelectionFromSearchParams,
   searchSelectionHref,
@@ -402,6 +403,12 @@ const Search = () => {
                             authorityScope={authorityScope}
                             resourceId={resource.id}
                             resourceTitle={resource.title}
+                          />
+                        )}
+                        {authenticated && (
+                          <ResourceStudyHandoff
+                            resourceId={resource.id}
+                            authorityScope={authorityScope}
                           />
                         )}
                       </div>
