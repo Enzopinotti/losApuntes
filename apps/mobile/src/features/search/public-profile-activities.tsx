@@ -1,7 +1,8 @@
 import type { PublicProfileResponse } from "@losapuntes/contracts";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +12,7 @@ import {
 import { mobileSearchApi } from "./search-runtime";
 import { PublicProfileActivitiesController } from "./public-profile-activities-controller";
 import { publicProfileActivityPresentation } from "./public-profile-activity-presentation";
+import { publicProfileActivityExternalUrl } from "./public-profile-activity-link-policy";
 
 const failureCopy = {
   offline: "No hay conexión. Revisá tu conexión e intentá de nuevo.",
@@ -32,6 +34,9 @@ export function PublicProfileActivities({
   const [controller] = useState(
     () => new PublicProfileActivitiesController(mobileSearchApi),
   );
+  const [openingLinkKey, setOpeningLinkKey] = useState<string | null>(null);
+  const [failedLinkKey, setFailedLinkKey] = useState<string | null>(null);
+  const openingLink = useRef(false);
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -43,6 +48,23 @@ export function PublicProfileActivities({
     return () => controller.invalidate(authorityKey);
   }, [authorityKey, controller, profile]);
 
+  const openActivityLink = async (linkKey: string, value: string | null) => {
+    const url = publicProfileActivityExternalUrl(value);
+    if (!url || openingLink.current) return;
+
+    openingLink.current = true;
+    setOpeningLinkKey(linkKey);
+    setFailedLinkKey(null);
+    try {
+      await Linking.openURL(url);
+    } catch {
+      setFailedLinkKey(linkKey);
+    } finally {
+      openingLink.current = false;
+      setOpeningLinkKey(null);
+    }
+  };
+
   if (snapshot.kind !== "ready") return null;
 
   return (
@@ -53,6 +75,12 @@ export function PublicProfileActivities({
       {snapshot.items.length ? (
         snapshot.items.map((activity) => {
           const presentation = publicProfileActivityPresentation(activity);
+          const linkKey = `${authorityKey}:${profile.id}:${activity.id}`;
+          const externalUrl = publicProfileActivityExternalUrl(activity.url);
+          const externalHost = externalUrl
+            ? new URL(externalUrl).hostname
+            : null;
+          const isOpeningLink = openingLinkKey === linkKey;
           return (
             <View key={activity.id} style={styles.activity}>
               <Text accessibilityRole="header" style={styles.activityTitle}>
@@ -66,6 +94,30 @@ export function PublicProfileActivities({
               </View>
               {activity.description ? (
                 <Text style={styles.copy}>{activity.description}</Text>
+              ) : null}
+              {externalUrl && externalHost ? (
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={
+                    isOpeningLink
+                      ? "Abriendo enlace externo"
+                      : `Abrir enlace externo en ${externalHost}`
+                  }
+                  disabled={openingLinkKey !== null}
+                  onPress={() => void openActivityLink(linkKey, activity.url)}
+                  style={styles.activityLinkButton}
+                >
+                  <Text style={styles.activityLinkLabel}>
+                    {isOpeningLink
+                      ? "Abriendo enlace…"
+                      : `Abrir enlace externo · ${externalHost}`}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {failedLinkKey === linkKey ? (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  No pudimos abrir este enlace en tu dispositivo.
+                </Text>
               ) : null}
             </View>
           );
@@ -138,6 +190,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  activityLinkButton: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    paddingVertical: 8,
+  },
+  activityLinkLabel: {
+    color: "#43366a",
+    fontSize: 14,
+    fontWeight: "700",
   },
   meta: {
     fontSize: 13,
