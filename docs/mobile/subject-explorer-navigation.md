@@ -82,25 +82,25 @@ existente y nunca se presentan como resultados vacíos verificados.
 
 ## Matriz de aceptación pendiente
 
-| Escenario | Esperado |
-| --- | --- |
-| Abrir detalle autorizado y explorar | Buscar con Subject seleccionado |
-| Detalle no autorizado | No se monta panel ni CTA |
-| Materia actual de Inicio | Navega con el Subject real, no ID de participación |
-| Guardados filtrados por Subject | Acceso a búsqueda general de esa materia |
-| ContextualDiscovery con cuatro recursos | Permite ejecutar búsqueda acotada de hasta ocho |
-| Subject con más de ocho recursos | No prometer resultados exhaustivos |
-| UUIDv4 válido de enlace externo | Activa filtro de recursos sin texto |
-| UUID de otra versión / rutas / arrays / inyección | Rechazo y aviso sin consulta privilegiada |
-| Campo de texto editado tras navegar | No se reimpone el filtro de la ruta |
-| Filtro limpiado manualmente | Regresa al estado de búsqueda original |
-| Cambio de Subject | Nueva búsqueda con filtro nuevo |
-| Cambio de sesión o contexto | Resultados anteriores se descartan |
-| Cuenta sin contexto académico | Espera restauración/fence vigente |
-| Error sin conexión | Mantiene error y reintento del buscador |
-| Preguntas de la materia | Rutas y permisos de publicación intactos |
-| TalkBack/VoiceOver | Acciones con etiquetas específicas y aviso válido |
-| Expo Router tab + deep link | Validar reentrada y parámetros en Android/iOS |
+| Escenario                                         | Esperado                                           |
+| ------------------------------------------------- | -------------------------------------------------- |
+| Abrir detalle autorizado y explorar               | Buscar con Subject seleccionado                    |
+| Detalle no autorizado                             | No se monta panel ni CTA                           |
+| Materia actual de Inicio                          | Navega con el Subject real, no ID de participación |
+| Guardados filtrados por Subject                   | Acceso a búsqueda general de esa materia           |
+| ContextualDiscovery con cuatro recursos           | Permite ejecutar búsqueda acotada de hasta ocho    |
+| Subject con más de ocho recursos                  | No prometer resultados exhaustivos                 |
+| UUIDv4 válido de enlace externo                   | Activa filtro de recursos sin texto                |
+| UUID de otra versión / rutas / arrays / inyección | Rechazo y aviso sin consulta privilegiada          |
+| Campo de texto editado tras navegar               | No se reimpone el filtro de la ruta                |
+| Filtro limpiado manualmente                       | Regresa al estado de búsqueda original             |
+| Cambio de Subject                                 | Nueva búsqueda con filtro nuevo                    |
+| Cambio de sesión o contexto                       | Resultados anteriores se descartan                 |
+| Cuenta sin contexto académico                     | Espera restauración/fence vigente                  |
+| Error sin conexión                                | Mantiene error y reintento del buscador            |
+| Preguntas de la materia                           | Rutas y permisos de publicación intactos           |
+| TalkBack/VoiceOver                                | Acciones con etiquetas específicas y aviso válido  |
+| Expo Router tab + deep link                       | Validar reentrada y parámetros en Android/iOS      |
 
 ## Calidad e integración
 
