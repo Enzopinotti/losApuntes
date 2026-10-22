@@ -743,6 +743,13 @@ export class MobileCommunityQuestionController {
         return false;
       }
 
+      this.publish({
+        ...latest,
+        actionFailure: null,
+        actionFailureCode: null,
+        notice: "Respuesta publicada. Actualizando la conversación…",
+      });
+
       try {
         const detail = await this.api.question(questionId, signal);
         if (!this.isCurrent(generation, authorityKey)) return true;

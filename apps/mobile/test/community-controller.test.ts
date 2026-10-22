@@ -377,13 +377,16 @@ test("a context invalidation prevents an in-flight answer from committing UI sta
 
 test("keeps duplicate answer submission locked until the authoritative refresh finishes", async () => {
   const refresh = deferred<QuestionDetailResponse>();
+  const refreshStarted = deferred<null>();
   let questionCalls = 0;
   let createCalls = 0;
   const controller = new MobileCommunityQuestionController({
     questions: async () => page([]),
     question: async (id) => {
       questionCalls += 1;
-      return questionCalls === 1 ? detail(id) : refresh.promise;
+      if (questionCalls === 1) return detail(id);
+      refreshStarted.resolve(null);
+      return refresh.promise;
     },
     answers: async () => ({ items: [], nextCursor: null }),
     createQuestion: async () => ({ question: question("created") }),
@@ -399,11 +402,17 @@ test("keeps duplicate answer submission locked until the authoritative refresh f
     "question-a",
     "Una respuesta útil.",
   );
-  await Promise.resolve();
+  await refreshStarted.promise;
 
   const pending = controller.getSnapshot();
   assert.equal(pending.kind, "ready");
-  if (pending.kind === "ready") assert.equal(pending.submittingAnswer, true);
+  if (pending.kind === "ready") {
+    assert.equal(pending.submittingAnswer, true);
+    assert.equal(
+      pending.notice,
+      "Respuesta publicada. Actualizando la conversación…",
+    );
+  }
 
   const duplicate = await controller.createAnswer(
     "authority-a",
