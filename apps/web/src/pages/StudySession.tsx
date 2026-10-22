@@ -56,6 +56,7 @@ import {
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
 import { StudyPlanMaterialFinder } from "../features/study/StudyPlanMaterialFinder";
+import { studySessionCursorRepeats } from "../features/study/study-session-source-pagination";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./StudySession.scss";
 
@@ -65,6 +66,7 @@ type Catalog<T> = {
   cursor: string | null;
   loading: boolean;
   error: string | null;
+  cursorCycle: boolean;
 };
 type Context = {
   scope: string;
@@ -199,6 +201,9 @@ export default function StudySession() {
   );
   const [questionState, setQuestionState] =
     useState<Catalog<QuestionView> | null>(null);
+  const savedCursors = useRef({ scope, values: new Set<string>() });
+  const foundCursors = useRef({ scope, values: new Set<string>() });
+  const questionCursors = useRef({ scope, values: new Set<string>() });
   const saved = savedState?.scope === scope ? savedState : null;
   const found = foundState?.scope === scope ? foundState : null;
   const questions = questionState?.scope === scope ? questionState : null;
@@ -300,10 +305,11 @@ export default function StudySession() {
       if (!savedCurrent(ticket)) return;
       setSavedState((old) => ({
         scope,
-        items: cursor && old?.scope === scope ? old.items : [],
-        cursor: null,
+        items: old?.scope === scope ? old.items : [],
+        cursor: old?.scope === scope ? old.cursor : null,
         loading: true,
         error: null,
+        cursorCycle: old?.scope === scope ? old.cursorCycle : false,
       }));
       try {
         const page = await resourcesApi.savedBySubject(
@@ -312,6 +318,38 @@ export default function StudySession() {
           ticket.signal,
         );
         if (savedCurrent(ticket)) {
+          const used =
+            savedCursors.current.scope === scope
+              ? savedCursors.current.values
+              : new Set<string>();
+          if (
+            cursor &&
+            studySessionCursorRepeats(used, cursor, page.nextCursor)
+          ) {
+            const values = new Set(used);
+            values.add(cursor);
+            savedCursors.current = { scope, values };
+            setSavedState((old) => ({
+              scope,
+              items: combineUnique(
+                old?.scope === scope ? old.items : [],
+                page.items,
+              ),
+              cursor: null,
+              loading: false,
+              error:
+                "Los apuntes guardados repitieron una página. Actualizá las fuentes para continuar.",
+              cursorCycle: true,
+            }));
+            return;
+          }
+          if (cursor) {
+            const values = new Set(used);
+            values.add(cursor);
+            savedCursors.current = { scope, values };
+          } else {
+            savedCursors.current = { scope, values: new Set<string>() };
+          }
           setSavedState((old) => ({
             scope,
             items:
@@ -321,16 +359,25 @@ export default function StudySession() {
             cursor: page.nextCursor,
             loading: false,
             error: null,
+            cursorCycle: false,
           }));
         }
       } catch (error) {
         if (savedCurrent(ticket)) {
+          const accessRevoked =
+            isResourcesApiError(error) &&
+            [401, 403, 404].includes(error.status);
+          if (accessRevoked) {
+            savedCursors.current = { scope, values: new Set<string>() };
+          }
           setSavedState((old) => ({
             scope,
-            items: cursor && old?.scope === scope ? old.items : [],
-            cursor: null,
+            items: old?.scope === scope && !accessRevoked ? old.items : [],
+            cursor: old?.scope === scope && !accessRevoked ? old.cursor : null,
             loading: false,
             error: apiError(error),
+            cursorCycle:
+              old?.scope === scope && !accessRevoked ? old.cursorCycle : false,
           }));
         }
       } finally {
@@ -347,10 +394,11 @@ export default function StudySession() {
       if (!foundCurrent(ticket)) return;
       setFoundState((old) => ({
         scope,
-        items: cursor && old?.scope === scope ? old.items : [],
-        cursor: null,
+        items: old?.scope === scope ? old.items : [],
+        cursor: old?.scope === scope ? old.cursor : null,
         loading: true,
         error: null,
+        cursorCycle: old?.scope === scope ? old.cursorCycle : false,
       }));
       try {
         const page = await resourcesApi.search(
@@ -358,6 +406,38 @@ export default function StudySession() {
           ticket.signal,
         );
         if (foundCurrent(ticket)) {
+          const used =
+            foundCursors.current.scope === scope
+              ? foundCursors.current.values
+              : new Set<string>();
+          if (
+            cursor &&
+            studySessionCursorRepeats(used, cursor, page.nextCursor)
+          ) {
+            const values = new Set(used);
+            values.add(cursor);
+            foundCursors.current = { scope, values };
+            setFoundState((old) => ({
+              scope,
+              items: combineUnique(
+                old?.scope === scope ? old.items : [],
+                page.items,
+              ),
+              cursor: null,
+              loading: false,
+              error:
+                "Los apuntes disponibles repitieron una página. Actualizá las fuentes para continuar.",
+              cursorCycle: true,
+            }));
+            return;
+          }
+          if (cursor) {
+            const values = new Set(used);
+            values.add(cursor);
+            foundCursors.current = { scope, values };
+          } else {
+            foundCursors.current = { scope, values: new Set<string>() };
+          }
           setFoundState((old) => ({
             scope,
             items:
@@ -367,16 +447,24 @@ export default function StudySession() {
             cursor: page.nextCursor,
             loading: false,
             error: null,
+            cursorCycle: false,
           }));
         }
       } catch (error) {
         if (foundCurrent(ticket)) {
+          const accessRevoked =
+            isSearchApiError(error) && [401, 403, 404].includes(error.status);
+          if (accessRevoked) {
+            foundCursors.current = { scope, values: new Set<string>() };
+          }
           setFoundState((old) => ({
             scope,
-            items: cursor && old?.scope === scope ? old.items : [],
-            cursor: null,
+            items: old?.scope === scope && !accessRevoked ? old.items : [],
+            cursor: old?.scope === scope && !accessRevoked ? old.cursor : null,
             loading: false,
             error: apiError(error),
+            cursorCycle:
+              old?.scope === scope && !accessRevoked ? old.cursorCycle : false,
           }));
         }
       } finally {
@@ -393,10 +481,11 @@ export default function StudySession() {
       if (!questionsCurrent(ticket)) return;
       setQuestionState((old) => ({
         scope,
-        items: cursor && old?.scope === scope ? old.items : [],
-        cursor: null,
+        items: old?.scope === scope ? old.items : [],
+        cursor: old?.scope === scope ? old.cursor : null,
         loading: true,
         error: null,
+        cursorCycle: old?.scope === scope ? old.cursorCycle : false,
       }));
       try {
         const page = await communityApi.questions(
@@ -404,6 +493,38 @@ export default function StudySession() {
           ticket.signal,
         );
         if (questionsCurrent(ticket)) {
+          const used =
+            questionCursors.current.scope === scope
+              ? questionCursors.current.values
+              : new Set<string>();
+          if (
+            cursor &&
+            studySessionCursorRepeats(used, cursor, page.nextCursor)
+          ) {
+            const values = new Set(used);
+            values.add(cursor);
+            questionCursors.current = { scope, values };
+            setQuestionState((old) => ({
+              scope,
+              items: combineUnique(
+                old?.scope === scope ? old.items : [],
+                page.items,
+              ),
+              cursor: null,
+              loading: false,
+              error:
+                "Las preguntas de la materia repitieron una página. Actualizá las fuentes para continuar.",
+              cursorCycle: true,
+            }));
+            return;
+          }
+          if (cursor) {
+            const values = new Set(used);
+            values.add(cursor);
+            questionCursors.current = { scope, values };
+          } else {
+            questionCursors.current = { scope, values: new Set<string>() };
+          }
           setQuestionState((old) => ({
             scope,
             items:
@@ -413,16 +534,25 @@ export default function StudySession() {
             cursor: page.nextCursor,
             loading: false,
             error: null,
+            cursorCycle: false,
           }));
         }
       } catch (error) {
         if (questionsCurrent(ticket)) {
+          const accessRevoked =
+            isCommunityApiError(error) &&
+            [401, 403, 404].includes(error.status);
+          if (accessRevoked) {
+            questionCursors.current = { scope, values: new Set<string>() };
+          }
           setQuestionState((old) => ({
             scope,
-            items: cursor && old?.scope === scope ? old.items : [],
-            cursor: null,
+            items: old?.scope === scope && !accessRevoked ? old.items : [],
+            cursor: old?.scope === scope && !accessRevoked ? old.cursor : null,
             loading: false,
             error: apiError(error),
+            cursorCycle:
+              old?.scope === scope && !accessRevoked ? old.cursorCycle : false,
           }));
         }
       } finally {
@@ -1113,9 +1243,14 @@ export default function StudySession() {
                 onAdd={appendTask}
               />
               <h3>Apuntes guardados y disponibles</h3>
-              {(saved?.error || found?.error) && (
+              {saved?.error && (
                 <p role="alert" className="study-session-alert">
-                  {saved?.error ?? found?.error}
+                  {saved.error}
+                </p>
+              )}
+              {found?.error && (
+                <p role="alert" className="study-session-alert">
+                  {found.error}
                 </p>
               )}
               {(saved?.loading || found?.loading) && (
@@ -1169,6 +1304,24 @@ export default function StudySession() {
                   Más apuntes
                 </button>
               )}
+              {saved?.cursorCycle && (
+                <button
+                  type="button"
+                  disabled={saved.loading}
+                  onClick={() => void loadSaved()}
+                >
+                  Actualizar guardados
+                </button>
+              )}
+              {found?.cursorCycle && (
+                <button
+                  type="button"
+                  disabled={found.loading}
+                  onClick={() => void loadFound()}
+                >
+                  Actualizar disponibles
+                </button>
+              )}
               <h3>Preguntas</h3>
               {questions?.error && (
                 <p role="alert" className="study-session-alert">
@@ -1220,10 +1373,24 @@ export default function StudySession() {
                   Más preguntas
                 </button>
               )}
+              {questions?.cursorCycle && (
+                <button
+                  type="button"
+                  disabled={questions.loading}
+                  onClick={() => void loadQuestions()}
+                >
+                  Actualizar preguntas
+                </button>
+              )}
               <div className="study-session-quick-actions">
                 <button
                   type="button"
-                  disabled={isBusy}
+                  disabled={
+                    isBusy ||
+                    saved?.loading === true ||
+                    found?.loading === true ||
+                    questions?.loading === true
+                  }
                   onClick={() => {
                     void loadSaved();
                     void loadFound();
