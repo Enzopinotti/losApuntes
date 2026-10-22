@@ -56,6 +56,9 @@ const mobileOrganizationApi = await read(
 const mobileOrganizationController = await read(
   'apps/mobile/src/features/organizations/organizations-controller.ts',
 );
+const mobileOrganizationShare = await read(
+  'apps/mobile/src/features/organizations/organization-public-share.ts',
+);
 const organizationAvatar = await read(
   'apps/web/src/features/organizations/OrganizationAvatar.tsx',
 );
@@ -86,6 +89,10 @@ assert.match(mobileOrganizationController, /upcomingEventsNextCursor/u);
 assert.match(mobileDetail, /controller\.loadUpcomingEvents/u);
 assert.match(mobileDetail, /controller\.showAllEvents/u);
 assert.match(mobileDetail, /No hay próximos eventos\./u);
+assert.match(mobileDetail, /Share\.share/u);
+assert.match(mobileDetail, /mobileOrganizationPublicLink\(current\.organization\.id\)/u);
+assert.match(mobileOrganizationShare, /losapuntes:\/\/\/organizations\//u);
+assert.match(mobileOrganizationShare, /ORGANIZATION_UUID_V4_PATTERN/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
