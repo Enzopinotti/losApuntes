@@ -14,7 +14,8 @@ export type SearchInputAction =
       type: "subjectSelected";
       subject: { id: string; name: string };
     }
-  | { type: "subjectFilterCleared" };
+  | { type: "subjectFilterCleared" }
+  | { type: "resetAll" };
 
 export const initialSearchInputState: SearchInputState = {
   query: "",
@@ -27,6 +28,8 @@ export function searchInputReducer(
   action: SearchInputAction,
 ): SearchInputState {
   switch (action.type) {
+    case "resetAll":
+      return initialSearchInputState;
     case "queryChanged":
       // Text refinement is a separate dimension of an academic filter.
       // Explicitly clearing Subject is the only action that broadens it.
