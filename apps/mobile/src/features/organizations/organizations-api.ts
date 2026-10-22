@@ -10,6 +10,12 @@ import type {
 import type { SessionController } from "@/features/session/session-controller";
 import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 
+import type { OrganizationReportInput } from "./organization-report-policy";
+
+export type OrganizationReportResponse = {
+  report: { id: string; status: "pending" };
+};
+
 export type OrganizationDirectoryInput = {
   q?: string;
   type?: OrganizationType;
@@ -52,6 +58,20 @@ export interface MobileOrganizationsTransport {
     signal?: AbortSignal,
     from?: string,
   ): Promise<OrganizationEventPage>;
+  reportPost(
+    credential: string,
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
+  reportEvent(
+    credential: string,
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
 }
 
 export interface MobileOrganizationsApiContract {
@@ -82,6 +102,18 @@ export interface MobileOrganizationsApiContract {
     signal?: AbortSignal,
     from?: string,
   ): Promise<OrganizationEventPage>;
+  reportPost(
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
+  reportEvent(
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
 }
 
 export class MobileOrganizationsHttpTransport implements MobileOrganizationsTransport {
@@ -173,6 +205,50 @@ export class MobileOrganizationsHttpTransport implements MobileOrganizationsTran
       },
     );
   }
+
+  reportPost(
+    credential: string,
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<OrganizationReportResponse>(
+      "/organizations/" +
+        encodeURIComponent(id) +
+        "/posts/" +
+        encodeURIComponent(postId) +
+        "/reports",
+      {
+        method: "POST",
+        body: input,
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  reportEvent(
+    credential: string,
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<OrganizationReportResponse>(
+      "/organizations/" +
+        encodeURIComponent(id) +
+        "/events/" +
+        encodeURIComponent(eventId) +
+        "/reports",
+      {
+        method: "POST",
+        body: input,
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 }
 
 export class MobileOrganizationsApi implements MobileOrganizationsApiContract {
@@ -214,6 +290,28 @@ export class MobileOrganizationsApi implements MobileOrganizationsApiContract {
   events(id: string, cursor?: string, signal?: AbortSignal, from?: string) {
     return this.authorized((credential) =>
       this.transport.events(credential, id, cursor, signal, from),
+    );
+  }
+
+  reportPost(
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.reportPost(credential, id, postId, input, signal),
+    );
+  }
+
+  reportEvent(
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.reportEvent(credential, id, eventId, input, signal),
     );
   }
 
