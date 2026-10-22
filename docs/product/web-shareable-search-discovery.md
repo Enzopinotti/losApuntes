@@ -35,6 +35,7 @@ Con sesión iniciada, el buscador ofrece un filtro **Materia (solo apuntes)** ba
 - Los UUID se validan como versión 4, se normalizan a minúsculas y los valores ausentes, malformados, duplicados o incompatibles con otro alcance no ejecutan una búsqueda amplia por accidente.
 - La selección entra en la identidad de la búsqueda y en su fence asíncrono: respuestas de otra materia, consulta o sesión no pueden reemplazar los resultados nuevos.
 - El endpoint de búsqueda y la autorización de archivos permanecen sin cambios. La API continúa validando `subjectId` y el acceso a cada recurso.
+- Al abrir **Ver recurso** desde resultados o desde el descubrimiento contextual, `searchReturnTo` debe incluir el mismo `subjectId` canónico de la consulta enviada. La vista de detalle reautoriza el recurso y **Volver a la búsqueda** reconstruye el filtro sin depender de un estado local. Si no hay una consulta válida se conserva el fallback interno `/search`.
 
 ### Escenarios de aceptación adicionales
 
