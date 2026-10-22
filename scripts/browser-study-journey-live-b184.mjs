@@ -469,6 +469,22 @@ async function browserJourney(
       .click();
     await page.getByText("1/").first().waitFor();
 
+    // B186 direct Search → StudySession, without opening the Resources
+    // detail or trusting public result metadata for authorization.
+    await page.goto(
+      `${WEB_ORIGIN}/search?q=${encodeURIComponent(initialResource.title)}&scope=resources`,
+    );
+    const directPrepare = page.getByRole("button", {
+      name: "Preparar sesión con este apunte",
+    });
+    await directPrepare.waitFor();
+    await directPrepare.click();
+    await page.waitForURL((url) => url.pathname === "/study/session");
+    assert.equal(new URL(page.url()).searchParams.get("subjectId"), subject.id);
+    await page
+      .getByRole("button", { name: "Sumar actividades sin perder mi plan" })
+      .waitFor();
+
     assert.deepEqual(
       errors,
       [],
@@ -488,6 +504,7 @@ async function browserJourney(
         subjectScopedSession: true,
         questionInPlan: true,
         kitResourceAdded: true,
+        searchDirectToStudy: true,
         releaseAuthorized: false,
       }),
     );
