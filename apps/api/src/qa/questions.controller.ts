@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -41,6 +42,16 @@ export class QuestionsController {
     @Query() query: QuestionSearchDto,
   ) {
     return this.qa.search(query, request.user?.id);
+  }
+
+  @UseGuards(AuthSessionGuard)
+  @Get('questions/mine')
+  @Header('Cache-Control', 'private, no-store')
+  mine(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: QuestionSearchDto,
+  ) {
+    return this.qa.mine(request.user.id, query);
   }
 
   @UseGuards(OptionalAuthSessionGuard)

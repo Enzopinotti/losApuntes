@@ -55,6 +55,12 @@ export class Question {
 
 export const QuestionSchema = SchemaFactory.createForClass(Question);
 QuestionSchema.index({ authorUserId: 1, id: 1 });
+QuestionSchema.index({
+  authorUserId: 1,
+  moderationState: 1,
+  updatedAt: -1,
+  id: 1,
+});
 QuestionSchema.index({ moderationState: 1, updatedAt: -1, id: 1 });
 QuestionSchema.index({
   subjectId: 1,
