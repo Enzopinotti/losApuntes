@@ -132,6 +132,6 @@ When enabled, the Web flow:
   download. The backend rechecks active account, job ownership and expiry on
   the download request.
 
-Only status records are ever shown in the Web interface. The v1 contents
-remain subject to the documented domain-inclusion and privacy decisions.
+Only status records are ever shown in the Web interface. The versioned export
+contents remain subject to the documented domain-inclusion and privacy decisions.
 This feature flag does not change or waive production launch gates.
