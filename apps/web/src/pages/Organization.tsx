@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
 import { organizationPublicPath } from "../features/organizations/organization-public-share.mjs";
+import { OrganizationContentReportAction } from "../features/organizations/OrganizationContentReportAction";
 import {
   isOrganizationsApiError,
   organizationsApi,
@@ -427,68 +428,6 @@ const Organization = () => {
     }
   };
 
-  const reportPost = async (postId: string) => {
-    if (!organization) return;
-    const target = organization;
-    const ticket = beginAction();
-    if (!isActionCurrent(ticket)) return;
-    setBusyState({
-      scopeKey: organizationScopeKey,
-      value: `report-post:${postId}`,
-    });
-    setErrorState(null);
-    setFeedbackState(null);
-    try {
-      await organizationsApi.reportPost(target.id, postId, ticket.signal);
-      if (!isActionCurrent(ticket)) return;
-      setFeedbackState({
-        scopeKey: organizationScopeKey,
-        message: "Reporte de publicación recibido.",
-      });
-    } catch (nextError) {
-      if (!isActionCurrent(ticket)) return;
-      setErrorState({
-        scopeKey: organizationScopeKey,
-        message: messageFor(nextError),
-      });
-    } finally {
-      if (finishAction(ticket)) {
-        setBusyState({ scopeKey: organizationScopeKey, value: null });
-      }
-    }
-  };
-
-  const reportEvent = async (eventId: string) => {
-    if (!organization) return;
-    const target = organization;
-    const ticket = beginAction();
-    if (!isActionCurrent(ticket)) return;
-    setBusyState({
-      scopeKey: organizationScopeKey,
-      value: `report-event:${eventId}`,
-    });
-    setErrorState(null);
-    setFeedbackState(null);
-    try {
-      await organizationsApi.reportEvent(target.id, eventId, ticket.signal);
-      if (!isActionCurrent(ticket)) return;
-      setFeedbackState({
-        scopeKey: organizationScopeKey,
-        message: "Reporte de evento recibido.",
-      });
-    } catch (nextError) {
-      if (!isActionCurrent(ticket)) return;
-      setErrorState({
-        scopeKey: organizationScopeKey,
-        message: messageFor(nextError),
-      });
-    } finally {
-      if (finishAction(ticket)) {
-        setBusyState({ scopeKey: organizationScopeKey, value: null });
-      }
-    }
-  };
-
   if (error && !organization) {
     return (
       <section className="organizations-page">
@@ -660,14 +599,12 @@ const Organization = () => {
                     <small>Materia: {post.academic.subject.name}</small>
                   )}
                   {authenticated && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy === `report-post:${post.id}`}
-                      onClick={() => void reportPost(post.id)}
-                    >
-                      Reportar
-                    </button>
+                    <OrganizationContentReportAction
+                      organizationId={organization.id}
+                      scopeKey={organizationScopeKey}
+                      targetId={post.id}
+                      targetType="post"
+                    />
                   )}
                 </article>
               ))}
@@ -756,14 +693,12 @@ const Organization = () => {
                     </a>
                   )}
                   {authenticated && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy === `report-event:${event.id}`}
-                      onClick={() => void reportEvent(event.id)}
-                    >
-                      Reportar
-                    </button>
+                    <OrganizationContentReportAction
+                      organizationId={organization.id}
+                      scopeKey={organizationScopeKey}
+                      targetId={event.id}
+                      targetType="event"
+                    />
                   )}
                 </article>
               ))}

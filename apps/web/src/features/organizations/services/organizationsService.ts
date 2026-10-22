@@ -9,6 +9,7 @@ import type {
   OrganizationType,
   OrganizationVerificationState,
 } from "../interfaces";
+import type { OrganizationReportInput } from "../organization-report-policy";
 
 type ErrorEnvelope = {
   code?: string;
@@ -345,32 +346,36 @@ export const organizationsApi = {
       { method: "PUT", signal },
     ),
 
-  reportPost: (id: string, postId: string, signal?: AbortSignal) =>
+  reportPost: (
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) =>
     request<{ report: { id: string; status: "pending" } }>(
       `/organizations/${encodeURIComponent(
         id,
       )}/posts/${encodeURIComponent(postId)}/reports`,
       {
         method: "POST",
-        body: json({
-          reason: "other",
-          details: "Reporte enviado desde la interfaz web",
-        }),
+        body: json(input),
         signal,
       },
     ),
 
-  reportEvent: (id: string, eventId: string, signal?: AbortSignal) =>
+  reportEvent: (
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) =>
     request<{ report: { id: string; status: "pending" } }>(
       `/organizations/${encodeURIComponent(
         id,
       )}/events/${encodeURIComponent(eventId)}/reports`,
       {
         method: "POST",
-        body: json({
-          reason: "other",
-          details: "Reporte enviado desde la interfaz web",
-        }),
+        body: json(input),
         signal,
       },
     ),
