@@ -36,7 +36,7 @@
 
 .search-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 180px)) auto;
+  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 180px)) auto auto;
   gap: 0.8rem;
   align-items: end;
   padding: 1rem;
@@ -54,6 +54,23 @@
   border-radius: 10px;
   padding: 0.7rem 0.8rem;
   font: inherit;
+}
+
+.search-form .search-reset {
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #5b5bd6;
+  border-radius: 9px;
+  background: #fff;
+  color: #3535a4;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-form .search-reset:focus-visible {
+  outline: 3px solid #7474d9;
+  outline-offset: 3px;
 }
 
 .search-error {

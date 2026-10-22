@@ -228,6 +228,18 @@ assert.doesNotMatch(
   'Suggestions from a different account must never be displayed unscoped',
 );
 assert.match(page, /setSubjectId\(""\)/u);
+// B190: explicit reset drops the draft, URL, transient copy state and
+// the active async ticket before a late response can be presented again.
+assert.match(page, /const hasActiveSearch =/u);
+assert.match(page, /searchParams\.toString\(\) !== ""/u);
+assert.match(page, /const resetSearch = \(\) => \{/u);
+assert.match(
+  page,
+  /const resetSearch = \(\) => \{[\s\S]*?invalidateSearchRequest\(\);[\s\S]*?setSearchState\(null\);[\s\S]*?setCopyStatus\(null\);[\s\S]*?setQuery\(""\);[\s\S]*?setScope\("all"\);[\s\S]*?setSubjectId\(""\);[\s\S]*?setSearchParams\(new URLSearchParams\(\)\);/u,
+);
+assert.match(page, /type="button"[\s\S]{0,90}onClick=\{resetSearch\}/u);
+assert.match(page, /Limpiar búsqueda/u);
+assert.match(page, /hasActiveSearch &&/u);
 assert.match(page, /copySearchLink/u);
 assert.match(page, /navigator\.clipboard\?\.writeText/u);
 assert.match(page, /role="status"/u);
