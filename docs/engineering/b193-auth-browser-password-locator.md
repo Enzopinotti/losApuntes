@@ -9,6 +9,10 @@ El workflow global de [B192 PR #600](https://github.com/Enzopinotti/losApuntes/p
 En [Container runtime smoke, job 119814049160](https://github.com/Enzopinotti/losApuntes/actions/runs/39775126797/job/119814049160) el contenedor **MongoDB 8.0.34 inició correctamente**, Compose y el runtime levantaron y `pnpm test:auth-browser-e2e` llegó al navegador. Playwright falló al buscar `getByLabel("Contraseña")`: hubo **dos resultados**, el `input#login-password` y el control accesible `button[aria-label="Mostrar contraseña"]`. No se trató de una falla del motor Mongo ni de los cambios de Study Progress; cambiar de runner o degradar Mongo no corrige la causa. El error ocurrió antes de los otros smokes HTTP por el orden del pipeline.
 
 Los selectores de login inicial y login tras recuperación repetían el mismo patrón. El registro inicial también tenía un `getByLabel("Confirmar contraseña")` sin coincidencia exacta, susceptible al botón `Mostrar confirmar contraseña`. Otros selectores ya usaban `{exact:true}`.
+### Segundo defecto expuesto por Chromium real en el primer intento B193
+
+En [PR #606 — Container runtime smoke, job 119849273171](https://github.com/Enzopinotti/losApuntes/actions/runs/39785537009/job/119849273171) quedó confirmada la corrección de la ambigüedad inicial: el navegador avanzó hasta la prueba de teclado. Los contenedores Mongo 8, RustFS, Mailpit, API y workers quedaron healthy. La ejecución encontró un *segundo* contrato de prueba desactualizado: tras escribir la clave, un único `Tab` ya no llega a «Iniciar sesión», porque el botón de mostrar contraseña añadió correctamente un elemento enfocable. El test se corrige para exigir primero foco en «Mostrar contraseña», luego otro `Tab` hasta «Iniciar sesión» y finalmente envío con Enter. Es una aceptación de la nueva accesibilidad real y **no** se quita el botón del orden de tabulación. El test de contrato ligero comprueba que exista este paso. La corrida posterior en el HEAD actualizado es la única que puede validar el smoke completo.
+
 
 ## Implementación atómica
 
