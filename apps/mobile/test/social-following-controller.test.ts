@@ -89,6 +89,55 @@ test("loads bounded pages and preserves opaque cursors without duplicate profile
   assert.equal(snapshot.nextCursor, null);
 });
 
+test("keeps transient pages retryable and stops a following cursor cycle", async () => {
+  const requests: FollowingPageInput[] = [];
+  let pageCalls = 0;
+  const { api } = apiHarness({
+    following: (input) => {
+      requests.push(input);
+      if (!input.cursor) return page(["profile-a"], "cursor-a");
+      pageCalls += 1;
+      if (pageCalls === 1) {
+        throw new ApiRequestError(
+          "server_unavailable",
+          503,
+          "TEMPORARY_UNAVAILABLE",
+          "temporary failure",
+        );
+      }
+      return input.cursor === "cursor-a"
+        ? page(["profile-b"], "cursor-b")
+        : page(["profile-c"], "cursor-a");
+    },
+  });
+  const controller = new SocialFollowingController(api);
+  controller.setAuthority("user-a:session-a");
+
+  await controller.load("user-a:session-a");
+  await controller.loadMore("user-a:session-a");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.nextCursor, "cursor-a");
+  assert.equal(snapshot.failure?.kind, "server_unavailable");
+
+  await controller.loadMore("user-a:session-a");
+  await controller.loadMore("user-a:session-a");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(
+    snapshot.items.map((following) => following.profile.profileId),
+    ["profile-a", "profile-b", "profile-c"],
+  );
+  assert.equal(snapshot.nextCursor, null);
+  assert.equal(snapshot.failure?.code, "SOCIAL_FOLLOWING_CURSOR_REPEATED");
+  assert.deepEqual(
+    requests.map((request) => request.cursor),
+    [undefined, "cursor-a", "cursor-a", "cursor-b"],
+  );
+});
+
 test("removes a profile only after the server confirms unfollow", async () => {
   const { api, unfollowedProfileIds } = apiHarness({
     following: () => page(["profile-a", "profile-b"]),
