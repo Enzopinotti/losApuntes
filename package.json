@@ -36,6 +36,7 @@
     "test:web-study-plan-material-finder": "node scripts/test-web-study-plan-material-finder.mjs",
     "test:web-study-kits-integration": "node scripts/test-web-study-kits-integration.mjs",
     "test:web-study-kits-resource-search-browser": "node scripts/test-web-study-kits-resource-search-browser.mjs",
+    "test:web-notification-categories-b178-browser": "node scripts/test-web-notification-categories-b178-browser.mjs",
     "test:web-search-contract": "node scripts/test-web-search-contract.mjs",
     "test:auth-browser-e2e": "node scripts/auth-browser-e2e.mjs",
     "test:web-social-qa-contract": "node --experimental-strip-types scripts/test-web-social-qa-contract.mjs",

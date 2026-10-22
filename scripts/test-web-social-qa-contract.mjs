@@ -3,6 +3,12 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { shouldReconcileNotificationTick } from '../apps/web/src/features/community/notificationReconciliation.ts';
 import { notificationTargetPath } from '../apps/web/src/features/community/notification-navigation.mjs';
+import {
+  notificationCategoryForType,
+  notificationCategoryCounts,
+  selectNotificationCategory,
+  NOTIFICATION_CATEGORIES,
+} from '../apps/web/src/features/community/notification-category.mjs';
 
 const root = process.cwd();
 
@@ -156,7 +162,69 @@ assert.equal(
 assert.match(communityStyles, /\.community-author-link:focus-visible/u);
 assert.doesNotMatch(questions, /localStorage|sessionStorage/u);
 
+const fakeAlerts = [
+  { id: 'q-answer', type: 'qa.question_answered', readAt: null },
+  { id: 'network-request', type: 'social.connection_requested', readAt: null },
+  { id: 'q-accepted', type: 'qa.answer_accepted', readAt: '2026-10-19T10:00:00Z' },
+  { id: 'follow', type: 'social.followed', readAt: null },
+  { id: 'connection', type: 'social.connection_accepted', readAt: null },
+  { id: 'unknown', type: 'future.event', readAt: null },
+];
+assert.deepEqual(NOTIFICATION_CATEGORIES, ['all', 'study', 'network']);
+assert.equal(notificationCategoryForType('qa.question_answered'), 'study');
+assert.equal(notificationCategoryForType('qa.answer_accepted'), 'study');
+assert.equal(notificationCategoryForType('social.followed'), 'network');
+assert.equal(notificationCategoryForType('social.connection_requested'), 'network');
+assert.equal(notificationCategoryForType('social.connection_accepted'), 'network');
+assert.equal(notificationCategoryForType('future.event'), null);
+assert.equal(notificationCategoryForType(null), null);
+assert.deepEqual(
+  selectNotificationCategory(fakeAlerts, 'study').map((item) => item.id),
+  ['q-answer', 'q-accepted'],
+);
+assert.deepEqual(
+  selectNotificationCategory(fakeAlerts, 'network').map((item) => item.id),
+  ['network-request', 'follow', 'connection'],
+);
+assert.deepEqual(selectNotificationCategory(fakeAlerts, 'all'), fakeAlerts);
+assert.deepEqual(selectNotificationCategory(fakeAlerts, 'invalid'), []);
+assert.deepEqual(selectNotificationCategory(null, 'study'), []);
+assert.deepEqual(notificationCategoryCounts(fakeAlerts), {
+  all: 6,
+  study: 2,
+  network: 3,
+});
+assert.deepEqual(notificationCategoryCounts([]), {
+  all: 0,
+  study: 0,
+  network: 0,
+});
+assert.deepEqual(
+  selectNotificationCategory(fakeAlerts.filter((item) => !item.readAt), 'study')
+    .map((item) => item.id),
+  ['q-answer'],
+  'Local topic and server-side unread filters compose without changing read state',
+);
+
 const notifications = await read('apps/web/src/pages/Notifications.tsx');
+assert.match(notifications, /setCategory\("all"\)/u);
+assert.match(notifications, /selectNotificationCategory\(items, category\)/u);
+assert.match(notifications, /notificationCategoryCounts\(items\)/u);
+assert.match(notifications, /visibleItems\.map\(\(item\)/u);
+assert.match(notifications, /aria-pressed=\{category === "study"\}/u);
+assert.match(notifications, /aria-pressed=\{category === "network"\}/u);
+assert.match(notifications, /Los números corresponden solo a las páginas cargadas/u);
+assert.match(notifications, /Marcar todas\s+como leídas afecta la bandeja completa/u);
+assert.match(notifications, /visibleItems\.length === 0/u);
+assert.match(notifications, /Podés cargar más para consultar/u);
+assert.match(notifications, /nextCursor &&/u);
+assert.match(notifications, /labels\[item\.type\]\s*\?\?/u);
+const notificationStyles = await read('apps/web/src/pages/Community.scss');
+assert.match(notificationStyles, /\.community-notification-categories/u);
+assert.match(
+  notificationStyles,
+  /\.community-notification-category-options button:focus-visible/u,
+);
 assert.match(notifications, /useLayoutEffect/u);
 assert.match(
   notifications,

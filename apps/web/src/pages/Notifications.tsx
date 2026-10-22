@@ -8,6 +8,11 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { NotificationView } from "../features/community/interfaces";
+import {
+  notificationCategoryCounts,
+  selectNotificationCategory,
+  type NotificationCategory,
+} from "../features/community/notification-category.mjs";
 import { notificationTargetPath } from "../features/community/notification-navigation.mjs";
 import {
   communityApi,
@@ -40,6 +45,7 @@ const Notifications = () => {
   const [loadedPages, setLoadedPages] = useState(1);
   const [reconcileTick, setReconcileTick] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [category, setCategory] = useState<NotificationCategory>("all");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
@@ -70,6 +76,8 @@ const Notifications = () => {
   } = useAsyncAuthorityFence(`notifications-action:${authorityScope}`);
 
   const busy = loadingMore || actionBusy;
+  const loadedCategoryCounts = notificationCategoryCounts(items);
+  const visibleItems = selectNotificationCategory(items, category);
   const openingNotificationId =
     openingState?.scopeKey === authorityScope
       ? openingState.notificationId
@@ -85,6 +93,7 @@ const Notifications = () => {
     setLoadedPages(1);
     setReconcileTick(0);
     setUnreadOnly(false);
+    setCategory("all");
     setLoading(status === "authenticated");
     setLoadingMore(false);
     setActionBusy(false);
@@ -385,23 +394,62 @@ const Notifications = () => {
           Marcar todas como leídas
         </button>
       </div>
+      <fieldset className="community-notification-categories">
+        <legend>Ver notificaciones por tema</legend>
+        <div className="community-notification-category-options">
+          <button
+            type="button"
+            aria-pressed={category === "all"}
+            onClick={() => setCategory("all")}
+          >
+            Todas ({loadedCategoryCounts.all})
+          </button>
+          <button
+            type="button"
+            aria-pressed={category === "study"}
+            onClick={() => setCategory("study")}
+          >
+            Preguntas y respuestas ({loadedCategoryCounts.study})
+          </button>
+          <button
+            type="button"
+            aria-pressed={category === "network"}
+            onClick={() => setCategory("network")}
+          >
+            Actividad social ({loadedCategoryCounts.network})
+          </button>
+        </div>
+        <p className="community-notification-scope">
+          Los números corresponden solo a las páginas cargadas. Cambiar de tema
+          no marca mensajes como leídos ni consulta otras páginas. Marcar todas
+          como leídas afecta la bandeja completa, aunque haya filtros activos.
+        </p>
+      </fieldset>
 
       <section className="community-card">
         {loading ? (
           <p>Cargando…</p>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && !nextCursor ? (
           <p>No hay notificaciones para mostrar.</p>
         ) : (
           <>
+            {visibleItems.length === 0 && (
+              <p className="community-notification-scope" role="status">
+                No hay notificaciones de este tema entre las páginas cargadas.
+                {nextCursor
+                  ? " Podés cargar más para consultar notificaciones anteriores."
+                  : " No hay más páginas disponibles con este filtro."}
+              </p>
+            )}
             <ul className="community-list">
-              {items.map((item) => {
+              {visibleItems.map((item) => {
                 const target = notificationTargetPath(item.target);
                 return (
                   <li key={item.id} className={item.readAt ? "" : "unread"}>
                     <div>
                       <strong>
                         {item.actor?.displayName ?? "Los Apuntes"}{" "}
-                        {labels[item.type]}
+                        {labels[item.type] ?? "registró una actividad"}
                       </strong>
                       <small>{new Date(item.createdAt).toLocaleString()}</small>
                       {target ? (
@@ -460,7 +508,7 @@ const Notifications = () => {
                 disabled={busy}
                 onClick={() => void loadMore(nextCursor)}
               >
-                {loadingMore ? "Cargando…" : "Cargar más"}
+                {loadingMore ? "Cargando…" : "Cargar más notificaciones"}
               </button>
             )}
           </>
