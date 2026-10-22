@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { AccountExportPanel } from "../features/account-export/AccountExportPanel";
 import {
   authErrorMessage,
   authErrorRequestId,
@@ -632,6 +633,10 @@ const Security = () => {
               <p>Google no está habilitado en este entorno.</p>
             )}
           </section>
+
+          {import.meta.env.VITE_ACCOUNT_EXPORT_WEB_ENABLED === "true" && (
+            <AccountExportPanel />
+          )}
         </>
       )}
     </section>

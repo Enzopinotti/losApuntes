@@ -131,6 +131,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+// Reuse the single cookie-authenticated, no-store transport for small
+// owner-scoped account-export status payloads. Artifact bytes never use it.
+export function authenticatedJsonRequest<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  return request<T>(path, init);
+}
+
+export function authenticatedApiUrl(path: string): string {
+  return apiUrl(path);
+}
+
 function body(value: unknown): string {
   return JSON.stringify(value);
 }
