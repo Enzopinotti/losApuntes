@@ -14,9 +14,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { requestPasswordRecovery } from "@/features/auth/password-recovery";
 import {
-  passwordRecoveryResendAvailableAt,
-  passwordRecoveryResendSecondsRemaining,
-} from "@/features/auth/password-recovery-resend";
+  authActionResendAvailableAt,
+  authActionResendSecondsRemaining,
+} from "@/features/auth/action-resend-cooldown";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 type RequestState =
@@ -51,7 +51,7 @@ export default function ForgotPasswordRoute() {
 
   const pending = state === "pending";
   const normalizedEmail = email.trim().toLowerCase();
-  const resendCooldownSeconds = passwordRecoveryResendSecondsRemaining(
+  const resendCooldownSeconds = authActionResendSecondsRemaining(
     resendAvailableAtMs,
     cooldownNowMs,
   );
@@ -95,9 +95,7 @@ export default function ForgotPasswordRoute() {
     const completedAtMs = Date.now();
     setCooldownNowMs(completedAtMs);
     setResendAvailableAtMs(
-      result === "accepted"
-        ? passwordRecoveryResendAvailableAt(completedAtMs)
-        : null,
+      result === "accepted" ? authActionResendAvailableAt(completedAtMs) : null,
     );
     setState(result);
   };
