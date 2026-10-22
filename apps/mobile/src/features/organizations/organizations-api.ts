@@ -10,10 +10,17 @@ import type {
 import type { SessionController } from "@/features/session/session-controller";
 import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 
-import type { OrganizationReportInput } from "./organization-report-policy";
+import type {
+  OrganizationReportInput,
+  OrganizationReportReason,
+} from "./organization-report-policy";
 
 export type OrganizationReportResponse = {
-  report: { id: string; status: "pending" };
+  report: {
+    id: string;
+    reason: OrganizationReportReason;
+    status: "pending";
+  };
 };
 
 export type OrganizationDirectoryInput = {

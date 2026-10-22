@@ -28,7 +28,7 @@ test("organization content reports use authenticated, encoded report routes", as
   const client = {
     request: async (path: string, options: unknown) => {
       requests.push({ path, options });
-      return { report: { id: "report-1", status: "pending" } };
+      return { report: { id: "report-1", reason: "spam", status: "pending" } };
     },
   } as unknown as MobileApiClient;
   const transport = new MobileOrganizationsHttpTransport(client);

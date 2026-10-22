@@ -131,21 +131,20 @@ export class MobileOrganizationReportController {
     });
 
     try {
-      if (targetType === "post") {
-        await this.api.reportPost(
-          organizationId,
-          targetId,
-          validation.input,
-          operation.controller.signal,
-        );
-      } else {
-        await this.api.reportEvent(
-          organizationId,
-          targetId,
-          validation.input,
-          operation.controller.signal,
-        );
-      }
+      const response =
+        targetType === "post"
+          ? await this.api.reportPost(
+              organizationId,
+              targetId,
+              validation.input,
+              operation.controller.signal,
+            )
+          : await this.api.reportEvent(
+              organizationId,
+              targetId,
+              validation.input,
+              operation.controller.signal,
+            );
       if (!this.isCurrent(operation)) return false;
       const latest = this.current(
         authorityKey,
@@ -154,7 +153,12 @@ export class MobileOrganizationReportController {
         targetId,
       );
       if (!latest) return false;
-      this.publish({ ...latest, outcome: "confirmed", failure: null });
+      this.publish({
+        ...latest,
+        outcome: "confirmed",
+        reason: response.report.reason,
+        failure: null,
+      });
       return true;
     } catch (error) {
       if (!this.isCurrent(operation)) return false;
