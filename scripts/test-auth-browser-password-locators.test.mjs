@@ -41,6 +41,9 @@ test("B193 browser smoke exercises reveal and reconceal without removing accessi
   assert.match(browser, /name: "Mostrar contraseña",\s*exact: true/u);
   assert.match(browser, /name: "Ocultar contraseña", exact: true/u);
   assert.match(browser, /await revealLoginPassword\.click\(\)/u);
+  assert.match(browser, /await revealLoginPassword\.evaluate\(/u);
+  assert.match(browser, /Tab should reach the accessible password visibility control/u);
+  assert.match(browser, /keyboard traversal should reach the login action/u);
   assert.match(browser, /await loginPassword\.getAttribute\("type"\), "text"/u);
   assert.match(browser, /await loginPassword\.getAttribute\("type"\), "password"/u);
 
