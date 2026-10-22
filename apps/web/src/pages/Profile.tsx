@@ -20,6 +20,7 @@ import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
+import { publicProfileActivityLink } from "../features/profile/public-profile-activity-link";
 import { moveProfileSectionOrder } from "../features/profile/profile-section-order";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Profile.scss";
@@ -28,6 +29,17 @@ type ReadyProfile = Extract<
   OwnerProfileResponse,
   { onboardingRequired: false }
 >;
+
+type ProfileActivityEditDraft = {
+  id: string;
+  expectedRevision: number;
+  type: ProfileActivityType;
+  title: string;
+  description: string;
+  url: string;
+  startedOn: string;
+  endedOn: string;
+};
 
 const sections: Array<{ key: ProfileSection; label: string }> = [
   { key: "about", label: "Presentación" },
@@ -71,6 +83,17 @@ const coverPresetOptions: Array<{
   { value: "campus", label: "Campus" },
 ];
 
+const activityTypeOptions: Array<{
+  value: ProfileActivityType;
+  label: string;
+}> = [
+  { value: "project", label: "Proyecto" },
+  { value: "research", label: "Investigación" },
+  { value: "club", label: "Club / organización" },
+  { value: "volunteering", label: "Voluntariado" },
+  { value: "academic_work", label: "Trabajo académico" },
+];
+
 function toList(value: string): string[] {
   return value
     .split(",")
@@ -94,6 +117,10 @@ function messageFor(error: unknown): string {
 
   if (error.code === "PROFILE_REVISION_CONFLICT") {
     return "Tu perfil cambió en otra pestaña. Recargalo antes de guardar.";
+  }
+
+  if (error.code === "PROFILE_ACTIVITY_REVISION_CONFLICT") {
+    return "La actividad cambió en otra pestaña. Recargá el perfil antes de guardar.";
   }
 
   if (error.code === "PROFILE_ACTIVITY_PERIOD_INVALID") {
@@ -165,8 +192,11 @@ const Profile = () => {
     useState<ProfileActivityType>("project");
   const [activityTitle, setActivityTitle] = useState("");
   const [activityDescription, setActivityDescription] = useState("");
+  const [activityUrl, setActivityUrl] = useState("");
   const [activityStartedOn, setActivityStartedOn] = useState("");
   const [activityEndedOn, setActivityEndedOn] = useState("");
+  const [activityEditDraft, setActivityEditDraft] =
+    useState<ProfileActivityEditDraft | null>(null);
 
   const [loadState, setLoadState] = useState<{
     scopeKey: string;
@@ -218,8 +248,10 @@ const Profile = () => {
     setActivityType("project");
     setActivityTitle("");
     setActivityDescription("");
+    setActivityUrl("");
     setActivityStartedOn("");
     setActivityEndedOn("");
+    setActivityEditDraft(null);
   }, []);
 
   const hydrate = useCallback((next: ReadyProfile, scopeKey: string) => {
@@ -451,6 +483,7 @@ const Profile = () => {
           type: activityType,
           title: activityTitle,
           description: activityDescription.trim() || null,
+          url: activityUrl.trim() || null,
           startedOn: activityStartedOn || null,
           endedOn: activityEndedOn || null,
         },
@@ -459,6 +492,7 @@ const Profile = () => {
       if (!isActionCurrent(ticket)) return;
       setActivityTitle("");
       setActivityDescription("");
+      setActivityUrl("");
       setActivityStartedOn("");
       setActivityEndedOn("");
       await loadRef.current();
@@ -468,6 +502,59 @@ const Profile = () => {
         busy: true,
         error: null,
         feedback: "Actividad agregada.",
+      });
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: messageFor(nextError),
+        feedback: null,
+      });
+    } finally {
+      finishBusyAction(ticket);
+    }
+  };
+
+  const updateActivityDraft = <K extends keyof ProfileActivityEditDraft>(
+    field: K,
+    value: ProfileActivityEditDraft[K],
+  ) => {
+    setActivityEditDraft((current) =>
+      current ? { ...current, [field]: value } : current,
+    );
+  };
+
+  const saveActivityEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activityEditDraft) return;
+    const target = activityEditDraft;
+    const ticket = beginBusyAction();
+    if (!ticket) return;
+
+    try {
+      await profileApi.updateActivity(
+        target.id,
+        {
+          expectedRevision: target.expectedRevision,
+          type: target.type,
+          title: target.title.trim(),
+          description: target.description.trim() || null,
+          url: target.url.trim() || null,
+          startedOn: target.startedOn || null,
+          endedOn: target.endedOn || null,
+        },
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      setActivityEditDraft(null);
+      await loadRef.current();
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: null,
+        feedback: "Actividad actualizada.",
       });
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
@@ -864,27 +951,162 @@ const Profile = () => {
           <p>Todavía no agregaste actividades.</p>
         ) : (
           <ul>
-            {snapshot.activities.map((item) => (
-              <li key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <span>{item.type.replace("_", " ")}</span>
-                  {item.description && <p>{item.description}</p>}
-                  {(item.startedOn || item.endedOn) && (
-                    <small>
-                      {item.startedOn ?? "—"} → {item.endedOn ?? "actualidad"}
-                    </small>
+            {snapshot.activities.map((item) => {
+              const editing = activityEditDraft?.id === item.id;
+              const publicLink = publicProfileActivityLink(item.url);
+              return (
+                <li key={item.id}>
+                  {editing && activityEditDraft ? (
+                    <form
+                      className="profile-activity-edit-form"
+                      onSubmit={saveActivityEdit}
+                    >
+                      <label htmlFor={`activity-type-${item.id}`}>Tipo</label>
+                      <select
+                        id={`activity-type-${item.id}`}
+                        value={activityEditDraft.type}
+                        onChange={(event) =>
+                          updateActivityDraft(
+                            "type",
+                            event.target.value as ProfileActivityType,
+                          )
+                        }
+                      >
+                        {activityTypeOptions.map((option) => (
+                          <option value={option.value} key={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <label htmlFor={`activity-title-${item.id}`}>
+                        Título
+                      </label>
+                      <input
+                        id={`activity-title-${item.id}`}
+                        required
+                        minLength={2}
+                        maxLength={120}
+                        value={activityEditDraft.title}
+                        onChange={(event) =>
+                          updateActivityDraft("title", event.target.value)
+                        }
+                      />
+                      <label htmlFor={`activity-description-${item.id}`}>
+                        Descripción
+                      </label>
+                      <textarea
+                        id={`activity-description-${item.id}`}
+                        rows={3}
+                        maxLength={1000}
+                        value={activityEditDraft.description}
+                        onChange={(event) =>
+                          updateActivityDraft("description", event.target.value)
+                        }
+                      />
+                      <label htmlFor={`activity-url-${item.id}`}>
+                        URL pública (HTTPS)
+                      </label>
+                      <input
+                        id={`activity-url-${item.id}`}
+                        type="url"
+                        inputMode="url"
+                        maxLength={2048}
+                        pattern="https://.+"
+                        value={activityEditDraft.url}
+                        onChange={(event) =>
+                          updateActivityDraft("url", event.target.value)
+                        }
+                      />
+                      <label htmlFor={`activity-started-on-${item.id}`}>
+                        Desde
+                      </label>
+                      <input
+                        id={`activity-started-on-${item.id}`}
+                        type="month"
+                        value={activityEditDraft.startedOn}
+                        onChange={(event) =>
+                          updateActivityDraft("startedOn", event.target.value)
+                        }
+                      />
+                      <label htmlFor={`activity-ended-on-${item.id}`}>
+                        Hasta
+                      </label>
+                      <input
+                        id={`activity-ended-on-${item.id}`}
+                        type="month"
+                        value={activityEditDraft.endedOn}
+                        onChange={(event) =>
+                          updateActivityDraft("endedOn", event.target.value)
+                        }
+                      />
+                      <div className="profile-activity-edit-actions">
+                        <button disabled={busy} type="submit">
+                          {busy ? "Guardando…" : "Guardar cambios"}
+                        </button>
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => setActivityEditDraft(null)}
+                          type="button"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <span>{item.type.replace("_", " ")}</span>
+                        {item.description && <p>{item.description}</p>}
+                        {publicLink && (
+                          <a
+                            href={publicLink.href}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            Abrir {publicLink.hostname}
+                          </a>
+                        )}
+                        {(item.startedOn || item.endedOn) && (
+                          <small>
+                            {item.startedOn ?? "—"} →{" "}
+                            {item.endedOn ?? "actualidad"}
+                          </small>
+                        )}
+                      </div>
+                      <div className="profile-activity-actions">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            setActivityEditDraft({
+                              id: item.id,
+                              expectedRevision: item.revision,
+                              type: item.type,
+                              title: item.title,
+                              description: item.description ?? "",
+                              url: item.url ?? "",
+                              startedOn: item.startedOn ?? "",
+                              endedOn: item.endedOn ?? "",
+                            })
+                          }
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void removeActivity(item.id)}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </>
                   )}
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void removeActivity(item.id)}
-                >
-                  Eliminar
-                </button>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -908,11 +1130,11 @@ const Profile = () => {
                 setActivityType(event.target.value as ProfileActivityType)
               }
             >
-              <option value="project">Proyecto</option>
-              <option value="research">Investigación</option>
-              <option value="club">Club / organización</option>
-              <option value="volunteering">Voluntariado</option>
-              <option value="academic_work">Trabajo académico</option>
+              {activityTypeOptions.map((option) => (
+                <option value={option.value} key={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -932,6 +1154,17 @@ const Profile = () => {
               maxLength={1000}
               value={activityDescription}
               onChange={(event) => setActivityDescription(event.target.value)}
+            />
+          </label>
+          <label>
+            URL pública (HTTPS)
+            <input
+              type="url"
+              inputMode="url"
+              maxLength={2048}
+              pattern="https://.+"
+              value={activityUrl}
+              onChange={(event) => setActivityUrl(event.target.value)}
             />
           </label>
           <label>

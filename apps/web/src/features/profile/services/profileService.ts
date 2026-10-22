@@ -5,6 +5,7 @@ import type {
   ProfileActivityType,
   PublicProfileResponse,
   UpdateProfileInput,
+  UpdateProfileActivityInput,
 } from "../interfaces";
 
 type ErrorEnvelope = {
@@ -173,6 +174,20 @@ export const profileApi = {
       body: json(input),
       signal,
     }),
+
+  updateActivity: (
+    activityId: string,
+    input: UpdateProfileActivityInput,
+    signal?: AbortSignal,
+  ) =>
+    request<{ activity: ProfileActivity }>(
+      `/profile/me/activities/${encodeURIComponent(activityId)}`,
+      {
+        method: "PATCH",
+        body: json(input),
+        signal,
+      },
+    ),
 
   deleteActivity: (activity: ProfileActivity, signal?: AbortSignal) =>
     request<void>(
