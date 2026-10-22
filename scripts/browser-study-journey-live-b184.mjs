@@ -478,6 +478,10 @@ async function browserJourney(
       name: "Preparar sesión con este apunte",
     });
     await directPrepare.waitFor();
+    // Search results and session discovery are concurrent on first render.
+    // Click only after their DOM/network settles to avoid acting on a
+    // transient result card about to be replaced by React.
+    await page.waitForLoadState("networkidle");
     await directPrepare.click();
     await page.waitForURL((url) => url.pathname === "/study/session");
     assert.equal(new URL(page.url()).searchParams.get("subjectId"), subject.id);
