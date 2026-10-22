@@ -92,6 +92,9 @@ const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
 const eventCalendar = await read(
   'apps/web/src/features/organizations/organization-event-calendar.mjs',
 );
+const organizationShare = await read(
+  'apps/web/src/features/organizations/organization-public-share.mjs',
+);
 assert.match(publicPage, /organizationsApi\.get\(/u);
 assert.match(publicPage, /useLocation\(\)/u);
 assert.match(publicPage, /feedReturnHref\(location\.state\)/u);
@@ -134,6 +137,12 @@ assert.match(publicPage, /aria-pressed=\{eventFilter === "all"\}/u);
 assert.match(publicPage, /No hay próximos eventos\./u);
 assert.match(publicPage, /loadUpcomingEvents/u);
 assert.match(publicPage, /visibleEventsNextCursor/u);
+assert.match(publicPage, /organizationPublicPath\(organization\.id\)/u);
+assert.match(publicPage, /navigator\.share/u);
+assert.match(publicPage, /navigator\.clipboard\.writeText/u);
+assert.match(publicPage, /new URL\(path, window\.location\.origin\)/u);
+assert.match(publicPage, /Enlace público de la organización/u);
+assert.match(organizationShare, /UUID_V4_PATTERN/u);
 assert.match(publicPage, /serializeOrganizationEventCalendar/u);
 assert.match(publicPage, /downloadOrganizationEventCalendar\(event\)/u);
 assert.match(publicPage, /event\.state === "cancelled"/u);
