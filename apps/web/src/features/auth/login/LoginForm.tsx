@@ -8,6 +8,7 @@ import {
   isAuthCode,
 } from "../authMessages";
 import type { LoginFormData } from "../interfaces";
+import PasswordField from "../PasswordField";
 import { authApi } from "../services/authService";
 import "../AuthForm.scss";
 
@@ -150,9 +151,9 @@ const LoginForm = () => {
 
         <div>
           <label htmlFor="login-password">Contraseña</label>
-          <input
+          <PasswordField
             id="login-password"
-            type="password"
+            label="Contraseña"
             autoComplete="current-password"
             {...register("password", {
               required: "La contraseña es obligatoria",

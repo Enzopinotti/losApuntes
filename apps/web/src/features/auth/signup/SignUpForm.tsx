@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { authErrorMessage, authErrorRequestId } from "../authMessages";
 import type { SignUpFormData } from "../interfaces";
+import PasswordField from "../PasswordField";
 import { newPasswordValidationMessage } from "../passwordPolicy";
 import { authApi } from "../services/authService";
 import "../AuthForm.scss";
@@ -100,9 +101,9 @@ const SignUpForm = () => {
 
         <div>
           <label htmlFor="signup-password">Contraseña</label>
-          <input
+          <PasswordField
             id="signup-password"
-            type="password"
+            label="Contraseña"
             autoComplete="new-password"
             {...register("password", {
               required: "La contraseña es obligatoria",
@@ -122,9 +123,9 @@ const SignUpForm = () => {
 
         <div>
           <label htmlFor="signup-confirm-password">Confirmar contraseña</label>
-          <input
+          <PasswordField
             id="signup-confirm-password"
-            type="password"
+            label="Confirmar contraseña"
             autoComplete="new-password"
             {...register("confirmPassword", {
               required: "Debes confirmar la contraseña",
