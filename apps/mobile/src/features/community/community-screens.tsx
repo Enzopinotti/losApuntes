@@ -886,7 +886,12 @@ function QuestionDetailContent({
           />
           <ActionButton
             label={
-              snapshot.submittingAnswer ? "Publicando…" : "Publicar respuesta"
+              snapshot.submittingAnswer
+                ? snapshot.notice ===
+                  "Respuesta publicada. Actualizando la conversación…"
+                  ? "Actualizando…"
+                  : "Publicando…"
+                : "Publicar respuesta"
             }
             disabled={
               snapshot.submittingAnswer ||
