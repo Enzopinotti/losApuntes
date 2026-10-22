@@ -29,7 +29,7 @@
     "test:web-verification-resend-b184": "node --test scripts/test-web-verification-resend-b184.test.mjs",
     "test:web-accessible-confirm-dialog-contract": "node scripts/test-web-accessible-confirm-dialog-contract.mjs",
     "test:web-async-authority-fence": "node --experimental-strip-types scripts/test-web-async-authority-fence.mjs",
-    "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs",
+    "test:web-profile-contract": "node --experimental-strip-types --test scripts/test-web-profile-activity-pagination.test.mjs && node scripts/test-web-profile-contract.mjs",
     "test:web-public-profile-social": "node --experimental-strip-types scripts/test-web-public-profile-social.mjs",
     "test:web-resources-contract": "node scripts/test-web-resources-contract.mjs",
     "test:web-resource-citation-b170": "node --test scripts/test-web-resource-citation-b170.test.mjs",

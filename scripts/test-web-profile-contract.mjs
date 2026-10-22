@@ -27,6 +27,9 @@ assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
 
 const owner = await read('apps/web/src/pages/Profile.tsx');
+const activityPagination = await read(
+  'apps/web/src/features/profile/activityPagination.ts',
+);
 assert.match(owner, /profileApi\.me\(ticket\.signal\)/u);
 assert.match(owner, /useAuth\(\)/u);
 assert.match(owner, /user\?\.id/u);
@@ -40,6 +43,13 @@ assert.match(owner, /ticket\.signal/u);
 assert.match(owner, /profileApi\.update\(/u);
 assert.match(owner, /profileApi\.createActivity\(/u);
 assert.match(owner, /profileApi\.activities\(/u);
+assert.match(owner, /activityCursorRepeats\(/u);
+assert.match(owner, /loadedActivityCursors\.current\.add\(requestedCursor\)/u);
+assert.match(owner, /loadedActivityCursors\.current\.clear\(\)/u);
+assert.match(owner, /activitiesNextCursor: null/u);
+assert.match(owner, /Actualizar actividades/u);
+assert.match(activityPagination, /nextCursor === requestedCursor/u);
+assert.match(activityPagination, /loadedCursors\.has\(nextCursor\)/u);
 assert.match(owner, /activitiesNextCursor/u);
 assert.match(owner, /appendActivities/u);
 assert.doesNotMatch(owner, /localStorage|sessionStorage/u);
