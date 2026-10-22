@@ -73,7 +73,11 @@ verify("409 keeps local work, does not silently overwrite", () => {
   assert.match(web, /error\.status === 409/u);
   assert.match(web, /setRemoteSnapshot\(null\)/u);
   assert.match(web, /window\.confirm\(/u);
-  assert.match(web, /loadPlan\(remote\.plan\)/u);
+  // The current UI re-fetches the saved revision before replacing local
+  // work; assert that stronger guarantee rather than the old raw snapshot.
+  assert.match(web, /const latest = await studyProgressApi\.get\(subjectId, ticket\.signal\)/u);
+  assert.match(web, /latest\.revision !== remote\.revision/u);
+  assert.match(web, /await loadPlan\(latest\.plan\)/u);
 });
 verify("no new local client-side persistent data or grants", () => {
   assert.doesNotMatch(client + web, /localStorage|sessionStorage|indexedDB/u);
