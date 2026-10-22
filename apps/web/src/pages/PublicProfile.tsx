@@ -11,6 +11,7 @@ import {
   profileApi,
 } from "../features/profile/services/profileService";
 import { publicProfileActivityLink } from "../features/profile/public-profile-activity-link";
+import { PublicProfileAvatar } from "../features/profile/public-profile-avatar";
 import { publicProfileContentSectionOrder } from "../features/profile/public-profile-section-order";
 import type { PublicProfileContentSection } from "../features/profile/public-profile-section-order";
 import { PublicProfileSocialActions } from "../features/community/public-profile-social-actions";
@@ -256,10 +257,18 @@ const PublicProfile = () => {
     <section className="profile-page public-profile">
       {feedReturnLink}
       <header className="profile-hero">
-        <div>
-          <p className="profile-eyebrow">Perfil en Los Apuntes</p>
-          <h1>{profile.about?.displayName ?? "Perfil privado"}</h1>
-          {profile.about?.bio && <p>{profile.about.bio}</p>}
+        <div className="public-profile-identity">
+          {profile.about?.displayName ? (
+            <PublicProfileAvatar
+              avatarUrl={profile.about.avatarUrl}
+              displayName={profile.about.displayName}
+            />
+          ) : null}
+          <div>
+            <p className="profile-eyebrow">Perfil en Los Apuntes</p>
+            <h1>{profile.about?.displayName ?? "Perfil privado"}</h1>
+            {profile.about?.bio && <p>{profile.about.bio}</p>}
+          </div>
         </div>
         {profile.about?.displayName && status === "authenticated" && (
           <PublicProfileSocialActions
