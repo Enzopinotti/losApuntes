@@ -1,4 +1,5 @@
 import * as Crypto from "expo-crypto";
+import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
 import { useIsFocused } from "expo-router";
 import {
@@ -24,6 +25,7 @@ import { ApiRequestError } from "@/services/api/client";
 
 import { mobileResourceUploadController } from "@/features/resources/resource-runtime";
 import { ResourcePickedFileLease } from "@/features/resources/resource-picked-file-lease";
+import { cameraAssetResourceFile } from "@/features/resources/resource-camera-selection";
 import {
   parseResourceTags,
   resourceFileValidationError,
@@ -214,6 +216,54 @@ function ResourceComposer() {
     [],
   );
 
+  const acceptPickedFile = (
+    file: Omit<PickedResourceFile, "operationKey">,
+    ownsTemporaryCopy: boolean,
+    generation: number,
+  ) => {
+    const lease = new ResourcePickedFileLease(
+      file.uri,
+      ownsTemporaryCopy,
+      (uri) => {
+        const temporaryCopy = new File(uri);
+        if (temporaryCopy.exists) temporaryCopy.delete();
+      },
+    );
+    if (generation !== requestGeneration.current || !isFocused) {
+      void lease.releaseAfter().catch(() => undefined);
+      return;
+    }
+
+    const selected: PickedResourceFile = {
+      ...file,
+      operationKey: Crypto.randomUUID(),
+    };
+    const validationError = resourceFileValidationError(selected);
+    if (validationError) {
+      const previousLease = pickedFileLease.current;
+      pickedFileLease.current = null;
+      if (previousLease) {
+        void previousLease.releaseAfter().catch(() => undefined);
+      }
+      void lease.releaseAfter().catch(() => undefined);
+      mobileResourceUploadController.reset();
+      setPickedFile(null);
+      setUncertainCreate(false);
+      setError(validationError);
+      return;
+    }
+
+    const previousLease = pickedFileLease.current;
+    pickedFileLease.current = lease;
+    if (previousLease) {
+      void previousLease.releaseAfter().catch(() => undefined);
+    }
+    mobileResourceUploadController.reset();
+    setPickedFile(selected);
+    setUncertainCreate(false);
+    setProgress(null);
+  };
+
   const pickFile = async () => {
     const generation = requestGeneration.current;
     setError(null);
@@ -226,50 +276,16 @@ function ResourceComposer() {
       if (result.canceled) return;
 
       const file = result.result;
-      const lease = new ResourcePickedFileLease(
-        file.uri,
-        Platform.OS === "ios",
-        (uri) => {
-          const temporaryCopy = new File(uri);
-          if (temporaryCopy.exists) temporaryCopy.delete();
+      acceptPickedFile(
+        {
+          uri: file.uri,
+          name: file.name,
+          size: file.size,
+          mimeType: mimeFromSelection(file.type, file.name),
         },
+        Platform.OS === "ios",
+        generation,
       );
-      if (generation !== requestGeneration.current) {
-        void lease.releaseAfter().catch(() => undefined);
-        return;
-      }
-
-      const selected: PickedResourceFile = {
-        uri: file.uri,
-        name: file.name,
-        size: file.size,
-        mimeType: mimeFromSelection(file.type, file.name),
-        operationKey: Crypto.randomUUID(),
-      };
-      const validationError = resourceFileValidationError(selected);
-      if (validationError) {
-        const previousLease = pickedFileLease.current;
-        pickedFileLease.current = null;
-        if (previousLease) {
-          void previousLease.releaseAfter().catch(() => undefined);
-        }
-        void lease.releaseAfter().catch(() => undefined);
-        mobileResourceUploadController.reset();
-        setPickedFile(null);
-        setUncertainCreate(false);
-        setError(validationError);
-        return;
-      }
-
-      const previousLease = pickedFileLease.current;
-      pickedFileLease.current = lease;
-      if (previousLease) {
-        void previousLease.releaseAfter().catch(() => undefined);
-      }
-      mobileResourceUploadController.reset();
-      setPickedFile(selected);
-      setUncertainCreate(false);
-      setProgress(null);
     } catch {
       if (generation === requestGeneration.current) {
         setError("No pudimos abrir el selector de archivos. Intentá de nuevo.");
@@ -277,6 +293,67 @@ function ResourceComposer() {
     }
   };
 
+  const takePhoto = async () => {
+    const generation = requestGeneration.current;
+    setError(null);
+    setFeedback(null);
+    let cameraUri: string | null = null;
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (generation !== requestGeneration.current) return;
+      if (!permission.granted) {
+        setError(
+          "Para tomar una foto, habilitá el acceso a la cámara en la configuración del dispositivo. También podés elegir un archivo.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        exif: false,
+        quality: 0.85,
+        cameraType: ImagePicker.CameraType.back,
+      });
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      if (!asset) {
+        setError("La cámara no devolvió una imagen. Intentá de nuevo.");
+        return;
+      }
+      cameraUri = asset.uri;
+      const photo = cameraAssetResourceFile(asset, new File(asset.uri).size);
+      if (!photo) {
+        const temporaryPhoto = new File(cameraUri);
+        if (temporaryPhoto.exists) temporaryPhoto.delete();
+        cameraUri = null;
+        setError("No pudimos leer la foto. Intentá tomarla de nuevo.");
+        return;
+      }
+      acceptPickedFile(
+        {
+          ...photo,
+          mimeType: mimeFromSelection(photo.mimeType, photo.name),
+        },
+        true,
+        generation,
+      );
+      cameraUri = null;
+    } catch {
+      if (cameraUri) {
+        try {
+          const temporaryPhoto = new File(cameraUri);
+          if (temporaryPhoto.exists) temporaryPhoto.delete();
+        } catch {
+          // A failed camera read must not replace the original error.
+        }
+      }
+      if (generation === requestGeneration.current) {
+        setError("No pudimos abrir la cámara. Podés elegir un archivo.");
+      }
+    }
+  };
   const clearPickedFile = () => {
     const lease = pickedFileLease.current;
     pickedFileLease.current = null;
@@ -506,6 +583,18 @@ function ResourceComposer() {
                 {pickedFile ? "Elegir otro archivo" : "Elegir archivo"}
               </Text>
             </Pressable>
+            {Platform.OS !== "web" ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Tomar foto de un apunte"
+                accessibilityHint="Solicita permiso de cámara al tocar esta acción y adjunta la foto a la publicación privada."
+                disabled={busy}
+                onPress={() => void takePhoto()}
+                style={[styles.secondaryButton, busy && styles.disabledButton]}
+              >
+                <Text style={styles.secondaryButtonText}>Tomar foto</Text>
+              </Pressable>
+            ) : null}
             <Text style={styles.helper}>
               PDF, JPG, PNG o WebP · máximo 50 MiB.
             </Text>
