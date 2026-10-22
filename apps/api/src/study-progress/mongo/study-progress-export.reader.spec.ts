@@ -87,6 +87,9 @@ describe('B62 Study Progress owner export reader', () => {
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(f.model.find).not.toHaveBeenCalled();
+    // The mocked adapter must honor its cursor just like the indexed Mongo
+    // query: the next page begins strictly after the last returned Subject.
+    f.query.exec.mockResolvedValueOnce([stored(c)]);
     await f.reader.listAccountExportProgress(owner, {
       cursor: page.nextCursor,
       limit: 2,
