@@ -8,6 +8,11 @@ import {
   searchReturnHref,
 } from '../apps/web/src/features/search/search-navigation.mjs';
 
+import {
+  shareableResourceHref,
+  shareableResourceUrl,
+} from '../apps/web/src/features/search/resource-share-link.mjs';
+
 const root = process.cwd();
 
 // A feature PR must not weaken the repository-wide hygiene gate just to
@@ -177,6 +182,34 @@ for (const returnTo of [
   );
 }
 assert.equal(searchReturnHref(null), null);
+
+// B193: only a canonical, unprivileged resource route can be shared.
+const resourceId = '12345678-1234-4234-8234-123456789abc';
+assert.equal(shareableResourceHref(resourceId), '/resources/' + resourceId);
+assert.equal(
+  shareableResourceUrl(resourceId, 'https://apuntes.example'),
+  'https://apuntes.example/resources/' + resourceId,
+);
+assert.equal(
+  shareableResourceUrl(resourceId, 'http://localhost:5173'),
+  'http://localhost:5173/resources/' + resourceId,
+);
+for (const invalidId of [
+  '', 'not-an-id', '../security', '%2F', resourceId + '/private',
+  resourceId + '?token=secret',
+  '12345678-1234-1234-8234-123456789abc',
+  null, undefined, 123,
+]) {
+  assert.equal(shareableResourceHref(invalidId), null);
+  assert.equal(shareableResourceUrl(invalidId, 'https://apuntes.example'), null);
+}
+for (const invalidOrigin of [
+  '', '/', 'javascript:alert(1)', 'https://evil.example/path',
+  'https://user:secret@evil.example', '//evil.example',
+  'file:///etc/passwd', 'https://apuntes.example/',
+]) {
+  assert.equal(shareableResourceUrl(resourceId, invalidOrigin), null);
+}
 
 const service = await read(
   'apps/web/src/features/search/services/searchService.ts',
