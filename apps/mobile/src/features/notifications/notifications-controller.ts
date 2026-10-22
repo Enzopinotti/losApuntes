@@ -49,6 +49,18 @@ function appendUniqueNotifications(
   return [...byId.values()];
 }
 
+function repeatsNotificationCursor(
+  requestedCursors: ReadonlySet<string>,
+  cursor: string | undefined,
+  nextCursor: string | null,
+): boolean {
+  return (
+    nextCursor !== null &&
+    ((cursor !== undefined && nextCursor === cursor) ||
+      requestedCursors.has(nextCursor))
+  );
+}
+
 export function shouldReconcileMobileNotifications(
   isFocused: boolean,
   appState: string,
@@ -62,6 +74,7 @@ export class MobileNotificationsController {
   private authorityKey: string | null = null;
   private unreadOnly = false;
   private listGeneration = 0;
+  private readonly requestedCursors = new Set<string>();
   private activeList: ListOperation | null = null;
   private actionGeneration = 0;
   private activeAction: {
@@ -103,6 +116,7 @@ export class MobileNotificationsController {
       );
       if (!this.isCurrentList(operation)) return;
 
+      this.requestedCursors.clear();
       this.publish({
         kind: "ready",
         authorityKey,
@@ -137,6 +151,18 @@ export class MobileNotificationsController {
     ) {
       return;
     }
+    const cursor = current.data.nextCursor;
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        data: { ...current.data, nextCursor: null },
+        failure: {
+          kind: "server_unavailable",
+          code: "MOBILE_NOTIFICATIONS_CURSOR_REPEATED",
+        },
+      });
+      return;
+    }
 
     const operation = this.beginList(authorityKey, current.unreadOnly);
     this.publish({ ...current, loadingMore: true, failure: null });
@@ -145,7 +171,7 @@ export class MobileNotificationsController {
       const next = await this.api.notifications(
         {
           unreadOnly: current.unreadOnly,
-          cursor: current.data.nextCursor,
+          cursor,
           limit: MOBILE_NOTIFICATION_PAGE_SIZE,
         },
         operation.controller.signal,
@@ -153,16 +179,27 @@ export class MobileNotificationsController {
       if (!this.isCurrentList(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (!latest) return;
+      const repeatedCursor = repeatsNotificationCursor(
+        this.requestedCursors,
+        cursor,
+        next.nextCursor,
+      );
+      this.requestedCursors.add(cursor);
 
       this.publish({
         ...latest,
         data: {
           items: appendUniqueNotifications(latest.data.items, next.items),
-          nextCursor: next.nextCursor,
+          nextCursor: repeatedCursor ? null : next.nextCursor,
         },
         loadedPages: latest.loadedPages + 1,
         loadingMore: false,
-        failure: null,
+        failure: repeatedCursor
+          ? {
+              kind: "server_unavailable",
+              code: "MOBILE_NOTIFICATIONS_CURSOR_REPEATED",
+            }
+          : null,
       });
     } catch (error) {
       if (!this.isCurrentList(operation)) return;
@@ -191,10 +228,12 @@ export class MobileNotificationsController {
     }
 
     const operation = this.beginList(authorityKey, current.unreadOnly);
-    const items: MobileNotificationView[] = [];
+    let items: MobileNotificationView[] = [];
+    const requestedCursors = new Set<string>();
     let cursor: string | undefined;
     let nextCursor: string | null = null;
     let loadedPages = 0;
+    let repeatedCursor = false;
 
     try {
       for (let page = 0; page < current.loadedPages; page += 1) {
@@ -208,10 +247,18 @@ export class MobileNotificationsController {
         );
         if (!this.isCurrentList(operation)) return;
 
-        items.push(...result.items);
+        items = appendUniqueNotifications(items, result.items);
         loadedPages += 1;
         nextCursor = result.nextCursor;
         if (!result.nextCursor) break;
+        if (cursor !== undefined) requestedCursors.add(cursor);
+        if (
+          repeatsNotificationCursor(requestedCursors, cursor, result.nextCursor)
+        ) {
+          repeatedCursor = true;
+          nextCursor = null;
+          break;
+        }
         cursor = result.nextCursor;
       }
 
@@ -220,7 +267,12 @@ export class MobileNotificationsController {
         ...current,
         data: { items, nextCursor },
         loadedPages,
-        failure: null,
+        failure: repeatedCursor
+          ? {
+              kind: "server_unavailable",
+              code: "MOBILE_NOTIFICATIONS_CURSOR_REPEATED",
+            }
+          : null,
       });
     } catch (error) {
       if (!reportFailure || !this.isCurrentList(operation)) return;
@@ -267,6 +319,7 @@ export class MobileNotificationsController {
     if (authorityKey && authorityKey !== this.authorityKey) return;
 
     this.authorityKey = null;
+    this.requestedCursors.clear();
     this.listGeneration += 1;
     this.activeList?.controller.abort();
     this.activeList = null;
