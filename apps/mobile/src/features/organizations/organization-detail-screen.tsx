@@ -9,6 +9,7 @@ import {
   AppState,
   Linking,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -20,6 +21,7 @@ import { ProductSurface } from "@/features/navigation/product-surface";
 import { PublicAvatar } from "@/features/profile/public-avatar";
 import { useSession } from "@/features/session/session-provider";
 
+import { mobileOrganizationPublicLink } from "./organization-public-share";
 import {
   MobileOrganizationDetailController,
   type MobileOrganizationDetailSnapshot,
@@ -130,6 +132,7 @@ export function MobileOrganizationDetailScreen({
   );
   const [appState, setAppState] = useState(AppState.currentState);
   const [externalError, setExternalError] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const sessionKey =
     session.kind === "authenticated"
@@ -149,6 +152,7 @@ export function MobileOrganizationDetailScreen({
 
   useEffect(() => {
     setExternalError(null);
+    setShareError(null);
 
     if (!authorityKey) {
       if (sessionKey) controller.suspend(authorityKey ?? sessionKey);
@@ -189,6 +193,24 @@ export function MobileOrganizationDetailScreen({
       await Linking.openURL(url);
     } catch {
       setExternalError("El dispositivo no pudo abrir este enlace.");
+    }
+  };
+
+  const shareOrganization = async () => {
+    if (!organization) return;
+    const url = mobileOrganizationPublicLink(organization.id);
+    if (!url) {
+      setShareError(
+        "No pudimos crear un enlace público para esta organización.",
+      );
+      return;
+    }
+
+    setShareError(null);
+    try {
+      await Share.share({ message: `${organization.name}\n${url}` });
+    } catch {
+      setShareError("No pudimos abrir la opción para compartir.");
     }
   };
 
@@ -333,6 +355,19 @@ export function MobileOrganizationDetailScreen({
               </Pressable>
             ) : null}
 
+            {mobileOrganizationPublicLink(current.organization.id) ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Compartir ${current.organization.name}`}
+                onPress={() => void shareOrganization()}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Compartir organización
+                </Text>
+              </Pressable>
+            ) : null}
+
             {current.notice ? (
               <Text accessibilityLiveRegion="polite" style={styles.success}>
                 {current.notice}
@@ -346,6 +381,11 @@ export function MobileOrganizationDetailScreen({
             {externalError ? (
               <Text accessibilityRole="alert" style={styles.error}>
                 {externalError}
+              </Text>
+            ) : null}
+            {shareError ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {shareError}
               </Text>
             ) : null}
           </View>
