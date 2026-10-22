@@ -51,3 +51,11 @@ Buscar `parcial` en una materia actual y luego en todas debe consultar los resul
 - Una respuesta que llegue tarde no debe volver a presentar resultados antiguos. El navegador conserva la navegación anterior mediante su historial; no se agrega persistencia local, telemetría ni nuevos permisos.
 
 **Aceptación:** desde consulta válida, consulta editada sin enviar, filtro de materia activo, búsqueda en curso y enlace inválido, una sola acción deja `/search` sin `q`, `scope` ni `subjectId`. El contrato estático prueba el control visible, la limpieza del borrador, la invalidación explícita y la navegación; la UX final requiere verificación manual en navegador.
+
+## B193 — Copiar enlace directo a un recurso desde Buscar
+
+**Recorrido:** en cada resultado de apuntes con ID UUIDv4 canónico se muestra **Copiar enlace** junto a **Ver recurso**. Se copia únicamente `/resources/:resourceId` en el origen actual, no una búsqueda, texto privado, nombre, sesión o capacidad de acceso. El destinatario debe superar las autorizaciones normales de detalle y descarga, inclusive si el archivo cambia de visibilidad después de copiar.
+
+**Defensas:** el helper rechaza IDs malformados, rutas arbitrarias, parámetros de URL, orígenes no HTTP(S) y orígenes con ruta/credenciales. No hay endpoints, preferencias, telemetría ni almacenamiento nuevos. El botón requiere activación explícita; no se auto-copia al renderizar. El resultado accesible se muestra sólo para el recurso y combinación actual de consulta/sesión. Si el navegador no permite escribir en el portapapeles, se muestra una recuperación manual.
+
+**Verificación:** `pnpm test:web-search-contract` incluye tests del helper y su integración, junto con `pnpm check`, build Web y QA manual en Chromium con y sin permiso para el recurso. La prueba de código no equivale por sí sola a una aceptación browser E2E. No cambia la condición HOLD del audit de dependencias ni autoriza desplegar.
