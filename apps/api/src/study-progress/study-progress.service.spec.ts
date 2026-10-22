@@ -128,11 +128,9 @@ describe('B188 private stored Study Progress response', () => {
   it('rejects corrupted stored revision metadata', async () => {
     for (const revision of [0, -1, 1.5, Number.NaN, 2_147_483_648]) {
       const f = fixture(stored({ revision }));
-      await expect(
-        f.service.get(ownerUserId, subjectId),
-      ).rejects.toMatchObject({
-        response: { code: 'STUDY_PROGRESS_STORED_INVALID' },
-      });
+      await expect(f.service.get(ownerUserId, subjectId)).rejects.toMatchObject(
+        { response: { code: 'STUDY_PROGRESS_STORED_INVALID' } },
+      );
     }
   });
 
@@ -144,11 +142,9 @@ describe('B188 private stored Study Progress response', () => {
       { updatedAt: null },
     ]) {
       const f = fixture(stored(values));
-      await expect(
-        f.service.get(ownerUserId, subjectId),
-      ).rejects.toMatchObject({
-        response: { code: 'STUDY_PROGRESS_STORED_INVALID' },
-      });
+      await expect(f.service.get(ownerUserId, subjectId)).rejects.toMatchObject(
+        { response: { code: 'STUDY_PROGRESS_STORED_INVALID' } },
+      );
     }
   });
 
