@@ -25,11 +25,29 @@ assert.ok(publicNav, "Public navigation must remain a separate explicit set");
 assert.ok(memberNav, "Authenticated main navigation must be explicit");
 assert.ok(moreNav, "Authenticated secondary navigation must be explicit");
 
-for (const destination of ["/", "/search", "/resources", "/questions", "/organizations"]) {
-  assert.ok(publicNav.includes(`to: "${destination}"`), `Public route missing: ${destination}`);
+for (const destination of [
+  "/",
+  "/search",
+  "/resources",
+  "/questions",
+  "/organizations",
+]) {
+  assert.ok(
+    publicNav.includes(`to: "${destination}"`),
+    `Public route missing: ${destination}`,
+  );
 }
-for (const destination of ["/", "/feeds", "/network", "/search", "/resources"]) {
-  assert.ok(memberNav.includes(`to: "${destination}"`), `Member route missing: ${destination}`);
+for (const destination of [
+  "/",
+  "/feeds",
+  "/network",
+  "/search",
+  "/resources",
+]) {
+  assert.ok(
+    memberNav.includes(`to: "${destination}"`),
+    `Member route missing: ${destination}`,
+  );
 }
 for (const destination of [
   "/questions",
@@ -39,7 +57,10 @@ for (const destination of [
   "/dashboard",
   "/settings/security",
 ]) {
-  assert.ok(moreNav.includes(`to: "${destination}"`), `Secondary route missing: ${destination}`);
+  assert.ok(
+    moreNav.includes(`to: "${destination}"`),
+    `Secondary route missing: ${destination}`,
+  );
 }
 assert.doesNotMatch(publicNav, /\/feeds|\/network|\/profile|\/notifications/u);
 assert.match(layout, /authenticated \? memberNavigation : publicNavigation/u);
@@ -69,7 +90,13 @@ assert.match(layout, /\/login/u);
 assert.match(layout, /\/sign-up/u);
 assert.doesNotMatch(layout, /localStorage|sessionStorage/u);
 
-for (const destination of ["/feeds", "/network", "/profile", "/notifications", "/academic/lifecycle"]) {
+for (const destination of [
+  "/feeds",
+  "/network",
+  "/profile",
+  "/notifications",
+  "/academic/lifecycle",
+]) {
   const route = destination.slice(1).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   assert.match(routes, new RegExp(`path: "${route}"`, "u"));
 }
@@ -82,7 +109,10 @@ assert.match(styles, /focus-visible/u);
 assert.match(styles, /grid-template-areas/u);
 assert.match(styles, /min-height: 100dvh/u);
 assert.match(styles, /"session session"/u);
-assert.match(styles, /\.layout-nav \.layout-session-actions\s*\{\s*display: none/u);
+assert.match(
+  styles,
+  /\.layout-nav \.layout-session-actions\s*\{\s*display: none/u,
+);
 assert.match(styles, /\.layout-mobile-session\s*\{[\s\S]*?display: flex/u);
 assert.match(styles, /\.layout-mobile-session \.layout-mobile-notifications/u);
 assert.match(styles, /\.layout-notifications-link\s*\{\s*display: none/u);
@@ -95,14 +125,18 @@ assert.match(routes, /import NotFound from "\.\.\/pages\/NotFound";/u);
 assert.match(routes, /\{ path: "\*", element: <NotFound \/> \}/u);
 const rootChildren = routes.slice(routes.indexOf("    children: ["));
 assert.ok(
-  rootChildren.lastIndexOf('path: "*"') > rootChildren.indexOf('path: "settings/security"'),
+  rootChildren.lastIndexOf('path: "*"') >
+    rootChildren.indexOf('path: "settings/security"'),
   "The wildcard must come after known public and private route definitions",
 );
 assert.match(notFound, /aria-labelledby="not-found-title"/u);
 assert.match(notFound, /aria-label="Opciones para continuar"/u);
 assert.match(notFound, /status === "authenticated"/u);
 for (const destination of ["/", "/search", "/dashboard"]) {
-  assert.ok(notFound.includes(`to="${destination}"`), `Recovery link missing: ${destination}`);
+  assert.ok(
+    notFound.includes(`to="${destination}"`),
+    `Recovery link missing: ${destination}`,
+  );
 }
 assert.doesNotMatch(
   notFound,
