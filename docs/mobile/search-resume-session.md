@@ -1,5 +1,7 @@
 # Resume a recent Mobile search
 
+Product requirement: MOB-FR-010.
+
 The Home card **“Seguí tu búsqueda”** gives a signed-in user a direct way back
 to the most recent valid Search input entered in the current app session. The
 card does not display the query or subject. Selecting it opens Search through a
