@@ -71,6 +71,7 @@ Para cada plan guardado se analiza `tasks` en el orden persistido:
 nunca aparece dos veces y `items` tiene máximo 16 entradas.
 
 Orden:
+
 - Primero planes `startsAtLocal != null`, por fecha/hora
   local `YYYY-MM-DDTHH:mm ASC` y `subjectId ASC` en empate.
 - Después planes sin horario, por `updatedAt DESC` y
@@ -117,20 +118,23 @@ La cola puede quedar obsoleta al guardar o completar una tarea entre
 requests; la API no ofrece snapshot transaccional ni garantiza acceso
 vigente a referencias.
 
-## Verificación y release
+## Validación del carrier y límites de release
 
-- 2 suites Jest: servicio y controlador+feature guard.
-- Pruebas de owner scoping, no-store, flag existente, orden dentro de
-  plan y entre materias, contadores y minutos, exclusión de tareas
-  hechas, sesiones completas y vacías, privacidad, límite 16+1,
-  validación de planes almacenados, duplicados y error Mongo.
-- No cambios al modelo Mongo, permisos, autenticación, lockfile,
-  migraciones, Web/Mobile ni a los PR B157/B170.
-- Verificar exact-head: TypeScript, Prettier, ESLint estricto, Jest,
-  diez coberturas críticas, Quality Gate, auditoría y runtime smoke.
-  La verificación con mocks **no sustituye** aceptación específica
-  en MongoDB real.
-- Release #353 sigue **HOLD** ante advisories high/critical de
-  producción (#133 node-forge, #141 braces, #492 follow-redirects),
-  runner Mongo (PR #484) o aceptación pendiente. No fusionar ni
-  desplegar, ni permitir waivers/bypass.
+- Conserva los 11 commits atómicos de B171 sobre `main@29bd0ad` y
+  agrega un commit independiente de evidencia/contrato; no se hace
+  squash.
+- 2 suites Jest: servicio y controlador+feature guard; cubren owner
+  scoping, no-store, flag existente, orden, contadores y minutos,
+  exclusión de tareas hechas, planes completos/vacíos, privacidad,
+  límite 16+1, filas inválidas, duplicados y error Mongo.
+- En el carrier: 2 suites / 20 pruebas, API TypeScript, ESLint API sin
+  warnings, Prettier API, `nest build`, Prettier del contrato y
+  `git diff --check` — PASS.
+- No se ejecuta CI. Las pruebas de servicio usan mocks y **no
+  sustituyen** aceptación de este endpoint contra MongoDB real.
+- No cambia el modelo Mongo, permisos, autenticación, lockfile,
+  migraciones, Web/Mobile ni otros módulos de estudio. No se habilita
+  la feature ni se declara listo un release o despliegue.
+- La integración del código conserva el HOLD de release #353 y los
+  gates de auditoría/aceptación externa pendientes. No se añaden
+  waivers ni se eluden controles.
