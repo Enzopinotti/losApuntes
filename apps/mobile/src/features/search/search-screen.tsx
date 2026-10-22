@@ -142,6 +142,10 @@ function ResourceResult({
             onPress={() => onOpenProfile(authorAction.profileId)}
             style={styles.resourceAuthorAction}
           >
+            <NetworkPersonAvatar
+              avatarUrl={resource.author.avatarUrl}
+              displayName={resource.author.displayName}
+            />
             <Text style={styles.resourceAuthorLabel}>
               Por {resource.author.displayName}
             </Text>
@@ -1316,6 +1320,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   resourceAuthorAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     alignSelf: "flex-start",
     justifyContent: "center",
     minHeight: 44,
