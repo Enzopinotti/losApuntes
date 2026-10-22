@@ -17,6 +17,7 @@ import type {
   PublicAuthSession,
 } from "../features/auth/interfaces";
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
+import PasswordField from "../features/auth/PasswordField";
 import { authApi } from "../features/auth/services/authService";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import {
@@ -430,9 +431,9 @@ const Security = () => {
                 <label htmlFor="security-current-password">
                   Contraseña actual
                 </label>
-                <input
+                <PasswordField
                   id="security-current-password"
-                  type="password"
+                  label="Contraseña actual"
                   autoComplete="current-password"
                   required
                   maxLength={256}
@@ -447,9 +448,9 @@ const Security = () => {
                 />
 
                 <label htmlFor="security-new-password">Nueva contraseña</label>
-                <input
+                <PasswordField
                   id="security-new-password"
-                  type="password"
+                  label="Nueva contraseña"
                   autoComplete="new-password"
                   required
                   value={newPassword}
@@ -465,9 +466,9 @@ const Security = () => {
                 <label htmlFor="security-confirm-password">
                   Confirmar nueva contraseña
                 </label>
-                <input
+                <PasswordField
                   id="security-confirm-password"
-                  type="password"
+                  label="Confirmar nueva contraseña"
                   autoComplete="new-password"
                   required
                   value={confirmPassword}
@@ -577,9 +578,9 @@ const Security = () => {
                 <label htmlFor="google-reauth-password">
                   Confirmá tu contraseña para cambiar Google
                 </label>
-                <input
+                <PasswordField
                   id="google-reauth-password"
-                  type="password"
+                  label="Contraseña para cambiar Google"
                   autoComplete="current-password"
                   maxLength={256}
                   value={googlePassword}
