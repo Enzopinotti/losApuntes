@@ -41,6 +41,11 @@ El workflow `.github/workflows/b189-study-private-integrated-acceptance.yml` uti
 
 Los comandos de Mongo requieren conectividad local que el test valida por sí mismo y usan una base temporal aleatoria con limpieza segura del fixture. El job Docker se destruye incluso con error. El B189 no toca producción ni ejecuta restauraciones destructivas.
 
+### Reconciliación adicional de contrato B61 observada en CI
+
+La primera corrida exact-head aprobó **ESLint/Prettier, TypeScript y las siete suites Jest seleccionadas**, pero el contrato estático B61 falló en una expectativa antigua del Web (`loadPlan(remote.plan)`). El Web actual ya estaba usando una salvaguarda más fuerte: vuelve a obtener `latest` del servidor, rechaza `latest.revision !== remote.revision` y recién luego usa `await loadPlan(latest.plan)`. El commit B189 `2a577fc` actualiza únicamente ese test de contrato para exigir las **tres** invariantes reales; no altera `StudyRunner.tsx`, no omite la prueba ni acepta sobreescrituras ciegas. La ejecución repetida del head definitivo debe confirmar esta corrección y el contrato B62.
+
+
 **No se puede afirmar PASS antes del check real del head final.** Los gates CI generales y el audit HIGH estricto son complementarios y no pueden omitirse porque pase el job focalizado.
 
 ## Release HOLD y orden posterior
