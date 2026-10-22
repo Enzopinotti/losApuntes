@@ -6,6 +6,7 @@ La paginación del directorio Mobile detiene un ciclo si una página devuelve el
 
 - Pruebas del controlador para cursor repetido, ciclo entre páginas y reintento tras fallo transitorio.
 - Suite Mobile y TypeScript.
+- Exportaciones Expo iOS y Android.
 - Prettier y `git diff --check`.
 
 La validación local no sustituye los checks automáticos de GitHub.
