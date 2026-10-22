@@ -10,6 +10,17 @@ export type ProfileSection =
   | "professional"
   | "contributions";
 
+export type ProfileAccentPreset =
+  "default" | "indigo" | "emerald" | "amber" | "rose" | "slate";
+
+export type ProfileCoverPreset = "none" | "gradient" | "paper" | "campus";
+
+export type ProfilePresentation = {
+  accentPreset: ProfileAccentPreset;
+  coverPreset: ProfileCoverPreset;
+  sectionOrder: ProfileSection[];
+};
+
 export type ProfileActivityType =
   "project" | "research" | "club" | "volunteering" | "academic_work";
 
@@ -36,11 +47,7 @@ export type PublicProfileResponse = {
   profile: {
     id: string;
     revision: number;
-    presentation: {
-      accentPreset: string;
-      coverPreset: string;
-      sectionOrder: ProfileSection[];
-    };
+    presentation: ProfilePresentation;
     about?: {
       displayName: string;
       bio: string | null;
@@ -69,7 +76,6 @@ export type PublicProfileResponse = {
   };
 };
 
-
 export type OwnerProfile = {
   id: string;
   displayName: string;
@@ -84,11 +90,7 @@ export type OwnerProfile = {
     headline: string | null;
     careerDiscoveryOptIn: boolean;
   };
-  presentation: {
-    accentPreset: string;
-    coverPreset: string;
-    sectionOrder: ProfileSection[];
-  };
+  presentation: ProfilePresentation;
   visibility: Record<ProfileSection, ProfileVisibility>;
   recommendationSignals: {
     academicContext: boolean;
@@ -136,6 +138,11 @@ export type UpdateProfileInput = {
   professional?: {
     headline?: string | null;
     careerDiscoveryOptIn?: boolean;
+  };
+  presentation?: {
+    accentPreset?: ProfileAccentPreset;
+    coverPreset?: ProfileCoverPreset;
+    sectionOrder?: ProfileSection[];
   };
   visibility?: Partial<Record<ProfileSection, ProfileVisibility>>;
   recommendationSignals?: {
