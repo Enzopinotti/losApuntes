@@ -206,9 +206,7 @@ export function AccountExportPanel() {
   const studyExportNotice =
     "Esta copia incluye el progreso de estudio guardado en tu cuenta, si lo hay: planes, actividades y avances propios. No incorpora materiales de otras personas ni otorga permisos de acceso.";
   const showStudyExportNotice =
-    job?.formatVersion === 3 &&
-    job.state === "completed" &&
-    job.downloadable;
+    job?.formatVersion === 3 && job.state === "completed" && job.downloadable;
 
   if (status !== "authenticated") return null;
 
