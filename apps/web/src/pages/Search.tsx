@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
+import { SearchSaveAction } from "../features/search/SearchSaveAction";
 import {
   searchSelectionFromSearchParams,
   searchSelectionHref,
@@ -413,6 +414,12 @@ const Search = () => {
           {(submittedScope === "all" || submittedScope === "resources") && (
             <section className="search-group">
               <h2>Apuntes y recursos</h2>
+              {!authenticated && result.results.resources.length > 0 && (
+                <p>
+                  <Link to="/login">Iniciá sesión</Link> para guardar apuntes
+                  directamente desde los resultados.
+                </p>
+              )}
               {result.results.resources.length === 0 ? (
                 <p>No encontramos recursos visibles.</p>
               ) : (
@@ -432,7 +439,7 @@ const Search = () => {
                           />
                         </small>
                       </div>
-                      <div className="search-resource-actions">
+                      <div className="search-resource-actions search-result-actions">
                         <Link
                           to={`/resources/${encodeURIComponent(resource.id)}`}
                           state={{
@@ -445,6 +452,14 @@ const Search = () => {
                         >
                           Ver recurso
                         </Link>
+                        {authenticated && (
+                          <SearchSaveAction
+                            key={`${authorityScope}:${resource.id}`}
+                            authorityScope={authorityScope}
+                            resourceId={resource.id}
+                            resourceTitle={resource.title}
+                          />
+                        )}
                         {shareableResourceHref(resource.id) && (
                           <button
                             type="button"

@@ -40,6 +40,7 @@
     "test:web-study-kits-resource-search-browser": "node scripts/test-web-study-kits-resource-search-browser.mjs",
     "test:web-notification-categories-b178-browser": "node scripts/test-web-notification-categories-b178-browser.mjs",
     "test:web-search-contract": "node scripts/test-web-search-contract.mjs",
+    "test:web-search-save-browser": "node scripts/test-web-search-save-browser.mjs",
     "test:auth-browser-e2e": "node scripts/auth-browser-e2e.mjs",
     "test:web-social-qa-contract": "node --experimental-strip-types scripts/test-web-social-qa-contract.mjs",
     "test:web-network-presentation": "node --experimental-strip-types scripts/test-web-network-presentation.mjs",
