@@ -33,9 +33,21 @@ const resource = {
   description: "Repaso de reglas y ejercicios.",
   tags: ["derivadas"],
   visibility: "public",
-  author: { profileId: "8f32263e-46b5-4a45-b6d9-e5a56806f85d", displayName: "Ana", avatarUrl: null },
-  academic: { subject: { id: SUBJECT_ID, name: "Matemática" }, courseOffering: null },
-  file: { id: "31dec561-0d91-4be1-9714-8cfd05d181b9", filename: "derivadas.pdf", mimeType: "application/pdf", byteSize: 1000 },
+  author: {
+    profileId: "8f32263e-46b5-4a45-b6d9-e5a56806f85d",
+    displayName: "Ana",
+    avatarUrl: null,
+  },
+  academic: {
+    subject: { id: SUBJECT_ID, name: "Matemática" },
+    courseOffering: null,
+  },
+  file: {
+    id: "31dec561-0d91-4be1-9714-8cfd05d181b9",
+    filename: "derivadas.pdf",
+    mimeType: "application/pdf",
+    byteSize: 1000,
+  },
   capabilities: { edit: false, manageShares: false },
   revision: 1,
   createdAt: "2026-01-01T10:00:00Z",
@@ -45,7 +57,10 @@ const question = {
   id: QUESTION_ID,
   title: "¿Cómo se obtiene la regla de la cadena?",
   state: "closed",
-  academic: { subject: { id: SUBJECT_ID, name: "Matemática" }, courseOffering: null },
+  academic: {
+    subject: { id: SUBJECT_ID, name: "Matemática" },
+    courseOffering: null,
+  },
 };
 
 async function boot() {
@@ -60,16 +75,25 @@ async function boot() {
   );
   let output = "";
   let exited = false;
-  child.on("exit", () => { exited = true; });
+  child.on("exit", () => {
+    exited = true;
+  });
   for (const stream of [child.stdout, child.stderr]) {
-    stream.on("data", (chunk) => { output = (output + chunk.toString()).slice(-2500); });
+    stream.on("data", (chunk) => {
+      output = (output + chunk.toString()).slice(-2500);
+    });
   }
   for (let attempt = 0; attempt < 120; attempt += 1) {
     if (exited) throw new Error("Vite exited: " + output);
     try {
-      if ((await fetch(ORIGIN + "/study/session?subjectId=" + SUBJECT_ID, {
-        signal: AbortSignal.timeout(750),
-      })).ok) return child;
+      if (
+        (
+          await fetch(ORIGIN + "/study/session?subjectId=" + SUBJECT_ID, {
+            signal: AbortSignal.timeout(750),
+          })
+        ).ok
+      )
+        return child;
     } catch {
       // Wait for the loopback Vite server to start.
     }
@@ -111,12 +135,13 @@ async function main() {
         "access-control-allow-headers": "content-type",
         "access-control-allow-methods": "GET,POST,OPTIONS",
       };
-      const reply = (status, payload) => route.fulfill({
-        status,
-        contentType: "application/json",
-        headers,
-        body: JSON.stringify(payload),
-      });
+      const reply = (status, payload) =>
+        route.fulfill({
+          status,
+          contentType: "application/json",
+          headers,
+          body: JSON.stringify(payload),
+        });
       if (method === "OPTIONS") return route.fulfill({ status: 204, headers });
       if (method !== "GET") {
         writes += 1;
@@ -128,7 +153,9 @@ async function main() {
       }
       if (path === "/discovery/contextual") {
         return reply(200, {
-          subjects: [{ subject: { id: SUBJECT_ID, name: "Matemática" }, resources: [] }],
+          subjects: [
+            { subject: { id: SUBJECT_ID, name: "Matemática" }, resources: [] },
+          ],
         });
       }
       if (path === "/resources/saved/search") {
@@ -138,9 +165,22 @@ async function main() {
         const q = url.searchParams.get("q") ?? "";
         if (!q) return reply(200, { items: [], nextCursor: null });
         searches.push({ kind: "resource", q });
-        const items = q === "revocado"
-          ? [{ ...resource, id: REVOKED_RESOURCE_ID, title: "Apunte revocado" }]
-          : [{ id: RESOURCE_ID, title: resource.title, academic: resource.academic }];
+        const items =
+          q === "revocado"
+            ? [
+                {
+                  ...resource,
+                  id: REVOKED_RESOURCE_ID,
+                  title: "Apunte revocado",
+                },
+              ]
+            : [
+                {
+                  id: RESOURCE_ID,
+                  title: resource.title,
+                  academic: resource.academic,
+                },
+              ];
         return reply(200, { items, nextCursor: null });
       }
       if (path === "/questions") {
@@ -152,7 +192,13 @@ async function main() {
           status: url.searchParams.get("status") ?? "",
         });
         return reply(200, {
-          items: [{ id: QUESTION_ID, title: question.title, academic: question.academic }],
+          items: [
+            {
+              id: QUESTION_ID,
+              title: question.title,
+              academic: question.academic,
+            },
+          ],
           nextCursor: null,
         });
       }
@@ -177,11 +223,13 @@ async function main() {
     await page.goto(ORIGIN + "/study/session?subjectId=" + SUBJECT_ID, {
       waitUntil: "domcontentloaded",
     });
-    await page.getByRole("heading", { name: "Encontrar material para tu plan" })
+    await page
+      .getByRole("heading", { name: "Encontrar material para tu plan" })
       .waitFor({ timeout: 15_000 });
 
     await page.getByLabel("Nombre").fill("Plan de derivadas");
-    await page.getByLabel("Notas personales (máximo 500 caracteres)")
+    await page
+      .getByLabel("Notas personales (máximo 500 caracteres)")
       .fill("Conservar estas notas mientras agrego material.");
 
     await page.getByLabel("Buscar por tema").fill("derivadas");
@@ -189,10 +237,22 @@ async function main() {
     const addResource = page.getByRole("button", { name: "Sumar al plan" });
     await addResource.waitFor({ timeout: 15_000 });
     await addResource.click();
-    await page.getByText("1 actividades", { exact: true }).waitFor({ timeout: 15_000 });
-    assert.equal(await page.locator(".study-session-tasks").getByText(resource.title).count(), 1);
-    assert.equal(await page.getByLabel("Notas personales (máximo 500 caracteres)").inputValue(),
-      "Conservar estas notas mientras agrego material.");
+    await page
+      .getByText("1 actividades", { exact: true })
+      .waitFor({ timeout: 15_000 });
+    assert.equal(
+      await page
+        .locator(".study-session-tasks")
+        .getByText(resource.title)
+        .count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .getByLabel("Notas personales (máximo 500 caracteres)")
+        .inputValue(),
+      "Conservar estas notas mientras agrego material.",
+    );
 
     await page.getByLabel("Qué querés repasar").selectOption("question");
     await page.getByLabel("Estado de las preguntas").selectOption("closed");
@@ -201,11 +261,25 @@ async function main() {
     const addQuestion = page.getByRole("button", { name: "Sumar al plan" });
     await addQuestion.waitFor({ timeout: 15_000 });
     await addQuestion.click();
-    await page.getByText("2 actividades", { exact: true }).waitFor({ timeout: 15_000 });
-    await page.getByText("45 minutos previstos", { exact: true }).waitFor({ timeout: 15_000 });
-    assert.equal(await page.locator(".study-session-tasks").getByText(question.title).count(), 1);
-    assert.equal(await page.getByLabel("Notas personales (máximo 500 caracteres)").inputValue(),
-      "Conservar estas notas mientras agrego material.");
+    await page
+      .getByText("2 actividades", { exact: true })
+      .waitFor({ timeout: 15_000 });
+    await page
+      .getByText("45 minutos previstos", { exact: true })
+      .waitFor({ timeout: 15_000 });
+    assert.equal(
+      await page
+        .locator(".study-session-tasks")
+        .getByText(question.title)
+        .count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .getByLabel("Notas personales (máximo 500 caracteres)")
+        .inputValue(),
+      "Conservar estas notas mientras agrego material.",
+    );
 
     await page.getByLabel("Qué querés repasar").selectOption("resource");
     await page.getByLabel("Buscar por tema").fill("revocado");
@@ -213,21 +287,37 @@ async function main() {
     const revoked = page.getByRole("button", { name: "Sumar al plan" });
     await revoked.waitFor({ timeout: 15_000 });
     await revoked.click();
-    await page.getByRole("alert")
-      .filter({ hasText: "Este contenido dejó de estar disponible o accesible." })
+    await page
+      .getByRole("alert")
+      .filter({
+        hasText: "Este contenido dejó de estar disponible o accesible.",
+      })
       .waitFor({ timeout: 15_000 });
-    assert.equal(await page.getByText("2 actividades", { exact: true }).count(), 1);
+    assert.equal(
+      await page.getByText("2 actividades", { exact: true }).count(),
+      1,
+    );
     assert.deepEqual(searches.slice(0, 3), [
       { kind: "resource", q: "derivadas" },
       { kind: "question", q: "derivadas", status: "closed" },
       { kind: "resource", q: "revocado" },
     ]);
-    assert.equal(resourceRechecks, 2, "each resource add must reauthorize the item");
+    assert.equal(
+      resourceRechecks,
+      2,
+      "each resource add must reauthorize the item",
+    );
     assert.equal(questionRechecks, 1, "question add must reauthorize the item");
-    assert.equal(writes, 0, "finding and adding material must not write to the API");
+    assert.equal(
+      writes,
+      0,
+      "finding and adding material must not write to the API",
+    );
     assert.deepEqual(pageErrors, []);
     await context.close();
-    console.log("PASS B180 Chromium: resource and closed-question search, reauthorization, revoked access, plan/notes preservation and no API writes");
+    console.log(
+      "PASS B180 Chromium: resource and closed-question search, reauthorization, revoked access, plan/notes preservation and no API writes",
+    );
   } finally {
     await browser?.close();
     await stop(child);
