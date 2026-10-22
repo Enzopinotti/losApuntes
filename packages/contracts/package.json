@@ -5,6 +5,11 @@
   "version": "0.1.0",
   "exports": {
     ".": "./src/index.ts",
+    "./organization-event-calendar": {
+      "types": "./src/organization-event-calendar.d.ts",
+      "import": "./src/organization-event-calendar.mjs",
+      "default": "./src/organization-event-calendar.mjs"
+    },
     "./social-qa": "./src/social-qa.ts"
   },
   "scripts": {
