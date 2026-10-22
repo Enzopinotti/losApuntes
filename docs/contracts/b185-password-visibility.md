@@ -41,6 +41,7 @@ Validación local sobre el carrier actual, basado en `main@4cf5356efbf54eae125d1
 - `node scripts/test-web-password-visibility-b185-browser.mjs` — PASS, cuatro recorridos en Chromium.
 - `corepack pnpm --filter @losapuntes/web check:types`, `lint`, `format:check` y `build` — PASS.
 - `git diff --check origin/main...HEAD` — PASS.
+- `corepack pnpm audit --prod --audit-level high` — FAIL: 2 HIGH (`node-forge`, `braces`) y 3 MODERATE; no reporta `follow-redirects`. No se elude ni se oculta el resultado.
 
 ## Límites y release
 
