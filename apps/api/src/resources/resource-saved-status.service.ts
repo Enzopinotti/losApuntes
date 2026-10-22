@@ -49,13 +49,20 @@ export class ResourceSavedStatusService {
       resourceIds.length < 1 ||
       resourceIds.length > SAVED_STATUS_MAX_RESOURCES ||
       !resourceIds.every((id) => typeof id === 'string' && UUID_V4.test(id)) ||
-      new Set(resourceIds).size !== resourceIds.length
+      new Set(resourceIds.map((id) => id.toLowerCase())).size !==
+        resourceIds.length
     ) {
       return invalidInput();
     }
 
+    const canonicalResourceIds = resourceIds.map((id) => id.toLowerCase());
     const pipeline: PipelineStage[] = [
-      { $match: { userId: ownerUserId, resourceId: { $in: resourceIds } } },
+      {
+        $match: {
+          userId: ownerUserId,
+          resourceId: { $in: canonicalResourceIds },
+        },
+      },
       { $project: { _id: 0, resourceId: 1 } },
       ...authorizedSavedJoinStages(ownerUserId, { facets: true }),
       // Authorization above must happen before this bound. A duplicated
@@ -75,19 +82,19 @@ export class ResourceSavedStatusService {
       return invalidData();
     }
 
-    const inputIds = new Set(resourceIds);
+    const inputIds = new Set(canonicalResourceIds);
     const allowed = new Set<string>();
     for (const entry of found) {
       if (
         !entry ||
         typeof entry.resourceId !== 'string' ||
         !UUID_V4.test(entry.resourceId) ||
-        !inputIds.has(entry.resourceId) ||
-        allowed.has(entry.resourceId)
+        !inputIds.has(entry.resourceId.toLowerCase()) ||
+        allowed.has(entry.resourceId.toLowerCase())
       ) {
         return invalidData();
       }
-      allowed.add(entry.resourceId);
+      allowed.add(entry.resourceId.toLowerCase());
     }
 
     // An absent edge, hidden/deleted/moderated resource or revoked share
@@ -95,7 +102,7 @@ export class ResourceSavedStatusService {
     return {
       items: resourceIds.map((resourceId) => ({
         resourceId,
-        isSaved: allowed.has(resourceId),
+        isSaved: allowed.has(resourceId.toLowerCase()),
       })),
     };
   }

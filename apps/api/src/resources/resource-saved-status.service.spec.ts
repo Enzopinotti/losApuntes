@@ -127,6 +127,33 @@ describe('B155 owner-safe batch bookmark status', () => {
     expect(f.pipeline()?.[6]).toEqual({ $limit: 51 });
   });
 
+  it('normalizes UUID text for lookup but preserves request order and casing', async () => {
+    const uppercase = 'ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF';
+    const canonical = uppercase.toLowerCase();
+    const f = fixture([{ resourceId: canonical }]);
+
+    await expect(
+      f.service.check('owner-a', [uppercase, second]),
+    ).resolves.toEqual({
+      items: [
+        { resourceId: uppercase, isSaved: true },
+        { resourceId: second, isSaved: false },
+      ],
+    });
+    expect(f.pipeline()?.[0]).toEqual({
+      $match: {
+        userId: 'owner-a',
+        resourceId: { $in: [canonical, second] },
+      },
+    });
+
+    const duplicate = fixture([]);
+    await expect(
+      duplicate.service.check('owner-a', [uppercase, canonical]),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(duplicate.aggregate).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid owner, bad shapes, duplicated or too many IDs before Mongo', async () => {
     const f = fixture([]);
     for (const input of [
