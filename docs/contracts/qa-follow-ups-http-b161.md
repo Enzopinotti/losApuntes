@@ -19,23 +19,23 @@ fanout is added.
 - `Cache-Control: private, no-store`.
 - Successful response (example):
 
-    {
-      "needsReview": {
-        "items": [
-          {
-            "questionId": "q-uuid",
-            "subjectId": "subject-uuid",
-            "title": "How should I prepare the final?",
-            "updatedAt": "2026-10-19T13:30:00.000Z"
-          }
-        ],
-        "hasMore": false
-      },
-      "awaitingReplies": {
-        "items": [],
-        "hasMore": false
-      }
-    }
+  {
+  "needsReview": {
+  "items": [
+  {
+  "questionId": "q-uuid",
+  "subjectId": "subject-uuid",
+  "title": "How should I prepare the final?",
+  "updatedAt": "2026-10-19T13:30:00.000Z"
+  }
+  ],
+  "hasMore": false
+  },
+  "awaitingReplies": {
+  "items": [],
+  "hasMore": false
+  }
+  }
 
 Each lane has a maximum of **5 question cards**. The sixth entry, if any,
 sets `hasMore=true`. No nextCursor in this v1 preview. For exhaustive
