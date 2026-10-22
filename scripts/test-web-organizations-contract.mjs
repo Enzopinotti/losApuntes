@@ -105,6 +105,20 @@ assert.match(
   mobileOrganizationApi,
   /if \(from && !cursor\) query\.set\("from", from\)/u,
 );
+assert.match(mobileOrganizationApi, /institutionId\?:\s*string/u);
+assert.match(
+  mobileOrganizationApi,
+  /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u,
+);
+assert.match(mobileDirectory, /filterInstitution\?\.id \?\? "all-institutions"/u);
+assert.match(mobileDirectory, /institutionId: filterInstitution\.id/u);
+assert.match(
+  mobileDirectory,
+  /mobileAcademicFollowsApi\s*\.search\(\s*"institution", request\.query/u,
+);
+assert.match(mobileDirectory, /request\.authorityKey !== authorityKey/u);
+assert.match(mobileDirectory, /Buscar institución/u);
+assert.match(mobileDirectory, /Quitar filtro de institución/u);
 assert.match(mobileOrganizationController, /loadUpcomingEvents/u);
 assert.match(mobileOrganizationController, /new Date\(\)\.toISOString\(\)/u);
 assert.match(mobileOrganizationController, /upcomingEventsNextCursor/u);
