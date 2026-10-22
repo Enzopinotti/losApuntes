@@ -59,6 +59,19 @@ export class AccountExportAssembler {
     canContinue?: () => Promise<boolean>,
   ): Promise<AccountExportAssemblyResult> {
     const expected = accountExportSectionIds(version);
+    // A running v3 module must still process persisted v1/v2 jobs. However,
+    // unknown providers cannot silently join its inventory and be omitted
+    // from the artifact: that would hide an unreviewed private data source.
+    const approvedSections = new Set<string>(accountExportSectionIds(3));
+    if (
+      this.registry
+        .list()
+        .some(({ sectionId }) => !approvedSections.has(sectionId))
+    ) {
+      throw new Error(
+        `Account export v${version} contributor inventory is incomplete or incompatible`,
+      );
+    }
     const contributors = expected.map((id) => this.registry.require(id));
     // Legacy jobs select precisely their own versioned manifest even after
     // v3 deployment. The real Nest module enforces the complete v3 inventory.
