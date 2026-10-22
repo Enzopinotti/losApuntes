@@ -1,0 +1,76 @@
+name: B156 Mongo 8 host-kernel bootstrap
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/ci.yml
+      - .github/workflows/b156-mongo-kernel-bootstrap.yml
+      - scripts/ci/check-mongo-kernel.mjs
+      - scripts/ci/check-mongo-kernel.test.mjs
+      - docs/engineering/b156-runtime-mongo-kernel-smoke.md
+      - compose.local.yml
+      - compose.health.yml
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ci.yml
+      - .github/workflows/b156-mongo-kernel-bootstrap.yml
+      - scripts/ci/check-mongo-kernel.mjs
+      - scripts/ci/check-mongo-kernel.test.mjs
+      - compose.local.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b156-mongo-bootstrap-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-mongo-bootstrap:
+    name: B156 Mongo 8 replica primary on compatible Linux kernel
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Test kernel boundary and check actual runner
+        run: |
+          node --check scripts/ci/check-mongo-kernel.mjs
+          node --test scripts/ci/check-mongo-kernel.test.mjs
+          node scripts/ci/check-mongo-kernel.mjs
+      - name: Confirm canonical Compose syntax
+        run: docker compose -f compose.local.yml -f compose.health.yml config --quiet
+      - name: Start real Mongo 8 primary on tmpfs
+        run: |
+          docker compose -f compose.local.yml -f compose.health.yml up \
+            -d --wait --wait-timeout 120 mongo
+      - name: Verify writable replica primary
+        run: |
+          docker compose -f compose.local.yml -f compose.health.yml exec -T mongo \
+            mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) quit(1); print(JSON.stringify({event:"ci.mongo_replica.primary",verified:true}));'
+      - name: Check exact SHA and clean repository
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f compose.local.yml -f compose.health.yml logs --no-color mongo
+      - name: Tear down ephemeral Mongo
+        if: always()
+        run: docker compose -f compose.local.yml -f compose.health.yml down --volumes --remove-orphans
