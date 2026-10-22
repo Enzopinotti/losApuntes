@@ -1,7 +1,7 @@
 # B150 current-main integration evidence
 
-**Date:** 22 October 2026 (ART)  
-**Current-main base:** `fedab105d320526eb476813d004944461584e99a`  
+**Date:** 22 October 2026 (ART)
+**Current-main base:** `bdfcc0433af9faccf28bdb38ee4d2ee538be1010`
 **Source PR:** [#477](https://github.com/Enzopinotti/losApuntes/pull/477), source HEAD `9192539c7a9e99b6936fc94e61898460b170809f`.
 
 ## Carrier scope
