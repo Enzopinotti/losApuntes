@@ -1,6 +1,7 @@
 // The public Q&A list accepts the same canonical Subject UUID v4 as its API.
 // Missing and malformed filters differ: invalid URLs must not broaden.
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export function questionSubjectIdFromSearchParams(params) {
   if (!params.has("subjectId")) return null;
