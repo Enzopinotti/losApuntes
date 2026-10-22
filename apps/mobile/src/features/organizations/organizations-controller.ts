@@ -261,7 +261,10 @@ export type MobileOrganizationDetailSnapshot =
       authorityKey: string;
       organizationId: string;
       organization: OrganizationDetail;
-      busy: "follow" | "posts-more" | "events-more" | null;
+      eventView: "all" | "upcoming";
+      upcomingEvents: OrganizationEvent[];
+      upcomingEventsNextCursor: string | null;
+      busy: "follow" | "posts-more" | "events-filter" | "events-more" | null;
       failure: MobileOrganizationsFailure | null;
       notice: string | null;
     }
@@ -452,12 +455,11 @@ export class MobileOrganizationDetailController {
     organizationId: string,
   ): Promise<void> {
     const current = this.currentReady(authorityKey, organizationId);
-    if (
-      !current ||
-      current.busy ||
-      !current.organization.eventsNextCursor ||
-      this.active
-    ) {
+    const cursor =
+      current?.eventView === "upcoming"
+        ? current.upcomingEventsNextCursor
+        : current?.organization.eventsNextCursor;
+    if (!current || current.busy || !cursor || this.active) {
       return;
     }
 
@@ -472,8 +474,70 @@ export class MobileOrganizationDetailController {
     try {
       const page = await this.api.events(
         organizationId,
-        current.organization.eventsNextCursor,
+        cursor,
         operation.controller.signal,
+      );
+      if (!this.isCurrent(operation, organizationId)) return;
+      const latest = this.currentReady(authorityKey, organizationId);
+      if (!latest) return;
+
+      this.publish(
+        latest.eventView === "upcoming"
+          ? {
+              ...latest,
+              upcomingEvents: appendUnique<OrganizationEvent>(
+                latest.upcomingEvents,
+                page.items,
+              ),
+              upcomingEventsNextCursor: page.nextCursor,
+              busy: null,
+            }
+          : {
+              ...latest,
+              organization: {
+                ...latest.organization,
+                events: appendUnique<OrganizationEvent>(
+                  latest.organization.events,
+                  page.items,
+                ),
+                eventsNextCursor: page.nextCursor,
+              },
+              busy: null,
+            },
+      );
+    } catch (error) {
+      if (!this.isCurrent(operation, organizationId)) return;
+      this.publishFailureOnReady(
+        authorityKey,
+        organizationId,
+        mobileOrganizationsFailure(error),
+      );
+    } finally {
+      this.finish(operation);
+    }
+  }
+
+  async loadUpcomingEvents(
+    authorityKey: string,
+    organizationId: string,
+  ): Promise<void> {
+    const current = this.currentReady(authorityKey, organizationId);
+    if (!current || current.busy || this.active) return;
+
+    const operation = this.begin(authorityKey);
+    this.publish({
+      ...current,
+      busy: "events-filter",
+      failure: null,
+      notice: null,
+    });
+
+    try {
+      const page = await this.api.events(
+        organizationId,
+        undefined,
+        operation.controller.signal,
+        new Date().toISOString(),
       );
       if (!this.isCurrent(operation, organizationId)) return;
       const latest = this.currentReady(authorityKey, organizationId);
@@ -481,15 +545,11 @@ export class MobileOrganizationDetailController {
 
       this.publish({
         ...latest,
-        organization: {
-          ...latest.organization,
-          events: appendUnique<OrganizationEvent>(
-            latest.organization.events,
-            page.items,
-          ),
-          eventsNextCursor: page.nextCursor,
-        },
+        eventView: "upcoming",
+        upcomingEvents: page.items,
+        upcomingEventsNextCursor: page.nextCursor,
         busy: null,
+        failure: null,
       });
     } catch (error) {
       if (!this.isCurrent(operation, organizationId)) return;
@@ -501,6 +561,12 @@ export class MobileOrganizationDetailController {
     } finally {
       this.finish(operation);
     }
+  }
+
+  showAllEvents(authorityKey: string, organizationId: string): void {
+    const current = this.currentReady(authorityKey, organizationId);
+    if (!current || current.busy) return;
+    this.publish({ ...current, eventView: "all", failure: null, notice: null });
   }
 
   suspend(authorityKey: string): void {
@@ -572,6 +638,9 @@ export class MobileOrganizationDetailController {
       authorityKey,
       organizationId,
       organization,
+      eventView: "all",
+      upcomingEvents: [],
+      upcomingEventsNextCursor: null,
       busy: null,
       failure: null,
       notice,

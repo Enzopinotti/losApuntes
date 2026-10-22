@@ -50,6 +50,12 @@ const mobileDirectory = await read(
 const mobileDetail = await read(
   'apps/mobile/src/features/organizations/organization-detail-screen.tsx',
 );
+const mobileOrganizationApi = await read(
+  'apps/mobile/src/features/organizations/organizations-api.ts',
+);
+const mobileOrganizationController = await read(
+  'apps/mobile/src/features/organizations/organizations-controller.ts',
+);
 const organizationAvatar = await read(
   'apps/web/src/features/organizations/OrganizationAvatar.tsx',
 );
@@ -69,6 +75,17 @@ assert.match(organizationAvatar, /size\?: "compact" \| "small" \| "profile"/u);
 assert.match(mobileDirectory, /<PublicAvatar/u);
 assert.match(mobileDirectory, /avatarUrl=\{organization\.avatarUrl\}/u);
 assert.match(mobileDetail, /avatarUrl=\{current\.organization\.avatarUrl\}/u);
+assert.match(mobileOrganizationApi, /from\?:\s*string/u);
+assert.match(
+  mobileOrganizationApi,
+  /if \(from && !cursor\) query\.set\("from", from\)/u,
+);
+assert.match(mobileOrganizationController, /loadUpcomingEvents/u);
+assert.match(mobileOrganizationController, /new Date\(\)\.toISOString\(\)/u);
+assert.match(mobileOrganizationController, /upcomingEventsNextCursor/u);
+assert.match(mobileDetail, /controller\.loadUpcomingEvents/u);
+assert.match(mobileDetail, /controller\.showAllEvents/u);
+assert.match(mobileDetail, /No hay próximos eventos\./u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');

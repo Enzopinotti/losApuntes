@@ -338,6 +338,70 @@ test("detail paginates posts and events with id dedupe", async () => {
   }
 });
 
+test("upcoming events use the server date filter and keep their cursor isolated", async () => {
+  const initial = detail("o1", false, [post("p1")], [event("all-event")]);
+  initial.eventsNextCursor = "all-next";
+  const eventRequests: Array<{
+    cursor: string | undefined;
+    from: string | undefined;
+  }> = [];
+  const controller = new MobileOrganizationDetailController(
+    apiStub({
+      get: async () => ({ organization: initial }),
+      events: async (_id, cursor, _signal, from) => {
+        eventRequests.push({ cursor, from });
+        return cursor
+          ? { items: [event("future-2")], nextCursor: null }
+          : { items: [event("future-1")], nextCursor: "future-next" };
+      },
+    }),
+  );
+
+  await controller.load("session-a:org:o1", "o1");
+  await controller.loadUpcomingEvents("session-a:org:o1", "o1");
+
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.eventView, "upcoming");
+  assert.deepEqual(
+    snapshot.upcomingEvents.map((item) => item.id),
+    ["future-1"],
+  );
+  assert.deepEqual(
+    snapshot.organization.events.map((item) => item.id),
+    ["all-event"],
+  );
+  assert.equal(snapshot.organization.eventsNextCursor, "all-next");
+  assert.equal(snapshot.upcomingEventsNextCursor, "future-next");
+  assert.ok(Number.isFinite(Date.parse(eventRequests[0]!.from!)));
+
+  await controller.loadMoreEvents("session-a:org:o1", "o1");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(
+    snapshot.upcomingEvents.map((item) => item.id),
+    ["future-1", "future-2"],
+  );
+  assert.deepEqual(eventRequests[1], {
+    cursor: "future-next",
+    from: undefined,
+  });
+
+  controller.showAllEvents("session-a:org:o1", "o1");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.eventView, "all");
+    assert.deepEqual(
+      snapshot.organization.events.map((item) => item.id),
+      ["all-event"],
+    );
+    assert.equal(snapshot.organization.eventsNextCursor, "all-next");
+  }
+});
+
 test("organization search query policy mirrors the server 2-120 contract", () => {
   assert.deepEqual(normalizeOrganizationQuery("  "), { ok: true, query: "" });
   assert.deepEqual(normalizeOrganizationQuery("  GIDAS  "), {
