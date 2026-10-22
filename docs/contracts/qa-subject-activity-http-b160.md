@@ -21,24 +21,25 @@ schemas, lockfiles or frontend/mobile.
 - No input parameters in v1; `Cache-Control: private, no-store`.
 - HTTP 200 (illustrative values):
 
-    {
-      "items": [
-        {
-          "subjectId": "subject-uuid",
-          "questionsTotal": 3,
-          "questionsOpen": 1,
-          "questionsClosed": 2,
-          "answersVisible": 4,
-          "answersAccepted": 1,
-          "totalActivity": 7
-        }
-      ],
-      "hasMore": false
-    }
+  {
+  "items": [
+  {
+  "subjectId": "subject-uuid",
+  "questionsTotal": 3,
+  "questionsOpen": 1,
+  "questionsClosed": 2,
+  "answersVisible": 4,
+  "answersAccepted": 1,
+  "totalActivity": 7
+  }
+  ],
+  "hasMore": false
+  }
 
 A new account returns `{"items":[],"hasMore":false}`.
 
 Definitions:
+
 - `questionsOpen` and `questionsClosed`: caller-authored **available**
   questions with those states for this `subjectId`.
 - `questionsTotal = questionsOpen + questionsClosed`.
