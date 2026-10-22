@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   AccessibilityInfo,
   AppState,
+  Modal,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -37,6 +39,8 @@ import {
   resourceRowAccessibilityLabel,
 } from "@/features/resources/resource-details-copy";
 import { useSession } from "@/features/session/session-provider";
+import { ResourceCollectionSaveAction } from "@/features/study-collections/resource-collection-save-action";
+import { MOBILE_PERSISTENT_COLLECTIONS_VISIBLE } from "@/features/study-collections/persistent-collections-flag";
 
 import {
   MobileSearchController,
@@ -92,6 +96,8 @@ function ResourceResult({
   quickSaveEntry,
   onQuickSave,
   onOpenSaved,
+  onAddToCollection,
+  collectionActionVisible,
 }: {
   resource: ResourceView;
   onPress: () => void;
@@ -99,6 +105,8 @@ function ResourceResult({
   quickSaveEntry: SearchQuickSaveEntry | undefined;
   onQuickSave: () => void;
   onOpenSaved: () => void;
+  onAddToCollection: () => void;
+  collectionActionVisible: boolean;
 }) {
   const authorAction = resourceAuthorAction(resource.author);
 
@@ -183,6 +191,17 @@ function ResourceResult({
             </Text>
           )}
         </Pressable>
+        {collectionActionVisible ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Agregar ${resource.title} a una colección`}
+            accessibilityHint="Abre el selector de tus colecciones. No cambia los permisos del apunte."
+            onPress={onAddToCollection}
+            style={styles.collectionActionButton}
+          >
+            <Text style={styles.collectionActionLabel}>A colección</Text>
+          </Pressable>
+        ) : null}
         {quickSaveEntry?.state === "uncertain" ? (
           <>
             <Text accessibilityRole="alert" style={styles.error}>
@@ -219,6 +238,8 @@ function ResourceGroup({
   quickSave,
   onQuickSave,
   onOpenSaved,
+  onAddToCollection,
+  collectionActionVisible,
 }: {
   title: string;
   resources: ResourceView[];
@@ -227,6 +248,8 @@ function ResourceGroup({
   quickSave: SearchQuickSaveSnapshot;
   onQuickSave: (id: string) => void;
   onOpenSaved: () => void;
+  onAddToCollection: (resource: ResourceView) => void;
+  collectionActionVisible: boolean;
 }) {
   return (
     <View style={styles.card}>
@@ -245,6 +268,8 @@ function ResourceGroup({
             quickSaveEntry={quickSave.items[resource.id]}
             onQuickSave={() => onQuickSave(resource.id)}
             onOpenSaved={onOpenSaved}
+            onAddToCollection={() => onAddToCollection(resource)}
+            collectionActionVisible={collectionActionVisible}
           />
         ))
       )}
@@ -349,6 +374,8 @@ function ContextualDiscovery({
   quickSave,
   onQuickSave,
   onOpenSaved,
+  onAddToCollection,
+  collectionActionVisible,
 }: {
   snapshot: ContextualDiscoverySnapshot;
   authorityKey: string | null;
@@ -362,6 +389,8 @@ function ContextualDiscovery({
   quickSave: SearchQuickSaveSnapshot;
   onQuickSave: (id: string) => void;
   onOpenSaved: () => void;
+  onAddToCollection: (resource: ResourceView) => void;
+  collectionActionVisible: boolean;
 }) {
   const current =
     snapshot.kind !== "idle" && snapshot.authorityKey === authorityKey
@@ -434,6 +463,8 @@ function ContextualDiscovery({
                     quickSaveEntry={quickSave.items[resource.id]}
                     onQuickSave={() => onQuickSave(resource.id)}
                     onOpenSaved={onOpenSaved}
+                    onAddToCollection={() => onAddToCollection(resource)}
+                    collectionActionVisible={collectionActionVisible}
                   />
                 ))
               )}
@@ -525,6 +556,11 @@ export function SearchScreen() {
   const sawAcademicLoading = useRef(false);
   const announcedSearchResult = useRef<string | null>(null);
   const [shareError, setShareError] = useState(false);
+  const [collectionResource, setCollectionResource] = useState<{
+    id: string;
+    title: string;
+    scopeKey: string;
+  } | null>(null);
 
   const sessionAuthority =
     session.kind === "authenticated"
@@ -547,6 +583,22 @@ export function SearchScreen() {
     academicMatchesSession
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
+  const collectionActionVisible =
+    session.kind === "authenticated" && MOBILE_PERSISTENT_COLLECTIONS_VISIBLE;
+  const collectionPickerScopeKey = JSON.stringify([
+    authorityKey,
+    query,
+    scope,
+    subjectId,
+  ]);
+  const currentCollectionResource =
+    collectionResource?.scopeKey === collectionPickerScopeKey
+      ? collectionResource
+      : null;
+
+  useEffect(() => {
+    setCollectionResource(null);
+  }, [authorityKey, query, scope, subjectId]);
   useEffect(() => {
     if (!hasIncomingSearchParams) {
       handledIncomingSearch.current = null;
@@ -733,6 +785,22 @@ export function SearchScreen() {
   const openSavedResources = useCallback(() => {
     router.push("/saved-resources");
   }, [router]);
+
+  const openCollectionPicker = useCallback(
+    (resource: ResourceView) => {
+      if (!authorityKey || !collectionActionVisible) return;
+      setCollectionResource({
+        id: resource.id,
+        title: resource.title,
+        scopeKey: collectionPickerScopeKey,
+      });
+    },
+    [authorityKey, collectionActionVisible, collectionPickerScopeKey],
+  );
+
+  const closeCollectionPicker = useCallback(() => {
+    setCollectionResource(null);
+  }, []);
 
   const openResource = useCallback(
     (resource: ResourceView) => {
@@ -948,6 +1016,8 @@ export function SearchScreen() {
             quickSave={scopedQuickSave}
             onQuickSave={quickSaveResource}
             onOpenSaved={openSavedResources}
+            onAddToCollection={openCollectionPicker}
+            collectionActionVisible={collectionActionVisible}
           />
         )}
         {(resultScope === "all" || resultScope === "subjects") && (
@@ -1176,8 +1246,67 @@ export function SearchScreen() {
           quickSave={scopedQuickSave}
           onQuickSave={quickSaveResource}
           onOpenSaved={openSavedResources}
+          onAddToCollection={openCollectionPicker}
+          collectionActionVisible={collectionActionVisible}
         />
       ) : null}
+      <Modal
+        animationType="fade"
+        transparent
+        visible={Boolean(currentCollectionResource && collectionActionVisible)}
+        onRequestClose={closeCollectionPicker}
+      >
+        <View style={styles.collectionModalOverlay}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar selector de colecciones"
+            onPress={closeCollectionPicker}
+            style={StyleSheet.absoluteFill}
+          />
+          <View accessibilityViewIsModal style={styles.collectionModalCard}>
+            <View style={styles.collectionModalHeader}>
+              <View style={styles.collectionModalCopy}>
+                <Text
+                  accessibilityRole="header"
+                  style={styles.collectionModalTitle}
+                >
+                  Agregar a una colección
+                </Text>
+                {currentCollectionResource ? (
+                  <Text
+                    numberOfLines={2}
+                    style={styles.collectionModalResource}
+                  >
+                    {currentCollectionResource.title}
+                  </Text>
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar selector de colecciones"
+                onPress={closeCollectionPicker}
+                style={styles.collectionModalClose}
+              >
+                <Text style={styles.collectionModalCloseLabel}>Cerrar</Text>
+              </Pressable>
+            </View>
+            {currentCollectionResource ? (
+              <ScrollView
+                style={styles.collectionModalScroll}
+                contentContainerStyle={styles.collectionModalContent}
+              >
+                <ResourceCollectionSaveAction
+                  autoOpen
+                  hideToggle
+                  onClose={closeCollectionPicker}
+                  resourceId={currentCollectionResource.id}
+                  resourceTitle={currentCollectionResource.title}
+                />
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </ProductSurface>
   );
 }
@@ -1295,6 +1424,66 @@ const styles = StyleSheet.create({
     borderColor: "#c8c8d2",
     borderRadius: 10,
   },
+  collectionActionButton: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#c9c9d2",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  collectionActionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#43376a",
+  },
+  collectionModalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    backgroundColor: "rgba(23, 23, 32, 0.48)",
+  },
+  collectionModalCard: {
+    maxHeight: "82%",
+    width: "100%",
+    gap: 14,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
+  },
+  collectionModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  collectionModalCopy: { flex: 1, gap: 4 },
+  collectionModalTitle: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "700",
+    color: "#20202a",
+  },
+  collectionModalResource: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#55555f",
+  },
+  collectionModalClose: {
+    minWidth: 64,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+  },
+  collectionModalCloseLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#43376a",
+  },
+  collectionModalScroll: { flexGrow: 0 },
+  collectionModalContent: { gap: 12, paddingBottom: 4 },
   resourceAuthorAction: {
     alignSelf: "flex-start",
     justifyContent: "center",
