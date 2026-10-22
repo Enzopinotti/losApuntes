@@ -55,6 +55,7 @@ import {
   type ResourceDirectSharingSnapshot,
 } from "./resource-direct-sharing-controller";
 import { ResourceMetadataEditor } from "./resource-metadata-editor";
+import { MobileResourceCitationPanel } from "./resource-citation-panel";
 import {
   MobileResourceMetadataController,
   type MobileResourceMetadataSnapshot,
@@ -521,6 +522,11 @@ export function MobileResourceDetailsScreen({
                 )}
               </Text>
             </View>
+
+            <MobileResourceCitationPanel
+              key={resource.id}
+              resource={resource}
+            />
 
             {resource.capabilities.edit ? (
               <ResourceMetadataEditor
