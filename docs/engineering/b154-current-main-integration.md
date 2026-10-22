@@ -1,7 +1,7 @@
 # B154 current-main integration evidence
 
-**Date:** 22 October 2026 (ART)  
-**Current-main base:** `fedab105d320526eb476813d004944461584e99a`  
+**Date:** 22 October 2026 (ART)
+**Current-main base:** `bdfcc0433af9faccf28bdb38ee4d2ee538be1010`
 **Source PR:** [#482](https://github.com/Enzopinotti/losApuntes/pull/482), source HEAD `9ffe866b3fa3ed11f9fc273f6cf61295be90177e`.
 
 ## Carrier scope
