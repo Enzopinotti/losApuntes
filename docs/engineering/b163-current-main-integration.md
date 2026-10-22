@@ -1,8 +1,8 @@
 # B163 current-main integration evidence
 
 **Date:** 22 October 2026 (ART)
-**Current-main base:** `bdfcc0433af9faccf28bdb38ee4d2ee538be1010`
-**Source PR:** [#493](https://github.com/Enzopinotti/losApuntes/pull/493), source HEAD `74ee65199f9819a8d44860ffaad0613f172ee768`.
+**Current-main base:** `7184c9ca374fec6e694ae38ef6bed0fadf1f617a`
+**Source PR:** [#493](https://github.com/Enzopinotti/losApuntes/pull/493), published HEAD `74ee65199f9819a8d44860ffaad0613f172ee768` (original PR base `6bd965c71f6426da3d49fc7c0555e0e5afda06a9`).
 
 ## Carrier scope
 
@@ -12,7 +12,7 @@ The resulting block changes six files: the nested Web wildcard and NotFound view
 
 ## Local validation
 
-On the current-main carrier, before this evidence-only commit:
+On the carrier rebased onto current `main`, before this evidence refresh:
 
 - `corepack pnpm test:web-navigation-contract` — PASS.
 - `node scripts/test-web-not-found-browser.mjs` — PASS in real local Chromium; checks token non-disclosure, guest/member recovery links, a guarded route, and valid-route precedence.
