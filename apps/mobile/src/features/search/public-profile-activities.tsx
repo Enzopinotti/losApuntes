@@ -10,6 +10,7 @@ import {
 
 import { mobileSearchApi } from "./search-runtime";
 import { PublicProfileActivitiesController } from "./public-profile-activities-controller";
+import { publicProfileActivityPresentation } from "./public-profile-activity-presentation";
 
 const failureCopy = {
   offline: "No hay conexión. Revisá tu conexión e intentá de nuevo.",
@@ -50,11 +51,25 @@ export function PublicProfileActivities({
         Actividad pública
       </Text>
       {snapshot.items.length ? (
-        snapshot.items.map((activity) => (
-          <Text key={activity.id} style={styles.copy}>
-            {activity.title}
-          </Text>
-        ))
+        snapshot.items.map((activity) => {
+          const presentation = publicProfileActivityPresentation(activity);
+          return (
+            <View key={activity.id} style={styles.activity}>
+              <Text accessibilityRole="header" style={styles.activityTitle}>
+                {activity.title}
+              </Text>
+              <View style={styles.activityDetails}>
+                <Text style={styles.meta}>{presentation.typeLabel}</Text>
+                {presentation.dateLabel ? (
+                  <Text style={styles.meta}>{presentation.dateLabel}</Text>
+                ) : null}
+              </View>
+              {activity.description ? (
+                <Text style={styles.copy}>{activity.description}</Text>
+              ) : null}
+            </View>
+          );
+        })
       ) : (
         <Text style={styles.meta}>Todavía no hay actividad pública.</Text>
       )}
@@ -106,6 +121,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: "#55555f",
+  },
+  activity: {
+    gap: 5,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e4e2ea",
+  },
+  activityTitle: {
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "700",
+    color: "#20202a",
+  },
+  activityDetails: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   meta: {
     fontSize: 13,
