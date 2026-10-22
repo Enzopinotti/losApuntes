@@ -36,20 +36,31 @@ export function HomeSearchResumeCard({
           comprobar al abrirla.
         </Text>
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Continuar búsqueda"
-        accessibilityHint="Vuelve a Buscar y consulta resultados actuales con los permisos de esta sesión."
-        onPress={() =>
-          router.push({
-            pathname: "/(tabs)/search",
-            params: { resumeRecentSearch: "1" },
-          })
-        }
-        style={styles.button}
-      >
-        <Text style={styles.buttonLabel}>Continuar búsqueda</Text>
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Continuar búsqueda"
+          accessibilityHint="Vuelve a Buscar y consulta resultados actuales con los permisos de esta sesión."
+          onPress={() =>
+            router.push({
+              pathname: "/(tabs)/search",
+              params: { resumeRecentSearch: "1" },
+            })
+          }
+          style={styles.button}
+        >
+          <Text style={styles.buttonLabel}>Continuar búsqueda</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Borrar búsqueda reciente"
+          accessibilityHint="Quita la consulta de esta sesión. No borra apuntes guardados."
+          onPress={() => mobileSearchResumeMemory.clear(sessionAuthorityKey)}
+          style={styles.clearButton}
+        >
+          <Text style={styles.clearLabel}>Borrar</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -66,12 +77,27 @@ const styles = StyleSheet.create({
   copyBlock: { gap: 6 },
   heading: { fontSize: 17, fontWeight: "700", color: "#20202a" },
   copy: { fontSize: 14, lineHeight: 20, color: "#5b5b66" },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   button: {
+    flexGrow: 1,
+    flexBasis: 150,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
+    paddingHorizontal: 12,
     backgroundColor: "#f1eff8",
   },
   buttonLabel: { fontSize: 14, fontWeight: "700", color: "#43376a" },
+  clearButton: {
+    minWidth: 84,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#d7d2e1",
+    paddingHorizontal: 12,
+  },
+  clearLabel: { fontSize: 14, fontWeight: "700", color: "#43376a" },
 });
