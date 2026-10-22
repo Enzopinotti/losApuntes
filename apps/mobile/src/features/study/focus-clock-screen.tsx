@@ -23,11 +23,17 @@ import {
   type FocusMode,
 } from "./focus-clock";
 
-export function MobileStudyFocusScreen() {
+export function MobileStudyFocusScreen({
+  initialStudyMinutes = 25,
+}: {
+  initialStudyMinutes?: number;
+}) {
   const router = useRouter();
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState(AppState.currentState);
-  const [clock, setClock] = useState<FocusClock>(() => createFocusClock());
+  const [clock, setClock] = useState<FocusClock>(() =>
+    createFocusClock("study", initialStudyMinutes),
+  );
   const [completionAcknowledged, setCompletionAcknowledged] = useState(false);
 
   useEffect(() => {
@@ -42,6 +48,15 @@ export function MobileStudyFocusScreen() {
     );
     setCompletionAcknowledged(false);
   }, [isFocused]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    setClock((current) =>
+      current.phase === "idle"
+        ? createFocusClock("study", initialStudyMinutes)
+        : current,
+    );
+  }, [initialStudyMinutes, isFocused]);
 
   useEffect(() => {
     if (!isFocused || appState !== "active" || clock.phase !== "running") {
@@ -82,7 +97,7 @@ export function MobileStudyFocusScreen() {
   };
   const select = (mode: FocusMode) => {
     setCompletionAcknowledged(false);
-    setClock(selectFocusMode(mode));
+    setClock(selectFocusMode(mode, initialStudyMinutes));
   };
   const goBack = () => {
     if (router.canGoBack()) {
@@ -124,7 +139,7 @@ export function MobileStudyFocusScreen() {
         <View style={styles.modes}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Estudiar durante 25 minutos"
+            accessibilityLabel={`Estudiar durante ${clock.mode === "study" ? clock.durationMs / 60_000 : initialStudyMinutes} minutos`}
             accessibilityState={{
               selected: clock.mode === "study",
               disabled: clock.phase === "running",
@@ -143,7 +158,11 @@ export function MobileStudyFocusScreen() {
                 clock.mode === "study" && styles.modeTextSelected,
               ]}
             >
-              Estudiar · 25 min
+              Estudiar ·{" "}
+              {clock.mode === "study"
+                ? clock.durationMs / 60_000
+                : initialStudyMinutes}{" "}
+              min
             </Text>
           </Pressable>
           <Pressable

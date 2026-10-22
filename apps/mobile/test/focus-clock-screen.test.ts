@@ -19,12 +19,14 @@ test("Home links to a private, voluntary focus clock", () => {
   assert.match(home, /router\.push\("\/study-focus"\)/u);
   assert.match(home, /Abrir temporizador de estudio/u);
   assert.match(route, /Redirect href="\/sign-in"/u);
-  assert.match(route, /key=\{authorityKey\}/u);
+  assert.match(route, /studyFocusMinutesFromParam\(minutes\)/u);
+  assert.match(route, /key=\{`\$\{authorityKey\}:\$\{suggestedMinutes\}`\}/u);
   assert.match(screen, /useIsFocused/u);
   assert.match(screen, /AppState\.addEventListener\("change"/u);
   assert.match(screen, /AccessibilityInfo\.announceForAccessibility/u);
   assert.match(screen, /accessibilityLiveRegion="none"/u);
   assert.match(screen, /No registramos ni sincronizamos el tiempo/u);
+  assert.match(screen, /clock\.durationMs \/ 60_000/u);
   assert.doesNotMatch(
     screen,
     /fetch\(|axios|AsyncStorage|SecureStore|localStorage|Notification|Audio\(/u,

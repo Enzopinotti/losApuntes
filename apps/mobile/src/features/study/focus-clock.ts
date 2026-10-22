@@ -4,12 +4,18 @@ export type FocusPhase = "idle" | "running" | "paused" | "done";
 export type FocusClock = Readonly<{
   mode: FocusMode;
   phase: FocusPhase;
+  durationMs: number;
   remainingMs: number;
   deadlineMs: number | null;
 }>;
 
+export const DEFAULT_STUDY_FOCUS_MINUTES = 25;
+export const MIN_STUDY_FOCUS_MINUTES = 5;
+export const MAX_STUDY_FOCUS_MINUTES = 120;
+const MINUTE_MS = 60 * 1000;
+
 export const FOCUS_DURATIONS_MS = Object.freeze({
-  study: 25 * 60 * 1000,
+  study: DEFAULT_STUDY_FOCUS_MINUTES * MINUTE_MS,
   rest: 5 * 60 * 1000,
 });
 
@@ -27,12 +33,55 @@ function checkNow(now: number): number {
   return now;
 }
 
-export function createFocusClock(mode: FocusMode = "study"): FocusClock {
+function checkStudyMinutes(minutes: number): number {
+  if (
+    !Number.isSafeInteger(minutes) ||
+    minutes < MIN_STUDY_FOCUS_MINUTES ||
+    minutes > MAX_STUDY_FOCUS_MINUTES ||
+    minutes % MIN_STUDY_FOCUS_MINUTES !== 0
+  ) {
+    throw new TypeError(
+      "Study focus duration must be 5–120 minutes in steps of 5",
+    );
+  }
+  return minutes;
+}
+
+export function studyFocusMinutesFromParam(
+  raw: string | string[] | undefined,
+): number | null {
+  const value = Array.isArray(raw)
+    ? raw.length === 1
+      ? raw[0]
+      : undefined
+    : raw;
+  if (typeof value !== "string" || !/^\d+$/u.test(value)) return null;
+  const minutes = Number(value);
+  if (
+    !Number.isSafeInteger(minutes) ||
+    minutes < MIN_STUDY_FOCUS_MINUTES ||
+    minutes > MAX_STUDY_FOCUS_MINUTES ||
+    minutes % MIN_STUDY_FOCUS_MINUTES !== 0
+  ) {
+    return null;
+  }
+  return minutes;
+}
+
+export function createFocusClock(
+  mode: FocusMode = "study",
+  studyMinutes = DEFAULT_STUDY_FOCUS_MINUTES,
+): FocusClock {
   const selected = checkMode(mode);
+  const durationMs =
+    selected === "study"
+      ? checkStudyMinutes(studyMinutes) * MINUTE_MS
+      : FOCUS_DURATIONS_MS.rest;
   return {
     mode: selected,
     phase: "idle",
-    remainingMs: FOCUS_DURATIONS_MS[selected],
+    durationMs,
+    remainingMs: durationMs,
     deadlineMs: null,
   };
 }
@@ -69,11 +118,19 @@ export function pauseFocusClock(clock: FocusClock, now: number): FocusClock {
 }
 
 export function resetFocusClock(clock: FocusClock): FocusClock {
-  return createFocusClock(clock.mode);
+  return createFocusClock(
+    clock.mode,
+    clock.mode === "study"
+      ? clock.durationMs / MINUTE_MS
+      : DEFAULT_STUDY_FOCUS_MINUTES,
+  );
 }
 
-export function selectFocusMode(mode: FocusMode): FocusClock {
-  return createFocusClock(mode);
+export function selectFocusMode(
+  mode: FocusMode,
+  studyMinutes = DEFAULT_STUDY_FOCUS_MINUTES,
+): FocusClock {
+  return createFocusClock(mode, studyMinutes);
 }
 
 export function formatFocusRemaining(remainingMs: number): string {
