@@ -14,8 +14,10 @@ page requests retain the existing retry behavior and do not consume a cursor.
 ## Validation
 
 - `pnpm test:web-study-retry-round`
+- B134–B139 Study Practice regression contracts and focused practice/export contracts
 - `pnpm --filter @losapuntes/web check:types`
-- Focused ESLint for Study Practice and the cursor helper
+- `pnpm --filter @losapuntes/web lint`
+- `pnpm --filter @losapuntes/web format:check`
 - `pnpm --filter @losapuntes/web build`
 - Prettier, `pnpm check:hygiene`, and `git diff --check`
 
