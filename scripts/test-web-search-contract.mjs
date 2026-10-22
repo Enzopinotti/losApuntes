@@ -305,7 +305,13 @@ assert.match(page, /encodeURIComponent\(subject\.id\)/u);
 // B175: Search now exposes a private, authenticated save action that reuses
 // Resources authorization instead of granting permissions from search hits.
 assert.equal(isSaveConfirmed({ saved: true }), true);
-for (const invalid of [null, {}, { saved: false }, { saved: 1 }, { saved: 'true' }]) {
+for (const invalid of [
+  null,
+  {},
+  { saved: false },
+  { saved: 1 },
+  { saved: 'true' },
+]) {
   assert.equal(
     isSaveConfirmed(invalid),
     false,
@@ -319,23 +325,29 @@ for (const status of [401, 403, 404, 410]) {
     'Authorization failures must not be displayed as confirmed saves',
   );
 }
-for (const failure of [null, new Error('offline'), { status: 503 }, { status: 0 }]) {
+for (const failure of [
+  null,
+  new Error('offline'),
+  { status: 503 },
+  { status: 0 },
+]) {
   assert.match(
     saveFailureMessage(failure),
     /No pudimos confirmar/u,
     'Network and runtime errors have an unknown commit outcome',
   );
 }
-const saveAction = await read(
-  'apps/web/src/features/search/SearchSaveAction.tsx',
-);
+const saveAction = await read('apps/web/src/features/search/SearchSaveAction.tsx');
 assert.match(saveAction, /resourcesApi\.save\(resourceId, ticket\.signal\)/u);
 assert.match(saveAction, /isSaveConfirmed\(response\)/u);
 assert.match(saveAction, /saveFailureMessage\(error\)/u);
 assert.match(saveAction, /pendingRef\.current/u);
 assert.match(saveAction, /useAsyncAuthorityFence\(scopeKey\)/u);
 assert.match(saveAction, /disabled=\{saving \|\| saved\}/u);
-assert.match(saveAction, /role=\{current\.phase === "failed" \? "alert" : "status"\}/u);
+assert.match(
+  saveAction,
+  /role=\{current\.phase === "failed" \? "alert" : "status"\}/u,
+);
 assert.doesNotMatch(saveAction, /localStorage|sessionStorage|setItem/u);
 assert.doesNotMatch(saveAction, /Authorization\s*:|Bearer\s+/iu);
 assert.match(page, /import \{ SearchSaveAction \} from/u);
@@ -355,8 +367,14 @@ assert.match(saveStyles, /\.search-save-action p\[role="alert"\]/u);
 const resourcesService = await read(
   'apps/web/src/features/resources/services/resourcesService.ts',
 );
-assert.match(resourcesService, /save: \(resourceId: string, signal\?: AbortSignal\)/u);
-assert.match(resourcesService, /\/resources\/\$\{encodeURIComponent\(resourceId\)\}\/save/u);
+assert.match(
+  resourcesService,
+  /save: \(resourceId: string, signal\?: AbortSignal\)/u,
+);
+assert.match(
+  resourcesService,
+  /\/resources\/\$\{encodeURIComponent\(resourceId\)\}\/save/u,
+);
 assert.match(resourcesService, /method: "PUT", signal/u);
 
 const resourcesPage = await read('apps/web/src/pages/Resources.tsx');

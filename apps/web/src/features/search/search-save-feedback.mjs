@@ -2,9 +2,7 @@
 // displayed after the authenticated Resources endpoint confirms success.
 export function isSaveConfirmed(response) {
   return (
-    typeof response === "object" &&
-    response !== null &&
-    response.saved === true
+    typeof response === "object" && response !== null && response.saved === true
   );
 }
 
