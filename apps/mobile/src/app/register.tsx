@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "expo-router";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmailOnboardingController } from "@/features/auth/email-onboarding-controller";
 import type { EmailOnboardingFailure } from "@/features/auth/email-onboarding-controller";
+import { openEmailApp } from "@/features/auth/open-email-app";
 import {
   authActionResendAvailableAt,
   authActionResendSecondsRemaining,
@@ -253,6 +255,25 @@ export default function RegisterRoute() {
               )}
             </Pressable>
           )}
+
+          {showSuccess && Platform.OS === "android" ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void openEmailApp().then((opened) => {
+                  if (!opened) {
+                    Alert.alert(
+                      "No pudimos abrir una app de correo",
+                      "Abrí tu correo desde la app que uses y volvé acá para reenviar el enlace.",
+                    );
+                  }
+                });
+              }}
+              style={styles.secondary}
+            >
+              <Text>Abrir app de correo</Text>
+            </Pressable>
+          ) : null}
 
           {showSuccess ? (
             <Pressable
