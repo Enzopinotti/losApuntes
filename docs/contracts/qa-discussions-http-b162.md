@@ -70,6 +70,7 @@ those workflows.
 ## Persistence
 
 A **single read-only Mongo aggregation** on `questions`:
+
 1. Match caller-owned, available questions.
 2. `$unionWith` available caller-authored `answers`, with a bounded
    `$lookup` of the available parent by uniquely indexed `questions.id`.
