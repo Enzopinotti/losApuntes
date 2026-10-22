@@ -17,6 +17,7 @@ import type {
 import { ProductSurface } from "@/features/navigation/product-surface";
 
 import { communityAuthorAction } from "./community-author-action";
+import { NetworkPersonAvatar } from "./network-person-avatar";
 import {
   cancelCommunityComposerSubmission,
   canRefreshCommunityQuestion,
@@ -270,6 +271,10 @@ function CommunityAuthorAttribution({
         pressed ? styles.authorActionPressed : null,
       ]}
     >
+      <NetworkPersonAvatar
+        avatarUrl={author?.avatarUrl}
+        displayName={displayName}
+      />
       <Text style={styles.authorActionLabel}>{visibleName}</Text>
     </Pressable>
   );
@@ -1326,6 +1331,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#f0eff8",
   },
   authorAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     minHeight: 44,
     alignSelf: "flex-start",
     justifyContent: "center",
