@@ -11,6 +11,7 @@ const [
   client,
   contracts,
   deepLinks,
+  forgotPassword,
   app,
   pkg,
 ] = await Promise.all([
@@ -21,6 +22,7 @@ const [
   read("apps/mobile/src/services/api/client.ts"),
   read("packages/contracts/src/auth.ts"),
   read("apps/mobile/src/features/auth/auth-deep-link.ts"),
+  read("apps/mobile/src/app/forgot-password.tsx"),
   read("apps/mobile/app.json"),
   read("apps/mobile/package.json"),
 ]);
@@ -33,7 +35,10 @@ assert.doesNotMatch(
 );
 assert.match(client, /redirect:\s*"error"/u);
 assert.match(client, /CROSS_ORIGIN_REQUEST_BLOCKED/u);
-assert.doesNotMatch(client, /console\.(?:log|warn|error)|searchParams\.set\([^)]*(?:token|credential|authorization)/iu);
+assert.doesNotMatch(
+  client,
+  /console\.(?:log|warn|error)|searchParams\.set\([^)]*(?:token|credential|authorization)/iu,
+);
 assert.match(controller, /generation/u);
 assert.match(authenticatedApi, /AuthSessionListResponse/u);
 assert.match(contracts, /interface AuthSessionListResponse/u);
@@ -47,6 +52,12 @@ assert.match(provider, /controller\.revalidateCurrent/u);
 assert.match(provider, /controller\.suspend/u);
 assert.match(deepLinks, /url\.protocol\s*!==\s*"losapuntes:"/u);
 assert.match(deepLinks, /ACTION_TOKEN_PATTERN/u);
+assert.match(forgotPassword, /passwordRecoveryResendSecondsRemaining/u);
+assert.match(forgotPassword, /disabled=\{[^}]*resendCooldownSeconds/u);
+assert.match(
+  forgotPassword,
+  /result === "accepted"\s*\?\s*passwordRecoveryResendAvailableAt/u,
+);
 
 const appJson = JSON.parse(app);
 assert.equal(appJson.expo.scheme, "losapuntes");
