@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
+  AccessibilityInfo,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -44,6 +45,7 @@ export default function ResetPasswordRoute() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const tokenFailureStatusRef = useRef<Text | null>(null);
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setSnapshot);
@@ -59,6 +61,16 @@ export default function ResetPasswordRoute() {
   const pending =
     snapshot.kind === "checking" || snapshot.kind === "submitting";
   const terminalFailure = snapshot.kind === "failed" ? snapshot.failure : null;
+  useEffect(() => {
+    if (!terminalFailure) return;
+
+    const frame = requestAnimationFrame(() => {
+      const status = tokenFailureStatusRef.current;
+      if (status) AccessibilityInfo.sendAccessibilityEvent(status, "focus");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [handle, terminalFailure]);
+
   const retryableInspectFailure =
     terminalFailure === "offline" ||
     terminalFailure === "timeout" ||
@@ -184,7 +196,12 @@ export default function ResetPasswordRoute() {
 
           {terminalFailure ? (
             <>
-              <Text accessibilityRole="alert" style={styles.error}>
+              <Text
+                ref={tokenFailureStatusRef}
+                accessible
+                accessibilityRole="alert"
+                style={styles.error}
+              >
                 {failureCopy[terminalFailure]}
               </Text>
 
