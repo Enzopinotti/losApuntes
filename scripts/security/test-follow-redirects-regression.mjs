@@ -74,7 +74,7 @@ function requestRedirect(url, options) {
   });
 }
 
-test("B164 frozen pnpm Web chain pins official 1.16.1 and installed Axios resolver", async () => {
+test("B190 frozen pnpm Web chain pins official 1.16.1 and installed Axios resolver", async () => {
   const source = await readFile("pnpm-lock.yaml", "utf8");
   const evidence = inspectFollowRedirectsLock(source);
   assert.equal(evidence.version, "1.16.1");
@@ -83,7 +83,7 @@ test("B164 frozen pnpm Web chain pins official 1.16.1 and installed Axios resolv
   assert.equal(evidence.releaseAuthorized, false);
 });
 
-test("B164 Axios normal cross-origin redirects work without forwarding credentials", async () => {
+test("B190 Axios normal cross-origin redirects work without forwarding credentials", async () => {
   await withRedirect(async ({ originUrl, received }) => {
     const result = await axios.get(originUrl, {
       proxy: false, timeout: 3500, maxRedirects: 3,
@@ -103,7 +103,7 @@ test("B164 Axios normal cross-origin redirects work without forwarding credentia
   });
 });
 
-test("B164 special ^ and | sensitive headers are stripped on cross-origin redirect", async () => {
+test("B190 special ^ and | sensitive headers are stripped on cross-origin redirect", async () => {
   await withRedirect(async ({ originUrl, received }) => {
     const result = await requestRedirect(originUrl, {
       headers: {
@@ -121,7 +121,7 @@ test("B164 special ^ and | sensitive headers are stripped on cross-origin redire
   });
 });
 
-test("B164 array-form headers are sanitized or explicitly rejected before redirect", async () => {
+test("B190 array-form headers are sanitized or explicitly rejected before redirect", async () => {
   await withRedirect(async ({ originUrl, received }) => {
     try {
       const result = await requestRedirect(originUrl, {
@@ -143,7 +143,7 @@ test("B164 array-form headers are sanitized or explicitly rejected before redire
   });
 });
 
-test("B164 reject tampered lock version, integrity, edge or format", async () => {
+test("B190 reject tampered lock version, integrity, edge or format", async () => {
   const source = await readFile("pnpm-lock.yaml", "utf8");
   const expected = "sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==";
   for (const bad of [
