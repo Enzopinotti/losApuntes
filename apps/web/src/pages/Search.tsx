@@ -542,9 +542,7 @@ const Search = () => {
                         {shareableSubjectResourcesHref(subject.id) && (
                           <button
                             type="button"
-                            onClick={() =>
-                              void copySubjectResourcesLink(subject.id)
-                            }
+                            onClick={() => void copySubjectResourcesLink(subject.id)}
                             aria-label={`Copiar enlace de apuntes de ${subject.name}`}
                           >
                             Copiar enlace de apuntes
