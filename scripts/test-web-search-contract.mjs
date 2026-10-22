@@ -313,6 +313,19 @@ assert.doesNotMatch(saveAction, /Authorization\s*:|Bearer\s+/iu);
 assert.match(page, /import \{ SearchSaveAction \} from/u);
 assert.match(page, /\{authenticated && \(/u);
 assert.match(page, /<SearchSaveAction/u);
+assert.match(page, /import \{ ResourceStudyHandoff \} from/u);
+assert.match(page, /<ResourceStudyHandoff/u);
+assert.match(page, /authorityScope=\{authorityScope\}/u);
+assert.match(
+  page,
+  /resourceId=\{resource\.id\}/u,
+  'Search must pass only a UUID, not trust a cached result as a permission grant',
+);
+assert.match(
+  page,
+  /\{authenticated && \(\s*<ResourceStudyHandoff/u,
+  'Anonymous public Search must not initiate a session handoff',
+);
 assert.match(page, /authorityScope=\{authorityScope\}/u);
 assert.match(page, /resourceId=\{resource\.id\}/u);
 assert.ok(
@@ -324,6 +337,9 @@ assert.match(page, /Iniciá sesión/u);
 const saveStyles = await read('apps/web/src/pages/Search.scss');
 assert.match(saveStyles, /\.search-save-action button:focus-visible/u);
 assert.match(saveStyles, /\.search-save-action p\[role="alert"\]/u);
+assert.match(saveStyles, /\.search-result-actions \.resource-study-handoff button:focus-visible/u);
+assert.match(saveStyles, /min-height: 44px/u);
+assert.match(saveStyles, /\.resource-study-handoff p\[role="alert"\]/u);
 const resourcesService = await read(
   'apps/web/src/features/resources/services/resourcesService.ts',
 );
@@ -332,6 +348,19 @@ assert.match(resourcesService, /\/resources\/\$\{encodeURIComponent\(resourceId\
 assert.match(resourcesService, /method: "PUT", signal/u);
 assert.match(resourcesService, /unsave: \(resourceId: string, signal\?: AbortSignal\)/u);
 assert.match(resourcesService, /method: "DELETE",/u);
+
+const directStudyHandoff = await read(
+  'apps/web/src/features/study/ResourceStudyHandoff.tsx',
+);
+assert.match(directStudyHandoff, /resourcesApi\.get\(resourceId, ticket\.signal\)/u);
+assert.match(directStudyHandoff, /searchApi\.contextual\(/u);
+assert.match(directStudyHandoff, /resourceToStudyHandoffPlan\(/u);
+assert.match(directStudyHandoff, /createStudyHandoff\(/u);
+assert.match(directStudyHandoff, /useAsyncAuthorityFence\(scope\)/u);
+assert.match(directStudyHandoff, /if \(!isCurrent\(ticket\)\) return/u);
+assert.match(directStudyHandoff, /navigate\(/u);
+assert.doesNotMatch(directStudyHandoff, /localStorage|sessionStorage|setItem/u);
+assert.doesNotMatch(directStudyHandoff, /Authorization\s*:|Bearer\s+/iu);
 
 const resourcesPage = await read('apps/web/src/pages/Resources.tsx');
 assert.match(resourcesPage, /searchReturnHref\(location\.state\)/u);
