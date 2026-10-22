@@ -599,6 +599,14 @@ async function run() {
     await page.keyboard.type(password);
     await page.keyboard.press("Tab");
     assert.equal(
+      await revealLoginPassword.evaluate(
+        (element) => document.activeElement === element,
+      ),
+      true,
+      "Tab should reach the accessible password visibility control",
+    );
+    await page.keyboard.press("Tab");
+    assert.equal(
       await loginSubmit.evaluate(
         (element) => document.activeElement === element,
       ),
