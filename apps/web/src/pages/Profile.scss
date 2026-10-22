@@ -227,6 +227,69 @@
   gap: 0.9rem;
 }
 
+.public-profile {
+  --public-profile-accent: #5b5bd6;
+  --public-profile-accent-soft: #efedf8;
+  --public-profile-accent-ink: #43366a;
+}
+
+.public-profile[data-accent="indigo"] {
+  --public-profile-accent: #4f46e5;
+  --public-profile-accent-soft: #eef2ff;
+  --public-profile-accent-ink: #3730a3;
+}
+
+.public-profile[data-accent="emerald"] {
+  --public-profile-accent: #059669;
+  --public-profile-accent-soft: #ecfdf5;
+  --public-profile-accent-ink: #065f46;
+}
+
+.public-profile[data-accent="amber"] {
+  --public-profile-accent: #d97706;
+  --public-profile-accent-soft: #fffbeb;
+  --public-profile-accent-ink: #92400e;
+}
+
+.public-profile[data-accent="rose"] {
+  --public-profile-accent: #e11d48;
+  --public-profile-accent-soft: #fff1f2;
+  --public-profile-accent-ink: #9f1239;
+}
+
+.public-profile[data-accent="slate"] {
+  --public-profile-accent: #475569;
+  --public-profile-accent-soft: #f1f5f9;
+  --public-profile-accent-ink: #334155;
+}
+
+.public-profile .profile-eyebrow {
+  color: var(--public-profile-accent);
+}
+
+.public-profile .public-profile-avatar {
+  background: var(--public-profile-accent-soft);
+  color: var(--public-profile-accent-ink);
+}
+
+.public-profile[data-cover="gradient"] .profile-hero {
+  background: linear-gradient(
+    125deg,
+    var(--public-profile-accent-soft),
+    #ffffff 82%
+  );
+}
+
+.public-profile[data-cover="paper"] .profile-hero {
+  border-color: #e8deca;
+  background: #f8f4e9;
+}
+
+.public-profile[data-cover="campus"] .profile-hero {
+  border-color: #d6e5d7;
+  background: linear-gradient(135deg, #e9f3ea, #f4f7fb);
+}
+
 .public-profile-avatar {
   position: relative;
   display: grid;

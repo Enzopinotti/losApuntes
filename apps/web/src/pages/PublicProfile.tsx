@@ -12,6 +12,7 @@ import {
 } from "../features/profile/services/profileService";
 import { publicProfileActivityLink } from "../features/profile/public-profile-activity-link";
 import { PublicProfileAvatar } from "../features/profile/public-profile-avatar";
+import { publicProfilePresentationPresets } from "../features/profile/public-profile-presentation";
 import { publicProfileContentSectionOrder } from "../features/profile/public-profile-section-order";
 import type { PublicProfileContentSection } from "../features/profile/public-profile-section-order";
 import { PublicProfileSocialActions } from "../features/community/public-profile-social-actions";
@@ -252,9 +253,17 @@ const PublicProfile = () => {
   );
   const sectionOrder = (section: PublicProfileContentSection) =>
     orderedProfileSections.indexOf(section);
+  const presentationPresets = publicProfilePresentationPresets(
+    profile.presentation.accentPreset,
+    profile.presentation.coverPreset,
+  );
 
   return (
-    <section className="profile-page public-profile">
+    <section
+      className="profile-page public-profile"
+      data-accent={presentationPresets.accentPreset}
+      data-cover={presentationPresets.coverPreset}
+    >
       {feedReturnLink}
       <header className="profile-hero">
         <div className="public-profile-identity">
