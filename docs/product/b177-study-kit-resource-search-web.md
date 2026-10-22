@@ -1,6 +1,6 @@
 # B177 — Encontrar apuntes dentro de Mis kits de estudio
 
-Estado: candidate de Web en PR Draft, no integrado.
+Carrier code-only preparado sobre `origin/main` `35fb5410107403d35ede619fb839961609a77704`. Se conservaron los trece commits funcionales, de prueba y documentación; se excluyó el commit dedicado al workflow. El bloque no incluye deploy ni habilita acceso persistente.
 
 ## Problema que resuelve
 
@@ -36,8 +36,12 @@ Antes de B177, la sección «Agregar apuntes visibles» de Mis kits de estudio s
 - Agregar la misma referencia de nuevo no produce duplicación ni supera 24 apuntes por kit.
 - Un usuario que pierde acceso no puede abrir un archivo por haberlo visto en la búsqueda.
 - La herramienta funciona con teclado y pantallas móviles.
-- Las pruebas Node `scripts/test-web-study-kits-integration.mjs` cubren parsing adversarial, scope, transporte, vinculación y límites; el smoke real Web/API se ejecuta antes de Ready.
+- `pnpm test:web-study-kits-integration`: PASS; cubre parsing adversarial, scope, transporte, vinculación y límites. Quedó conectado al `pnpm test` general.
+- `pnpm test:web-study-kits-resource-search-browser`: PASS en Chromium con viewport móvil y lecturas API simuladas en loopback. Comprueba búsqueda explícita, filtrado de materia, paginación/deduplicación, agregado local, revalidación de acceso revocado y ausencia de escrituras API.
+- Web `check:types`, `lint`, `format:check` y `build`: PASS; build conserva los avisos existentes de Sass y tamaño de chunk. No se ejecutó CI manualmente.
+
+La prueba browser no sustituye una aceptación contra un servicio API desplegado.
 
 ## Release
 
-Requiere validar el SHA exacto con Node 24, Prettier, Types, ESLint, test de integración, Quality Gate y acceptance browser/API. La auditoría productiva permanece bloqueada por advisories de node-forge, braces y follow-redirects; release #353 HOLD hasta que los equipos de seguridad cierren las HIGH. No merge/deploy ni bypass.
+La auditoría productiva local permanece bloqueada por 2 HIGH (`node-forge`, `braces`) y 3 MODERATE; el HIGH de `follow-redirects` dejó de aparecer tras el parche integrado. Release #353 continúa HOLD. Sin waiver ni autorización de deploy.
