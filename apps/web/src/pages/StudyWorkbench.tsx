@@ -8,11 +8,7 @@ import {
 import { Link, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../contexts/useAuth";
-import type { QuestionView } from "../features/community/interfaces";
-import {
-  communityApi,
-  isCommunityApiError,
-} from "../features/community/services/communityService";
+import { StudySubjectQuestions } from "../features/study/StudySubjectQuestions";
 import type { ResourceView } from "../features/resources/interfaces";
 import {
   isResourcesApiError,
@@ -28,7 +24,6 @@ import {
   studySubjectHref,
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
-import { practiceQuestionHref } from "../features/study/study-practice-question-link.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import StudyFocusClock from "./StudyFocusClock";
@@ -55,11 +50,7 @@ type ActionState = {
 };
 
 function messageFor(error: unknown): string {
-  if (
-    isSearchApiError(error) ||
-    isResourcesApiError(error) ||
-    isCommunityApiError(error)
-  ) {
+  if (isSearchApiError(error) || isResourcesApiError(error)) {
     if (error.code === "RESOURCE_SAVED_SEARCH_CURSOR_STALE") {
       return "Tus guardados cambiaron en otro dispositivo. Recargá la lista.";
     }
@@ -110,11 +101,8 @@ export default function StudyWorkbench() {
   );
   const [availableState, setAvailableState] =
     useState<PageState<ResourceView> | null>(null);
-  const [questionState, setQuestionState] =
-    useState<PageState<QuestionView> | null>(null);
   const saved = savedState?.scope === dataScope ? savedState : null;
   const available = availableState?.scope === dataScope ? availableState : null;
-  const questions = questionState?.scope === dataScope ? questionState : null;
 
   const [actionState, setActionState] = useState<ActionState | null>(null);
   const [actionMessage, setActionMessage] = useState<{
@@ -142,11 +130,6 @@ export default function StudyWorkbench() {
     isCurrent: isAvailableCurrent,
     finish: finishAvailable,
   } = useAsyncAuthorityFence(`study-available:${dataScope}`);
-  const {
-    begin: beginQuestions,
-    isCurrent: isQuestionsCurrent,
-    finish: finishQuestions,
-  } = useAsyncAuthorityFence(`study-questions:${dataScope}`);
   const {
     begin: beginAction,
     isCurrent: isActionCurrent,
@@ -285,53 +268,6 @@ export default function StudyWorkbench() {
     [subjectId, dataScope, beginAvailable, isAvailableCurrent, finishAvailable],
   );
 
-  const loadQuestions = useCallback(
-    async (cursor?: string, append = false) => {
-      if (!subjectId) return;
-      const ticket = beginQuestions();
-      if (!isQuestionsCurrent(ticket)) return;
-      setQuestionState((previous) => ({
-        scope: dataScope,
-        items: append && previous?.scope === dataScope ? previous.items : [],
-        cursor:
-          append && previous?.scope === dataScope ? previous.cursor : null,
-        loading: true,
-        error: null,
-      }));
-      try {
-        const page = await communityApi.questions(
-          { subjectId, status: "open", limit: 15, cursor },
-          ticket.signal,
-        );
-        if (!isQuestionsCurrent(ticket)) return;
-        setQuestionState((previous) => ({
-          scope: dataScope,
-          items:
-            append && previous?.scope === dataScope
-              ? appendDistinct(previous.items, page.items)
-              : page.items,
-          cursor: page.nextCursor,
-          loading: false,
-          error: null,
-        }));
-      } catch (error) {
-        if (isQuestionsCurrent(ticket)) {
-          setQuestionState((previous) => ({
-            scope: dataScope,
-            items:
-              append && previous?.scope === dataScope ? previous.items : [],
-            cursor: null,
-            loading: false,
-            error: messageFor(error),
-          }));
-        }
-      } finally {
-        finishQuestions(ticket);
-      }
-    },
-    [subjectId, dataScope, beginQuestions, isQuestionsCurrent, finishQuestions],
-  );
-
   useEffect(() => {
     void loadContext();
   }, [loadContext]);
@@ -340,8 +276,7 @@ export default function StudyWorkbench() {
     if (!subjectId) return;
     void loadSaved();
     void loadAvailable();
-    void loadQuestions();
-  }, [subjectId, loadSaved, loadAvailable, loadQuestions]);
+  }, [subjectId, loadSaved, loadAvailable]);
 
   const changeSubject = (subject: string) => {
     const href = studySubjectHref(subject);
@@ -402,7 +337,6 @@ export default function StudyWorkbench() {
   const savedItems = saved?.items ?? [];
   const savedIds = new Set(savedItems.map((item) => item.id));
   const availableItems = available?.items ?? [];
-  const questionItems = questions?.items ?? [];
 
   const copySubjectLink = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -691,75 +625,12 @@ export default function StudyWorkbench() {
                 </button>
               </section>
 
-              <section
-                className="study-workbench-panel"
-                aria-labelledby="study-questions-title"
-              >
-                <header>
-                  <h2 id="study-questions-title">Dudas por resolver</h2>
-                  <p>
-                    Preguntas abiertas y vinculadas a la materia. Cada autor
-                    controla su contenido.
-                  </p>
-                </header>
-                {questions?.error && (
-                  <p role="alert" className="study-workbench-alert">
-                    {questions.error}
-                  </p>
-                )}
-                {questions?.loading && <p role="status">Cargando preguntas…</p>}
-                {questions &&
-                  !questions.loading &&
-                  questions.items.length === 0 &&
-                  !questions.error && (
-                    <p>Todavía no hay preguntas abiertas disponibles.</p>
-                  )}
-                <ul>
-                  {questionItems.map((item) => (
-                    <li key={item.id}>
-                      <Link to={`/questions?id=${encodeURIComponent(item.id)}`}>
-                        <strong>{item.title}</strong>
-                      </Link>
-                      <small>
-                        {item.answerCount} respuestas ·{" "}
-                        {item.author?.displayName ?? "Estudiante"}
-                      </small>
-                      <span className="study-workbench-open">Abierta</span>
-                      {practiceQuestionHref(selectedSubject.id, item.id) && (
-                        <Link
-                          to={practiceQuestionHref(
-                            selectedSubject.id,
-                            item.id,
-                          )!}
-                          className="study-workbench-secondary"
-                        >
-                          Practicar esta pregunta
-                        </Link>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {questions?.cursor && (
-                  <button
-                    type="button"
-                    className="study-workbench-secondary"
-                    disabled={questions.loading}
-                    onClick={() =>
-                      void loadQuestions(questions.cursor ?? undefined, true)
-                    }
-                  >
-                    Más preguntas
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="study-workbench-secondary"
-                  disabled={questions?.loading}
-                  onClick={() => void loadQuestions()}
-                >
-                  Actualizar preguntas
-                </button>
-              </section>
+              <StudySubjectQuestions
+                key={`${authScope}:${selectedSubject.id}`}
+                authScope={authScope}
+                subjectId={selectedSubject.id}
+                subjectName={selectedSubject.name}
+              />
             </div>
             <p className="study-workbench-footnote">
               Las cantidades corresponden a los elementos de las páginas
