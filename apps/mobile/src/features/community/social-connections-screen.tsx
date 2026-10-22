@@ -23,6 +23,7 @@ import {
 } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 
+import { NetworkPersonAvatar } from "./network-person-avatar";
 import { mobileCommunityApi } from "./community-runtime";
 import type { CommunityFailure } from "./community-controller";
 import {
@@ -92,16 +93,22 @@ function ConnectionCard({
         onPress={onOpenProfile}
         style={styles.personButton}
       >
-        <Text style={styles.personName}>{connection.other.displayName}</Text>
-        <Text style={styles.copy}>
-          {pendingIncoming
-            ? "Te envió una solicitud de conexión."
-            : pendingOutgoing
-              ? "Solicitud enviada. Esperando respuesta."
-              : accepted
-                ? "Conexión aceptada."
-                : "Esta relación ya no está activa."}
-        </Text>
+        <NetworkPersonAvatar
+          avatarUrl={connection.other.avatarUrl}
+          displayName={connection.other.displayName}
+        />
+        <View style={styles.personDetails}>
+          <Text style={styles.personName}>{connection.other.displayName}</Text>
+          <Text style={styles.copy}>
+            {pendingIncoming
+              ? "Te envió una solicitud de conexión."
+              : pendingOutgoing
+                ? "Solicitud enviada. Esperando respuesta."
+                : accepted
+                  ? "Conexión aceptada."
+                  : "Esta relación ya no está activa."}
+          </Text>
+        </View>
       </Pressable>
 
       {pendingIncoming ? (
@@ -530,8 +537,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   personButton: {
+    flexDirection: "row",
+    alignItems: "center",
     minHeight: 44,
-    justifyContent: "center",
+    gap: 12,
+  },
+  personDetails: {
+    flex: 1,
     gap: 5,
   },
   personName: {
