@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,6 +15,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmailOnboardingController } from "@/features/auth/email-onboarding-controller";
 import type { EmailOnboardingFailure } from "@/features/auth/email-onboarding-controller";
+import {
+  authActionResendAvailableAt,
+  authActionResendSecondsRemaining,
+} from "@/features/auth/action-resend-cooldown";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 const failureMessage = (failure: EmailOnboardingFailure): string => {
@@ -28,7 +32,6 @@ const failureMessage = (failure: EmailOnboardingFailure): string => {
 
 export default function RegisterRoute() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [controller] = useState(
     () => new EmailOnboardingController(mobileApiClient),
   );
@@ -38,6 +41,10 @@ export default function RegisterRoute() {
   const [confirmation, setConfirmation] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [resendAvailableAtMs, setResendAvailableAtMs] = useState<number | null>(
+    null,
+  );
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setSnapshot);
@@ -56,6 +63,19 @@ export default function RegisterRoute() {
     (snapshot.kind === "accepted"
       ? snapshot.email
       : email.trim().toLowerCase());
+  const resendCooldownSeconds = authActionResendSecondsRemaining(
+    resendAvailableAtMs,
+    cooldownNowMs,
+  );
+
+  useEffect(() => {
+    if (resendAvailableAtMs === null) return;
+
+    const updateClock = () => setCooldownNowMs(Date.now());
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, [resendAvailableAtMs]);
 
   const submitRegistration = () => {
     setLocalError(null);
@@ -70,16 +90,36 @@ export default function RegisterRoute() {
     void controller.register(email, password).then(() => {
       const current = controller.getSnapshot();
       if (current.kind === "accepted" && current.action === "register") {
+        const acceptedAtMs = Date.now();
         setRegisteredEmail(current.email);
+        setCooldownNowMs(acceptedAtMs);
+        setResendAvailableAtMs(authActionResendAvailableAt(acceptedAtMs));
         setPassword("");
         setConfirmation("");
       }
     });
   };
 
+  const requestVerification = async () => {
+    if (!requestEmail || pending || resendCooldownSeconds > 0) return;
+
+    await controller.requestVerification(requestEmail);
+    const current = controller.getSnapshot();
+    if (
+      current.kind === "accepted" &&
+      current.action === "request_verification"
+    ) {
+      const acceptedAtMs = Date.now();
+      setCooldownNowMs(acceptedAtMs);
+      setResendAvailableAtMs(authActionResendAvailableAt(acceptedAtMs));
+    }
+  };
+
   const resetForm = () => {
     controller.reset();
     setRegisteredEmail(null);
+    setResendAvailableAtMs(null);
+    setCooldownNowMs(Date.now());
     setPassword("");
     setConfirmation("");
     setLocalError(null);
@@ -192,26 +232,25 @@ export default function RegisterRoute() {
                 <Text style={styles.primaryText}>Crear cuenta</Text>
               )}
             </Pressable>
-          ) : !verificationAccepted ? (
+          ) : (
             <Pressable
               accessibilityRole="button"
-              disabled={pending}
-              onPress={() => void controller.requestVerification(requestEmail)}
-              style={[styles.primary, pending && styles.disabled]}
+              disabled={pending || resendCooldownSeconds > 0}
+              onPress={() => void requestVerification()}
+              style={[
+                styles.primary,
+                (pending || resendCooldownSeconds > 0) && styles.disabled,
+              ]}
             >
               {pending && pendingAction === "request_verification" ? (
                 <ActivityIndicator accessibilityLabel="Enviando correo" />
               ) : (
-                <Text style={styles.primaryText}>Reenviar verificación</Text>
+                <Text style={styles.primaryText}>
+                  {resendCooldownSeconds > 0
+                    ? `Solicitar otro enlace en ${resendCooldownSeconds} s`
+                    : "Reenviar verificación"}
+                </Text>
               )}
-            </Pressable>
-          ) : (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.replace("/sign-in")}
-              style={styles.primary}
-            >
-              <Text style={styles.primaryText}>Ir a iniciar sesión</Text>
             </Pressable>
           )}
 

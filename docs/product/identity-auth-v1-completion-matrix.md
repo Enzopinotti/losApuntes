@@ -40,8 +40,8 @@ Remaining explicit gates:
 | Account creation | Implemented | User-complete | Contract exists | Real Terms/Privacy + provider config | Web complete; Mobile #49; launch #48 |
 | Password login | Implemented + hardened verifier/timing path | User-complete | Native endpoint exists | Edge abuse controls + broad compromised-password strategy | Web complete; Mobile #49; launch #48 |
 | Email verification | Implemented | User-complete | Native/deep-link UI pending | Real transactional provider/domain | Web complete; Mobile #49; launch #48 |
-| Verification resend/cooldown | Implemented | User-complete | Pending native UI | Real provider evidence | Mobile #49; launch #48 |
-| Password recovery request | Implemented | User-complete | Pending native UI | Real provider evidence | Mobile #49; launch #48 |
+| Verification resend/cooldown | Implemented | User-complete | Native one-minute UI cooldown implemented; device acceptance pending | Real provider evidence | Mobile #49; launch #48 |
+| Password recovery request | Implemented | User-complete | Native request and one-minute resend pacing implemented; device acceptance pending | Real provider evidence | Mobile #49; launch #48 |
 | Password recovery completion | Implemented | User-complete | Pending native UI | Universal/app links + provider evidence | Mobile #49; launch #48 |
 | Web session | Implemented | User-complete | N/A | HTTPS/cookie ingress smoke | Launch #48 |
 | Mobile session | Implemented | N/A | Client not implemented | SecureStore/native runtime | #49 |

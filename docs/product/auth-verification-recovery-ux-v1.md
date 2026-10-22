@@ -245,6 +245,16 @@ Actions:
 - return to login;
 - resend later if needed.
 
+### Repeated requests
+
+The server applies a one-minute per-account, per-purpose issuance cooldown to
+password-recovery links. The client may disable another request on the same
+screen for one minute after an accepted response to make that limit clear.
+This is only a usability aid: the API remains authoritative, and the interval
+must describe when another request can be made, not promise when an email will
+arrive or reveal whether the account exists. Reloading the screen or changing
+the email may reset the visual cooldown.
+
 ---
 
 ## 7. Recovery email
