@@ -133,6 +133,7 @@ const Profile = () => {
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [languages, setLanguages] = useState("");
   const [skills, setSkills] = useState("");
   const [interests, setInterests] = useState("");
@@ -191,6 +192,7 @@ const Profile = () => {
   const resetDrafts = useCallback(() => {
     setDisplayName("");
     setBio("");
+    setAvatarUrl("");
     setLanguages("");
     setSkills("");
     setInterests("");
@@ -228,6 +230,7 @@ const Profile = () => {
     });
     setDisplayName(next.profile.displayName);
     setBio(next.profile.bio ?? "");
+    setAvatarUrl(next.profile.avatarUrl ?? "");
     setLanguages(next.profile.languages.join(", "));
     setSkills(next.profile.skills.join(", "));
     setInterests(next.profile.interests.join(", "));
@@ -354,6 +357,7 @@ const Profile = () => {
           expectedRevision: target.profile.revision,
           displayName,
           bio: bio.trim() || null,
+          avatarUrl: avatarUrl.trim() || null,
           languages: toList(languages),
           skills: toList(skills),
           interests: toList(interests),
@@ -610,6 +614,21 @@ const Profile = () => {
             value={bio}
             onChange={(event) => setBio(event.target.value)}
           />
+          <label htmlFor="profile-avatar-url">Avatar (URL HTTPS)</label>
+          <input
+            id="profile-avatar-url"
+            type="url"
+            inputMode="url"
+            autoComplete="url"
+            maxLength={2048}
+            pattern="https://.+"
+            title="Ingresá una URL válida que empiece con https://."
+            value={avatarUrl}
+            onChange={(event) => setAvatarUrl(event.target.value)}
+          />
+          <small>
+            Usá una dirección HTTPS. Dejalo vacío para quitar el avatar.
+          </small>
           <h3>Apariencia del perfil</h3>
           <p className="profile-help">
             Estos estilos se ven en tu perfil público y no cambian su
