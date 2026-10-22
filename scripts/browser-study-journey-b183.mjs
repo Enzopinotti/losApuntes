@@ -268,19 +268,11 @@ async function run() {
       name: "Preparar sesión con este apunte",
     });
     await prepare.waitFor();
+    // Ensure the detail's own GET has settled; the next simulated rejection
+    // must belong to the explicit user-initiated handoff request.
+    await page.waitForLoadState("networkidle");
     events.rejectNextResourceRead = true;
     await prepare.click();
-    await page.waitForTimeout(350);
-    console.log(
-      JSON.stringify({
-        phase: "resource_detail_authority_debug",
-        pathname: new URL(page.url()).pathname,
-        alerts: await page.getByRole("alert").allTextContents(),
-        resourceReads: events.resourceReads,
-        rejectedReadObserved: events.deniedHandoff,
-        unconfiguredRequests: unsafeRequests,
-      }),
-    );
     await page
       .getByRole("alert")
       .getByText("Este apunte o tu materia dejaron de estar disponibles.")
@@ -350,19 +342,11 @@ async function run() {
       name: "Preparar sesión con este apunte",
     });
     await directPrepare.waitFor();
+    // The Search/context requests must settle before injecting a one-shot
+    // revoked-resource response into the handoff's fresh authority check.
+    await page.waitForLoadState("networkidle");
     events.rejectNextResourceRead = true;
     await directPrepare.click();
-    await page.waitForTimeout(350);
-    console.log(
-      JSON.stringify({
-        phase: "b186_revoked_search_handoff",
-        pathname: new URL(page.url()).pathname,
-        alerts: await page.getByRole("alert").allTextContents(),
-        resourceReads: events.resourceReads,
-        rejectedReadObserved: events.deniedHandoff,
-        unconfiguredRequests: unsafeRequests,
-      }),
-    );
     await page
       .getByRole("alert")
       .getByText("Este apunte o tu materia dejaron de estar disponibles.")
