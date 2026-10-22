@@ -157,9 +157,13 @@ test("a late feed response from a previous context cannot replace current questi
   }
 });
 
-test("preserves opaque feed cursors when loading the next bounded page", async () => {
-  const inputs: Array<{ subjectId?: string; cursor?: string; limit?: number }> =
-    [];
+test("preserves status filters and opaque cursors across bounded feed pages", async () => {
+  const inputs: Array<{
+    subjectId?: string;
+    status?: "open" | "closed";
+    cursor?: string;
+    limit?: number;
+  }> = [];
   const api: CommunityApi = {
     questions: async (input) => {
       inputs.push(input);
@@ -174,12 +178,21 @@ test("preserves opaque feed cursors when loading the next bounded page", async (
   };
   const controller = new MobileCommunityFeedController(api);
 
-  await controller.load("authority-a", { subjectId: "subject-a", limit: 25 });
+  await controller.load("authority-a", {
+    subjectId: "subject-a",
+    status: "closed",
+    limit: 25,
+  });
   await controller.loadMore("authority-a");
 
   assert.deepEqual(inputs, [
-    { subjectId: "subject-a", limit: 25 },
-    { subjectId: "subject-a", limit: 25, cursor: "opaque-next" },
+    { subjectId: "subject-a", status: "closed", limit: 25 },
+    {
+      subjectId: "subject-a",
+      status: "closed",
+      limit: 25,
+      cursor: "opaque-next",
+    },
   ]);
   const snapshot = controller.getSnapshot();
   assert.equal(snapshot.kind, "ready");

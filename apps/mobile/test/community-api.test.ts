@@ -535,6 +535,7 @@ test("encodes public question API paths and includes only server-supported pagin
   await transport.questions("token", {
     q: "integrales impropias",
     subjectId: "subject / one",
+    status: "closed",
     limit: 25,
     cursor: "opaque+/=",
   });
@@ -551,6 +552,7 @@ test("encodes public question API paths and includes only server-supported pagin
   assert.equal(questionUrl.pathname, "/questions");
   assert.equal(questionUrl.searchParams.get("q"), "integrales impropias");
   assert.equal(questionUrl.searchParams.get("subjectId"), "subject / one");
+  assert.equal(questionUrl.searchParams.get("status"), "closed");
   assert.equal(questionUrl.searchParams.get("limit"), "25");
   assert.equal(questionUrl.searchParams.get("cursor"), "opaque+/=");
   assert.deepEqual(calls[0]!.options, { credential: "token" });
