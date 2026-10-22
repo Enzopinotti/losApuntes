@@ -9,6 +9,7 @@ import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
+import { publicProfileActivityLink } from "../features/profile/public-profile-activity-link";
 import { PublicProfileSocialActions } from "../features/community/public-profile-social-actions";
 import {
   feedReturnHref,
@@ -326,12 +327,26 @@ const PublicProfile = () => {
               <p>No hay actividades publicadas.</p>
             ) : (
               <ul className="public-activity-list">
-                {profile.activities.map((item) => (
-                  <li key={item.id}>
-                    <strong>{item.title}</strong>
-                    {item.description && <p>{item.description}</p>}
-                  </li>
-                ))}
+                {profile.activities.map((item) => {
+                  const externalLink = publicProfileActivityLink(item.url);
+                  return (
+                    <li key={item.id}>
+                      <strong>{item.title}</strong>
+                      {item.description && <p>{item.description}</p>}
+                      {externalLink ? (
+                        <a
+                          aria-label={`Abrir enlace externo de ${item.title} en ${externalLink.hostname}`}
+                          className="public-activity-link"
+                          href={externalLink.href}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          Abrir enlace externo · {externalLink.hostname}
+                        </a>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {loadMoreError && (
