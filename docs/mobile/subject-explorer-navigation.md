@@ -113,3 +113,16 @@ La rama debe fusionarse mediante PR con commits atómicos `[skip ci]`,
 **merge commit sin squash**. No se ejecutan tests, CI, lint, typecheck,
 builds, benchmarks ni QA nativa en esta fase; el estado sigue siendo
 **INTEGRADO / NO VALIDADO** hasta el gate conjunto sobre SHA de `main`.
+
+## B192 — Restablecer búsqueda completa sin ampliar resultados silenciosamente
+
+**Requisitos existentes:** SEARCH-FR-001/004/006, MOB-FR-005/007/008, NFR-UX-001. El backend continúa autorizando búsqueda y contexto.
+
+En la pestaña **Buscar**, la acción preexistente «Limpiar búsqueda» borra **sólo el texto** y puede conservar materia y tipo. Para dejarlo explícito se denomina «Limpiar texto». La nueva acción **«Restablecer búsqueda y filtros»** aparece cuando hay consulta escrita, alcance diferente de Todo o una materia seleccionada.
+
+- Cancela el debounce y la solicitud HTTP anteriores mediante el controlador existente antes de cambiar el reducer.
+- Restablece de forma atómica texto vacío, alcance Todo y materia nula, sin ejecutar una búsqueda global vacía ni reusar resultados antiguos.
+- Si la pantalla llegó por el enlace de materia, reemplaza la ruta por \`/(tabs)/search\` sin \`subjectId\`; el filtro antiguo no se vuelve a imponer tras una recuperación de sesión.
+- Mantiene la carga contextual autorizada, la sesión, los guardados y el flujo de preguntas sin cambios. No introduce persistencia, métricas ni permisos.
+
+**Aceptación:** pruebas de reducer para texto solo, materia sola, combinación materia+texto, tipo sin texto, repetición idempotente y ausencia de consulta ejecutable después del reset; contrato estático de la UI y su cancelación. La validación final en dispositivo sigue siendo distinta de Jest/TypeScript.
