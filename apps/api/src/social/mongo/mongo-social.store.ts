@@ -10,6 +10,7 @@ import {
   SocialParticipantInactiveError,
   type SocialStore,
 } from '../domain/social.store';
+import type { ConnectionRequestDirection } from '../domain/connection-request.cursor';
 import type {
   ConnectionAccountExportRow,
   ConnectionRecord,
@@ -360,12 +361,23 @@ export class MongoSocialStore implements SocialStore {
     status: ConnectionStatus | undefined,
     limit: number,
     after?: SocialCursor,
+    direction?: ConnectionRequestDirection,
   ): Promise<ConnectionRecord[]> {
     const filters: FilterQuery<SocialConnection>[] = [
       { $or: [{ userLowId: userId }, { userHighId: userId }] },
     ];
 
     if (status) filters.push({ status });
+    if (direction) {
+      // Only actionable pending requests support direction. No post-pagination
+      // filtering: the database must scope before sort/limit.
+      filters.push({ status: 'pending' });
+      filters.push(
+        direction === 'outgoing'
+          ? { requestedByUserId: userId }
+          : { requestedByUserId: { $ne: userId } },
+      );
+    }
 
     if (after) {
       filters.push({
@@ -381,6 +393,16 @@ export class MongoSocialStore implements SocialStore {
       .sort({ updatedAt: -1, id: 1 })
       .limit(limit)
       .lean<ConnectionRecord[]>()
+      .exec();
+  }
+
+  async countIncomingConnectionRequests(userId: string): Promise<number> {
+    return this.connections
+      .countDocuments({
+        status: 'pending',
+        requestedByUserId: { $ne: userId },
+        $or: [{ userLowId: userId }, { userHighId: userId }],
+      })
       .exec();
   }
 
