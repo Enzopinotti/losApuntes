@@ -51,6 +51,7 @@ Si el orden recibido coincide exactamente con el guardado y la revisión esperad
 - La identidad de propietario siempre proviene de `request.user.id`, nunca del body.
 - Se exige **permutación completa**: todos los recursos actuales deben aparecer exactamente una vez, sin IDs ajenos, agregados ni omitidos.
 - Máximo 100 identificadores UUIDv4 distintos, de acuerdo con `STUDY_COLLECTION_MAX_ITEMS`.
+- Los UUID válidos se normalizan a minúsculas antes de buscar la colección y comparar membresía; las variantes de casing de un mismo UUID cuentan como duplicado.
 - `expectedRevision` entero seguro positivo: el backend lee la colección por `id + ownerUserId` y exige coincidencia.
 - La escritura hace `findOneAndUpdate` con filtro conjunto `id + ownerUserId + expectedRevision + resourceIds originales`; la actualización solo usa `$set.resourceIds` y `$inc.revision`.
 - Se utiliza **el mismo `withActiveOwnerTransaction` del adaptador de colecciones**: la actualización disputa la revisión de ciclo de vida del usuario con el cierre de cuenta. Un usuario inactivo no puede confirmar la escritura.

@@ -11,10 +11,10 @@ import type {
 } from './study-collection.store';
 import { StudyCollectionOrderService } from './study-collection-order.service';
 
-const collectionId = '11111111-1111-4111-8111-111111111111';
-const a = '22222222-2222-4222-8222-222222222222';
-const b = '33333333-3333-4333-8333-333333333333';
-const c = '44444444-4444-4444-8444-444444444444';
+const collectionId = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+const a = 'aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa';
+const b = 'bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb';
+const c = 'cccc3333-cccc-4333-8333-cccccccccccc';
 const now = new Date('2026-10-20T12:00:00.000Z');
 const later = new Date('2026-10-20T12:01:00.000Z');
 type RowPatch = Partial<StudyCollectionRecord>;
@@ -90,6 +90,24 @@ describe('B153 owner-scoped resource order service', () => {
     });
   });
 
+  it('normalizes UUID casing before owner lookup and the membership CAS', async () => {
+    const f = fixture();
+    await expect(
+      f.service.reorder('owner-a', collectionId.toUpperCase(), {
+        expectedRevision: 4,
+        resourceIds: [c.toUpperCase(), a.toUpperCase(), b.toUpperCase()],
+      }),
+    ).resolves.toMatchObject({ changed: true });
+    expect(f.findOwned).toHaveBeenCalledWith(collectionId, 'owner-a');
+    expect(f.reorderResources).toHaveBeenCalledWith({
+      id: collectionId,
+      ownerUserId: 'owner-a',
+      expectedRevision: 4,
+      originalResourceIds: [a, b, c],
+      orderedResourceIds: [c, a, b],
+    });
+  });
+
   it('keeps the revision and timestamp unchanged for an identical order', async () => {
     const f = fixture();
     const result = await attempt(f.service, [a, b, c]);
@@ -120,6 +138,7 @@ describe('B153 owner-scoped resource order service', () => {
     const f = fixture();
     for (const ids of [
       [a, a, b],
+      [a.toUpperCase(), a, b],
       [a, 'not-uuid'],
       Array(101).fill(a) as string[],
     ]) {
@@ -183,6 +202,7 @@ describe('B153 owner-scoped resource order service', () => {
       { id: 'not-uuid' },
       { revision: 0 },
       { resourceIds: [a, a, b] },
+      { resourceIds: [a.toUpperCase(), a, b] },
       { resourceIds: [a, 'bad-uuid'] },
       { resourceIds: 'wrong-type' },
       { updatedAt: new Date(Number.NaN) },

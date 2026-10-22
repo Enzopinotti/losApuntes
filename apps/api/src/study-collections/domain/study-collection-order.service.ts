@@ -60,7 +60,8 @@ function validStored(row: StudyCollectionRecord, id: string, owner: string) {
     row.resourceIds.every(
       (ref) => typeof ref === 'string' && UUID_V4.test(ref),
     ) &&
-    new Set(row.resourceIds).size === row.resourceIds.length &&
+    new Set(row.resourceIds.map((ref) => ref.toLowerCase())).size ===
+      row.resourceIds.length &&
     row.updatedAt instanceof Date &&
     Number.isFinite(row.updatedAt.getTime())
   );
@@ -94,24 +95,34 @@ export class StudyCollectionOrderService {
       !input.resourceIds.every(
         (id) => typeof id === 'string' && UUID_V4.test(id),
       ) ||
-      new Set(input.resourceIds).size !== input.resourceIds.length
+      new Set(input.resourceIds.map((id) => id.toLowerCase())).size !==
+        input.resourceIds.length
     ) {
       return invalidInput();
     }
 
-    const current = await this.store.findOwned(collectionId, ownerUserId);
+    const canonicalCollectionId = collectionId.toLowerCase();
+    const orderedResourceIds = input.resourceIds.map((id) => id.toLowerCase());
+    const current = await this.store.findOwned(
+      canonicalCollectionId,
+      ownerUserId,
+    );
     if (!current) {
       throw new NotFoundException({
         code: 'STUDY_COLLECTION_NOT_FOUND',
         message: 'Study collection was not found',
       });
     }
-    if (!validStored(current, collectionId, ownerUserId)) return corrupt();
+    if (!validStored(current, canonicalCollectionId, ownerUserId))
+      return corrupt();
 
     if (current.revision !== input.expectedRevision) return conflict();
+    const currentResourceIds = current.resourceIds.map((id) =>
+      id.toLowerCase(),
+    );
     if (
-      current.resourceIds.length !== input.resourceIds.length ||
-      input.resourceIds.some((id) => !current.resourceIds.includes(id))
+      currentResourceIds.length !== orderedResourceIds.length ||
+      orderedResourceIds.some((id) => !currentResourceIds.includes(id))
     ) {
       return conflict();
     }
@@ -119,25 +130,25 @@ export class StudyCollectionOrderService {
     // A true no-op must not bump the revision or update timestamp. No
     // visibility is inferred from IDs: these are existing owned references.
     if (
-      current.resourceIds.every((id, index) => id === input.resourceIds[index])
+      currentResourceIds.every((id, index) => id === orderedResourceIds[index])
     ) {
       return { collection: projection(current), changed: false };
     }
 
     const updated = await this.store.reorderResources({
-      id: collectionId,
+      id: canonicalCollectionId,
       ownerUserId,
       expectedRevision: input.expectedRevision,
       originalResourceIds: [...current.resourceIds],
-      orderedResourceIds: [...input.resourceIds],
+      orderedResourceIds: [...orderedResourceIds],
     });
 
     if (!updated) return conflict();
     if (
-      !validStored(updated, collectionId, ownerUserId) ||
+      !validStored(updated, canonicalCollectionId, ownerUserId) ||
       updated.revision !== input.expectedRevision + 1 ||
-      updated.resourceIds.length !== input.resourceIds.length ||
-      updated.resourceIds.some((id, index) => id !== input.resourceIds[index])
+      updated.resourceIds.length !== orderedResourceIds.length ||
+      updated.resourceIds.some((id, index) => id !== orderedResourceIds[index])
     ) {
       return corrupt();
     }

@@ -6,7 +6,7 @@
 
 ## Carrier scope
 
-The carrier preserves all nineteen original B153 commits. Its changes add a full-permutation reorder operation guarded by owner, expected revision, original resource array, and the existing active-owner transaction. The original `study-collections.module.ts` registration adds the order service/controller. PR #478 (B151) also touches that module, so a later carrier must preserve both registrations.
+The carrier preserves all nineteen original B153 commits. Its changes add a full-permutation reorder operation guarded by owner, expected revision, original resource array, and the existing active-owner transaction. UUIDs are canonicalized before owner lookup and membership comparison so case variants cannot bypass duplicate or permutation checks. The original `study-collections.module.ts` registration adds the order service/controller. PR #478 (B151) also touches that module, so a later carrier must preserve both registrations.
 
 The eleven paths are limited to Study Collections API/Mongo code, focused tests and the HTTP contract. There are no Web/Mobile, schema, dependency, lockfile, workflow, or protection changes.
 
@@ -14,7 +14,7 @@ The eleven paths are limited to Study Collections API/Mongo code, focused tests 
 
 On the current-main carrier:
 
-- Focused Jest: 4 suites / 64 tests — PASS, including service, legacy service regression, HTTP controller and transaction-store tests.
+- Focused Jest: 4 suites / 56 tests — PASS, including service, legacy service regression, HTTP controller, transaction-store and UUID casing tests.
 - `corepack pnpm --filter @losapuntes/api check:types` — PASS.
 - `corepack pnpm --filter @losapuntes/api lint` — PASS with zero warnings.
 - `corepack pnpm --filter @losapuntes/api format:check` — PASS.
