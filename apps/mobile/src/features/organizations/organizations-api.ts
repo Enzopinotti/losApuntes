@@ -4,6 +4,7 @@ import type {
   OrganizationPostPage,
   OrganizationSearchPage,
   OrganizationType,
+  OrganizationVerificationState,
 } from "@losapuntes/contracts";
 
 import type { SessionController } from "@/features/session/session-controller";
@@ -12,6 +13,7 @@ import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 export type OrganizationDirectoryInput = {
   q?: string;
   type?: OrganizationType;
+  verificationState?: OrganizationVerificationState;
   institutionId?: string;
   cursor?: string;
 };
@@ -93,6 +95,8 @@ export class MobileOrganizationsHttpTransport implements MobileOrganizationsTran
     const query = new URLSearchParams({ limit: "25" });
     if (input.q) query.set("q", input.q);
     if (input.type) query.set("type", input.type);
+    if (input.verificationState)
+      query.set("verificationState", input.verificationState);
     if (input.institutionId) query.set("institutionId", input.institutionId);
     if (input.cursor) query.set("cursor", input.cursor);
 
