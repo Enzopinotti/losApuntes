@@ -55,6 +55,7 @@ import {
   studySubjectHref,
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
+import { StudyPlanMaterialFinder } from "../features/study/StudyPlanMaterialFinder";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./StudySession.scss";
 
@@ -472,7 +473,11 @@ export default function StudySession() {
             };
       if (
         draft.plan.tasks.length >= STUDY_SESSION_MAX_TASKS ||
-        draft.plan.tasks.some((current) => taskKey(current) === key)
+        draft.plan.tasks.some((current) => taskKey(current) === key) ||
+        draft.plan.tasks.reduce(
+          (sum, current) => sum + current.minutes,
+          task.minutes,
+        ) > STUDY_SESSION_MAX_MINUTES
       )
         return draft;
       return {
@@ -1093,6 +1098,20 @@ export default function StudySession() {
                 Las opciones vienen de tu biblioteca y de las búsquedas
                 vigentes; importar un ID no otorga permiso sobre él.
               </p>
+              <StudyPlanMaterialFinder
+                key={scope}
+                authorityScope={scope}
+                subjectId={subject.id}
+                existingKeys={known}
+                taskCount={activeTasks.length}
+                minutesRemaining={Math.max(
+                  0,
+                  STUDY_SESSION_MAX_MINUTES - totalMinutes,
+                )}
+                maxTasks={STUDY_SESSION_MAX_TASKS}
+                disabled={isBusy}
+                onAdd={appendTask}
+              />
               <h3>Apuntes guardados y disponibles</h3>
               {(saved?.error || found?.error) && (
                 <p role="alert" className="study-session-alert">

@@ -1,6 +1,6 @@
 # B179 — Llevar un apunte directamente al Planificador de estudio
 
-Estado: **candidato Web de integración, preparado sobre `origin/main` `f06502e62d16d0c3f67d81abb9bacde0cd5c3cca`; no integrado ni desplegado**.
+Integrado en `main` mediante PR #547 y merge commit `23181b570f37dbe7dbff6ff4c902e04c8797a68f`; no desplegado. Se conservaron los 13 commits funcionales originales y dos commits atómicos de aceptación/documentación. El release #353 sigue HOLD.
 
 La rama de integración conserva los trece commits funcionales y de prueba del bloque B179. Se excluyó el commit que sólo añadía un workflow dedicado: este cambio no modifica `.github/workflows/`. No se lanzó CI manualmente; GitHub puede ejecutar los controles configurados al publicar la PR.
 
