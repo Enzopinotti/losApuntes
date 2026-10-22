@@ -69,7 +69,7 @@ jobs:
       - name: Install real Chromium
         working-directory: ${{ env.B186_WORKTREE }}
         run: pnpm exec playwright install --with-deps chromium
-      - name: Three real browser journeys: Home preview, verification resend, password reveal
+      - name: "Three real browser journeys: Home preview, verification resend, password reveal"
         working-directory: ${{ env.B186_WORKTREE }}
         run: |
           node scripts/test-web-home-momentary-hide-b183-browser.mjs
