@@ -10,6 +10,7 @@ import {
   isAuthCode,
 } from "../features/auth/authMessages";
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
+import PasswordField from "../features/auth/PasswordField";
 import { authApi } from "../features/auth/services/authService";
 
 type RecoveryState =
@@ -104,9 +105,9 @@ const ResetPassword = () => {
       {(state === "ready" || state === "submitting") && (
         <form className="auth-form" onSubmit={submit} noValidate>
           <label htmlFor="reset-password">Nueva contraseña</label>
-          <input
+          <PasswordField
             id="reset-password"
-            type="password"
+            label="Nueva contraseña"
             autoComplete="new-password"
             required
             value={newPassword}
@@ -114,9 +115,9 @@ const ResetPassword = () => {
           />
 
           <label htmlFor="reset-password-confirm">Confirmar contraseña</label>
-          <input
+          <PasswordField
             id="reset-password-confirm"
-            type="password"
+            label="Confirmar contraseña"
             autoComplete="new-password"
             required
             value={confirmPassword}
