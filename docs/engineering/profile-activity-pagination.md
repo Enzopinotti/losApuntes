@@ -99,6 +99,13 @@ Owner Profile:
 - leave a cursor eligible for retry when its request fails before a page is
   received.
 
+Public Profile:
+
+- stop when a continuation response returns its current or a previously
+  consumed cursor, retaining and deduplicating the page items already received;
+- refresh through the public profile endpoint so the server re-evaluates the
+  current visibility of every section before replacing the snapshot.
+
 Create/delete operations still refresh the initial owner snapshot so stale
 cursors are not reused after a mutation.
 
