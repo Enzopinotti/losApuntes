@@ -40,6 +40,7 @@ import {
 } from "@/features/navigation/product-surface";
 import { mobileAuthenticatedApi } from "@/features/session/session-runtime";
 import { useSession } from "@/features/session/session-provider";
+import { MOBILE_STUDY_AGENDA_VISIBLE } from "@/features/study/study-agenda-flag";
 
 import {
   academicContextBelongsToSession,
@@ -961,6 +962,26 @@ export function HomeScreen() {
         currentSubject={selectedRecentSubject}
       />
       <HomeSavedReturnCard authorityKey={activeHomeAuthority} />
+      {MOBILE_STUDY_AGENDA_VISIBLE && session.kind === "authenticated" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Abrir agenda de estudio"
+          accessibilityHint="Consultá las sesiones de estudio que guardaste."
+          onPress={() => router.push("/study-agenda")}
+          style={({ pressed }) => [
+            styles.notificationsCard,
+            pressed && styles.notificationsPressed,
+          ]}
+        >
+          <View style={styles.notificationsCopy}>
+            <Text style={styles.title}>Agenda de estudio</Text>
+            <Text style={styles.copy}>
+              Revisá tus sesiones programadas y sin horario.
+            </Text>
+          </View>
+          <Text style={styles.focusAction}>Abrir</Text>
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Abrir temporizador de estudio"
