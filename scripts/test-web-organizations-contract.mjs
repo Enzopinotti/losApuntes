@@ -28,6 +28,8 @@ assert.match(service, /archive:\s*\(/u);
 assert.match(service, /\/organizations\/\$\{encodeURIComponent\(id\)\}\/archive/u);
 assert.match(service, /expectedManagementRevision/u);
 assert.match(service, /nextCursor:\s*string\s*\|\s*null/u);
+assert.match(service, /institutionId\?:\s*string/u);
+assert.match(service, /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
@@ -63,10 +65,19 @@ const organizationAvatar = await read(
   'apps/web/src/features/organizations/OrganizationAvatar.tsx',
 );
 assert.match(directory, /useAsyncAuthorityFence/u);
-assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 4);
+assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 5);
 assert.match(directory, /user\?\.id/u);
 assert.match(directory, /session\?\.id/u);
 assert.match(directory, /directoryScopeKey/u);
+assert.match(directory, /filterInstitutionSearchScopeKey/u);
+assert.match(directory, /institutionId:\s*filterInstitution\?\.id/u);
+assert.match(directory, /organizationsApi\.searchInstitutions\(\s*filterInstitutionQuery\.trim\(\),\s*ticket\.signal/u);
+assert.match(directory, /id="organizations-filter-institution"/u);
+assert.match(
+  directory,
+  /setFilterInstitutionSelection\(\{\s*authScopeKey,\s*institution: option/u,
+);
+assert.match(directory, /No encontramos instituciones con ese nombre\./u);
 assert.match(directory, /institutionSearchScopeKey/u);
 assert.match(directory, /ticket\.signal/u);
 assert.match(directory, /await loadRef\.current\(\)/u);
@@ -115,6 +126,11 @@ assert.match(mobileOrganizationShare, /ORGANIZATION_UUID_V4_PATTERN/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
+assert.match(publicPageStyles, /\.organizations-institution-filter\s*\{/u);
+assert.match(
+  publicPageStyles,
+  /\.organizations-institution-filter input,\s*\.organizations-form input/u,
+);
 assert.match(
   publicPageStyles,
   /\.organization-card-actions button\s*\{[^}]*min-height:\s*44px/su,
