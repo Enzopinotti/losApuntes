@@ -111,6 +111,92 @@ test("pagination preserves the opaque cursor and deduplicates collection IDs", a
   }
 });
 
+test("stops a collection cursor cycle and starts fresh when the picker reopens", async () => {
+  const cursors: Array<string | undefined> = [];
+  const { controller } = setup({
+    list: async (cursor) => {
+      cursors.push(cursor);
+      if (!cursor)
+        return { items: [collection("one")], nextCursor: "cursor-a" };
+      if (cursor === "cursor-a") {
+        return { items: [collection("two")], nextCursor: "cursor-b" };
+      }
+      return { items: [collection("three")], nextCursor: "cursor-a" };
+    },
+  });
+
+  await controller.open("user:session", "resource-1");
+  await controller.loadMore();
+  await controller.loadMore();
+  await controller.loadMore();
+
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["one", "two", "three"],
+    );
+    assert.equal(snapshot.nextCursor, null);
+    assert.match(snapshot.error ?? "", /repitió una página/u);
+  }
+  assert.deepEqual(cursors, [undefined, "cursor-a", "cursor-b"]);
+
+  await controller.open("user:session", "resource-1");
+  await controller.loadMore();
+  snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [
+    undefined,
+    "cursor-a",
+    "cursor-b",
+    undefined,
+    "cursor-a",
+  ]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.nextCursor, "cursor-b");
+    assert.equal(snapshot.error, null);
+  }
+});
+
+test("a failed collection page preserves its cursor and loaded rows for retry", async () => {
+  let pageRequests = 0;
+  const { controller } = setup({
+    list: async (cursor) => {
+      if (!cursor) return { items: [collection("one")], nextCursor: "retry" };
+      pageRequests += 1;
+      if (pageRequests === 1) throw new Error("temporary failure");
+      return { items: [collection("two")], nextCursor: null };
+    },
+  });
+
+  await controller.open("user:session", "resource-1");
+  await controller.loadMore();
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.nextCursor, "retry");
+    assert.match(snapshot.error ?? "", /No pudimos completar/u);
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["one"],
+    );
+  }
+
+  await controller.loadMore();
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.nextCursor, null);
+    assert.equal(snapshot.error, null);
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["one", "two"],
+    );
+  }
+  assert.equal(pageRequests, 2);
+});
+
 test("saving uses the selected collection and updates its server-confirmed count", async () => {
   const { controller, calls } = setup();
   await controller.open("user:session", "resource-1");
