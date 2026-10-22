@@ -38,3 +38,10 @@ test("reset retains contextual discovery and uses the existing authority fence",
   assert.match(screen, /const currentSearch =/u);
   assert.doesNotMatch(screen, /localStorage|AsyncStorage|sessionStorage/u);
 });
+
+test("removing a subject deep link allows that same link to be opened again", () => {
+  assert.match(
+    screen,
+    /if \(!incomingSubjectId\) \{\s*handledIncomingSubject\.current = null;\s*return;\s*\}/u,
+  );
+});

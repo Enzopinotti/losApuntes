@@ -519,7 +519,11 @@ export function SearchScreen() {
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
   useEffect(() => {
-    if (!authorityKey || !incomingSubjectId) return;
+    if (!incomingSubjectId) {
+      handledIncomingSubject.current = null;
+      return;
+    }
+    if (!authorityKey) return;
     const key = `${sessionAuthority}:${incomingSubjectId}`;
     if (handledIncomingSubject.current === key) return;
     handledIncomingSubject.current = key;
