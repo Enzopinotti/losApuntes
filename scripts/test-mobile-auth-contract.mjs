@@ -12,6 +12,7 @@ const [
   contracts,
   deepLinks,
   forgotPassword,
+  register,
   app,
   pkg,
 ] = await Promise.all([
@@ -23,6 +24,7 @@ const [
   read("packages/contracts/src/auth.ts"),
   read("apps/mobile/src/features/auth/auth-deep-link.ts"),
   read("apps/mobile/src/app/forgot-password.tsx"),
+  read("apps/mobile/src/app/register.tsx"),
   read("apps/mobile/app.json"),
   read("apps/mobile/package.json"),
 ]);
@@ -52,12 +54,15 @@ assert.match(provider, /controller\.revalidateCurrent/u);
 assert.match(provider, /controller\.suspend/u);
 assert.match(deepLinks, /url\.protocol\s*!==\s*"losapuntes:"/u);
 assert.match(deepLinks, /ACTION_TOKEN_PATTERN/u);
-assert.match(forgotPassword, /passwordRecoveryResendSecondsRemaining/u);
+assert.match(forgotPassword, /authActionResendSecondsRemaining/u);
 assert.match(forgotPassword, /disabled=\{[^}]*resendCooldownSeconds/u);
 assert.match(
   forgotPassword,
-  /result === "accepted"\s*\?\s*passwordRecoveryResendAvailableAt/u,
+  /result === "accepted"\s*\?\s*authActionResendAvailableAt/u,
 );
+assert.match(register, /authActionResendSecondsRemaining/u);
+assert.match(register, /authActionResendAvailableAt/u);
+assert.match(register, /disabled=\{pending \|\| resendCooldownSeconds > 0\}/u);
 
 const appJson = JSON.parse(app);
 assert.equal(appJson.expo.scheme, "losapuntes");
