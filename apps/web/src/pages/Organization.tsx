@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
@@ -7,6 +7,7 @@ import {
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
 import { OrganizationAvatar } from "../features/organizations/OrganizationAvatar";
+import { repeatsOrganizationDetailCursor } from "../features/organizations/organization-detail-pagination.mjs";
 import { serializeOrganizationEventCalendar } from "../features/organizations/organization-event-calendar.mjs";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import {
@@ -33,6 +34,18 @@ function appendEvents(
   for (const item of next) byId.set(item.id, item);
   return [...byId.values()];
 }
+
+function createCursorHistory(scopeKey: string) {
+  return {
+    scopeKey,
+    posts: new Set<string>(),
+    events: new Set<string>(),
+    upcomingEvents: new Set<string>(),
+  };
+}
+
+const repeatedCursorMessage =
+  "El servidor repitió el cursor. Detuvimos esta lista para evitar una paginación infinita.";
 
 function messageFor(error: unknown): string {
   if (isOrganizationsApiError(error)) return error.message;
@@ -95,6 +108,7 @@ const Organization = () => {
     organizationId ?? "missing-organization",
     authScopeKey,
   ].join(":");
+  const cursorHistoryRef = useRef(createCursorHistory(organizationScopeKey));
   const {
     begin: beginLoad,
     isCurrent: isLoadCurrent,
@@ -167,6 +181,12 @@ const Organization = () => {
     try {
       const result = await organizationsApi.get(organizationId, ticket.signal);
       if (!isLoadCurrent(ticket)) return;
+      if (cursorHistoryRef.current.scopeKey === organizationScopeKey) {
+        cursorHistoryRef.current.posts.clear();
+        cursorHistoryRef.current.events.clear();
+      } else {
+        cursorHistoryRef.current = createCursorHistory(organizationScopeKey);
+      }
       setOrganizationState({
         scopeKey: organizationScopeKey,
         organization: result.organization,
@@ -234,8 +254,27 @@ const Organization = () => {
   };
 
   const loadMorePosts = async () => {
-    if (!organization?.postsNextCursor) return;
+    const cursor = organization?.postsNextCursor;
+    if (!organization || !cursor) return;
     const target = organization;
+    const history = cursorHistoryRef.current;
+    if (history.scopeKey !== organizationScopeKey) return;
+    if (history.posts.has(cursor)) {
+      setOrganizationState((current) =>
+        current?.scopeKey === organizationScopeKey &&
+        current.organization.id === target.id
+          ? {
+              scopeKey: organizationScopeKey,
+              organization: { ...current.organization, postsNextCursor: null },
+            }
+          : current,
+      );
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: repeatedCursorMessage,
+      });
+      return;
+    }
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) return;
     setBusyState({ scopeKey: organizationScopeKey, value: "posts-more" });
@@ -244,10 +283,16 @@ const Organization = () => {
     try {
       const page = await organizationsApi.posts(
         target.id,
-        target.postsNextCursor ?? undefined,
+        cursor,
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
+      const repeatedCursor = repeatsOrganizationDetailCursor(
+        history.posts,
+        cursor,
+        page.nextCursor,
+      );
+      history.posts.add(cursor);
       setOrganizationState((current) =>
         current?.scopeKey === organizationScopeKey &&
         current.organization.id === target.id
@@ -256,11 +301,17 @@ const Organization = () => {
               organization: {
                 ...current.organization,
                 posts: appendPosts(current.organization.posts, page.items),
-                postsNextCursor: page.nextCursor,
+                postsNextCursor: repeatedCursor ? null : page.nextCursor,
               },
             }
           : current,
       );
+      if (repeatedCursor) {
+        setErrorState({
+          scopeKey: organizationScopeKey,
+          message: repeatedCursorMessage,
+        });
+      }
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
       setErrorState({
@@ -290,6 +341,7 @@ const Organization = () => {
         new Date().toISOString(),
       );
       if (!isActionCurrent(ticket)) return;
+      cursorHistoryRef.current.upcomingEvents.clear();
       setUpcomingEventsState({
         scopeKey: organizationScopeKey,
         items: page.items,
@@ -314,6 +366,7 @@ const Organization = () => {
 
   const showAllEvents = () => {
     if (busy) return;
+    setErrorState(null);
     setEventFilterState({ scopeKey: organizationScopeKey, value: "all" });
   };
 
@@ -321,6 +374,37 @@ const Organization = () => {
     if (!organization || !visibleEventsNextCursor || busy) return;
     const target = organization;
     const cursor = visibleEventsNextCursor;
+    const history = cursorHistoryRef.current;
+    if (history.scopeKey !== organizationScopeKey) return;
+    const requestedCursors =
+      eventFilter === "upcoming" ? history.upcomingEvents : history.events;
+    if (requestedCursors.has(cursor)) {
+      if (eventFilter === "upcoming") {
+        setUpcomingEventsState((current) =>
+          current?.scopeKey === organizationScopeKey
+            ? { ...current, nextCursor: null }
+            : current,
+        );
+      } else {
+        setOrganizationState((current) =>
+          current?.scopeKey === organizationScopeKey &&
+          current.organization.id === target.id
+            ? {
+                scopeKey: organizationScopeKey,
+                organization: {
+                  ...current.organization,
+                  eventsNextCursor: null,
+                },
+              }
+            : current,
+        );
+      }
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: repeatedCursorMessage,
+      });
+      return;
+    }
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) return;
     setBusyState({ scopeKey: organizationScopeKey, value: "events-more" });
@@ -333,13 +417,19 @@ const Organization = () => {
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
+      const repeatedCursor = repeatsOrganizationDetailCursor(
+        requestedCursors,
+        cursor,
+        page.nextCursor,
+      );
+      requestedCursors.add(cursor);
       if (eventFilter === "upcoming") {
         setUpcomingEventsState((current) =>
           current?.scopeKey === organizationScopeKey
             ? {
                 ...current,
                 items: appendEvents(current.items, page.items),
-                nextCursor: page.nextCursor,
+                nextCursor: repeatedCursor ? null : page.nextCursor,
               }
             : current,
         );
@@ -352,11 +442,17 @@ const Organization = () => {
                 organization: {
                   ...current.organization,
                   events: appendEvents(current.organization.events, page.items),
-                  eventsNextCursor: page.nextCursor,
+                  eventsNextCursor: repeatedCursor ? null : page.nextCursor,
                 },
               }
             : current,
         );
+      }
+      if (repeatedCursor) {
+        setErrorState({
+          scopeKey: organizationScopeKey,
+          message: repeatedCursorMessage,
+        });
       }
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
