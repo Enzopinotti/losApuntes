@@ -1,10 +1,45 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { repeatsOrganizationDetailCursor } from '../apps/web/src/features/organizations/organization-detail-pagination.mjs';
 
 const root = process.cwd();
 const read = (relativePath) =>
   readFile(path.join(root, relativePath), 'utf8');
+
+const visitedOrganizationDetailCursors = new Set(['cursor-a']);
+assert.equal(
+  repeatsOrganizationDetailCursor(
+    visitedOrganizationDetailCursors,
+    'cursor-a',
+    'cursor-a',
+  ),
+  true,
+);
+assert.equal(
+  repeatsOrganizationDetailCursor(
+    visitedOrganizationDetailCursors,
+    'cursor-b',
+    'cursor-a',
+  ),
+  true,
+);
+assert.equal(
+  repeatsOrganizationDetailCursor(
+    visitedOrganizationDetailCursors,
+    'cursor-b',
+    'cursor-c',
+  ),
+  false,
+);
+assert.equal(
+  repeatsOrganizationDetailCursor(
+    visitedOrganizationDetailCursors,
+    'cursor-a',
+    null,
+  ),
+  false,
+);
 
 const service = await read(
   'apps/web/src/features/organizations/services/organizationsService.ts',
@@ -117,6 +152,12 @@ assert.match(publicPage, /aria-pressed=\{eventFilter === "all"\}/u);
 assert.match(publicPage, /No hay próximos eventos\./u);
 assert.match(publicPage, /loadUpcomingEvents/u);
 assert.match(publicPage, /visibleEventsNextCursor/u);
+assert.match(publicPage, /cursorHistoryRef/u);
+assert.match(publicPage, /history\.posts/u);
+assert.match(publicPage, /history\.events/u);
+assert.match(publicPage, /history\.upcomingEvents/u);
+assert.match(publicPage, /repeatedCursorMessage/u);
+assert.match(publicPage, /repeatsOrganizationDetailCursor/u);
 assert.match(publicPage, /serializeOrganizationEventCalendar/u);
 assert.match(publicPage, /downloadOrganizationEventCalendar\(event\)/u);
 assert.match(publicPage, /event\.state === "cancelled"/u);
