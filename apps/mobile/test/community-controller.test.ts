@@ -1002,6 +1002,23 @@ test("pre-POST baseline failure releases the composer lock so retry can start a 
   assert.equal(submitting, true);
 });
 
+test("a stale question composer completion cannot release a newer submission", () => {
+  const activeOperation = new AbortController();
+  const completedOperation = new AbortController();
+  let submitting = true;
+
+  const released = releaseCommunityComposerOperation(
+    activeOperation,
+    completedOperation,
+    () => {
+      submitting = false;
+    },
+  );
+
+  assert.equal(released, activeOperation);
+  assert.equal(submitting, true);
+});
+
 test("explicit refresh reconciles a blocked ambiguous answer across all answer pages", async () => {
   const oldAnswers = Array.from({ length: 25 }, (_, index) =>
     answer(`old-${index + 1}`),

@@ -1038,6 +1038,7 @@ export function CommunityQuestionComposerScreen() {
       title.trim().length < 5 ||
       body.trim().length < 10 ||
       submitting ||
+      activeOperation.current !== null ||
       questionRetryBlocked
     ) {
       return;
@@ -1143,8 +1144,13 @@ export function CommunityQuestionComposerScreen() {
         setFailureCode(reconciliationFailure.code);
       }
     } finally {
-      if (activeOperation.current === operation) activeOperation.current = null;
-      if (authorityKey === authorityKeyRef.current) setSubmitting(false);
+      activeOperation.current = releaseCommunityComposerOperation(
+        activeOperation.current,
+        operation,
+        () => {
+          if (authorityKey === authorityKeyRef.current) setSubmitting(false);
+        },
+      );
     }
   }, [
     authority.authorityKey,
