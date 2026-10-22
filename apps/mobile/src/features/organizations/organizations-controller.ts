@@ -95,6 +95,15 @@ function appendUnique<T extends { id: string }>(current: T[], next: T[]): T[] {
   return [...byId.values()];
 }
 
+function repeatedDirectoryCursor(): ApiRequestError {
+  return new ApiRequestError(
+    "server_unavailable",
+    503,
+    "ORGANIZATION_DIRECTORY_CURSOR_REPEATED",
+    "Organization directory cursor repeated",
+  );
+}
+
 type Operation = {
   authorityKey: string;
   generation: number;
@@ -129,6 +138,7 @@ export class MobileOrganizationsDirectoryController {
   private input: OrganizationDirectoryInput = {};
   private generation = 0;
   private active: Operation | null = null;
+  private readonly requestedCursors = new Set<string>();
 
   constructor(private readonly api: MobileOrganizationsApiContract) {}
 
@@ -145,6 +155,7 @@ export class MobileOrganizationsDirectoryController {
     authorityKey: string,
     input: OrganizationDirectoryInput,
   ): Promise<void> {
+    this.requestedCursors.clear();
     this.input = {
       ...(input.q ? { q: input.q } : {}),
       ...(input.type ? { type: input.type } : {}),
@@ -181,12 +192,17 @@ export class MobileOrganizationsDirectoryController {
 
   async loadMore(authorityKey: string): Promise<void> {
     const current = this.currentReady(authorityKey);
-    if (
-      !current ||
-      current.loadingMore ||
-      !current.page.nextCursor ||
-      this.active
-    ) {
+    const cursor = current?.page.nextCursor;
+    if (!current || current.loadingMore || !cursor || this.active) {
+      return;
+    }
+
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        page: { ...current.page, nextCursor: null },
+        failure: mobileOrganizationsFailure(repeatedDirectoryCursor()),
+      });
       return;
     }
 
@@ -195,21 +211,29 @@ export class MobileOrganizationsDirectoryController {
 
     try {
       const page = await this.api.search(
-        { ...this.input, cursor: current.page.nextCursor },
+        { ...this.input, cursor },
         operation.controller.signal,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (!latest) return;
 
+      const repeatedCursor =
+        page.nextCursor !== null &&
+        (page.nextCursor === cursor ||
+          this.requestedCursors.has(page.nextCursor));
+      this.requestedCursors.add(cursor);
+
       this.publish({
         ...latest,
         page: {
           items: appendUnique(latest.page.items, page.items),
-          nextCursor: page.nextCursor,
+          nextCursor: repeatedCursor ? null : page.nextCursor,
         },
         loadingMore: false,
-        failure: null,
+        failure: repeatedCursor
+          ? mobileOrganizationsFailure(repeatedDirectoryCursor())
+          : null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
@@ -372,6 +396,7 @@ export class MobileOrganizationsDirectoryController {
   invalidate(authorityKey?: string): void {
     if (authorityKey && authorityKey !== this.authorityKey) return;
     this.authorityKey = null;
+    this.requestedCursors.clear();
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
