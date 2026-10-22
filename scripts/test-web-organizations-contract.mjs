@@ -42,6 +42,15 @@ assert.match(
 );
 
 const directory = await read('apps/web/src/pages/Organizations.tsx');
+const mobileDirectory = await read(
+  'apps/mobile/src/features/organizations/organizations-directory-screen.tsx',
+);
+const mobileDetail = await read(
+  'apps/mobile/src/features/organizations/organization-detail-screen.tsx',
+);
+const organizationAvatar = await read(
+  'apps/web/src/features/organizations/OrganizationAvatar.tsx',
+);
 assert.match(directory, /useAsyncAuthorityFence/u);
 assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 3);
 assert.match(directory, /user\?\.id/u);
@@ -51,6 +60,13 @@ assert.match(directory, /institutionSearchScopeKey/u);
 assert.match(directory, /ticket\.signal/u);
 assert.match(directory, /await loadRef\.current\(\)/u);
 assert.match(directory, /setInstitutionSelection\(\{\s*authScopeKey/u);
+assert.match(directory, /<OrganizationAvatar/u);
+assert.match(directory, /avatarUrl=\{item\.avatarUrl\}/u);
+assert.match(organizationAvatar, /PublicProfileAvatar/u);
+assert.match(organizationAvatar, /size\?: "compact" \| "small" \| "profile"/u);
+assert.match(mobileDirectory, /<PublicAvatar/u);
+assert.match(mobileDirectory, /avatarUrl=\{organization\.avatarUrl\}/u);
+assert.match(mobileDetail, /avatarUrl=\{current\.organization\.avatarUrl\}/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
