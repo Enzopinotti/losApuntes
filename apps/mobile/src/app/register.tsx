@@ -22,6 +22,11 @@ import {
   authActionResendSecondsRemaining,
 } from "@/features/auth/action-resend-cooldown";
 import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  newPasswordValidationMessage,
+} from "@/features/auth/password-policy";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 const failureMessage = (failure: EmailOnboardingFailure): string => {
@@ -84,6 +89,11 @@ export default function RegisterRoute() {
     setLocalError(null);
     if (!email.trim() || !password || !confirmation) {
       setLocalError("Completá email y contraseña.");
+      return;
+    }
+    const passwordPolicyError = newPasswordValidationMessage(password);
+    if (passwordPolicyError !== true) {
+      setLocalError(passwordPolicyError);
       return;
     }
     if (password !== confirmation) {
@@ -186,6 +196,10 @@ export default function RegisterRoute() {
                 editable={!pending}
                 style={styles.input}
               />
+              <Text style={styles.hint}>
+                Usá entre {PASSWORD_MIN_LENGTH} y {PASSWORD_MAX_LENGTH}{" "}
+                caracteres. Se permiten espacios y caracteres Unicode.
+              </Text>
 
               <Text style={styles.label}>Repetir contraseña</Text>
               <PasswordVisibilityInput
@@ -321,6 +335,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   error: { fontSize: 14, color: "#9f1d1d" },
+  hint: { fontSize: 13, lineHeight: 18, color: "#55555f" },
   status: { fontSize: 14, color: "#2f2f36" },
   primary: {
     minHeight: 50,

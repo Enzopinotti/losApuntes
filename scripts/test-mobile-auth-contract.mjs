@@ -92,6 +92,9 @@ for (const tokenRoute of [resetPassword, verifyEmail]) {
     /AccessibilityInfo\.sendAccessibilityEvent\(status,\s*"focus"\)/u,
   );
 }
+assert.match(register, /newPasswordValidationMessage\(password\)/u);
+assert.match(register, /PASSWORD_MIN_LENGTH/u);
+assert.match(register, /PASSWORD_MAX_LENGTH/u);
 
 const appJson = JSON.parse(app);
 assert.equal(appJson.expo.scheme, "losapuntes");
