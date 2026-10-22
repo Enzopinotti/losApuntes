@@ -11,6 +11,7 @@ import {
   AccessibilityInfo,
   AppState,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -54,6 +55,11 @@ import {
 import type { MobileSearchInput } from "./search-api";
 import { mobileSearchApi } from "./search-runtime";
 import { subjectResourcesSearchRouteId } from "./search-subject-navigation";
+import {
+  mobileSearchLinkKey,
+  mobileSearchShareUrl,
+  parseMobileSearchLink,
+} from "./search-deep-link";
 import {
   MobileSearchQuickSaveController,
   type SearchQuickSaveEntry,
@@ -457,11 +463,33 @@ function ContextualDiscovery({
 
 export function SearchScreen() {
   const router = useRouter();
-  const routeParams = useLocalSearchParams<{ subjectId?: string }>();
-  const incomingSubjectId = subjectResourcesSearchRouteId(
-    routeParams.subjectId,
+  const routeParams = useLocalSearchParams<{
+    q?: string;
+    scope?: string;
+    subjectId?: string;
+  }>();
+  const incomingSearch = useMemo(
+    () =>
+      parseMobileSearchLink({
+        q: routeParams.q,
+        scope: routeParams.scope,
+        subjectId: routeParams.subjectId,
+      }),
+    [routeParams.q, routeParams.scope, routeParams.subjectId],
   );
-  const handledIncomingSubject = useRef<string | null>(null);
+  const hasIncomingSearchParams =
+    routeParams.q !== undefined ||
+    routeParams.scope !== undefined ||
+    routeParams.subjectId !== undefined;
+  const incomingSearchKey = incomingSearch
+    ? mobileSearchLinkKey(incomingSearch)
+    : null;
+  const incomingRouteKey = JSON.stringify([
+    routeParams.q ?? null,
+    routeParams.scope ?? null,
+    routeParams.subjectId ?? null,
+  ]);
+  const handledIncomingSearch = useRef<string | null>(null);
   const isFocused = useIsFocused();
   const { snapshot: session } = useSession();
   const { snapshot: academic, retry: retryAcademic } = useAcademicContext();
@@ -496,6 +524,7 @@ export function SearchScreen() {
   const awaitingAcademicRestore = useRef(false);
   const sawAcademicLoading = useRef(false);
   const announcedSearchResult = useRef<string | null>(null);
+  const [shareError, setShareError] = useState(false);
 
   const sessionAuthority =
     session.kind === "authenticated"
@@ -519,20 +548,33 @@ export function SearchScreen() {
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
   useEffect(() => {
-    if (!incomingSubjectId) {
-      handledIncomingSubject.current = null;
+    if (!hasIncomingSearchParams) {
+      handledIncomingSearch.current = null;
       return;
     }
     if (!authorityKey) return;
-    const key = `${sessionAuthority}:${incomingSubjectId}`;
-    if (handledIncomingSubject.current === key) return;
-    handledIncomingSubject.current = key;
+    const key = `${sessionAuthority}:${incomingSearchKey ?? `invalid:${incomingRouteKey}`}`;
+    if (handledIncomingSearch.current === key) return;
+    handledIncomingSearch.current = key;
+
     controller.cancelSearch();
-    dispatchSearchInput({
-      type: "subjectSelected",
-      subject: { id: incomingSubjectId, name: "esta materia" },
-    });
-  }, [authorityKey, controller, incomingSubjectId, sessionAuthority]);
+    if (incomingSearch) {
+      dispatchSearchInput({
+        type: "sharedSearchOpened",
+        input: incomingSearch,
+      });
+    } else {
+      dispatchSearchInput({ type: "invalidSharedSearchOpened" });
+    }
+  }, [
+    authorityKey,
+    controller,
+    hasIncomingSearchParams,
+    incomingSearch,
+    incomingSearchKey,
+    incomingRouteKey,
+    sessionAuthority,
+  ]);
 
   const scopedQuickSave: SearchQuickSaveSnapshot =
     quickSave.authorityKey === authorityKey
@@ -619,6 +661,21 @@ export function SearchScreen() {
 
     void controller.search(authorityKey, searchInput);
   }, [authorityKey, controller, searchInput]);
+
+  const shareSearch = useCallback(async () => {
+    if (!authorityKey || !searchInput) return;
+    const url = mobileSearchShareUrl(searchInput);
+    if (!url) return;
+
+    setShareError(false);
+    try {
+      // Share is an explicit user action. Do not persist query or academic
+      // filters in logs, local storage, or a background share queue.
+      await Share.share({ message: url });
+    } catch {
+      setShareError(true);
+    }
+  }, [authorityKey, searchInput]);
 
   useEffect(() => {
     if (!authorityKey || !searchInput) {
@@ -742,9 +799,17 @@ export function SearchScreen() {
     if (session.kind === "authenticated") void retryAcademic();
   }, [retryAcademic, session.kind]);
 
-  // Do not flash results from the previous filter combination before the
-  // effect that cancels the old request has run.
+  // A newly opened external link supersedes even an otherwise valid
+  // previous query before React runs the restoration effect.
+  const incomingAuthorityKey = `${sessionAuthority}:${
+    incomingSearchKey ?? `invalid:${incomingRouteKey}`
+  }`;
+  const pendingIncomingRoute =
+    hasIncomingSearchParams &&
+    handledIncomingSearch.current !== incomingAuthorityKey;
+  // Do not flash results from another query, route or session.
   const currentSearch =
+    !pendingIncomingRoute &&
     searchInput &&
     search.kind !== "idle" &&
     search.authorityKey === authorityKey &&
@@ -909,11 +974,11 @@ export function SearchScreen() {
       onRefresh={session.kind === "authenticated" ? refresh : undefined}
       refreshing={academic.kind === "loading"}
     >
-      {routeParams.subjectId !== undefined && !incomingSubjectId ? (
+      {hasIncomingSearchParams && !incomingSearch ? (
         <View style={styles.card}>
           <Text accessibilityRole="alert" style={styles.error}>
-            El enlace de materia no es válido. Podés buscar recursos normalmente
-            o elegir una materia desde los resultados.
+            Este enlace de búsqueda o su filtro de materia no es válido. Revisá
+            la consulta o elegí otra materia desde los resultados.
           </Text>
         </View>
       ) : null}
@@ -980,6 +1045,29 @@ export function SearchScreen() {
                 Quitar filtro de materia
               </Text>
             </Pressable>
+          </View>
+        ) : null}
+        {authorityKey && searchInput ? (
+          <View style={styles.sharePanel}>
+            <Text style={styles.meta}>
+              Compartí esta búsqueda con alguien que tenga Los Apuntes
+              instalado. El enlace incluye el término y el identificador público
+              de la materia, nunca datos de tu cuenta.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Compartir búsqueda y filtro actual"
+              onPress={() => void shareSearch()}
+              style={styles.searchActionButton}
+            >
+              <Text style={styles.searchActionLabel}>Compartir búsqueda</Text>
+            </Pressable>
+            {shareError ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                No pudimos abrir el menú para compartir. Reintentá desde esta
+                búsqueda.
+              </Text>
+            ) : null}
           </View>
         ) : null}
         {query.length > 0 ? (
@@ -1119,6 +1207,11 @@ const styles = StyleSheet.create({
   filterNotice: {
     gap: 4,
     alignItems: "flex-start",
+  },
+  sharePanel: {
+    gap: 10,
+    alignItems: "flex-start",
+    paddingTop: 8,
   },
   searchActionButton: {
     minHeight: 44,
