@@ -37,6 +37,16 @@ export type ProfileActivity = {
   updatedAt: string;
 };
 
+export type UpdateProfileActivityInput = {
+  expectedRevision: number;
+  type?: ProfileActivityType;
+  title?: string;
+  description?: string | null;
+  url?: string | null;
+  startedOn?: string | null;
+  endedOn?: string | null;
+};
+
 export type AcademicProfileProjection = {
   affiliations: unknown[];
   participations: unknown[];
