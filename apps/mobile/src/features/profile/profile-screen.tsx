@@ -24,6 +24,7 @@ import {
   productSurfaceStyles,
 } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
+import { MOBILE_PERSISTENT_COLLECTIONS_VISIBLE } from "@/features/study-collections/persistent-collections-flag";
 
 import {
   MobileProfileController,
@@ -184,6 +185,20 @@ function AccountActions({ logout }: { logout: () => Promise<void> }) {
           <Text style={styles.secondaryButtonText}>Recursos guardados</Text>
         </Pressable>
       </Link>
+
+      {MOBILE_PERSISTENT_COLLECTIONS_VISIBLE ? (
+        <Link href="/study-collections" asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Administrar colecciones de estudio"
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.secondaryButtonText}>
+              Colecciones de estudio
+            </Text>
+          </Pressable>
+        </Link>
+      ) : null}
 
       <Link href="/security" asChild>
         <Pressable
