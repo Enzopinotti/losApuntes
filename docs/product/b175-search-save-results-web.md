@@ -29,6 +29,7 @@ Requisitos vigentes: `RES-FR-009` (guardar no concede acceso), `RES-FR-012` (ret
 Las regresiones del `scripts/test-web-search-contract.mjs` comprueban confirmación estricta, errores inciertos, restricción de acción a usuarios autenticados, uso de Resources API, fencing y ausencia de credenciales o storage en el nuevo componente.
 
 Aceptación end-to-end pendiente:
+
 1. Invitado puede buscar y abrir resultados sin ver un botón activo de guardado.
 2. Usuario autenticado guarda un recurso y éste aparece en su biblioteca tras confirmación del servidor.
 3. Toques repetidos no envían mutaciones concurrentes de una misma tarjeta.
