@@ -1,6 +1,6 @@
 # B170 — Referencias académicas de apuntes (Web)
 
-Fecha: 21 de octubre de 2026. Base: main@6bd965c71f6426da3d49fc7c0555e0e5afda06a9.
+Fecha: 21 de octubre de 2026. Base original: main@6bd965c71f6426da3d49fc7c0555e0e5afda06a9. Carrier actual: main@1f30c9078b5317206e9ae2cd7b9f0aa02e3293b3.
 
 ## Alcance funcional
 
@@ -18,11 +18,12 @@ Los recursos autorizados muestran títulos, materias, visibilidad y atribución 
 
 - 10 pruebas deterministas sobre enlaces públicos y no públicos, autor ausente, ausencia de fecha, caracteres bidi, origin URLs hostiles, IDs malformados, visibilidad desconocida, copia explícita y ausencia de persistencia.
 - Prueba real Chromium sobre Vite en loopback: recurso público para invitado con portapapeles opt-in; recurso privado con sesión autenticada y texto sin URL/ID; invitado rechazado para el recurso privado; cero HTTP mutaciones realizadas por el flujo.
-- Workflow B170 con Node 24, pnpm 9.15.9, instalación congelada, TypeScript, ESLint, Prettier, Chromium y build Web con SHA exacto.
-- El contrato determinista se integra al test general del monorepo, pero el merge y la release siguen sujetos a todos los checks globales.
+- Validación local con Node 24 y pnpm 9.15.9: `corepack pnpm test:web-resource-citation-b170` (10 PASS), aceptación Chromium, TypeScript, ESLint sin warnings, Prettier, build Web y `git diff --check` — todo PASS.
+- El contrato determinista se integra a `pnpm test`; la prueba Chromium se ejecuta explícitamente para no exigir un navegador al test general.
+- No se ejecutó CI ni se modificaron workflows.
 
 ## Límites
 
 Esto no crea bibliografía APA validada ni acredita autoría legal, fechas editoriales o accesibilidad futura del enlace. No agrega endpoints, permisos, lecturas automáticas, cookies, analytics, descargas ni guardado local. La copia manual de un título privado depende de una acción consciente del usuario autorizado.
 
-El release issue #353 sigue HOLD. La corrección upstream de follow-redirects se encuentra en PR #495 Draft; las HIGH de node-forge #133 y braces #141 siguen pendientes. No se cambian excepciones de auditoría ni se integra/despliega con la auditoría global fallida.
+La auditoría productiva aún reporta 2 HIGH y 3 MODERATE; el release #353 permanece HOLD. Integrar la función en `main` no aprueba un despliegue.
