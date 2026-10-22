@@ -354,6 +354,17 @@ export function CommunityNetworkScreen() {
       refreshing={refreshing}
     >
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Respuestas a tus preguntas</Text>
+        <Text style={styles.copy}>
+          Consultá las respuestas visibles que recibieron tus preguntas.
+        </Text>
+        <ActionButton
+          label="Ver respuestas recibidas"
+          onPress={() => router.push("/qa-received-replies")}
+        />
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Solicitudes y conexiones</Text>
         <Text style={styles.copy}>
           Revisá quién quiere conectar con vos y administrá las relaciones
