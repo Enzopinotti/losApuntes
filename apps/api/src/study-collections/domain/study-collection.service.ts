@@ -323,7 +323,17 @@ export class StudyCollectionService {
           resourceId,
           expectedRevision,
         );
-        if (!removed) this.notFound();
+        if (!removed) {
+          // A concurrent revision change also makes the conditional update
+          // return null. Recheck ownership before distinguishing that conflict
+          // from a deleted or foreign collection.
+          await this.requireOwned(id, ownerUserId);
+          throw new ConflictException({
+            code: 'STUDY_COLLECTION_REVISION_CONFLICT',
+            message:
+              'Collection changed; inspect it again before removing a link',
+          });
+        }
         // A confirmed recovery must actually unlink the inaccessible
         // Resource, not merely return an incremented collection revision.
         // An ambiguous store outcome must never be presented as success.

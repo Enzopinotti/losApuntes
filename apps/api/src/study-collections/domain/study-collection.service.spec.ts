@@ -234,6 +234,36 @@ describe('StudyCollectionService', () => {
       );
     });
 
+    it('returns a revision conflict when the conditional removal loses a race', async () => {
+      const { service, store, get } = setup();
+      get.mockRejectedValueOnce(new NotFoundException());
+      store.removeResource.mockResolvedValueOnce(null);
+
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_REVISION_CONFLICT' },
+      });
+      expect(store.findOwned).toHaveBeenCalledTimes(2);
+      expect(store.findOwned).toHaveBeenNthCalledWith(2, collectionId, ownerId);
+    });
+
+    it('keeps not-found when the collection disappears during conditional removal', async () => {
+      const { service, store, get } = setup();
+      get.mockRejectedValueOnce(new NotFoundException());
+      store.removeResource.mockResolvedValueOnce(null);
+      store.findOwned
+        .mockResolvedValueOnce(collection())
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.removeResource(ownerId, collectionId, resourceId, 2),
+      ).rejects.toMatchObject({
+        response: { code: 'STUDY_COLLECTION_NOT_FOUND' },
+      });
+      expect(store.findOwned).toHaveBeenCalledTimes(2);
+    });
+
     it('propagates unexpected Resource failures without removing references', async () => {
       const { service, store, get } = setup();
       const failure = new Error('resource backend unavailable');
