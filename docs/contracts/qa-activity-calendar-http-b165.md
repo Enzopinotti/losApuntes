@@ -86,16 +86,21 @@ por el manejo de errores global; nunca se presenta como días vacíos.
 No incorpora colección, índice, migración, escritura, privilegio,
 campo de perfil, código Web/Mobile ni cambio al core de Q&A.
 
-## Contrato de aceptación y release
+## Validación del carrier y aceptación pendiente
 
-- Jest: 28 fechas ordenadas y con ceros, límite UTC en medianoche,
-  reglas de moderación del parent en `$lookup`, owner scoping,
-  integridad de suma, duplicados/fechas incorrectas, errores de Mongo
-  y autenticación/caché.
-- Validar exact-head con Jest, TypeScript, Prettier, API ESLint
-  estricto, 10 coberturas críticas y smoke de runtime.
-- Las pruebas unitarias verifican estructura Mongo; **no sustituyen
-  una prueba de aceptación específica contra Mongo real**.
-- Auditoría productiva high/critical obligatoria. Mantener issues
-  #133, #141 y #492 y release #353 HOLD; **no fusionar/desplegar**
-  con advisory high pendiente ni aprobar excepciones.
+- El carrier conserva los 11 commits atómicos originales de B165 sobre
+  `main@f6f9ce24` y agrega un commit separado de evidencia; no se hace
+  squash.
+- Jest cubre 28 días ordenados con ceros, límites UTC, moderación del
+  parent en `$lookup`, owner scoping, sumas, duplicados, filas inválidas,
+  errores Mongo y autenticación/caché.
+- Validación local del carrier: 2 suites / 16 pruebas, API TypeScript,
+  ESLint sin warnings, Prettier API, `nest build`, Prettier del contrato
+  y `git diff --check` — PASS.
+- No se ejecutó CI. Los tests usan mocks; **no se validó el agregado
+  contra Mongo real**. Este entorno no tiene daemon Docker ni `mongod`;
+  ejecutar aceptación con una réplica aislada antes de producción.
+- La ruta es de solo lectura y no crea una categoría de datos ni modifica
+  Web/Mobile, autenticación, schemas, índices, migraciones, dependencias
+  o workflows. La integración del código no acredita runtime ni habilita
+  un despliegue.
