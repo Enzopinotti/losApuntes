@@ -66,6 +66,7 @@ import {
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
+import StudyPracticeShortcuts from "./StudyPracticeShortcuts";
 import "./StudyPractice.scss";
 
 type ContextState = {
@@ -1473,6 +1474,32 @@ export default function StudyPractice() {
                     </button>
                   </div>
                 </div>
+                <StudyPracticeShortcuts
+                  key={scope}
+                  allowed={{
+                    previous: round.position > 0,
+                    next: round.position < round.ids.length - 1,
+                    reveal: Boolean(
+                      detail?.question && !revealed && !revealStatus?.busy,
+                    ),
+                  }}
+                  onPrevious={() =>
+                    changeRound((previous) => ({
+                      ...previous,
+                      position: Math.max(0, previous.position - 1),
+                    }))
+                  }
+                  onNext={() =>
+                    changeRound((previous) => ({
+                      ...previous,
+                      position: Math.min(
+                        previous.ids.length - 1,
+                        previous.position + 1,
+                      ),
+                    }))
+                  }
+                  onReveal={() => void revealAnswers()}
+                />
                 {detail?.loading || !detail ? (
                   <p role="status">Cargando la pregunta vigente…</p>
                 ) : detail.error && !question ? (
