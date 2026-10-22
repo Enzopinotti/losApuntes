@@ -6,6 +6,7 @@ import {
   parseAccountExportStatus,
 } from "../apps/web/src/features/account-export/accountExportContract.ts";
 import {
+  accountExportExpiryDelayMs,
   accountExportStatusMessage,
   isAccountExportDownloadAvailable,
 } from "../apps/web/src/features/account-export/accountExportPresentation.ts";
@@ -35,6 +36,20 @@ assert.equal(
 assert.equal(
   accountExportStatusMessage(valid, Date.parse(valid.downloadExpiresAt)),
   "Este archivo ya no está disponible. Podés solicitar otro.",
+);
+assert.equal(
+  accountExportExpiryDelayMs(
+    "2026-10-15T12:10:00.000Z",
+    Date.parse("2026-10-15T12:05:00.000Z"),
+  ),
+  5 * 60 * 1000,
+);
+assert.equal(
+  accountExportExpiryDelayMs(
+    "2026-10-15T12:05:00.000Z",
+    Date.parse("2026-10-15T12:05:00.000Z"),
+  ),
+  0,
 );
 assert.equal(
   isAccountExportDownloadAvailable({ ...valid, downloadable: false }, now),
@@ -119,8 +134,9 @@ assert.match(panel, /session\?\.id/u);
 assert.match(panel, /document\.visibilityState/u);
 assert.match(panel, /visibilitychange/u);
 assert.match(panel, /setTimeout\(/u);
-assert.match(panel, /setNow\(Date\.now\(\)\)/u);
-assert.match(panel, /MAX_TIMER_DELAY_MS/u);
+assert.match(panel, /setNow\(currentTime\)/u);
+assert.match(panel, /accountExportExpiryDelayMs\(/u);
+assert.match(panel, /const currentTime = Date\.now\(\)/u);
 assert.match(panel, /accountExportStatusMessage\(job, now\)/u);
 assert.match(panel, /isAccountExportDownloadAvailable\(job, now\)/u);
 assert.match(panel, /referrerPolicy="no-referrer"/u);
