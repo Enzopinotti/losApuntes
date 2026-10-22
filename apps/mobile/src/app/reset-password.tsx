@@ -8,7 +8,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +18,7 @@ import {
   PasswordRecoveryController,
   type PasswordRecoveryFailure,
 } from "@/features/auth/password-recovery";
+import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 const failureCopy: Record<PasswordRecoveryFailure, string> = {
@@ -116,12 +116,11 @@ export default function ResetPasswordRoute() {
           {showForm ? (
             <>
               <Text style={styles.label}>Nueva contraseña</Text>
-              <TextInput
-                accessibilityLabel="Nueva contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Nueva contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
                 editable={!pending}
-                secureTextEntry
                 textContentType="newPassword"
                 value={newPassword}
                 onChangeText={(value) => {
@@ -132,12 +131,11 @@ export default function ResetPasswordRoute() {
               />
 
               <Text style={styles.label}>Repetir contraseña</Text>
-              <TextInput
-                accessibilityLabel="Repetir contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Repetir contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
                 editable={!pending}
-                secureTextEntry
                 textContentType="newPassword"
                 value={confirmation}
                 onChangeText={(value) => {
