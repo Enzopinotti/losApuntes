@@ -40,6 +40,7 @@ import {
 } from "@/features/navigation/product-surface";
 import { mobileAuthenticatedApi } from "@/features/session/session-runtime";
 import { useSession } from "@/features/session/session-provider";
+import { MOBILE_STUDY_AGENDA_VISIBLE } from "@/features/study/study-agenda-flag";
 
 import {
   academicContextBelongsToSession,
@@ -73,6 +74,7 @@ import {
 import { useAcademicContext } from "../academic/academic-context-provider";
 import { HomeSavedReturnCard } from "./home-saved-return-card";
 import { HomeRecentOpenedCard } from "./home-recent-opened-card";
+import { HomeHelpOpportunitiesCard } from "./home-help-opportunities-card";
 import { homeSelectedCurrentSubject } from "./home-recent-academic-continuity";
 
 const itemKindLabel = (item: FeedItem): string => {
@@ -961,6 +963,46 @@ export function HomeScreen() {
         currentSubject={selectedRecentSubject}
       />
       <HomeSavedReturnCard authorityKey={activeHomeAuthority} />
+      <HomeHelpOpportunitiesCard authorityKey={activeHomeAuthority} />
+      {MOBILE_STUDY_AGENDA_VISIBLE && session.kind === "authenticated" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Abrir agenda de estudio"
+          accessibilityHint="Consultá las sesiones de estudio que guardaste."
+          onPress={() => router.push("/study-agenda")}
+          style={({ pressed }) => [
+            styles.notificationsCard,
+            pressed && styles.notificationsPressed,
+          ]}
+        >
+          <View style={styles.notificationsCopy}>
+            <Text style={styles.title}>Agenda de estudio</Text>
+            <Text style={styles.copy}>
+              Revisá tus sesiones programadas y sin horario.
+            </Text>
+          </View>
+          <Text style={styles.focusAction}>Abrir</Text>
+        </Pressable>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Abrir temporizador de estudio"
+        accessibilityHint="Elegí estudiar 25 minutos o descansar 5. El tiempo no se guarda ni se sincroniza."
+        onPress={() => router.push("/study-focus")}
+        style={({ pressed }) => [
+          styles.notificationsCard,
+          pressed && styles.notificationsPressed,
+        ]}
+      >
+        <View style={styles.notificationsCopy}>
+          <Text style={styles.title}>Tiempo para concentrarte</Text>
+          <Text style={styles.copy}>
+            Elegí un intervalo de estudio o descanso. No registramos tu
+            actividad.
+          </Text>
+        </View>
+        <Text style={styles.focusAction}>Abrir</Text>
+      </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Abrir notificaciones, ${data.notifications.unreadCount} sin leer`}
@@ -1200,6 +1242,12 @@ const styles = StyleSheet.create({
   notificationsCopy: {
     flex: 1,
     gap: 6,
+  },
+  focusAction: {
+    color: "#43376a",
+    fontSize: 15,
+    fontWeight: "800",
+    paddingHorizontal: 8,
   },
   notificationsCount: {
     minWidth: 38,

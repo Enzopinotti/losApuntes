@@ -25,3 +25,29 @@ export function shareableResourceUrl(resourceId, origin) {
     return null;
   }
 }
+
+/**
+ * Share a subject's resource catalog (not the student's private class list).
+ * The destination still enforces visibility and authorization on every read.
+ */
+export function shareableSubjectResourcesHref(subjectId) {
+  if (typeof subjectId !== "string" || !UUID_V4.test(subjectId)) return null;
+  return `/resources?subjectId=${encodeURIComponent(subjectId.toLowerCase())}`;
+}
+
+export function shareableSubjectResourcesUrl(subjectId, origin) {
+  const href = shareableSubjectResourcesHref(subjectId);
+  if (!href || typeof origin !== "string") return null;
+  try {
+    const base = new URL(origin);
+    if (
+      !["https:", "http:"].includes(base.protocol) ||
+      base.origin !== origin
+    ) {
+      return null;
+    }
+    return new URL(href, base).toString();
+  } catch {
+    return null;
+  }
+}

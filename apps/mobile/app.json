@@ -6,7 +6,19 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "losapuntes",
-    "plugins": ["expo-router", "expo-secure-store", "expo-system-ui"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-system-ui",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": false,
+          "cameraPermission": "Los Apuntes usa la cámara sólo cuando elegís tomar una foto de un apunte.",
+          "microphonePermission": false
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },

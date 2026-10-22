@@ -22,6 +22,7 @@ import {
   type StudySessionTask,
 } from "../features/study/study-session-plan.mjs";
 import { recallStudyDraft } from "../features/study/study-session-draft.mjs";
+import { verifyStudyTaskLabels } from "../features/study/study-task-verification.mjs";
 import { STUDY_PROGRESS_VISIBLE } from "../features/study/studyProgressFlags";
 import {
   isStudyProgressApiError,
@@ -299,18 +300,14 @@ export default function StudyRunner() {
         if (plan.subjectId !== subjectId)
           throw new Error("STUDY_SESSION_SUBJECT_MISMATCH");
         if (!plan.tasks.length) throw new Error("STUDY_SESSION_EMPTY");
-        const labels: Record<string, string | null> = {};
-        // Bounded by the existing 24-task contract. Recheck each item against
-        // the server; an opaque UUID from a portable plan never grants access.
-        for (const task of plan.tasks) {
-          if (!loadCurrent(ticket)) return;
-          labels[keyOf(task)] = await verifiedTaskLabel(
-            plan,
-            task,
-            ticket.signal,
-          );
-        }
-        if (!loadCurrent(ticket)) return;
+        // Portable IDs never grant access. Revalidate at most four activities
+        // concurrently; a stale session or subject publishes no partial result.
+        const labels = await verifyStudyTaskLabels(
+          plan,
+          (task) => verifiedTaskLabel(plan, task, ticket.signal),
+          () => loadCurrent(ticket),
+        );
+        if (!labels || !loadCurrent(ticket)) return;
         const inaccessible = Object.values(labels).filter(
           (value) => value === null,
         ).length;

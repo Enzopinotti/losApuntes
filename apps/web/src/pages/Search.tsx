@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
+import { SearchSaveAction } from "../features/search/SearchSaveAction";
 import {
   searchSelectionFromSearchParams,
   searchSelectionHref,
@@ -10,6 +11,8 @@ import {
 import {
   shareableResourceHref,
   shareableResourceUrl,
+  shareableSubjectResourcesHref,
+  shareableSubjectResourcesUrl,
 } from "../features/search/resource-share-link.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import type {
@@ -80,6 +83,11 @@ const Search = () => {
   const [resourceCopyStatus, setResourceCopyStatus] = useState<{
     scopeKey: string;
     resourceId: string;
+    message: string;
+  } | null>(null);
+  const [subjectCopyStatus, setSubjectCopyStatus] = useState<{
+    scopeKey: string;
+    subjectId: string;
     message: string;
   } | null>(null);
   const [contextState, setContextState] = useState<{
@@ -232,6 +240,7 @@ const Search = () => {
     setSearchState(null);
     setCopyStatus(null);
     setResourceCopyStatus(null);
+    setSubjectCopyStatus(null);
     setQuery("");
     setScope("all");
     setSubjectId("");
@@ -258,6 +267,34 @@ const Search = () => {
         resourceId,
         message:
           "No pudimos copiar el enlace. Abrí el recurso para copiar su URL.",
+      });
+    }
+  };
+
+  const copySubjectResourcesLink = async (selectedSubjectId: string) => {
+    const url = shareableSubjectResourcesUrl(
+      selectedSubjectId,
+      window.location.origin,
+    );
+    if (!url) return;
+
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(url);
+      setSubjectCopyStatus({
+        scopeKey: resultScopeKey,
+        subjectId: selectedSubjectId,
+        message:
+          "Enlace copiado. Los recursos visibles se verifican al abrirlo.",
+      });
+    } catch {
+      setSubjectCopyStatus({
+        scopeKey: resultScopeKey,
+        subjectId: selectedSubjectId,
+        message:
+          "No pudimos copiar el enlace. Abrí la materia para copiar su URL.",
       });
     }
   };
@@ -413,6 +450,12 @@ const Search = () => {
           {(submittedScope === "all" || submittedScope === "resources") && (
             <section className="search-group">
               <h2>Apuntes y recursos</h2>
+              {!authenticated && result.results.resources.length > 0 && (
+                <p>
+                  <Link to="/login">Iniciá sesión</Link> para guardar apuntes
+                  directamente desde los resultados.
+                </p>
+              )}
               {result.results.resources.length === 0 ? (
                 <p>No encontramos recursos visibles.</p>
               ) : (
@@ -432,7 +475,7 @@ const Search = () => {
                           />
                         </small>
                       </div>
-                      <div className="search-resource-actions">
+                      <div className="search-resource-actions search-result-actions">
                         <Link
                           to={`/resources/${encodeURIComponent(resource.id)}`}
                           state={{
@@ -445,6 +488,14 @@ const Search = () => {
                         >
                           Ver recurso
                         </Link>
+                        {authenticated && (
+                          <SearchSaveAction
+                            key={`${authorityScope}:${resource.id}`}
+                            authorityScope={authorityScope}
+                            resourceId={resource.id}
+                            resourceTitle={resource.title}
+                          />
+                        )}
                         {shareableResourceHref(resource.id) && (
                           <button
                             type="button"
@@ -483,11 +534,30 @@ const Search = () => {
                           <small>También: {subject.aliases.join(", ")}</small>
                         )}
                       </div>
-                      <Link
-                        to={`/resources?subjectId=${encodeURIComponent(subject.id)}`}
-                      >
-                        Ver recursos
-                      </Link>
+                      <div className="search-subject-actions">
+                        <Link
+                          to={`/resources?subjectId=${encodeURIComponent(subject.id)}`}
+                        >
+                          Ver recursos
+                        </Link>
+                        {shareableSubjectResourcesHref(subject.id) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void copySubjectResourcesLink(subject.id);
+                            }}
+                            aria-label={`Copiar enlace de apuntes de ${subject.name}`}
+                          >
+                            Copiar enlace de apuntes
+                          </button>
+                        )}
+                        {subjectCopyStatus?.scopeKey === resultScopeKey &&
+                          subjectCopyStatus.subjectId === subject.id && (
+                            <small role="status">
+                              {subjectCopyStatus.message}
+                            </small>
+                          )}
+                      </div>
                     </li>
                   ))}
                 </ul>

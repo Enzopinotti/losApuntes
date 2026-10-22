@@ -14,7 +14,7 @@
     "format:check": "pnpm -r --if-present format:check",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present check:types",
-    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-password-visibility-b185 && pnpm test:web-verification-resend-b184 && pnpm test:web-accessible-confirm-dialog-contract && pnpm test:web-async-authority-fence && pnpm test:notification-fanout-contract && pnpm test:web-academic-contract && pnpm test:web-profile-contract && pnpm test:web-public-profile-social && pnpm test:web-resources-contract && pnpm test:web-resource-citation-b170 && pnpm test:web-study-handoff-integration && pnpm test:web-study-plan-material-finder && pnpm test:web-study-kits-integration && pnpm test:web-search-contract && pnpm test:web-observability-contract && pnpm test:release-qualification-contract && pnpm test:release-qualification-live && pnpm test:web-social-qa-contract && pnpm test:web-network-presentation && pnpm test:web-feeds-contract && pnpm test:web-navigation-contract && pnpm test:web-study-focus-clock-b169 && pnpm test:web-study-workbench && pnpm test:web-study-practice-shortcuts-b182 && pnpm test:web-study-retry-round && pnpm test:web-study-recall-planning && pnpm test:web-study-recall-pause && pnpm test:web-study-private-report && pnpm test:web-study-recall-focus && pnpm test:web-study-review-plan-import && pnpm test:web-study-recall-order && pnpm test:web-study-recall-closure && pnpm test:web-study-recall-goals && pnpm test:web-pilot-contract && pnpm test:web-organizations-contract && pnpm test:web-alumni-contract && pnpm --filter @losapuntes/mobile test && pnpm test:mobile-auth-contract && pnpm test:recovery-contract && pnpm test:resilience-contract && pnpm test:account-lifecycle-contract",
+    "test": "pnpm --filter @losapuntes/api test:ci && pnpm test:web-auth-contract && pnpm test:web-account-export-contract && pnpm test:web-study-task-verification && pnpm test:web-password-visibility-b185 && pnpm test:web-verification-resend-b184 && pnpm test:web-accessible-confirm-dialog-contract && pnpm test:web-async-authority-fence && pnpm test:notification-fanout-contract && pnpm test:web-academic-contract && pnpm test:web-profile-contract && pnpm test:web-public-profile-social && pnpm test:web-resources-contract && pnpm test:web-resource-citation-b170 && pnpm test:web-study-handoff-integration && pnpm test:web-study-plan-material-finder && pnpm test:web-study-kits-integration && pnpm test:web-search-contract && pnpm test:web-observability-contract && pnpm test:release-qualification-contract && pnpm test:release-qualification-live && pnpm test:web-social-qa-contract && pnpm test:web-network-presentation && pnpm test:web-feeds-contract && pnpm test:web-home-momentary-hide-b183 && pnpm test:web-navigation-contract && pnpm test:web-dashboard-b158 && pnpm test:web-study-focus-clock-b169 && pnpm test:web-study-workbench && pnpm test:web-study-practice-shortcuts-b182 && pnpm test:web-study-retry-round && pnpm test:web-study-recall-planning && pnpm test:web-study-recall-pause && pnpm test:web-study-private-report && pnpm test:web-study-recall-focus && pnpm test:web-study-review-plan-import && pnpm test:web-study-recall-order && pnpm test:web-study-recall-closure && pnpm test:web-study-recall-goals && pnpm test:web-pilot-contract && pnpm test:web-organizations-contract && pnpm test:web-alumni-contract && pnpm --filter @losapuntes/mobile test && pnpm test:mobile-auth-contract && pnpm test:recovery-contract && pnpm test:resilience-contract && pnpm test:account-lifecycle-contract",
     "build": "pnpm -r --if-present build",
     "audit:prod": "pnpm audit --prod --audit-level high",
     "runtime:up": "docker compose -f compose.local.yml -f compose.health.yml up --build -d --wait --wait-timeout 120",
@@ -23,6 +23,8 @@
     "runtime:down": "docker compose -f compose.local.yml -f compose.health.yml down --volumes --remove-orphans",
     "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "test:web-auth-contract": "node scripts/test-web-auth-contract.mjs",
+    "test:web-account-export-contract": "node scripts/test-web-account-export-contract.mjs",
+    "test:web-study-task-verification": "node scripts/test-web-study-task-verification.mjs",
     "test:web-password-visibility-b185": "node --test scripts/test-web-password-visibility-b185.test.mjs",
     "test:web-verification-resend-b184": "node --test scripts/test-web-verification-resend-b184.test.mjs",
     "test:web-accessible-confirm-dialog-contract": "node scripts/test-web-accessible-confirm-dialog-contract.mjs",
@@ -39,6 +41,7 @@
     "test:web-study-kits-resource-search-browser": "node scripts/test-web-study-kits-resource-search-browser.mjs",
     "test:web-notification-categories-b178-browser": "node scripts/test-web-notification-categories-b178-browser.mjs",
     "test:web-search-contract": "node scripts/test-web-search-contract.mjs",
+    "test:web-search-save-browser": "node scripts/test-web-search-save-browser.mjs",
     "test:auth-browser-e2e": "node scripts/auth-browser-e2e.mjs",
     "test:web-social-qa-contract": "node --experimental-strip-types scripts/test-web-social-qa-contract.mjs",
     "test:web-network-presentation": "node --experimental-strip-types scripts/test-web-network-presentation.mjs",
@@ -116,7 +119,9 @@
     "test:account-export-b119-signed-head": "node scripts/test-account-export-b119-guard.mjs && node scripts/run-account-export-b101-signed-http.mjs",
     "test:account-export-b120-delete": "node --experimental-strip-types --import ./scripts/testing/register-api-typescript.mjs --test scripts/test-account-export-b120-delete-confirmation.test.mjs && node scripts/test-account-export-b120-guard.mjs",
     "test:account-export-b120-signed-delete": "node scripts/test-account-export-b120-guard.mjs && node scripts/run-account-export-b101-signed-http.mjs",
-    "test:account-export-signed-http-diagnostic-node22": "node scripts/run-account-export-b101-signed-http.mjs --diagnostic-node22"
+    "test:account-export-signed-http-diagnostic-node22": "node scripts/run-account-export-b101-signed-http.mjs --diagnostic-node22",
+    "test:web-home-momentary-hide-b183": "node --test scripts/test-web-home-momentary-hide-b183.test.mjs",
+    "test:web-dashboard-b158": "node --experimental-strip-types --test scripts/test-web-dashboard-b158.test.mjs"
   },
   "pnpm": {
     "overrides": {

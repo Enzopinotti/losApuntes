@@ -9,6 +9,12 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { FeedItem } from "../features/feeds/interfaces";
 import {
+  hideHomeFeedItem,
+  homeFeedItemKey,
+  projectHomeFeed,
+  undoHomeFeedHide,
+} from "../features/feeds/home-feed-momentary-hide.mjs";
+import {
   FeedItemContext,
   FeedItemOpenLink,
 } from "../features/feeds/components/FeedItemContext";
@@ -48,12 +54,47 @@ function FeedPreview({
   emptyGuidance: HomeFeedEmptyGuidance;
   homeIntent: HomeFeedIntent;
 }) {
+  const [hiddenKeys, setHiddenKeys] = useState<string[]>([]);
+  const [lastHiddenKey, setLastHiddenKey] = useState<string | null>(null);
+  const projected = projectHomeFeed(items, hiddenKeys);
+
+  const hide = (item: FeedItem) => {
+    const key = homeFeedItemKey(item);
+    setHiddenKeys((current) => hideHomeFeedItem(items, current, item));
+    setLastHiddenKey(key);
+  };
+  const undo = () => {
+    if (!lastHiddenKey) return;
+    setHiddenKeys((current) => undoHomeFeedHide(current, lastHiddenKey));
+    setLastHiddenKey(null);
+  };
+  const restoreAll = () => {
+    setHiddenKeys([]);
+    setLastHiddenKey(null);
+  };
+
   return (
     <section className="pilot-card">
       <header className="pilot-card-heading">
         <h2>{title}</h2>
         <Link to={moreTo}>Ver feed completo</Link>
       </header>
+      {projected.hiddenCount > 0 && (
+        <div className="pilot-feed-momentary-status" role="status">
+          <span>
+            Apartaste {projected.hiddenCount} de esta tanda. No cambia tus
+            preferencias ni reporta el contenido.
+          </span>
+          {lastHiddenKey && hiddenKeys.includes(lastHiddenKey) && (
+            <button type="button" onClick={undo}>
+              Deshacer último
+            </button>
+          )}
+          <button type="button" onClick={restoreAll}>
+            Mostrar todo
+          </button>
+        </div>
+      )}
       {items.length === 0 ? (
         <div className="pilot-feed-empty" role="status">
           <p>{emptyGuidance.message}</p>
@@ -61,9 +102,14 @@ function FeedPreview({
             {emptyGuidance.actionLabel}
           </Link>
         </div>
+      ) : projected.visible.length === 0 ? (
+        <div className="pilot-feed-empty" role="status">
+          <p>Apartaste todos los elementos de esta tanda.</p>
+          <p>Podés volver a mostrarlos sin cambiar tus recomendaciones.</p>
+        </div>
       ) : (
         <ul className="pilot-feed-preview">
-          {items.map((item) => {
+          {projected.visible.map((item) => {
             return (
               <li key={`${item.type}:${item.id}`}>
                 <FeedItemContext
@@ -76,6 +122,14 @@ function FeedPreview({
                   {item.summary ? <p>{item.summary}</p> : null}
                 </div>
                 <FeedItemOpenLink item={item} homeIntent={homeIntent} />
+                <button
+                  type="button"
+                  className="pilot-feed-momentary-hide"
+                  onClick={() => hide(item)}
+                  aria-label={`Apartar de esta tanda: ${item.title}`}
+                >
+                  Apartar por ahora
+                </button>
               </li>
             );
           })}
@@ -377,6 +431,7 @@ const Home = () => {
               </button>
             </div>
             <FeedPreview
+              key={`${authScopeKey}:${activeHomeFeed}`}
               title={activeFeedTitle}
               items={
                 activeHomeFeed === "contextual"

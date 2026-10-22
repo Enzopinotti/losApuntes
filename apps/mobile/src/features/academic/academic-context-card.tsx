@@ -281,6 +281,16 @@ export function AcademicContextCard() {
           <Text style={styles.copy}>Revalidando el cambio…</Text>
         </View>
       ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push("/academic/follows")}
+        style={styles.secondaryButton}
+      >
+        <Text style={styles.secondaryButtonText}>
+          Seguir instituciones y carreras
+        </Text>
+      </Pressable>
     </View>
   );
 }
