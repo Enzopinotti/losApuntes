@@ -7,6 +7,7 @@ import {
   searchSelectionHref,
   searchSelectionKey,
 } from "../features/search/search-navigation.mjs";
+import { shareableResourceHref, shareableResourceUrl } from "../features/search/resource-share-link.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import type {
   ContextualDiscoveryResponse,
@@ -71,6 +72,11 @@ const Search = () => {
   const error = currentSearchState?.error ?? null;
   const [copyStatus, setCopyStatus] = useState<{
     scopeKey: string;
+    message: string;
+  } | null>(null);
+  const [resourceCopyStatus, setResourceCopyStatus] = useState<{
+    scopeKey: string;
+    resourceId: string;
     message: string;
   } | null>(null);
   const [contextState, setContextState] = useState<{
@@ -225,6 +231,29 @@ const Search = () => {
     setScope("all");
     setSubjectId("");
     setSearchParams(new URLSearchParams());
+  };
+
+  const copyResourceLink = async (resourceId: string) => {
+    const url = shareableResourceUrl(resourceId, window.location.origin);
+    if (!url) return;
+
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(url);
+      setResourceCopyStatus({
+        scopeKey: resultScopeKey,
+        resourceId,
+        message: "Enlace copiado. El acceso se verifica al abrir el recurso.",
+      });
+    } catch {
+      setResourceCopyStatus({
+        scopeKey: resultScopeKey,
+        resourceId,
+        message: "No pudimos copiar el enlace. Abrí el recurso para copiar su URL.",
+      });
+    }
   };
 
   const copySearchLink = async () => {
@@ -397,18 +426,33 @@ const Search = () => {
                           />
                         </small>
                       </div>
-                      <Link
-                        to={`/resources/${encodeURIComponent(resource.id)}`}
-                        state={{
-                          searchReturnTo: searchSelectionHref({
-                            q: submittedQuery,
-                            scope: submittedScope,
-                            subjectId: submittedSubjectId || undefined,
-                          }),
-                        }}
-                      >
-                        Ver recurso
-                      </Link>
+                      <div className="search-resource-actions">
+                        <Link
+                          to={`/resources/${encodeURIComponent(resource.id)}`}
+                          state={{
+                            searchReturnTo: searchSelectionHref({
+                              q: submittedQuery,
+                              scope: submittedScope,
+                              subjectId: submittedSubjectId || undefined,
+                            }),
+                          }}
+                        >
+                          Ver recurso
+                        </Link>
+                        {shareableResourceHref(resource.id) && (
+                          <button
+                            type="button"
+                            onClick={() => void copyResourceLink(resource.id)}
+                            aria-label={`Copiar enlace de ${resource.title}`}
+                          >
+                            Copiar enlace
+                          </button>
+                        )}
+                        {resourceCopyStatus?.scopeKey === resultScopeKey &&
+                          resourceCopyStatus.resourceId === resource.id && (
+                            <small role="status">{resourceCopyStatus.message}</small>
+                          )}
+                      </div>
                     </li>
                   ))}
                 </ul>
