@@ -25,7 +25,6 @@ function fixture(
     outgoing?: unknown;
     incoming?: unknown;
     connection?: unknown;
-    profileError?: Error;
   } = {},
 ) {
   const viewer = options.viewer ?? 'viewer-a';
@@ -48,18 +47,14 @@ function fixture(
   const connections = {
     findOne: jest.fn().mockReturnValue(connectionRow),
   };
-  const getPublicProfile = jest
+  const resolvePublicProfileUserIdByProfileId = jest
     .fn()
-    .mockResolvedValue({ profile: { id: profileId } });
-  if (options.profileError)
-    getPublicProfile.mockRejectedValue(options.profileError);
-  const resolveUserIdByProfileId = jest.fn().mockResolvedValue(target);
+    .mockResolvedValue(target);
   const service = new SocialRelationshipService(
     follows as never,
     connections as never,
     {
-      getPublicProfile,
-      resolveUserIdByProfileId,
+      resolvePublicProfileUserIdByProfileId,
     } as unknown as ProfileService,
   );
   return {
@@ -68,8 +63,7 @@ function fixture(
     target,
     follows,
     connections,
-    getPublicProfile,
-    resolveUserIdByProfileId,
+    resolvePublicProfileUserIdByProfileId,
     outgoingRow,
     incomingRow,
     connectionRow,
@@ -98,8 +92,9 @@ describe('B150 profile relationship snapshot', () => {
       followsYou: false,
       connection: null,
     });
-    expect(f.getPublicProfile).toHaveBeenCalledWith(profileId);
-    expect(f.resolveUserIdByProfileId).toHaveBeenCalledWith(profileId);
+    expect(f.resolvePublicProfileUserIdByProfileId).toHaveBeenCalledWith(
+      profileId,
+    );
     expect(f.follows.findOne).toHaveBeenCalledTimes(2);
     expect(f.connections.findOne).toHaveBeenCalledWith({
       userLowId: 'target-b',
@@ -206,18 +201,16 @@ describe('B150 profile relationship snapshot', () => {
     });
   });
 
-  it('honors public profile lifecycle and missing profiles before touching Mongo', async () => {
-    const f = fixture({ profileError: new NotFoundException('closed') });
-    await expect(f.service.get('viewer-a', profileId)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
-    expect(f.resolveUserIdByProfileId).not.toHaveBeenCalled();
-    expect(f.follows.findOne).not.toHaveBeenCalled();
+  it('hides closed and missing profiles before touching relationships', async () => {
     const missing = fixture({ target: null });
     await expect(
       missing.service.get('viewer-a', profileId),
     ).rejects.toBeInstanceOf(NotFoundException);
+    expect(missing.resolvePublicProfileUserIdByProfileId).toHaveBeenCalledWith(
+      profileId,
+    );
     expect(missing.follows.findOne).not.toHaveBeenCalled();
+    expect(missing.connections.findOne).not.toHaveBeenCalled();
   });
 
   it('rejects missing principal before any profile query', async () => {
@@ -225,7 +218,7 @@ describe('B150 profile relationship snapshot', () => {
     await expect(f.service.get('', profileId)).rejects.toBeInstanceOf(
       UnprocessableEntityException,
     );
-    expect(f.getPublicProfile).not.toHaveBeenCalled();
+    expect(f.resolvePublicProfileUserIdByProfileId).not.toHaveBeenCalled();
   });
 
   it('fails closed on crossed follow edges or malformed persisted connection', async () => {

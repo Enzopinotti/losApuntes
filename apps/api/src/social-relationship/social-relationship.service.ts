@@ -68,11 +68,10 @@ export class SocialRelationshipService {
       });
     }
 
-    // Reuse the public profile visibility and lifecycle boundary, including
-    // closed profiles returning Not Found. Do not return its full projection.
-    await this.profiles.getPublicProfile(profileId);
+    // Resolve only active public-profile identity; avoid loading academic and
+    // activity projections that this relationship response does not use.
     const targetUserId =
-      await this.profiles.resolveUserIdByProfileId(profileId);
+      await this.profiles.resolvePublicProfileUserIdByProfileId(profileId);
     if (!targetUserId) return unknownProfile();
 
     if (viewerUserId === targetUserId) {

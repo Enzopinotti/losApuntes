@@ -8,7 +8,7 @@
 
 The carrier preserves all ten original B150 commits. The original `AppModule` mount applies cleanly to current `main`. The seven paths add a private relationship snapshot module, focused tests and its HTTP contract; there are no changes to existing Social workflows, Web/Mobile, schemas, dependencies, lockfile, workflows, or protections.
 
-The service checks public-profile visibility through `ProfileService` before reading relationships, derives the viewer only from the session, and returns no external account IDs.
+The service resolves only the active public-profile identity through `ProfileService` before reading relationships; it does not load and discard the full academic/activity profile projection. The viewer comes only from the session, and no account IDs are returned.
 
 ## Local validation
 

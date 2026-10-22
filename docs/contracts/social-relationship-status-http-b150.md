@@ -13,8 +13,8 @@ Cuando un estudiante abre el perfil público de otra persona, el cliente necesit
 - Sesión `AuthSessionGuard` requerida.
 - Parámetro `profileId` UUIDv4, validado en el controlador.
 - `Cache-Control: private, no-store`.
-- Se comprueba primero la visibilidad y ciclo de vida de `ProfileService.getPublicProfile`; un perfil cerrado/inexistente no entrega información social.
-- `ProfileService.resolveUserIdByProfileId` traduce el identificador público al ID de cuenta sólo dentro del servidor.
+- Se comprueba primero el estado de ciclo de vida con `ProfileService.resolvePublicProfileUserIdByProfileId`; un perfil cerrado/inexistente no entrega información social y no se carga la proyección completa del perfil.
+- El identificador público se traduce al ID de cuenta sólo dentro del servidor.
 - `userId` de usuario consultante **siempre** se toma de `request.user.id`; no hay parámetro de usuario solicitante.
 
 ### Ejemplo de resultado
