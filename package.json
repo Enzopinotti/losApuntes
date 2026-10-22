@@ -43,7 +43,7 @@
     "test:web-search-contract": "node scripts/test-web-search-contract.mjs",
     "test:web-search-save-browser": "node scripts/test-web-search-save-browser.mjs",
     "test:auth-browser-e2e": "node scripts/auth-browser-e2e.mjs",
-    "test:web-social-qa-contract": "node --experimental-strip-types scripts/test-web-social-qa-contract.mjs",
+    "test:web-social-qa-contract": "node --experimental-strip-types --test scripts/test-web-questions-pagination.test.mjs && node --experimental-strip-types scripts/test-web-social-qa-contract.mjs",
     "test:web-network-presentation": "node --experimental-strip-types scripts/test-web-network-presentation.mjs",
     "test:web-feeds-contract": "node scripts/test-web-feeds-contract.mjs",
     "test:web-navigation-contract": "node scripts/test-web-navigation-contract.mjs",
