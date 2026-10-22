@@ -21,7 +21,6 @@ const [
   app,
   pkg,
   passwordVisibilityInput,
-  resetPassword,
   security,
 ] = await Promise.all([
   read("apps/mobile/src/platform/session-credential-store.ts"),
@@ -41,7 +40,6 @@ const [
   read("apps/mobile/app.json"),
   read("apps/mobile/package.json"),
   read("apps/mobile/src/features/auth/password-visibility-input.tsx"),
-  read("apps/mobile/src/app/reset-password.tsx"),
   read("apps/mobile/src/app/security.tsx"),
 ]);
 
