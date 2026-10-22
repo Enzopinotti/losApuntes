@@ -19,11 +19,13 @@ assert.deepEqual(
   [509, 511, 514, 515],
 );
 
-// B185 intentionally extends exactly two source blobs from PR #509.
+// B185-B186 intentionally extend four source blobs from PR #509.
 // Keep their original SHA provenance in the manifest; require every other
 // source blob to remain byte-identical, and detect undocumented changes.
 const overlays = new Set([
   "apps/web/src/features/search/SearchSaveAction.tsx",
+  "apps/web/src/pages/Search.tsx",
+  "apps/web/src/pages/Search.scss",
   "scripts/test-web-search-contract.mjs",
 ]);
 let unchangedSources = 0;
@@ -46,7 +48,7 @@ for (const source of manifest.sources) {
     assert.notEqual(
       blobHash,
       source.blobSha,
-      `B185 extension ${source.path} unexpectedly replaced by original`,
+      `B185-B186 extension ${source.path} unexpectedly replaced by original`,
     );
     verifiedOverlays++;
   } else {
@@ -59,8 +61,8 @@ for (const source of manifest.sources) {
   }
 }
 
-assert.equal(unchangedSources, 30);
-assert.equal(verifiedOverlays, overlays.size, "Every intended B185 overlay must be tracked");
+assert.equal(unchangedSources, 28);
+assert.equal(verifiedOverlays, overlays.size, "Every B185-B186 overlay must be tracked");
 
 const search = text("apps/web/src/pages/Search.tsx");
 const searchAction = text("apps/web/src/features/search/SearchSaveAction.tsx");
@@ -77,6 +79,8 @@ const globalVerify = text(".github/workflows/ci.yml");
 const frozenLock = text("pnpm-lock.yaml");
 
 assert.match(search, /<SearchSaveAction/u);
+assert.match(search, /<ResourceStudyHandoff/u);
+assert.match(search, /authenticated && \(\s*<ResourceStudyHandoff/u);
 assert.match(searchAction, /resourcesApi\.save\(/u);
 assert.match(searchAction, /resourcesApi\.unsave\(/u);
 assert.match(searchAction, /Reintentar quitar/u);
