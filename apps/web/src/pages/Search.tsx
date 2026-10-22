@@ -403,6 +403,7 @@ const Search = () => {
                           searchReturnTo: searchSelectionHref({
                             q: submittedQuery,
                             scope: submittedScope,
+                            subjectId: submittedSubjectId || undefined,
                           }),
                         }}
                       >
@@ -504,6 +505,7 @@ const Search = () => {
                                 searchSelectionHref({
                                   q: submittedQuery,
                                   scope: submittedScope,
+                                  subjectId: submittedSubjectId || undefined,
                                 }) ?? "/search",
                             }}
                           >
