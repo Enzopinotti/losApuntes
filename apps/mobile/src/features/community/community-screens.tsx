@@ -22,6 +22,7 @@ import {
   canRefreshCommunityQuestion,
   captureOwnedQuestionBaseline,
   communityAnswerDraftConfirmationTransition,
+  communityDraftAuthorityTransition,
   communityFailure,
   isAmbiguousCommunityMutationFailure,
   MobileCommunityFeedController,
@@ -920,6 +921,7 @@ export function CommunityQuestionComposerScreen() {
   );
   const authorityKey = authority.authorityKey;
   const authorityKeyRef = useRef(authorityKey);
+  const draftAuthorityKeyRef = useRef(authorityKey);
   const activeOperation = useRef<AbortController | null>(null);
   const pendingQuestion = useRef<{
     authorityKey: string;
@@ -930,6 +932,12 @@ export function CommunityQuestionComposerScreen() {
   authorityKeyRef.current = authorityKey;
 
   useEffect(() => {
+    const draftAuthorityTransition = communityDraftAuthorityTransition(
+      draftAuthorityKeyRef.current,
+      authorityKey,
+    );
+    draftAuthorityKeyRef.current = draftAuthorityTransition.authorityKey;
+
     const hadActiveOperation = activeOperation.current !== null;
     activeOperation.current = cancelCommunityComposerSubmission(
       activeOperation.current,
@@ -938,12 +946,18 @@ export function CommunityQuestionComposerScreen() {
     if (hadActiveOperation && pendingQuestion.current) {
       setQuestionRetryBlocked(true);
     }
-    if (
+    const pendingQuestionAuthorityChanged = Boolean(
       authorityKey &&
       pendingQuestion.current &&
-      pendingQuestion.current.authorityKey !== authorityKey
-    ) {
+      pendingQuestion.current.authorityKey !== authorityKey,
+    );
+    if (pendingQuestionAuthorityChanged) {
       pendingQuestion.current = null;
+    }
+    if (
+      draftAuthorityTransition.resetDraft ||
+      pendingQuestionAuthorityChanged
+    ) {
       setQuestionRetryBlocked(false);
       setFailure(null);
       setFailureCode(null);
