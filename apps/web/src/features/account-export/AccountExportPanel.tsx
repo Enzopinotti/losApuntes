@@ -7,12 +7,12 @@ import {
   type AccountExportStatus,
 } from "./accountExportService";
 import {
+  accountExportExpiryDelayMs,
   accountExportStatusMessage,
   isAccountExportDownloadAvailable,
 } from "./accountExportPresentation";
 
 const RECONCILE_INTERVAL_MS = 30_000;
-const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 type Scoped<T> = { scopeKey: string; value: T };
 type ExportPresentation = {
@@ -151,17 +151,27 @@ export function AccountExportPanel() {
 
   const active = job?.state === "pending" || job?.state === "processing";
   useEffect(() => {
-    if (!job?.downloadable || !job.downloadExpiresAt) return;
+    const downloadExpiresAt = job?.downloadExpiresAt;
+    if (!job?.downloadable || !downloadExpiresAt) return;
 
-    const remainingMs = Date.parse(job.downloadExpiresAt) - now;
-    if (remainingMs <= 0) return;
+    let timer: number | null = null;
+    const updateAvailability = () => {
+      const currentTime = Date.now();
+      setNow(currentTime);
+      const delayMs = accountExportExpiryDelayMs(
+        downloadExpiresAt,
+        currentTime,
+      );
+      if (delayMs > 0) {
+        timer = window.setTimeout(updateAvailability, delayMs);
+      }
+    };
 
-    const timer = window.setTimeout(
-      () => setNow(Date.now()),
-      Math.min(remainingMs, MAX_TIMER_DELAY_MS),
-    );
-    return () => window.clearTimeout(timer);
-  }, [job?.downloadExpiresAt, job?.downloadable, now]);
+    updateAvailability();
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [job?.downloadExpiresAt, job?.downloadable]);
 
   useEffect(() => {
     if (status !== "authenticated" || !active || busy) return;

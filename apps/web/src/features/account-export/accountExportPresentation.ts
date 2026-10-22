@@ -1,5 +1,16 @@
 import type { AccountExportStatus } from "./accountExportContract";
 
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+export function accountExportExpiryDelayMs(
+  expiresAt: string,
+  now = Date.now(),
+): number {
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) return 0;
+  return Math.min(Math.max(0, expiresAtMs - now), MAX_TIMER_DELAY_MS);
+}
+
 export function isAccountExportDownloadAvailable(
   value: AccountExportStatus | null,
   now = Date.now(),
