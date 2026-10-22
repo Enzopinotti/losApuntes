@@ -247,6 +247,24 @@
   background: #eef1ff;
 }
 
+.organization-share-fallback {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  font-weight: 600;
+}
+
+.organization-share-fallback input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfcfd8;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
 .organization-event-cancelled {
   color: #8b1e1e;
   font-weight: 700;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
+import { organizationPublicPath } from "../features/organizations/organization-public-share.mjs";
 import {
   isOrganizationsApiError,
   organizationsApi,
@@ -133,6 +134,15 @@ const Organization = () => {
     feedbackState?.scopeKey === organizationScopeKey
       ? feedbackState.message
       : null;
+  const [shareStatusState, setShareStatusState] = useState<{
+    scopeKey: string;
+    message: string;
+    href: string | null;
+  } | null>(null);
+  const shareStatus =
+    shareStatusState?.scopeKey === organizationScopeKey
+      ? shareStatusState
+      : null;
   const [eventFilterState, setEventFilterState] = useState<{
     scopeKey: string;
     value: "all" | "upcoming";
@@ -230,6 +240,52 @@ const Organization = () => {
       if (finishAction(ticket)) {
         setBusyState({ scopeKey: organizationScopeKey, value: null });
       }
+    }
+  };
+
+  const shareOrganization = async () => {
+    if (!organization) return;
+    const path = organizationPublicPath(organization.id);
+    if (!path) return;
+    const url = new URL(path, window.location.origin).toString();
+    setShareStatusState({
+      scopeKey: organizationScopeKey,
+      message: "",
+      href: null,
+    });
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: organization.name,
+          text: `Conocé ${organization.name} en Los Apuntes.`,
+          url,
+        });
+        setShareStatusState({
+          scopeKey: organizationScopeKey,
+          message: "Enlace compartido.",
+          href: null,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatusState({
+        scopeKey: organizationScopeKey,
+        message: "Enlace copiado al portapapeles.",
+        href: null,
+      });
+    } catch {
+      setShareStatusState({
+        scopeKey: organizationScopeKey,
+        message: "No pudimos copiarlo. Seleccioná el enlace para copiarlo.",
+        href: url,
+      });
     }
   };
 
@@ -484,6 +540,11 @@ const Organization = () => {
           </div>
         </div>
         <div className="organization-header-actions">
+          {organizationPublicPath(organization.id) ? (
+            <button type="button" onClick={() => void shareOrganization()}>
+              Compartir organización
+            </button>
+          ) : null}
           {authenticated ? (
             <button
               type="button"
@@ -505,6 +566,22 @@ const Organization = () => {
         </div>
       </header>
 
+      {shareStatus?.message ? (
+        <p className="organizations-success" role="status">
+          {shareStatus.message}
+        </p>
+      ) : null}
+      {shareStatus?.href ? (
+        <label className="organization-share-fallback">
+          Enlace público
+          <input
+            aria-label="Enlace público de la organización"
+            onFocus={(event) => event.currentTarget.select()}
+            readOnly
+            value={shareStatus.href}
+          />
+        </label>
+      ) : null}
       {feedback && (
         <p className="organizations-success" role="status">
           {feedback}
