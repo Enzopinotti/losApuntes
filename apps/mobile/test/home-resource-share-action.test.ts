@@ -8,7 +8,9 @@ function file(path: string): string {
 
 test("Home saved preview shares the currently authorized resource", () => {
   const card = file("../src/features/home/home-saved-return-card.tsx");
-  const controller = file("../src/features/home/home-saved-return-controller.ts");
+  const controller = file(
+    "../src/features/home/home-saved-return-controller.ts",
+  );
   const itemRows = card.slice(
     card.indexOf("current.items.map((resource) => {"),
     card.indexOf("{current.moreAvailable ?"),
@@ -24,7 +26,9 @@ test("Home saved preview shares the currently authorized resource", () => {
 
 test("Home recent preview shares only resources reauthorized for this session", () => {
   const card = file("../src/features/home/home-recent-opened-card.tsx");
-  const controller = file("../src/features/home/home-recent-opened-controller.ts");
+  const controller = file(
+    "../src/features/home/home-recent-opened-controller.ts",
+  );
   const itemRows = card.slice(
     card.indexOf("visibleItems.map((resource) => {"),
     card.indexOf("{current.moreAvailable && recentScope"),
