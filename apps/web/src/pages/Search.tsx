@@ -80,6 +80,11 @@ const Search = () => {
   const contextual =
     contextState?.scopeKey === authorityScope ? contextState.data : null;
   const [contextLoading, setContextLoading] = useState(false);
+  const hasActiveSearch =
+    query.length > 0 ||
+    scope !== "all" ||
+    subjectId !== "" ||
+    searchParams.toString() !== "";
 
   // Back/forward navigation updates the draft; editing alone never writes a URL.
   useEffect(() => {
@@ -211,6 +216,17 @@ const Search = () => {
     }
   };
 
+  const resetSearch = () => {
+    // A reset must never leave an in-flight result available for reuse.
+    invalidateSearchRequest();
+    setSearchState(null);
+    setCopyStatus(null);
+    setQuery("");
+    setScope("all");
+    setSubjectId("");
+    setSearchParams(new URLSearchParams());
+  };
+
   const copySearchLink = async () => {
     const href = searchSelectionHref({
       q: submittedQuery,
@@ -309,6 +325,15 @@ const Search = () => {
         >
           {loading ? "Buscando…" : "Buscar"}
         </button>
+        {hasActiveSearch && (
+          <button
+            className="search-reset"
+            type="button"
+            onClick={resetSearch}
+          >
+            Limpiar búsqueda
+          </button>
+        )}
       </form>
 
       {invalidLinkedSearch && (
