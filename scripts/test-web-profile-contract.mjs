@@ -81,6 +81,15 @@ assert.match(publicPage, /ticket\.signal/u);
 assert.match(publicPage, /snapshotState\?\.scopeKey === profileScopeKey/u);
 assert.doesNotMatch(publicPage, /let\s+active\s*=\s*true/u);
 assert.match(publicPage, /profileApi\.publicActivities\(/u);
+assert.match(publicPage, /activityCursorRepeats\(/u);
+assert.match(publicPage, /cursorCycle/u);
+assert.match(publicPage, /activitiesNextCursor: null/u);
+assert.match(publicPage, /loadedActivityCursors\.current = \{/u);
+assert.match(
+  publicPage,
+  /profileApi\.publicProfile\(profileId, ticket\.signal\)/u,
+);
+assert.match(publicPage, /Actualizar actividades/u);
 assert.match(publicPage, /activitiesNextCursor/u);
 assert.match(publicPage, /appendActivities/u);
 assert.doesNotMatch(publicPage, /profileApi\.me\(\)/u);
