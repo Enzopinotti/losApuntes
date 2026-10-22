@@ -74,15 +74,20 @@ export class StudyCollectionMembershipService {
         message: 'Membership page size must be between 1 and 25',
       });
     }
-    const after = decodeMembershipCursor(ownerUserId, resourceId, input.cursor);
+    const canonicalResourceId = resourceId.toLowerCase();
+    const after = decodeMembershipCursor(
+      ownerUserId,
+      canonicalResourceId,
+      input.cursor,
+    );
 
     // A resource identifier is not an access grant. Deny a missing or
     // unreadable resource using existing ResourceService authority.
-    await this.resources.get(resourceId, ownerUserId);
+    await this.resources.get(canonicalResourceId, ownerUserId);
 
     const filters: FilterQuery<StudyCollection>[] = [
       { ownerUserId },
-      { resourceIds: resourceId },
+      { resourceIds: canonicalResourceId },
     ];
     if (after) {
       filters.push({
@@ -107,6 +112,7 @@ export class StudyCollectionMembershipService {
       .sort({ updatedAt: -1, id: 1 })
       .limit(input.limit + 1)
       .lean<MembershipRow[]>()
+      .maxTimeMS(5000)
       .exec();
 
     if (!Array.isArray(rows) || rows.length > input.limit + 1) {
@@ -124,7 +130,7 @@ export class StudyCollectionMembershipService {
         row.revision < 1 ||
         !Array.isArray(row.resourceIds) ||
         row.resourceIds.length > MAX_COLLECTION_ITEMS ||
-        !row.resourceIds.includes(resourceId) ||
+        !row.resourceIds.includes(canonicalResourceId) ||
         row.resourceIds.some(
           (id) => typeof id !== 'string' || !UUID_V4.test(id),
         ) ||
@@ -148,7 +154,7 @@ export class StudyCollectionMembershipService {
       })),
       nextCursor:
         rows.length > input.limit && last
-          ? encodeMembershipCursor(ownerUserId, resourceId, {
+          ? encodeMembershipCursor(ownerUserId, canonicalResourceId, {
               updatedAt: last.updatedAt,
               id: last.id,
             })

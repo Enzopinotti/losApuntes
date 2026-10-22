@@ -33,12 +33,14 @@ function setup(rows: unknown[] = []) {
     sort: jest.fn(),
     limit: jest.fn(),
     lean: jest.fn(),
+    maxTimeMS: jest.fn(),
     exec: jest.fn().mockResolvedValue(rows),
   };
   query.select.mockReturnValue(query);
   query.sort.mockReturnValue(query);
   query.limit.mockReturnValue(query);
   query.lean.mockReturnValue(query);
+  query.maxTimeMS.mockReturnValue(query);
   const find = jest.fn().mockReturnValue(query);
   const get = jest.fn().mockResolvedValue({ resource: { id: resourceId } });
   const service = new StudyCollectionMembershipService(
@@ -70,6 +72,7 @@ describe('B151 private resource collection membership', () => {
     });
     expect(f.query.sort).toHaveBeenCalledWith({ updatedAt: -1, id: 1 });
     expect(f.query.limit).toHaveBeenCalledWith(2);
+    expect(f.query.maxTimeMS).toHaveBeenCalledWith(5000);
     expect(result.items).toEqual([
       {
         id: collectionId,
@@ -82,6 +85,31 @@ describe('B151 private resource collection membership', () => {
     expect(result.nextCursor).toEqual(expect.any(String));
     expect(JSON.stringify(result)).not.toContain('owner-a');
     expect(JSON.stringify(result)).not.toContain('privateNote');
+  });
+
+  it('normalizes uppercase resource UUIDs before authority, cursor and Mongo checks', async () => {
+    const f = setup();
+    const uppercaseResourceId = resourceId.toUpperCase();
+    const cursor = encodeMembershipCursor('owner-a', resourceId, {
+      updatedAt,
+      id: collectionId,
+    });
+
+    await f.service.list('owner-a', uppercaseResourceId, { limit: 25, cursor });
+
+    expect(f.get).toHaveBeenCalledWith(resourceId, 'owner-a');
+    expect(f.find).toHaveBeenCalledWith({
+      $and: [
+        { ownerUserId: 'owner-a' },
+        { resourceIds: resourceId },
+        {
+          $or: [
+            { updatedAt: { $lt: updatedAt } },
+            { updatedAt, id: { $gt: collectionId } },
+          ],
+        },
+      ],
+    });
   });
 
   it('seeks by timestamp descending, ID ascending, always inside owner and resource filters', async () => {

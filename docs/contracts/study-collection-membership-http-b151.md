@@ -11,7 +11,7 @@ Cuando una persona abre un apunte, debe poder ver **en cuáles de sus coleccione
 `GET /study-collections/resources/:resourceId/membership?limit=25&cursor=<opaque>`
 
 - Requiere `AuthSessionGuard` **y** `StudyCollectionsFeatureGuard`, que conserva la política de activación existente; sin flag habilitado, se rechaza.
-- `resourceId` UUIDv4 validado en la ruta. La identidad de quien consulta se obtiene **solo** de `request.user.id`.
+- `resourceId` UUIDv4 validado en la ruta y normalizado a minúsculas antes de autorizar o consultar memberships. La identidad de quien consulta se obtiene **solo** de `request.user.id`.
 - `Cache-Control: private, no-store`; nunca se cachea una selección personalizada entre usuarios.
 - `limit` entero 1..25 (predeterminado 25). `cursor` canónico base64url de 4..512 caracteres, asociado a la cuenta y al recurso.
 - Antes de consultar Mongo se llama `ResourceService.get(resourceId, ownerUserId)`. Las denegaciones, el recurso no encontrado y los fallos de Resource permanecen como errores; la API no devuelve memberships al no poder comprobar acceso.
@@ -51,7 +51,7 @@ Los cursores son pistas de paginación, no snapshots de transacciones. Si otra p
 
 ## Rendimiento y compatibilidad
 
-Se agrega el índice multikey `(ownerUserId,resourceIds,updatedAt DESC,id ASC)` al esquema ya existente, registrado antes de compilar el modelo Mongoose. No se duplican recursos, archivos o colecciones y no se cambia la persistencia documental.
+Se agrega el índice multikey `(ownerUserId,resourceIds,updatedAt DESC,id ASC)` al esquema ya existente, registrado antes de compilar el modelo Mongoose. La consulta de memberships limita su ejecución a 5 s; los timeouts se propagan como fallos, nunca como una lista vacía. No se duplican recursos, archivos o colecciones y no se cambia la persistencia documental.
 
 La pantalla de selección puede cargar primero esta lista y marcar las colecciones correspondientes. Para quitar o agregar debe invocar las mutaciones ya existentes, que revalidan propietario, autorización de Resource y revisión según el contrato. Este endpoint **no autoriza automáticamente** futuras operaciones.
 
