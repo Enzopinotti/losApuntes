@@ -68,7 +68,7 @@ un perfil y actualizarlo después de llamar a:
 - `POST /social/connections/:id/accept` o `/decline`.
 - `DELETE /social/connections/:id`.
 
-Es una lectura puntual *best effort*; otro dispositivo puede cambiar la relación entre la consulta y la mutación. La API de escritura sigue siendo fuente de verdad. No se incorporaron botones/pantallas.
+Es una lectura puntual _best effort_; otro dispositivo puede cambiar la relación entre la consulta y la mutación. La API de escritura sigue siendo fuente de verdad. No se incorporaron botones/pantallas.
 
 ## Aceptación y release
 
