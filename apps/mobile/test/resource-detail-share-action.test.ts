@@ -7,13 +7,13 @@ function file(path: string): string {
 }
 
 test("resource detail offers the permission-neutral resource share action", () => {
-  const screen = file(
-    "../src/features/resources/resource-details-screen.tsx",
-  );
+  const screen = file("../src/features/resources/resource-details-screen.tsx");
   const action = file("../src/features/resources/resource-share-action.tsx");
   const actionCard = screen.slice(
-    screen.indexOf('<Text accessibilityRole="header" style={styles.sectionTitle}>'),
-    screen.indexOf("{currentAction?.notice === \"unsaved\"}"),
+    screen.indexOf(
+      '<Text accessibilityRole="header" style={styles.sectionTitle}>',
+    ),
+    screen.indexOf('{currentAction?.notice === "unsaved"}'),
   );
 
   assert.match(screen, /import \{ MobileResourceShareAction \} from/u);
@@ -24,4 +24,3 @@ test("resource detail offers the permission-neutral resource share action", () =
   assert.match(action, /accessibilityHint=.*El enlace no concede acceso/u);
   assert.match(action, /Share\.share\(\{ message: payload\.message \}\)/u);
 });
-
