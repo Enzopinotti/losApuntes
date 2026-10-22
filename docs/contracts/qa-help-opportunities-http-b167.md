@@ -51,6 +51,7 @@ preguntas elegibles se muestran explícitamente con conteo 0.
 ## Conteo y privacidad
 
 Cada `unansweredPeerQuestions` cuenta únicamente Questions que:
+
 1. Coincidan con el `subjectId` seleccionado desde las participaciones
    actuales de esa cuenta.
 2. Sean `state=open`, `moderationState=available`.
@@ -95,22 +96,23 @@ La vista no garantiza snapshot transaccional: otra persona puede responder
 entre el resumen y el detalle. La navegación debe consultar el estado
 actual con el endpoint Q&A autorizado.
 
-## Entregables y publicación
+## Validación del carrier y aceptación pendiente
 
-- Módulo Nest autónomo `qa-help-opportunities`, con service/controller y
-  dos suites Jest; registro exclusivamente en `app.module.ts`.
-- Pruebas de `AuthSessionGuard`/no-store, owner-first, current-only,
-  deduplicación por materia, ausencia de consultas para usuarios sin
-  cursadas actuales, moderación de Questions y Answers, conexión segura
-  `Answer.questionId = $$parentId`, 12+1, orden, ceros y fail-closed
-  ante corrupción y errores de Mongo.
-- Sin tocar Frontend/Mobile, auth, Q&A core, esquemas/indexes, migraciones
-  ni dependencias. No agregar cambios a otros carriles en paralelo.
-- Validación exact-head: API strict ESLint, TS, Prettier, related/full Jest,
-  10 critical coverage, Quality Gate, runtime smoke y prod dependency audit.
-- Los mocks validan la estructura; hace falta aceptación Mongo **específica**
-  del nuevo agregado antes del release de B167.
-
-Release #353 continúa **HOLD** hasta cero high/critical en auditoría de
-producción (#133 node-forge, #141 braces, #492 follow-redirects),
-resolución de aceptación y sin waivers. El PR queda Draft sin merge.
+- El carrier conserva los 10 commits atómicos originales de B167 sobre
+  `main@bb27ee62` y agrega un commit separado de evidencia; no se hace
+  squash.
+- Las suites verifican `AuthSessionGuard`/no-store, dueño de sesión,
+  materias actuales deduplicadas, ausencia de lectura Q&A sin materias,
+  moderación, unión `Answer.questionId = $$parentId`, límite 12+1,
+  orden, ceros y fallos cerrados ante corrupción/Mongo.
+- Validación local del carrier: 2 suites / 19 pruebas, API TypeScript,
+  ESLint sin warnings, Prettier API, `nest build`, Prettier del contrato
+  y `git diff --check` — PASS.
+- No se ejecutó CI. Los tests de agregación usan mocks; **no se verificó
+  el nuevo pipeline contra Mongo real**. Este entorno no tiene daemon
+  Docker ni `mongod`; ejecutar aceptación con una réplica aislada antes
+  de producción.
+- El módulo es read-only y usa participaciones académicas y Q&A ya
+  existentes. No cambia Web/Mobile, autenticación, schemas, índices,
+  migraciones, dependencias ni workflows. La integración del código no
+  acredita aceptación de runtime ni habilita un despliegue.
