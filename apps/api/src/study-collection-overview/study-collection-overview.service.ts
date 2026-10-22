@@ -10,6 +10,7 @@ import { STUDY_COLLECTION_MAX_ITEMS } from '../study-collections/domain/study-co
 import { StudyCollection } from '../study-collections/mongo/study-collection.mongo-schema';
 
 const RECENT_LIMIT = 5;
+const MAX_QUERY_TIME_MS = 5000;
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
@@ -177,6 +178,7 @@ export class StudyCollectionOverviewService {
 
     const result = await this.collections
       .aggregate<OverviewAggregateResult>(pipeline)
+      .option({ maxTimeMS: MAX_QUERY_TIME_MS })
       .exec();
     if (
       !Array.isArray(result) ||

@@ -49,12 +49,15 @@ No se realizan lecturas de Resource, descargas ni operaciones de escritura. Esta
 ## Diseño de consulta y eficiencia
 
 Una única agregación Mongo con:
+
 1. `$match` por `ownerUserId` autenticado.
 2. `$sort` por actualización descendente y UUID ascendente, respaldado por nuevo índice `{ownerUserId:1,updatedAt:-1,id:1}`.
 3. `$project` mínimo, cálculo de conteo por colección y detección de arreglos `resourceIds` inválidos o duplicados.
 4. `$facet`: rama `totals` para agregados de toda la cuenta y rama `recent` con límite estricto de 5.
 
 La rama `totals` recorre las colecciones de ese propietario; **no** se afirma complejidad constante ni métricas en tiempo real sin costo. El mismo resultado de agregación se usa para totales y recientes, evitando combinar consultas independientes. Cambios simultáneos pueden provocar resultados diferentes entre dos solicitudes; no se promete snapshot entre solicitudes.
+
+La agregación tiene un límite de ejecución de **5 segundos** (`maxTimeMS`). Un timeout se propaga como error de base de datos; no se reemplaza por contadores cero.
 
 ## Validación y errores
 

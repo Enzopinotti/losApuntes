@@ -46,13 +46,20 @@ function fixture(
   ],
 ) {
   const exec = jest.fn().mockResolvedValue(result);
+  const option = jest.fn().mockReturnThis();
   let lastPipeline: PipelineStage[] | undefined;
   const aggregate = jest.fn((pipeline: PipelineStage[]) => {
     lastPipeline = pipeline;
-    return { exec };
+    return { option, exec };
   });
   const overview = new StudyCollectionOverviewService({ aggregate } as never);
-  return { overview, exec, aggregate, getPipeline: () => lastPipeline };
+  return {
+    overview,
+    exec,
+    aggregate,
+    option,
+    getPipeline: () => lastPipeline,
+  };
 }
 
 describe('B152 study collection overview owner-only aggregation', () => {
@@ -60,6 +67,7 @@ describe('B152 study collection overview owner-only aggregation', () => {
     const f = fixture();
     const result = await f.overview.get('owner-a');
     expect(f.aggregate).toHaveBeenCalledTimes(1);
+    expect(f.option).toHaveBeenCalledWith({ maxTimeMS: 5000 });
     const pipeline = f.getPipeline();
     expect(pipeline?.[0]).toEqual({ $match: { ownerUserId: 'owner-a' } });
     expect(pipeline?.[1]).toEqual({ $sort: { updatedAt: -1, id: 1 } });
