@@ -74,6 +74,7 @@ import {
 import { useAcademicContext } from "../academic/academic-context-provider";
 import { HomeSavedReturnCard } from "./home-saved-return-card";
 import { HomeRecentOpenedCard } from "./home-recent-opened-card";
+import { HomeHelpOpportunitiesCard } from "./home-help-opportunities-card";
 import { homeSelectedCurrentSubject } from "./home-recent-academic-continuity";
 
 const itemKindLabel = (item: FeedItem): string => {
@@ -962,6 +963,7 @@ export function HomeScreen() {
         currentSubject={selectedRecentSubject}
       />
       <HomeSavedReturnCard authorityKey={activeHomeAuthority} />
+      <HomeHelpOpportunitiesCard authorityKey={activeHomeAuthority} />
       {MOBILE_STUDY_AGENDA_VISIBLE && session.kind === "authenticated" ? (
         <Pressable
           accessibilityRole="button"
