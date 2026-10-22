@@ -603,12 +603,14 @@ const Questions = () => {
       );
       setShareFeedback({
         scopeKey,
-        message: "Enlace copiado. Solo contiene el identificador público de la materia.",
+        message:
+          "Enlace copiado. Solo contiene el identificador público de la materia.",
       });
     } catch {
       setShareFeedback({
         scopeKey,
-        message: "No pudimos copiarlo. Podés copiar el enlace desde la barra del navegador.",
+        message:
+          "No pudimos copiarlo. Podés copiar el enlace desde la barra del navegador.",
       });
     }
   };
