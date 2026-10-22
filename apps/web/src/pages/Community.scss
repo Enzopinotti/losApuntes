@@ -288,6 +288,12 @@
     flex-direction: column;
   }
 
+  .community-discovery-filter .community-inline input {
+    flex: 0 1 auto;
+    width: 100%;
+    min-height: 44px;
+  }
+
   .community-list > li {
     flex-direction: column;
   }
