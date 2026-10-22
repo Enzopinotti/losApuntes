@@ -161,6 +161,23 @@ export function SubjectQuestionsScreen({
               El servidor filtra por materia y aplica las reglas de visibilidad.
               Podés leer preguntas aunque no sea tu materia académica actual.
             </Text>
+            {subjectId ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ver preguntas de esta materia que necesitan ayuda"
+                onPress={() =>
+                  router.push({
+                    pathname: "/questions/subjects/[subjectId]/needs-help",
+                    params: { subjectId },
+                  })
+                }
+                style={styles.action}
+              >
+                <Text style={styles.link}>
+                  Ver preguntas que necesitan ayuda
+                </Text>
+              </Pressable>
+            ) : null}
             {canCompose ? (
               <Pressable
                 accessibilityRole="button"
