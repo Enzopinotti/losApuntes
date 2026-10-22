@@ -486,7 +486,7 @@ async function run() {
 
     await page.goto(new URL("/login", WEB_ORIGIN).toString());
     const loginEmail = page.getByLabel("Email");
-    const loginPassword = page.getByLabel("Contraseña");
+    const loginPassword = page.getByLabel("Contraseña", { exact: true });
     const loginSubmit = page.getByRole("button", { name: "Iniciar sesión" });
     assert.equal(await loginEmail.getAttribute("autocomplete"), "email");
     assert.equal(
@@ -848,7 +848,9 @@ async function run() {
 
     await page.goto(new URL("/login", WEB_ORIGIN).toString());
     const recoveredLoginEmail = page.getByLabel("Email");
-    const recoveredLoginPassword = page.getByLabel("Contraseña");
+    const recoveredLoginPassword = page.getByLabel("Contraseña", {
+      exact: true,
+    });
     const recoveredLoginSubmit = page.getByRole("button", {
       name: "Iniciar sesión",
     });
