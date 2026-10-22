@@ -76,6 +76,12 @@ const mobileOrganizationReportPolicy = await read(
 const mobileOrganizationShare = await read(
   'apps/mobile/src/features/organizations/organization-public-share.ts',
 );
+const mobileOrganizationEventCalendarShare = await read(
+  'apps/mobile/src/features/organizations/organization-event-calendar-share.ts',
+);
+const mobileOrganizationEventCalendarNative = await read(
+  'apps/mobile/src/features/organizations/organization-event-calendar-native.ts',
+);
 const organizationAvatar = await read(
   'apps/web/src/features/organizations/OrganizationAvatar.tsx',
 );
@@ -193,6 +199,12 @@ assert.match(mobileDetail, /Share\.share/u);
 assert.match(mobileDetail, /mobileOrganizationPublicLink\(current\.organization\.id\)/u);
 assert.match(mobileOrganizationShare, /losapuntes:\/\/\/organizations\//u);
 assert.match(mobileOrganizationShare, /ORGANIZATION_UUID_V4_PATTERN/u);
+assert.match(mobileDetail, /Compartir calendario \(\.ics\)/u);
+assert.match(mobileDetail, /shareOrganizationEventCalendar\(\s*event/u);
+assert.match(mobileOrganizationEventCalendarShare, /serializeOrganizationEventCalendar\(event, generatedAt\)/u);
+assert.match(mobileOrganizationEventCalendarShare, /finally[\s\S]*?file\.cleanup\(\)/u);
+assert.match(mobileOrganizationEventCalendarNative, /new File\(Paths\.cache, filename\)/u);
+assert.match(mobileOrganizationEventCalendarNative, /Sharing\.shareAsync\(uri/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
@@ -219,7 +231,7 @@ assert.match(
   /\.organizations-load-more button\s*\{[^}]*min-height:\s*44px/su,
 );
 const eventCalendar = await read(
-  'apps/web/src/features/organizations/organization-event-calendar.mjs',
+  'packages/contracts/src/organization-event-calendar.mjs',
 );
 const organizationShare = await read(
   'apps/web/src/features/organizations/organization-public-share.mjs',

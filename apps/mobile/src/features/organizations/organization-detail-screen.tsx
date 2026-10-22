@@ -14,13 +14,15 @@ import {
   Text,
   View,
 } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { PublicAvatar } from "@/features/profile/public-avatar";
 import { useSession } from "@/features/session/session-provider";
 
+import { nativeOrganizationCalendarSharePort } from "./organization-event-calendar-native";
+import { shareOrganizationEventCalendar } from "./organization-event-calendar-share";
 import { mobileOrganizationPublicLink } from "./organization-public-share";
 import { OrganizationReportAction } from "./organization-report-action";
 import {
@@ -96,11 +98,15 @@ function EventCard({
   organizationId,
   event,
   onOpenExternal,
+  onShareCalendar,
+  calendarShareStatus,
 }: {
   authorityKey: string;
   organizationId: string;
   event: OrganizationEvent;
   onOpenExternal: (url: string) => void;
+  onShareCalendar: () => void;
+  calendarShareStatus: "sending" | "shared" | "failure" | null;
 }) {
   return (
     <View style={styles.item}>
@@ -130,6 +136,35 @@ function EventCard({
           <Text style={styles.inlineActionText}>Abrir enlace externo</Text>
         </Pressable>
       ) : null}
+      {event.state === "scheduled" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Compartir calendario para ${event.title}`}
+          accessibilityState={{
+            busy: calendarShareStatus === "sending",
+            disabled: calendarShareStatus === "sending",
+          }}
+          disabled={calendarShareStatus === "sending"}
+          onPress={onShareCalendar}
+          style={styles.inlineAction}
+        >
+          <Text style={styles.inlineActionText}>
+            {calendarShareStatus === "sending"
+              ? "Preparando calendario…"
+              : "Compartir calendario (.ics)"}
+          </Text>
+        </Pressable>
+      ) : null}
+      {calendarShareStatus === "shared" ? (
+        <Text accessibilityLiveRegion="polite" style={styles.success}>
+          Se abrió el menú para guardar o compartir el evento.
+        </Text>
+      ) : null}
+      {calendarShareStatus === "failure" ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          No pudimos preparar o compartir el archivo de calendario.
+        </Text>
+      ) : null}
       <OrganizationReportAction
         authorityKey={authorityKey}
         organizationId={organizationId}
@@ -158,6 +193,10 @@ export function MobileOrganizationDetailScreen({
   const [appState, setAppState] = useState(AppState.currentState);
   const [externalError, setExternalError] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [calendarShareAction, setCalendarShareAction] = useState<{
+    eventId: string;
+    status: "sending" | "shared" | "failure";
+  } | null>(null);
 
   const sessionKey =
     session.kind === "authenticated"
@@ -167,6 +206,18 @@ export function MobileOrganizationDetailScreen({
     sessionKey && organizationId && isFocused && appState === "active"
       ? `${sessionKey}:organization:${organizationId}`
       : null;
+  const calendarShareGeneration = useRef(0);
+  const calendarShareBusy = useRef(false);
+
+  useEffect(() => {
+    calendarShareGeneration.current += 1;
+    calendarShareBusy.current = false;
+    setCalendarShareAction(null);
+    return () => {
+      calendarShareGeneration.current += 1;
+      calendarShareBusy.current = false;
+    };
+  }, [authorityKey]);
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
 
@@ -236,6 +287,30 @@ export function MobileOrganizationDetailScreen({
       await Share.share({ message: `${organization.name}\n${url}` });
     } catch {
       setShareError("No pudimos abrir la opción para compartir.");
+    }
+  };
+
+  const shareEventCalendar = async (event: OrganizationEvent) => {
+    if (calendarShareBusy.current) return;
+    calendarShareBusy.current = true;
+    const generation = calendarShareGeneration.current;
+    setCalendarShareAction({ eventId: event.id, status: "sending" });
+    try {
+      await shareOrganizationEventCalendar(
+        event,
+        nativeOrganizationCalendarSharePort,
+      );
+      if (calendarShareGeneration.current === generation) {
+        setCalendarShareAction({ eventId: event.id, status: "shared" });
+      }
+    } catch {
+      if (calendarShareGeneration.current === generation) {
+        setCalendarShareAction({ eventId: event.id, status: "failure" });
+      }
+    } finally {
+      if (calendarShareGeneration.current === generation) {
+        calendarShareBusy.current = false;
+      }
     }
   };
 
@@ -577,6 +652,12 @@ export function MobileOrganizationDetailScreen({
                   key={event.id}
                   organizationId={current.organization.id}
                   onOpenExternal={(url) => void openExternal(url)}
+                  onShareCalendar={() => void shareEventCalendar(event)}
+                  calendarShareStatus={
+                    calendarShareAction?.eventId === event.id
+                      ? calendarShareAction.status
+                      : null
+                  }
                 />
               ))
             )}
