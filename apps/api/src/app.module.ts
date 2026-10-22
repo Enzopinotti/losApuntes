@@ -16,6 +16,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PilotModule } from './pilot/pilot.module';
 import { ProfileModule } from './profile/profile.module';
+import { QaSolvedLibraryModule } from './qa-solved-library/qa-solved-library.module';
 import { QaModule } from './qa/qa.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
@@ -59,6 +60,7 @@ import { UsersModule } from './users/users.module';
     PilotModule,
     SocialModule,
     QaModule,
+    QaSolvedLibraryModule,
     HealthModule,
   ],
   controllers: [AppController],
