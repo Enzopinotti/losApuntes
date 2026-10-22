@@ -32,6 +32,7 @@
     "test:web-resources-contract": "node scripts/test-web-resources-contract.mjs",
     "test:web-study-handoff-integration": "node scripts/test-web-study-handoff-integration.mjs",
     "test:web-study-handoff-b179-browser": "node scripts/test-web-study-handoff-b179-browser.mjs",
+    "test:web-study-plan-material-finder-browser": "node scripts/test-web-study-plan-material-finder-browser.mjs",
     "test:web-search-contract": "node scripts/test-web-search-contract.mjs",
     "test:auth-browser-e2e": "node scripts/auth-browser-e2e.mjs",
     "test:web-social-qa-contract": "node --experimental-strip-types scripts/test-web-social-qa-contract.mjs",
