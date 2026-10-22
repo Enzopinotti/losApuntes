@@ -97,6 +97,14 @@ assert.match(
 assert.match(mobileOrganizationController, /loadUpcomingEvents/u);
 assert.match(mobileOrganizationController, /new Date\(\)\.toISOString\(\)/u);
 assert.match(mobileOrganizationController, /upcomingEventsNextCursor/u);
+assert.match(mobileOrganizationController, /async toggleFollow\(\s*authorityKey:\s*string,\s*organizationId:\s*string/u);
+assert.match(mobileOrganizationController, /followAction: MobileOrganizationsDirectoryFollowAction \| null/u);
+assert.match(mobileOrganizationController, /const confirmedFollowing = refreshed\.organization\.viewer\?\.following/u);
+assert.match(mobileDirectory, /followAction=\{current\.followAction\}/u);
+assert.match(mobileDirectory, /controller\.toggleFollow\(\s*current\.authorityKey,\s*organization\.id/u);
+assert.match(mobileDirectory, /followActionBusy=\{directoryActionBusy\}/u);
+assert.match(mobileDirectory, /accessibilityState=\{\{ busy, disabled: followActionBusy \}\}/u);
+assert.match(mobileDirectory, /accessibilityRole=\{action\.status === "failure" \? "alert" : "text"\}/u);
 assert.match(mobileDetail, /controller\.loadUpcomingEvents/u);
 assert.match(mobileDetail, /controller\.showAllEvents/u);
 assert.match(mobileDetail, /No hay próximos eventos\./u);

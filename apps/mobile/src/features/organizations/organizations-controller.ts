@@ -26,6 +26,13 @@ export type MobileOrganizationsFailure = {
   code: string | null;
 };
 
+export type MobileOrganizationsDirectoryFollowAction = {
+  organizationId: string;
+  status: "loading" | "success" | "failure";
+  message: string | null;
+  failure: MobileOrganizationsFailure | null;
+};
+
 export function mobileOrganizationsFailure(
   error: unknown,
 ): MobileOrganizationsFailure {
@@ -60,6 +67,28 @@ function ambiguousFailure(failure: MobileOrganizationsFailure): boolean {
   );
 }
 
+function followFailureMessage(failure: MobileOrganizationsFailure): string {
+  if (failure.kind === "offline") {
+    return "Sin conexión: no pudimos confirmar el cambio. Revisá el estado antes de repetirlo.";
+  }
+  if (failure.kind === "timeout") {
+    return "La solicitud venció y no pudimos confirmar el cambio. Revisá el estado antes de repetirlo.";
+  }
+  if (failure.kind === "server_unavailable") {
+    return "El servidor no pudo confirmar el cambio. Revisá el estado antes de repetirlo.";
+  }
+  if (failure.kind === "auth_required") {
+    return "La sesión cambió. Iniciá sesión nuevamente.";
+  }
+  if (failure.kind === "restricted") {
+    return "Esta cuenta no puede seguir organizaciones.";
+  }
+  if (failure.kind === "not_found") {
+    return "Esta organización ya no está disponible.";
+  }
+  return "No pudimos cambiar el seguimiento de esta organización.";
+}
+
 function appendUnique<T extends { id: string }>(current: T[], next: T[]): T[] {
   const byId = new Map(current.map((item) => [item.id, item]));
   for (const item of next) byId.set(item.id, item);
@@ -81,6 +110,7 @@ export type MobileOrganizationsDirectorySnapshot =
       page: OrganizationSearchPage;
       loadingMore: boolean;
       failure: MobileOrganizationsFailure | null;
+      followAction: MobileOrganizationsDirectoryFollowAction | null;
     }
   | {
       kind: "failure";
@@ -134,6 +164,7 @@ export class MobileOrganizationsDirectoryController {
         page,
         loadingMore: false,
         failure: null,
+        followAction: null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
@@ -194,13 +225,147 @@ export class MobileOrganizationsDirectoryController {
     }
   }
 
+  async toggleFollow(
+    authorityKey: string,
+    organizationId: string,
+  ): Promise<void> {
+    const current = this.currentReady(authorityKey);
+    if (!current || this.active || current.followAction?.status === "loading") {
+      return;
+    }
+    const organization = current.page.items.find(
+      (item) => item.id === organizationId,
+    );
+    if (!organization) return;
+
+    const desiredFollowing = organization.viewer?.following !== true;
+    const operation = this.begin(authorityKey);
+    this.publish({
+      ...current,
+      followAction: {
+        organizationId,
+        status: "loading",
+        message: null,
+        failure: null,
+      },
+    });
+
+    try {
+      const result = desiredFollowing
+        ? await this.api.follow(organizationId, operation.controller.signal)
+        : await this.api.unfollow(organizationId, operation.controller.signal);
+      if (!this.isCurrent(operation)) return;
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+      this.publish({
+        ...latest,
+        page: this.withFollowing(latest.page, organizationId, result.following),
+        followAction: {
+          organizationId,
+          status: "success",
+          message: result.following
+            ? `Ahora seguís ${organization.name}.`
+            : `Dejaste de seguir ${organization.name}.`,
+          failure: null,
+        },
+      });
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const failure = mobileOrganizationsFailure(error);
+
+      if (ambiguousFailure(failure)) {
+        try {
+          const refreshed = await this.api.get(
+            organizationId,
+            operation.controller.signal,
+          );
+          if (!this.isCurrent(operation)) return;
+          const latest = this.currentReady(authorityKey);
+          if (!latest) return;
+          const confirmedFollowing = refreshed.organization.viewer?.following;
+          if (confirmedFollowing === undefined) {
+            this.publish({
+              ...latest,
+              followAction: {
+                organizationId,
+                status: "failure",
+                message:
+                  "No pudimos leer el estado confirmado. Revisá la organización antes de repetir la acción.",
+                failure,
+              },
+            });
+            return;
+          }
+
+          const confirmed = confirmedFollowing === desiredFollowing;
+          this.publish({
+            ...latest,
+            page: this.withFollowing(
+              latest.page,
+              organizationId,
+              confirmedFollowing,
+            ),
+            followAction: {
+              organizationId,
+              status: confirmed ? "success" : "failure",
+              message: confirmed
+                ? `La conexión se interrumpió; el servidor confirma que ${confirmedFollowing ? "ahora seguís" : "dejaste de seguir"} ${organization.name}.`
+                : confirmedFollowing
+                  ? `El servidor confirma que todavía seguís ${organization.name}.`
+                  : `El servidor confirma que todavía no seguís ${organization.name}.`,
+              failure: confirmed ? null : failure,
+            },
+          });
+        } catch (refreshError) {
+          if (!this.isCurrent(operation)) return;
+          const latest = this.currentReady(authorityKey);
+          if (!latest) return;
+          const refreshFailure = mobileOrganizationsFailure(refreshError);
+          this.publish({
+            ...latest,
+            followAction: {
+              organizationId,
+              status: "failure",
+              message: followFailureMessage(refreshFailure),
+              failure: refreshFailure,
+            },
+          });
+        }
+        return;
+      }
+
+      const latest = this.currentReady(authorityKey);
+      if (!latest) return;
+      this.publish({
+        ...latest,
+        followAction: {
+          organizationId,
+          status: "failure",
+          message: followFailureMessage(failure),
+          failure,
+        },
+      });
+    } finally {
+      this.finish(operation);
+    }
+  }
+
   suspend(authorityKey: string): void {
     if (authorityKey !== this.authorityKey) return;
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
     const current = this.currentReady(authorityKey);
-    if (current) this.publish({ ...current, loadingMore: false });
+    if (current) {
+      this.publish({
+        ...current,
+        loadingMore: false,
+        followAction:
+          current.followAction?.status === "loading"
+            ? null
+            : current.followAction,
+      });
+    }
   }
 
   invalidate(authorityKey?: string): void {
@@ -245,6 +410,21 @@ export class MobileOrganizationsDirectoryController {
       this.snapshot.authorityKey === authorityKey
       ? this.snapshot
       : null;
+  }
+
+  private withFollowing(
+    page: OrganizationSearchPage,
+    organizationId: string,
+    following: boolean,
+  ): OrganizationSearchPage {
+    return {
+      ...page,
+      items: page.items.map((item) =>
+        item.id === organizationId
+          ? { ...item, viewer: { ...item.viewer, following } }
+          : item,
+      ),
+    };
   }
 
   private publish(snapshot: MobileOrganizationsDirectorySnapshot): void {
