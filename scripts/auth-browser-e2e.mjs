@@ -493,6 +493,23 @@ async function run() {
       await loginPassword.getAttribute("autocomplete"),
       "current-password",
     );
+    // The reveal control has its own accessible name. Exact label matching
+    // must target the real input, while keeping the toggle keyboard-accessible.
+    const revealLoginPassword = page.getByRole("button", {
+      name: "Mostrar contraseña",
+      exact: true,
+    });
+    assert.equal(
+      await revealLoginPassword.getAttribute("aria-controls"),
+      "login-password",
+    );
+    assert.equal(await loginPassword.getAttribute("type"), "password");
+    await revealLoginPassword.click();
+    assert.equal(await loginPassword.getAttribute("type"), "text");
+    await page
+      .getByRole("button", { name: "Ocultar contraseña", exact: true })
+      .click();
+    assert.equal(await loginPassword.getAttribute("type"), "password");
     assert.equal(
       await page.evaluate(
         () => window.matchMedia("(forced-colors: active)").matches,
