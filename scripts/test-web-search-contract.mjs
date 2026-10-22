@@ -247,6 +247,20 @@ assert.match(resourcesPage, /searchReturnHref\(location\.state\)/u);
 assert.match(resourcesPage, /resourceReturnTo/u);
 assert.match(resourcesPage, /Volver a la búsqueda/u);
 assert.match(page, /searchReturnTo:/u);
+const resourceReturnLinks =
+  page.match(/searchReturnTo:[\s\S]*?searchSelectionHref\(\{[\s\S]*?\}\)/gu) ?? [];
+assert.equal(
+  resourceReturnLinks.length,
+  2,
+  'Both search hits and contextual resource cards must preserve a return link',
+);
+for (const returnLink of resourceReturnLinks) {
+  assert.match(
+    returnLink,
+    /subjectId: submittedSubjectId \|\| undefined/u,
+    'Returning from a resource must keep the canonical subject filter',
+  );
+}
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
