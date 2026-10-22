@@ -41,6 +41,7 @@ import {
   forgetStudyKitWorkspace,
 } from "../features/study/study-kit-workspace.mjs";
 import { createStudyHandoff } from "../features/study/study-session-handoff.mjs";
+import { StudyKitResourceSearch } from "../features/study/StudyKitResourceSearch";
 import {
   resolveStudySubject,
   studySubjectHref,
@@ -1075,6 +1076,26 @@ export default function StudyKits() {
                     aria-label="Explorar apuntes"
                   >
                     <h3>Agregar apuntes visibles</h3>
+                    <StudyKitResourceSearch
+                      key={`${scope}:${selectedKit.id}`}
+                      authorityScope={scope}
+                      subjectId={subject.id}
+                      resourceIds={selectedKit.resourceIds}
+                      limitReached={
+                        selectedKit.resourceIds.length >=
+                        STUDY_KIT_MAX_RESOURCES
+                      }
+                      onAdd={(resourceId) =>
+                        updateSelected((value) =>
+                          addStudyKitResource(
+                            value,
+                            selectedKit.id,
+                            resourceId,
+                          ),
+                        )
+                      }
+                    />
+
                     {(saved?.error || found?.error) && (
                       <p className="study-kits-error" role="alert">
                         {saved?.error ?? found?.error}
