@@ -224,6 +224,16 @@ export function AccountExportPanel() {
       {job && (
         <div aria-live="polite" aria-atomic="true">
           <p>{statusMessage(job)}</p>
+          {job.formatVersion === 3 &&
+            job.state === "completed" &&
+            job.downloadable && (
+              <p>
+                Esta copia incluye el progreso de estudio guardado en tu
+                cuenta, si lo hay: planes, actividades y avances propios. No
+                incorpora materiales de otras personas ni otorga permisos de
+                acceso.
+              </p>
+            )}
           <p>Solicitado: {new Date(job.requestedAt).toLocaleString("es-AR")}</p>
           {job.downloadExpiresAt && (
             <p>
