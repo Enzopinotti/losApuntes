@@ -23,6 +23,7 @@
     "runtime:down": "docker compose -f compose.local.yml -f compose.health.yml down --volumes --remove-orphans",
     "check": "pnpm check:hygiene && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "test:web-auth-contract": "node scripts/test-web-auth-contract.mjs",
+    "test:web-account-export-contract": "node scripts/test-web-account-export-contract.mjs",
     "test:web-study-task-verification": "node scripts/test-web-study-task-verification.mjs",
     "test:web-password-visibility-b185": "node --test scripts/test-web-password-visibility-b185.test.mjs",
     "test:web-verification-resend-b184": "node --test scripts/test-web-verification-resend-b184.test.mjs",
