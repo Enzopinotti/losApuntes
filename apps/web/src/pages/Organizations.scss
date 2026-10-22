@@ -107,6 +107,17 @@
   flex: 1;
 }
 
+.organization-card-actions,
+.organization-directory-follow {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+}
+
+.organization-card-actions button {
+  min-height: 44px;
+}
+
 .organization-card-copy {
   min-width: 0;
 }
@@ -310,6 +321,10 @@ button.secondary {
   .organizations-hero,
   .organization-card {
     flex-direction: column;
+  }
+
+  .organization-card-actions {
+    width: 100%;
   }
 
   .organizations-search,
