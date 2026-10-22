@@ -58,6 +58,7 @@ Esto no significa que la sesión o la materia estuvieran vacías.
 ## Semántica y privacidad
 
 Para cada tarea pendiente:
+
 - `kind=resource` llama a `ResourceService.get(id,viewerUserId)`,
   **el servicio que aplica el mismo permiso de lectura** que
   `GET /resources/:id`, incluyendo visibilidad, moderación y permisos
