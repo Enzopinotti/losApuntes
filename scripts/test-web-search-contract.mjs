@@ -15,6 +15,8 @@ import {
 import {
   shareableResourceHref,
   shareableResourceUrl,
+  shareableSubjectResourcesHref,
+  shareableSubjectResourcesUrl,
 } from '../apps/web/src/features/search/resource-share-link.mjs';
 
 const root = process.cwd();
@@ -215,6 +217,45 @@ for (const invalidOrigin of [
   assert.equal(shareableResourceUrl(resourceId, invalidOrigin), null);
 }
 
+// B197: sharing a subject's resources uses a canonical, unprivileged filter.
+// A direct Resource listing must NEVER include the student's private context,
+// current query, session, resource IDs or permission grants.
+assert.equal(
+  shareableSubjectResourcesHref(subjectId),
+  '/resources?subjectId=' + subjectId,
+);
+assert.equal(
+  shareableSubjectResourcesUrl(subjectId, 'https://apuntes.example'),
+  'https://apuntes.example/resources?subjectId=' + subjectId,
+);
+assert.equal(
+  shareableSubjectResourcesHref(subjectId.toUpperCase()),
+  '/resources?subjectId=' + subjectId,
+);
+for (const invalidId of [
+  '', 'not-a-uuid', '..', subjectId + '&token=private',
+  subjectId + '#notes', subjectId + '/other',
+  '12345678-1234-1234-8234-123456789abc',
+  null, undefined, {}, 42,
+]) {
+  assert.equal(shareableSubjectResourcesHref(invalidId), null);
+  assert.equal(
+    shareableSubjectResourcesUrl(invalidId, 'https://apuntes.example'),
+    null,
+  );
+}
+for (const invalidOrigin of [
+  '', '//other.example', 'javascript:alert(1)',
+  'https://other.example/path', 'https://user:secret@apuntes.example',
+  'https://apuntes.example/', 'file:///private',
+]) {
+  assert.equal(shareableSubjectResourcesUrl(subjectId, invalidOrigin), null);
+}
+assert.equal(
+  shareableSubjectResourcesUrl(subjectId, 'http://localhost:5173'),
+  'http://localhost:5173/resources?subjectId=' + subjectId,
+);
+
 const service = await read(
   'apps/web/src/features/search/services/searchService.ts',
 );
@@ -288,6 +329,16 @@ assert.match(page, /resourceCopyStatus\.resourceId === resource\.id/u);
 assert.match(page, /setResourceCopyStatus\(null\)/u);
 assert.match(page, /<small role="status">\s*\{resourceCopyStatus\.message\}\s*<\/small>/u);
 assert.match(page, /type="button"[\s\S]{0,120}copyResourceLink\(resource\.id\)/u);
+// B197: share a subject's resource catalog only on explicit user action.
+assert.match(page, /shareableSubjectResourcesHref\(subject\.id\)/u);
+assert.match(page, /shareableSubjectResourcesUrl\(/u);
+assert.match(page, /copySubjectResourcesLink\(subject\.id\)/u);
+assert.match(page, /Copiar enlace de apuntes de \$\{subject\.name\}/u);
+assert.match(page, /Los recursos visibles se verifican al abrirlo/u);
+assert.match(page, /subjectCopyStatus\?\.scopeKey === resultScopeKey/u);
+assert.match(page, /subjectCopyStatus\.subjectId === subject\.id/u);
+assert.match(page, /setSubjectCopyStatus\(null\)/u);
+assert.match(page, /<small role="status">\s*\{subjectCopyStatus\.message\}\s*<\/small>/u);
 assert.match(page, /copySearchLink/u);
 assert.match(page, /navigator\.clipboard\?\.writeText/u);
 assert.match(page, /role="status"/u);
@@ -363,6 +414,8 @@ assert.match(page, /subjectId: submittedSubjectId \|\| undefined/u);
 assert.match(page, /Iniciá sesión/u);
 const saveStyles = await read('apps/web/src/pages/Search.scss');
 assert.match(saveStyles, /\.search-save-action button:focus-visible/u);
+assert.match(saveStyles, /\.search-subject-actions button:focus-visible/u);
+assert.match(saveStyles, /\.search-subject-actions \[role="status"\]/u);
 assert.match(saveStyles, /\.search-save-action p\[role="alert"\]/u);
 const resourcesService = await read(
   'apps/web/src/features/resources/services/resourcesService.ts',
