@@ -52,6 +52,17 @@ function isAmbiguousMutationError(error: unknown): boolean {
   );
 }
 
+function appendUniqueOrganizations(
+  current: OrganizationCard[],
+  next: OrganizationCard[],
+): OrganizationCard[] {
+  const byId = new Map(
+    current.map((organization) => [organization.id, organization]),
+  );
+  for (const organization of next) byId.set(organization.id, organization);
+  return [...byId.values()];
+}
+
 function OrganizationDirectoryFollowAction({
   organization,
   authScopeKey,
@@ -226,11 +237,27 @@ const Organizations = () => {
     scopeKey: string;
     items: OrganizationCard[];
     loading: boolean;
+    loadingMore: boolean;
+    nextCursor: string | null;
   } | null>(null);
   const currentListState =
     listState?.scopeKey === directoryScopeKey ? listState : null;
   const items = currentListState?.items ?? [];
   const loading = currentListState?.loading ?? true;
+  const loadingMore = currentListState?.loadingMore ?? false;
+  const nextCursor = currentListState?.nextCursor ?? null;
+  const [paginationErrorState, setPaginationErrorState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const paginationError =
+    paginationErrorState?.scopeKey === directoryScopeKey
+      ? paginationErrorState.message
+      : null;
+  const paginationRequestRef = useRef<{
+    scopeKey: string;
+    cursor: string;
+  } | null>(null);
   const [busyState, setBusyState] = useState<{
     scopeKey: string;
     value: boolean;
@@ -322,8 +349,12 @@ const Organizations = () => {
       scopeKey: directoryScopeKey,
       items: current?.scopeKey === directoryScopeKey ? current.items : [],
       loading: true,
+      loadingMore: false,
+      nextCursor:
+        current?.scopeKey === directoryScopeKey ? current.nextCursor : null,
     }));
     setErrorState(null);
+    setPaginationErrorState(null);
     try {
       const result = await organizationsApi.search(
         {
@@ -338,6 +369,8 @@ const Organizations = () => {
         scopeKey: directoryScopeKey,
         items: result.items,
         loading: false,
+        loadingMore: false,
+        nextCursor: result.nextCursor,
       });
     } catch (nextError) {
       if (!isDirectoryLoadCurrent(ticket)) return;
@@ -360,6 +393,79 @@ const Organizations = () => {
     finishDirectoryLoad,
     isDirectoryLoadCurrent,
     filterInstitution?.id,
+    query,
+    type,
+  ]);
+  const loadMore = useCallback(async () => {
+    const current =
+      listState?.scopeKey === directoryScopeKey ? listState : null;
+    const cursor = current?.nextCursor;
+    if (!current || current.loading || current.loadingMore || !cursor) return;
+    if (paginationRequestRef.current?.scopeKey === directoryScopeKey) return;
+
+    const request = { scopeKey: directoryScopeKey, cursor };
+    paginationRequestRef.current = request;
+    const ticket = beginDirectoryLoad();
+    if (!isDirectoryLoadCurrent(ticket)) {
+      if (paginationRequestRef.current === request) {
+        paginationRequestRef.current = null;
+      }
+      return;
+    }
+
+    setListState((latest) =>
+      latest?.scopeKey === directoryScopeKey
+        ? { ...latest, loadingMore: true }
+        : latest,
+    );
+    setPaginationErrorState(null);
+    setErrorState(null);
+
+    try {
+      const result = await organizationsApi.search(
+        {
+          q: query.trim() || undefined,
+          type: type || undefined,
+          institutionId: filterInstitution?.id,
+          cursor,
+        },
+        ticket.signal,
+      );
+      if (!isDirectoryLoadCurrent(ticket)) return;
+      setListState((latest) =>
+        latest?.scopeKey === directoryScopeKey
+          ? {
+              ...latest,
+              items: appendUniqueOrganizations(latest.items, result.items),
+              loadingMore: false,
+              nextCursor: result.nextCursor,
+            }
+          : latest,
+      );
+    } catch (nextError) {
+      if (!isDirectoryLoadCurrent(ticket)) return;
+      setPaginationErrorState({
+        scopeKey: directoryScopeKey,
+        message: messageFor(nextError),
+      });
+      setListState((latest) =>
+        latest?.scopeKey === directoryScopeKey
+          ? { ...latest, loadingMore: false }
+          : latest,
+      );
+    } finally {
+      finishDirectoryLoad(ticket);
+      if (paginationRequestRef.current === request) {
+        paginationRequestRef.current = null;
+      }
+    }
+  }, [
+    beginDirectoryLoad,
+    directoryScopeKey,
+    filterInstitution?.id,
+    finishDirectoryLoad,
+    isDirectoryLoadCurrent,
+    listState,
     query,
     type,
   ]);
@@ -664,6 +770,29 @@ const Organizations = () => {
           ))
         )}
       </section>
+
+      {paginationError ? (
+        <p className="organizations-error" role="alert">
+          No pudimos cargar más organizaciones: {paginationError}
+        </p>
+      ) : null}
+      {nextCursor ? (
+        <div className="organizations-load-more">
+          <button
+            type="button"
+            className="secondary"
+            aria-busy={loadingMore}
+            disabled={loading || loadingMore}
+            onClick={() => void loadMore()}
+          >
+            {loadingMore
+              ? "Cargando más organizaciones…"
+              : paginationError
+                ? "Reintentar carga"
+                : "Cargar más organizaciones"}
+          </button>
+        </div>
+      ) : null}
 
       {authenticated ? (
         <details className="organizations-create">
