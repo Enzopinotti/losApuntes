@@ -191,6 +191,29 @@
   font-size: 0.9rem;
 }
 
+.profile-activity-actions,
+.profile-activity-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.profile-activity-edit-form {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-activity-edit-actions {
+  grid-column: 1 / -1;
+}
+
 .profile-activity-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 1rem;
@@ -224,7 +247,8 @@
 @media (max-width: 760px) {
   .profile-grid,
   .profile-privacy-grid,
-  .profile-activity-form {
+  .profile-activity-form,
+  .profile-activity-edit-form {
     grid-template-columns: 1fr;
   }
 
