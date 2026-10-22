@@ -53,7 +53,7 @@ Se conserva el esquema existente y sus índices únicos. No se agregan coleccion
 - Perfil no accesible/cerrado: 404 de Profile.
 - Identificador de perfil sin resolución: 404 `SOCIAL_RELATIONSHIP_PROFILE_NOT_FOUND`.
 - Principal de backend inválido: 422 `SOCIAL_RELATIONSHIP_VIEWER_REQUIRED`.
-- Relaciones corruptas, estado desconocido, fecha inválida o participantes inesperados: 503 `SOCIAL_RELATIONSHIP_DATA_INVALID`.
+- Relaciones corruptas, estado desconocido, fecha ausente/inválida o participantes inesperados: 503 `SOCIAL_RELATIONSHIP_DATA_INVALID`.
 - Errores reales de Mongo: se propagan sin convertir el estado en `false` o `null`.
 
 No se devuelve `followerUserId`, `followeeUserId`, `requestedByUserId`, correo ni atributos de visibilidad. Se valida el resultado almacenado antes de producir la respuesta.

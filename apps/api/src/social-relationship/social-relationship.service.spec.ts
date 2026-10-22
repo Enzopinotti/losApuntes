@@ -230,6 +230,7 @@ describe('B150 profile relationship snapshot', () => {
       { connection: connection({ id: 'not-a-uuid' }) },
       { connection: connection({ status: 'unknown' }) },
       { connection: connection({ status: 'pending', respondedAt }) },
+      { connection: connection({ status: 'accepted', respondedAt: null }) },
       {
         connection: connection({ status: 'accepted', respondedAt: 'invalid' }),
       },

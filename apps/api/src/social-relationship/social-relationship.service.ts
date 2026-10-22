@@ -142,7 +142,8 @@ export class SocialRelationshipService {
         (connection.respondedAt !== null &&
           (!(connection.respondedAt instanceof Date) ||
             !Number.isFinite(connection.respondedAt.getTime()))) ||
-        (connection.status === 'pending' && connection.respondedAt !== null))
+        (connection.status === 'pending' && connection.respondedAt !== null) ||
+        (connection.status !== 'pending' && connection.respondedAt === null))
     ) {
       return unsafeRelationship();
     }
