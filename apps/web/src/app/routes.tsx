@@ -9,6 +9,7 @@ import ForgotPassword from "../pages/ForgotPassword";
 import Home from "../pages/Home";
 import Login from "../pages/Login";
 import Network from "../pages/Network";
+import NotFound from "../pages/NotFound";
 import Notifications from "../pages/Notifications";
 import Organization from "../pages/Organization";
 import OrganizationManage from "../pages/OrganizationManage";
@@ -180,6 +181,8 @@ export const routes: RouteObject[] = [
           </PrivateRoute>
         ),
       },
+      // Keep the wildcard last: known public and gated routes win.
+      { path: "*", element: <NotFound /> },
     ],
   },
 ];
