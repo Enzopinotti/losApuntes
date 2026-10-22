@@ -1,7 +1,5 @@
 # B175 — Guardar apuntes desde resultados de búsqueda
 
-Estado: **CANDIDATE — PR Draft, no integrado ni desplegado**.
-
 ## Problema
 
 La búsqueda global mostraba los Resources disponibles, pero obligaba a abrir la ficha de cada apunte para guardarlo. Para el recorrido de valor de Los Apuntes —buscar → encontrar material útil → guardar— esto agregaba una navegación innecesaria.
@@ -26,16 +24,13 @@ Requisitos vigentes: `RES-FR-009` (guardar no concede acceso), `RES-FR-012` (ret
 
 ## Pruebas y aceptación
 
-Las regresiones del `scripts/test-web-search-contract.mjs` comprueban confirmación estricta, errores inciertos, restricción de acción a usuarios autenticados, uso de Resources API, fencing y ausencia de credenciales o storage en el nuevo componente.
+Las regresiones de `scripts/test-web-search-contract.mjs` comprueban confirmación estricta, errores inciertos, restricción de acción a usuarios autenticados, uso de Resources API, fencing y ausencia de credenciales o storage en el nuevo componente. `scripts/test-web-search-save-browser.mjs` prueba la experiencia en Chromium local con la API aislada: invitado sin control de guardado, éxito autenticado, doble clic sin PUT duplicado, respuesta ambigua sin reintento y rechazo 403.
 
-Aceptación end-to-end pendiente:
+La prueba de navegador simula autenticación y respuestas API; no sustituye una aceptación con backend y Mongo reales. Esa aceptación debe comprobar:
 
-1. Invitado puede buscar y abrir resultados sin ver un botón activo de guardado.
-2. Usuario autenticado guarda un recurso y éste aparece en su biblioteca tras confirmación del servidor.
-3. Toques repetidos no envían mutaciones concurrentes de una misma tarjeta.
-4. Cambiar sesión/cuenta o ruta durante la petición no muestra resultados del usuario anterior.
-5. Un recurso retirado o con acceso revocado no se transforma en éxito ficticio.
-6. Timeout después de envío no se anuncia como éxito ni como rollback.
-7. Volver desde la ficha conserva el filtro de materia del enlace de búsqueda.
+1. El recurso guardado aparece en Guardados tras la confirmación del servidor.
+2. Cambiar sesión/cuenta durante la petición no muestra estado de otra autoridad.
+3. Un recurso retirado o con acceso revocado no se transforma en éxito ficticio.
+4. Un timeout posterior al envío no se anuncia como éxito ni como rollback.
 
-**Release:** verificar el candidate SHA con `pnpm test:web-search-contract`, `pnpm check`, lint/typecheck/build y aceptación browser contra API real. El audit productivo #133/#141 y el release #353 HOLD siguen bloqueantes. Sin merge/deploy ni waivers hasta completar gates.
+La búsqueda conserva el filtro al abrir y retomar un apunte; su contrato tiene regresiones existentes. La integración en `main` no es una aprobación de despliegue. La auditoría global de dependencias y los controles de release se siguen evaluando por separado; este bloque no los cambia ni los elude.
