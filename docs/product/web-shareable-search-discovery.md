@@ -59,3 +59,13 @@ Buscar `parcial` en una materia actual y luego en todas debe consultar los resul
 **Defensas:** el helper rechaza IDs malformados, rutas arbitrarias, parámetros de URL, orígenes no HTTP(S) y orígenes con ruta/credenciales. No hay endpoints, preferencias, telemetría ni almacenamiento nuevos. El botón requiere activación explícita; no se auto-copia al renderizar. El resultado accesible se muestra sólo para el recurso y combinación actual de consulta/sesión. Si el navegador no permite escribir en el portapapeles, se muestra una recuperación manual.
 
 **Verificación:** `pnpm test:web-search-contract` incluye tests del helper y su integración, junto con `pnpm check`, build Web y QA manual en Chromium con y sin permiso para el recurso. La prueba de código no equivale por sí sola a una aceptación browser E2E. No cambia la condición HOLD del audit de dependencias ni autoriza desplegar.
+
+## B197 — Compartir los apuntes de una materia sin exponer datos propios
+
+**Problema:** la búsqueda Web permite entrar al catálogo de recursos de una materia, pero no compartir ese listado con otra persona sin copiar la barra de direcciones.
+
+**Recorrido nuevo:** junto a **Ver recursos** en cada materia aparece **Copiar enlace de apuntes**. El enlace contiene exclusivamente el UUIDv4 público canónico de la materia bajo `/resources?subjectId=...`. No incluye la consulta de texto, filtros personales, sesión, tokens, información del estudiante ni datos de autor. La página destino usa el filtro de materia ya existente y solicita al backend los recursos que ese visitante está autorizado a ver: el enlace no concede acceso nuevo ni asegura que todos vean los mismos apuntes.
+
+**Seguridad y UX:** el botón sólo aparece con un ID válido; no se ejecuta ninguna copia automática. Se rechazan ID malformados, rutas adicionales, query/fragmentos inyectados y orígenes no HTTP(S) o no exactos. La respuesta del portapapeles se muestra mediante `role=status` y queda vinculada a la consulta/cuenta vigente y a esa materia específica; al restablecer se limpia. Se ofrece instrucción de recuperación si Clipboard API falla y estados de foco visibles con objetivo táctil de 44 px. Los enlaces no persisten en almacenamiento ni generan telemetría.
+
+**Aceptación:** al copiar, abrir en otro navegador o cuenta, verificar que la URL sólo transporta `subjectId` y que los resultados respetan los permisos vigentes. Confirmar que las pruebas adversarias del contrato de búsqueda y `pnpm check` pasan; QA de navegador real y release audit quedan como controles separados. No se modifican API, permisos, dependencias, lockfile ni flags de release.
