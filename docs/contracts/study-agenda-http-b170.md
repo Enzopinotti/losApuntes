@@ -5,7 +5,7 @@
 Reunir en una sola lectura las sesiones de estudio guardadas por la cuenta,
 para que Web/Mobile puedan mostrar un calendario simple y una lista de
 sesiones pendientes de programar. Complementa B157 (resumen de **una** materia)
-y el reloj de foco de Web (PR #501), sin depender de esas ramas ni cambiar
+y el reloj de foco de la Mesa de estudio, sin depender de sus APIs ni cambiar
 el formato de las sesiones.
 
 ## GET /study-progress/me/agenda
@@ -60,6 +60,7 @@ solo para ordenar las sesiones no programadas y mostrar su última edición.
 
 Cada entrada resume las `tasks` v1 persistidas, respetando los límites
 actuales de 24 tareas y hasta 1.200 minutos:
+
 - `tasks.total`: cantidad de tareas guardadas.
 - `tasks.completed`: tareas con `done=true`.
 - `tasks.pending=total-completed`.
@@ -104,9 +105,12 @@ errores por una agenda falsa vacía.
   integridad de filas/planes, caída de Mongo.
 - No hay escrituras, migraciones, cambios de DB schemas/índices,
   Web/Mobile, auth, configuración del feature flag o lockfile.
-- Tests mockeados de consulta **no son aceptación dedicada Mongo
-  real**. Verificar integración en entorno compatible antes de
-  producción, además de Quality Gate y smoke de runtime.
-- Release #353 **HOLD** mientras haya advisories high/critical
-  (#133, #141, #492), runner incompatible (PR #484) o acceptance
-  pendiente. No se autorizan bypasses ni waivers de auditoría.
+- Validación local: las dos suites Jest de Agenda, TypeScript API,
+  ESLint API sin warnings, Prettier, `format:check`, build Nest y
+  `git diff --check` pasan con Node 24 y pnpm 9.15.9.
+- No se ejecutó CI ni se modificaron workflows.
+- Las suites usan Mongoose mockeado y **no son aceptación dedicada Mongo
+  real**. Verificar la integración en un entorno compatible antes del
+  despliegue; los errores de Mongo siguen propagándose en este endpoint.
+- La auditoría productiva aún reporta 2 HIGH y 3 MODERATE; release #353
+  permanece HOLD. Integrar este bloque en `main` no aprueba despliegues.
