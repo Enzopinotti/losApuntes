@@ -1,6 +1,6 @@
 # B178 — Separar actividad de estudio y actividad social en Notificaciones
 
-Estado: **candidato Web (Draft), sin integrar ni desplegar**.
+Carrier code-only preparado sobre `origin/main` `d51d6b71c98876c5761d0cdcaf05a09cd2739833`; no modifica `.github/workflows/` ni fue desplegado. Se preservaron los seis commits funcionales, de pruebas y documentación del bloque original.
 
 ## Problema
 
@@ -28,16 +28,12 @@ Si una vista no tiene elementos en la ventana cargada pero hay más páginas, se
 
 ## Validaciones y aceptación
 
-La suite existente `pnpm test:web-social-qa-contract` cubre las cinco clases conocidas, eventos desconocidos, separación de vistas, conteos de ventana, combinación con Solo no leídas, reset de sesión, paginación y ausencia de storage persistente.
+Validación local del carrier:
 
-Antes de dar Ready:
-1. Una respuesta nueva se muestra en Preguntas y respuestas y conserva Abrir / marcar leída.
-2. Una conexión aparece solamente en Actividad social.
-3. Cambiar vistas no ejecuta requests adicionales; marcar leída sí los ejecuta de forma autenticada.
-4. Solo no leídas se combina con las vistas; después del refresh la clasificación refleja `readAt` del servidor.
-5. Si la primera página no contiene eventos del tema pero `nextCursor` existe, Cargar más sigue funcionando.
-6. Cambio de cuenta/sesión no filtra datos de otro usuario ni conserva la vista anterior.
-7. Revisión con teclado y pantalla angosta.
-8. Exact-head Node 24: full `pnpm check`, Quality Gate, auditoría productiva, aceptación en navegador/API.
+- `pnpm test:web-social-qa-contract`: PASS; cubre categorías conocidas y desconocidas, vistas, conteos por ventana, composición con Solo no leídas, reset de sesión, paginación y ausencia de storage persistente.
+- `pnpm test:web-notification-categories-b178-browser`: PASS en Chromium con viewport móvil y API simulada en loopback; cubre conteos, filtro local sin peticiones/mutaciones, evento desconocido en Todas, paginación, filtro no leídas del servidor y el alcance global de Marcar todas como leídas.
+- Web `check:types`, `lint`, `format:check` y `build`: PASS. No se ejecutó CI manualmente.
 
-**Release:** #353 permanece HOLD. Las HIGH #133 node-forge, #141 braces y dos follow-redirects (#492; PR #495) no se ocultan ni se exceptúan en este bloque; no merge ni despliegue antes de cerrar gates.
+El browser test simula las lecturas y la mutación de notificaciones; no sustituye la aceptación contra un servicio API desplegado ni una revisión con lector de pantalla.
+
+**Release:** #353 permanece HOLD. La auditoría productiva local sigue en 2 HIGH (`node-forge`, `braces`) y 3 MODERATE; el HIGH de `follow-redirects` dejó de aparecer tras el parche integrado. No se concedió waiver ni autorización de deploy.
