@@ -33,6 +33,9 @@ assert.match(service, /if \(input\.institutionId\) query\.set\("institutionId", 
 assert.match(service, /verificationState\?:\s*OrganizationVerificationState/u);
 assert.match(service, /if \(input\.verificationState\)\s*query\.set\("verificationState", input\.verificationState\)/u);
 assert.match(service, /if \(input\.cursor\) query\.set\("cursor", input\.cursor\)/u);
+assert.match(service, /reportPost:[\s\S]*?body: json\(input\)/u);
+assert.match(service, /reportEvent:[\s\S]*?body: json\(input\)/u);
+assert.doesNotMatch(service, /Reporte enviado desde la interfaz web/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
@@ -193,6 +196,15 @@ assert.match(mobileOrganizationShare, /ORGANIZATION_UUID_V4_PATTERN/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
+const webOrganizationReportAction = await read(
+  'apps/web/src/features/organizations/OrganizationContentReportAction.tsx',
+);
+const webOrganizationReportController = await read(
+  'apps/web/src/features/organizations/organization-report-controller.ts',
+);
+const webOrganizationReportPolicy = await read(
+  'apps/web/src/features/organizations/organization-report-policy.ts',
+);
 assert.match(publicPageStyles, /\.organizations-institution-filter\s*\{/u);
 assert.match(
   publicPageStyles,
@@ -276,6 +288,14 @@ assert.match(publicPage, /appendPosts/u);
 assert.match(publicPage, /appendEvents/u);
 assert.match(publicPage, /Cargar más publicaciones/u);
 assert.match(publicPage, /Cargar más eventos/u);
+assert.match(publicPage, /<OrganizationContentReportAction[\s\S]*?targetType="post"/u);
+assert.match(publicPage, /<OrganizationContentReportAction[\s\S]*?targetType="event"/u);
+assert.match(webOrganizationReportAction, /validateOrganizationReport/u);
+assert.match(webOrganizationReportAction, /ORGANIZATION_REPORT_REASONS\.map/u);
+assert.match(webOrganizationReportController, /outcome: "none" \| "confirmed" \| "uncertain"/u);
+assert.match(webOrganizationReportController, /ambiguousFailure\(error\) \? "uncertain" : "none"/u);
+assert.match(webOrganizationReportController, /current\.outcome !== "none"/u);
+assert.match(webOrganizationReportPolicy, /ORGANIZATION_REPORT_DETAILS_MAX_LENGTH = 1500/u);
 assert.doesNotMatch(publicPage, /actorUserId|createdByUserId/u);
 
 const manage = await read('apps/web/src/pages/OrganizationManage.tsx');
