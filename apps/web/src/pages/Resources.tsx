@@ -13,6 +13,7 @@ import {
 } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
+import { ResourceStudyHandoff } from "../features/study/ResourceStudyHandoff";
 import {
   feedReturnHref,
   feedReturnRestoreState,
@@ -1423,6 +1424,19 @@ const Resources = () => {
                     >
                       {savedView ? "Quitar de guardados" : "Guardar"}
                     </button>
+                    {resourceId &&
+                      resource.id.toLowerCase() ===
+                        resourceId.toLowerCase() && (
+                        <ResourceStudyHandoff
+                          key={`${authScopeKey}:${resource.id}`}
+                          resourceId={resource.id}
+                          authorityScope={[
+                            status,
+                            user?.id ?? "anonymous",
+                            session?.id ?? "none",
+                          ].join(":")}
+                        />
+                      )}
                     {!resource.capabilities.edit && (
                       <button
                         type="button"
