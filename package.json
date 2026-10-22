@@ -30,7 +30,7 @@
     "test:web-accessible-confirm-dialog-contract": "node scripts/test-web-accessible-confirm-dialog-contract.mjs",
     "test:web-async-authority-fence": "node --experimental-strip-types scripts/test-web-async-authority-fence.mjs",
     "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs",
-    "test:web-public-profile-social": "node --experimental-strip-types scripts/test-web-public-profile-social.mjs && node --experimental-strip-types scripts/test-web-public-profile-activity-links-b216.mjs && node --experimental-strip-types scripts/test-web-public-profile-section-order-b218.mjs",
+    "test:web-public-profile-social": "node --experimental-strip-types scripts/test-web-public-profile-social.mjs && node --experimental-strip-types scripts/test-web-public-profile-activity-links-b216.mjs && node --experimental-strip-types scripts/test-web-public-profile-section-order-b218.mjs && node --experimental-strip-types scripts/test-web-public-profile-avatar-policy-b221.mjs && node --experimental-strip-types scripts/test-web-public-profile-avatar-b221.mjs",
     "test:web-resources-contract": "node scripts/test-web-resources-contract.mjs",
     "test:web-resource-citation-b170": "node --test scripts/test-web-resource-citation-b170.test.mjs",
     "test:web-study-handoff-integration": "node scripts/test-web-study-handoff-integration.mjs",
