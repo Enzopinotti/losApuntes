@@ -119,4 +119,7 @@ When enabled, the Web flow:
 - starts downloads through ordinary browser attachment navigation to the same authenticated API, without a JavaScript Blob, object URL or signed storage URL;
 - relies on the backend to recheck account state, job ownership and expiry for every download.
 
-Only status records are shown in the Web interface. The versioned export contents remain subject to the documented domain-inclusion and privacy decisions. This feature flag does not waive production launch gates.
+Only status records are ever shown in the Web interface. The versioned export
+contents remain subject to the documented domain-inclusion and privacy decisions.
+This feature flag does not change or waive production launch gates.
+
