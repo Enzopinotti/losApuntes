@@ -8,8 +8,11 @@ import {
   View,
 } from "react-native";
 
+import type { QuestionState } from "@losapuntes/contracts/social-qa";
+
 import { ProductSurface } from "@/features/navigation/product-surface";
 
+import type { QuestionPageInput } from "./community-api";
 import {
   MobileCommunityFeedController,
   type CommunityFailure,
@@ -21,6 +24,40 @@ import {
   useCommunityAuthority,
   type CommunityAuthorityGate,
 } from "./use-community-authority";
+
+type SubjectQuestionFilter = "all" | QuestionState;
+
+const QUESTION_FILTERS: ReadonlyArray<{
+  value: SubjectQuestionFilter;
+  label: string;
+  accessibilityLabel: string;
+}> = [
+  {
+    value: "all",
+    label: "Todas",
+    accessibilityLabel: "Mostrar todas las preguntas",
+  },
+  {
+    value: "open",
+    label: "Abiertas",
+    accessibilityLabel: "Mostrar preguntas abiertas",
+  },
+  {
+    value: "closed",
+    label: "Cerradas",
+    accessibilityLabel: "Mostrar preguntas cerradas",
+  },
+];
+
+function emptyFeedCopy(filter: SubjectQuestionFilter): string {
+  if (filter === "open") {
+    return "Todavía no hay preguntas abiertas disponibles en esta materia.";
+  }
+  if (filter === "closed") {
+    return "Todavía no hay preguntas cerradas disponibles en esta materia.";
+  }
+  return "Todavía no hay preguntas disponibles en esta materia.";
+}
 
 function feedError(failure: CommunityFailure): string {
   switch (failure.kind) {
@@ -71,11 +108,21 @@ export function SubjectQuestionsScreen({
   const [snapshot, setSnapshot] = useState<CommunityQuestionFeedSnapshot>(
     controller.getSnapshot(),
   );
+  const [statusFilter, setStatusFilter] =
+    useState<SubjectQuestionFilter>("all");
+  const searchInput = useMemo<QuestionPageInput>(
+    () => ({
+      ...(subjectId ? { subjectId } : {}),
+      limit: 25,
+      ...(statusFilter === "all" ? {} : { status: statusFilter }),
+    }),
+    [statusFilter, subjectId],
+  );
   const contextReady =
     authority.gate === "ready" && authority.scope.kind !== "unresolved";
   const scopeKey =
     subjectId && contextReady && authority.authorityKey
-      ? `${authority.authorityKey}:questions-subject:${subjectId}`
+      ? `${authority.authorityKey}:questions-subject:${subjectId}:${statusFilter}`
       : null;
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
@@ -85,17 +132,17 @@ export function SubjectQuestionsScreen({
       controller.invalidate();
       return;
     }
-    void controller.load(scopeKey, { subjectId, limit: 25 });
+    void controller.load(scopeKey, searchInput);
     return () => controller.invalidate(scopeKey);
-  }, [controller, scopeKey, subjectId]);
+  }, [controller, scopeKey, searchInput, subjectId]);
 
   const retry = useCallback(() => {
     if (!scopeKey || !subjectId) {
       void authority.retry();
       return;
     }
-    void controller.load(scopeKey, { subjectId, limit: 25 });
-  }, [authority.retry, controller, scopeKey, subjectId]);
+    void controller.load(scopeKey, searchInput);
+  }, [authority.retry, controller, scopeKey, searchInput, subjectId]);
 
   const loadMore = () => {
     if (scopeKey) void controller.loadMore(scopeKey);
@@ -193,6 +240,41 @@ export function SubjectQuestionsScreen({
                 contexto académico actual desde Inicio.
               </Text>
             )}
+            <View style={styles.filterGroup}>
+              <Text style={styles.note}>Estado de la pregunta</Text>
+              <View style={styles.filters}>
+                {QUESTION_FILTERS.map((filter) => {
+                  const selected = statusFilter === filter.value;
+                  return (
+                    <Pressable
+                      key={filter.value}
+                      accessibilityRole="button"
+                      accessibilityLabel={filter.accessibilityLabel}
+                      accessibilityState={{ selected }}
+                      onPress={() => setStatusFilter(filter.value)}
+                      style={({ pressed }) => [
+                        styles.filterOption,
+                        selected && styles.filterOptionSelected,
+                        pressed && styles.filterOptionPressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filterLabel,
+                          selected && styles.filterLabelSelected,
+                        ]}
+                      >
+                        {filter.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.note}>
+                El filtro usa el estado de la pregunta; “cerrada” no significa
+                necesariamente que una respuesta esté aceptada.
+              </Text>
+            </View>
           </View>
 
           {!current || current.kind === "loading" ? (
@@ -216,9 +298,7 @@ export function SubjectQuestionsScreen({
           ) : (
             <View style={styles.card}>
               {current.page.items.length === 0 ? (
-                <Text style={styles.note}>
-                  Todavía no hay preguntas disponibles en esta materia.
-                </Text>
+                <Text style={styles.note}>{emptyFeedCopy(statusFilter)}</Text>
               ) : (
                 current.page.items.map((question) => (
                   <Pressable
@@ -278,6 +358,22 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   heading: { color: "#20202a", fontSize: 18, fontWeight: "700" },
+  filterGroup: { gap: 8 },
+  filters: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  filterOption: {
+    flexGrow: 1,
+    flexBasis: 92,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    backgroundColor: "#f0eff6",
+  },
+  filterOptionSelected: { backgroundColor: "#e8e2f3" },
+  filterOptionPressed: { opacity: 0.76 },
+  filterLabel: { color: "#55555f", fontSize: 14, fontWeight: "600" },
+  filterLabelSelected: { color: "#342b4d", fontWeight: "800" },
   question: {
     paddingVertical: 14,
     gap: 7,

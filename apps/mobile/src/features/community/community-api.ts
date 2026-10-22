@@ -21,6 +21,7 @@ import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 export interface QuestionPageInput {
   q?: string;
   subjectId?: string;
+  status?: QuestionState;
   cursor?: string;
   limit?: number;
 }
@@ -306,6 +307,7 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
     const query = new URLSearchParams({ limit: String(input.limit ?? 25) });
     if (input.q) query.set("q", input.q);
     if (input.subjectId) query.set("subjectId", input.subjectId);
+    if (input.status) query.set("status", input.status);
     if (input.cursor) query.set("cursor", input.cursor);
 
     return this.client.request<QuestionSearchResponse>(
