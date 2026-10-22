@@ -25,6 +25,7 @@ import {
 } from "./study-collections-api";
 import { MOBILE_PERSISTENT_COLLECTIONS_VISIBLE } from "./persistent-collections-flag";
 import { mobileStudyCollectionsApi } from "./study-collections-runtime";
+import { recordStudyCollectionPageCursor } from "./study-collections-pagination";
 
 type CollectionListState = {
   authorityKey: string;
@@ -124,6 +125,8 @@ export function StudyCollectionsScreen() {
   const mutationLock = useRef(false);
   const mutationAbort = useRef<AbortController | null>(null);
   const authorityRef = useRef<string | null>(null);
+  const listCursorHistory = useRef(new Set<string>());
+  const resourceCursorHistory = useRef(new Set<string>());
 
   const sessionAuthority =
     session.kind === "authenticated"
@@ -161,6 +164,7 @@ export function StudyCollectionsScreen() {
     if (!authorityKey || !MOBILE_PERSISTENT_COLLECTIONS_VISIBLE) return;
     const controller = new AbortController();
     const scope = authorityKey;
+    listCursorHistory.current.clear();
     setListState({
       authorityKey: scope,
       items: [],
@@ -212,6 +216,7 @@ export function StudyCollectionsScreen() {
     }
     const controller = new AbortController();
     const scope = authorityKey;
+    resourceCursorHistory.current.clear();
     setDetailState(null);
     void Promise.all([
       mobileStudyCollectionsApi.get(selectedId, controller.signal),
@@ -455,10 +460,27 @@ export function StudyCollectionsScreen() {
   const loadMoreCollections = async () => {
     if (!currentList?.nextCursor || !authorityKey) return;
     const scope = authorityKey;
+    const requestedCursor = currentList.nextCursor;
     setListState({ ...currentList, busy: true, error: null });
     try {
-      const page = await mobileStudyCollectionsApi.list(currentList.nextCursor);
+      const page = await mobileStudyCollectionsApi.list(requestedCursor);
       if (authorityRef.current !== scope) return;
+      if (
+        recordStudyCollectionPageCursor(
+          listCursorHistory.current,
+          requestedCursor,
+          page.nextCursor,
+        )
+      ) {
+        setListState({
+          ...currentList,
+          nextCursor: null,
+          busy: false,
+          error:
+            "La lista devolvió una página repetida. Actualizá las colecciones para recibir una tanda nueva.",
+        });
+        return;
+      }
       setListState({
         authorityKey: scope,
         items: mergeById(currentList.items, page.items),
@@ -488,11 +510,12 @@ export function StudyCollectionsScreen() {
       return;
     const scope = authorityKey;
     const selectedCollectionId = collection.id;
+    const requestedCursor = currentDetail.nextCursor;
     setDetailState({ ...currentDetail, busy: true, error: null });
     try {
       const page = await mobileStudyCollectionsApi.resources(
         selectedCollectionId,
-        currentDetail.nextCursor,
+        requestedCursor,
       );
       if (authorityRef.current !== scope || selectedId !== selectedCollectionId)
         return;
@@ -503,6 +526,22 @@ export function StudyCollectionsScreen() {
           "STUDY_COLLECTION_CURSOR_STALE",
           "Collection changed while paging",
         );
+      }
+      if (
+        recordStudyCollectionPageCursor(
+          resourceCursorHistory.current,
+          requestedCursor,
+          page.nextCursor,
+        )
+      ) {
+        setDetailState({
+          ...currentDetail,
+          nextCursor: null,
+          busy: false,
+          error:
+            "La lista de apuntes devolvió una página repetida. Actualizá la colección para recibir una tanda nueva.",
+        });
+        return;
       }
       setDetailState({
         ...currentDetail,
@@ -605,9 +644,19 @@ export function StudyCollectionsScreen() {
           <ActivityIndicator accessibilityLabel="Cargando colecciones" />
         ) : null}
         {currentList?.error ? (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {currentList.error}
-          </Text>
+          <View>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {currentList.error}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Actualizar colecciones"
+              onPress={() => setListRefresh((value) => value + 1)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.buttonText}>Actualizar colecciones</Text>
+            </Pressable>
+          </View>
         ) : null}
         {currentList && !currentList.busy && !currentList.items.length ? (
           <Text style={styles.copy}>
@@ -742,6 +791,7 @@ export function StudyCollectionsScreen() {
                 </Text>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Actualizar colección"
                   onPress={() => setDetailRefresh((value) => value + 1)}
                   style={styles.secondaryButton}
                 >
