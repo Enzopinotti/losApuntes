@@ -18,20 +18,21 @@ NFR-PRIV-001 (data minimization), NFR-PERF-001 (bounded queries).
 - `Cache-Control: private, no-store`.
 - HTTP 200 response:
 
-    {
-      "questionsTotal": 8,
-      "questionsOpen": 5,
-      "questionsClosed": 3,
-      "questionsOpenWithoutAcceptedAnswer": 2,
-      "answersVisible": 12,
-      "answersAccepted": 4
-    }
+  {
+  "questionsTotal": 8,
+  "questionsOpen": 5,
+  "questionsClosed": 3,
+  "questionsOpenWithoutAcceptedAnswer": 2,
+  "answersVisible": 12,
+  "answersAccepted": 4
+  }
 
 All values are nonnegative safe-integer counts. The brand-new-account result
 is six zeros. No content text, email, internal account identifiers, profile
 attribution, subject names or individual IDs leave the API.
 
 Definitions:
+
 - Questions count only the caller's `moderationState=available` records with
   `state=open|closed`.
 - `questionsTotal = questionsOpen + questionsClosed`.
@@ -53,6 +54,9 @@ stable Question `id` with available moderation projection before counting.
 The pipeline returns at most one grouped result per collection, not paginated
 document arrays; no new collection, write endpoint, migration or change in
 moderation enforcement.
+
+Both pipelines have a five-second Mongo execution limit. A timeout is treated
+as a database failure and never converted into zero counts.
 
 Aggregates execute concurrently and are a best-effort view, **not an atomic
 cross-collection snapshot**. During accept/hide/reply mutations the counts may

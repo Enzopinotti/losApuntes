@@ -131,6 +131,7 @@ export class QaActivitySummaryService {
             },
           },
         ])
+        .option({ maxTimeMS: 5000 })
         .exec(),
       this.answers
         .aggregate<AnswerTotals>([
@@ -175,6 +176,7 @@ export class QaActivitySummaryService {
             },
           },
         ])
+        .option({ maxTimeMS: 5000 })
         .exec(),
     ]);
 

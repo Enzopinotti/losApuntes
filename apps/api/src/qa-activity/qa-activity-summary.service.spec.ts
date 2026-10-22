@@ -7,22 +7,32 @@ import { QaActivitySummaryService } from './qa-activity-summary.service';
 function createFixture(questionRows: unknown[], answerRows: unknown[]) {
   const questionAggregate = jest.fn<unknown, [unknown[]]>();
   const answerAggregate = jest.fn<unknown, [unknown[]]>();
-
-  questionAggregate.mockReturnValue({
+  const questionQuery = {
+    option: jest.fn(),
     exec: jest.fn().mockResolvedValue(questionRows),
-  });
-  answerAggregate.mockReturnValue({
+  };
+  const answerQuery = {
+    option: jest.fn(),
     exec: jest.fn().mockResolvedValue(answerRows),
-  });
+  };
+  questionQuery.option.mockReturnValue(questionQuery);
+  answerQuery.option.mockReturnValue(answerQuery);
+  questionAggregate.mockReturnValue(questionQuery);
+  answerAggregate.mockReturnValue(answerQuery);
 
   const service = new QaActivitySummaryService(
     { aggregate: questionAggregate } as unknown as Model<Question>,
     { aggregate: answerAggregate } as unknown as Model<Answer>,
   );
 
-  return { service, questionAggregate, answerAggregate };
+  return {
+    service,
+    questionAggregate,
+    answerAggregate,
+    questionQuery,
+    answerQuery,
+  };
 }
-
 describe('B159 Q&A activity summary', () => {
   it('aggregates available owner questions and answers on available parents', async () => {
     const questionRows = [
@@ -33,10 +43,15 @@ describe('B159 Q&A activity summary', () => {
         questionsOpenWithoutAcceptedAnswer: 2,
       },
     ];
-    const { service, questionAggregate, answerAggregate } = createFixture(
-      questionRows,
-      [{ answersVisible: 12, answersAccepted: 4 }],
-    );
+    const {
+      service,
+      questionAggregate,
+      answerAggregate,
+      questionQuery,
+      answerQuery,
+    } = createFixture(questionRows, [
+      { answersVisible: 12, answersAccepted: 4 },
+    ]);
 
     await expect(service.forOwner('session-owner')).resolves.toEqual({
       questionsTotal: 8,
@@ -83,6 +98,8 @@ describe('B159 Q&A activity summary', () => {
     expect(answerPipeline?.[2]).toEqual({ $unwind: '$visibleQuestion' });
     expect(questionAggregate).toHaveBeenCalledTimes(1);
     expect(answerAggregate).toHaveBeenCalledTimes(1);
+    expect(questionQuery.option).toHaveBeenCalledWith({ maxTimeMS: 5000 });
+    expect(answerQuery.option).toHaveBeenCalledWith({ maxTimeMS: 5000 });
   });
 
   it('returns all zero counts for an empty account', async () => {
@@ -147,10 +164,8 @@ describe('B159 Q&A activity summary', () => {
   });
 
   it('propagates database errors instead of returning synthetic zeros', async () => {
-    const { service, answerAggregate } = createFixture([], []);
-    answerAggregate.mockReturnValue({
-      exec: jest.fn().mockRejectedValue(new Error('Mongo unavailable')),
-    });
+    const { service, answerQuery } = createFixture([], []);
+    answerQuery.exec.mockRejectedValue(new Error('Mongo unavailable'));
     await expect(service.forOwner('owner')).rejects.toThrow(
       'Mongo unavailable',
     );
