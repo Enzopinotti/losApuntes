@@ -1,7 +1,7 @@
 # B163 current-main integration evidence
 
-**Date:** 22 October 2026 (ART)  
-**Current-main base:** `fedab105d320526eb476813d004944461584e99a`  
+**Date:** 22 October 2026 (ART)
+**Current-main base:** `bdfcc0433af9faccf28bdb38ee4d2ee538be1010`
 **Source PR:** [#493](https://github.com/Enzopinotti/losApuntes/pull/493), source HEAD `74ee65199f9819a8d44860ffaad0613f172ee768`.
 
 ## Carrier scope
