@@ -332,6 +332,24 @@ async function run() {
       .click();
     await page.getByText("1/").first().waitFor();
 
+    // B186: a Search hit must be actionable without opening its Resources
+    // detail. Reuse exactly the same live authority re-check as detail.
+    await page.goto(webOrigin + "/search?q=integrales&scope=resources");
+    const directPrepare = page.getByRole("button", {
+      name: "Preparar sesión con este apunte",
+    });
+    await directPrepare.waitFor();
+    events.rejectNextResourceRead = true;
+    await directPrepare.click();
+    await page
+      .getByRole("alert")
+      .getByText("Este apunte o tu materia dejaron de estar disponibles.")
+      .waitFor();
+    assert.equal(new URL(page.url()).pathname, "/search");
+    await directPrepare.click();
+    await page.waitForURL((url) => url.pathname === "/study/session");
+    assert.equal(new URL(page.url()).searchParams.get("subjectId"), subjectId);
+
     assert.deepEqual(
       pageErrors,
       [],
