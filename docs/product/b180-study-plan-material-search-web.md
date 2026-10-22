@@ -1,6 +1,6 @@
 # B180 — Buscar y sumar material desde el Planificador
 
-Estado: **candidato PR Draft**; no integrado ni desplegado.
+El bloque se trasladó a un carrier code-only sobre `origin/main` `23181b570f37dbe7dbff6ff4c902e04c8797a68f`. Se conservaron nueve commits funcionales, de prueba y documentación; se excluyó el commit que sólo agregaba un workflow. El ajuste final de dos aserciones ya estaba presente en `main`, por eso su cherry-pick resultó vacío. No se modifica `.github/workflows/` ni se lanzó CI manualmente.
 
 ## Valor para estudiantes
 
@@ -9,6 +9,7 @@ El Planificador de `/study/session` actualmente muestra páginas iniciales de ap
 Flujo nuevo: seleccionar **Apuntes** o **Preguntas**, buscar por texto (2–120 caracteres), opcionalmente filtrar preguntas **Abiertas / Cerradas / Todas**, abrir resultados o **Sumar al plan** en el momento, sin perder el borrador ni las otras fuentes.
 
 El módulo usa exclusivamente los endpoints disponibles en `main`:
+
 - `GET /resources?subjectId=&q=&cursor=&limit=25`.
 - `GET /questions?subjectId=&q=&status=&cursor=&limit=15`.
 
@@ -37,6 +38,12 @@ Cada búsqueda requiere confirmación explícita; no se genera una consulta por 
 
 ## Verificación y release
 
-`node scripts/test-web-study-plan-material-finder.mjs` valida reglas de búsqueda, origen de datos, aislamiento, reautorización y presupuesto del plan. `node scripts/test-web-study-session-integration.mjs` cubre el contrato anterior. La CI focalizada Node 24 incluye Types, ESLint, Prettier y build Web sobre SHA exacto. Antes de integrar se requiere aceptación con browser/API real.
+Validación local del carrier:
 
-El release #353 continúa **HOLD** por auditoría productiva #133 node-forge, #141 braces y follow-redirects #492 (parche independiente PR #495). Sin excepciones, dependencias nuevas, merge ni despliegue hasta cerrar gates.
+- `pnpm test:web-study-plan-material-finder`: PASS; valida reglas de búsqueda, scope, reautorización y presupuesto. Quedó incluido en el `pnpm test` general.
+- `pnpm test:web-study-plan-material-finder-browser`: PASS en Chromium a viewport móvil; con lecturas API simuladas en loopback cubre búsqueda de apunte/pregunta cerrada, nueva autorización al agregar, permiso revocado, preservación de notas/actividades y cero escrituras.
+- `pnpm test:web-study-handoff-integration` y `node scripts/test-web-study-session-integration.mjs`: PASS; se conserva la regresión de B179.
+- Web `check:types`, `lint`, `format:check` y `build`: PASS. El build muestra los avisos existentes de Sass y tamaño de chunk.
+- No se ejecutó CI manualmente. La prueba de navegador usa API simulada, no un servicio desplegado.
+
+El release #353 continúa **HOLD**: la auditoría local todavía reporta 2 HIGH (`node-forge`, `braces`) y 3 MODERATE; el advisory HIGH de `follow-redirects` dejó de aparecer tras el parche ya integrado. No hay excepciones ni autorización de release/deploy en este bloque.
