@@ -133,6 +133,19 @@
   gap: 0.2rem;
 }
 
+.community-list li > .network-person-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.network-person-summary > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .community-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
