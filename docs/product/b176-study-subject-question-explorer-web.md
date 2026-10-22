@@ -1,7 +1,5 @@
 # B176 — Explorar preguntas de una materia desde Mesa de estudio
 
-Estado: **candidate Draft; no merge, no despliegue**.
-
 ## Problema
 
 La Mesa de estudio mostraba solamente una página de preguntas abiertas, sin búsqueda contextual ni acceso a discusiones cerradas. Un estudiante que estudia un tema concreto necesitaba explorar manualmente el foro general, aunque el backend ya permitía `q`, `subjectId` y `status` en `GET /questions`.
@@ -25,20 +23,31 @@ No se modifica API, MongoDB, endpoints, DTO, permisos, roles, dependencias ni la
 
 Las cantidades mostradas representan resultados cargados, no métricas globales. El filtro de estado no elude moderación ni visibilidad del backend.
 
-## Regresión y aceptación
+## Regresión y aceptación local
 
-El contrato existente `test:web-study-workbench` amplía casos de filtros inválidos, longitud, control chars, claves distintas por sesión/materia/filtro, integridad de llamadas `communityApi.questions`, ausencia de duplicación de request en Workbench y paso a práctica.
+El contrato
+`node scripts/test-web-study-workbench.mjs` cubre filtros inválidos, longitud,
+caracteres de control, claves distintas por sesión/materia/filtro, llamadas
+`communityApi.questions`, ausencia de fetch duplicado desde Workbench y vínculo
+de práctica.
 
-Comprobar antes de considerar Ready:
+La prueba
+`node scripts/test-web-study-workbench-b176-browser.mjs` ejecuta Chromium real
+con Vite y una API simulada en viewport móvil. Verifica preguntas abiertas por
+defecto, validación de una letra sin búsqueda global, búsqueda sólo al pulsar,
+filtros Cerradas/Todas, paginación con deduplicación, que filtrar no recargue
+Guardados y que materia/sesión aíslen el estado.
 
-1. Usuario con materia actual ve preguntas abiertas por defecto.
-2. Buscar palabra de 1 caracter se bloquea sin buscar todo inadvertidamente.
-3. Buscar “integrales” devuelve solo la materia autorizada; cambiar a Cerradas obtiene otras discusiones según API.
-4. Página 2 agrega elementos sin duplicados ni mezclar filtros.
-5. Al cambiar materia y volver rápido, no se ven resultados previos ni drafts de otra materia.
-6. Al cambiar sesión en la misma pestaña, no aparecen datos de la sesión anterior.
-7. Pregunta retirada/no visible deja error o no aparece; no se inventan respuestas aceptadas.
-8. Desde una pregunta, abrir discusión y Practicar se mantienen en la materia.
-9. Navegación por teclado y viewport móvil, con error/red caída y reintento.
+La aceptación usa respuestas simuladas y no valida moderación ni visibilidad
+contra un servidor real. Conviene comprobar esos límites con la API de staging
+antes de anunciar compatibilidad productiva.
 
-Gates: candidato exact-head Node 24, `node scripts/test-web-study-workbench.mjs`, `pnpm check`, `pnpm audit --prod --audit-level high`, browser/API real. Release #353 HOLD no se relaja. Audits HIGH #133/#141 y follow-redirects #492 persisten en main hasta remediación segura.
+## Validación local y release
+
+Con Node 24 y pnpm 9.15.9 pasan los dos scripts anteriores, TypeScript Web,
+ESLint Web sin warnings, Prettier Web, build Web y `git diff --check`. No se
+ejecutó CI ni se modificaron workflows.
+
+La auditoría productiva aún reporta 2 HIGH y 3 MODERATE en el baseline; el
+release #353 permanece HOLD. La integración de este bloque en `main` no
+representa una aprobación de despliegue.
