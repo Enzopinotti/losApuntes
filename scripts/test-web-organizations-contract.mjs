@@ -1,10 +1,36 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { repeatsOrganizationDirectoryCursor } from '../apps/web/src/features/organizations/organization-directory-pagination.mjs';
 
 const root = process.cwd();
 const read = (relativePath) =>
   readFile(path.join(root, relativePath), 'utf8');
+
+assert.equal(
+  repeatsOrganizationDirectoryCursor(new Set(), 'cursor-a', 'cursor-a'),
+  true,
+);
+assert.equal(
+  repeatsOrganizationDirectoryCursor(
+    new Set(['cursor-a']),
+    'cursor-b',
+    'cursor-a',
+  ),
+  true,
+);
+assert.equal(
+  repeatsOrganizationDirectoryCursor(
+    new Set(['cursor-a']),
+    'cursor-b',
+    'cursor-c',
+  ),
+  false,
+);
+assert.equal(
+  repeatsOrganizationDirectoryCursor(new Set(), 'cursor-a', null),
+  false,
+);
 
 const service = await read(
   'apps/web/src/features/organizations/services/organizationsService.ts',
@@ -73,6 +99,8 @@ assert.match(directory, /directoryScopeKey/u);
 assert.match(directory, /function appendUniqueOrganizations\(/u);
 assert.match(directory, /nextCursor:\s*string\s*\|\s*null/u);
 assert.match(directory, /const loadMore = useCallback\(\s*async \(\) =>/u);
+assert.match(directory, /requestedCursorsRef\.current/u);
+assert.match(directory, /repeatsOrganizationDirectoryCursor\(/u);
 assert.match(
   directory,
   /institutionId:\s*filterInstitution\?\.id,\s*cursor,/u,
@@ -81,7 +109,10 @@ assert.match(
   directory,
   /items:\s*appendUniqueOrganizations\(latest\.items,\s*result\.items\)/u,
 );
-assert.match(directory, /nextCursor:\s*result\.nextCursor/u);
+assert.match(
+  directory,
+  /nextCursor:\s*repeatedCursor \? null : result\.nextCursor/u,
+);
 assert.match(directory, /setPaginationErrorState/u);
 assert.match(directory, /className="organizations-load-more"/u);
 assert.match(directory, /aria-busy=\{loadingMore\}/u);
