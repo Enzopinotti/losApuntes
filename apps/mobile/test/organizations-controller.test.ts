@@ -167,6 +167,114 @@ test("organization directory appends cursor pages with id dedupe", async () => {
   }
 });
 
+test("organization directory stops a repeated page cursor", async () => {
+  let calls = 0;
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async (input) => {
+        calls += 1;
+        return input.cursor
+          ? { items: [card("o2")], nextCursor: input.cursor }
+          : { items: [card("o1")], nextCursor: "cursor-2" };
+      },
+    }),
+  );
+
+  await controller.load("session-a:organizations", {});
+  await controller.loadMore("session-a:organizations");
+  await controller.loadMore("session-a:organizations");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(calls, 2);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.page.items.map((item) => item.id),
+      ["o1", "o2"],
+    );
+    assert.equal(snapshot.page.nextCursor, null);
+    assert.equal(snapshot.loadingMore, false);
+    assert.equal(snapshot.failure?.kind, "server_unavailable");
+    assert.equal(
+      snapshot.failure?.code,
+      "ORGANIZATION_DIRECTORY_CURSOR_REPEATED",
+    );
+  }
+});
+
+test("organization directory stops a cycle that returns to an earlier cursor", async () => {
+  const requests: Array<string | undefined> = [];
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async (input) => {
+        requests.push(input.cursor);
+        if (!input.cursor) {
+          return { items: [card("o1")], nextCursor: "cursor-a" };
+        }
+        if (input.cursor === "cursor-a") {
+          return { items: [card("o2")], nextCursor: "cursor-b" };
+        }
+        return { items: [card("o3")], nextCursor: "cursor-a" };
+      },
+    }),
+  );
+
+  await controller.load("session-a:organizations", {});
+  await controller.loadMore("session-a:organizations");
+  await controller.loadMore("session-a:organizations");
+
+  const snapshot = controller.getSnapshot();
+  assert.deepEqual(requests, [undefined, "cursor-a", "cursor-b"]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.page.items.map((item) => item.id),
+      ["o1", "o2", "o3"],
+    );
+    assert.equal(snapshot.page.nextCursor, null);
+    assert.equal(snapshot.failure?.kind, "server_unavailable");
+  }
+});
+
+test("organization directory allows retrying a page after a request failure", async () => {
+  let pageAttempts = 0;
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async (input) => {
+        if (!input.cursor) {
+          return { items: [card("o1")], nextCursor: "cursor-2" };
+        }
+        pageAttempts += 1;
+        if (pageAttempts === 1) {
+          throw new ApiRequestError(
+            "server_unavailable",
+            503,
+            "TEMPORARY_UNAVAILABLE",
+            "temporary failure",
+          );
+        }
+        return { items: [card("o2")], nextCursor: null };
+      },
+    }),
+  );
+
+  await controller.load("session-a:organizations", {});
+  await controller.loadMore("session-a:organizations");
+  await controller.loadMore("session-a:organizations");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(pageAttempts, 2);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.page.items.map((item) => item.id),
+      ["o1", "o2"],
+    );
+    assert.equal(snapshot.page.nextCursor, null);
+    assert.equal(snapshot.failure, null);
+  }
+});
+
 test("directory follow updates the card after the mutation is acknowledged", async () => {
   const pending = deferred<{ following: true; changed: boolean }>();
   let followCalls = 0;
