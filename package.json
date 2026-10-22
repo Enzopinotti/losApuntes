@@ -29,7 +29,7 @@
     "test:web-verification-resend-b184": "node --test scripts/test-web-verification-resend-b184.test.mjs",
     "test:web-accessible-confirm-dialog-contract": "node scripts/test-web-accessible-confirm-dialog-contract.mjs",
     "test:web-async-authority-fence": "node --experimental-strip-types scripts/test-web-async-authority-fence.mjs",
-    "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs && node scripts/test-web-profile-presentation-contract-b223.mjs && node scripts/test-web-profile-presentation-editor-b223.mjs",
+    "test:web-profile-contract": "node scripts/test-web-profile-contract.mjs && node scripts/test-web-profile-presentation-contract-b223.mjs && node scripts/test-web-profile-presentation-editor-b223.mjs && node --experimental-strip-types scripts/test-web-profile-section-order-editor-b224.mjs && node scripts/test-web-profile-section-order-editor-ui-b224.mjs",
     "test:web-public-profile-social": "node --experimental-strip-types scripts/test-web-public-profile-social.mjs && node --experimental-strip-types scripts/test-web-public-profile-activity-links-b216.mjs && node --experimental-strip-types scripts/test-web-public-profile-section-order-b218.mjs && node --experimental-strip-types scripts/test-web-public-profile-avatar-policy-b221.mjs && node --experimental-strip-types scripts/test-web-public-profile-avatar-b221.mjs && node --experimental-strip-types scripts/test-web-public-profile-presentation-b222.mjs && node --experimental-strip-types scripts/test-web-public-profile-presentation-ui-b222.mjs",
     "test:web-resources-contract": "node scripts/test-web-resources-contract.mjs",
     "test:web-resource-citation-b170": "node --test scripts/test-web-resource-citation-b170.test.mjs",
