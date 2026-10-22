@@ -75,7 +75,9 @@ verify("owner cursor is bounded, canonical and isolated across accounts", () => 
   assert.match(reader, /Object\.keys\(row\)\.sort\(\)\.join\(','\)/u);
 });
 verify("database projections are allowlisted and validated", () => {
-  assert.match(reader, /_id: 0, subjectId: 1, plan: 1, revision: 1/u);
+  // Require the same explicit allowlisted Mongo projection, allowing the
+  // canonical multiline formatting used in the live reader.
+  assert.match(reader, /\.select\(\{\s*_id: 0,\s*subjectId: 1,\s*plan: 1,\s*revision: 1/u);
   assert.match(reader, /parseStudyProgressPlan\(row\.plan, row\.subjectId\)/u);
   assert.doesNotMatch(reader, /operationKey|accessToken|signedUrl/u);
 });
