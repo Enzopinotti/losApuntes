@@ -63,7 +63,7 @@ const organizationAvatar = await read(
   'apps/web/src/features/organizations/OrganizationAvatar.tsx',
 );
 assert.match(directory, /useAsyncAuthorityFence/u);
-assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 3);
+assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 4);
 assert.match(directory, /user\?\.id/u);
 assert.match(directory, /session\?\.id/u);
 assert.match(directory, /directoryScopeKey/u);
@@ -73,6 +73,17 @@ assert.match(directory, /await loadRef\.current\(\)/u);
 assert.match(directory, /setInstitutionSelection\(\{\s*authScopeKey/u);
 assert.match(directory, /<OrganizationAvatar/u);
 assert.match(directory, /avatarUrl=\{item\.avatarUrl\}/u);
+assert.match(directory, /OrganizationDirectoryFollowAction/u);
+assert.match(directory, /organization-directory-follow:\$\{authScopeKey\}:\$\{organization\.id\}/u);
+assert.match(directory, /organizationsApi\.follow\(organization\.id, ticket\.signal\)/u);
+assert.match(directory, /organizationsApi\.unfollow\(organization\.id, ticket\.signal\)/u);
+assert.match(directory, /organizationsApi\.get\(\s*organization\.id,\s*ticket\.signal/u);
+assert.match(directory, /error\.status === 0 \|\| error\.status >= 500/u);
+assert.match(directory, /confirmedFollowing === desiredFollowing/u);
+assert.match(directory, /current\?\.scopeKey === directoryScopeKey/u);
+assert.match(directory, /aria-label=\{`\$\{following \? "Dejar de seguir" : "Seguir"\}/u);
+assert.match(directory, /role=\{feedback\.isError \? "alert" : "status"\}/u);
+assert.match(directory, /className="organization-card-actions"/u);
 assert.match(organizationAvatar, /PublicProfileAvatar/u);
 assert.match(organizationAvatar, /size\?: "compact" \| "small" \| "profile"/u);
 assert.match(mobileDirectory, /<PublicAvatar/u);
@@ -96,6 +107,10 @@ assert.match(mobileOrganizationShare, /ORGANIZATION_UUID_V4_PATTERN/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
+assert.match(
+  publicPageStyles,
+  /\.organization-card-actions button\s*\{[^}]*min-height:\s*44px/su,
+);
 const eventCalendar = await read(
   'apps/web/src/features/organizations/organization-event-calendar.mjs',
 );
