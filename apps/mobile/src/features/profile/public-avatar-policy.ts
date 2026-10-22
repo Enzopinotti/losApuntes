@@ -1,11 +1,11 @@
-const MAX_NETWORK_AVATAR_URL_LENGTH = 2048;
+const MAX_PUBLIC_AVATAR_URL_LENGTH = 2048;
 
-export function networkPersonAvatarUrl(
+export function publicAvatarUrl(
   value: string | null | undefined,
 ): string | null {
   if (
     !value ||
-    value.length > MAX_NETWORK_AVATAR_URL_LENGTH ||
+    value.length > MAX_PUBLIC_AVATAR_URL_LENGTH ||
     value.trim() !== value
   ) {
     return null;

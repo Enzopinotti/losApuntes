@@ -1,23 +1,31 @@
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 
-import { networkPersonAvatarUrl } from "./network-person-avatar-policy";
+import { publicAvatarUrl } from "./public-avatar-policy";
 
-export function NetworkPersonAvatar({
+export function PublicAvatar({
   avatarUrl,
   displayName,
+  size = "default",
 }: {
   avatarUrl: string | null | undefined;
   displayName: string;
+  size?: "default" | "small";
 }) {
-  const safeAvatarUrl = networkPersonAvatarUrl(avatarUrl);
+  const safeAvatarUrl = publicAvatarUrl(avatarUrl);
   const [failedUri, setFailedUri] = useState<string | null>(null);
   const initial =
     displayName.trim().slice(0, 1).toLocaleUpperCase("es-AR") || "?";
 
   return (
-    <View accessible={false} style={styles.avatar}>
-      <Text accessible={false} style={styles.initial}>
+    <View
+      accessible={false}
+      style={[styles.avatar, size === "small" ? styles.avatarSmall : null]}
+    >
+      <Text
+        accessible={false}
+        style={[styles.initial, size === "small" ? styles.initialSmall : null]}
+      >
         {initial}
       </Text>
       {safeAvatarUrl && safeAvatarUrl !== failedUri ? (
@@ -25,7 +33,7 @@ export function NetworkPersonAvatar({
           accessible={false}
           source={{ uri: safeAvatarUrl }}
           resizeMode="cover"
-          style={styles.image}
+          style={[styles.image, size === "small" ? styles.imageSmall : null]}
           onError={() => setFailedUri(safeAvatarUrl)}
         />
       ) : null}
@@ -50,6 +58,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
   },
+  avatarSmall: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  initialSmall: {
+    fontSize: 15,
+  },
   image: {
     position: "absolute",
     top: 0,
@@ -59,5 +75,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+  },
+  imageSmall: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
   },
 });
