@@ -273,6 +273,16 @@ assert.match(
 assert.match(page, /type="button"[\s\S]{0,90}onClick=\{resetSearch\}/u);
 assert.match(page, /Limpiar búsqueda/u);
 assert.match(page, /hasActiveSearch &&/u);
+// B193: individual resource links are distinct from sharing a search query.
+assert.match(page, /shareableResourceHref\(resource\.id\)/u);
+assert.match(page, /shareableResourceUrl\(resourceId, window\.location\.origin\)/u);
+assert.match(page, /navigator\.clipboard\.writeText\(url\)/u);
+assert.match(page, /Copiar enlace de \$\{resource\.title\}/u);
+assert.match(page, /El acceso se verifica al abrir el recurso/u);
+assert.match(page, /resourceCopyStatus\?\.scopeKey === resultScopeKey/u);
+assert.match(page, /resourceCopyStatus\.resourceId === resource\.id/u);
+assert.match(page, /<small role="status">\{resourceCopyStatus\.message\}<\/small>/u);
+assert.match(page, /type="button"[\s\S]{0,120}copyResourceLink\(resource\.id\)/u);
 assert.match(page, /copySearchLink/u);
 assert.match(page, /navigator\.clipboard\?\.writeText/u);
 assert.match(page, /role="status"/u);
