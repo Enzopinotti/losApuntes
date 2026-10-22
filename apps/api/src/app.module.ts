@@ -20,6 +20,7 @@ import { QaSolvedLibraryModule } from './qa-solved-library/qa-solved-library.mod
 import { QaCardStatusModule } from './qa-card-status/qa-card-status.module';
 import { QaHelpOpportunitiesModule } from './qa-help-opportunities/qa-help-opportunities.module';
 import { QaNeedsHelpModule } from './qa-needs-help/qa-needs-help.module';
+import { QaActivityCalendarModule } from './qa-calendar/qa-activity-calendar.module';
 import { QaModule } from './qa/qa.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
@@ -67,6 +68,7 @@ import { UsersModule } from './users/users.module';
     QaCardStatusModule,
     QaHelpOpportunitiesModule,
     QaNeedsHelpModule,
+    QaActivityCalendarModule,
     HealthModule,
   ],
   controllers: [AppController],
