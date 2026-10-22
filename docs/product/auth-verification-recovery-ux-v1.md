@@ -304,8 +304,8 @@ Show:
 
 Policy:
 
-- minimum 12 characters;
-- maximum 256;
+- minimum 15 Unicode code points after NFC normalization;
+- maximum 256 Unicode code points after NFC normalization;
 - no forced upper/lower/number/symbol composition;
 - spaces/paste/password managers supported.
 

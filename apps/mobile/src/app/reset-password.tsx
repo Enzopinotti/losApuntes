@@ -20,6 +20,10 @@ import {
   type PasswordRecoveryFailure,
 } from "@/features/auth/password-recovery";
 import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@/features/auth/password-policy";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 const failureCopy: Record<PasswordRecoveryFailure, string> = {
@@ -141,6 +145,10 @@ export default function ResetPasswordRoute() {
                 }}
                 style={styles.input}
               />
+              <Text style={styles.hint}>
+                Usá entre {PASSWORD_MIN_LENGTH} y {PASSWORD_MAX_LENGTH}{" "}
+                caracteres. Se permiten espacios y caracteres Unicode.
+              </Text>
 
               <Text style={styles.label}>Repetir contraseña</Text>
               <PasswordVisibilityInput
@@ -260,6 +268,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#ffffff",
   },
+  hint: { fontSize: 13, lineHeight: 18, color: "#55555f" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   status: { fontSize: 14, lineHeight: 20, color: "#2f2f36" },
   error: { fontSize: 14, lineHeight: 20, color: "#9f1d1d" },

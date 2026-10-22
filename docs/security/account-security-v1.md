@@ -81,8 +81,8 @@ This boundary allows a future migration to a versioned memory-hard hash without 
 
 New password policy:
 
-- minimum 12 characters;
-- maximum 256;
+- minimum 15 Unicode code points after NFC normalization;
+- maximum 256 Unicode code points after NFC normalization;
 - Unicode string;
 - no arbitrary composition rules.
 
