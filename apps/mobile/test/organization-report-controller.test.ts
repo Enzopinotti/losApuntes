@@ -9,7 +9,13 @@ import {
 import type { MobileOrganizationsApiContract } from "../src/features/organizations/organizations-api";
 import { ApiRequestError } from "../src/services/api/client";
 
-const response = { report: { id: "report-1", status: "pending" as const } };
+const response = {
+  report: {
+    id: "report-1",
+    reason: "spam" as const,
+    status: "pending" as const,
+  },
+};
 
 const apiStub = (
   overrides: Partial<MobileOrganizationsApiContract> = {},
@@ -58,13 +64,15 @@ function readySnapshot(controller: MobileOrganizationReportController) {
   return snapshot;
 }
 
-test("confirmed post reports keep the recorded reason and prevent duplicates", async () => {
+test("confirmed post reports show the server-recorded reason and prevent duplicates", async () => {
   const calls: Array<{ postId: string; input: OrganizationReportInput }> = [];
   const controller = new MobileOrganizationReportController(
     apiStub({
       reportPost: async (_organizationId, postId, reportInput) => {
         calls.push({ postId, input: reportInput });
-        return response;
+        return {
+          report: { ...response.report, reason: "inappropriate" },
+        };
       },
     }),
   );
@@ -88,7 +96,7 @@ test("confirmed post reports keep the recorded reason and prevent duplicates", a
   );
   assert.deepEqual(calls, [{ postId: "post-a", input }]);
   assert.equal(readySnapshot(controller).outcome, "confirmed");
-  assert.equal(readySnapshot(controller).reason, "spam");
+  assert.equal(readySnapshot(controller).reason, "inappropriate");
   assert.equal(readySnapshot(controller).sending, false);
   assert.equal(
     await controller.submit(
