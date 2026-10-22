@@ -6,8 +6,13 @@ import {
   accountExportApi,
   type AccountExportStatus,
 } from "./accountExportService";
+import {
+  accountExportStatusMessage,
+  isAccountExportDownloadAvailable,
+} from "./accountExportPresentation";
 
 const RECONCILE_INTERVAL_MS = 30_000;
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 type Scoped<T> = { scopeKey: string; value: T };
 type ExportPresentation = {
@@ -44,21 +49,6 @@ function errorMessage(error: unknown): string {
   return "No pudimos completar la operación de exportación.";
 }
 
-function statusMessage(value: AccountExportStatus): string {
-  switch (value.state) {
-    case "pending":
-      return "Tu solicitud está en espera. La preparación se hace de forma segura.";
-    case "processing":
-      return "Estamos preparando el archivo con tus datos.";
-    case "failed":
-      return "No pudimos preparar este archivo. Podés solicitar otro.";
-    case "completed":
-      return value.downloadable
-        ? "El archivo está disponible para descargar."
-        : "Este archivo ya no está disponible. Podés solicitar otro.";
-  }
-}
-
 export function AccountExportPanel() {
   const { status, user, session } = useAuth();
   const scopeKey = [
@@ -68,6 +58,7 @@ export function AccountExportPanel() {
   ].join(":");
 
   const [scoped, setScoped] = useState<Scoped<ExportPresentation> | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const current = scoped?.scopeKey === scopeKey ? scoped.value : initial;
   const { export: job, busy, refreshing, message, error } = current;
 
@@ -160,6 +151,19 @@ export function AccountExportPanel() {
 
   const active = job?.state === "pending" || job?.state === "processing";
   useEffect(() => {
+    if (!job?.downloadable || !job.downloadExpiresAt) return;
+
+    const remainingMs = Date.parse(job.downloadExpiresAt) - now;
+    if (remainingMs <= 0) return;
+
+    const timer = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.min(remainingMs, MAX_TIMER_DELAY_MS),
+    );
+    return () => window.clearTimeout(timer);
+  }, [job?.downloadExpiresAt, job?.downloadable, now]);
+
+  useEffect(() => {
     if (status !== "authenticated" || !active || busy) return;
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -195,11 +199,7 @@ export function AccountExportPanel() {
     };
   }, [active, busy, refreshStatus, status]);
 
-  const available =
-    job?.state === "completed" &&
-    job.downloadable &&
-    job.downloadExpiresAt !== null &&
-    Date.parse(job.downloadExpiresAt) > Date.now();
+  const available = isAccountExportDownloadAvailable(job, now);
   const mayRequest =
     !job || job.state === "failed" || (job.state === "completed" && !available);
 
@@ -223,7 +223,7 @@ export function AccountExportPanel() {
 
       {job && (
         <div aria-live="polite" aria-atomic="true">
-          <p>{statusMessage(job)}</p>
+          <p>{accountExportStatusMessage(job, now)}</p>
           <p>Solicitado: {new Date(job.requestedAt).toLocaleString("es-AR")}</p>
           {job.downloadExpiresAt && (
             <p>
