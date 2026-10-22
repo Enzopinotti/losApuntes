@@ -8,11 +8,11 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
 import { newPasswordValidationMessage } from "@/features/auth/password-policy";
+import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
 import {
   MobileSecurityController,
   type SecurityFailure,
@@ -90,8 +90,6 @@ export default function SecurityRoute() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPasswords, setShowNewPasswords] = useState(false);
   const [localPasswordError, setLocalPasswordError] = useState<string | null>(
     null,
   );
@@ -346,12 +344,11 @@ export default function SecurityRoute() {
             </Text>
 
             <Text style={styles.label}>Contraseña actual</Text>
-            <TextInput
-              accessibilityLabel="Contraseña actual"
+            <PasswordVisibilityInput
+              fieldLabel="Contraseña actual"
               autoCapitalize="none"
               autoComplete="current-password"
               editable={snapshot.busyAction === null}
-              secureTextEntry={!showCurrentPassword}
               textContentType="password"
               value={currentPassword}
               onChangeText={(value) => {
@@ -361,28 +358,13 @@ export default function SecurityRoute() {
               }}
               style={styles.input}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                showCurrentPassword
-                  ? "Ocultar contraseña actual"
-                  : "Mostrar contraseña actual"
-              }
-              onPress={() => setShowCurrentPassword((visible) => !visible)}
-              style={styles.passwordVisibility}
-            >
-              <Text style={styles.passwordVisibilityText}>
-                {showCurrentPassword ? "Ocultar" : "Mostrar"}
-              </Text>
-            </Pressable>
 
             <Text style={styles.label}>Nueva contraseña</Text>
-            <TextInput
-              accessibilityLabel="Nueva contraseña"
+            <PasswordVisibilityInput
+              fieldLabel="Nueva contraseña"
               autoCapitalize="none"
               autoComplete="new-password"
               editable={snapshot.busyAction === null}
-              secureTextEntry={!showNewPasswords}
               textContentType="newPassword"
               value={newPassword}
               onChangeText={(value) => {
@@ -394,12 +376,11 @@ export default function SecurityRoute() {
             />
 
             <Text style={styles.label}>Repetir nueva contraseña</Text>
-            <TextInput
-              accessibilityLabel="Repetir nueva contraseña"
+            <PasswordVisibilityInput
+              fieldLabel="Repetir nueva contraseña"
               autoCapitalize="none"
               autoComplete="new-password"
               editable={snapshot.busyAction === null}
-              secureTextEntry={!showNewPasswords}
               textContentType="newPassword"
               value={confirmation}
               onChangeText={(value) => {
@@ -409,20 +390,6 @@ export default function SecurityRoute() {
               }}
               style={styles.input}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                showNewPasswords
-                  ? "Ocultar contraseñas nuevas"
-                  : "Mostrar contraseñas nuevas"
-              }
-              onPress={() => setShowNewPasswords((visible) => !visible)}
-              style={styles.passwordVisibility}
-            >
-              <Text style={styles.passwordVisibilityText}>
-                {showNewPasswords ? "Ocultar" : "Mostrar"}
-              </Text>
-            </Pressable>
 
             {localPasswordError ? (
               <Text accessibilityRole="alert" style={styles.error}>
@@ -457,12 +424,11 @@ export default function SecurityRoute() {
             </Text>
 
             <Text style={styles.label}>Contraseña actual</Text>
-            <TextInput
-              accessibilityLabel="Contraseña actual para Google"
+            <PasswordVisibilityInput
+              fieldLabel="Contraseña actual para Google"
               autoCapitalize="none"
               autoComplete="current-password"
               editable={snapshot.busyAction === null && !googleIdentityBusy}
-              secureTextEntry
               textContentType="password"
               value={googleCurrentPassword}
               onChangeText={(value) => {
@@ -667,16 +633,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     backgroundColor: "#ffffff",
-  },
-  passwordVisibility: {
-    minHeight: 40,
-    alignSelf: "flex-start",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  passwordVisibilityText: {
-    color: "#34345a",
-    fontWeight: "700",
   },
   primary: {
     minHeight: 50,

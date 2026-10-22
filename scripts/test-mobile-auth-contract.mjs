@@ -18,6 +18,9 @@ const [
   verificationRequired,
   app,
   pkg,
+  passwordVisibilityInput,
+  resetPassword,
+  security,
 ] = await Promise.all([
   read("apps/mobile/src/platform/session-credential-store.ts"),
   read("apps/mobile/src/features/session/session-controller.ts"),
@@ -33,6 +36,9 @@ const [
   read("apps/mobile/src/features/auth/email-verification-required.ts"),
   read("apps/mobile/app.json"),
   read("apps/mobile/package.json"),
+  read("apps/mobile/src/features/auth/password-visibility-input.tsx"),
+  read("apps/mobile/src/app/reset-password.tsx"),
+  read("apps/mobile/src/app/security.tsx"),
 ]);
 
 assert.match(store, /expo-secure-store/u);
@@ -88,3 +94,26 @@ const packageJson = JSON.parse(pkg);
 assert.equal(packageJson.dependencies["@losapuntes/contracts"], "workspace:*");
 assert.ok(packageJson.dependencies["expo-secure-store"]);
 assert.ok(packageJson.dependencies["expo-intent-launcher"]);
+
+assert.match(passwordVisibilityInput, /secureTextEntry=\{!visible\}/u);
+assert.match(passwordVisibilityInput, /AppState\.addEventListener\("change"/u);
+assert.match(passwordVisibilityInput, /state !== "active"/u);
+assert.match(passwordVisibilityInput, /accessibilityRole="switch"/u);
+assert.match(
+  passwordVisibilityInput,
+  /accessibilityState=\{\{ checked: visible/u,
+);
+assert.match(passwordVisibilityInput, /minHeight:\s*44/u);
+
+const passwordInputCount = (source) =>
+  (source.match(/<PasswordVisibilityInput\b/gu) ?? []).length;
+
+assert.equal(passwordInputCount(signIn), 1);
+assert.equal(passwordInputCount(register), 2);
+assert.equal(passwordInputCount(resetPassword), 2);
+assert.equal(passwordInputCount(security), 4);
+assert.match(security, /fieldLabel="Contraseña actual para Google"/u);
+for (const screen of [signIn, register, resetPassword, security]) {
+  assert.doesNotMatch(screen, /secureTextEntry/u);
+}
+assert.doesNotMatch(security, /showCurrentPassword|showNewPasswords/u);

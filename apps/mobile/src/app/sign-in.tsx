@@ -25,6 +25,7 @@ import {
   authActionResendSecondsRemaining,
 } from "@/features/auth/action-resend-cooldown";
 import { isEmailVerificationRequired } from "@/features/auth/email-verification-required";
+import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
 import { useSession } from "@/features/session/session-provider";
 import { mobileApiClient } from "@/features/session/session-runtime";
 import { ApiRequestError } from "@/services/api/client";
@@ -280,11 +281,10 @@ export default function SignInRoute() {
         />
 
         <Text style={styles.label}>Contraseña</Text>
-        <TextInput
-          accessibilityLabel="Contraseña"
+        <PasswordVisibilityInput
+          fieldLabel="Contraseña"
           autoCapitalize="none"
           autoComplete="current-password"
-          secureTextEntry
           textContentType="password"
           value={password}
           onChangeText={(value) => {

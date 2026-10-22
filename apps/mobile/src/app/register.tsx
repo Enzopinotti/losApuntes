@@ -21,6 +21,7 @@ import {
   authActionResendAvailableAt,
   authActionResendSecondsRemaining,
 } from "@/features/auth/action-resend-cooldown";
+import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 const failureMessage = (failure: EmailOnboardingFailure): string => {
@@ -175,11 +176,10 @@ export default function RegisterRoute() {
           {!showSuccess ? (
             <>
               <Text style={styles.label}>Contraseña</Text>
-              <TextInput
-                accessibilityLabel="Contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                secureTextEntry
                 textContentType="newPassword"
                 value={password}
                 onChangeText={setPassword}
@@ -188,11 +188,10 @@ export default function RegisterRoute() {
               />
 
               <Text style={styles.label}>Repetir contraseña</Text>
-              <TextInput
-                accessibilityLabel="Repetir contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Repetir contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                secureTextEntry
                 textContentType="newPassword"
                 value={confirmation}
                 onChangeText={setConfirmation}

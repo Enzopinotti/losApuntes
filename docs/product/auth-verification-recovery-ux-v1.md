@@ -448,6 +448,9 @@ Verification/recovery surfaces require:
 - touch targets suitable for Mobile;
 - loading state that does not erase the page structure.
 
+On Mobile, each password field has its own visibility control, starts masked,
+and is masked again when the app leaves the active state.
+
 One-time-token failures should move focus to the explanatory status/primary recovery action.
 
 ---
