@@ -98,3 +98,20 @@ test("B185 no password analytics or clipboard path is introduced by the feature"
   assert.doesNotMatch(source, /value\.|onChange|onInput|clipboard|navigator\.|console|analytics|fetch/u);
   assert.equal((source.match(/<input/gu) || []).length, 1);
 });
+
+test("B198 browser E2E password selectors do not match the reveal button", async () => {
+  const source = await file("scripts/auth-browser-e2e.mjs");
+  assert.match(
+    source,
+    /const loginPassword = page\.getByLabel\("Contraseña", \{ exact: true \}\);/u,
+  );
+  assert.match(
+    source,
+    /const recoveredLoginPassword = page\.getByLabel\("Contraseña", \{\s*exact: true,\s*\}\);/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /getByLabel\("Contraseña"\)/u,
+    "The reveal button has an accessible name containing contraseña",
+  );
+});
