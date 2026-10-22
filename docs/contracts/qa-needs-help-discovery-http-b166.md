@@ -44,6 +44,7 @@ Si no hay preguntas que necesiten ayuda:
 ## Semántica exacta
 
 Solo pueden aparecer `Question` que:
+
 1. Tienen el `subjectId` canónico solicitado.
 2. Siguen `state=open` y `moderationState=available`.
 3. **No pertenecen al usuario consultante**: se excluye
@@ -98,21 +99,20 @@ duplicados; filas fuera de orden y más de 16 resultados generan
 503 `QA_NEEDS_HELP_UNAVAILABLE`. Fallos de Mongo/servicio académico
 **no** se convierten en páginas vacías ficticias.
 
-## Calidad y criterios de publicación
+## Validación del carrier y aceptación pendiente
 
-Pruebas Jest: guard/ParseUUIDPipe/no-store; aislamiento por cuenta;
-validación académica; preguntas abiertas no propias; moderación de
-preguntas y respuestas; `$lookup` relacionado mediante `$$parentId`
-con máximo una respuesta; no uso de `answerCount`; orden oldest-first;
-paginación 15+1 y cursor asociado a cuenta/materia; datos corruptos;
-errores de base de datos y ausencia de filtraciones de campos del autor.
-
-Verificaciones del SHA exacto: TypeScript, ESLint estricto, Prettier,
-Jest completo, 10 coberturas críticas y smoke de runtime. Los tests
-unitarios de Mongo **no sustituyen** una aceptación de la nueva consulta
-en Mongo real. El problema de smoke de kernel/Mongo se sigue en PR #484.
-
-Mientras la auditoría de producción high/critical siga en rojo
-(`node-forge` #133, `braces` #141, `follow-redirects` #492;
-candidato separado #495), el release #353 permanece **HOLD**.
-No fusionar o desplegar por atajo ni conceder waivers.
+- El carrier conserva los 17 commits atómicos originales de B166 sobre
+  `main@3e023e5f` y agrega un commit separado de evidencia; no se hace
+  squash.
+- Jest cubre guard/ParseUUIDPipe/no-store, aislamiento de cuenta,
+  materia académica, moderación, unión `Answer.questionId = $$parentId`,
+  cursor y orden oldest-first, paginación 15+1, datos corruptos y errores.
+- Validación local del carrier: 3 suites / 29 pruebas, API TypeScript,
+  ESLint sin warnings, Prettier API, `nest build`, Prettier del contrato
+  y `git diff --check` — PASS.
+- No se ejecutó CI. Los tests usan mocks; **no se verificó el agregado
+  contra Mongo real**. Este entorno no tiene daemon Docker ni `mongod`;
+  ejecutar aceptación con una réplica aislada antes de producción.
+- El endpoint es read-only y no agrega cambios a Web/Mobile, Q&A core,
+  autenticación, schemas, índices, migraciones, dependencias ni workflows.
+  La integración del código no acredita runtime ni habilita un despliegue.
