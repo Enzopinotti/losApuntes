@@ -59,7 +59,7 @@ const [panel, api, security, flags, registry, contributor, reader, service] =
     read("apps/api/src/study-progress/study-progress.service.ts"),
   ]);
 
-assert.match(panel, /job\.formatVersion === 3/u);
+assert.match(panel, /job\?\.formatVersion === 3/u);
 assert.match(panel, /job\.state === "completed"/u);
 assert.match(panel, /job\.downloadable/u);
 assert.match(panel, /Esta copia incluye el progreso de estudio guardado/u);
