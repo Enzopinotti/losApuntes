@@ -391,6 +391,39 @@ export class MobileApiClient {
     );
   }
 
+  academicFollows(credential: string, signal?: AbortSignal) {
+    return this.request<unknown>("/academic/me/follows", {
+      credential,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  followAcademicNode(credential: string, nodeId: string, signal?: AbortSignal) {
+    return this.request<unknown>(
+      `/academic/me/follows/${encodeURIComponent(nodeId)}`,
+      {
+        method: "PUT",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  unfollowAcademicNode(
+    credential: string,
+    nodeId: string,
+    signal?: AbortSignal,
+  ) {
+    return this.request<void>(
+      `/academic/me/follows/${encodeURIComponent(nodeId)}`,
+      {
+        method: "DELETE",
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
   academicCatalogSearch(
     input: AcademicCatalogSearchInput,
     signal?: AbortSignal,
