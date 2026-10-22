@@ -6,6 +6,8 @@
 
 Query:
 
+The optional verificationState filter accepts unverified or verified.
+
 - `q` optional;
 - `type` optional;
 - `institutionId` optional UUID;
