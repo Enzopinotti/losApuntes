@@ -92,6 +92,10 @@ test("Home exposes a generic resume action and passes no search text in its rout
     /<HomeSearchResumeCard sessionAuthorityKey=\{sessionAuthority\} \/>/u,
   );
   assert.match(card, /accessibilityLabel="Continuar búsqueda"/u);
+  assert.match(card, /accessibilityLabel="Borrar búsqueda reciente"/u);
+  assert.ok(
+    card.includes("mobileSearchResumeMemory.clear(sessionAuthorityKey)"),
+  );
   assert.match(card, /params: \{ resumeRecentSearch: "1" \}/u);
   assert.doesNotMatch(card, /params: \{[^}]*\bq:/su);
 });
