@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Redirect, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
@@ -20,8 +20,15 @@ import {
   isNativeGoogleConfigured,
   nativeGoogleIdentityProvider,
 } from "@/features/auth/native-google-identity-provider";
+import {
+  authActionResendAvailableAt,
+  authActionResendSecondsRemaining,
+} from "@/features/auth/action-resend-cooldown";
+import { isEmailVerificationRequired } from "@/features/auth/email-verification-required";
+import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
 import { useSession } from "@/features/session/session-provider";
 import { mobileApiClient } from "@/features/session/session-runtime";
+import { ApiRequestError } from "@/services/api/client";
 
 const googleOutcomeCopy: Partial<Record<GoogleLoginOutcome["kind"], string>> = {
   unavailable:
@@ -47,6 +54,46 @@ export default function SignInRoute() {
     "checking" | "enabled" | "disabled" | "failed"
   >("checking");
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [verificationRequiredEmail, setVerificationRequiredEmail] = useState<
+    string | null
+  >(null);
+  const [verificationResendState, setVerificationResendState] = useState<
+    | "idle"
+    | "pending"
+    | "accepted"
+    | "offline"
+    | "timeout"
+    | "server_unavailable"
+    | "rejected"
+  >("idle");
+  const [resendAvailableAtMs, setResendAvailableAtMs] = useState<number | null>(
+    null,
+  );
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
+  const verificationRequestGeneration = useRef(0);
+  const activeVerificationRequest = useRef<AbortController | null>(null);
+  const resendCooldownSeconds = authActionResendSecondsRemaining(
+    resendAvailableAtMs,
+    cooldownNowMs,
+  );
+
+  useEffect(
+    () => () => {
+      verificationRequestGeneration.current += 1;
+      activeVerificationRequest.current?.abort();
+      activeVerificationRequest.current = null;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (resendAvailableAtMs === null) return;
+
+    const updateClock = () => setCooldownNowMs(Date.now());
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, [resendAvailableAtMs]);
 
   useEffect(() => {
     const request = new AbortController();
@@ -71,17 +118,84 @@ export default function SignInRoute() {
 
   const submit = async () => {
     setFormError(null);
+    setVerificationRequiredEmail(null);
+    setVerificationResendState("idle");
+    setResendAvailableAtMs(null);
+    verificationRequestGeneration.current += 1;
+    activeVerificationRequest.current?.abort();
+    activeVerificationRequest.current = null;
     try {
       await login(email, password);
-    } catch {
+    } catch (error) {
+      if (isEmailVerificationRequired(error)) {
+        setVerificationRequiredEmail(email.trim().toLowerCase());
+        setPassword("");
+        setFormError("Verificá tu email para continuar.");
+        return;
+      }
       setFormError(
         "No pudimos iniciar sesión. Revisá tus datos e intentá de nuevo.",
       );
     }
   };
 
+  const requestVerification = async () => {
+    if (
+      !verificationRequiredEmail ||
+      verificationResendState === "pending" ||
+      resendCooldownSeconds > 0
+    ) {
+      return;
+    }
+
+    verificationRequestGeneration.current += 1;
+    const generation = verificationRequestGeneration.current;
+    const controller = new AbortController();
+    activeVerificationRequest.current?.abort();
+    activeVerificationRequest.current = controller;
+    setVerificationResendState("pending");
+
+    try {
+      await mobileApiClient.requestEmailVerification(
+        { email: verificationRequiredEmail },
+        controller.signal,
+      );
+      if (generation !== verificationRequestGeneration.current) return;
+
+      activeVerificationRequest.current = null;
+      const acceptedAtMs = Date.now();
+      setCooldownNowMs(acceptedAtMs);
+      setResendAvailableAtMs(authActionResendAvailableAt(acceptedAtMs));
+      setVerificationResendState("accepted");
+    } catch (error) {
+      if (generation !== verificationRequestGeneration.current) return;
+
+      activeVerificationRequest.current = null;
+      const failure =
+        error instanceof ApiRequestError ? error.kind : "rejected";
+      setVerificationResendState(
+        failure === "offline" ||
+          failure === "timeout" ||
+          failure === "server_unavailable"
+          ? failure
+          : "rejected",
+      );
+    }
+  };
+
+  const clearVerificationPrompt = () => {
+    verificationRequestGeneration.current += 1;
+    activeVerificationRequest.current?.abort();
+    activeVerificationRequest.current = null;
+    setVerificationRequiredEmail(null);
+    setVerificationResendState("idle");
+    setResendAvailableAtMs(null);
+    setCooldownNowMs(Date.now());
+  };
+
   const submitGoogle = async () => {
     setFormError(null);
+    clearVerificationPrompt();
     setGoogleBusy(true);
     const outcome = await runGoogleLogin(
       nativeGoogleIdentityProvider,
@@ -158,19 +272,26 @@ export default function SignInRoute() {
           keyboardType="email-address"
           textContentType="emailAddress"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(value) => {
+            setEmail(value);
+            setFormError(null);
+            clearVerificationPrompt();
+          }}
           style={styles.input}
         />
 
         <Text style={styles.label}>Contraseña</Text>
-        <TextInput
-          accessibilityLabel="Contraseña"
+        <PasswordVisibilityInput
+          fieldLabel="Contraseña"
           autoCapitalize="none"
           autoComplete="current-password"
-          secureTextEntry
           textContentType="password"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(value) => {
+            setPassword(value);
+            setFormError(null);
+            clearVerificationPrompt();
+          }}
           style={styles.input}
         />
 
@@ -195,6 +316,55 @@ export default function SignInRoute() {
             <Text style={styles.primaryText}>Ingresar</Text>
           )}
         </Pressable>
+
+        {verificationRequiredEmail ? (
+          <>
+            {verificationResendState === "accepted" ? (
+              <Text accessibilityLiveRegion="polite" style={styles.status}>
+                Si hay una cuenta pendiente para ese email, enviamos un enlace
+                de verificación.
+              </Text>
+            ) : null}
+            {verificationResendState === "offline" ||
+            verificationResendState === "timeout" ||
+            verificationResendState === "server_unavailable" ||
+            verificationResendState === "rejected" ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {verificationResendState === "offline"
+                  ? "Sin conexión. Revisá internet e intentá de nuevo."
+                  : verificationResendState === "timeout"
+                    ? "El servidor tardó demasiado en responder."
+                    : verificationResendState === "server_unavailable"
+                      ? "Los Apuntes no está disponible en este momento."
+                      : "No pudimos solicitar otro enlace. Intentá de nuevo."}
+              </Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={
+                verificationResendState === "pending" ||
+                resendCooldownSeconds > 0
+              }
+              onPress={() => void requestVerification()}
+              style={[
+                styles.secondary,
+                (verificationResendState === "pending" ||
+                  resendCooldownSeconds > 0) &&
+                  styles.disabled,
+              ]}
+            >
+              {verificationResendState === "pending" ? (
+                <ActivityIndicator accessibilityLabel="Enviando verificación" />
+              ) : (
+                <Text>
+                  {resendCooldownSeconds > 0
+                    ? `Solicitar otro enlace en ${resendCooldownSeconds} s`
+                    : "Reenviar verificación"}
+                </Text>
+              )}
+            </Pressable>
+          </>
+        ) : null}
 
         {transportState ? (
           <Pressable
@@ -262,6 +432,11 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 14,
     color: "#9f1d1d",
+  },
+  status: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#2f2f36",
   },
   primary: {
     minHeight: 50,

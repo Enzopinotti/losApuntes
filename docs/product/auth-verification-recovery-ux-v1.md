@@ -245,6 +245,16 @@ Actions:
 - return to login;
 - resend later if needed.
 
+### Repeated requests
+
+The server applies a one-minute per-account, per-purpose issuance cooldown to
+password-recovery links. The client may disable another request on the same
+screen for one minute after an accepted response to make that limit clear.
+This is only a usability aid: the API remains authoritative, and the interval
+must describe when another request can be made, not promise when an email will
+arrive or reveal whether the account exists. Reloading the screen or changing
+the email may reset the visual cooldown.
+
 ---
 
 ## 7. Recovery email
@@ -294,8 +304,8 @@ Show:
 
 Policy:
 
-- minimum 12 characters;
-- maximum 256;
+- minimum 15 Unicode code points after NFC normalization;
+- maximum 256 Unicode code points after NFC normalization;
 - no forced upper/lower/number/symbol composition;
 - spaces/paste/password managers supported.
 
@@ -437,6 +447,9 @@ Verification/recovery surfaces require:
 - clear action hierarchy;
 - touch targets suitable for Mobile;
 - loading state that does not erase the page structure.
+
+On Mobile, each password field has its own visibility control, starts masked,
+and is masked again when the app leaves the active state.
 
 One-time-token failures should move focus to the explanatory status/primary recovery action.
 

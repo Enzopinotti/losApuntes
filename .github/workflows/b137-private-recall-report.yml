@@ -1,0 +1,72 @@
+name: B137 private Study Practice aggregate report
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/features/study/study-recall-private-report.mjs
+      - apps/web/src/features/study/study-recall-private-report.d.mts
+      - apps/web/src/pages/StudyPractice.tsx
+      - scripts/test-web-study-private-report.mjs
+      - package.json
+      - docs/engineering/b137-private-practice-report.md
+      - .github/workflows/b137-private-recall-report.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b137-report-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  private-report:
+    name: Node24 exact-head report privacy and Web quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout exact PR head read only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate and clean tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install pinned workspace
+        run: pnpm install --frozen-lockfile
+      - name: Diagnose canonical JSX formatting without editing source
+        shell: bash
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyPractice.tsx > "$RUNNER_TEMP/StudyPractice.canonical.tsx"
+          diff -u apps/web/src/pages/StudyPractice.tsx "$RUNNER_TEMP/StudyPractice.canonical.tsx" || true
+      - name: Test private report and prerequisite study contracts
+        run: |
+          pnpm test:web-study-private-report
+          pnpm test:web-study-recall-pause
+          pnpm test:web-study-recall-planning
+          pnpm test:web-study-retry-round
+          node scripts/test-web-study-active-recall.mjs
+          node scripts/test-web-study-practice-integration.mjs
+          node scripts/test-web-focused-practice-contract.mjs
+      - name: Enforce full Web types lint and formatting
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web lint
+          pnpm --filter @losapuntes/web format:check
+      - name: Assert no checkout mutation
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

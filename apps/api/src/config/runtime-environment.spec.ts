@@ -36,6 +36,19 @@ const validProductionEnvironment = {
 };
 
 describe('validateRuntimeEnvironment', () => {
+  it('blocks private progress activation in production until data export covers it', () => {
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validProductionEnvironment,
+        STUDY_PROGRESS_ENABLED: 'true',
+      }),
+    ).toThrow('STUDY_PROGRESS_ENABLED must remain false in production');
+    expect(
+      validateRuntimeEnvironment(validProductionEnvironment)
+        .STUDY_PROGRESS_ENABLED,
+    ).toBe(false);
+  });
+
   it('uses the local deployment profile outside production by default', () => {
     const result = validateRuntimeEnvironment(validEnvironment);
 
@@ -543,5 +556,37 @@ describe('validateRuntimeEnvironment', () => {
 
   it('does not require the removed legacy JWT secret', () => {
     expect(() => validateRuntimeEnvironment(validEnvironment)).not.toThrow();
+  });
+  it('keeps persistent collections disabled until explicitly opted in', () => {
+    expect(
+      validateRuntimeEnvironment(validEnvironment).STUDY_PROGRESS_ENABLED,
+    ).toBe(false);
+    expect(
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        STUDY_PROGRESS_ENABLED: 'true',
+      }).STUDY_PROGRESS_ENABLED,
+    ).toBe(true);
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        STUDY_PROGRESS_ENABLED: 'yes',
+      }),
+    ).toThrow('STUDY_PROGRESS_ENABLED must be true or false');
+    expect(
+      validateRuntimeEnvironment(validEnvironment).STUDY_COLLECTIONS_ENABLED,
+    ).toBe(false);
+    expect(
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        STUDY_COLLECTIONS_ENABLED: 'true',
+      }).STUDY_COLLECTIONS_ENABLED,
+    ).toBe(true);
+    expect(() =>
+      validateRuntimeEnvironment({
+        ...validEnvironment,
+        STUDY_COLLECTIONS_ENABLED: 'yes',
+      }),
+    ).toThrow('STUDY_COLLECTIONS_ENABLED must be true or false');
   });
 });

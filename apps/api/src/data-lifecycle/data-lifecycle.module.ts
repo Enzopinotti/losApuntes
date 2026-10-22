@@ -17,6 +17,16 @@ import { ProfileModule } from '../profile/profile.module';
 import { QaModule } from '../qa/qa.module';
 import { ResourcesModule } from '../resources/resources.module';
 import { SocialModule } from '../social/social.module';
+import { StudyCollectionsExportReadModule } from '../study-collections/mongo/study-collections-export-read.module';
+import { StudyProgressExportReadModule } from '../study-progress/mongo/study-progress-export-read.module';
+import {
+  StudyCollection,
+  StudyCollectionSchema,
+} from '../study-collections/mongo/study-collection.mongo-schema';
+import {
+  StudyProgress,
+  StudyProgressSchema,
+} from '../study-progress/mongo/study-progress.schema';
 import { Profile, ProfileSchema } from '../profile/mongo/profile.mongo-schemas';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -70,11 +80,13 @@ import {
   SocialConnectionsExportContributor,
   SocialFollowingExportContributor,
 } from './contributors/account-export-social.contributors';
+import { StudyCollectionsExportContributor } from './contributors/account-export-study-collections.contributor';
+import { StudyProgressExportContributor } from './contributors/account-export-study-progress.contributor';
 import { AccountExportAssembler } from './domain/account-export-assembler';
 import {
   ACCOUNT_EXPORT_CONTRIBUTORS,
   AccountExportContributorRegistry,
-  assertAccountExportV1Sections,
+  assertAccountExportSections,
 } from './domain/account-export-contributor.registry';
 import { AccountExportService } from './domain/account-export.service';
 import { AccountExportProcessor } from './domain/account-export-processor';
@@ -92,6 +104,12 @@ import {
   AccountExportJobSchema,
 } from './mongo/account-export.mongo-schema';
 import { MongoAccountExportStore } from './mongo/mongo-account-export.store';
+import { ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE } from './domain/account-export-orphan-cleanup.store';
+import {
+  AccountExportOrphanCleanup,
+  AccountExportOrphanCleanupSchema,
+} from './mongo/account-export-orphan-cleanup.schema';
+import { MongoAccountExportOrphanCleanupStore } from './mongo/mongo-account-export-orphan-cleanup.store';
 import { MongoAccountLifecycleStore } from './mongo/mongo-account-lifecycle.store';
 import {
   AccountOffboardingJob,
@@ -114,13 +132,21 @@ import {
     QaModule,
     ResourcesModule,
     SocialModule,
+    StudyCollectionsExportReadModule,
+    StudyProgressExportReadModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Profile.name, schema: ProfileSchema },
       { name: OrganizationManager.name, schema: OrganizationManagerSchema },
       { name: AccountOffboardingJob.name, schema: AccountOffboardingJobSchema },
       { name: AccountExportJob.name, schema: AccountExportJobSchema },
+      {
+        name: AccountExportOrphanCleanup.name,
+        schema: AccountExportOrphanCleanupSchema,
+      },
       { name: SecurityAudit.name, schema: SecurityAuditSchema },
+      { name: StudyCollection.name, schema: StudyCollectionSchema },
+      { name: StudyProgress.name, schema: StudyProgressSchema },
     ]),
   ],
   controllers: [AccountLifecycleController, AccountExportController],
@@ -159,6 +185,8 @@ import {
     SocialFollowingExportContributor,
     SocialConnectionsExportContributor,
     PilotActivityExportContributor,
+    StudyCollectionsExportContributor,
+    StudyProgressExportContributor,
     {
       provide: ACCOUNT_EXPORT_CONTRIBUTORS,
       useFactory: (
@@ -192,6 +220,8 @@ import {
         socialFollowing: SocialFollowingExportContributor,
         socialConnections: SocialConnectionsExportContributor,
         pilotActivity: PilotActivityExportContributor,
+        studyCollections: StudyCollectionsExportContributor,
+        studyProgress: StudyProgressExportContributor,
       ) => {
         const contributors = [
           account,
@@ -224,8 +254,10 @@ import {
           socialFollowing,
           socialConnections,
           pilotActivity,
+          studyCollections,
+          studyProgress,
         ];
-        assertAccountExportV1Sections(contributors);
+        assertAccountExportSections(contributors, 3);
         return contributors;
       },
       inject: [
@@ -259,11 +291,18 @@ import {
         SocialFollowingExportContributor,
         SocialConnectionsExportContributor,
         PilotActivityExportContributor,
+        StudyCollectionsExportContributor,
+        StudyProgressExportContributor,
       ],
     },
     AccountExportContributorRegistry,
     MongoAccountLifecycleStore,
     MongoAccountExportStore,
+    MongoAccountExportOrphanCleanupStore,
+    {
+      provide: ACCOUNT_EXPORT_ORPHAN_CLEANUP_STORE,
+      useExisting: MongoAccountExportOrphanCleanupStore,
+    },
     {
       provide: ACCOUNT_LIFECYCLE_STORE,
       useExisting: MongoAccountLifecycleStore,

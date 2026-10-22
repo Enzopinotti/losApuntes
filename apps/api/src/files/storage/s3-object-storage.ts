@@ -1,5 +1,33 @@
 import { createHash, createHmac } from 'node:crypto';
 
+import { readBoundedS3PrefixBody } from './s3-bounded-prefix-body';
+import {
+  assertS3FullObjectReadActive,
+  isConfirmedS3FullObjectGet,
+} from './s3-full-object-read-contract';
+import {
+  parseS3FullObjectContentLength,
+  assertS3FullObjectContentLength,
+} from './s3-full-object-length';
+import { collectS3SignedRequestHeaders } from './s3-signed-request-headers';
+import {
+  isConfirmedS3HeadObject,
+  parseS3HeadObjectByteSize,
+} from './s3-head-object-contract';
+import { isConfirmedS3MultipartCompletion } from './s3-multipart-completion';
+import { parseConfirmedS3MultipartUploadId } from './s3-multipart-initiation';
+import { normalizeS3MultipartPartEtag } from './s3-multipart-part-etag';
+import { normalizeS3HeadObjectEtag } from './s3-head-etag';
+import {
+  isConfirmedS3WriteAcknowledgement,
+  isConfirmedS3MultipartAbort,
+  isConfirmedS3ObjectDelete,
+} from './s3-write-ack-status';
+import {
+  readBoundedS3MultipartCompletionXml,
+  readBoundedS3MultipartInitiationXml,
+} from './s3-multipart-response-body';
+
 import type {
   ObjectStorage,
   ObjectStorageDownloadIntent,
@@ -39,6 +67,13 @@ export interface S3ObjectStorage extends ObjectStorage {
   createMultipartWriter(input: {
     objectKey: string;
     contentType: string;
+    /**
+     * Defaults to true for existing consumers.
+     * Private exports pass false: abort the multipart upload ID only, never
+     * delete a possibly committed object outside the Mongo owner-fenced
+     * orphan queue (B78-B81).
+     */
+    deleteObjectOnAbort?: boolean;
   }): S3MultipartObjectWriter;
 }
 
@@ -234,11 +269,14 @@ async function signedRequest(input: {
   const now = input.now ?? new Date();
   const { amzDate, dateStamp } = awsDate(now);
   const scope = `${dateStamp}/${input.region}/${SERVICE}/aws4_request`;
-  const signingHeaders = new Map<string, string>([
-    ['host', input.endpoint.host],
-    ['x-amz-content-sha256', EMPTY_SHA256],
-    ['x-amz-date', amzDate],
-  ]);
+  // B110: sign Range and all optional request headers in the canonical
+  // request. Otherwise a proxy can change a prefix window undetected.
+  const signingHeaders = collectS3SignedRequestHeaders(
+    input.endpoint.host,
+    EMPTY_SHA256,
+    amzDate,
+    input.headers,
+  );
   const signedHeaders = [...signingHeaders.keys()].sort().join(';');
   const canonicalHeaders = [...signingHeaders.entries()]
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
@@ -304,15 +342,15 @@ async function signedBodyRequest(input: {
   const scope = `${dateStamp}/${input.region}/${SERVICE}/aws4_request`;
   const body = input.body ?? new Uint8Array();
   const payloadHash = createHash('sha256').update(body).digest('hex');
-  const headers = new Map<string, string>([
-    ['host', input.endpoint.host],
-    ['x-amz-content-sha256', payloadHash],
-    ['x-amz-date', amzDate],
-    ...Object.entries(input.headers ?? {}).map(
-      ([key, value]) =>
-        [key.toLowerCase(), normalizeHeaderValue(value)] as const,
-    ),
-  ]);
+  // B112: multipart POST/PUT/DELETE must enforce the same reserved-header
+  // ownership as B110 GET/HEAD. A supplied content-type is signed, but it
+  // must never overwrite host, payload hash, date or authorization.
+  const headers = collectS3SignedRequestHeaders(
+    input.endpoint.host,
+    payloadHash,
+    amzDate,
+    input.headers,
+  );
   const signedHeaders = [...headers.keys()].sort().join(';');
   const canonicalHeaders = [...headers.entries()]
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
@@ -367,13 +405,6 @@ function xmlEscape(value: string): string {
     .replace(/'/gu, '&apos;');
 }
 
-function hasControlCharacters(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codePoint = character.codePointAt(0);
-    return codePoint !== undefined && (codePoint < 0x20 || codePoint === 0x7f);
-  });
-}
-
 export function createS3ObjectStorage(
   options: S3ObjectStorageOptions,
 ): S3ObjectStorage {
@@ -399,8 +430,12 @@ export function createS3ObjectStorage(
       now: options.now?.(),
     });
 
-    if (response.status === 404) return;
-    if (!response.ok) throw storageError('DELETE', response.status);
+    // B120: a provider may acknowledge 202 while deletion is still
+    // asynchronous. Do not retire the owner-fenced cleanup claim until a
+    // terminal DELETE result (204/compatible 200/idempotent 404).
+    if (!isConfirmedS3ObjectDelete(response.status)) {
+      throw storageError('DELETE', response.status);
+    }
   };
 
   return Object.freeze({
@@ -409,6 +444,7 @@ export function createS3ObjectStorage(
     createMultipartWriter(input: {
       objectKey: string;
       contentType: string;
+      deleteObjectOnAbort?: boolean;
     }): S3MultipartObjectWriter {
       const minimumPartBytes = 5 * 1024 * 1024;
       const maximumPartCount = 10_000;
@@ -418,6 +454,10 @@ export function createS3ObjectStorage(
       let uploadId: string | null = null;
       let completed = false;
       let aborted = false;
+      // B104: a failed PUT/ACK may have persisted an unknown subset of parts.
+      // Never allow complete() to publish after a failed write or ambiguous
+      // completion. Only abort() may act on the retained multipart upload ID.
+      let failed = false;
 
       const request = (
         method: 'POST' | 'PUT' | 'DELETE',
@@ -446,17 +486,21 @@ export function createS3ObjectStorage(
           undefined,
           input.contentType,
         );
-        if (!response.ok)
+        if (!isConfirmedS3WriteAcknowledgement(response.status)) {
+          void response.body?.cancel().catch(() => undefined);
           throw storageError('Create multipart upload', response.status);
-        const xml = await response.text();
-        const rawUploadId = /<UploadId>([^<]+)<\/UploadId>/u.exec(xml)?.[1];
-        if (!rawUploadId) throw new Error('S3 multipart upload id is missing');
-        uploadId = rawUploadId
-          .replace(/&lt;/gu, '<')
-          .replace(/&gt;/gu, '>')
-          .replace(/&quot;/gu, '"')
-          .replace(/&apos;/gu, "'")
-          .replace(/&amp;/gu, '&');
+        }
+        // A 2xx initiation response must not be buffered without a limit or
+        // treated as proof of a valid upload generation without parsing.
+        const xml = await readBoundedS3MultipartInitiationXml(response);
+        const confirmedUploadId = parseConfirmedS3MultipartUploadId(xml, {
+          bucket: options.bucket,
+          objectKey: input.objectKey,
+        });
+        if (!confirmedUploadId) {
+          throw new Error('S3 multipart upload id is missing or invalid');
+        }
+        uploadId = confirmedUploadId;
       };
 
       const uploadPart = async (bytes: Buffer) => {
@@ -476,11 +520,12 @@ export function createS3ObjectStorage(
           bytes,
           'application/octet-stream',
         );
-        if (!response.ok)
+        if (!isConfirmedS3WriteAcknowledgement(response.status)) {
+          void response.body?.cancel().catch(() => undefined);
           throw storageError('Upload multipart part', response.status);
-        const rawEtag = response.headers.get('etag')?.trim();
-        const etag = rawEtag?.replace(/^"|"$/gu, '');
-        if (!etag || hasControlCharacters(etag)) {
+        }
+        const etag = normalizeS3MultipartPartEtag(response.headers.get('etag'));
+        if (!etag) {
           throw new Error('S3 multipart part returned an invalid ETag');
         }
         parts.push({
@@ -497,67 +542,101 @@ export function createS3ObjectStorage(
         await uploadPart(bytes);
       };
 
-      return {
+      const underlyingWriter: S3MultipartObjectWriter = {
         async write(chunk: Uint8Array): Promise<void> {
-          if (completed || aborted) {
+          if (completed || aborted || failed) {
             throw new Error('S3 multipart writer is no longer writable');
           }
-          let offset = 0;
-          while (offset < chunk.byteLength) {
-            const take = Math.min(
-              minimumPartBytes - pendingBytes,
-              chunk.byteLength - offset,
-            );
-            pending.push(Buffer.from(chunk.subarray(offset, offset + take)));
-            pendingBytes += take;
-            offset += take;
-            if (pendingBytes === minimumPartBytes) await flushPending();
+          try {
+            let offset = 0;
+            while (offset < chunk.byteLength) {
+              const take = Math.min(
+                minimumPartBytes - pendingBytes,
+                chunk.byteLength - offset,
+              );
+              pending.push(Buffer.from(chunk.subarray(offset, offset + take)));
+              pendingBytes += take;
+              offset += take;
+              if (pendingBytes === minimumPartBytes) await flushPending();
+            }
+          } catch (error) {
+            // flushPending() already drained local bytes before awaiting S3;
+            // their commit/ACK status is unknown, so never retry this writer.
+            failed = true;
+            throw error;
           }
         },
 
         async complete(): Promise<void> {
           if (aborted) throw new Error('S3 multipart writer was aborted');
-          if (completed) return;
-
-          if (!uploadId) {
-            const bytes = Buffer.concat(pending, pendingBytes);
-            const response = await request(
-              'PUT',
-              undefined,
-              bytes,
-              input.contentType,
+          if (failed) {
+            throw new Error(
+              'S3 multipart writer cannot complete after a failed operation',
             );
-            if (!response.ok) throw storageError('PUT object', response.status);
-            completed = true;
-            return;
           }
+          if (completed) return;
+          try {
+            if (!uploadId) {
+              const bytes = Buffer.concat(pending, pendingBytes);
+              const response = await request(
+                'PUT',
+                undefined,
+                bytes,
+                input.contentType,
+              );
+              if (!isConfirmedS3WriteAcknowledgement(response.status)) {
+                void response.body?.cancel().catch(() => undefined);
+                throw storageError('PUT object', response.status);
+              }
+              completed = true;
+              return;
+            }
 
-          await flushPending();
-          if (parts.length === 0) {
-            throw new Error('S3 multipart upload has no parts');
+            await flushPending();
+            if (parts.length === 0) {
+              throw new Error('S3 multipart upload has no parts');
+            }
+            const currentUploadId = uploadId;
+            const body = Buffer.from(
+              `<CompleteMultipartUpload>${parts
+                .map(
+                  ({ partNumber, etag }) =>
+                    `<Part><PartNumber>${partNumber}</PartNumber><ETag>${etag}</ETag></Part>`,
+                )
+                .join('')}</CompleteMultipartUpload>`,
+              'utf8',
+            );
+            const response = await request(
+              'POST',
+              [['uploadId', currentUploadId]],
+              body,
+              'application/xml',
+            );
+            // Never buffer an unlimited 200 response before B96's semantic
+            // check: a malicious/broken provider might stream indefinitely.
+            // Keep the uploadId when completion is ambiguous. In the private
+            // export path, abort() can only target that multipart ID.
+            if (!isConfirmedS3WriteAcknowledgement(response.status)) {
+              void response.body?.cancel().catch(() => undefined);
+              throw storageError('Complete multipart upload', response.status);
+            }
+            const xml = await readBoundedS3MultipartCompletionXml(response);
+            if (
+              !isConfirmedS3MultipartCompletion(xml, {
+                bucket: options.bucket,
+                objectKey: input.objectKey,
+              })
+            ) {
+              throw storageError('Complete multipart upload', response.status);
+            }
+            uploadId = null;
+            completed = true;
+          } catch (error) {
+            // An incomplete/ambiguous provider response cannot be repaired by
+            // resubmitting complete(), which might commit a partial object.
+            failed = true;
+            throw error;
           }
-          const currentUploadId = uploadId;
-          const body = Buffer.from(
-            `<CompleteMultipartUpload>${parts
-              .map(
-                ({ partNumber, etag }) =>
-                  `<Part><PartNumber>${partNumber}</PartNumber><ETag>${etag}</ETag></Part>`,
-              )
-              .join('')}</CompleteMultipartUpload>`,
-            'utf8',
-          );
-          const response = await request(
-            'POST',
-            [['uploadId', currentUploadId]],
-            body,
-            'application/xml',
-          );
-          const xml = await response.text();
-          if (!response.ok || /<Error(?:\s|>)/u.test(xml)) {
-            throw storageError('Complete multipart upload', response.status);
-          }
-          uploadId = null;
-          completed = true;
         },
 
         async abort(): Promise<void> {
@@ -567,14 +646,116 @@ export function createS3ObjectStorage(
             const response = await request('DELETE', [
               ['uploadId', currentUploadId],
             ]);
-            if (!response.ok && response.status !== 404) {
+            if (!isConfirmedS3MultipartAbort(response.status)) {
+              void response.body?.cancel().catch(() => undefined);
               throw storageError('Abort multipart upload', response.status);
             }
           }
-          await deleteObject(input.objectKey);
+          // Multipart Abort only cancels the upload ID. An ambiguous
+          // completion ACK can mean the object already exists in S3.
+          // Private account exports pre-register a durable cleanup task
+          // and must never perform this unfenced exact-object DELETE.
+          if (input.deleteObjectOnAbort !== false) {
+            await deleteObject(input.objectKey);
+          }
           aborted = true;
           uploadId = null;
           completed = false;
+        },
+      };
+
+      // B105: serialize *all* operations on this writer. B104's terminal
+      // failure flag does not prevent two simultaneous write() calls from
+      // reusing a part number, nor complete() overtaking a pending part ACK.
+      // A rejected operation must not poison the queue: abort() still runs.
+      let pendingOperation: Promise<void> = Promise.resolve();
+      let completionRequested = false;
+      let abortRequested = false;
+      // B106 bounds snapshots accepted while the provider is stalled.
+      // It includes both queued and currently executing write() calls.
+      const maximumQueuedSnapshotBytes = 16 * 1024 * 1024;
+      const maximumQueuedWriteOperations = 32;
+      let queuedSnapshotBytes = 0;
+      let queuedWriteOperations = 0;
+      const serialize = (operation: () => Promise<void>): Promise<void> => {
+        const result = pendingOperation.then(operation);
+        pendingOperation = result.then(
+          () => undefined,
+          () => undefined,
+        );
+        return result;
+      };
+
+      return {
+        write(chunk: Uint8Array): Promise<void> {
+          if (
+            completionRequested ||
+            abortRequested ||
+            completed ||
+            aborted ||
+            failed
+          ) {
+            return Promise.reject(
+              new Error('S3 multipart writer is no longer writable'),
+            );
+          }
+          // Fail closed if backpressure is ignored. Rejection must poison
+          // this generation: otherwise complete() could commit only the
+          // previously accepted chunks after the caller drops the error.
+          if (
+            chunk.byteLength >
+              maximumQueuedSnapshotBytes - queuedSnapshotBytes ||
+            queuedWriteOperations >= maximumQueuedWriteOperations
+          ) {
+            failed = true;
+            return Promise.reject(
+              new Error('S3 multipart writer pending writes exceed limits'),
+            );
+          }
+          // Snapshots must own their bytes while another signed PUT awaits an
+          // ACK. The counters include the active write as well as queued ones.
+          let snapshot: Buffer;
+          try {
+            snapshot = Buffer.from(chunk);
+          } catch (error) {
+            failed = true;
+            return Promise.reject(
+              error instanceof Error
+                ? error
+                : new Error('S3 multipart chunk could not be copied', {
+                    cause: error,
+                  }),
+            );
+          }
+          queuedSnapshotBytes += snapshot.byteLength;
+          queuedWriteOperations += 1;
+          return serialize(async () => {
+            try {
+              await underlyingWriter.write(snapshot);
+            } finally {
+              // Do not retain private export bytes after an operation settles,
+              // regardless of whether its signed request succeeded or failed.
+              snapshot.fill(0);
+              queuedSnapshotBytes -= snapshot.byteLength;
+              queuedWriteOperations -= 1;
+            }
+          });
+        },
+
+        complete(): Promise<void> {
+          if (abortRequested) {
+            return Promise.reject(new Error('S3 multipart writer was aborted'));
+          }
+          // Fence late writes synchronously, *before* the queued completion.
+          completionRequested = true;
+          return serialize(() => underlyingWriter.complete());
+        },
+
+        abort(): Promise<void> {
+          // Fence late writes/completion synchronously but drain already
+          // accepted writes before issuing multipart Abort for their uploadId.
+          abortRequested = true;
+          return serialize(() => underlyingWriter.abort());
         },
       };
     },
@@ -628,19 +809,19 @@ export function createS3ObjectStorage(
       });
 
       if (response.status === 404) return null;
-      if (!response.ok) throw storageError('HEAD', response.status);
-
-      const rawLength = response.headers.get('content-length');
-      const byteSize = rawLength === null ? Number.NaN : Number(rawLength);
-
-      if (!Number.isSafeInteger(byteSize) || byteSize < 0) {
-        throw new Error('S3 HEAD returned an invalid content length');
+      // B116: a successful-looking non-200 status is not proof that the
+      // whole object exists with these bytes (202/204/206 in particular).
+      if (!isConfirmedS3HeadObject(response.status)) {
+        throw storageError('HEAD', response.status);
       }
+      const byteSize = parseS3HeadObjectByteSize(
+        response.headers.get('content-length'),
+      );
 
       return {
         byteSize,
         contentType: response.headers.get('content-type'),
-        etag: response.headers.get('etag')?.replace(/^"|"$/gu, '') ?? null,
+        etag: normalizeS3HeadObjectEtag(response.headers.get('etag')),
       };
     },
 
@@ -667,13 +848,7 @@ export function createS3ObjectStorage(
       });
 
       if (!response.ok) throw storageError('GET prefix', response.status);
-      const bytes = new Uint8Array(await response.arrayBuffer());
-
-      if (bytes.byteLength > maximumBytes) {
-        throw new Error('S3 returned more bytes than the requested prefix');
-      }
-
-      return bytes;
+      return readBoundedS3PrefixBody(response, maximumBytes);
     },
 
     async *readObjectChunks(
@@ -703,9 +878,15 @@ export function createS3ObjectStorage(
         now: options.now?.(),
       });
 
-      if (!response.ok) throw storageError('GET object', response.status);
+      // B114: neither 202 Accepted nor 206 Partial Content confirms the
+      // full object requested without Range. Never forward partial bytes
+      // to an export integrity check or file scanner.
+      if (!isConfirmedS3FullObjectGet(response.status)) {
+        void response.body?.cancel().catch(() => undefined);
+        throw storageError('GET object', response.status);
+      }
       if (!response.body) throw new Error('S3 GET object returned no body');
-
+      let receivedBytes = 0;
       const reader = response.body.getReader();
       let streamEnded = false;
       let cancellation: Promise<void> | null = null;
@@ -719,18 +900,36 @@ export function createS3ObjectStorage(
       if (signal?.aborted) cancelReader();
 
       try {
+        assertS3FullObjectReadActive(signal);
+        // B115 parse metadata *inside* the reader's cleanup scope, so an
+        // invalid Content-Length cancels the provider stream as well.
+        const expectedBytes = parseS3FullObjectContentLength(
+          response.headers.get('content-length'),
+        );
         while (true) {
+          assertS3FullObjectReadActive(signal);
           const result = await reader.read();
+          // A cancelled reader may resolve as a successful EOF. Abort is
+          // authoritative before done, after reads, and between yields.
+          assertS3FullObjectReadActive(signal);
           if (result.done) {
+            assertS3FullObjectContentLength(expectedBytes, receivedBytes, true);
             streamEnded = true;
             return;
           }
+          if (!(result.value instanceof Uint8Array)) {
+            throw new Error('S3 GET object returned invalid bytes');
+          }
+          // Validate before yielding any portion of a remote chunk.
+          receivedBytes += result.value.byteLength;
+          assertS3FullObjectContentLength(expectedBytes, receivedBytes, false);
 
           for (
             let offset = 0;
             offset < result.value.byteLength;
             offset += maximumChunkBytes
           ) {
+            assertS3FullObjectReadActive(signal);
             yield result.value.subarray(
               offset,
               Math.min(offset + maximumChunkBytes, result.value.byteLength),

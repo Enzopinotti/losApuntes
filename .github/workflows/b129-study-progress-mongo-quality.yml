@@ -1,0 +1,134 @@
+name: B129 Study Progress Mongo lint and real replica acceptance
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b129-study-progress-mongo-quality.yml
+      - apps/api/src/study-progress/mongo/study-progress.mongo-int.spec.ts
+      - docs/engineering/b129-study-progress-mongo-quality.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b129-study-progress-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  types-lint:
+    name: Strict fixture lint and full API types on Node24
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Node24 pnpm9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Strict touched file ESLint (no ignored warnings)
+        run: pnpm --filter @losapuntes/api exec eslint src/study-progress/mongo/study-progress.mongo-int.spec.ts --max-warnings=0
+      - name: Canonical Prettier
+        run: pnpm --filter @losapuntes/api exec prettier --check src/study-progress/mongo/study-progress.mongo-int.spec.ts
+      - name: Full API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+      - name: Clean immutable checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  real-mongo:
+    name: Real Mongo7 rs0 private progress and closing authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 34
+    env:
+      CI: 'true'
+      STUDY_PROGRESS_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Launch disposable MongoDB7 rs0 only on loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$STUDY_PROGRESS_ENABLED" = false
+          docker run -d --name b129-progress-mongo --rm \
+            --publish 127.0.0.1:27017:27017 \
+            mongo:7.0 --replSet rs0 --bind_ip_all --port 27017
+          ready=false
+          for _ in $(seq 1 60); do
+            if docker exec b129-progress-mongo mongosh --quiet --eval \
+              'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -qx '1'; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = true
+          docker exec b129-progress-mongo mongosh --quiet --eval \
+            "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          primary=false
+          for _ in $(seq 1 40); do
+            if docker exec b129-progress-mongo mongosh --quiet --eval \
+              'db.adminCommand({hello:1}).isWritablePrimary' 2>/dev/null | grep -qx 'true'; then
+              primary=true
+              break
+            fi
+            sleep 2
+          done
+          test "$primary" = true
+
+      - name: Run real typed Jest suite with no skipped cases
+        shell: bash
+        env:
+          STUDY_PROGRESS_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
+        run: |
+          set -euo pipefail
+          report="$(mktemp)"
+          export B129_REPORT="$report"
+          trap 'rm -f "$report"' EXIT
+          pnpm --filter @losapuntes/api exec jest --runInBand \
+            --runTestsByPath src/study-progress/mongo/study-progress.mongo-int.spec.ts \
+            --passWithNoTests=false --detectOpenHandles --json --outputFile="$report"
+          node <<'B129_RESULT'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync(process.env.B129_REPORT,'utf8'));
+          const tests = (data.testResults ?? []).flatMap(s => s.assertionResults ?? []);
+          const passed = tests.filter(x => x.status === 'passed').length;
+          if (data.numTotalTestSuites !== 1 || data.numPassedTestSuites !== 1 ||
+              data.numFailedTests !== 0 || data.numPendingTests !== 0 ||
+              data.numTotalTests !== 56 || data.numPassedTests !== 56 ||
+              tests.length !== 56 || passed !== 56) {
+            throw new Error('B129 real Mongo acceptance missing expected owner-scoped cases');
+          }
+          console.log('B129 real rs0 acceptance: ' + passed + ' actual tests PASS, 0 skipped.');
+          B129_RESULT
+
+      - name: Verify clean exact candidate after Mongo
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Tear down disposable MongoDB even on failure
+        if: always()
+        run: docker rm -f b129-progress-mongo >/dev/null 2>&1 || true

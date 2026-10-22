@@ -301,6 +301,7 @@ Do not rely solely on “the user already has an old session”.
 Clients must distinguish:
 
 ### Authentication required
+
 Session absent/expired/revoked.
 
 Action:
@@ -308,6 +309,7 @@ Action:
 - login.
 
 ### Account restricted
+
 Identity/session was proven but server policy blocks access.
 
 Action:
@@ -315,6 +317,7 @@ Action:
 - account-status/review path.
 
 ### Offline/server unavailable
+
 Authority could not be checked.
 
 Action:
@@ -339,6 +342,10 @@ Security settings require:
 - no color-only warnings;
 - touch-friendly destructive actions;
 - no auto-closing dialogs before assistive technology can announce success.
+
+On Mobile, each password field has an independent visibility control. Fields
+start masked, and leaving the active app state masks any password currently
+shown.
 
 ---
 

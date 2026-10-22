@@ -1,0 +1,100 @@
+.study-session-page {
+  width: min(1240px, calc(100% - 2rem));
+  margin: 2rem auto 5rem;
+  color: #25283a;
+}
+.study-session-heading {
+  display: flex; justify-content: space-between; align-items: start;
+  gap: 1rem; margin-bottom: 1.4rem;
+}
+.study-session-heading h1 { font-size: clamp(1.8rem, 3vw, 2.6rem); margin: 0.2rem 0; }
+.study-session-heading p { max-width: 68ch; line-height: 1.5; }
+.study-session-eyebrow { color: #534d9c; font-weight: 700; letter-spacing: 0.06em; }
+.study-session-context {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 1rem;
+  background: #eeeffa; padding: 0.9rem 1.2rem; border-radius: 12px;
+  margin-bottom: 1rem;
+}
+.study-session-context span { color: #50536a; font-size: 0.93rem; }
+.study-session-grid {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1rem; align-items: start;
+}
+.study-session-panel {
+  background: #fff; border: 1px solid #e1e3eb; border-radius: 17px;
+  padding: 1.2rem; min-width: 0;
+  box-shadow: 0 7px 24px rgba(20, 29, 55, 0.04);
+}
+.study-session-panel h2 { font-size: 1.2rem; margin: 0 0 0.9rem; }
+.study-session-panel h3 { font-size: 1.06rem; margin: 1.2rem 0 0.5rem; }
+.study-session-panel > label {
+  display: grid; gap: 0.4rem; font-weight: 600; margin-bottom: 0.9rem;
+}
+.study-session-panel input:not([type="checkbox"]):not([type="file"]),
+.study-session-panel textarea, .study-session-panel select {
+  border: 1px solid #b8bad0; padding: 0.7rem; border-radius: 9px;
+  font: inherit; max-width: 100%; background: #fff; color: inherit;
+}
+.study-session-panel button {
+  font: inherit; border: 1px solid #a9adc2; background: #f9f9fd;
+  color: #2a2b47; padding: 0.55rem 0.75rem; border-radius: 9px;
+  cursor: pointer;
+}
+.study-session-panel button:disabled { cursor: not-allowed; opacity: 0.55; }
+.study-session-panel a { overflow-wrap: anywhere; }
+.study-session-page :is(a,button,input,textarea,select):focus-visible {
+  outline: 3px solid #6258b5; outline-offset: 3px;
+}
+.study-session-summary {
+  display: flex; flex-wrap: wrap; gap: 0.65rem; margin: 1rem 0;
+}
+.study-session-summary > * {
+  border-radius: 10px; background: #efeffa; padding: 0.6rem 0.8rem;
+}
+.study-session-info { color: #5d6071; font-size: 0.88rem; }
+.study-session-tasks, .study-session-sources { padding-left: 1.3rem; }
+.study-session-tasks li { border-top: 1px solid #ebeaf2; padding: 0.9rem 0; }
+.study-session-task-heading { display: flex; align-items: start; gap: 0.7rem; }
+.study-session-task-heading input { margin-top: 0.35rem; min-width: 1rem; min-height: 1rem; }
+.study-session-task-heading div { display: grid; gap: 0.2rem; overflow-wrap: anywhere; }
+.study-session-task-heading small { color: #555a70; }
+.study-session-task-controls {
+  display: flex; align-items: end; gap: 0.4rem; flex-wrap: wrap;
+  margin: 0.65rem 0 0 1.6rem;
+}
+.study-session-task-controls label { display: grid; gap: 0.25rem; font-size: 0.85rem; }
+.study-session-sources { list-style: none; padding: 0; max-height: 340px; overflow: auto; }
+.study-session-sources li {
+  display: flex; justify-content: space-between; gap: 0.5rem;
+  align-items: center; border-bottom: 1px solid #eeeef4; padding: 0.6rem 0;
+}
+.study-session-sources li a { min-width: 0; }
+.study-session-quick-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1rem; }
+.study-session-export { margin-top: 1rem; }
+.study-session-export-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; }
+.study-session-import { display: grid; gap: 0.3rem; font-size: 0.92rem; font-weight: 600; }
+.study-session-import input { max-width: min(100%, 280px); }
+.study-session-alert {
+  border-left: 4px solid #ab3341; background: #fff0f2; color: #802734;
+  padding: 0.8rem; border-radius: 8px;
+}
+.study-session-feedback {
+  background: #eff9f2; color: #265944; padding: 0.8rem; border-radius: 8px;
+}
+.study-session-empty { padding: 1.5rem; background: #f3f3fa; border-radius: 12px; }
+@media (max-width: 900px) {
+  .study-session-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .study-session-heading { flex-direction: column; }
+  .study-session-sources li { align-items: start; flex-direction: column; }
+}
+
+.study-session-handoff {
+  margin-bottom: 1rem;
+  border-color: #aaa4db;
+  background: #f8f7ff;
+}
+.study-session-handoff h2 { margin-top: 0; }
+.study-session-handoff .study-session-export-actions { margin: .9rem 0; }
+.study-session-handoff .study-session-info { margin-bottom: 0; }

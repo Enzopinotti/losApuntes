@@ -39,3 +39,14 @@ Con sesión iniciada, el buscador ofrece un filtro **Materia (solo apuntes)** ba
 ### Escenarios de aceptación adicionales
 
 Buscar `parcial` en una materia actual y luego en todas debe consultar los resultados con el filtro correspondiente. Copiar el enlace, abrirlo en sesión anónima, recargarlo y regresar desde el detalle debe conservar el mismo UUID público. Cambiar de `resources` a `people` debe quitar el filtro. Un enlace con `subjectId` manipulado, duplicado o no UUID v4 debe mostrar un error explícito en vez de mostrar recursos fuera del alcance solicitado.
+
+## B190 — Limpiar búsqueda y filtros sin conservar resultados anteriores
+
+**Requisitos existentes:** SEARCH-FR-001, SEARCH-FR-004, NFR-UX-001 y PLAT-FR-007. Esta mejora de cliente no modifica el contrato HTTP, el ranking ni la autorización.
+
+- **Limpiar búsqueda** está disponible cuando el borrador, el alcance, la materia o la URL tienen una selección activa, incluso si el enlace recibido es inválido.
+- La acción devuelve el borrador al estado inicial (consulta vacía, alcance Todo y todas las materias) y navega a `/search`, sin volver a ejecutar la consulta anterior.
+- También invalida y aborta el request anterior, descarta la proyección de resultados y el aviso de copia de enlace. No altera la sesión ni el descubrimiento contextual del usuario.
+- Una respuesta que llegue tarde no debe volver a presentar resultados antiguos. El navegador conserva la navegación anterior mediante su historial; no se agrega persistencia local, telemetría ni nuevos permisos.
+
+**Aceptación:** desde consulta válida, consulta editada sin enviar, filtro de materia activo, búsqueda en curso y enlace inválido, una sola acción deja `/search` sin `q`, `scope` ni `subjectId`. El contrato estático prueba el control visible, la limpieza del borrador, la invalidación explícita y la navegación; la UX final requiere verificación manual en navegador.

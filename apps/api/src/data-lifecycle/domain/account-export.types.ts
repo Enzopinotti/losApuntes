@@ -1,5 +1,10 @@
 export const ACCOUNT_EXPORT_FORMAT = 'los-apuntes-account-export' as const;
+/**
+ * Default to v1 only when no private data requires a newer format.
+ * A persisted export job always retains its original version.
+ */
 export const ACCOUNT_EXPORT_FORMAT_VERSION = 1;
+export type AccountExportFormatVersion = 1 | 2 | 3;
 export const ACCOUNT_EXPORT_PAGE_LIMIT = 100;
 export const ACCOUNT_EXPORT_LEASE_DURATION_MS = 2 * 60 * 1000;
 export const ACCOUNT_EXPORT_ARTIFACT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -67,7 +72,7 @@ export interface AccountExportJobRecord {
 
 export interface AccountExportAssemblyResult {
   format: typeof ACCOUNT_EXPORT_FORMAT;
-  formatVersion: typeof ACCOUNT_EXPORT_FORMAT_VERSION;
+  formatVersion: AccountExportFormatVersion;
   sectionCount: number;
   recordCount: number;
   byteLength: number;

@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import LogoutButton from "../shared/components/LogoutButton";
+import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import "./Layout.scss";
 
 type NavigationDestination = {
@@ -20,6 +21,7 @@ const publicNavigation: NavigationDestination[] = [
 const memberNavigation: NavigationDestination[] = [
   { to: "/", label: "Inicio" },
   { to: "/feeds", label: "Feed" },
+  { to: "/study", label: "Estudiar" },
   { to: "/network", label: "Red" },
   { to: "/search", label: "Buscar" },
   { to: "/resources", label: "Apuntes" },
@@ -29,6 +31,12 @@ const memberMoreNavigation: NavigationDestination[] = [
   { to: "/questions", label: "Preguntas" },
   { to: "/organizations", label: "Organizaciones" },
   { to: "/academic/lifecycle", label: "Mi trayectoria" },
+  ...(PERSISTENT_COLLECTIONS_VISIBLE
+    ? [
+        { to: "/study-collections", label: "Colecciones sincronizadas" },
+        { to: "/study-collections/recovery", label: "Revisar mis Colecciones" },
+      ]
+    : []),
   { to: "/profile", label: "Mi perfil" },
   { to: "/dashboard", label: "Panel" },
   { to: "/settings/security", label: "Seguridad" },

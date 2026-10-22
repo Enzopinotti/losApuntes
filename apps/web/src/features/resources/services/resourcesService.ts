@@ -183,6 +183,23 @@ export const resourcesApi = {
     );
   },
 
+  savedBySubject: (
+    subjectId: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ) => {
+    const query = new URLSearchParams({
+      subjectId,
+      limit: "15",
+      order: "saved",
+    });
+    if (cursor) query.set("cursor", cursor);
+    return request<ResourceSearchResponse>(
+      `/resources/saved/search?${query.toString()}`,
+      { signal },
+    );
+  },
+
   searchSubjects: async (
     q: string,
     signal?: AbortSignal,

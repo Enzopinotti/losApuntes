@@ -89,6 +89,48 @@ describe('UsersService', () => {
     await expect(service.hasActiveAccount('missing-user')).resolves.toBe(false);
   });
 
+  it('reads only the active owner mutation epoch, including a legacy zero default', async () => {
+    userModel.findOne.mockReturnValueOnce(exportQuery);
+    exportExec.mockResolvedValueOnce({ account_lifecycle_revision: 5 });
+    await expect(service.getStudyProgressExportEpoch('user-1')).resolves.toBe(
+      5,
+    );
+    expect(userModel.findOne).toHaveBeenCalledWith({
+      _id: 'user-1',
+      $or: [
+        { account_status: 'active' },
+        { account_status: { $exists: false } },
+      ],
+    });
+    expect(exportQuery.select).toHaveBeenCalledWith(
+      '+account_lifecycle_revision',
+    );
+
+    userModel.findOne.mockReturnValueOnce(exportQuery);
+    exportExec.mockResolvedValueOnce({});
+    await expect(
+      service.getStudyProgressExportEpoch('legacy-user'),
+    ).resolves.toBe(0);
+  });
+
+  it('fails closed for missing, corrupt or inactive progress-epoch records', async () => {
+    for (const row of [
+      null,
+      { account_lifecycle_revision: -1 },
+      { account_lifecycle_revision: 1.5 },
+      { account_lifecycle_revision: '2' },
+    ]) {
+      userModel.findOne.mockReturnValueOnce(exportQuery);
+      exportExec.mockResolvedValueOnce(row);
+      await expect(
+        service.getStudyProgressExportEpoch('user-1'),
+      ).rejects.toThrow('Study progress export owner');
+    }
+    await expect(service.getStudyProgressExportEpoch('  ')).rejects.toThrow(
+      'owner is required',
+    );
+  });
+
   it('exports account identity from an explicit secret-free allowlist', async () => {
     userModel.findById.mockReturnValueOnce(exportQuery);
     exportExec.mockResolvedValue({

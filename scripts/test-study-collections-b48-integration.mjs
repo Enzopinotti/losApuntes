@@ -1,0 +1,43 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const read = (path) =>
+  readFileSync(new URL("../" + path, import.meta.url), "utf8");
+
+const page = read("apps/web/src/pages/StudyCollections.tsx");
+const domain = read("apps/api/src/study-collections/domain/study-collection.service.ts");
+const spec = read("apps/api/src/study-collections/domain/study-collection.service.spec.ts");
+const guard = read("apps/api/src/study-collections/study-collections-feature.guard.ts");
+const env = read("apps/api/src/config/runtime-environment.ts");
+const exportService = read("apps/api/src/data-lifecycle/domain/account-export.service.ts");
+const closure = read("apps/api/src/data-lifecycle/mongo/mongo-account-lifecycle.store.ts");
+const helper = read("apps/web/src/features/study-collections/studyCollectionsAuthority.mjs");
+
+assert.match(page, /scopedCollectionCreateAttempt\(/u);
+assert.match(page, /createAttemptRef\.current = attempt/u);
+assert.match(page, /releaseScopedCollectionAction\(/u);
+assert.match(page, /actionLock\.current\?\.scope === detailScope/u);
+assert.match(page, /isConsistentCollectionPage\(/u);
+assert.match(page, /page\.revision/u);
+assert.match(page, /header\.collection\.revision/u);
+assert.match(page, /previousRevision/u);
+assert.match(page, /STUDY_COLLECTION_CURSOR_STALE/u);
+assert.match(page, /  StudyCollectionsApiError,/u);
+assert.match(page, /detailStateRef\.current = detailState;/u);
+assert.match(page, /Actualizar colección/u);
+assert.match(page, /PERSISTENT_COLLECTIONS_VISIBLE/u);
+assert.match(page, /Colecciones sincronizadas no disponibles/u);
+assert.match(page, /disabled=\{busy\}/u);
+assert.doesNotMatch(page, /actionLock\.current = false/u);
+assert.doesNotMatch(page, /operationKeyRef\.current/u);
+assert.match(helper, /previous\.fingerprint === fingerprint/u);
+assert.match(helper, /return currentLease === finishedLease \? null : currentLease/u);
+assert.match(domain, /STUDY_COLLECTION_PAGE_LIMIT_INVALID/u);
+assert.match(domain, /bytes\.toString\('base64url'\) !== value/u);
+assert.match(domain, /limit > STUDY_COLLECTION_MAX_PAGE/u);
+assert.match(spec, /rejects invalid collection resource page budget/u);
+assert.match(spec, /malformed and non-canonical cursors/u);
+assert.match(guard, /STUDY_COLLECTIONS_ENABLED/u);
+assert.match(env, /STUDY_COLLECTIONS_ENABLED: parseBoolean/u);
+assert.match(exportService, /ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE/u);
+assert.match(closure, /deleteMany\(\{ ownerUserId: input\.userId \}, \{ session \}\)/u);
+console.log("B48 exact-code static contract checks PASS");

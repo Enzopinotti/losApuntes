@@ -1,0 +1,171 @@
+name: B126 safe Study Collections Mongo acceptance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/b126-study-collections-mongo-quality.yml'
+      - 'apps/api/src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts'
+      - 'docs/engineering/b126-safe-study-collections-mongo-acceptance.md'
+
+permissions:
+  contents: read
+
+jobs:
+  scoped-quality:
+    name: B126 Mongo replica fixture strict checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact candidate HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Prove SHA identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup repository pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Setup repository Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependency graph
+        run: pnpm install --frozen-lockfile
+      - name: Canonical formatting for Mongo acceptance fixture
+        run: pnpm --filter @losapuntes/api exec prettier --check src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+      - name: Strict zero-warning ESLint
+        run: pnpm --filter @losapuntes/api exec eslint --max-warnings=0 src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+      - name: Study Collections acceptance suite (skipped unless local Mongo URI deliberately provided)
+        run: pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts
+
+  api-types:
+    name: B126 full API TypeScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact candidate HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Prove SHA identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Complete API typecheck (no exemptions)
+        run: pnpm --filter @losapuntes/api check:types
+
+  mongo-replica-real:
+    name: Thirteen real owner-scoped Mongo replica and closure tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Validate exact SHA and clean source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Use pinned Node24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen lockfile dependency install
+        run: pnpm install --frozen-lockfile
+
+      - name: Start ephemeral loopback Mongo 7 primary rs0
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(2)"
+          test "$STUDY_PROGRESS_ENABLED" = false
+          docker run -d --name b126-study-mongo --rm \
+            --publish 127.0.0.1:27017:27017 \
+            mongo:7.0 --replSet rs0 --bind_ip_all --port 27017
+          ready=false
+          for _ in $(seq 1 60); do
+            if docker exec b126-study-mongo mongosh --quiet --eval \
+              'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -qx '1'; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = true
+          docker exec b126-study-mongo mongosh --quiet --eval \
+            "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          primary=false
+          for _ in $(seq 1 40); do
+            if docker exec b126-study-mongo mongosh --quiet --eval \
+              'db.adminCommand({hello:1}).isWritablePrimary' 2>/dev/null | grep -qx 'true'; then
+              primary=true
+              break
+            fi
+            sleep 2
+          done
+          test "$primary" = true
+
+      - name: Run all thirteen actual Mongo closure and revision cases
+        shell: bash
+        env:
+          STUDY_COLLECTIONS_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
+        run: |
+          set -euo pipefail
+          REPORT="$(mktemp)"
+          export REPORT
+          trap 'rm -f "$REPORT"' EXIT
+          pnpm --filter @losapuntes/api exec jest --runInBand \
+            --runTestsByPath src/study-collections/mongo/study-collection-lifecycle.mongo-int.spec.ts \
+            --passWithNoTests=false --detectOpenHandles \
+            --json --outputFile="$REPORT"
+          node <<'B126_PROOF'
+          const fs = require('node:fs');
+          const result = JSON.parse(fs.readFileSync(process.env.REPORT, 'utf8'));
+          const cases = (result.testResults ?? []).flatMap((suite) => suite.assertionResults ?? []);
+          if (result.numTotalTestSuites !== 1 ||
+              result.numPassedTestSuites !== 1 ||
+              result.numFailedTests !== 0 ||
+              result.numPendingTests !== 0 ||
+              result.numTotalTests !== 13 ||
+              result.numPassedTests !== 13 ||
+              cases.length !== 13 ||
+              cases.some((test) => test.status !== 'passed')) {
+            throw new Error('B126 mandatory real Mongo acceptance is not 13/13 PASS');
+          }
+          console.log('B126 real Mongo replica owner-scoped acceptance PASS: 13/13 mandatory cases.');
+          B126_PROOF
+
+      - name: Verify exact clean HEAD after tests
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Destroy disposable Mongo container even after failure
+        if: always()
+        run: docker rm -f b126-study-mongo >/dev/null 2>&1 || true

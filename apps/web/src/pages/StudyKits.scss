@@ -1,0 +1,48 @@
+.study-kits { width:min(1200px,calc(100% - 2rem));margin:2rem auto 5rem;color:#292a42; }
+.study-kits-hero { display:flex;justify-content:space-between;align-items:start;gap:1.5rem;margin-bottom:1.4rem; }
+.study-kits-hero h1 { font-size:clamp(1.9rem,3vw,2.6rem);margin:.15rem 0 .55rem; }
+.study-kits-hero p { max-width:65ch;line-height:1.5; }
+.study-kits-kicker {font-weight:700;letter-spacing:.06em;color:#574ba1;text-transform:uppercase;font-size:.85rem;}
+.study-kits-subject {display:flex;gap:1rem;flex-wrap:wrap;align-items:center;background:#eeeffa;padding:.85rem 1rem;border-radius:12px;margin-bottom:1rem;}
+.study-kits-subject span{color:#5e6277;font-size:.9rem;}
+.study-kits-toolbar {display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin-bottom:1rem;}
+.study-kits-toolbar label{display:grid;gap:.2rem;font-weight:600;font-size:.87rem;}
+.study-kits-toolbar input{max-width:230px;}
+.study-kits-layout {display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,2fr);gap:1rem;align-items:start;}
+.study-kits-panel {padding:1.2rem;border-radius:16px;border:1px solid #dddfea;background:#fff;min-width:0;}
+.study-kits-panel h2{font-size:1.25rem;margin-top:0;}
+.study-kits-panel h3{font-size:1.05rem;margin-top:1.3rem;}
+.study-kits :is(button,input,textarea) {font:inherit;}
+.study-kits button {padding:.6rem .8rem;border-radius:9px;border:1px solid #afb1c9;background:#f9f9fd;color:#252744;cursor:pointer;}
+.study-kits button:disabled{cursor:not-allowed;opacity:.58;}
+.study-kits button[aria-pressed="true"]{border-color:#6551b5;background:#efecff;}
+.study-kits :is(button,input,textarea,a):focus-visible{outline:3px solid #7360ba;outline-offset:3px;}
+.study-kits-selector{list-style:none;padding:0;max-height:340px;overflow:auto;}
+.study-kits-selector li{margin-bottom:.4rem;}
+.study-kits-selector button{text-align:left;width:100%;display:grid;gap:.25rem;}
+.study-kits-selector small{color:#5d5f75;}
+.study-kits-form{display:grid;gap:.75rem;border-top:1px solid #eeedf4;padding-top:.7rem;}
+.study-kits-form label{display:grid;gap:.3rem;font-weight:600;}
+.study-kits-form :is(input,textarea){padding:.65rem;border:1px solid #afb1c9;border-radius:9px;max-width:100%;}
+.study-kits-actions{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;}
+.study-kits-collection-header{display:flex;justify-content:space-between;align-items:start;gap:1rem;}
+.study-kits-collection-header h2{overflow-wrap:anywhere;}
+.study-kits-collection-header p{white-space:pre-wrap;overflow-wrap:anywhere;}
+.study-kits-items{padding-left:1.5rem;}
+.study-kits-items li{padding:.85rem 0;border-top:1px solid #eeedf4;display:flex;gap:1rem;justify-content:space-between;align-items:center;}
+.study-kits-items li>div:first-child{display:grid;gap:.25rem;min-width:0;overflow-wrap:anywhere;}
+.study-kits-items small{color:#606275;}
+.study-kits-sources{border-top:1px solid #e8e9f1;margin-top:1rem;}
+.study-kits-discovery{list-style:none;padding:0;max-height:390px;overflow:auto;}
+.study-kits-discovery li{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.5rem 0;border-bottom:1px solid #eeeef5;}
+.study-kits-discovery a{overflow-wrap:anywhere;min-width:0;}
+.study-kits-error{background:#fff1f3;border-left:4px solid #a43143;color:#822d3d;padding:.8rem;border-radius:8px;}
+.study-kits-notice{background:#eff8f3;color:#295b45;padding:.8rem;border-radius:8px;}
+.study-kits-footer{color:#565a72;max-width:85ch;line-height:1.55;margin-top:1rem;}
+@media(max-width:850px){.study-kits-layout{grid-template-columns:1fr;}}
+@media(max-width:620px){.study-kits-hero,.study-kits-collection-header,.study-kits-items li,.study-kits-discovery li{flex-direction:column;align-items:start;}}
+
+.study-kits-sync-report{margin:.8rem 0;padding:1rem;border:1px solid #d6d4e7;border-radius:10px;background:#f8f7ff;color:#282849;overflow-wrap:anywhere;}
+.study-kits-sync-report p{margin:.15rem 0 .65rem;line-height:1.5;}
+.study-kits-sync-report a{font-weight:700;display:inline-block;}
+.study-kits-sync-report[role="alert"]{border-color:#bb7c91;background:#fff4f6;}

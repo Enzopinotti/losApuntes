@@ -19,6 +19,13 @@ import PublicProfile from "../pages/PublicProfile";
 import ResetPassword from "../pages/ResetPassword";
 import Resources from "../pages/Resources";
 import Search from "../pages/Search";
+import StudyWorkbench from "../pages/StudyWorkbench";
+import StudySession from "../pages/StudySession";
+import StudyRunner from "../pages/StudyRunner";
+import StudyPractice from "../pages/StudyPractice";
+import StudyKits from "../pages/StudyKits";
+import StudyCollections from "../pages/StudyCollections";
+import StudyCollectionsRecovery from "../pages/StudyCollectionsRecovery";
 import Security from "../pages/Security";
 import SignUp from "../pages/SignUp";
 import VerificationPending from "../pages/VerificationPending";
@@ -43,6 +50,62 @@ export const routes: RouteObject[] = [
       { path: "resources/:resourceId", element: <Resources /> },
       { path: "search", element: <Search /> },
       { path: "questions", element: <Questions /> },
+      {
+        path: "study",
+        element: (
+          <PrivateRoute>
+            <StudyWorkbench />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study/session",
+        element: (
+          <PrivateRoute>
+            <StudySession />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study/run",
+        element: (
+          <PrivateRoute>
+            <StudyRunner />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study/practice",
+        element: (
+          <PrivateRoute>
+            <StudyPractice />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study/kits",
+        element: (
+          <PrivateRoute>
+            <StudyKits />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study-collections",
+        element: (
+          <PrivateRoute>
+            <StudyCollections />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "study-collections/recovery",
+        element: (
+          <PrivateRoute>
+            <StudyCollectionsRecovery />
+          </PrivateRoute>
+        ),
+      },
       { path: "organizations", element: <Organizations /> },
       { path: "organizations/:organizationId", element: <Organization /> },
       {

@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 import type { AccountExportArtifactSink } from '../domain/account-export-assembler';
 import type { AccountExportAssemblyResult } from '../domain/account-export.types';
+import { accountExportSectionIds } from '../domain/account-export-contributor.registry';
+import { verifyAccountExportStoredBytes } from '../domain/account-export-artifact-readback';
 import type { S3ObjectStorage } from '../../files/storage/s3-object-storage';
 
 export type AccountExportArtifactObjectStorage = Pick<
@@ -20,6 +22,16 @@ export interface AccountExportArtifactStorage {
     generation: string,
     signal?: AbortSignal,
   ): AsyncIterable<Uint8Array>;
+  /**
+   * B91 preflight: fully verify the current stored generation before the
+   * HTTP response starts. The response still rechecks during streaming.
+   */
+  verifyReadable(
+    jobId: string,
+    generation: string,
+    expected: { byteLength: number; sha256: string },
+    signal?: AbortSignal,
+  ): Promise<void>;
   deleteArtifact(jobId: string, generation: string): Promise<void>;
 }
 
@@ -37,9 +49,14 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
 
   createSink(jobId: string, generation: string): AccountExportArtifactSink {
     const key = objectKey(jobId, generation);
-    const writer = this.storage.createMultipartWriter({
+    const storage = this.storage;
+    const writer = storage.createMultipartWriter({
       objectKey: key,
       contentType: 'application/json; charset=utf-8',
+      // B81: an S3 commit can succeed after its ACK is lost. Never DELETE
+      // the completed object from abort(); the durable B80 orphan ledger
+      // and B78 owner-fenced cleanup worker alone decide object deletion.
+      deleteObjectOnAbort: false,
     });
     const digest = createHash('sha256');
     let byteLength = 0;
@@ -65,11 +82,23 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
           result.byteLength !== byteLength ||
           result.sha256 !== actualDigest ||
           result.format !== 'los-apuntes-account-export' ||
-          result.formatVersion !== 1
+          ![1, 2, 3].includes(result.formatVersion) ||
+          result.sectionCount !==
+            accountExportSectionIds(result.formatVersion).length
         ) {
           throw new Error('Account export artifact integrity check failed');
         }
         await writer.complete();
+        // B90: do not publish a durable Mongo reference solely because
+        // S3 acknowledged PUT/CompleteMultipartUpload. An object may be
+        // truncated, modified or unreadable. A streaming exact-generation
+        // GET must match the locally assembled digest and byte count.
+        // Failure leaves the sink uncommitted, with no direct S3 DELETE:
+        // B80's durable owner-fenced orphan queue handles recovery.
+        await verifyAccountExportStoredBytes(storage.readObjectChunks(key), {
+          byteLength: result.byteLength,
+          sha256: result.sha256,
+        });
         state = 'committed';
       },
 
@@ -90,6 +119,20 @@ export class S3AccountExportArtifactStorage implements AccountExportArtifactStor
     return signal
       ? this.storage.readObjectChunks(key, undefined, signal)
       : this.storage.readObjectChunks(key);
+  }
+
+  verifyReadable(
+    jobId: string,
+    generation: string,
+    expected: { byteLength: number; sha256: string },
+    signal?: AbortSignal,
+  ): Promise<void> {
+    // Reuse the exact bounded streaming verifier from B90, even when the
+    // provider returns a successful HTTP status with bad/short bytes.
+    return verifyAccountExportStoredBytes(
+      this.readObjectChunks(jobId, generation, signal),
+      expected,
+    );
   }
 
   deleteArtifact(jobId: string, generation: string): Promise<void> {

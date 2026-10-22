@@ -1324,6 +1324,42 @@ describe('ResourceService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
+  it('B126 preserves the viewer, academic filters, anchor and page bound when requesting feed candidates', async () => {
+    const resourceStore = store();
+    const deps = dependencies();
+    const subjectId = resource().subjectId;
+    const candidate = resource({ visibility: 'public' });
+    const filters = {
+      subjectIds: [subjectId],
+      authorUserIds: ['author-1'],
+      anchorAt: new Date('2026-09-23T11:45:00.000Z'),
+      limit: 17,
+    };
+    resourceStore.listFeedCandidates.mockResolvedValueOnce([candidate]);
+    resourceStore.listFeedCandidates.mockResolvedValueOnce([]);
+
+    const api = service(resourceStore, deps);
+    const result = await api.getFeedCandidates('viewer-2', filters);
+    expect(result).toEqual([candidate]);
+    expect(resourceStore.listFeedCandidates.mock.calls[0]).toEqual([
+      { viewerUserId: 'viewer-2', ...filters },
+    ]);
+
+    // An empty authorized store page must stay empty: the facade must not
+    // backfill candidates from another viewer or re-project hidden files.
+    const empty = await api.getFeedCandidates('viewer-3', {
+      anchorAt: filters.anchorAt,
+      limit: 1,
+    });
+    expect(empty).toEqual([]);
+    expect(resourceStore.listFeedCandidates.mock.calls[1]).toEqual([
+      { viewerUserId: 'viewer-3', anchorAt: filters.anchorAt, limit: 1 },
+    ]);
+    expect(resourceStore.listFeedCandidates.mock.calls).toHaveLength(2);
+    expect(deps.files.getReadyAssetForResource.mock.calls).toHaveLength(0);
+    expect(deps.profiles.getAttributionForUser.mock.calls).toHaveLength(0);
+  });
+
   it('reauthorizes before issuing a signed file access URL', async () => {
     const resourceStore = store();
     const deps = dependencies();

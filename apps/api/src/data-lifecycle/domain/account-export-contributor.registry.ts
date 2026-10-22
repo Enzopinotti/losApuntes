@@ -45,20 +45,50 @@ export const ACCOUNT_EXPORT_V1_SECTION_IDS = Object.freeze([
   'social.following',
 ] as const);
 
-/** Fail closed at actual module wiring if v1 sections are missing or altered. */
-export function assertAccountExportV1Sections(
+/**
+ * Draft v2 adds only the owner's private study collections. The v1 manifest
+ * remains immutable. Merely defining this manifest NEVER enables a v2 job:
+ * the real contributor and a versioned module wiring gate must be integrated
+ * before ACCOUNT_EXPORT_FORMAT_VERSION can be raised from 1.
+ */
+export const ACCOUNT_EXPORT_V2_SECTION_IDS = Object.freeze(
+  [...ACCOUNT_EXPORT_V1_SECTION_IDS, 'study.collections'].sort(),
+);
+
+/** v3 adds only private study progress; v1/v2 manifests remain immutable. */
+export const ACCOUNT_EXPORT_V3_SECTION_IDS = Object.freeze(
+  [...ACCOUNT_EXPORT_V2_SECTION_IDS, 'study.progress'].sort(),
+);
+
+/** No fallback: every persisted job must use its originally assigned version. */
+export function accountExportSectionIds(version: number): readonly string[] {
+  if (version === 1) return ACCOUNT_EXPORT_V1_SECTION_IDS;
+  if (version === 2) return ACCOUNT_EXPORT_V2_SECTION_IDS;
+  if (version === 3) return ACCOUNT_EXPORT_V3_SECTION_IDS;
+  throw new Error('Unsupported account export format version');
+}
+
+export function assertAccountExportSections(
   contributors: readonly AccountExportContributor[],
+  version: number,
 ): void {
   const actual = contributors.map(({ sectionId }) => sectionId).sort();
-  const expected = [...ACCOUNT_EXPORT_V1_SECTION_IDS];
+  const expected = accountExportSectionIds(version);
   if (
     actual.length !== expected.length ||
     actual.some((sectionId, index) => sectionId !== expected[index])
   ) {
     throw new Error(
-      'Account export v1 contributor inventory is incomplete or incompatible',
+      `Account export v${version} contributor inventory is incomplete or incompatible`,
     );
   }
+}
+
+/** Fail closed at actual module wiring if v1 sections are missing or altered. */
+export function assertAccountExportV1Sections(
+  contributors: readonly AccountExportContributor[],
+): void {
+  assertAccountExportSections(contributors, 1);
 }
 
 @Injectable()

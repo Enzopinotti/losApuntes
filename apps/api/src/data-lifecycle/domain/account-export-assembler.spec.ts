@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 
 import { AccountExportAssembler } from './account-export-assembler';
-import { AccountExportContributorRegistry } from './account-export-contributor.registry';
+import {
+  ACCOUNT_EXPORT_V1_SECTION_IDS,
+  AccountExportContributorRegistry,
+} from './account-export-contributor.registry';
 import { AccountExportService } from './account-export.service';
 import type { AccountExportArtifactSink } from './account-export-assembler';
 import type { AccountExportContributor } from './account-export.types';
@@ -37,7 +40,20 @@ function assemblerFor(
   contributors: AccountExportContributor[],
   hasActiveAccount = jest.fn().mockResolvedValue(true),
 ) {
-  const registry = new AccountExportContributorRegistry(contributors);
+  // Most behavioral tests exercise one contributor, but a real v1 artifact
+  // always includes the immutable inventory of 30 sections.
+  const provided = new Set(contributors.map(({ sectionId }) => sectionId));
+  const emptyContributors = ACCOUNT_EXPORT_V1_SECTION_IDS.filter(
+    (sectionId) => !provided.has(sectionId),
+  ).map((sectionId) =>
+    contributor(sectionId, () =>
+      Promise.resolve({ records: [], nextCursor: null }),
+    ),
+  );
+  const registry = new AccountExportContributorRegistry([
+    ...contributors,
+    ...emptyContributors,
+  ]);
   const service = new AccountExportService(
     {} as never,
     { hasActiveAccount } as never,
@@ -45,7 +61,42 @@ function assemblerFor(
   return new AccountExportAssembler(registry, service);
 }
 
+function expectedV1Artifact(
+  populated: Readonly<Record<string, readonly object[]>>,
+): string {
+  return JSON.stringify({
+    format: 'los-apuntes-account-export',
+    version: 1,
+    sections: Object.fromEntries(
+      ACCOUNT_EXPORT_V1_SECTION_IDS.map((sectionId) => [
+        sectionId,
+        populated[sectionId] ?? [],
+      ]),
+    ),
+  });
+}
+
 describe('AccountExportAssembler', () => {
+  it('rejects an incomplete contributor registry instead of exporting partial owner data', async () => {
+    const registry = new AccountExportContributorRegistry([
+      contributor('account', () =>
+        Promise.resolve({ records: [], nextCursor: null }),
+      ),
+    ]);
+    const service = new AccountExportService(
+      {} as never,
+      { hasActiveAccount: jest.fn().mockResolvedValue(true) } as never,
+    );
+    const assembler = new AccountExportAssembler(registry, service);
+    const sink = sinkFixture();
+
+    await expect(assembler.writeJsonV1('user-1', sink)).rejects.toThrow(
+      'Unknown account export section: academic.affiliations',
+    );
+    expect(sink.commit.mock.calls).toHaveLength(0);
+    expect(sink.chunks).toHaveLength(0);
+  });
+
   it('writes deterministic versioned JSON in registry order', async () => {
     const output = sinkFixture();
     output.commit.mockImplementation(() => {
@@ -73,14 +124,17 @@ describe('AccountExportAssembler', () => {
     expect(result).toEqual({
       format: 'los-apuntes-account-export',
       formatVersion: 1,
-      sectionCount: 2,
+      sectionCount: ACCOUNT_EXPORT_V1_SECTION_IDS.length,
       recordCount: 2,
       byteLength: Buffer.byteLength(artifact, 'utf8'),
       sha256: createHash('sha256').update(artifact, 'utf8').digest('hex'),
     });
 
     expect(artifact).toBe(
-      '{"format":"los-apuntes-account-export","version":1,"sections":{"account":[{"id":"user-1"}],"profile":[{"displayName":"Ada"}]}}',
+      expectedV1Artifact({
+        account: [{ id: 'user-1' }],
+        profile: [{ displayName: 'Ada' }],
+      }),
     );
     expect(artifact.endsWith('}}')).toBe(true);
     expect(output.commit.mock.calls).toEqual([[result]]);
@@ -177,7 +231,7 @@ describe('AccountExportAssembler', () => {
       assembler.writeJsonV1('user-1', output),
     ).resolves.toMatchObject({
       recordCount: 2,
-      sectionCount: 1,
+      sectionCount: ACCOUNT_EXPORT_V1_SECTION_IDS.length,
     });
 
     expect(readPage).toHaveBeenNthCalledWith(1, {
@@ -204,18 +258,28 @@ describe('AccountExportAssembler', () => {
       expectedDigest.update(chunk, 'utf8');
       expectedByteLength += Buffer.byteLength(chunk, 'utf8');
     };
-    const prefix =
-      '{"format":"los-apuntes-account-export","version":1,"sections":{"profile.activities":[';
-    addExpectedChunk(prefix);
+    addExpectedChunk(
+      '{"format":"los-apuntes-account-export","version":1,"sections":{',
+    );
     const makeRecord = (id: number) => ({
       id: `row-${String(id).padStart(5, '0')}`,
       label: 'x'.repeat(48),
     });
-    for (let index = 0; index < recordCount; index += 1) {
-      if (index > 0) addExpectedChunk(',');
-      addExpectedChunk(JSON.stringify(makeRecord(index)));
+    for (const [
+      sectionIndex,
+      sectionId,
+    ] of ACCOUNT_EXPORT_V1_SECTION_IDS.entries()) {
+      if (sectionIndex > 0) addExpectedChunk(',');
+      addExpectedChunk(`${JSON.stringify(sectionId)}:[`);
+      if (sectionId === 'profile.activities') {
+        for (let index = 0; index < recordCount; index += 1) {
+          if (index > 0) addExpectedChunk(',');
+          addExpectedChunk(JSON.stringify(makeRecord(index)));
+        }
+      }
+      addExpectedChunk(']');
     }
-    addExpectedChunk(']}}');
+    addExpectedChunk('}}');
 
     const streamedDigest = createHash('sha256');
     let streamedByteLength = 0;
@@ -267,7 +331,7 @@ describe('AccountExportAssembler', () => {
     expect(result).toEqual({
       format: 'los-apuntes-account-export',
       formatVersion: 1,
-      sectionCount: 1,
+      sectionCount: ACCOUNT_EXPORT_V1_SECTION_IDS.length,
       recordCount,
       byteLength: expectedByteLength,
       sha256: expectedDigest.digest('hex'),

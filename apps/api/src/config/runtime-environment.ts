@@ -480,6 +480,15 @@ export function validateRuntimeEnvironment(
     );
   }
 
+  if (
+    deploymentProfile === 'production' &&
+    parseBoolean(source.STUDY_PROGRESS_ENABLED, 'STUDY_PROGRESS_ENABLED', false)
+  ) {
+    throw new Error(
+      'STUDY_PROGRESS_ENABLED must remain false in production until account export coverage is implemented',
+    );
+  }
+
   const result: Record<string, unknown> = {
     ...source,
     NODE_ENV: nodeEnv,
@@ -489,6 +498,16 @@ export function validateRuntimeEnvironment(
     PORT: parsePort(source.PORT, 'PORT', 4000),
     MONGO_URI: mongoUri,
     WEB_ORIGIN: webOrigin,
+    STUDY_PROGRESS_ENABLED: parseBoolean(
+      source.STUDY_PROGRESS_ENABLED,
+      'STUDY_PROGRESS_ENABLED',
+      false,
+    ),
+    STUDY_COLLECTIONS_ENABLED: parseBoolean(
+      source.STUDY_COLLECTIONS_ENABLED,
+      'STUDY_COLLECTIONS_ENABLED',
+      false,
+    ),
     SWAGGER_ENABLED: parseBoolean(
       source.SWAGGER_ENABLED,
       'SWAGGER_ENABLED',

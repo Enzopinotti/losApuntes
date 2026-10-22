@@ -1,8 +1,17 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
 import { UsersService } from '../../users/users.service';
-import { ACCOUNT_EXPORT_V1_SECTION_IDS } from './account-export-contributor.registry';
+import { StudyCollectionExportReader } from '../../study-collections/mongo/study-collection-export.reader';
+import { StudyProgressExportReader } from '../../study-progress/mongo/study-progress-export.reader';
+import { accountExportSectionIds } from './account-export-contributor.registry';
 import {
   ACCOUNT_EXPORT_STORE,
   type AccountExportStore,
@@ -37,10 +46,19 @@ export type AccountExportDownload =
   | { kind: 'expired' }
   | {
       kind: 'available';
+      formatVersion: 1 | 2 | 3;
       generation: string;
       byteLength: number;
       sha256: string;
     };
+
+function safeSectionCount(version: number): number | null {
+  try {
+    return accountExportSectionIds(version).length;
+  } catch {
+    return null;
+  }
+}
 
 function assertCompletionResult(
   result: AccountExportAssemblyResult,
@@ -48,9 +66,9 @@ function assertCompletionResult(
 ): void {
   if (
     result.format !== ACCOUNT_EXPORT_FORMAT ||
-    result.formatVersion !== ACCOUNT_EXPORT_FORMAT_VERSION ||
+    safeSectionCount(result.formatVersion) === null ||
     !Number.isSafeInteger(result.sectionCount) ||
-    result.sectionCount !== ACCOUNT_EXPORT_V1_SECTION_IDS.length ||
+    result.sectionCount !== safeSectionCount(result.formatVersion) ||
     !Number.isSafeInteger(result.recordCount) ||
     result.recordCount < 0 ||
     !Number.isSafeInteger(result.byteLength) ||
@@ -69,6 +87,9 @@ export class AccountExportService {
     @Inject(ACCOUNT_EXPORT_STORE)
     private readonly store: AccountExportStore,
     private readonly users: UsersService,
+    @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly collections?: StudyCollectionExportReader,
+    @Optional() private readonly progress?: StudyProgressExportReader,
   ) {}
 
   async request(
@@ -77,17 +98,87 @@ export class AccountExportService {
   ): Promise<{ created: boolean; export: AccountExportStatus }> {
     await this.assertActiveAccount(userId);
 
+    const requestedFormatVersion = await this.requiredExportVersion(userId);
     const result = await this.store.requestActive({
       id: randomUUID(),
       userId,
-      formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+      formatVersion: requestedFormatVersion,
       now,
     });
 
+    // The owner can save private data between the first existence probe
+    // and the durable requestActive upsert. Recheck AFTER the Mongo write:
+    // never acknowledge a v1/v2 job as complete when v3 is already required.
+    // The version on any persisted job remains immutable; a mismatched job
+    // returns the stable legacy-job conflict until that job finishes.
+    const currentRequiredVersion = await this.requiredExportVersion(userId);
+    if (![1, 2, 3].includes(result.job.formatVersion)) {
+      throw new Error(
+        'Account export active job has unsupported format version',
+      );
+    }
+    if (currentRequiredVersion > result.job.formatVersion) {
+      throw new ConflictException({
+        code: 'ACCOUNT_EXPORT_LEGACY_JOB_ACTIVE',
+        message:
+          'The active export cannot include new private data. Retry after it completes.',
+      });
+    }
     return {
       created: result.created,
       export: this.publicStatus(result.job, now),
     };
+  }
+
+  /**
+   * A feature rollback must not silently reduce account portability.
+   * The reader is read-only and owner-scoped; its Mongo failures propagate
+   * before creating or replaying any export work.
+   *
+   * Old unit fixtures may omit all Nest dependencies. In an actual Nest
+   * runtime with ConfigService present, missing reader wiring fails closed.
+   */
+  private async requiredExportVersion(userId: string): Promise<1 | 2 | 3> {
+    // Read-only probes continue after feature rollback. Persisted private
+    // data must never disappear from a newly requested account export.
+    if (this.config && (!this.collections || !this.progress)) {
+      throw new Error('Private account export readers are not fully wired');
+    }
+    if (this.config?.get<boolean>('STUDY_PROGRESS_ENABLED') === true) {
+      return 3;
+    }
+    if (this.progress && (await this.progress.hasOwnedProgress(userId))) {
+      return 3;
+    }
+    if (this.config?.get<boolean>('STUDY_COLLECTIONS_ENABLED') === true) {
+      return 2;
+    }
+    return this.collections &&
+      (await this.collections.hasOwnedCollections(userId))
+      ? 2
+      : ACCOUNT_EXPORT_FORMAT_VERSION;
+  }
+
+  /**
+   * Progress mutations share the account_lifecycle_revision write fence.
+   * A v3 export starts and ends on the same owner epoch or aborts before
+   * publishing. A changed epoch is retryable; it is never a valid snapshot.
+   */
+  async captureStudyProgressExportEpoch(userId: string): Promise<number> {
+    return this.users.getStudyProgressExportEpoch(userId);
+  }
+
+  async assertStudyProgressExportEpoch(
+    userId: string,
+    expectedEpoch: number,
+  ): Promise<void> {
+    if (!Number.isSafeInteger(expectedEpoch) || expectedEpoch < 0) {
+      throw new Error('Study progress export epoch is invalid');
+    }
+    const actual = await this.users.getStudyProgressExportEpoch(userId);
+    if (actual !== expectedEpoch) {
+      throw new Error('Study progress changed during account export');
+    }
   }
 
   async status(
@@ -97,14 +188,33 @@ export class AccountExportService {
   ): Promise<AccountExportStatus | null> {
     await this.assertActiveAccount(userId);
     const job = await this.store.findOwned(id, userId);
-    return job ? this.publicStatus(job, now) : null;
+    if (!job) return null;
+    // B93: status must agree with the Mongo primary that authorizes B85
+    // artifact retirement. A future/slow worker clock cannot grant or
+    // prematurely deny access based on its own Date.now().
+    const liveOnPrimary =
+      job.state === 'completed' &&
+      typeof job.artifactGeneration === 'string' &&
+      job.artifactGeneration.length > 0 &&
+      job.artifactExpiresAt instanceof Date &&
+      Number.isFinite(job.artifactExpiresAt.getTime())
+        ? await this.store.isOwnedArtifactCurrent({
+            id,
+            userId,
+            generation: job.artifactGeneration,
+            expiresAt: job.artifactExpiresAt,
+          })
+        : false;
+    return this.publicStatus(job, now, liveOnPrimary);
   }
 
   async download(
     userId: string,
     id: string,
-    now = new Date(),
+    _now = new Date(),
   ): Promise<AccountExportDownload> {
+    // Preserve legacy caller compatibility; Mongo primary owns expiry authority.
+    void _now;
     await this.assertActiveAccount(userId);
     const job = await this.store.findOwned(id, userId);
     if (!job) return { kind: 'not_found' };
@@ -112,7 +222,7 @@ export class AccountExportService {
     if (
       !job.artifactGeneration ||
       !(job.artifactExpiresAt instanceof Date) ||
-      job.artifactExpiresAt.getTime() <= now.getTime()
+      !Number.isFinite(job.artifactExpiresAt.getTime())
     ) {
       return { kind: 'expired' };
     }
@@ -122,14 +232,29 @@ export class AccountExportService {
       job.artifactByteLength < 1 ||
       typeof job.artifactSha256 !== 'string' ||
       !/^[a-f0-9]{64}$/u.test(job.artifactSha256) ||
-      job.formatVersion !== ACCOUNT_EXPORT_FORMAT_VERSION ||
-      job.artifactSectionCount !== ACCOUNT_EXPORT_V1_SECTION_IDS.length
+      safeSectionCount(job.formatVersion) === null ||
+      job.artifactSectionCount !== safeSectionCount(job.formatVersion)
     ) {
       throw new Error('Account export artifact metadata is invalid');
     }
 
+    // Mongo primary time is the only retention authority. Compare the
+    // same owner/generation/expiry against the CURRENT durable document,
+    // not a possibly stale worker clock or the earlier findOwned read.
+    if (
+      !(await this.store.isOwnedArtifactCurrent({
+        id,
+        userId,
+        generation: job.artifactGeneration,
+        expiresAt: job.artifactExpiresAt,
+      }))
+    ) {
+      return { kind: 'expired' };
+    }
+
     return {
       kind: 'available',
+      formatVersion: job.formatVersion as 1 | 2 | 3,
       generation: job.artifactGeneration,
       byteLength: job.artifactByteLength,
       sha256: job.artifactSha256,
@@ -186,6 +311,8 @@ export class AccountExportService {
     id: string;
     claimId: string;
     result: AccountExportAssemblyResult;
+    ownerUserId?: string;
+    expectedProgressEpoch?: number;
   }): Promise<boolean> {
     if (
       typeof input.id !== 'string' ||
@@ -200,6 +327,17 @@ export class AccountExportService {
 
     const completedAt = new Date();
     assertCompletionResult(input.result, completedAt);
+    if (
+      input.result.formatVersion === 3 &&
+      (typeof input.ownerUserId !== 'string' ||
+        !input.ownerUserId.trim() ||
+        !Number.isSafeInteger(input.expectedProgressEpoch) ||
+        (input.expectedProgressEpoch as number) < 0)
+    ) {
+      throw new Error(
+        'Account export v3 completion requires owner epoch authority',
+      );
+    }
     return this.store.complete({
       ...input,
       artifactGeneration: input.claimId,
@@ -258,6 +396,7 @@ export class AccountExportService {
   private publicStatus(
     job: AccountExportJobRecord,
     now: Date,
+    liveOnPrimary?: boolean,
   ): AccountExportStatus {
     const downloadExpiresAt =
       job.state === 'completed' &&
@@ -278,10 +417,10 @@ export class AccountExportService {
       downloadExpiresAt,
       downloadable:
         downloadExpiresAt !== null &&
-        job.artifactExpiresAt!.getTime() > now.getTime() &&
+        (liveOnPrimary ?? job.artifactExpiresAt!.getTime() > now.getTime()) &&
         Boolean(job.artifactGeneration) &&
-        job.formatVersion === ACCOUNT_EXPORT_FORMAT_VERSION &&
-        job.artifactSectionCount === ACCOUNT_EXPORT_V1_SECTION_IDS.length &&
+        safeSectionCount(job.formatVersion) !== null &&
+        job.artifactSectionCount === safeSectionCount(job.formatVersion) &&
         Number.isSafeInteger(job.artifactByteLength) &&
         (job.artifactByteLength ?? 0) > 0 &&
         typeof job.artifactSha256 === 'string' &&

@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocalSearchParams } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mobileAuthActionTokenVault } from "@/features/auth/action-token-runtime";
@@ -29,6 +35,7 @@ export default function VerifyEmailRoute() {
   const handle = typeof params.handle === "string" ? params.handle : null;
   const [result, setResult] = useState<EmailVerificationResult>("cancelled");
   const [finished, setFinished] = useState(false);
+  const failureStatusRef = useRef<Text | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,6 +65,16 @@ export default function VerifyEmailRoute() {
     };
   }, [handle]);
 
+  useEffect(() => {
+    if (!finished || result === "completed" || result === "cancelled") return;
+
+    const frame = requestAnimationFrame(() => {
+      const status = failureStatusRef.current;
+      if (status) AccessibilityInfo.sendAccessibilityEvent(status, "focus");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [finished, handle, result]);
+
   const message = finished
     ? statusCopy[result === "cancelled" ? "invalid_link" : result]
     : "Confirmando tu correo…";
@@ -70,6 +87,8 @@ export default function VerifyEmailRoute() {
           Verificación de email
         </Text>
         <Text
+          ref={failureStatusRef}
+          accessible
           accessibilityRole={finished ? "alert" : undefined}
           accessibilityLiveRegion="polite"
           style={styles.body}

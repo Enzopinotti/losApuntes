@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { AccountExportContributorRegistry } from './account-export-contributor.registry';
+import {
+  AccountExportContributorRegistry,
+  accountExportSectionIds,
+  assertAccountExportSections,
+} from './account-export-contributor.registry';
 import { AccountExportService } from './account-export.service';
 import {
   type AccountExportAssemblyResult,
+  type AccountExportFormatVersion,
   ACCOUNT_EXPORT_FORMAT,
-  ACCOUNT_EXPORT_FORMAT_VERSION,
 } from './account-export.types';
 
 export type { AccountExportAssemblyResult } from './account-export.types';
@@ -29,7 +33,39 @@ export class AccountExportAssembler {
     sink: AccountExportArtifactSink,
     canContinue?: () => Promise<boolean>,
   ): Promise<AccountExportAssemblyResult> {
-    const contributors = this.registry.list();
+    return this.writeJsonForVersion(1, userId, sink, canContinue);
+  }
+
+  async writeJsonV2(
+    userId: string,
+    sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
+  ): Promise<AccountExportAssemblyResult> {
+    return this.writeJsonForVersion(2, userId, sink, canContinue);
+  }
+
+  async writeJsonV3(
+    userId: string,
+    sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
+  ): Promise<AccountExportAssemblyResult> {
+    return this.writeJsonForVersion(3, userId, sink, canContinue);
+  }
+
+  private async writeJsonForVersion(
+    version: AccountExportFormatVersion,
+    userId: string,
+    sink: AccountExportArtifactSink,
+    canContinue?: () => Promise<boolean>,
+  ): Promise<AccountExportAssemblyResult> {
+    const expected = accountExportSectionIds(version);
+    const contributors = expected.map((id) => this.registry.require(id));
+    // Legacy jobs select precisely their own versioned manifest even after
+    // v3 deployment. The real Nest module enforces the complete v3 inventory.
+    assertAccountExportSections(
+      version === 3 ? this.registry.list() : contributors,
+      version,
+    );
     let recordCount = 0;
     let byteLength = 0;
     const sha256 = createHash('sha256');
@@ -55,8 +91,15 @@ export class AccountExportAssembler {
     };
 
     try {
+      // Only v3 contains private Study Progress. The lifecycle epoch is
+      // incremented transactionally by every supported progress mutation.
+      // A v3 artifact assembled across different epochs must never publish.
+      const studyProgressEpoch =
+        version === 3
+          ? await this.exports.captureStudyProgressExportEpoch(userId)
+          : null;
       await writeChunk(
-        `{"format":${JSON.stringify(ACCOUNT_EXPORT_FORMAT)},"version":${ACCOUNT_EXPORT_FORMAT_VERSION},"sections":{`,
+        `{"format":${JSON.stringify(ACCOUNT_EXPORT_FORMAT)},"version":${version},"sections":{`,
       );
 
       for (const [sectionIndex, contributor] of contributors.entries()) {
@@ -128,13 +171,20 @@ export class AccountExportAssembler {
       await writeChunk('}}');
       const result: AccountExportAssemblyResult = {
         format: ACCOUNT_EXPORT_FORMAT,
-        formatVersion: ACCOUNT_EXPORT_FORMAT_VERSION,
+        formatVersion: version,
         sectionCount: contributors.length,
         recordCount,
         byteLength,
         sha256: sha256.digest('hex'),
       };
       await this.exports.assertActiveAccount(userId);
+      await assertClaim();
+      if (studyProgressEpoch !== null) {
+        await this.exports.assertStudyProgressExportEpoch(
+          userId,
+          studyProgressEpoch,
+        );
+      }
       await assertClaim();
       await sink.commit(result);
       return result;

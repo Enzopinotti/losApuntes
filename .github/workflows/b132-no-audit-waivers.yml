@@ -1,0 +1,78 @@
+name: B132 no audit waivers and release HOLD integrity
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - security/audit-exceptions.json
+      - scripts/security/check-audit-exceptions.mjs
+      - scripts/security/check-audit-exceptions.test.mjs
+      - scripts/release/candidate-evidence-lib.mjs
+      - scripts/release/candidate-evidence-lib.test.mjs
+      - docs/security/dependency-audit-exceptions.md
+      - scripts/test-account-export-b65-atomic-completion.mjs
+      - scripts/test-account-export-b68-concurrency.mjs
+      - scripts/test-account-export-b69-writeahead.mjs
+      - scripts/test-account-export-b70-authority.mjs
+      - scripts/test-account-export-b132-legacy-contracts.mjs
+      - scripts/test-study-progress-bootstrap-contract.mjs
+      - apps/api/src/auth/auth.module.ts
+      - apps/api/src/study-collections/study-collections.module.ts
+      - apps/api/src/study-collections/study-collections.controller.ts
+      - apps/api/src/study-progress/study-progress.module.ts
+      - apps/api/src/study-progress/study-progress.controller.ts
+      - apps/api/src/users/users.module.ts
+      - .github/workflows/b132-no-audit-waivers.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b132-no-waivers-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  no-waiver-policy:
+    name: Node24 exact-head no-waiver and release preflight regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: 'true'
+      STUDY_PROGRESS_ENABLED: 'false'
+    steps:
+      - name: Read-only checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen graph
+        run: pnpm install --frozen-lockfile
+      - name: Verify policy has no exceptions
+        run: pnpm security:audit-exceptions
+      - name: Test waiver rejection and release preflight
+        run: |
+          node --test scripts/security/check-audit-exceptions.test.mjs scripts/release/candidate-evidence-lib.test.mjs
+          node --test scripts/security/check-api-runtime-dependency-boundary.test.mjs
+          node scripts/test-account-export-b65-atomic-completion.mjs
+          node scripts/test-account-export-b68-concurrency.mjs
+          node scripts/test-account-export-b69-writeahead.mjs
+          node scripts/test-account-export-b70-authority.mjs
+          node scripts/test-account-export-b132-legacy-contracts.mjs
+          node --test scripts/test-study-progress-bootstrap-contract.mjs
+      - name: Verify source remained unchanged
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

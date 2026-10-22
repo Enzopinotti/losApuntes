@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +16,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmailOnboardingController } from "@/features/auth/email-onboarding-controller";
 import type { EmailOnboardingFailure } from "@/features/auth/email-onboarding-controller";
+import { openEmailApp } from "@/features/auth/open-email-app";
+import {
+  authActionResendAvailableAt,
+  authActionResendSecondsRemaining,
+} from "@/features/auth/action-resend-cooldown";
+import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  newPasswordValidationMessage,
+} from "@/features/auth/password-policy";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 const failureMessage = (failure: EmailOnboardingFailure): string => {
@@ -28,7 +40,6 @@ const failureMessage = (failure: EmailOnboardingFailure): string => {
 
 export default function RegisterRoute() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [controller] = useState(
     () => new EmailOnboardingController(mobileApiClient),
   );
@@ -38,6 +49,10 @@ export default function RegisterRoute() {
   const [confirmation, setConfirmation] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [resendAvailableAtMs, setResendAvailableAtMs] = useState<number | null>(
+    null,
+  );
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setSnapshot);
@@ -56,11 +71,29 @@ export default function RegisterRoute() {
     (snapshot.kind === "accepted"
       ? snapshot.email
       : email.trim().toLowerCase());
+  const resendCooldownSeconds = authActionResendSecondsRemaining(
+    resendAvailableAtMs,
+    cooldownNowMs,
+  );
+
+  useEffect(() => {
+    if (resendAvailableAtMs === null) return;
+
+    const updateClock = () => setCooldownNowMs(Date.now());
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, [resendAvailableAtMs]);
 
   const submitRegistration = () => {
     setLocalError(null);
     if (!email.trim() || !password || !confirmation) {
       setLocalError("Completá email y contraseña.");
+      return;
+    }
+    const passwordPolicyError = newPasswordValidationMessage(password);
+    if (passwordPolicyError !== true) {
+      setLocalError(passwordPolicyError);
       return;
     }
     if (password !== confirmation) {
@@ -70,16 +103,36 @@ export default function RegisterRoute() {
     void controller.register(email, password).then(() => {
       const current = controller.getSnapshot();
       if (current.kind === "accepted" && current.action === "register") {
+        const acceptedAtMs = Date.now();
         setRegisteredEmail(current.email);
+        setCooldownNowMs(acceptedAtMs);
+        setResendAvailableAtMs(authActionResendAvailableAt(acceptedAtMs));
         setPassword("");
         setConfirmation("");
       }
     });
   };
 
+  const requestVerification = async () => {
+    if (!requestEmail || pending || resendCooldownSeconds > 0) return;
+
+    await controller.requestVerification(requestEmail);
+    const current = controller.getSnapshot();
+    if (
+      current.kind === "accepted" &&
+      current.action === "request_verification"
+    ) {
+      const acceptedAtMs = Date.now();
+      setCooldownNowMs(acceptedAtMs);
+      setResendAvailableAtMs(authActionResendAvailableAt(acceptedAtMs));
+    }
+  };
+
   const resetForm = () => {
     controller.reset();
     setRegisteredEmail(null);
+    setResendAvailableAtMs(null);
+    setCooldownNowMs(Date.now());
     setPassword("");
     setConfirmation("");
     setLocalError(null);
@@ -133,24 +186,26 @@ export default function RegisterRoute() {
           {!showSuccess ? (
             <>
               <Text style={styles.label}>Contraseña</Text>
-              <TextInput
-                accessibilityLabel="Contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                secureTextEntry
                 textContentType="newPassword"
                 value={password}
                 onChangeText={setPassword}
                 editable={!pending}
                 style={styles.input}
               />
+              <Text style={styles.hint}>
+                Usá entre {PASSWORD_MIN_LENGTH} y {PASSWORD_MAX_LENGTH}{" "}
+                caracteres. Se permiten espacios y caracteres Unicode.
+              </Text>
 
               <Text style={styles.label}>Repetir contraseña</Text>
-              <TextInput
-                accessibilityLabel="Repetir contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Repetir contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                secureTextEntry
                 textContentType="newPassword"
                 value={confirmation}
                 onChangeText={setConfirmation}
@@ -192,28 +247,46 @@ export default function RegisterRoute() {
                 <Text style={styles.primaryText}>Crear cuenta</Text>
               )}
             </Pressable>
-          ) : !verificationAccepted ? (
+          ) : (
             <Pressable
               accessibilityRole="button"
-              disabled={pending}
-              onPress={() => void controller.requestVerification(requestEmail)}
-              style={[styles.primary, pending && styles.disabled]}
+              disabled={pending || resendCooldownSeconds > 0}
+              onPress={() => void requestVerification()}
+              style={[
+                styles.primary,
+                (pending || resendCooldownSeconds > 0) && styles.disabled,
+              ]}
             >
               {pending && pendingAction === "request_verification" ? (
                 <ActivityIndicator accessibilityLabel="Enviando correo" />
               ) : (
-                <Text style={styles.primaryText}>Reenviar verificación</Text>
+                <Text style={styles.primaryText}>
+                  {resendCooldownSeconds > 0
+                    ? `Solicitar otro enlace en ${resendCooldownSeconds} s`
+                    : "Reenviar verificación"}
+                </Text>
               )}
             </Pressable>
-          ) : (
+          )}
+
+          {showSuccess && Platform.OS === "android" ? (
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.replace("/sign-in")}
-              style={styles.primary}
+              onPress={() => {
+                void openEmailApp().then((opened) => {
+                  if (!opened) {
+                    Alert.alert(
+                      "No pudimos abrir una app de correo",
+                      "Abrí tu correo desde la app que uses y volvé acá para reenviar el enlace.",
+                    );
+                  }
+                });
+              }}
+              style={styles.secondary}
             >
-              <Text style={styles.primaryText}>Ir a iniciar sesión</Text>
+              <Text>Abrir app de correo</Text>
             </Pressable>
-          )}
+          ) : null}
 
           {showSuccess ? (
             <Pressable
@@ -262,6 +335,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   error: { fontSize: 14, color: "#9f1d1d" },
+  hint: { fontSize: 13, lineHeight: 18, color: "#55555f" },
   status: { fontSize: 14, color: "#2f2f36" },
   primary: {
     minHeight: 50,

@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
+  AccessibilityInfo,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +19,11 @@ import {
   PasswordRecoveryController,
   type PasswordRecoveryFailure,
 } from "@/features/auth/password-recovery";
+import { PasswordVisibilityInput } from "@/features/auth/password-visibility-input";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@/features/auth/password-policy";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 const failureCopy: Record<PasswordRecoveryFailure, string> = {
@@ -44,6 +49,7 @@ export default function ResetPasswordRoute() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const tokenFailureStatusRef = useRef<Text | null>(null);
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setSnapshot);
@@ -59,6 +65,16 @@ export default function ResetPasswordRoute() {
   const pending =
     snapshot.kind === "checking" || snapshot.kind === "submitting";
   const terminalFailure = snapshot.kind === "failed" ? snapshot.failure : null;
+  useEffect(() => {
+    if (!terminalFailure) return;
+
+    const frame = requestAnimationFrame(() => {
+      const status = tokenFailureStatusRef.current;
+      if (status) AccessibilityInfo.sendAccessibilityEvent(status, "focus");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [handle, terminalFailure]);
+
   const retryableInspectFailure =
     terminalFailure === "offline" ||
     terminalFailure === "timeout" ||
@@ -116,12 +132,11 @@ export default function ResetPasswordRoute() {
           {showForm ? (
             <>
               <Text style={styles.label}>Nueva contraseña</Text>
-              <TextInput
-                accessibilityLabel="Nueva contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Nueva contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
                 editable={!pending}
-                secureTextEntry
                 textContentType="newPassword"
                 value={newPassword}
                 onChangeText={(value) => {
@@ -130,14 +145,17 @@ export default function ResetPasswordRoute() {
                 }}
                 style={styles.input}
               />
+              <Text style={styles.hint}>
+                Usá entre {PASSWORD_MIN_LENGTH} y {PASSWORD_MAX_LENGTH}{" "}
+                caracteres. Se permiten espacios y caracteres Unicode.
+              </Text>
 
               <Text style={styles.label}>Repetir contraseña</Text>
-              <TextInput
-                accessibilityLabel="Repetir contraseña"
+              <PasswordVisibilityInput
+                fieldLabel="Repetir contraseña"
                 autoCapitalize="none"
                 autoComplete="new-password"
                 editable={!pending}
-                secureTextEntry
                 textContentType="newPassword"
                 value={confirmation}
                 onChangeText={(value) => {
@@ -186,7 +204,12 @@ export default function ResetPasswordRoute() {
 
           {terminalFailure ? (
             <>
-              <Text accessibilityRole="alert" style={styles.error}>
+              <Text
+                ref={tokenFailureStatusRef}
+                accessible
+                accessibilityRole="alert"
+                style={styles.error}
+              >
                 {failureCopy[terminalFailure]}
               </Text>
 
@@ -245,6 +268,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#ffffff",
   },
+  hint: { fontSize: 13, lineHeight: 18, color: "#55555f" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   status: { fontSize: 14, lineHeight: 20, color: "#2f2f36" },
   error: { fontSize: 14, lineHeight: 20, color: "#9f1d1d" },

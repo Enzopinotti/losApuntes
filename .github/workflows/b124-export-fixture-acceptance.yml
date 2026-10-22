@@ -1,0 +1,66 @@
+name: B124 export fixture TypeScript acceptance
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b124-export-fixture-acceptance.yml
+      - apps/api/src/data-lifecycle/account-export.controller.spec.ts
+      - apps/api/src/data-lifecycle/mongo/mongo-account-export.store.spec.ts
+      - apps/api/src/study-progress/mongo/study-progress-export.reader.spec.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b124-fixtures-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  fixture-jest:
+    name: Three strictly typed account-export suites on Node24
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout exact candidate without persistent credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Validate HEAD and clean source before tests
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Use pinned Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen lockfile install
+        run: pnpm install --frozen-lockfile
+
+      - name: Run three complete Jest suites with ts-jest compilation
+        run: |
+          node -e "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(2)"
+          pnpm --filter @losapuntes/api test:ci --runTestsByPath \
+            src/data-lifecycle/account-export.controller.spec.ts \
+            src/data-lifecycle/mongo/mongo-account-export.store.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            --passWithNoTests=false --detectOpenHandles
+
+      - name: Require exact unchanged source after Jest
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

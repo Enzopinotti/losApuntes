@@ -156,10 +156,10 @@ Recommended UX:
 - show minimum length before submit;
 - API remains authority.
 
-Proposed v1 policy:
+Shared v1 policy:
 
-- minimum 12 characters;
-- maximum 256 characters.
+- minimum 15 Unicode code points after NFC normalization;
+- maximum 256 Unicode code points after NFC normalization.
 
 The exact policy is shared by registration, password change and recovery.
 

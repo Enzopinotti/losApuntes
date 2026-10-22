@@ -13,6 +13,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { requestPasswordRecovery } from "@/features/auth/password-recovery";
+import {
+  authActionResendAvailableAt,
+  authActionResendSecondsRemaining,
+} from "@/features/auth/action-resend-cooldown";
 import { mobileApiClient } from "@/features/session/session-runtime";
 
 type RequestState =
@@ -40,9 +44,26 @@ export default function ForgotPasswordRoute() {
   const activeRequest = useRef<AbortController | null>(null);
   const [email, setEmail] = useState("");
   const [state, setState] = useState<RequestState>("idle");
+  const [resendAvailableAtMs, setResendAvailableAtMs] = useState<number | null>(
+    null,
+  );
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
 
   const pending = state === "pending";
   const normalizedEmail = email.trim().toLowerCase();
+  const resendCooldownSeconds = authActionResendSecondsRemaining(
+    resendAvailableAtMs,
+    cooldownNowMs,
+  );
+
+  useEffect(() => {
+    if (resendAvailableAtMs === null) return;
+
+    const updateClock = () => setCooldownNowMs(Date.now());
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, [resendAvailableAtMs]);
 
   useEffect(
     () => () => {
@@ -54,7 +75,7 @@ export default function ForgotPasswordRoute() {
   );
 
   const submit = async () => {
-    if (!normalizedEmail || pending) return;
+    if (!normalizedEmail || pending || resendCooldownSeconds > 0) return;
 
     requestGeneration.current += 1;
     const generation = requestGeneration.current;
@@ -71,6 +92,11 @@ export default function ForgotPasswordRoute() {
 
     if (generation !== requestGeneration.current) return;
     activeRequest.current = null;
+    const completedAtMs = Date.now();
+    setCooldownNowMs(completedAtMs);
+    setResendAvailableAtMs(
+      result === "accepted" ? authActionResendAvailableAt(completedAtMs) : null,
+    );
     setState(result);
   };
 
@@ -110,6 +136,8 @@ export default function ForgotPasswordRoute() {
             requestGeneration.current += 1;
             setEmail(value);
             setState("idle");
+            setResendAvailableAtMs(null);
+            setCooldownNowMs(Date.now());
           }}
           style={styles.input}
         />
@@ -129,18 +157,23 @@ export default function ForgotPasswordRoute() {
 
         <Pressable
           accessibilityRole="button"
-          disabled={!normalizedEmail || pending}
+          disabled={!normalizedEmail || pending || resendCooldownSeconds > 0}
           onPress={() => void submit()}
           style={[
             styles.primary,
-            (!normalizedEmail || pending) && styles.disabled,
+            (!normalizedEmail || pending || resendCooldownSeconds > 0) &&
+              styles.disabled,
           ]}
         >
           {pending ? (
             <ActivityIndicator accessibilityLabel="Enviando recuperación" />
           ) : (
             <Text style={styles.primaryText}>
-              {accepted ? "Enviar de nuevo" : "Enviar enlace"}
+              {accepted && resendCooldownSeconds > 0
+                ? `Solicitar nuevamente en ${resendCooldownSeconds} s`
+                : accepted
+                  ? "Enviar de nuevo"
+                  : "Enviar enlace"}
             </Text>
           )}
         </Pressable>

@@ -1,0 +1,77 @@
+name: B126 owner-scoped feed candidate coverage
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b126-feed-candidate-coverage.yml"
+      - "apps/api/src/resources/domain/resource.service.spec.ts"
+      - "docs/engineering/b126-feed-candidate-coverage.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b126-feed-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  domain-contract:
+    name: Exact-head feed privacy Jest, strict lint and API types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Confirm immutable candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Strict zero-warning test lint and canonical formatting
+        run: |
+          pnpm --filter @losapuntes/api exec eslint src/resources/domain/resource.service.spec.ts --max-warnings=0
+          pnpm --filter @losapuntes/api exec prettier --check src/resources/domain/resource.service.spec.ts
+      - name: Real resource service Jest regressions
+        run: pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath src/resources/domain/resource.service.spec.ts
+      - name: Entire API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+
+  unchanged-threshold:
+    name: Real Files Resources 95 percent function threshold
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Confirm immutable candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Full Files Resources Jest coverage, original thresholds
+        run: |
+          pnpm --filter @losapuntes/api exec jest \
+            --config ./jest.files-resources-coverage.cjs \
+            --runInBand --coverage --coverageReporters=text

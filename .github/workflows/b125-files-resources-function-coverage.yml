@@ -1,0 +1,113 @@
+name: B125 Files Resources 95 percent function coverage
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/b125-files-resources-function-coverage.yml"
+      - "apps/api/src/files/storage/s3-object-storage.spec.ts"
+      - "docs/engineering/b125-files-resources-function-coverage.md"
+permissions:
+  contents: read
+concurrency:
+  group: b125-files-resources-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  s3-focused:
+    name: Exact-head S3 Jest, full API types and scoped formatter
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Confirm SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Source formatter
+        run: pnpm --filter @losapuntes/api exec prettier --check src/files/storage/s3-object-storage.spec.ts
+      - name: Strict zero-warning Jest source ESLint
+        run: pnpm --filter @losapuntes/api exec eslint src/files/storage/s3-object-storage.spec.ts --max-warnings=0
+      - name: All S3 unit regressions
+        run: pnpm --filter @losapuntes/api exec jest --runInBand --runTestsByPath src/files/storage/s3-object-storage.spec.ts
+      - name: Whole API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+
+  global-threshold:
+    name: Exact-head full Files Resources coverage 95 percent enforced
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Confirm SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run 128-suite Files Resources coverage and preserve exit code
+        id: jest
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @losapuntes/api exec jest \
+            --config ./jest.files-resources-coverage.cjs \
+            --runInBand --coverage \
+            --coverageReporters=json --coverageReporters=text
+          result=$?
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Report real uncovered function names without mutating thresholds
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const coverage = JSON.parse(fs.readFileSync('apps/api/coverage/coverage-final.json', 'utf8'));
+          const summary = [];
+          for (const [path, file] of Object.entries(coverage)) {
+            const total = Object.keys(file.f).length;
+            const covered = Object.values(file.f).filter(x => x > 0).length;
+            const missing = Object.entries(file.f).filter(([, hits]) => hits === 0).map(([id]) => {
+              const fn = file.fnMap[id];
+              return fn.name + ':' + fn.loc.start.line;
+            });
+            const short = path.split('/apps/api/')[1] || path;
+            summary.push([short, covered, total, missing]);
+          }
+          let covered = 0;
+          let total = 0;
+          for (const [file, pass, count, miss] of summary) {
+            covered += pass;
+            total += count;
+            console.log(file + ': ' + pass + '/' + count + ' functions, uncovered: ' + miss.join(', '));
+          }
+          console.log('B125 aggregate functions: ' + covered + '/' + total + ' = ' + (100 * covered / total).toFixed(2) + '%');
+          NODE
+      - name: Enforce unchanged Jest global 95 percent functions gate
+        shell: bash
+        env:
+          TEST_STATUS: ${{ steps.jest.outputs.result }}
+        run: |
+          test "$TEST_STATUS" = "0"
