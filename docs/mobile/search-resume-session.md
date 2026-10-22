@@ -6,6 +6,8 @@ The Home card **“Seguí tu búsqueda”** gives a signed-in user a direct way 
 to the most recent valid Search input entered in the current app session. The
 card does not display the query or subject. Selecting it opens Search through a
 temporary route marker; the query and filter are not route parameters.
+The card also offers an explicit action to discard the remembered query from
+Home without changing saved resources.
 
 The app keeps only the validated query, public search scope, and optional
 canonical subject ID in process memory, keyed to the active user and session.
