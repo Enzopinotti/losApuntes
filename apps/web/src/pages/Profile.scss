@@ -340,30 +340,6 @@
   background: linear-gradient(135deg, #e9f3ea, #f4f7fb);
 }
 
-.public-profile-avatar {
-  position: relative;
-  display: grid;
-  flex: 0 0 5rem;
-  width: 5rem;
-  height: 5rem;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid #d8d8e6;
-  border-radius: 50%;
-  background: #efedf8;
-  color: #43366a;
-  font-size: 1.65rem;
-  font-weight: 700;
-}
-
-.public-profile-avatar img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .public-profile-headline {
   margin: 0.45rem 0 0.65rem;
   color: #385783;

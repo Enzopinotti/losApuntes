@@ -1,18 +1,24 @@
 import { publicProfileAvatarUrl } from "./public-profile-avatar-policy";
+import "./public-profile-avatar.scss";
 
 export function PublicProfileAvatar({
   avatarUrl,
   displayName,
+  size = "profile",
 }: {
   avatarUrl: string | null | undefined;
   displayName: string;
+  size?: "profile" | "small";
 }) {
   const safeAvatarUrl = publicProfileAvatarUrl(avatarUrl);
   const initial =
     displayName.trim().slice(0, 1).toLocaleUpperCase("es-AR") || "?";
 
   return (
-    <span className="public-profile-avatar" aria-hidden="true">
+    <span
+      className={`public-profile-avatar${size === "small" ? " public-profile-avatar--small" : ""}`}
+      aria-hidden="true"
+    >
       <span>{initial}</span>
       {safeAvatarUrl ? (
         <img
