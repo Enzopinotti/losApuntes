@@ -1,6 +1,7 @@
 import type {
   ContextualDiscoveryResponse,
   PublicProfileResponse,
+  ProfileActivityPageResponse,
   ResourceView,
   SearchResponse,
   SearchScope,
@@ -43,6 +44,13 @@ export interface MobileSearchTransport {
     profileId: string,
     signal?: AbortSignal,
   ): Promise<PublicProfileResponse>;
+  publicProfileActivities(
+    credential: string,
+    profileId: string,
+    cursor: string,
+    limit: number,
+    signal?: AbortSignal,
+  ): Promise<ProfileActivityPageResponse>;
 }
 
 export class MobileSearchApi {
@@ -76,6 +84,23 @@ export class MobileSearchApi {
   publicProfile(profileId: string, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.publicProfile(credential, profileId, signal),
+    );
+  }
+
+  publicProfileActivities(
+    profileId: string,
+    cursor: string,
+    limit: number,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.publicProfileActivities(
+        credential,
+        profileId,
+        cursor,
+        limit,
+        signal,
+      ),
     );
   }
 

@@ -27,6 +27,7 @@ import type {
   CreateAcademicAffiliationInput,
   CreateAcademicAffiliationResponse,
   PublicProfileResponse,
+  ProfileActivityPageResponse,
   ResourceView,
   SearchResponse,
   SearchScope,
@@ -618,6 +619,24 @@ export class MobileApiClient {
   publicProfile(credential: string, profileId: string, signal?: AbortSignal) {
     return this.request<PublicProfileResponse>(
       `/profiles/${encodeURIComponent(profileId)}`,
+      {
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  publicProfileActivities(
+    credential: string,
+    profileId: string,
+    cursor: string,
+    limit: number,
+    signal?: AbortSignal,
+  ) {
+    const query = new URLSearchParams({ cursor, limit: String(limit) });
+
+    return this.request<ProfileActivityPageResponse>(
+      `/profiles/${encodeURIComponent(profileId)}/activities?${query.toString()}`,
       {
         credential,
         ...(signal ? { signal } : {}),

@@ -212,6 +212,12 @@ test("Search and result destinations use the existing authenticated routes", asy
     });
     await client.resource("opaque-session", "resource-a");
     await client.publicProfile("opaque-session", "profile-a");
+    await client.publicProfileActivities(
+      "opaque-session",
+      "profile/a",
+      "cursor+/next",
+      20,
+    );
 
     const searchUrl = new URL(requests[0]!.url);
     assert.equal(searchUrl.pathname, "/search");
@@ -246,6 +252,16 @@ test("Search and result destinations use the existing authenticated routes", asy
       requests[4]!.url,
       "https://api.example.test/profiles/profile-a",
     );
+    const publicActivitiesUrl = new URL(requests[5]!.url);
+    assert.equal(
+      publicActivitiesUrl.pathname,
+      "/profiles/profile%2Fa/activities",
+    );
+    assert.equal(
+      publicActivitiesUrl.searchParams.get("cursor"),
+      "cursor+/next",
+    );
+    assert.equal(publicActivitiesUrl.searchParams.get("limit"), "20");
     assert.ok(
       requests.every(
         ({ init }) =>
