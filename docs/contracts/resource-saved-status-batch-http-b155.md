@@ -41,6 +41,7 @@ Respuesta:
 ```
 
 - El máximo es **50 IDs UUIDv4 únicos** y el mínimo es uno. No se aceptan IDs duplicados, strings en lugar del arreglo ni un lote excesivo.
+- La comparación de UUID no distingue mayúsculas/minúsculas: se normalizan para la búsqueda y detección de duplicados. La respuesta conserva el texto original y el orden enviados por el cliente.
 - La respuesta conserva exactamente **el orden y la cantidad** de los IDs solicitados.
 - `isSaved=true` exige que exista una relación `resource_saves` de ese usuario **y** que el Resource tenga `moderationState='available'` y siga siendo público, propio o compartido mediante una concesión vigente.
 - `isSaved=false` significa únicamente que _no existe una relación guardada actualmente autorizada_. No distingue no guardado de borrado, moderado, privado o con permiso revocado. No expone causas ni existencia.
