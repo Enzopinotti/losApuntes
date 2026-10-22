@@ -1,0 +1,68 @@
+name: B177 find resources inside portable study kits
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/features/study/StudyKitResourceSearch.tsx
+      - apps/web/src/features/study/study-kit-resource-query.mjs
+      - apps/web/src/features/study/study-kit-resource-query.d.mts
+      - apps/web/src/pages/StudyKits.tsx
+      - apps/web/src/pages/StudyKits.scss
+      - scripts/test-web-study-kits-integration.mjs
+      - docs/product/b177-study-kit-resource-search-web.md
+      - .github/workflows/b177-study-kit-resource-search.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b177-kit-search-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  kit-search:
+    name: Node24 exact-head Study Kit discovery and Web checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Confirm immutable candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen workspace
+        run: pnpm install --frozen-lockfile
+      - name: Read-only Prettier diff for new component
+        shell: bash
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/features/study/StudyKitResourceSearch.tsx > "$RUNNER_TEMP/b177.canonical.tsx"
+          diff -u apps/web/src/features/study/StudyKitResourceSearch.tsx "$RUNNER_TEMP/b177.canonical.tsx" || true
+          pnpm --filter @losapuntes/web exec prettier src/pages/StudyKits.tsx > "$RUNNER_TEMP/b177.kits.canonical.tsx"
+          diff -u apps/web/src/pages/StudyKits.tsx "$RUNNER_TEMP/b177.kits.canonical.tsx" || true
+      - name: Run checked-in Study Kit regression contract
+        run: node scripts/test-web-study-kits-integration.mjs
+      - name: Validate full Web types lint and canonical formatting
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web lint
+          pnpm --filter @losapuntes/web format:check
+      - name: Confirm unchanged HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

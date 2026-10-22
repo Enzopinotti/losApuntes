@@ -1,0 +1,68 @@
+name: B181 integrated security and Mongo smoke readiness
+
+on:
+  pull_request:
+    paths:
+      - pnpm-lock.yaml
+      - .github/workflows/ci.yml
+      - .github/workflows/b181-security-mongo-integration.yml
+      - scripts/test-b181-security-runtime-integration.mjs
+      - scripts/security/check-follow-redirects-lock.mjs
+      - scripts/security/test-follow-redirects-regression.mjs
+      - scripts/ci/check-mongo-kernel.mjs
+      - scripts/ci/check-mongo-kernel.test.mjs
+      - docs/engineering/b181-security-mongo-integration.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b181-security-mongo-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  security-mongo-integration:
+    name: Node24 exact-head patched redirects and strict Mongo CI contract
+    runs-on: ubuntu-22.04
+    timeout-minutes: 14
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout exact immutable PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact candidate before checks
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install exact locked dependency graph
+        run: pnpm install --frozen-lockfile
+      - name: Validate official patched lock and host compatibility
+        run: |
+          node --check scripts/test-b181-security-runtime-integration.mjs
+          node scripts/security/check-follow-redirects-lock.mjs
+          node --test scripts/ci/check-mongo-kernel.test.mjs
+          node scripts/ci/check-mongo-kernel.mjs
+          node scripts/test-b181-security-runtime-integration.mjs
+          pnpm security:audit-exceptions
+      - name: Run real loopback HTTP redirect security regressions
+        run: node --test scripts/security/test-follow-redirects-regression.mjs
+      - name: Ensure Web application builds on patched dependency graph
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web build
+      - name: Assert unchanged SHA and worktree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

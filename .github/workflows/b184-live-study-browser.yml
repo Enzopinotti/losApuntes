@@ -1,0 +1,61 @@
+name: B184 live study browser readiness
+
+on:
+  pull_request:
+    paths:
+      - scripts/browser-study-journey-live-b184.mjs
+      - .github/workflows/ci.yml
+      - .github/workflows/b184-live-study-browser.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b184-live-study-browser-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  live-study-readiness:
+    name: Node24 B184 live study fixture and canonical source checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install exact lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Check grammar and report canonical formatting diff
+        shell: bash
+        run: |
+          node --check scripts/browser-study-journey-live-b184.mjs
+          pnpm exec prettier scripts/browser-study-journey-live-b184.mjs > "$RUNNER_TEMP/b184.canonical.mjs"
+          diff -u scripts/browser-study-journey-live-b184.mjs "$RUNNER_TEMP/b184.canonical.mjs" || true
+          pnpm exec prettier --check scripts/browser-study-journey-live-b184.mjs
+      - name: Verify strict real-backend acceptance chain and source guard
+        run: |
+          node -e '
+          const fs = require("fs");
+          const c = fs.readFileSync(".github/workflows/ci.yml","utf8");
+          const s = fs.readFileSync("scripts/browser-study-journey-live-b184.mjs","utf8");
+          for (const name of ["smoke-academic-lifecycle.mjs","smoke-files-resources-lifecycle.mjs","smoke-social-qa-lifecycle.mjs","smoke-account-export-lifecycle.mjs","browser-study-journey-live-b184.mjs"]) {
+            if (!c.includes("node scripts/"+name)) throw new Error("Missing real smoke: "+name);
+          }
+          if (!c.includes("node --check scripts/browser-study-journey-live-b184.mjs")) throw new Error("B184 syntax check missing");
+          if (!/assertLocalAuthSmokeMongo/.test(s) || !/process.env.CI/.test(s) || !/chromium.launch/.test(s) || !/changeVisibility\(author/.test(s)) throw new Error("B184 disposable runtime guard missing");
+          if (/page.route\(|route.fulfill\(/.test(s)) throw new Error("Live acceptance may not mock API");
+          if (!c.includes("docker compose -f compose.local.yml -f compose.health.yml down --volumes --remove-orphans")) throw new Error("Must destroy disposable runtime");
+          '
+      - name: Verify clean exact SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

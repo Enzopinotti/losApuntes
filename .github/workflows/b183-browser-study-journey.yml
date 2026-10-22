@@ -1,0 +1,58 @@
+name: B183 Chromium study journey acceptance
+
+on:
+  pull_request:
+    paths:
+      - scripts/browser-study-journey-b183.mjs
+      - .github/workflows/b183-browser-study-journey.yml
+      - apps/web/src/pages/**
+      - apps/web/src/features/study/**
+      - apps/web/src/features/search/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b183-student-browser-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  browser-study-journey:
+    name: Node24 real Chromium student journey with deterministic test API
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert candidate SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen workspace and Chromium
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Read-only canonical formatting diff and check syntax
+        shell: bash
+        run: |
+          node --check scripts/browser-study-journey-b183.mjs
+          pnpm exec prettier scripts/browser-study-journey-b183.mjs > "$RUNNER_TEMP/b183-browser.canonical.mjs"
+          diff -u scripts/browser-study-journey-b183.mjs "$RUNNER_TEMP/b183-browser.canonical.mjs" || true
+          pnpm exec prettier --check scripts/browser-study-journey-b183.mjs
+      - name: Exercise student journey in a real Chromium page
+        run: node scripts/browser-study-journey-b183.mjs
+      - name: Verify clean exact HEAD
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

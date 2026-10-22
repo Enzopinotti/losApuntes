@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "description": "Exact unmodified source-file provenance for B182. B180's shared handoff test is excluded to preserve B179's richer tests.",
+  "baseSecurityCommit": "adcbd25c40f586803e4be59c4cbfae7e400200fd",
+  "sources": [
+    {
+      "pr": 509,
+      "head": "c700d93a96307fedb10461feb15de73b7bd5482e",
+      "path": "apps/web/src/features/search/search-save-feedback.d.mts",
+      "blobSha": "921f6099a701c75490223ae7264f7bc077c47cb9"
+    },
+    {
+      "pr": 509,
+      "head": "c700d93a96307fedb10461feb15de73b7bd5482e",
+      "path": "apps/web/src/features/search/search-save-feedback.mjs",
+      "blobSha": "00d5f941789951a68a8c3b59dbc45377ff3575f2"
+    },
+    {
+      "pr": 509,
+      "head": "c700d93a96307fedb10461feb15de73b7bd5482e",
+      "path": "apps/web/src/features/search/SearchSaveAction.tsx",
+      "blobSha": "e6de8cd1ae3adcfa91815c09f3f1b90ea2ce2ba7"
+    },
+    {
+      "pr": 509,
+      "head": "c700d93a96307fedb10461feb15de73b7bd5482e",
+      "path": "apps/web/src/pages/Search.scss",
+      "blobSha": "6f192e3bc7bc557db5f9f5590ff5f0325de07349"
+    },
+    {
+      "pr": 509,
+      "head": "c700d93a96307fedb10461feb15de73b7bd5482e",
+      "path": "apps/web/src/pages/Search.tsx",
+      "blobSha": "0ca2410ee49e4ca60fd0088176312e6c3a1bcc11"
+    },
+    {
+      "pr": 509,
+      "head": "c700d93a96307fedb10461feb15de73b7bd5482e",
+      "path": "docs/product/b175-search-save-results-web.md",
+      "blobSha": "909a482cd6da94470302e2f117b482a5f968a20c"
+    },
+    {
+      "pr": 509,
+      "head": "c700d93a96307fedb10461feb15de73b7bd5482e",
+      "path": "scripts/test-web-search-contract.mjs",
+      "blobSha": "58bfa5aca196bf3a4b29612004f58fccfe6b79fd"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": ".github/workflows/b177-study-kit-resource-search.yml",
+      "blobSha": "469913d66acc3f9bf4a4ddf72f65b6a5dbbab7be"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": "apps/web/src/features/study/study-kit-resource-query.d.mts",
+      "blobSha": "5e101c717c145acfe0954d9c6f78e9f9891e51c6"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": "apps/web/src/features/study/study-kit-resource-query.mjs",
+      "blobSha": "900faf88fb7309e011d0edac0edec44187173842"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": "apps/web/src/features/study/StudyKitResourceSearch.tsx",
+      "blobSha": "3836adc9eaefde0c20c5e8ddf27f8aeeff8260d5"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": "apps/web/src/pages/StudyKits.scss",
+      "blobSha": "a4f16af84b089db60ebe639369fd1687b9442cee"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": "apps/web/src/pages/StudyKits.tsx",
+      "blobSha": "cbb8ccb965bc4cb8a8513b014b32ac1a776b07b5"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": "docs/product/b177-study-kit-resource-search-web.md",
+      "blobSha": "731310fa0d90ad2f9cac4436e0446482e7f40b40"
+    },
+    {
+      "pr": 511,
+      "head": "42cb9ca22ea57e92c213dd3ff40ef5192a446a77",
+      "path": "scripts/test-web-study-kits-integration.mjs",
+      "blobSha": "5c9bda501b5ac01c165938deb41f89d005c3fedd"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": ".github/workflows/b179-resource-study-handoff.yml",
+      "blobSha": "c452c5510ac6bead9c57dc36b9b247f2e0fa7a99"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "apps/web/src/features/study/resource-study-handoff.d.mts",
+      "blobSha": "c9b2112a3bf6c40da621da22ada08c4f9ed18f72"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "apps/web/src/features/study/resource-study-handoff.mjs",
+      "blobSha": "f80f60392e93fb9eb23a45edc0aff8835e310db2"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "apps/web/src/features/study/ResourceStudyHandoff.tsx",
+      "blobSha": "454fd80d0d41f37102632f85fc7d2c918fda35ab"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "apps/web/src/pages/Resources.scss",
+      "blobSha": "1ed192615b2353ff3a91ae882ecc0cf36b4d8dbb"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "apps/web/src/pages/Resources.tsx",
+      "blobSha": "8c8a9f750b1c6be761eb7985730de06059d286ec"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "docs/product/b179-resource-study-handoff-web.md",
+      "blobSha": "268669be64ac8454cba2cff46115938ad762683e"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "scripts/test-web-resources-contract.mjs",
+      "blobSha": "90ab3a10469a25eb7b88026bafcebbc883852fc3"
+    },
+    {
+      "pr": 514,
+      "head": "27e799250cb81e798cff83248d44a2706286ce1e",
+      "path": "scripts/test-web-study-handoff-integration.mjs",
+      "blobSha": "3ef97b57314d4ce1207d5817eddac2a8d6dec3d9"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": ".github/workflows/b180-study-plan-material-search.yml",
+      "blobSha": "5ef0e4dcb8e00ee35e8be1205f1e04a04e5f73e4"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": "apps/web/src/features/study/study-plan-material-search.d.mts",
+      "blobSha": "d31b900d4e16a2b8006cb8b427e770a5af305ee2"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": "apps/web/src/features/study/study-plan-material-search.mjs",
+      "blobSha": "654bc1f3eb7b229991c76a4483567cc5934ddb4a"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": "apps/web/src/features/study/StudyPlanMaterialFinder.tsx",
+      "blobSha": "d131b5e99b52a66011cc977193fc2fcdc2a308f7"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": "apps/web/src/pages/StudySession.scss",
+      "blobSha": "4fd4e846faa67417f8581aca62551d2571abe80c"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": "apps/web/src/pages/StudySession.tsx",
+      "blobSha": "486bceb6ee166c283b1ad586376a8b20623e5875"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": "docs/product/b180-study-plan-material-search-web.md",
+      "blobSha": "3b0df4279f9a286cb4a5c5f8c9e1946278422811"
+    },
+    {
+      "pr": 515,
+      "head": "ea6024532c8d09a255fa11b8c7a9b896e4a451e3",
+      "path": "scripts/test-web-study-plan-material-finder.mjs",
+      "blobSha": "149771e8e36a6c5890333b531b657570bd0f8662"
+    }
+  ]
+}

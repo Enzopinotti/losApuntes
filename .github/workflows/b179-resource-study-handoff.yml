@@ -1,0 +1,72 @@
+name: B179 resource-to-study session handoff
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/features/study/resource-study-handoff.mjs
+      - apps/web/src/features/study/resource-study-handoff.d.mts
+      - apps/web/src/features/study/ResourceStudyHandoff.tsx
+      - apps/web/src/pages/Resources.tsx
+      - apps/web/src/pages/Resources.scss
+      - scripts/test-web-study-handoff-integration.mjs
+      - scripts/test-web-resources-contract.mjs
+      - docs/product/b179-resource-study-handoff-web.md
+      - .github/workflows/b179-resource-study-handoff.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b179-resource-study-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  resource-study:
+    name: Node24 exact-head resource-to-study Web regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout exact PR HEAD without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify SHA and clean checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen dependency graph
+        run: pnpm install --frozen-lockfile
+      - name: Read-only canonical formatting diagnostics
+        shell: bash
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/features/study/ResourceStudyHandoff.tsx > "$RUNNER_TEMP/b179.component.canonical.tsx"
+          diff -u apps/web/src/features/study/ResourceStudyHandoff.tsx "$RUNNER_TEMP/b179.component.canonical.tsx" || true
+          pnpm --filter @losapuntes/web exec prettier src/pages/Resources.tsx > "$RUNNER_TEMP/b179.resources.canonical.tsx"
+          diff -u apps/web/src/pages/Resources.tsx "$RUNNER_TEMP/b179.resources.canonical.tsx" || true
+      - name: Resource and study handoff integration contracts
+        run: |
+          pnpm test:web-resources-contract
+          node scripts/test-web-study-handoff-integration.mjs
+      - name: Check full Web TypeScript lint Prettier and build
+        run: |
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/web lint
+          pnpm --filter @losapuntes/web format:check
+          pnpm --filter @losapuntes/web build
+      - name: Verify immutable HEAD remains untouched
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
