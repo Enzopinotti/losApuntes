@@ -187,6 +187,7 @@ export class MongoOrganizationStore implements OrganizationStore {
   async search(input: {
     q?: string;
     type?: OrganizationType;
+    verificationState?: OrganizationVerificationState;
     institutionId?: string;
     programId?: string;
     limit: number;
@@ -195,6 +196,8 @@ export class MongoOrganizationStore implements OrganizationStore {
     const filters: FilterQuery<Organization>[] = [{ status: 'active' }];
 
     if (input.type) filters.push({ type: input.type });
+    if (input.verificationState)
+      filters.push({ verificationState: input.verificationState });
     if (input.institutionId)
       filters.push({ institutionId: input.institutionId });
     if (input.programId) filters.push({ programId: input.programId });

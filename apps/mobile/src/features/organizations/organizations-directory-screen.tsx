@@ -2,6 +2,7 @@ import type {
   AcademicCatalogNode,
   OrganizationCard,
   OrganizationType,
+  OrganizationVerificationState,
 } from "@losapuntes/contracts";
 import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
@@ -41,6 +42,15 @@ const types: Array<{ value: OrganizationType | null; label: string }> = [
   { value: "cultural_sports", label: "Cultura y deportes" },
   { value: "career_community", label: "Carreras" },
   { value: "alumni_association", label: "Graduados" },
+];
+
+const verificationFilters: Array<{
+  value: OrganizationVerificationState | null;
+  label: string;
+}> = [
+  { value: null, label: "Todas" },
+  { value: "verified", label: "Verificadas" },
+  { value: "unverified", label: "Sin verificar" },
 ];
 
 const typeLabel: Record<OrganizationType, string> = {
@@ -168,6 +178,8 @@ export function MobileOrganizationsDirectoryScreen() {
   const [query, setQuery] = useState("");
   const [queryError, setQueryError] = useState<string | null>(null);
   const [type, setType] = useState<OrganizationType | null>(null);
+  const [verificationState, setVerificationState] =
+    useState<OrganizationVerificationState | null>(null);
   const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
   const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
     sessionKey: string;
@@ -198,6 +210,7 @@ export function MobileOrganizationsDirectoryScreen() {
           "organizations",
           query || "all",
           type ?? "all",
+          verificationState ?? "all-verification-states",
           filterInstitution?.id ?? "all-institutions",
         ].join(":")
       : null;
@@ -227,6 +240,7 @@ export function MobileOrganizationsDirectoryScreen() {
     void controller.load(authorityKey, {
       ...(query ? { q: query } : {}),
       ...(type ? { type } : {}),
+      ...(verificationState ? { verificationState } : {}),
       ...(filterInstitution ? { institutionId: filterInstitution.id } : {}),
     });
     return () => controller.suspend(authorityKey);
@@ -237,6 +251,7 @@ export function MobileOrganizationsDirectoryScreen() {
     query,
     sessionKey,
     type,
+    verificationState,
   ]);
 
   useEffect(() => {
@@ -321,6 +336,7 @@ export function MobileOrganizationsDirectoryScreen() {
     void controller.load(authorityKey, {
       ...(query ? { q: query } : {}),
       ...(type ? { type } : {}),
+      ...(verificationState ? { verificationState } : {}),
       ...(filterInstitution ? { institutionId: filterInstitution.id } : {}),
     });
   };
@@ -397,6 +413,37 @@ export function MobileOrganizationsDirectoryScreen() {
             );
           })}
         </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Estado de verificación</Text>
+        <View accessibilityRole="radiogroup" style={styles.filters}>
+          {verificationFilters.map((option) => {
+            const selected = verificationState === option.value;
+            return (
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                key={option.value ?? "all"}
+                onPress={() => setVerificationState(option.value)}
+                style={[styles.filter, selected && styles.filterSelected]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    selected && styles.filterTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.meta}>
+          La verificación confirma un claim revisado; no implica respaldo de Los
+          Apuntes.
+        </Text>
       </View>
 
       <View style={styles.card}>

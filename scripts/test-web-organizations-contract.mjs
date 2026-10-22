@@ -30,6 +30,8 @@ assert.match(service, /expectedManagementRevision/u);
 assert.match(service, /nextCursor:\s*string\s*\|\s*null/u);
 assert.match(service, /institutionId\?:\s*string/u);
 assert.match(service, /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u);
+assert.match(service, /verificationState\?:\s*OrganizationVerificationState/u);
+assert.match(service, /if \(input\.verificationState\)\s*query\.set\("verificationState", input\.verificationState\)/u);
 assert.match(service, /if \(input\.cursor\) query\.set\("cursor", input\.cursor\)/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
@@ -70,6 +72,11 @@ assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 5);
 assert.match(directory, /user\?\.id/u);
 assert.match(directory, /session\?\.id/u);
 assert.match(directory, /directoryScopeKey/u);
+assert.match(directory, /verificationState \|\| "all-verification-states"/u);
+assert.match(directory, /verificationState:\s*verificationState \|\| undefined/u);
+assert.match(directory, /aria-label="Estado de verificación"/u);
+assert.match(directory, /value="verified">Identidad verificada/u);
+assert.match(directory, /value="unverified">Claim sin verificar/u);
 assert.match(directory, /function appendUniqueOrganizations\(/u);
 assert.match(directory, /nextCursor:\s*string\s*\|\s*null/u);
 assert.match(directory, /const loadMore = useCallback\(\s*async \(\) =>/u);
@@ -124,11 +131,17 @@ assert.match(
   /if \(from && !cursor\) query\.set\("from", from\)/u,
 );
 assert.match(mobileOrganizationApi, /institutionId\?:\s*string/u);
+assert.match(mobileOrganizationApi, /verificationState\?:\s*OrganizationVerificationState/u);
+assert.match(mobileOrganizationApi, /if \(input\.verificationState\)\s*query\.set\("verificationState", input\.verificationState\)/u);
 assert.match(
   mobileOrganizationApi,
   /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u,
 );
 assert.match(mobileDirectory, /filterInstitution\?\.id \?\? "all-institutions"/u);
+assert.match(mobileDirectory, /verificationState \?\? "all-verification-states"/u);
+assert.match(mobileDirectory, /verificationState \? \{ verificationState \} : \{\}/u);
+assert.match(mobileDirectory, /Estado de verificación/u);
+assert.match(mobileDirectory, /verificationFilters\.map/u);
 assert.match(mobileDirectory, /institutionId: filterInstitution\.id/u);
 assert.match(
   mobileDirectory,

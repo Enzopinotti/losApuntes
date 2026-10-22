@@ -11,6 +11,7 @@ import type {
   AcademicInstitutionOption,
   OrganizationCard,
   OrganizationType,
+  OrganizationVerificationState,
 } from "../features/organizations/interfaces";
 import { OrganizationAvatar } from "../features/organizations/OrganizationAvatar";
 import {
@@ -197,6 +198,9 @@ const Organizations = () => {
   ].join(":");
   const [query, setQuery] = useState("");
   const [type, setType] = useState<OrganizationType | "">("");
+  const [verificationState, setVerificationState] = useState<
+    OrganizationVerificationState | ""
+  >("");
   const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
   const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
     authScopeKey: string;
@@ -211,6 +215,7 @@ const Organizations = () => {
     authScopeKey,
     query.trim(),
     type || "all-types",
+    verificationState || "all-verification-states",
     filterInstitution?.id ?? "all-institutions",
   ].join(":");
   const {
@@ -360,6 +365,7 @@ const Organizations = () => {
         {
           q: query.trim() || undefined,
           type: type || undefined,
+          verificationState: verificationState || undefined,
           institutionId: filterInstitution?.id,
         },
         ticket.signal,
@@ -395,6 +401,7 @@ const Organizations = () => {
     filterInstitution?.id,
     query,
     type,
+    verificationState,
   ]);
   const loadMore = useCallback(async () => {
     const current =
@@ -426,6 +433,7 @@ const Organizations = () => {
         {
           q: query.trim() || undefined,
           type: type || undefined,
+          verificationState: verificationState || undefined,
           institutionId: filterInstitution?.id,
           cursor,
         },
@@ -468,6 +476,7 @@ const Organizations = () => {
     listState,
     query,
     type,
+    verificationState,
   ]);
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -650,6 +659,19 @@ const Organizations = () => {
               {label}
             </option>
           ))}
+        </select>
+        <select
+          aria-label="Estado de verificación"
+          value={verificationState}
+          onChange={(event) =>
+            setVerificationState(
+              event.target.value as OrganizationVerificationState | "",
+            )
+          }
+        >
+          <option value="">Todos los estados</option>
+          <option value="verified">Identidad verificada</option>
+          <option value="unverified">Claim sin verificar</option>
         </select>
         <button type="submit" disabled={loading}>
           Buscar

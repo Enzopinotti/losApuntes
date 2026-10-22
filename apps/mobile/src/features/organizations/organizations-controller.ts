@@ -148,6 +148,9 @@ export class MobileOrganizationsDirectoryController {
     this.input = {
       ...(input.q ? { q: input.q } : {}),
       ...(input.type ? { type: input.type } : {}),
+      ...(input.verificationState
+        ? { verificationState: input.verificationState }
+        : {}),
       ...(input.institutionId ? { institutionId: input.institutionId } : {}),
     };
     const operation = this.begin(authorityKey);
