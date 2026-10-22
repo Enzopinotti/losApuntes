@@ -112,11 +112,12 @@ no incluye esas referencias.
   ausencia de selector de dueño.
 - No hay cambios de schemas, índices, lockfile, dependencias, Web/Mobile,
   core Study, auth, permisos ni escrituras.
-- Verificar candidato exacto con B127/B131/Quality Gate, TypeScript,
-  Prettier, ESLint, Jest, diez coberturas críticas, runtime smoke y audit.
-- Los tests unitarios y el smoke general **no sustituyen** aceptación
-  dedicada de la exportación contra Mongo real y prueba de importación
-  en calendarios destino. Pendiente antes de publicar.
-- Release #353 HOLD mientras auditoría de producción high/critical
-  (#133, #141, #492), runner Mongo #484 o aceptación estén sin resolver.
-  PR Draft, sin fusionar ni desplegar con esas condiciones.
+- Verificación local de la implementación: tres suites Jest enfocadas
+  (23 pruebas), `check:types`, `lint`, `format:check` y `build` de API,
+  además de `git diff --check`; todo pasa con Node 24 y pnpm 9.15.9.
+- No se ejecutó CI. No se probó la lectura contra MongoDB real ni la
+  importación interactiva en calendarios de terceros; esa interoperabilidad
+  queda pendiente antes de anunciar compatibilidad con proveedores concretos.
+- El HOLD de release #353 y la auditoría productiva (#133, #141, #492)
+  siguen siendo controles de lanzamiento. La integración de este bloque
+  no representa una aprobación de despliegue.
