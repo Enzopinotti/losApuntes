@@ -30,6 +30,7 @@ assert.match(service, /expectedManagementRevision/u);
 assert.match(service, /nextCursor:\s*string\s*\|\s*null/u);
 assert.match(service, /institutionId\?:\s*string/u);
 assert.match(service, /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u);
+assert.match(service, /if \(input\.cursor\) query\.set\("cursor", input\.cursor\)/u);
 
 const routes = await read('apps/web/src/app/routes.tsx');
 assert.match(
@@ -69,6 +70,23 @@ assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 5);
 assert.match(directory, /user\?\.id/u);
 assert.match(directory, /session\?\.id/u);
 assert.match(directory, /directoryScopeKey/u);
+assert.match(directory, /function appendUniqueOrganizations\(/u);
+assert.match(directory, /nextCursor:\s*string\s*\|\s*null/u);
+assert.match(directory, /const loadMore = useCallback\(\s*async \(\) =>/u);
+assert.match(
+  directory,
+  /institutionId:\s*filterInstitution\?\.id,\s*cursor,/u,
+);
+assert.match(
+  directory,
+  /items:\s*appendUniqueOrganizations\(latest\.items,\s*result\.items\)/u,
+);
+assert.match(directory, /nextCursor:\s*result\.nextCursor/u);
+assert.match(directory, /setPaginationErrorState/u);
+assert.match(directory, /className="organizations-load-more"/u);
+assert.match(directory, /aria-busy=\{loadingMore\}/u);
+assert.match(directory, /Cargar más organizaciones/u);
+assert.match(directory, /Reintentar carga/u);
 assert.match(directory, /filterInstitutionSearchScopeKey/u);
 assert.match(directory, /institutionId:\s*filterInstitution\?\.id/u);
 assert.match(directory, /organizationsApi\.searchInstitutions\(\s*filterInstitutionQuery\.trim\(\),\s*ticket\.signal/u);
@@ -148,6 +166,10 @@ assert.match(
 assert.match(
   publicPageStyles,
   /\.organization-card-actions button\s*\{[^}]*min-height:\s*44px/su,
+);
+assert.match(
+  publicPageStyles,
+  /\.organizations-load-more button\s*\{[^}]*min-height:\s*44px/su,
 );
 const eventCalendar = await read(
   'apps/web/src/features/organizations/organization-event-calendar.mjs',
