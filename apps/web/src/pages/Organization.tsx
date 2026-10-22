@@ -6,6 +6,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { OrganizationAvatar } from "../features/organizations/OrganizationAvatar";
 import { serializeOrganizationEventCalendar } from "../features/organizations/organization-event-calendar.mjs";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import {
@@ -378,20 +379,27 @@ const Organization = () => {
     >
       {feedReturnLink}
       <header className="organizations-hero organization-public-hero">
-        <div>
-          <p className="organizations-eyebrow">
-            {organization.scope.institution.name}
-          </p>
-          <h1 id="organization-title">{organization.name}</h1>
-          <p>{organization.about ?? "Sin descripción pública todavía."}</p>
-          <div className="organization-badges">
-            <span>{organization.type.replaceAll("_", " ")}</span>
-            <span>
-              {organization.verificationState === "verified"
-                ? "Identidad verificada"
-                : "Claim sin verificar"}
-            </span>
-            <span>{organization.followerCount} seguidores</span>
+        <div className="organization-public-identity">
+          <OrganizationAvatar
+            avatarUrl={organization.avatarUrl}
+            name={organization.name}
+            size="profile"
+          />
+          <div>
+            <p className="organizations-eyebrow">
+              {organization.scope.institution.name}
+            </p>
+            <h1 id="organization-title">{organization.name}</h1>
+            <p>{organization.about ?? "Sin descripción pública todavía."}</p>
+            <div className="organization-badges">
+              <span>{organization.type.replaceAll("_", " ")}</span>
+              <span>
+                {organization.verificationState === "verified"
+                  ? "Identidad verificada"
+                  : "Claim sin verificar"}
+              </span>
+              <span>{organization.followerCount} seguidores</span>
+            </div>
           </div>
         </div>
         <div className="organization-header-actions">

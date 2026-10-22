@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import { PublicAvatar } from "@/features/profile/public-avatar";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -240,6 +241,10 @@ export function MobileOrganizationDetailScreen({
         <>
           <View style={styles.card}>
             <View style={styles.headingRow}>
+              <PublicAvatar
+                avatarUrl={current.organization.avatarUrl}
+                displayName={current.organization.name}
+              />
               <Text accessibilityRole="header" style={styles.title}>
                 {current.organization.name}
               </Text>
