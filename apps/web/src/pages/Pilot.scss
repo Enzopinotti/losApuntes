@@ -371,3 +371,58 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* B183 — Short-lived personal preview controls; no ranking or feedback writes. */
+.pilot-feed-momentary-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #c9cfe3;
+  border-radius: 9px;
+  background: #f3f5ff;
+  color: #283459;
+  margin: 0.6rem 0;
+
+  span {
+    flex: 1 1 240px;
+    line-height: 1.45;
+  }
+
+  button {
+    min-height: 44px;
+    border: 1px solid #63709a;
+    border-radius: 9px;
+    background: #fff;
+    color: #293a73;
+    font: inherit;
+    font-weight: 700;
+    padding: 0.55rem 0.8rem;
+    cursor: pointer;
+  }
+}
+
+.pilot-feed-preview .pilot-feed-momentary-hide {
+  justify-self: start;
+  min-height: 44px;
+  border: 1px solid #8b91aa;
+  border-radius: 9px;
+  background: #fff;
+  color: #414967;
+  padding: 0.5rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pilot-feed-momentary-status button:focus-visible,
+.pilot-feed-preview .pilot-feed-momentary-hide:focus-visible {
+  outline: 3px solid #6271b0;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .pilot-feed-momentary-status button {
+    flex: 1 1 130px;
+  }
+}
