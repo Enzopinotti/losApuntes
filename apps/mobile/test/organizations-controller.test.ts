@@ -106,6 +106,12 @@ const apiStub = (
   unfollow: async () => ({ following: false, changed: true }),
   posts: async () => ({ items: [], nextCursor: null }),
   events: async () => ({ items: [], nextCursor: null }),
+  reportPost: async () => ({
+    report: { id: "report-1", reason: "other", status: "pending" },
+  }),
+  reportEvent: async () => ({
+    report: { id: "report-1", reason: "other", status: "pending" },
+  }),
   ...overrides,
 });
 

@@ -61,6 +61,15 @@ const mobileOrganizationApi = await read(
 const mobileOrganizationController = await read(
   'apps/mobile/src/features/organizations/organizations-controller.ts',
 );
+const mobileOrganizationReportController = await read(
+  'apps/mobile/src/features/organizations/organization-report-controller.ts',
+);
+const mobileOrganizationReportAction = await read(
+  'apps/mobile/src/features/organizations/organization-report-action.tsx',
+);
+const mobileOrganizationReportPolicy = await read(
+  'apps/mobile/src/features/organizations/organization-report-policy.ts',
+);
 const mobileOrganizationShare = await read(
   'apps/mobile/src/features/organizations/organization-public-share.ts',
 );
@@ -156,6 +165,19 @@ assert.match(mobileOrganizationController, /upcomingEventsNextCursor/u);
 assert.match(mobileOrganizationController, /async toggleFollow\(\s*authorityKey:\s*string,\s*organizationId:\s*string/u);
 assert.match(mobileOrganizationController, /followAction: MobileOrganizationsDirectoryFollowAction \| null/u);
 assert.match(mobileOrganizationController, /const confirmedFollowing = refreshed\.organization\.viewer\?\.following/u);
+assert.match(mobileOrganizationApi, /reportPost\(/u);
+assert.match(mobileOrganizationApi, /encodeURIComponent\(postId\)[\s\S]*?"\/reports"/u);
+assert.match(mobileOrganizationApi, /reportEvent\(/u);
+assert.match(mobileOrganizationApi, /encodeURIComponent\(eventId\)[\s\S]*?"\/reports"/u);
+assert.match(mobileOrganizationReportController, /outcome: "none" \| "confirmed" \| "uncertain"/u);
+assert.match(mobileOrganizationReportController, /outcome: ambiguous\(failure\) \? "uncertain" : "none"/u);
+assert.match(mobileOrganizationReportController, /current\.outcome !== "none"/u);
+assert.match(mobileOrganizationReportAction, /validateOrganizationReport/u);
+assert.match(mobileOrganizationReportAction, /ORGANIZATION_REPORT_REASONS\.map/u);
+assert.match(mobileOrganizationReportAction, /No lo vuelvas a[\s\S]*?enviar/u);
+assert.match(mobileOrganizationReportPolicy, /ORGANIZATION_REPORT_DETAILS_MAX_LENGTH = 1500/u);
+assert.match(mobileDetail, /<OrganizationReportAction[\s\S]*?targetType="post"/u);
+assert.match(mobileDetail, /<OrganizationReportAction[\s\S]*?targetType="event"/u);
 assert.match(mobileDirectory, /followAction=\{current\.followAction\}/u);
 assert.match(mobileDirectory, /controller\.toggleFollow\(\s*current\.authorityKey,\s*organization\.id/u);
 assert.match(mobileDirectory, /followActionBusy=\{directoryActionBusy\}/u);
