@@ -92,19 +92,20 @@ autenticación, esquemas Q&A ni lockfile. Solo se registra un nuevo módulo
 Nest, sus pruebas y el contrato. No se modifica `apps/web` o
 `apps/mobile`.
 
-## Criterios de aceptación y release
+## Validación del carrier y aceptación pendiente
 
-- Pruebas Jest de cursor canónico, owner binding, input corrupto,
-  búsqueda por dueño, moderación en ambos lados, límite **dentro** del join,
-  orden cronológico y desempate, proyección mínima, página siguiente,
-  duplicados, fechas inválidas y errores de Mongo.
-- Pruebas del controlador: guard de sesión, cabecera no-store, autoridad
-  desde `request.user.id`.
-- Ejecutar ESLint API estricto, TypeScript, Prettier, Jest, coberturas críticas,
-  Quality Gate, smoke de runtime y auditoría prod sobre SHA exacto.
-- El pipeline está cubierto por pruebas unitarias y de contrato; **una
-  aceptación específica contra Mongo real** sigue siendo necesaria para
-  afirmar la integración del cursor con `$lookup`.
-- Mantener #353 release **HOLD** y los issues de seguridad #133, #141
-  y #492 mientras existan advisories high/critical. No waivers, merges ni
-  despliegues si la auditoría continúa fallando.
+- El carrier conserva los 20 commits atómicos originales de B164 sobre
+  `main@bc56a75c` y agrega un commit separado de evidencia; no se hace
+  squash.
+- Jest cubre cursor canónico/owner-bound, input corrupto, moderación,
+  `$lookup` ligado al parent, filtro keyset antes del límite por pregunta,
+  orden, página siguiente, privacidad y errores Mongo.
+- Validación local del carrier: 3 suites / 34 pruebas, API TypeScript,
+  ESLint sin warnings, Prettier API, `nest build`, Prettier del contrato
+  y `git diff --check` — PASS.
+- No se ejecutó CI. Las suites usan mocks; **no se verificó el pipeline
+  contra Mongo real**. Este entorno no tiene daemon Docker ni `mongod`;
+  ejecutar aceptación con una réplica aislada antes de producción.
+- El módulo es de solo lectura y no cambia Web/Mobile, Q&A core,
+  autenticación, schemas, índices, migraciones, dependencias ni workflows.
+  La integración del código no acredita runtime ni habilita un despliegue.
