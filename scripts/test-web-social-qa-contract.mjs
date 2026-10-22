@@ -9,6 +9,11 @@ import {
   selectNotificationCategory,
   NOTIFICATION_CATEGORIES,
 } from '../apps/web/src/features/community/notification-category.mjs';
+import {
+  questionDetailSearchParams,
+  questionListHref,
+  questionSubjectIdFromSearchParams,
+} from '../apps/web/src/features/community/qa-subject-navigation.mjs';
 
 const root = process.cwd();
 
@@ -126,8 +131,67 @@ assert.match(questions, /communityApi\.reportQuestion\([\s\S]{0,160}signal/u);
 assert.match(questions, /communityApi\.reportAnswer\([\s\S]{0,160}signal/u);
 assert.match(questions, /await loadListRef\.current\(\)/u);
 assert.match(questions, /loadDetailRef\.current\(\)/u);
-assert.match(questions, /setSearchParams\(\{ id: result\.question\.id \}\)/u);
+assert.match(
+  questions,
+  /questionDetailSearchParams\(params, result\.question\.id\)/u,
+);
 assert.match(questions, /Cargando pregunta…/u);
+assert.match(questions, /subjectId: discoverySubjectId \?\? undefined/u);
+assert.match(questions, /if \(discoverySubjectId === undefined\)/u);
+assert.match(questions, /<QuestionSubjectFilter/u);
+assert.match(questions, /onSelect=\{selectDiscoverySubject\}/u);
+assert.match(questions, /new URL\(href, window\.location\.origin\)/u);
+assert.match(questions, /questionDetailSearchParams\(params, id\)/u);
+const qaFilter = await read(
+  'apps/web/src/features/community/QuestionSubjectFilter.tsx',
+);
+assert.match(qaFilter, /resourcesApi\.searchSubjects\(q, ticket\.signal\)/u);
+assert.match(qaFilter, /useAsyncAuthorityFence/u);
+assert.match(qaFilter, /Ver todas las materias/u);
+assert.match(qaFilter, /Copiar enlace de esta materia/u);
+assert.doesNotMatch(qaFilter, /localStorage|sessionStorage/u);
+const subjectUuid = 'B3A4A125-91B0-4C89-A550-0416DD3D0F3B';
+const canonicalSubjectUuid = subjectUuid.toLowerCase();
+assert.equal(
+  questionSubjectIdFromSearchParams(new URLSearchParams()),
+  null,
+  'missing filter is an intentionally global Q&A list',
+);
+assert.equal(
+  questionSubjectIdFromSearchParams(
+    new URLSearchParams(`subjectId=${subjectUuid}`),
+  ),
+  canonicalSubjectUuid,
+);
+for (const unsafe of [
+  'subjectId=not-a-uuid',
+  'subjectId=',
+  `subjectId=${subjectUuid}&subjectId=${subjectUuid}`,
+  'subjectId=%0A',
+]) {
+  assert.equal(
+    questionSubjectIdFromSearchParams(new URLSearchParams(unsafe)),
+    undefined,
+    'malformed and duplicate filters must fail closed',
+  );
+}
+assert.equal(questionListHref(null), '/questions');
+assert.equal(
+  questionListHref(subjectUuid),
+  `/questions?subjectId=${canonicalSubjectUuid}`,
+);
+assert.equal(questionListHref('bad%26id%3Dother'), null);
+assert.equal(questionListHref(undefined), null);
+const preservedQuestion = questionDetailSearchParams(
+  new URLSearchParams(`subjectId=${canonicalSubjectUuid}&id=old`),
+  'new-question',
+);
+assert.equal(preservedQuestion.get('subjectId'), canonicalSubjectUuid);
+assert.equal(preservedQuestion.get('id'), 'new-question');
+assert.match(
+  communityStyles,
+  /\.community-discovery-filter button:focus-visible/u,
+);
 assert.match(questions, /feedReturnHref\(location\.state\)/u);
 assert.match(
   questions,
