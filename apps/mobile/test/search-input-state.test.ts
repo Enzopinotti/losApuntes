@@ -102,14 +102,29 @@ test("resetAll atomically drops any text, scope and subject context", () => {
   const scenarios = [
     { query: "matrices", scope: "all" as const, selectedSubject: null },
     { query: "", scope: "people" as const, selectedSubject: null },
-    { query: "", scope: "resources" as const, selectedSubject: { id: "subject-a", name: "Álgebra" } },
-    { query: "parcial", scope: "resources" as const, selectedSubject: { id: "subject-b", name: "Química" } },
+    {
+      query: "",
+      scope: "resources" as const,
+      selectedSubject: { id: "subject-a", name: "Álgebra" },
+    },
+    {
+      query: "parcial",
+      scope: "resources" as const,
+      selectedSubject: { id: "subject-b", name: "Química" },
+    },
   ];
 
   for (const scenario of scenarios) {
     const reset = searchInputReducer(scenario, { type: "resetAll" });
     assert.deepEqual(reset, initialSearchInputState);
-    assert.equal(searchInputForState(reset), null, "Reset must never trigger unfiltered search");
-    assert.deepEqual(searchInputReducer(reset, { type: "resetAll" }), initialSearchInputState);
+    assert.equal(
+      searchInputForState(reset),
+      null,
+      "Reset must never trigger unfiltered search",
+    );
+    assert.deepEqual(
+      searchInputReducer(reset, { type: "resetAll" }),
+      initialSearchInputState,
+    );
   }
 });
