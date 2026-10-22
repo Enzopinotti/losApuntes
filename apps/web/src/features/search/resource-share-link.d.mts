@@ -8,3 +8,13 @@ export declare function shareableResourceUrl(
   resourceId: unknown,
   origin: unknown,
 ): string | null;
+
+/** A subject's public-filtered resource listing, not a user's private classes. */
+export declare function shareableSubjectResourcesHref(
+  subjectId: unknown,
+): string | null;
+
+export declare function shareableSubjectResourcesUrl(
+  subjectId: unknown,
+  origin: unknown,
+): string | null;
