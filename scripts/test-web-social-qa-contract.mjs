@@ -218,6 +218,7 @@ assert.match(notifications, /Marcar todas\s+como leídas afecta la bandeja compl
 assert.match(notifications, /visibleItems\.length === 0/u);
 assert.match(notifications, /Podés cargar más para consultar/u);
 assert.match(notifications, /nextCursor &&/u);
+assert.match(notifications, /labels\[item\.type\]\s*\?\?/u);
 const notificationStyles = await read('apps/web/src/pages/Community.scss');
 assert.match(notificationStyles, /\.community-notification-categories/u);
 assert.match(

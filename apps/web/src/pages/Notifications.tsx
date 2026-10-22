@@ -449,7 +449,7 @@ const Notifications = () => {
                     <div>
                       <strong>
                         {item.actor?.displayName ?? "Los Apuntes"}{" "}
-                        {labels[item.type]}
+                        {labels[item.type] ?? "registró una actividad"}
                       </strong>
                       <small>{new Date(item.createdAt).toLocaleString()}</small>
                       {target ? (
