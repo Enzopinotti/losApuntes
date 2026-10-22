@@ -15,7 +15,10 @@ assert.match(
   page,
   /setCoverPreset\(next\.profile\.presentation\.coverPreset\)/u,
 );
-assert.match(page, /presentation:\s*\{\s*accentPreset,\s*coverPreset\s*\}/u);
+assert.match(
+  page,
+  /presentation:\s*\{\s*accentPreset,\s*coverPreset,\s*sectionOrder\s*\}/u,
+);
 assert.match(page, /id="profile-accent-preset"/u);
 assert.match(page, /id="profile-cover-preset"/u);
 assert.match(page, /htmlFor="profile-accent-preset"/u);

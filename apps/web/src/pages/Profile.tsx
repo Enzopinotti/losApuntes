@@ -20,6 +20,7 @@ import {
   isProfileApiError,
   profileApi,
 } from "../features/profile/services/profileService";
+import { moveProfileSectionOrder } from "../features/profile/profile-section-order";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Profile.scss";
 
@@ -141,6 +142,9 @@ const Profile = () => {
   const [accentPreset, setAccentPreset] =
     useState<ProfileAccentPreset>("default");
   const [coverPreset, setCoverPreset] = useState<ProfileCoverPreset>("none");
+  const [sectionOrder, setSectionOrder] = useState<ProfileSection[]>(() =>
+    sections.map((section) => section.key),
+  );
   const [careerDiscovery, setCareerDiscovery] = useState(false);
   const [visibility, setVisibility] = useState<
     Record<ProfileSection, ProfileVisibility>
@@ -195,6 +199,7 @@ const Profile = () => {
     setHeadline("");
     setAccentPreset("default");
     setCoverPreset("none");
+    setSectionOrder(sections.map((section) => section.key));
     setCareerDiscovery(false);
     setVisibility({
       about: "public",
@@ -231,6 +236,7 @@ const Profile = () => {
     setHeadline(next.profile.professional.headline ?? "");
     setAccentPreset(next.profile.presentation.accentPreset);
     setCoverPreset(next.profile.presentation.coverPreset);
+    setSectionOrder(next.profile.presentation.sectionOrder);
     setCareerDiscovery(next.profile.professional.careerDiscoveryOptIn);
     setVisibility(next.profile.visibility);
     setRecommendAcademic(next.profile.recommendationSignals.academicContext);
@@ -357,7 +363,7 @@ const Profile = () => {
             headline: headline.trim() || null,
             careerDiscoveryOptIn: careerDiscovery,
           },
-          presentation: { accentPreset, coverPreset },
+          presentation: { accentPreset, coverPreset, sectionOrder },
           visibility,
           recommendationSignals: {
             academicContext: recommendAcademic,
@@ -695,6 +701,52 @@ const Profile = () => {
             value={learningTopics}
             onChange={(event) => setLearningTopics(event.target.value)}
           />
+        </section>
+
+        <section className="profile-card profile-wide">
+          <h2>Orden de secciones públicas</h2>
+          <p className="profile-help">
+            Elegí el orden en que aparecen las secciones que compartís. La
+            privacidad de cada sección se configura por separado.
+          </p>
+          <ol className="profile-section-order">
+            {sectionOrder.map((sectionKey, index) => {
+              const section = sections.find(({ key }) => key === sectionKey);
+              if (!section) return null;
+
+              return (
+                <li key={section.key}>
+                  <span>{section.label}</span>
+                  <div>
+                    <button
+                      aria-label={`Subir ${section.label}`}
+                      disabled={busy || index === 0}
+                      onClick={() =>
+                        setSectionOrder((current) =>
+                          moveProfileSectionOrder(current, section.key, -1),
+                        )
+                      }
+                      type="button"
+                    >
+                      Subir
+                    </button>
+                    <button
+                      aria-label={`Bajar ${section.label}`}
+                      disabled={busy || index === sectionOrder.length - 1}
+                      onClick={() =>
+                        setSectionOrder((current) =>
+                          moveProfileSectionOrder(current, section.key, 1),
+                        )
+                      }
+                      type="button"
+                    >
+                      Bajar
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
         </section>
 
         <section className="profile-card profile-wide">
