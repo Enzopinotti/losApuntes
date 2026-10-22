@@ -9,6 +9,7 @@ import {
   pauseFocusClock,
   resetFocusClock,
   selectFocusMode,
+  studyFocusMinutesFromParam,
   startFocusClock,
 } from "../src/features/study/focus-clock";
 
@@ -19,6 +20,7 @@ test("Mobile focus clock starts idle at 25 minutes and waits for the user", () =
   assert.deepEqual(clock, {
     mode: "study",
     phase: "idle",
+    durationMs: 1_500_000,
     remainingMs: 1_500_000,
     deadlineMs: null,
   });
@@ -32,6 +34,19 @@ test("rest interval is five minutes and starts only on explicit action", () => {
   assert.equal(rest.phase, "idle");
   assert.equal(formatFocusRemaining(rest.remainingMs), "05:00");
   assert.equal(startFocusClock(rest, 100).deadlineMs, 300_100);
+});
+
+test("a task can suggest a bounded study duration without starting the clock", () => {
+  const clock = createFocusClock("study", 45);
+  assert.equal(clock.phase, "idle");
+  assert.equal(clock.durationMs, 2_700_000);
+  assert.equal(formatFocusRemaining(clock.remainingMs), "45:00");
+  assert.deepEqual(resetFocusClock(clock), clock);
+  assert.equal(studyFocusMinutesFromParam("45"), 45);
+  assert.equal(studyFocusMinutesFromParam(["45"]), 45);
+  assert.equal(studyFocusMinutesFromParam(["45", "60"]), null);
+  assert.equal(studyFocusMinutesFromParam("47"), null);
+  assert.equal(studyFocusMinutesFromParam("125"), null);
 });
 
 test("deadline recovers missed ticks without accumulating interval drift", () => {
@@ -96,6 +111,12 @@ test("format rounds up to avoid reporting completion early", () => {
 test("invalid modes, timestamps, and remaining durations are rejected", () => {
   for (const mode of ["all", "study ", "", null]) {
     assert.throws(() => createFocusClock(mode as never), TypeError);
+  }
+  for (const minutes of [0, 4, 6, 121, 125, NaN, Infinity, "45"]) {
+    assert.throws(
+      () => createFocusClock("study", minutes as number),
+      TypeError,
+    );
   }
   for (const now of [-1, NaN, Infinity, "1000", null]) {
     assert.throws(() => startFocusClock(make(), now as number), TypeError);

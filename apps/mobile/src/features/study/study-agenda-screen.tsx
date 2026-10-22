@@ -19,6 +19,7 @@ import { MOBILE_STUDY_AGENDA_VISIBLE } from "./study-agenda-flag";
 import { formatStudyAgendaLocalTime } from "./study-agenda-presentation";
 import { mobileStudyAgendaApi } from "./study-agenda-runtime";
 import {
+  studyFocusDestination,
   studyNextActionDestination,
   studyNextActionTaskLabel,
 } from "./study-next-action-navigation";
@@ -58,10 +59,12 @@ function NextActionsSection({
   snapshot,
   onRetry,
   onOpen,
+  onFocus,
 }: {
   snapshot: StudyNextActionsSnapshot | null;
   onRetry: () => void;
   onOpen: (action: StudyNextAction) => void;
+  onFocus: (action: StudyNextAction) => void;
 }) {
   if (!snapshot || snapshot.kind === "loading" || snapshot.kind === "idle") {
     return (
@@ -131,16 +134,30 @@ function NextActionsSection({
               tareas pendientes
             </Text>
             {destination ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Abrir ${label.toLocaleLowerCase("es-AR")} siguiente: ${action.title}`}
-                onPress={() => onOpen(action)}
-                style={styles.secondaryButton}
-              >
-                <Text style={styles.secondaryLabel}>
-                  Abrir {label.toLocaleLowerCase("es-AR")}
-                </Text>
-              </Pressable>
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir ${label.toLowerCase()} siguiente: ${action.title}`}
+                  onPress={() => onOpen(action)}
+                  style={styles.secondaryButton}
+                >
+                  <Text style={styles.secondaryLabel}>
+                    Abrir {label.toLowerCase()}
+                  </Text>
+                </Pressable>
+                {studyFocusDestination(action.nextTask.minutes) ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Preparar temporizador de estudio de ${action.nextTask.minutes} minutos`}
+                    onPress={() => onFocus(action)}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.secondaryLabel}>
+                      Temporizador · {action.nextTask.minutes} min
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </>
             ) : (
               <Text style={styles.error}>
                 Esta referencia ya no se puede abrir desde la agenda.
@@ -289,6 +306,12 @@ export function MobileStudyAgendaScreen() {
             }}
             onOpen={(action) => {
               const destination = studyNextActionDestination(action.nextTask);
+              if (destination) router.push(destination);
+            }}
+            onFocus={(action) => {
+              const destination = studyFocusDestination(
+                action.nextTask.minutes,
+              );
               if (destination) router.push(destination);
             }}
           />
