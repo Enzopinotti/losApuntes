@@ -194,6 +194,19 @@ export function MobileOrganizationDetailScreen({
 
   const organization: OrganizationDetail | null =
     current?.kind === "ready" ? current.organization : null;
+  const eventView = current?.kind === "ready" ? current.eventView : "all";
+  const visibleEvents =
+    current?.kind === "ready"
+      ? current.eventView === "upcoming"
+        ? current.upcomingEvents
+        : current.organization.events
+      : [];
+  const visibleEventsNextCursor =
+    current?.kind === "ready"
+      ? current.eventView === "upcoming"
+        ? current.upcomingEventsNextCursor
+        : current.organization.eventsNextCursor
+      : null;
 
   return (
     <ProductSurface
@@ -425,10 +438,69 @@ export function MobileOrganizationDetailScreen({
             <Text accessibilityRole="header" style={styles.sectionTitle}>
               Eventos
             </Text>
-            {current.organization.events.length === 0 ? (
-              <Text style={styles.copy}>No hay eventos publicados.</Text>
+            <View style={styles.eventFilters}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: eventView === "upcoming",
+                  disabled: current.busy !== null,
+                }}
+                disabled={current.busy !== null}
+                onPress={() =>
+                  authorityKey &&
+                  void controller.loadUpcomingEvents(
+                    authorityKey,
+                    organizationId,
+                  )
+                }
+                style={[
+                  styles.eventFilterButton,
+                  eventView === "upcoming" && styles.eventFilterSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.eventFilterText,
+                    eventView === "upcoming" && styles.eventFilterTextSelected,
+                  ]}
+                >
+                  {current.busy === "events-filter" ? "Cargando…" : "Próximos"}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: eventView === "all",
+                  disabled: current.busy !== null,
+                }}
+                disabled={current.busy !== null}
+                onPress={() =>
+                  authorityKey &&
+                  controller.showAllEvents(authorityKey, organizationId)
+                }
+                style={[
+                  styles.eventFilterButton,
+                  eventView === "all" && styles.eventFilterSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.eventFilterText,
+                    eventView === "all" && styles.eventFilterTextSelected,
+                  ]}
+                >
+                  Todos
+                </Text>
+              </Pressable>
+            </View>
+            {visibleEvents.length === 0 ? (
+              <Text style={styles.copy}>
+                {eventView === "upcoming"
+                  ? "No hay próximos eventos."
+                  : "No hay eventos publicados."}
+              </Text>
             ) : (
-              current.organization.events.map((event) => (
+              visibleEvents.map((event) => (
                 <EventCard
                   event={event}
                   key={event.id}
@@ -436,7 +508,7 @@ export function MobileOrganizationDetailScreen({
                 />
               ))
             )}
-            {current.organization.eventsNextCursor ? (
+            {visibleEventsNextCursor ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: current.busy !== null }}
@@ -532,6 +604,31 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: "800",
     color: "#20202a",
+  },
+  eventFilters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  eventFilterButton: {
+    minHeight: 42,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#c9cad4",
+    borderRadius: 21,
+    paddingHorizontal: 14,
+  },
+  eventFilterSelected: {
+    borderColor: "#3446a2",
+    backgroundColor: "#3446a2",
+  },
+  eventFilterText: {
+    color: "#292933",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  eventFilterTextSelected: {
+    color: "#ffffff",
   },
   badge: {
     borderRadius: 10,
