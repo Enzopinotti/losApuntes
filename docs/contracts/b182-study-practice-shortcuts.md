@@ -1,6 +1,8 @@
 # B182 — Atajos opcionales durante la práctica académica
 
-**Fecha:** 21 de octubre de 2026. **Base:** `main@6bd965c71f6426da3d49fc7c0555e0e5afda06a9`. **Alcance:** Web, ronda de preguntas en `/study/practice`.
+**Fecha:** 22 de octubre de 2026. **Base del carrier actual:** `main@2287659b37f89bf8aba177240fb827f8cd7704d0`. **Alcance:** Web, ronda de preguntas en `/study/practice`.
+
+El PR #517 se creó sobre una base anterior e incluía un workflow dedicado. Este carrier fue reconstruido sobre `main` actual, conservando sus commits funcionales, de pruebas y documentación y excluyendo el commit de workflow. No se modifica ningún archivo de workflow ni protección.
 
 ## Problema
 La práctica de recuperación activa ya permitía ir a la pregunta anterior o siguiente y revelar respuestas. Estas acciones requerían desplazarse hasta sus botones, incluso para quienes estudian con teclado. Los campos de reflexión son privados, por lo que atajos globales sin consentimiento podrían interceptar lo escrito o revelar respuestas prematuramente.
@@ -28,7 +30,17 @@ Los atajos nunca califican automáticamente una pregunta. Marcar «Necesito repa
 
 `scripts/test-web-study-practice-shortcuts-b182-browser.mjs` ejecuta **Chromium real** con Vite loopback y una API simulada estrictamente local: sesión autenticada, dos preguntas de la materia, acceso denegado a métodos mutantes. Comprueba que no haya atajos antes de consentir, que escribir en un textarea no cambie de pregunta, avanzar, revelar, retroceder, desactivar, pérdida de autenticación y **cero escrituras HTTP**.
 
-La CI B182 usa Node24/pnpm9 congelados, tests, TypeScript, ESLint, Prettier, Chromium y build Web sobre SHA exacto. El test B182 está incorporado al `pnpm check` general. Ni la UI ni el test aceptan privilegios o estados de negocio simulados para producción; las simulaciones están aisladas en CI.
+El test B182 está incorporado al `pnpm test` general. Ni la UI ni el test aceptan privilegios o estados de negocio simulados para producción; las simulaciones están aisladas en pruebas locales de loopback.
+
+## Validación local
+
+- `corepack pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...` — PASS.
+- `corepack pnpm test:web-study-practice-shortcuts-b182` — PASS, 10/10.
+- `node scripts/test-web-study-practice-shortcuts-b182-browser.mjs` — PASS, aislamiento editable, avanzar/revelar/retroceder, opt-out y pérdida de autenticación.
+- `corepack pnpm --filter @losapuntes/web check:types`, `lint`, `format:check` y `build` — PASS.
+- `git diff --check origin/main...HEAD` — PASS.
+- `corepack pnpm audit --prod --audit-level high` — FAIL con 2 HIGH (`node-forge`, `braces`) y 3 MODERATE; no reporta `follow-redirects`. Sin waiver.
+- No se ejecutó CI desde este carril. Los checks existentes pueden iniciarse automáticamente al abrir o actualizar la PR.
 
 ## Estado de release
-B182 no modifica Mongo, API, Mobile, contratos públicos, dependencias o lockfile, waivers ni políticas de despliegue. El `pnpm audit --prod --audit-level high` del baseline continúa en FAIL por `node-forge` #133 y `braces` #141 y los dos GHSA de `follow-redirects` hasta integrar B164 #495. B178 #513 observa la disponibilidad futura de parches, pero no cambia la autorización. El issue #353 continúa en HOLD. B182 es un PR Draft sin merge ni deploy; una CI focalizada verde no prueba readiness de la release.
+B182 no modifica Mongo, API, Mobile, contratos públicos, dependencias o lockfile, waivers ni políticas de despliegue. El audit productivo continúa en FAIL por `node-forge` #133 y `braces` #141; `follow-redirects` se corrigió en B190/#543. B178 #513 observa la disponibilidad futura de parches, pero no cambia la autorización. El issue #353 continúa en HOLD. Este bloque no autoriza la release.
