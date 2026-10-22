@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  studyFocusDestination,
   studyNextActionDestination,
   studyNextActionTaskLabel,
 } from "../src/features/study/study-next-action-navigation";
@@ -51,4 +52,14 @@ test("malformed task references never become navigable", () => {
     }),
     null,
   );
+});
+
+test("task focus suggestions use a bounded explicit timer route", () => {
+  assert.deepEqual(studyFocusDestination(45), {
+    pathname: "/study-focus",
+    params: { minutes: "45" },
+  });
+  assert.equal(studyFocusDestination(0), null);
+  assert.equal(studyFocusDestination(46), null);
+  assert.equal(studyFocusDestination(125), null);
 });

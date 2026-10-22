@@ -7,6 +7,11 @@ export type StudyNextActionDestination =
   | { pathname: "/questions/[questionId]"; params: { questionId: string } }
   | { pathname: "/resources/[id]"; params: { id: string } };
 
+export type StudyFocusDestination = {
+  pathname: "/study-focus";
+  params: { minutes: string };
+};
+
 export function studyNextActionDestination(
   task: StudyNextActionTask,
 ): StudyNextActionDestination | null {
@@ -25,4 +30,18 @@ export function studyNextActionDestination(
 
 export function studyNextActionTaskLabel(task: StudyNextActionTask): string {
   return task.kind === "question" ? "Pregunta" : "Apunte";
+}
+
+export function studyFocusDestination(
+  minutes: number,
+): StudyFocusDestination | null {
+  if (
+    !Number.isSafeInteger(minutes) ||
+    minutes < 5 ||
+    minutes > 120 ||
+    minutes % 5 !== 0
+  ) {
+    return null;
+  }
+  return { pathname: "/study-focus", params: { minutes: String(minutes) } };
 }
