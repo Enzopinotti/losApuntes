@@ -27,7 +27,7 @@ import {
 } from "react";
 
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
-import { NetworkPersonAvatar } from "@/features/community/network-person-avatar";
+import { PublicAvatar } from "@/features/profile/public-avatar";
 import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
@@ -142,7 +142,7 @@ function ResourceResult({
             onPress={() => onOpenProfile(authorAction.profileId)}
             style={styles.resourceAuthorAction}
           >
-            <NetworkPersonAvatar
+            <PublicAvatar
               avatarUrl={resource.author.avatarUrl}
               displayName={resource.author.displayName}
             />
@@ -332,7 +332,7 @@ function PeopleGroup({
             onPress={() => onOpen(person.profileId)}
             style={styles.peopleResultRow}
           >
-            <NetworkPersonAvatar
+            <PublicAvatar
               avatarUrl={person.avatarUrl}
               displayName={person.displayName}
             />
