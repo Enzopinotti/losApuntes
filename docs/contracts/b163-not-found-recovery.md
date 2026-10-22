@@ -1,6 +1,6 @@
 # B163 — Recuperación segura de rutas Web inexistentes
 
-**20 de octubre de 2026** · base `main@6bd965c71f6426da3d49fc7c0555e0e5afda06a9`.
+**20 de octubre de 2026** · propuesta originalmente sobre `main@6bd965c71f6426da3d49fc7c0555e0e5afda06a9`; carrier de integración actualizado a `main@e303d3f1b8ffa28d2799fa0e592169b63642b6df`.
 
 ## Incidente de UX
 
@@ -25,6 +25,6 @@ En el árbol React Router de `apps/web/src/app/routes.tsx` no había ruta comod�
 
 El servidor SPA puede devolver HTML con respuesta 200 para una navegación profunda; este cambio incorpora un **estado 404 en el cliente**, no un código HTTP 404 en CDN/servidor. Un futuro servidor de producción podría resolver códigos HTTP y SEO sin comprometer recuperación de deep links. No se introduce un comportamiento de servidor nuevo sin definición de su contrato.
 
-## Gate de release
+## Límite de release
 
-El PR permanece Draft si hay gates globales fallidos: las vulnerabilidades #133 `node-forge` y #141 `braces` mantienen `pnpm audit --prod --audit-level high` bloqueante y #353 en HOLD. El PR B156 corrige aparte el runner del smoke Mongo8, pero no está fusionado en `main` y este bloque no lo duplica. No hay autorización para merge ni deploy por un check Web específico verde.
+La validación de este bloque cubre navegación Web y no constituye una aprobación de despliegue ni una resolución de auditorías globales. La integración en `main` sigue sujeta a los controles que GitHub exija para el PR; no se modifican ni eluden checks, workflows o protecciones.
