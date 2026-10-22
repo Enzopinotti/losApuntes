@@ -519,7 +519,11 @@ export function SearchScreen() {
       ? `${sessionAuthority}:${academicData.contextAuthorityKey}`
       : null;
   useEffect(() => {
-    if (!authorityKey || !incomingSubjectId) return;
+    if (!incomingSubjectId) {
+      handledIncomingSubject.current = null;
+      return;
+    }
+    if (!authorityKey) return;
     const key = `${sessionAuthority}:${incomingSubjectId}`;
     if (handledIncomingSubject.current === key) return;
     handledIncomingSubject.current = key;
@@ -651,6 +655,15 @@ export function SearchScreen() {
     clearSearch();
     dispatchSearchInput({ type: "subjectFilterCleared" });
   }, [clearSearch]);
+
+  const resetAllFilters = useCallback(() => {
+    clearSearch();
+    dispatchSearchInput({ type: "resetAll" });
+    // A deep-linked Subject must not be reapplied on the next focus/session.
+    if (routeParams.subjectId !== undefined) {
+      router.replace("/(tabs)/search");
+    }
+  }, [clearSearch, routeParams.subjectId, router]);
 
   const quickSaveResource = useCallback(
     (resourceId: string) => {
@@ -976,7 +989,19 @@ export function SearchScreen() {
             onPress={() => setQueryText("")}
             style={styles.searchActionButton}
           >
-            <Text style={styles.searchActionLabel}>Limpiar búsqueda</Text>
+            <Text style={styles.searchActionLabel}>Limpiar texto</Text>
+          </Pressable>
+        ) : null}
+        {query.length > 0 || scope !== "all" || selectedSubject ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Restablecer búsqueda y filtros"
+            onPress={resetAllFilters}
+            style={styles.searchActionButton}
+          >
+            <Text style={styles.searchActionLabel}>
+              Restablecer búsqueda y filtros
+            </Text>
           </Pressable>
         ) : null}
       </View>
