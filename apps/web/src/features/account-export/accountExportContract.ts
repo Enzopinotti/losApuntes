@@ -8,7 +8,7 @@ export class AccountExportContractError extends Error {
 export type AccountExportStatus = {
   id: string;
   format: "los-apuntes-account-export";
-  formatVersion: 1;
+  formatVersion: 1 | 2 | 3;
   state: "pending" | "processing" | "completed" | "failed";
   requestedAt: string;
   failureCode:
@@ -65,7 +65,7 @@ export function parseAccountExportStatus(value: unknown): AccountExportStatus {
     typeof id !== "string" ||
     !exportIdPattern.test(id) ||
     format !== "los-apuntes-account-export" ||
-    formatVersion !== 1 ||
+    (formatVersion !== 1 && formatVersion !== 2 && formatVersion !== 3) ||
     (state !== "pending" &&
       state !== "processing" &&
       state !== "completed" &&

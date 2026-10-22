@@ -18,6 +18,12 @@ const valid = {
 };
 
 assert.deepEqual(parseAccountExportStatus(valid), valid);
+for (const formatVersion of [1, 2, 3]) {
+  assert.equal(
+    parseAccountExportStatus({ ...valid, formatVersion }).formatVersion,
+    formatVersion,
+  );
+}
 assert.deepEqual(parseAccountExportRequest({ created: false, export: valid }), {
   created: false,
   export: valid,
@@ -26,7 +32,7 @@ assert.deepEqual(parseAccountExportRequest({ created: false, export: valid }), {
 for (const [field, value] of [
   ["id", "../foreign"],
   ["format", "other"],
-  ["formatVersion", 2],
+  ["formatVersion", 4],
   ["state", "unknown"],
   ["requestedAt", "not-a-date"],
   ["downloadExpiresAt", "bad-date"],
@@ -58,11 +64,18 @@ assert.deepEqual(
   "failed",
 );
 
-const read = async (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const api = await read("apps/web/src/features/account-export/accountExportService.ts");
-const panel = await read("apps/web/src/features/account-export/AccountExportPanel.tsx");
+const read = async (path) =>
+  readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const api = await read(
+  "apps/web/src/features/account-export/accountExportService.ts",
+);
+const panel = await read(
+  "apps/web/src/features/account-export/AccountExportPanel.tsx",
+);
 const security = await read("apps/web/src/pages/Security.tsx");
-const authService = await read("apps/web/src/features/auth/services/authService.ts");
+const authService = await read(
+  "apps/web/src/features/auth/services/authService.ts",
+);
 const env = await read("apps/web/.env.example");
 
 assert.match(api, /authenticatedJsonRequest/u);
@@ -70,7 +83,10 @@ assert.match(api, /authenticatedApiUrl/u);
 assert.match(api, /method: "POST"/u);
 assert.match(api, /\/account\/exports/u);
 assert.match(api, /encodeURIComponent\(id\)/u);
-assert.doesNotMatch(api, /\.blob\(|\.arrayBuffer\(|URL\.createObjectURL|localStorage|sessionStorage/u);
+assert.doesNotMatch(
+  api,
+  /\.blob\(|\.arrayBuffer\(|URL\.createObjectURL|localStorage|sessionStorage/u,
+);
 assert.match(authService, /credentials: "include"/u);
 assert.match(authService, /cache: "no-store"/u);
 assert.match(panel, /useAsyncAuthorityFence/u);
@@ -79,7 +95,10 @@ assert.match(panel, /document\.visibilityState/u);
 assert.match(panel, /visibilitychange/u);
 assert.match(panel, /referrerPolicy="no-referrer"/u);
 assert.match(panel, /target="_blank"/u);
-assert.doesNotMatch(panel, /localStorage|sessionStorage|\.blob\(|\.arrayBuffer\(|createObjectURL/u);
+assert.doesNotMatch(
+  panel,
+  /localStorage|sessionStorage|\.blob\(|\.arrayBuffer\(|createObjectURL/u,
+);
 assert.match(security, /VITE_ACCOUNT_EXPORT_WEB_ENABLED === "true"/u);
 assert.match(security, /<AccountExportPanel \/>/u);
 assert.match(env, /VITE_ACCOUNT_EXPORT_WEB_ENABLED=false/u);
