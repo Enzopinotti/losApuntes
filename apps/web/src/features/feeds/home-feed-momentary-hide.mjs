@@ -8,18 +8,25 @@ const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,127}$/iu;
 export const HOME_DISMISS_LIMIT = 16;
 
 export function homeFeedItemKey(item) {
-  if (!item || !ALLOWED_TYPES.has(item.type) ||
-      typeof item.id !== "string" || !ID_PATTERN.test(item.id)) {
+  if (
+    !item ||
+    !ALLOWED_TYPES.has(item.type) ||
+    typeof item.id !== "string" ||
+    !ID_PATTERN.test(item.id)
+  ) {
     throw new TypeError("Unsupported home feed item identity");
   }
   return item.type + ":" + item.id.toLowerCase();
 }
 
 export function projectHomeFeed(items, hiddenKeys) {
-  if (!Array.isArray(items) || !Array.isArray(hiddenKeys) ||
-      items.length > HOME_DISMISS_LIMIT ||
-      hiddenKeys.length > HOME_DISMISS_LIMIT ||
-      hiddenKeys.some((value) => typeof value !== "string")) {
+  if (
+    !Array.isArray(items) ||
+    !Array.isArray(hiddenKeys) ||
+    items.length > HOME_DISMISS_LIMIT ||
+    hiddenKeys.length > HOME_DISMISS_LIMIT ||
+    hiddenKeys.some((value) => typeof value !== "string")
+  ) {
     throw new TypeError("Invalid bounded home preview");
   }
   const valid = new Set(items.map(homeFeedItemKey));
@@ -40,8 +47,12 @@ export function hideHomeFeedItem(items, hiddenKeys, item) {
   if (current.hiddenCount >= HOME_DISMISS_LIMIT) {
     throw new RangeError("Preview hide limit reached");
   }
-  return [...hiddenKeys.filter((value) =>
-    items.some((candidate) => homeFeedItemKey(candidate) === value)), key];
+  return [
+    ...hiddenKeys.filter((value) =>
+      items.some((candidate) => homeFeedItemKey(candidate) === value),
+    ),
+    key,
+  ];
 }
 
 export function undoHomeFeedHide(hiddenKeys, key) {
