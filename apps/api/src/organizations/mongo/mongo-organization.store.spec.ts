@@ -78,6 +78,7 @@ function models(input: {
   reportRows?: unknown[];
   authoredPostRows?: unknown[];
   authoredEventRows?: unknown[];
+  organizationRows?: unknown[];
 }) {
   const activeSession = session();
   const connection = {
@@ -93,7 +94,9 @@ function models(input: {
       ),
     ),
   };
+  const organizationSearchListQuery = listQuery(input.organizationRows ?? []);
   const organizations = {
+    find: jest.fn(() => organizationSearchListQuery),
     findOne: jest.fn(() => query(input.organization ?? null)),
     findOneAndUpdate: jest.fn(
       (filter: unknown, update: unknown, options?: unknown) => {
@@ -178,6 +181,7 @@ function models(input: {
     activeSession,
     users,
     organizations,
+    organizationSearchListQuery,
     managers,
     audits,
     posts,
@@ -346,6 +350,28 @@ describe('MongoOrganizationStore bounded Organization collections', () => {
     expect(fixture.featuredListQuery.limit.mock.calls).toEqual([
       [ORGANIZATION_FEATURED_RESOURCE_LIMIT + 1],
     ]);
+  });
+});
+
+describe('MongoOrganizationStore organization directory search', () => {
+  it('applies the requested verification state before cursor pagination', async () => {
+    const verified = { id: organizationId, verificationState: 'verified' };
+    const fixture = models({ organizationRows: [verified] });
+
+    const result = await fixture.store.search({
+      verificationState: 'verified',
+      limit: 1,
+    });
+
+    expect(fixture.organizations.find).toHaveBeenCalledWith({
+      $and: [{ status: 'active' }, { verificationState: 'verified' }],
+    });
+    expect(fixture.organizationSearchListQuery.sort).toHaveBeenCalledWith({
+      normalizedName: 1,
+      id: 1,
+    });
+    expect(fixture.organizationSearchListQuery.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({ items: [verified], hasMore: false });
   });
 });
 
