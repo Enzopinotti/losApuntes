@@ -46,6 +46,8 @@ Los comandos de Mongo requieren conectividad local que el test valida por sí mi
 La primera corrida exact-head aprobó **ESLint/Prettier, TypeScript y las siete suites Jest seleccionadas**, pero el contrato estático B61 falló en una expectativa antigua del Web (`loadPlan(remote.plan)`). El Web actual ya estaba usando una salvaguarda más fuerte: vuelve a obtener `latest` del servidor, rechaza `latest.revision !== remote.revision` y recién luego usa `await loadPlan(latest.plan)`. El commit B189 `2a577fc` actualiza únicamente ese test de contrato para exigir las **tres** invariantes reales; no altera `StudyRunner.tsx`, no omite la prueba ni acepta sobreescrituras ciegas. La ejecución repetida del head definitivo debe confirmar esta corrección y el contrato B62.
 
 
+La inspección preventiva del contrato estático B62 encontró otra aserción heredada que exigía cuatro propiedades Mongo en una sola línea pese a que `StudyProgressExportReader` ya las proyectaba explícitamente en líneas separadas. B189 agrega una expresión sobre `.select({ ... })` con espacios flexibles, **pero conserva todos los campos obligatorios** (`_id:0`, `subjectId`, `plan`, `revision`) y la validación independiente del plan. No se cambian permisos ni se omite el gate.
+
 **No se puede afirmar PASS antes del check real del head final.** Los gates CI generales y el audit HIGH estricto son complementarios y no pueden omitirse porque pase el job focalizado.
 
 ## Release HOLD y orden posterior
