@@ -105,21 +105,23 @@ Se reutilizan los índices, esquemas y permisos existentes de Q&A.
 No hay escrituras, alteraciones de autenticación, cambios en DB,
 migraciones, Web/Mobile, lockfile ni dependencias.
 
-## Pruebas y publicación
+## Validación del carrier y aceptación pendiente
 
-- Jest del servicio: filtro owner-safe, materia académica canónica,
-  `$lookup` de respuesta aceptada visible vinculada al parent,
-  descarte de aceptación oculta/no existente, orden, paginación 15+1,
-  cursor scope, proyección y fallos de persistencia.
-- Jest del cursor: versión, encodings, fechas UTC, UUID,
-  cross-subject/cross-viewer, entrada corrupta.
-- Jest del controlador: sesión, `subjectId` UUIDv4, cache no-store
-  y autoridad exclusivamente de `request.user.id`.
-- Ejecutar gates estrictos de TypeScript, ESLint, Prettier, related/full
-  Jest, diez coberturas críticas y runtime smoke en SHA exacto.
-- **La validación estructural mockeada del pipeline no es aceptación
-  Mongo real del endpoint.** Es necesaria antes de promover el PR.
-- Mientras la auditoría de producción mantenga riesgos high/critical
-  (#133, #141 y #492), y el runner Mongo (#484) esté pendiente,
-  el release #353 sigue HOLD. No fusionar/desplegar con bloqueos
-  activos ni usar waivers.
+- El carrier conserva los 12 commits atómicos originales de B169 sobre
+  `main@379bae44` y añade un commit separado con la validación actual;
+  no se hace squash.
+- Jest del servicio cubre materia canónica, `$lookup` de la respuesta
+  aceptada visible ligada al parent, orden, paginación 15+1, privacidad,
+  proyección y fallos Mongo. Las suites de cursor/controlador cubren
+  canonicalización, scope, sesión, UUIDv4 y `no-store`.
+- Validación local del carrier: 3 suites / 28 pruebas, API TypeScript,
+  ESLint sin warnings, Prettier API, `nest build`, Prettier del contrato
+  y `git diff --check` — PASS.
+- No se ejecutó CI. Las pruebas de agregación usan mocks; **no se
+  verificó la consulta contra Mongo real**. Docker no está disponible
+  en este entorno local y no hay un `mongod` instalado. Ejecutar esa
+  aceptación contra una réplica local aislada antes de producción.
+- El módulo no escribe datos ni introduce nuevas categorías de datos
+  personales, esquemas, índices, dependencias o cambios de workflows.
+  La integración del código no demuestra aceptación de runtime ni
+  aprobación para despliegue.
