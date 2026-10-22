@@ -86,7 +86,8 @@ export function QuestionSubjectFilter({
       </p>
       {subjectId === undefined ? (
         <p className="community-error" role="alert">
-          El enlace de materia no es válido. Elegí una materia o quitá el filtro.
+          El enlace de materia no es válido. Elegí una materia o quitá el
+          filtro.
         </p>
       ) : subjectId ? (
         <p role="status">
