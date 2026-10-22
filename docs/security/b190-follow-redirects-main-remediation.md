@@ -1,43 +1,31 @@
-# B190 — Remediación verificable de follow-redirects sobre main actual
+# B190 — Fijar follow-redirects parcheado sobre main actual
 
-**Fecha:** 2026-10-22. **Estado:** PR Draft / release HOLD. **Base congelada de implementación:** `main@c8077cef7264d162ff84f424fb47252005f206cc`.
-**Issues:** follow-redirects #492, otras HIGH sin parche #133 (node-forge) y #141 (braces), release Study Progress #353.
+**Fecha:** 2026-10-22. **Estado:** candidato de integración; release HOLD. **Base exacta:** `main@fdb65713a58213954065065b6dddbc9f4df59ec3`.
+**Referencias:** advisories de `follow-redirects` GHSA-q3jh-wrc6-jgq8, `node-forge` GHSA-86w9-cpqp-85rv, `braces` GHSA-vfj7-8cjw-p6xm; seguimiento de release Study Progress #353.
 
-## Motivo y no duplicación
+## Alcance
 
-Los PR #495 (B164) y #516 (B181) ya implementaban un parche legítimo `follow-redirects@1.16.1`, pero estaban basados en un main anterior al trabajo reciente de Mobile. Copiar **todo** su lockfile de un checkout viejo habría descartado resoluciones nuevas de Mobile y habría ampliado la superficie de conflictos.
+El carrier #533 se creó sobre una base anterior y contenía un workflow dedicado. Esta rama se reconstruyó encima del main actual, conservando sus cuatro commits atómicos de código y documentación, excluyendo el commit de workflow y agregando dos correcciones atómicas para sincronizar la documentación y las etiquetas de las pruebas con este carrier. No se añade ni modifica ningún archivo de `.github/workflows/`.
 
-Este carrier aplica solamente **tres reemplazos de resolución** sobre el lockfile ya actualizado de main:
+El cambio actualiza solamente la resolución de `axios@1.20.0 -> follow-redirects` en `pnpm-lock.yaml` de `1.16.0` a la publicación oficial `1.16.1`, con su integridad npm SHA-512 `sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==`. El lock conserva pnpm v9, un único snapshot y un único borde de Axios; no quedan resoluciones `1.16.0`.
 
-1. `packages.follow-redirects@1.16.0` -> `1.16.1`, con el valor SHA-512 exacto de la publicación oficial npm `sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==`.
-2. Único consumidor `snapshots.axios@1.20.0.dependencies.follow-redirects` -> `1.16.1`.
-3. Clave de snapshot `follow-redirects@1.16.0: {}` -> `1.16.1: {}`.
+No cambia dependencias directas, overrides, configuración de auditoría, Web, Mobile, API ni políticas de release.
 
-Se exige que las tres cadenas originales aparezcan exactamente una vez antes de reescribir y que no queden entradas anteriores. No se alteró `package.json`, `pnpm-workspace.yaml`, `pnpm.overrides`, framework Expo, API, Mobile, cuentas, flags, rutas, Web ni configuraciones de auditoría.
+## Validación local
 
-## Pruebas y procedencia independiente
+Ejecutado en la base `fdb65713a58213954065065b6dddbc9f4df59ec3` más esta rama:
 
-Se copiaron sin modificaciones desde `#516@adcbd25c40f586803e4be59c4cbfae7e400200fd` las fuentes auditadas:
-- `scripts/security/check-follow-redirects-lock.mjs`, blob `c173ae857d8e377a2dbc38c1dabc95b928b98fa1`, verificador de integridad, versión, consumidor y lock v9.
-- `scripts/security/test-follow-redirects-regression.mjs`, blob `a94e243696c6fe31eff8bfbe557347141dd31195`, regresiones HTTP loopback contra fuga de cabeceras al redirigir a otro origen.
+- `node scripts/security/check-follow-redirects-lock.mjs` — PASS; integridad, versión y borde de Axios verificados.
+- `node --test scripts/security/test-follow-redirects-regression.mjs` — PASS, 5/5; redirecciones HTTP loopback, eliminación de credenciales entre orígenes, cabeceras sensibles especiales, forma-array y rechazo de lock alterado.
+- `corepack pnpm --filter @losapuntes/web build` — PASS; TypeScript, Vite y verificación del manifiesto de release.
+- `git diff --check origin/main...HEAD` — PASS.
+- `corepack pnpm audit --prod --audit-level high` — FAIL como se esperaba: 2 HIGH (`node-forge`, `braces`) y 3 MODERATE; no reporta `follow-redirects`.
+- No se ejecutó CI desde este carril. El workflow separado del carrier original quedó excluido.
 
-El nuevo workflow `.github/workflows/b190-follow-redirects-main-remediation.yml` se dispara en el HEAD exacto, ejecuta Node24/pnpm9 frozen, consulta `https://registry.npmjs.org` para comprobar **versión + dist.integrity de npm**, chequea grafo pinneado y corre ataques loopback reales, validación de excepciones existente y build Web.
+La prueba de runtime resuelve también el `follow-redirects` instalado bajo `apps/web` y exige que sea `1.16.1`; las solicitudes de prueba usan únicamente direcciones loopback y secretos sintéticos.
 
-En job independiente se corre `pnpm audit --prod --audit-level high`, **sin** allow-failure/continue-on-error, umbrales inferiores ni filtros de vulnerabilidades. El gate permanece rojo si siguen findings sin parche y debe ser así.
+## Límite de seguridad y release
 
-## Realidad del audit
+El audit local de este candidato confirma que los dos findings HIGH de `follow-redirects` ya no aparecen; permanecen dos HIGH (`node-forge`, `braces`) más tres MODERATE. Esta rama no afirma que el audit de producción esté limpio ni que el release esté autorizado. Los findings restantes y el HOLD de #353 siguen requiriendo su propio tratamiento y aceptación.
 
-El audit del carrier B189 anterior a B190 reportó cuatro HIGH: `node-forge <=1.4.0`, `braces <=3.0.3`, y **dos** advisories HIGH `follow-redirects >=1.16.0 <1.16.1`. La versión oficial `1.16.1` corrige los problemas de redirecciones, por lo que B190 apunta solo a esos dos. Se espera que `node-forge` y `braces` continúen impidiendo aprobación del release. **No se afirma reducción observada hasta comprobar el nuevo audit exact-head.**
-
-Referencias públicas verificables:
-- `https://github.com/advisories/GHSA-q3jh-wrc6-jgq8` — `follow-redirects`, parche `1.16.1`.
-- `https://github.com/advisories/GHSA-86w9-cpqp-85rv` — `node-forge`, sin versión corregida a 2026-10-22.
-- `https://github.com/advisories/GHSA-vfj7-8cjw-p6xm` — `braces`, sin versión corregida a 2026-10-22.
-
-## Condiciones de integración
-
-- Reconciliar el SHA y las resoluciones nuevas de `main` antes de todo merge. Conflictos con otros cambios de `pnpm-lock.yaml` deben resolverse de forma exacta; jamás aceptar el lock de una rama vieja por encima del main actual.
-- No duplicar merge de #495/#516 sobre este carrier sin revisar diffs.
-- Aprobar sólo cuando el check específico demuestre instalación frozen, redirecciones seguras, Web build y fuente inmutable.
-- El release no se puede liberar mientras el audit HIGH tenga advertencias y el issue #353 permanezca en HOLD.
-- Sin producción activada, sin bypass de auditoría, sin versiones inexistentes de `node-forge`/`braces`, sin cambios de permisos.
+La integración se decide con el estado de GitHub y el `main` vigente al revisar la PR. No se eluden controles requeridos ni se cambian workflows o protecciones.
