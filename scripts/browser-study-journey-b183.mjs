@@ -270,6 +270,17 @@ async function run() {
     await prepare.waitFor();
     events.rejectNextResourceRead = true;
     await prepare.click();
+    await page.waitForTimeout(350);
+    console.log(
+      JSON.stringify({
+        phase: "resource_detail_authority_debug",
+        pathname: new URL(page.url()).pathname,
+        alerts: await page.getByRole("alert").allTextContents(),
+        resourceReads: events.resourceReads,
+        rejectedReadObserved: events.deniedHandoff,
+        unconfiguredRequests: unsafeRequests,
+      }),
+    );
     await page
       .getByRole("alert")
       .getByText("Este apunte o tu materia dejaron de estar disponibles.")
