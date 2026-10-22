@@ -27,9 +27,18 @@ Referencia funcional: **QA-FR-001** (materia académica canónica), **SEARCH-FR-
 - Copiar enlace omite `id`, búsqueda textual, credenciales y datos de identidad del usuario.
 - La funcionalidad no usa almacenamiento local ni crea nuevos endpoints/flags.
 
+## Verificación local — 2026-10-22
+
+- `test:web-social-qa-contract`, Web TypeScript, ESLint, `format:check`, Prettier de SCSS y build de producción — PASS. El manifiesto de release informa `unavailable`; siguen las advertencias existentes de Sass y tamaño de bundle.
+- `apps/api/src/qa/domain/qa.service.spec.ts` — 34/34, incluidos el filtro académico canónico y el cursor determinista.
+- Chromium con Web local y respuestas API aisladas: UUID inválido no dispara listado; búsqueda y selección usan `subjectId`; copiar enlace contiene solo el UUID; abrir una pregunta conserva el filtro. Escritorio 1440 px y móvil 390 px sin desborde; el campo de materia móvil queda en 44 px.
+- La inspección Web usó un stub local y bloqueó cualquier solicitud distinta de las GET necesarias. No se modificó API.
+
+El smoke contra una instancia API/Mongo real permanece pendiente porque el daemon de Docker no respondió durante el intento de iniciar el runtime local. El contrato de servicio existente cubre la traducción del filtro y el cursor.
+
 ## Implementación y release
 
 - Código: helper canónico de URLs, filtro por materia independiente del formulario de publicación, integración en Questions y CSS adaptable.
 - Pruebas: el contrato obligatorio `scripts/test-web-social-qa-contract.mjs` verifica enlaces válidos, rechazo de parámetros malformados y duplicados, preservación de contexto, autenticación no duplicada y acceso al catálogo existente.
-- Validación faltante antes de marcar **VALIDADO**: Quality Gate y `pnpm test:web-social-qa-contract` en Node 24/pnpm 9 sobre SHA exacto, más aceptación browser/API real de paginación/filtro, permisos y navegación.
-- **No** mergear ni desplegar por sí solo: auditoría productiva #133/#141, estado #353 HOLD y validación exact-head vigente siguen aplicando. El PR B174 permanece Draft.
+- El smoke local no certifica el comportamiento de una API/Mongo desplegada ni habilita la release.
+- Este bloque no modifica endpoints, permisos ni workflows. No despeja la auditoría productiva #133/#141 ni el estado #353 HOLD; el merge del PR no autoriza un despliegue.
