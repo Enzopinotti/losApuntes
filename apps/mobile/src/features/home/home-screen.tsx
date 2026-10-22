@@ -1,7 +1,6 @@
 import {
   ActivityIndicator,
   AppState,
-  Image,
   Pressable,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -34,6 +33,7 @@ import {
   navigationAuthorityKey,
 } from "@/features/navigation/product-navigation";
 import { AcademicContextCard } from "@/features/academic/academic-context-card";
+import { PublicAvatar } from "@/features/profile/public-avatar";
 import {
   ProductSurface,
   type ProductSurfaceListProps,
@@ -97,26 +97,6 @@ const publishedDateLabel = (createdAt: string): string => {
     : date.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
 };
 
-function FeedAvatar({ name, uri }: { name: string; uri: string | null }) {
-  const [failedUri, setFailedUri] = useState<string | null>(null);
-  const initial = name.trim().slice(0, 1).toLocaleUpperCase("es-AR") || "·";
-
-  return (
-    <View accessible={false} style={styles.avatarPlaceholder}>
-      <Text style={styles.avatarInitial}>{initial}</Text>
-      {uri && uri !== failedUri ? (
-        <Image
-          accessible={false}
-          source={{ uri }}
-          resizeMode="cover"
-          style={styles.avatarImage}
-          onError={() => setFailedUri(uri)}
-        />
-      ) : null}
-    </View>
-  );
-}
-
 function FeedItemRow({
   item,
   onOpen,
@@ -135,7 +115,7 @@ function FeedItemRow({
   const verificationLabel = homeFeedOrganizationVerificationLabel(item.source);
   const authorHeader = (
     <>
-      <FeedAvatar name={author} uri={avatarUrl} />
+      <PublicAvatar avatarUrl={avatarUrl} displayName={author} size="small" />
       <View style={styles.itemAuthor}>
         <Text numberOfLines={1} style={styles.itemAuthorName}>
           {author}
@@ -1352,30 +1332,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-  },
-  avatarPlaceholder: {
-    position: "relative",
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 19,
-    backgroundColor: "#eeeaf8",
-  },
-  avatarInitial: {
-    color: "#43376a",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  avatarImage: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
   },
   itemAuthor: {
     flex: 1,

@@ -48,6 +48,10 @@ test("search, following, connections and Home use the shared safe avatar", () =>
     new URL("../src/features/profile/public-avatar.tsx", import.meta.url),
     "utf8",
   );
+  const home = readFileSync(
+    new URL("../src/features/home/home-screen.tsx", import.meta.url),
+    "utf8",
+  );
   assert.match(search, /avatarUrl=\{person\.avatarUrl\}/u);
   assert.match(search, /displayName=\{person\.displayName\}/u);
   assert.match(following, /avatarUrl=\{item\.profile\.avatarUrl\}/u);
@@ -57,4 +61,13 @@ test("search, following, connections and Home use the shared safe avatar", () =>
   assert.match(avatar, /publicAvatarUrl\(avatarUrl\)/u);
   assert.match(avatar, /safeAvatarUrl !== failedUri/u);
   assert.match(avatar, /onError=\{\(\) => setFailedUri\(safeAvatarUrl\)\}/u);
+  assert.match(
+    home,
+    /import \{ PublicAvatar \} from "@\/features\/profile\/public-avatar"/u,
+  );
+  assert.match(
+    home,
+    /<PublicAvatar[\s\S]*?avatarUrl=\{avatarUrl\}[\s\S]*?displayName=\{author\}[\s\S]*?size="small"/u,
+  );
+  assert.doesNotMatch(home, /<Image/u);
 });
