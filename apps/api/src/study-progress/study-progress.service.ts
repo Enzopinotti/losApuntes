@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -83,21 +84,51 @@ export class StudyProgressService {
     }
   }
 
-  private present(record: StudyProgress) {
+  private present(record: StudyProgress, subjectId: string) {
+    // Even trusted Mongo documents can be corrupt or originate from a
+    // previous schema. Never return an unchecked stored plan to the browser.
+    const invalidStoredProgress = (): never => {
+      throw new InternalServerErrorException({
+        code: 'STUDY_PROGRESS_STORED_INVALID',
+        message: 'Saved study progress is unavailable',
+      });
+    };
+    if (
+      record.subjectId !== subjectId ||
+      !Number.isSafeInteger(record.revision) ||
+      record.revision < 1 ||
+      record.revision > 2_147_483_647 ||
+      !(record.createdAt instanceof Date) ||
+      !Number.isFinite(record.createdAt.getTime()) ||
+      !(record.updatedAt instanceof Date) ||
+      !Number.isFinite(record.updatedAt.getTime()) ||
+      record.updatedAt.getTime() < record.createdAt.getTime()
+    ) {
+      return invalidStoredProgress();
+    }
+    let plan: ReturnType<typeof parseStudyProgressPlan>;
+    try {
+      plan = parseStudyProgressPlan(record.plan, subjectId);
+    } catch {
+      // A persisted corruption is not a client-side invalid PUT (422).
+      // Avoid echoing unknown fields, titles, tokens or storage internals.
+      return invalidStoredProgress();
+    }
     return {
-      plan: record.plan,
+      plan,
       revision: record.revision,
       updatedAt: record.updatedAt,
     };
   }
 
   async get(ownerUserId: string, subjectId: string) {
+    const subject = subjectId.toLowerCase();
     const record = await this.progress
-      .findOne({ ownerUserId, subjectId: subjectId.toLowerCase() })
+      .findOne({ ownerUserId, subjectId: subject })
       .lean<StudyProgress>()
       .exec();
     if (!record) return missing();
-    return { progress: this.present(record) };
+    return { progress: this.present(record, subject) };
   }
 
   async save(
@@ -161,7 +192,7 @@ export class StudyProgressService {
         if (!updated) return conflict();
         return updated;
       });
-      return { progress: this.present(record) };
+      return { progress: this.present(record, subject) };
     } catch (error) {
       if (duplicate(error)) return conflict();
       throw error;
