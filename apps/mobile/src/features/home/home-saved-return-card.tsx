@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
+import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { savedSubjectQuestionsAction } from "@/features/resources/saved-subject-questions-action";
 
 import {
@@ -156,6 +157,11 @@ export function HomeSavedReturnCard({
                     </Text>
                   </Pressable>
                 ) : null}
+                <MobileResourceShareAction
+                  key={resource.id}
+                  resourceId={resource.id}
+                  resourceTitle={resource.title}
+                />
               </View>
             );
           })}
