@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   ProfileActivity,
+  ProfileSection,
   PublicProfileResponse,
 } from "../features/profile/interfaces";
 import {
@@ -10,6 +11,8 @@ import {
   profileApi,
 } from "../features/profile/services/profileService";
 import { publicProfileActivityLink } from "../features/profile/public-profile-activity-link";
+import { publicProfileContentSectionOrder } from "../features/profile/public-profile-section-order";
+import type { PublicProfileContentSection } from "../features/profile/public-profile-section-order";
 import { PublicProfileSocialActions } from "../features/community/public-profile-social-actions";
 import {
   feedReturnHref,
@@ -234,6 +237,20 @@ const PublicProfile = () => {
   }
 
   const { profile } = snapshot;
+  const availableProfileSections = new Set<ProfileSection>();
+  if (profile.professional) availableProfileSections.add("professional");
+  if (profile.learning) availableProfileSections.add("learning");
+  if (profile.skills) availableProfileSections.add("skills");
+  if (profile.academic) availableProfileSections.add("academic");
+  if (profile.activities !== undefined) {
+    availableProfileSections.add("activities");
+  }
+  const orderedProfileSections = publicProfileContentSectionOrder(
+    profile.presentation.sectionOrder,
+    availableProfileSections,
+  );
+  const sectionOrder = (section: PublicProfileContentSection) =>
+    orderedProfileSections.indexOf(section);
 
   return (
     <section className="profile-page public-profile">
@@ -242,11 +259,6 @@ const PublicProfile = () => {
         <div>
           <p className="profile-eyebrow">Perfil en Los Apuntes</p>
           <h1>{profile.about?.displayName ?? "Perfil privado"}</h1>
-          {profile.professional?.headline && (
-            <p className="public-profile-headline">
-              {profile.professional.headline}
-            </p>
-          )}
           {profile.about?.bio && <p>{profile.about.bio}</p>}
         </div>
         {profile.about?.displayName && status === "authenticated" && (
@@ -264,7 +276,10 @@ const PublicProfile = () => {
 
       <div className="profile-grid">
         {profile.skills && (
-          <section className="profile-card">
+          <section
+            className="profile-card"
+            style={{ order: sectionOrder("skills") }}
+          >
             <h2>Habilidades e intereses</h2>
             {profile.skills.skills.length > 0 && (
               <p>
@@ -286,7 +301,10 @@ const PublicProfile = () => {
         )}
 
         {profile.learning && (
-          <section className="profile-card">
+          <section
+            className="profile-card"
+            style={{ order: sectionOrder("learning") }}
+          >
             <h2>Aprendizaje</h2>
             <p>
               <strong>Puede ayudar en:</strong>{" "}
@@ -301,14 +319,20 @@ const PublicProfile = () => {
         )}
 
         {profile.professional && (
-          <section className="profile-card">
+          <section
+            className="profile-card"
+            style={{ order: sectionOrder("professional") }}
+          >
             <h2>Proyección profesional</h2>
             <p>{profile.professional.headline ?? "Sin titular publicado"}</p>
           </section>
         )}
 
         {profile.academic && (
-          <section className="profile-card">
+          <section
+            className="profile-card"
+            style={{ order: sectionOrder("academic") }}
+          >
             <h2>Trayectoria académica</h2>
             <p>
               {profile.academic.affiliations.length} afiliación(es) académica(s)
@@ -321,7 +345,10 @@ const PublicProfile = () => {
         )}
 
         {profile.activities && (
-          <section className="profile-card profile-wide">
+          <section
+            className="profile-card profile-wide"
+            style={{ order: sectionOrder("activities") }}
+          >
             <h2>Proyectos y actividades</h2>
             {profile.activities.length === 0 ? (
               <p>No hay actividades publicadas.</p>
