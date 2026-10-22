@@ -7,7 +7,10 @@ import {
   searchSelectionHref,
   searchSelectionKey,
 } from "../features/search/search-navigation.mjs";
-import { shareableResourceHref, shareableResourceUrl } from "../features/search/resource-share-link.mjs";
+import {
+  shareableResourceHref,
+  shareableResourceUrl,
+} from "../features/search/resource-share-link.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import type {
   ContextualDiscoveryResponse,
@@ -209,6 +212,7 @@ const Search = () => {
       subjectId: subjectId || undefined,
     });
     if (!href) return;
+    setResourceCopyStatus(null);
 
     const nextParams = new URLSearchParams(href.slice("/search?".length));
     const nextKey = searchSelectionKey(
@@ -227,6 +231,7 @@ const Search = () => {
     invalidateSearchRequest();
     setSearchState(null);
     setCopyStatus(null);
+    setResourceCopyStatus(null);
     setQuery("");
     setScope("all");
     setSubjectId("");
@@ -251,7 +256,8 @@ const Search = () => {
       setResourceCopyStatus({
         scopeKey: resultScopeKey,
         resourceId,
-        message: "No pudimos copiar el enlace. Abrí el recurso para copiar su URL.",
+        message:
+          "No pudimos copiar el enlace. Abrí el recurso para copiar su URL.",
       });
     }
   };
@@ -450,7 +456,9 @@ const Search = () => {
                         )}
                         {resourceCopyStatus?.scopeKey === resultScopeKey &&
                           resourceCopyStatus.resourceId === resource.id && (
-                            <small role="status">{resourceCopyStatus.message}</small>
+                            <small role="status">
+                              {resourceCopyStatus.message}
+                            </small>
                           )}
                       </div>
                     </li>
