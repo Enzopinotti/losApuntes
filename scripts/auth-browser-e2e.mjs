@@ -531,7 +531,7 @@ async function run() {
     );
     assert.equal(
       await page
-        .getByLabel("Confirmar contraseña")
+        .getByLabel("Confirmar contraseña", { exact: true })
         .getAttribute("autocomplete"),
       "new-password",
     );
