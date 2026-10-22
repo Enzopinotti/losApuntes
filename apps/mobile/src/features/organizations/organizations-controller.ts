@@ -148,6 +148,7 @@ export class MobileOrganizationsDirectoryController {
     this.input = {
       ...(input.q ? { q: input.q } : {}),
       ...(input.type ? { type: input.type } : {}),
+      ...(input.institutionId ? { institutionId: input.institutionId } : {}),
     };
     const operation = this.begin(authorityKey);
     this.publish({ kind: "loading", authorityKey });
