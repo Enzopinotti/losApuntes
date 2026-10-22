@@ -1,6 +1,8 @@
 # B179 — Llevar un apunte directamente al Planificador de estudio
 
-Estado: **candidato Web (PR Draft); no integrado ni desplegado**.
+Estado: **candidato Web de integración, preparado sobre `origin/main` `f06502e62d16d0c3f67d81abb9bacde0cd5c3cca`; no integrado ni desplegado**.
+
+La rama de integración conserva los trece commits funcionales y de prueba del bloque B179. Se excluyó el commit que sólo añadía un workflow dedicado: este cambio no modifica `.github/workflows/`. No se lanzó CI manualmente; GitHub puede ejecutar los controles configurados al publicar la PR.
 
 ## Problema
 
@@ -31,18 +33,14 @@ Si el apunte no es de una materia actual, se explica que debe elegirse una mater
 
 ## Pruebas
 
-- `pnpm test:web-resources-contract`: restricción a ficha, sesión, autoridad y ausencia de storage persistente del handoff.
-- `node scripts/test-web-study-handoff-integration.mjs`: plan privado de un recurso, identidad/materia rechazada, scope por usuario/sesión, nonce sin metadatos, uso único y expiración.
-- Node 24 exact-head: `pnpm --filter @losapuntes/web check:types`, `lint`, `format:check`, `build` y calidad general.
+- `pnpm test:web-resources-contract`: PASS; restringe la función a la ficha, exige sesión y autoridad, y comprueba que el handoff no se guarda persistentemente.
+- `pnpm test:web-study-handoff-integration`: PASS; verifica plan privado, rechazos de identidad/materia, scope por usuario/sesión, nonce sin metadatos, uso único y expiración. También quedó conectado al `pnpm test` del repositorio.
+- `pnpm test:web-study-handoff-b179-browser`: PASS en Chromium; con lecturas API simuladas en loopback cubre el paso desde la ficha, estado opaco en navegación, opciones de sumar/reemplazar, cero escrituras API y rechazo de una materia no actual. No reemplaza una prueba contra un servicio desplegado.
+- Sobre la rama actual: instalación congelada de los filtros Web/API, `pnpm --filter @losapuntes/web check:types`, `lint`, `format:check` y `build`: PASS. El build conserva avisos existentes de Sass y tamaño de chunk.
+- No se ejecutó CI manualmente. Los controles de la PR, si se activan, corresponden a GitHub.
 
-## Aceptación pendiente
+## Alcance de aceptación local
 
-1. Usuario autenticado abre recurso de materia actual y entra al Planificador con una tarea de 25 minutos.
-2. Decide sumar al plan existente y no pierde notas ni tareas ya revisadas.
-3. Un recurso de otra materia o inaccesible produce un error explicativo, nunca creación silenciosa.
-4. Cambiar de usuario o cerrar sesión mientras carga no abre el plan ni hereda un token.
-5. Transferencia vencida/consumida no se puede reutilizar.
-6. Vista anónima y listado general de recursos no ejecutan la preparación.
-7. Funciona con teclado, viewport móvil, red lenta y errores 401/403/404.
+La aceptación local cubre el traspaso a la revisión del Planificador y la autorización al momento de preparar. La elección final de sumar o reemplazar pertenece al flujo existente del Planificador; el nuevo flujo no escribe ni modifica el plan antes de esa elección. El navegador de prueba usa lecturas API simuladas; la comprobación contra un servicio desplegado queda fuera de este bloque de integración.
 
-**Release:** candidato exact-head, pruebas en navegador + API real y producción audit antes de Ready; #353 permanece HOLD debido a vulnerabilidades HIGH de node-forge, braces y follow-redirects. No waiver ni merge/deploy anticipado.
+**Release:** la auditoría local de producción sigue reportando vulnerabilidades HIGH en `node-forge` y `braces` (más advisories MODERATE); `follow-redirects` ya no aparece entre los HIGH. #353 permanece HOLD por las vulnerabilidades abiertas. No se concedió waiver ni autorización de release/deploy con este cambio.
