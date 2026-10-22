@@ -22,6 +22,7 @@ import { PublicAvatar } from "@/features/profile/public-avatar";
 import { useSession } from "@/features/session/session-provider";
 
 import { mobileOrganizationPublicLink } from "./organization-public-share";
+import { OrganizationReportAction } from "./organization-report-action";
 import {
   MobileOrganizationDetailController,
   type MobileOrganizationDetailSnapshot,
@@ -58,7 +59,15 @@ function isSafeExternalUrl(value: string): boolean {
   }
 }
 
-function PostCard({ post }: { post: OrganizationPost }) {
+function PostCard({
+  organizationId,
+  authorityKey,
+  post,
+}: {
+  organizationId: string;
+  authorityKey: string;
+  post: OrganizationPost;
+}) {
   return (
     <View style={styles.item}>
       <Text style={styles.itemTitle}>{post.title ?? "Publicación"}</Text>
@@ -72,14 +81,24 @@ function PostCard({ post }: { post: OrganizationPost }) {
           ? " · verificada"
           : ""}
       </Text>
+      <OrganizationReportAction
+        authorityKey={authorityKey}
+        organizationId={organizationId}
+        targetId={post.id}
+        targetType="post"
+      />
     </View>
   );
 }
 
 function EventCard({
+  authorityKey,
+  organizationId,
   event,
   onOpenExternal,
 }: {
+  authorityKey: string;
+  organizationId: string;
   event: OrganizationEvent;
   onOpenExternal: (url: string) => void;
 }) {
@@ -111,6 +130,12 @@ function EventCard({
           <Text style={styles.inlineActionText}>Abrir enlace externo</Text>
         </Pressable>
       ) : null}
+      <OrganizationReportAction
+        authorityKey={authorityKey}
+        organizationId={organizationId}
+        targetId={event.id}
+        targetType="event"
+      />
     </View>
   );
 }
@@ -447,7 +472,12 @@ export function MobileOrganizationDetailScreen({
               <Text style={styles.copy}>Todavía no hay publicaciones.</Text>
             ) : (
               current.organization.posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard
+                  authorityKey={current.authorityKey}
+                  key={post.id}
+                  organizationId={current.organization.id}
+                  post={post}
+                />
               ))
             )}
             {current.organization.postsNextCursor ? (
@@ -542,8 +572,10 @@ export function MobileOrganizationDetailScreen({
             ) : (
               visibleEvents.map((event) => (
                 <EventCard
+                  authorityKey={current.authorityKey}
                   event={event}
                   key={event.id}
+                  organizationId={current.organization.id}
                   onOpenExternal={(url) => void openExternal(url)}
                 />
               ))
