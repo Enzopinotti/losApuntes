@@ -92,7 +92,8 @@ function project(row: Stored): StudyProgressExportRow {
     !(row.createdAt instanceof Date) ||
     !Number.isFinite(row.createdAt.getTime()) ||
     !(row.updatedAt instanceof Date) ||
-    !Number.isFinite(row.updatedAt.getTime())
+    !Number.isFinite(row.updatedAt.getTime()) ||
+    row.updatedAt.getTime() < row.createdAt.getTime()
   ) {
     throw new Error('Study progress export row is invalid');
   }
@@ -160,6 +161,23 @@ export class StudyProgressExportReader {
       .limit(input.limit + 1)
       .lean<Stored[]>()
       .exec();
+    // The indexed Mongo query promises strictly ascending canonical Subject IDs.
+    // Validate the complete page, including its lookahead, before publishing a
+    // cursor or any records. A broken adapter/duplicate must not silently skip
+    // or repeat private progress during account portability.
+    if (rows.length > input.limit + 1) {
+      throw new Error('Study progress export page exceeds its query budget');
+    }
+    let previousSubjectId = afterSubjectId;
+    for (const row of rows) {
+      if (
+        !UUID.test(row.subjectId) ||
+        (previousSubjectId !== null && row.subjectId <= previousSubjectId)
+      ) {
+        throw new Error('Study progress export page ordering is invalid');
+      }
+      previousSubjectId = row.subjectId;
+    }
     const page = rows.slice(0, input.limit);
     return {
       items: page.map(project),
