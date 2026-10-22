@@ -159,6 +159,36 @@
   gap: 0.15rem;
 }
 
+.search-group li .search-resource-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 320px;
+}
+
+.search-resource-actions button {
+  padding: 0.5rem 0.7rem;
+  min-height: 44px;
+  border: 1px solid #5b5bd6;
+  border-radius: 9px;
+  background: #fff;
+  color: #3535a4;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-resource-actions button:focus-visible {
+  outline: 3px solid #7474d9;
+  outline-offset: 3px;
+}
+
+.search-resource-actions [role="status"] {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
 .search-group span,
 .search-group small {
   color: #626274;
