@@ -15,58 +15,52 @@ These states must not be collapsed into one green checkbox.
 
 ## Current baseline
 
-Code-complete closure baseline:
+The original Web/backend code-complete closure used `main@11d1ccd51138703aaf6a140c59927aa99723f309` and covered PRs #44–#47. This document now also reflects the Mobile Auth code present in `main` as reviewed on 2026-10-22 (`fdafa7aa8150cf2fbd2fe51699c5017e27a5ff24`).
 
-`main @ 11d1ccd51138703aaf6a140c59927aa99723f309`
+Mobile Auth is implemented in the repository: native registration and verification, session restore and logout, recovery, account security, Google login/link/unlink, password visibility and policy, and resend recovery after an unverified login. The implementation is tracked by #49; associated Mobile product acceptance remains in #7.
 
-A post-completion maturity review is tracked in #52 / PR #53. It strengthens the closed block without pretending that #48 production evidence or #49 native Mobile implementation are complete.
-
-Merged implementation lanes:
-
-- #39 / PR #44 — opaque revocable sessions;
-- #40 / PR #45 — email verification + password recovery;
-- #41 / PR #46 — account security + password change + account status;
-- #42 / PR #47 — Google identity + real Web integration.
+Representative implementation PRs: #136 (registration and verification), #153 (password recovery), #186 (Google sign-in and linking), #524 (password visibility), #527 (password policy), #528 (open the email app after registration), and #531 (resend after an unverified login).
 
 Remaining explicit gates:
 
-- #48 — production launch readiness;
-- #49 — real native/mobile Auth client.
+- #48 — production launch readiness, including real email and Google provider configuration;
+- #49 — native build and real-device/provider acceptance for Mobile Auth;
+- #7 — end-to-end Mobile product acceptance on supported devices.
 
 ## Acceptance matrix
 
-| Capability | Backend | Web | Mobile | Launch gate | Status / owner |
-| --- | --- | --- | --- | --- | --- |
-| Account creation | Implemented | User-complete | Contract exists | Real Terms/Privacy + provider config | Web complete; Mobile #49; launch #48 |
-| Password login | Implemented + hardened verifier/timing path | User-complete | Native endpoint exists | Edge abuse controls + broad compromised-password strategy | Web complete; Mobile #49; launch #48 |
-| Email verification | Implemented | User-complete | Native/deep-link UI pending | Real transactional provider/domain | Web complete; Mobile #49; launch #48 |
-| Verification resend/cooldown | Implemented | User-complete | Native one-minute UI cooldown implemented; device acceptance pending | Real provider evidence | Mobile #49; launch #48 |
-| Password recovery request | Implemented | User-complete | Native request and one-minute resend pacing implemented; device acceptance pending | Real provider evidence | Mobile #49; launch #48 |
-| Password recovery completion | Implemented | User-complete | Pending native UI | Universal/app links + provider evidence | Mobile #49; launch #48 |
-| Web session | Implemented | User-complete | N/A | HTTPS/cookie ingress smoke | Launch #48 |
-| Mobile session | Implemented | N/A | Client not implemented | SecureStore/native runtime | #49 |
-| /auth/me bootstrap | Implemented | User-complete | Client restore pending | Production ingress | #49 / #48 |
-| Logout current session | Implemented | User-complete | Client pending | Production ingress | #49 / #48 |
-| Session inventory | Implemented | User-complete | Native UI pending | None beyond ordinary release gate | #49 |
-| Revoke one session | Implemented | User-complete | Native UI pending | None beyond ordinary release gate | #49 |
-| Revoke all sessions | Implemented | User-complete | Native UI pending | None beyond ordinary release gate | #49 |
-| Authenticated password change | Implemented | User-complete | Native UI pending | Real email/security notification provider | #49 / #48 |
-| Credential-version fencing | Implemented | Transparent to user | Transparent to user | Runtime evidence already present | Complete |
-| Restricted account enforcement | Implemented | User-complete state | Native state pending | Operational restriction source/tooling later | #49 |
-| Google Web sign-in | Implemented | User-complete when enabled | N/A | Fresh OAuth client + consent + HTTPS callback | #48 |
-| Google Mobile sign-in | Implemented server contract | N/A | Native provider flow pending | Native OAuth client IDs + device smoke | #49 / #48 |
-| Google link/unlink | Implemented | User-complete | Native UI pending | Provider-enabled smoke | #49 / #48 |
-| No browser bearer storage | Implemented | Enforced + hygiene guard | N/A | Production browser smoke | #48 |
-| Secure mobile bearer storage | Server contract only | N/A | Not implemented | Real SecureStore build | #49 |
-| CSRF/origin defense | Exact Origin + Fetch Metadata defense-in-depth | User-transparent | N/A | Exact production origin/HTTPS smoke | #48 |
-| Transactional email abstraction | Implemented | Journeys consume it | Journeys can consume it | Real provider + sender auth | #48 |
-| Auth audit boundary | Implemented | User-transparent | User-transparent | Retention/observability review | #48 |
-| Abuse/rate-limit UX code | Stable contract exists | Error state documented | Must consume code | Trusted edge/proxy policy not deployed | #48 |
-| Terms/Privacy links | Product contract documented | Needs final legal URLs/content | Needs final legal URLs/content | Legal/product decision | #48 |
-| Email change | Designed only | Not shipped | Not shipped | Requires reauth + mailbox verification policy | Deferred / #48 until implementation issue |
-| Account closure/deletion | Boundary documented | Not shipped | Not shipped | Requires domain/data-retention decision | Deferred / #48 then dedicated implementation |
-| MFA/passkeys | Not in v1 | Not in v1 | Not in v1 | Future security roadmap | Deferred |
-| User-visible security history | Audit sink exists | No persistent history UI | No persistent history UI | Retention/privacy decision | Deferred |
+| Capability                      | Backend                                        | Web                            | Mobile                                                                                      | Launch gate                                               | Status / owner                                |
+| ------------------------------- | ---------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------- |
+| Account creation                | Implemented                                    | User-complete                  | Native registration implemented; device acceptance pending                                  | Real Terms/Privacy + provider configuration               | Mobile #49; product acceptance #7; launch #48 |
+| Password login                  | Implemented + hardened verifier/timing path    | User-complete                  | Native password login implemented; device acceptance pending                                | Edge abuse controls + broad compromised-password strategy | Mobile #49; product acceptance #7; launch #48 |
+| Email verification              | Implemented                                    | User-complete                  | Native/deep-link flow implemented; device acceptance pending                                | Real transactional provider/domain                        | Mobile #49; product acceptance #7; launch #48 |
+| Verification resend/cooldown    | Implemented                                    | User-complete                  | Native one-minute pacing and unverified-login resend implemented; device acceptance pending | Real provider evidence                                    | Mobile #49; product acceptance #7; launch #48 |
+| Password recovery request       | Implemented                                    | User-complete                  | Native request and one-minute resend pacing implemented; device acceptance pending          | Real provider evidence                                    | Mobile #49; product acceptance #7; launch #48 |
+| Password recovery completion    | Implemented                                    | User-complete                  | Native completion and allow-listed deep link implemented; device acceptance pending         | Native link/provider evidence                             | Mobile #49; product acceptance #7; launch #48 |
+| Web session                     | Implemented                                    | User-complete                  | N/A                                                                                         | HTTPS/cookie ingress smoke                                | Launch #48                                    |
+| Mobile session                  | Implemented                                    | N/A                            | Native session client implemented; device acceptance pending                                | SecureStore/native build evidence                         | #49; product acceptance #7                    |
+| /auth/me bootstrap              | Implemented                                    | User-complete                  | Secure credential restore and server revalidation implemented; device acceptance pending    | Production ingress                                        | #49 / #48                                     |
+| Logout current session          | Implemented                                    | User-complete                  | Native logout and local credential clearing implemented; device acceptance pending          | Production ingress                                        | #49 / #48                                     |
+| Session inventory               | Implemented                                    | User-complete                  | Native UI implemented; device acceptance pending                                            | None beyond ordinary release gate                         | #49                                           |
+| Revoke one session              | Implemented                                    | User-complete                  | Native UI implemented; device acceptance pending                                            | None beyond ordinary release gate                         | #49                                           |
+| Revoke all sessions             | Implemented                                    | User-complete                  | Native UI implemented; device acceptance pending                                            | None beyond ordinary release gate                         | #49                                           |
+| Authenticated password change   | Implemented                                    | User-complete                  | Native UI implemented; device acceptance pending                                            | Real email/security notification provider                 | #49 / #48                                     |
+| Credential-version fencing      | Implemented                                    | Transparent to user            | Transparent to user                                                                         | Runtime evidence already present                          | Complete                                      |
+| Restricted account enforcement  | Implemented                                    | User-complete state            | Native state implemented; device acceptance pending                                         | Operational restriction source/tooling later              | #49                                           |
+| Google Web sign-in              | Implemented                                    | User-complete when enabled     | N/A                                                                                         | Fresh OAuth client + consent + HTTPS callback             | #48                                           |
+| Google Mobile sign-in           | Implemented server contract                    | N/A                            | Native provider flow implemented; device acceptance pending                                 | Native OAuth client IDs + device smoke                    | #49 / #48                                     |
+| Google link/unlink              | Implemented                                    | User-complete                  | Native UI implemented; device acceptance pending                                            | Provider-enabled smoke                                    | #49 / #48                                     |
+| No browser bearer storage       | Implemented                                    | Enforced + hygiene guard       | N/A                                                                                         | Production browser smoke                                  | #48                                           |
+| Secure mobile bearer storage    | Implemented                                    | N/A                            | SecureStore integration implemented; installed-build acceptance pending                     | Real SecureStore build                                    | #49 / #7                                      |
+| CSRF/origin defense             | Exact Origin + Fetch Metadata defense-in-depth | User-transparent               | N/A                                                                                         | Exact production origin/HTTPS smoke                       | #48                                           |
+| Transactional email abstraction | Implemented                                    | Journeys consume it            | Journeys can consume it                                                                     | Real provider + sender auth                               | #48                                           |
+| Auth audit boundary             | Implemented                                    | User-transparent               | User-transparent                                                                            | Retention/observability review                            | #48                                           |
+| Abuse/rate-limit UX code        | Stable contract exists                         | Error state documented         | Must consume code                                                                           | Trusted edge/proxy policy not deployed                    | #48                                           |
+| Terms/Privacy links             | Product contract documented                    | Needs final legal URLs/content | Needs final legal URLs/content                                                              | Legal/product decision                                    | #48                                           |
+| Email change                    | Designed only                                  | Not shipped                    | Not shipped                                                                                 | Requires reauth + mailbox verification policy             | Deferred / #48 until implementation issue     |
+| Account closure/deletion        | Boundary documented                            | Not shipped                    | Not shipped                                                                                 | Requires domain/data-retention decision                   | Deferred / #48 then dedicated implementation  |
+| MFA/passkeys                    | Not in v1                                      | Not in v1                      | Not in v1                                                                                   | Future security roadmap                                   | Deferred                                      |
+| User-visible security history   | Audit sink exists                              | No persistent history UI       | No persistent history UI                                                                    | Retention/privacy decision                                | Deferred                                      |
 
 ## What is genuinely complete
 
@@ -133,24 +127,9 @@ This is code/runtime evidence, not a substitute for real provider/deployment evi
 
 ### Native Mobile product
 
-`apps/mobile` still has no real native implementation.
+The native Auth client is implemented in `apps/mobile`; source-level and local repository checks cover registration, password and Google login, SecureStore-backed session restore, verification/recovery links, security settings, password changes, session revocation, resend pacing, and restricted/offline/timeout states.
 
-The backend supports Mobile, but a person cannot yet use the native product.
-
-Tracked in #49 under #7.
-
-Required before Mobile Auth is user-complete:
-
-- framework/native foundation selected;
-- SecureStore/Keychain/Keystore credential storage;
-- auth bootstrap;
-- native register/login/logout;
-- verification/recovery deep links;
-- security settings;
-- restricted/offline/timeout states;
-- Google native provider flow;
-- generation fencing;
-- real-device/simulator tests.
+Code presence does not establish device acceptance. #49 remains open for configured native builds and provider sign-in/link/unlink evidence on supported devices. #7 remains open for the complete clean-user journey through onboarding and Resource use, context/session changes, and degraded-network recovery on iOS and Android.
 
 ### Production launch readiness
 
@@ -303,7 +282,7 @@ Secrets never belong in:
 
 Closing #4 does **not** mean:
 
-- Mobile is complete;
+- Mobile device/provider acceptance or the complete #7 product journey is complete;
 - public production launch is approved;
 - account deletion/email change are shipped;
 - MFA/passkeys are shipped;
