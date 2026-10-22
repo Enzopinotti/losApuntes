@@ -316,13 +316,26 @@ export function SocialProfileRelationshipActions({
           </Text>
         ) : null}
         {snapshot.following ? (
-          <ActionButton
-            label="Administrar perfiles que sigo"
-            accessibilityLabel="Administrar los perfiles que sigo"
-            disabled={false}
-            secondary
-            onPress={() => router.push("/social-following")}
-          />
+          <>
+            <ActionButton
+              label={
+                snapshot.followBusy ? "Dejando de seguir…" : "Dejar de seguir"
+              }
+              accessibilityLabel={`Dejar de seguir a ${displayName}`}
+              disabled={
+                snapshot.followBusy || snapshot.busy || snapshot.reconciling
+              }
+              secondary
+              onPress={() => void controller.unfollowProfile(authorityKey)}
+            />
+            <ActionButton
+              label="Administrar perfiles que sigo"
+              accessibilityLabel="Administrar los perfiles que sigo"
+              disabled={false}
+              secondary
+              onPress={() => router.push("/social-following")}
+            />
+          </>
         ) : (
           <ActionButton
             label={

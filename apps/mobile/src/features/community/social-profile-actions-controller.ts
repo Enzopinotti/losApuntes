@@ -74,7 +74,7 @@ export class SocialProfileActionsController {
 
   constructor(
     private readonly api: SocialConnectionsApi &
-      Pick<SocialFollowingApi, "followProfile"> &
+      Pick<SocialFollowingApi, "followProfile" | "unfollowProfile"> &
       SocialProfileRelationshipApi,
   ) {}
 
@@ -286,6 +286,67 @@ export class SocialProfileActionsController {
     }
   }
 
+  async unfollowProfile(authorityKey: string): Promise<void> {
+    const current = this.ready(authorityKey);
+    if (
+      !current ||
+      !current.relationshipLoaded ||
+      current.relationshipLoading ||
+      current.isSelf ||
+      !current.following ||
+      current.followBusy ||
+      current.busy ||
+      current.reconciling ||
+      this.operation
+    ) {
+      return;
+    }
+
+    const operation = this.begin(authorityKey, current.profileId);
+    if (!operation) return;
+    this.publish({
+      ...current,
+      followBusy: true,
+      followFailure: null,
+      followNotice: null,
+    });
+
+    try {
+      await this.api.unfollowProfile(
+        current.profileId,
+        operation.controller.signal,
+      );
+      if (!this.isCurrent(operation)) return;
+      const latest = this.ready(authorityKey);
+      if (!latest) return;
+      this.publish({
+        ...latest,
+        following: false,
+        followBusy: false,
+        followFailure: null,
+        followNotice: "El servidor confirma que dejaste de seguir este perfil.",
+      });
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const failure = communityFailure(error);
+      if (isAmbiguousCommunityMutationFailure(failure)) {
+        await this.reconcileUnfollow(operation, failure);
+      } else {
+        const latest = this.ready(authorityKey);
+        if (latest) {
+          this.publish({
+            ...latest,
+            followBusy: false,
+            followFailure: failure,
+            followNotice: null,
+          });
+        }
+      }
+    } finally {
+      this.finish(operation);
+    }
+  }
+
   async reconcile(authorityKey: string): Promise<void> {
     const current = this.ready(authorityKey);
     if (
@@ -319,6 +380,47 @@ export class SocialProfileActionsController {
     mutationFailure: CommunityFailure,
   ): Promise<void> {
     await this.reconcileInventory(operation, mutationFailure);
+  }
+
+  private async reconcileUnfollow(
+    operation: Operation,
+    mutationFailure: CommunityFailure,
+  ): Promise<void> {
+    try {
+      const relationship = await this.api.profileRelationship(
+        operation.profileId,
+        operation.controller.signal,
+      );
+      if (!this.isCurrent(operation)) return;
+      const current = this.ready(operation.authorityKey);
+      if (!current) return;
+      this.publish({
+        ...current,
+        connection: relationship.connection,
+        following: relationship.isFollowing,
+        followsYou: relationship.followsYou,
+        isSelf: relationship.isSelf,
+        relationshipLoaded: true,
+        relationshipLoading: false,
+        relationshipFailure: null,
+        followBusy: false,
+        followFailure: relationship.isFollowing ? mutationFailure : null,
+        followNotice: relationship.isFollowing
+          ? "El servidor todavía confirma que seguís este perfil. Podés volver a intentar."
+          : "El servidor confirma que dejaste de seguir este perfil.",
+      });
+    } catch (error) {
+      if (!this.isCurrent(operation)) return;
+      const current = this.ready(operation.authorityKey);
+      if (!current) return;
+      this.publish({
+        ...current,
+        followBusy: false,
+        followFailure: communityFailure(error) ?? mutationFailure,
+        followNotice:
+          "No pudimos confirmar el estado del seguimiento. Volvé a revisar antes de repetir la acción.",
+      });
+    }
   }
 
   private async reconcileInventory(

@@ -46,14 +46,16 @@ function apiHarness(
       profileId: string,
       call: number,
     ) => Promise<ProfileRelationshipResponse> | ProfileRelationshipResponse;
+    unfollow?: (profileId: string, call: number) => Promise<void>;
   } = {},
 ) {
   const requestedProfileIds: string[] = [];
   const followedProfileIds: string[] = [];
+  const unfollowedProfileIds: string[] = [];
   const connectionInputs: ConnectionsPageInput[] = [];
   const relationshipProfileIds: string[] = [];
   const api: SocialConnectionsApi &
-    Pick<SocialFollowingApi, "followProfile"> &
+    Pick<SocialFollowingApi, "followProfile" | "unfollowProfile"> &
     SocialProfileRelationshipApi = {
     connections: async (input) => {
       connectionInputs.push(input);
@@ -98,11 +100,16 @@ function apiHarness(
         }
       );
     },
+    unfollowProfile: async (profileId) => {
+      unfollowedProfileIds.push(profileId);
+      await options.unfollow?.(profileId, unfollowedProfileIds.length);
+    },
   };
   return {
     api,
     requestedProfileIds,
     followedProfileIds,
+    unfollowedProfileIds,
     connectionInputs,
     relationshipProfileIds,
   };
@@ -356,6 +363,105 @@ test("publishes confirmed Follow state and blocks a duplicate action", async () 
     "El servidor confirma que ahora seguís este perfil.",
   );
   assert.deepEqual(followedProfileIds, ["profile-a"]);
+});
+
+test("unfollows a profile only after the server confirms the change", async () => {
+  const { api, unfollowedProfileIds } = apiHarness({
+    relationship: async () => ({
+      isSelf: false,
+      isFollowing: true,
+      followsYou: true,
+      connection: null,
+    }),
+  });
+  const controller = new SocialProfileActionsController(api);
+  controller.setAuthority("user-a:session-a", "profile-a");
+  await controller.loadRelationship("user-a:session-a");
+
+  await controller.unfollowProfile("user-a:session-a");
+  await controller.unfollowProfile("user-a:session-a");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.following, false);
+  assert.equal(snapshot.followsYou, true);
+  assert.equal(
+    snapshot.followNotice,
+    "El servidor confirma que dejaste de seguir este perfil.",
+  );
+  assert.deepEqual(unfollowedProfileIds, ["profile-a"]);
+});
+
+test("reconciles an ambiguous unfollow before showing the updated relationship", async () => {
+  const { api, relationshipProfileIds, unfollowedProfileIds } = apiHarness({
+    relationship: async (_profileId, call) => ({
+      isSelf: false,
+      isFollowing: call === 1,
+      followsYou: false,
+      connection: null,
+    }),
+    unfollow: async () => {
+      throw new ApiRequestError(
+        "timeout",
+        null,
+        "REQUEST_TIMEOUT",
+        "request timed out",
+      );
+    },
+  });
+  const controller = new SocialProfileActionsController(api);
+  controller.setAuthority("user-a:session-a", "profile-a");
+  await controller.loadRelationship("user-a:session-a");
+
+  await controller.unfollowProfile("user-a:session-a");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.following, false);
+  assert.equal(snapshot.followFailure, null);
+  assert.equal(
+    snapshot.followNotice,
+    "El servidor confirma que dejaste de seguir este perfil.",
+  );
+  assert.deepEqual(relationshipProfileIds, ["profile-a", "profile-a"]);
+  assert.deepEqual(unfollowedProfileIds, ["profile-a"]);
+});
+
+test("keeps an ambiguous unfollow retryable when the server still confirms following", async () => {
+  const { api, unfollowedProfileIds } = apiHarness({
+    relationship: async () => ({
+      isSelf: false,
+      isFollowing: true,
+      followsYou: false,
+      connection: null,
+    }),
+    unfollow: async () => {
+      throw new ApiRequestError(
+        "timeout",
+        null,
+        "REQUEST_TIMEOUT",
+        "request timed out",
+      );
+    },
+  });
+  const controller = new SocialProfileActionsController(api);
+  controller.setAuthority("user-a:session-a", "profile-a");
+  await controller.loadRelationship("user-a:session-a");
+
+  await controller.unfollowProfile("user-a:session-a");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.following, true);
+  assert.equal(
+    snapshot.followNotice,
+    "El servidor todavía confirma que seguís este perfil. Podés volver a intentar.",
+  );
+  assert.equal(snapshot.followFailure?.kind, "timeout");
+  assert.deepEqual(unfollowedProfileIds, ["profile-a"]);
 });
 
 test("does not apply a delayed Follow response after authority changes", async () => {
