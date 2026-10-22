@@ -21,6 +21,10 @@ import {
   isCommunityApiError,
 } from "../features/community/services/communityService";
 import { NetworkActionGate } from "../features/community/network-action-gate";
+import {
+  appendUniqueNetworkItems,
+  repeatsNetworkCursor,
+} from "../features/community/network-pagination.mjs";
 import { PublicProfileAvatar } from "../features/profile/public-profile-avatar";
 import {
   groupNetworkConnections,
@@ -41,6 +45,17 @@ function messageFor(error: unknown): string {
   }
   return "No pudimos completar la operación.";
 }
+
+function createCursorHistory(scopeKey: string) {
+  return {
+    scopeKey,
+    following: new Set<string>(),
+    connections: new Set<string>(),
+  };
+}
+
+const repeatedCursorMessage =
+  "La red devolvió una página repetida. Detuvimos esa lista para evitar repetir resultados.";
 
 type NetworkAction = (
   key: string,
@@ -147,6 +162,7 @@ const Network = () => {
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
+  const cursorHistoryRef = useRef(createCursorHistory(authScopeKey));
   // This lock is synchronous, so rapid clicks cannot race React's busy state.
   const actionGateRef = useRef(new NetworkActionGate());
   const {
@@ -230,6 +246,12 @@ const Network = () => {
         communityApi.connections(undefined, 50, undefined, ticket.signal),
       ]);
       if (!isLoadCurrent(ticket)) return;
+      if (cursorHistoryRef.current.scopeKey === authScopeKey) {
+        cursorHistoryRef.current.following.clear();
+        cursorHistoryRef.current.connections.clear();
+      } else {
+        cursorHistoryRef.current = createCursorHistory(authScopeKey);
+      }
       setSnapshotState({
         scopeKey: authScopeKey,
         following: followingResult.items,
@@ -269,12 +291,28 @@ const Network = () => {
 
   const loadMoreFollowing = async () => {
     if (!followingNextCursor) return;
+    const cursor = followingNextCursor;
+    const history = cursorHistoryRef.current;
+    if (history.scopeKey !== authScopeKey) return;
+    if (history.following.has(cursor)) {
+      setSnapshotState((current) =>
+        current?.scopeKey === authScopeKey
+          ? { ...current, followingNextCursor: null }
+          : current,
+      );
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: null,
+        error: repeatedCursorMessage,
+        feedback: null,
+      });
+      return;
+    }
     const lease = actionGateRef.current.tryAcquire(
       authScopeKey,
       "following-more",
     );
     if (!lease) return;
-    const cursor = followingNextCursor;
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) {
       actionGateRef.current.release(lease);
@@ -290,15 +328,33 @@ const Network = () => {
     try {
       const result = await communityApi.following(50, cursor, ticket.signal);
       if (!isActionCurrent(ticket)) return;
+      const repeatedCursor = repeatsNetworkCursor(
+        history.following,
+        cursor,
+        result.nextCursor,
+      );
+      history.following.add(cursor);
       setSnapshotState((current) =>
         current?.scopeKey === authScopeKey
           ? {
               ...current,
-              following: [...current.following, ...result.items],
-              followingNextCursor: result.nextCursor,
+              following: appendUniqueNetworkItems(
+                current.following,
+                result.items,
+                (item) => item.profile.profileId,
+              ),
+              followingNextCursor: repeatedCursor ? null : result.nextCursor,
             }
           : current,
       );
+      if (repeatedCursor) {
+        setActionState({
+          scopeKey: authScopeKey,
+          busy: "following-more",
+          error: repeatedCursorMessage,
+          feedback: null,
+        });
+      }
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
       setActionState({
@@ -321,12 +377,28 @@ const Network = () => {
 
   const loadMoreConnections = async () => {
     if (!connectionsNextCursor) return;
+    const cursor = connectionsNextCursor;
+    const history = cursorHistoryRef.current;
+    if (history.scopeKey !== authScopeKey) return;
+    if (history.connections.has(cursor)) {
+      setSnapshotState((current) =>
+        current?.scopeKey === authScopeKey
+          ? { ...current, connectionsNextCursor: null }
+          : current,
+      );
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: null,
+        error: repeatedCursorMessage,
+        feedback: null,
+      });
+      return;
+    }
     const lease = actionGateRef.current.tryAcquire(
       authScopeKey,
       "connections-more",
     );
     if (!lease) return;
-    const cursor = connectionsNextCursor;
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) {
       actionGateRef.current.release(lease);
@@ -347,15 +419,33 @@ const Network = () => {
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
+      const repeatedCursor = repeatsNetworkCursor(
+        history.connections,
+        cursor,
+        result.nextCursor,
+      );
+      history.connections.add(cursor);
       setSnapshotState((current) =>
         current?.scopeKey === authScopeKey
           ? {
               ...current,
-              connections: [...current.connections, ...result.items],
-              connectionsNextCursor: result.nextCursor,
+              connections: appendUniqueNetworkItems(
+                current.connections,
+                result.items,
+                (item) => item.id,
+              ),
+              connectionsNextCursor: repeatedCursor ? null : result.nextCursor,
             }
           : current,
       );
+      if (repeatedCursor) {
+        setActionState({
+          scopeKey: authScopeKey,
+          busy: "connections-more",
+          error: repeatedCursorMessage,
+          feedback: null,
+        });
+      }
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
       setActionState({
