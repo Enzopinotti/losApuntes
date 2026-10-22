@@ -30,6 +30,7 @@ import {
 
 import { mobileSearchApi } from "./search-runtime";
 import { PublicProfileActivities } from "./public-profile-activities";
+import { SharePublicProfileAction } from "./share-public-profile-action";
 import { useFencedDetail } from "./use-fenced-detail";
 
 const errorCopy: Record<DetailFailureKind, string> = {
@@ -295,6 +296,7 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
               displayName={data.profile.about?.displayName ?? "este perfil"}
             />
             <SocialProfileFollowAction profileId={profileId} />
+            <SharePublicProfileAction profileId={profileId} />
           </View>
         )}
       </DetailState>
