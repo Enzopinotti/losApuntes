@@ -59,24 +59,28 @@ export class NetworkOverviewService {
           followerUserId: ownerUserId,
           followeeUserId: { $ne: ownerUserId },
         })
+        .maxTimeMS(5000)
         .exec(),
       this.follows
         .countDocuments({
           followeeUserId: ownerUserId,
           followerUserId: { $ne: ownerUserId },
         })
+        .maxTimeMS(5000)
         .exec(),
       this.connections
         .countDocuments({
           status: 'accepted',
           $or: otherParticipant,
         })
+        .maxTimeMS(5000)
         .exec(),
       this.connections
         .countDocuments({
           status: 'pending',
           $or: incomingParticipant,
         })
+        .maxTimeMS(5000)
         .exec(),
       this.connections
         .countDocuments({
@@ -84,6 +88,7 @@ export class NetworkOverviewService {
           requestedByUserId: ownerUserId,
           $or: otherParticipant,
         })
+        .maxTimeMS(5000)
         .exec(),
     ]);
 

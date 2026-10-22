@@ -6,34 +6,54 @@ import {
 } from '../social/mongo/social.mongo-schemas';
 import { NetworkOverviewService } from './network-overview.service';
 
+interface CountQuery {
+  maxTimeMS: jest.Mock<CountQuery, [number]>;
+  exec: jest.Mock<Promise<number>, []>;
+}
+
+function countQuery(value: number): CountQuery {
+  const query: CountQuery = {
+    maxTimeMS: jest.fn<CountQuery, [number]>(),
+    exec: jest.fn<Promise<number>, []>().mockResolvedValue(value),
+  };
+  query.maxTimeMS.mockReturnValue(query);
+  return query;
+}
+
 function fixture(following: number[], connections: number[]) {
   const followCount = jest.fn<unknown, [Record<string, unknown>]>();
   const connectionCount = jest.fn<unknown, [Record<string, unknown>]>();
+  const followQueries = following.map(countQuery);
+  const connectionQueries = connections.map(countQuery);
 
-  for (const result of following) {
-    followCount.mockReturnValueOnce({
-      exec: jest.fn().mockResolvedValue(result),
-    });
+  for (const query of followQueries) {
+    followCount.mockReturnValueOnce(query);
   }
-  for (const result of connections) {
-    connectionCount.mockReturnValueOnce({
-      exec: jest.fn().mockResolvedValue(result),
-    });
+  for (const query of connectionQueries) {
+    connectionCount.mockReturnValueOnce(query);
   }
 
   const service = new NetworkOverviewService(
     { countDocuments: followCount } as unknown as Model<SocialFollow>,
     { countDocuments: connectionCount } as unknown as Model<SocialConnection>,
   );
-  return { service, followCount, connectionCount };
+  return {
+    service,
+    followCount,
+    connectionCount,
+    followQueries,
+    connectionQueries,
+  };
 }
-
 describe('B158 private social network overview', () => {
   it('returns separate following, followers, accepted and directional pending totals', async () => {
-    const { service, followCount, connectionCount } = fixture(
-      [4, 9],
-      [3, 2, 1],
-    );
+    const {
+      service,
+      followCount,
+      connectionCount,
+      followQueries,
+      connectionQueries,
+    } = fixture([4, 9], [3, 2, 1]);
 
     await expect(service.forOwner('owner-a')).resolves.toEqual({
       followingCount: 4,
@@ -45,6 +65,12 @@ describe('B158 private social network overview', () => {
 
     expect(followCount).toHaveBeenCalledTimes(2);
     expect(connectionCount).toHaveBeenCalledTimes(3);
+    expect(
+      followQueries.map((query) => query.maxTimeMS.mock.calls[0]?.[0]),
+    ).toEqual([5000, 5000]);
+    expect(
+      connectionQueries.map((query) => query.maxTimeMS.mock.calls[0]?.[0]),
+    ).toEqual([5000, 5000, 5000]);
     expect(followCount.mock.calls[0]?.[0]).toEqual({
       followerUserId: 'owner-a',
       followeeUserId: { $ne: 'owner-a' },
@@ -108,13 +134,11 @@ describe('B158 private social network overview', () => {
 
   it('propagates database failures instead of returning fake or partial totals', async () => {
     const followCount = jest.fn<unknown, [Record<string, unknown>]>();
-    followCount.mockReturnValue({
-      exec: jest.fn().mockRejectedValue(new Error('database unavailable')),
-    });
+    const failingQuery = countQuery(0);
+    failingQuery.exec.mockRejectedValue(new Error('database unavailable'));
+    followCount.mockReturnValue(failingQuery);
     const connectionCount = jest.fn<unknown, [Record<string, unknown>]>();
-    connectionCount.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(0),
-    });
+    connectionCount.mockReturnValue(countQuery(0));
     const service = new NetworkOverviewService(
       { countDocuments: followCount } as unknown as Model<SocialFollow>,
       { countDocuments: connectionCount } as unknown as Model<SocialConnection>,

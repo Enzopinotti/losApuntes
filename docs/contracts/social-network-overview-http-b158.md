@@ -37,7 +37,7 @@ identities, or relationship records are returned. Response header:
 - `acceptedConnectionsCount`: accepted Connection pairs containing caller
   and a different participant, counted **once** per pair.
 - `pendingIncomingCount`: pending pairs involving caller for which the
-  *other participant* is the saved requester.
+  _other participant_ is the saved requester.
 - `pendingOutgoingCount`: pending pairs involving caller for which caller
   is the saved requester.
 - Declined and disconnected pairs are not counted as accepted or pending.
@@ -52,8 +52,10 @@ not interpret follow as connection, academic affiliation or approval.
 
 The server derives the owner exclusively from the verified AuthSession,
 uses the existing `social_follows` and `social_connections` schemas and
-their directional indexes, and performs five bounded `countDocuments`
-queries. It does not load or hydrate relationship arrays.
+their directional indexes, and performs five `countDocuments`
+queries, each with a five-second Mongo execution limit. A timeout rejects the
+whole request rather than returning partial counts. It does not load or hydrate
+relationship arrays.
 
 Counts are a **best-effort read** rather than an atomic snapshot across five
 queries. A simultaneous follow/accept/unfollow can produce briefly differing
