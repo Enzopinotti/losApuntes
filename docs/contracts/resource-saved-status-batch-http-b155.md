@@ -43,7 +43,7 @@ Respuesta:
 - El máximo es **50 IDs UUIDv4 únicos** y el mínimo es uno. No se aceptan IDs duplicados, strings en lugar del arreglo ni un lote excesivo.
 - La respuesta conserva exactamente **el orden y la cantidad** de los IDs solicitados.
 - `isSaved=true` exige que exista una relación `resource_saves` de ese usuario **y** que el Resource tenga `moderationState='available'` y siga siendo público, propio o compartido mediante una concesión vigente.
-- `isSaved=false` significa únicamente que *no existe una relación guardada actualmente autorizada*. No distingue no guardado de borrado, moderado, privado o con permiso revocado. No expone causas ni existencia.
+- `isSaved=false` significa únicamente que _no existe una relación guardada actualmente autorizada_. No distingue no guardado de borrado, moderado, privado o con permiso revocado. No expone causas ni existencia.
 - La comprobación replica el límite de visibilidad/moderación empleado por la búsqueda de biblioteca guardada; **no** verifica la disponibilidad física del archivo ni sustituye `GET /resources/:id`/`POST .../access`, que revalidan el acceso completo.
 
 ## Diseño y privacidad
