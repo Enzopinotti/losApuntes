@@ -326,11 +326,7 @@ const Search = () => {
           {loading ? "Buscando…" : "Buscar"}
         </button>
         {hasActiveSearch && (
-          <button
-            className="search-reset"
-            type="button"
-            onClick={resetSearch}
-          >
+          <button className="search-reset" type="button" onClick={resetSearch}>
             Limpiar búsqueda
           </button>
         )}
