@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
+import { QaActivityCalendarCard } from "@/features/community/qa-activity-calendar-card";
 import {
   ProductSurface,
   productSurfaceStyles,
@@ -234,6 +235,7 @@ export function MobileOwnerProfileScreen() {
     controller.getSnapshot(),
   );
   const [appState, setAppState] = useState(AppState.currentState);
+  const [qaCalendarRefreshToken, setQaCalendarRefreshToken] = useState(0);
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
@@ -518,7 +520,10 @@ export function MobileOwnerProfileScreen() {
       description="Tu identidad en Los Apuntes. El contexto académico sigue siendo autoridad del servidor y no se edita desde esta pantalla."
       onRefresh={
         scopeKey && active && !mutationsBlocked
-          ? () => void controller.load(scopeKey)
+          ? () => {
+              setQaCalendarRefreshToken((value) => value + 1);
+              void controller.load(scopeKey);
+            }
           : undefined
       }
       refreshing={current?.kind === "loading"}
@@ -626,6 +631,12 @@ export function MobileOwnerProfileScreen() {
                 : "sin contexto actual"}
             </Text>
           </View>
+
+          <QaActivityCalendarCard
+            active={active}
+            authorityKey={scopeKey}
+            refreshToken={qaCalendarRefreshToken}
+          />
 
           {current.notice ? (
             <Text accessibilityLiveRegion="polite" style={styles.success}>
