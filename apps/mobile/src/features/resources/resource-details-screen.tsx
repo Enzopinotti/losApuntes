@@ -56,6 +56,7 @@ import {
 } from "./resource-direct-sharing-controller";
 import { ResourceMetadataEditor } from "./resource-metadata-editor";
 import { MobileResourceCitationPanel } from "./resource-citation-panel";
+import { ResourceCollectionSaveAction } from "@/features/study-collections/resource-collection-save-action";
 import {
   MobileResourceMetadataController,
   type MobileResourceMetadataSnapshot,
@@ -595,6 +596,12 @@ export function MobileResourceDetailsScreen({
                         : "Guardar"}
                 </Text>
               </Pressable>
+
+              <ResourceCollectionSaveAction
+                key={resource.id}
+                resourceId={resource.id}
+                resourceTitle={resource.title}
+              />
 
               {currentAction?.notice === "unsaved" ? (
                 <Text style={styles.success}>Quitado de tus guardados.</Text>
