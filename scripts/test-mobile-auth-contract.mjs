@@ -95,6 +95,9 @@ for (const tokenRoute of [resetPassword, verifyEmail]) {
 assert.match(register, /newPasswordValidationMessage\(password\)/u);
 assert.match(register, /PASSWORD_MIN_LENGTH/u);
 assert.match(register, /PASSWORD_MAX_LENGTH/u);
+assert.match(resetPassword, /PASSWORD_MIN_LENGTH/u);
+assert.match(resetPassword, /PASSWORD_MAX_LENGTH/u);
+assert.match(resetPassword, /Se permiten espacios y caracteres Unicode/u);
 
 const appJson = JSON.parse(app);
 assert.equal(appJson.expo.scheme, "losapuntes");
