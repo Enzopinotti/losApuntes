@@ -1,6 +1,8 @@
 # B185 — Visibilidad voluntaria de contraseñas (Web)
 
-**Fecha:** 21/10/2026. **Base exacta:** `main@6bd965c71f6426da3d49fc7c0555e0e5afda06a9`. **Alcance:** Login, Registro, Reset Password y Seguridad. **No altera autenticación ni políticas.**
+**Fecha:** 22/10/2026. **Base del carrier actual:** `main@4cf5356efbf54eae125d1eb5b40a802497538c82`. **Alcance:** Login, Registro, Reset Password y Seguridad. **No altera autenticación ni políticas.**
+
+El PR #521 se preparó originalmente sobre una base anterior e incluía un workflow dedicado. Este carrier fue reconstruido sobre el `main` actual, conserva sus commits atómicos funcionales y excluye ese workflow. No se añade ni modifica ningún archivo de `.github/workflows/`.
 
 ## Necesidad de usuario
 
@@ -29,10 +31,19 @@ La contraseña de Los Apuntes permite frases largas y Unicode. Un campo siempre 
 
 - **11 verificaciones deterministas** de máscara por defecto, identidad de input, pérdida de foco, estado deshabilitado, ARIA, integración de React Hook Form, dos campos independientes, continuidad de recuperación, Seguridad, CSS mobile, ausencia de rutas de almacenamiento o telemetría.
 - **Prueba Chromium real** con Vite loopback y respuestas HTTP simuladas para los cuatro recorridos. Verifica máscara inicial, mostrar/ocultar, no pérdida de valor, autocompletado sin cambios, restauración de máscara en blur, independencia de registro, inspección del enlace de recuperación sin exponer el token y sesión autenticada en Seguridad. Las acciones de mostrar/ocultar no crean llamadas de modificación de credenciales.
-- `pnpm test:web-password-visibility-b185` agregado al `pnpm test` principal. Workflow separado exact-HEAD con Node24, pnpm9 congelado, TypeScript, ESLint, Prettier, Chromium y build Vite de producción.
+- `pnpm test:web-password-visibility-b185` agregado al `pnpm test` principal. La validación local del carrier incluye pruebas deterministas, Chromium, tipos, lint, formato y build Web.
+- No se ejecutó CI desde este carril. GitHub puede iniciar automáticamente sus checks existentes al actualizar o abrir la PR.
+
+Validación local sobre el carrier actual, basado en `main@4cf5356efbf54eae125d1eb5b40a802497538c82`:
+
+- `corepack pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...` — PASS.
+- `corepack pnpm test:web-password-visibility-b185` — PASS, 11/11.
+- `node scripts/test-web-password-visibility-b185-browser.mjs` — PASS, cuatro recorridos en Chromium.
+- `corepack pnpm --filter @losapuntes/web check:types`, `lint`, `format:check` y `build` — PASS.
+- `git diff --check origin/main...HEAD` — PASS.
 
 ## Límites y release
 
 No constituye un gestor de contraseñas, desbloqueo biométrico ni sustituto de autenticación. No modifica APIs, base de datos, Mobile, dependencias, lockfile, controles de tokens ni excepciones del audit.
 
-Los avisos de `node-forge` #133 y `braces` #141 y la corrección de `follow-redirects` en PR #495 siguen en carriles separados. `pnpm audit --prod --audit-level high` debe pasar sobre el commit realmente integrado antes de cualquier release. **#353 permanece HOLD; PR B185 Draft, sin merge ni deploy.**
+Los avisos HIGH de `node-forge` #133 y `braces` #141 mantienen el audit productivo en rojo; el hallazgo de `follow-redirects` se corrigió en B190. Este bloque no crea excepciones ni certifica el audit. **#353 permanece HOLD y el release requiere resolver sus gates de seguridad y aceptación.**
