@@ -14,6 +14,8 @@ const [
   forgotPassword,
   register,
   openEmailApp,
+  signIn,
+  verificationRequired,
   app,
   pkg,
 ] = await Promise.all([
@@ -27,6 +29,8 @@ const [
   read("apps/mobile/src/app/forgot-password.tsx"),
   read("apps/mobile/src/app/register.tsx"),
   read("apps/mobile/src/features/auth/open-email-app.ts"),
+  read("apps/mobile/src/app/sign-in.tsx"),
+  read("apps/mobile/src/features/auth/email-verification-required.ts"),
   read("apps/mobile/app.json"),
   read("apps/mobile/package.json"),
 ]);
@@ -69,6 +73,11 @@ assert.match(openEmailApp, /android\.intent\.action\.MAIN/u);
 assert.match(openEmailApp, /android\.intent\.category\.APP_EMAIL/u);
 assert.match(register, /showSuccess && Platform\.OS === "android"/u);
 assert.match(register, /Abrir app de correo/u);
+assert.match(signIn, /isEmailVerificationRequired\(error\)/u);
+assert.match(verificationRequired, /EMAIL_VERIFICATION_REQUIRED/u);
+assert.match(signIn, /requestEmailVerification/u);
+assert.match(signIn, /authActionResendSecondsRemaining/u);
+assert.match(signIn, /Si hay una cuenta pendiente para ese email/u);
 
 const appJson = JSON.parse(app);
 assert.equal(appJson.expo.scheme, "losapuntes");
