@@ -90,6 +90,7 @@ ninguna pregunta solicitada continúa públicamente disponible.
 ## Persistencia y rendimiento
 
 Una sola agregación `questions.aggregate`:
+
 1. `$match` por `id:{$in:questionIds}`, Question available y
    estado válido, aprovechando el índice único existente por ID.
 2. `$limit:20` antes de cualquier join, como defensa adicional.
@@ -112,20 +113,21 @@ inconsistentes o más resultados que IDs requeridos generan HTTP 503
 `QA_CARD_STATUS_UNAVAILABLE`. Los fallos reales del driver se
 propagan; **no se fabrican estados vacíos** para ocultarlos.
 
-## Pruebas y publicación
+## Validación del carrier y aceptación pendiente
 
-- Jest service: orden de respuesta, padres moderados/ausentes omitidos,
-  owner relativo a la sesión, los dos joins acotados y filtrados,
-  `acceptedAnswerId` nulo, proyección segura, límites 1/20,
-  payload malformado y cruce de IDs, duplicados y Mongo caído.
-- Jest controller/DTO: sesión obligatoria, no-store, rechazo de
-  entrada incorrecta, ruta de POST y autoridad sólo de sesión.
-- Sin cambios a Web/Mobile, Q&A core, auth, esquemas, índices, migraciones,
-  lockfiles o dependencias.
-- Confirmar exact-head con API strict ESLint, Prettier, TypeScript,
-  related/full Jest, 10 coberturas críticas, Quality Gate y runtime
-  smoke. La ejecución general del smoke **no es una aceptación
-  dedicada del nuevo pipeline en MongoDB real**.
-- Release #353 permanece **HOLD** hasta seguridad high/critical verde,
-  además de aceptación específica. Issues #133 (node-forge), #141
-  (braces) y #492 (follow-redirects), sin waivers o bypass de CI.
+- El carrier conserva los 13 commits atómicos originales de B168 sobre
+  `main@047c70d` y suma un commit separado de evidencia; no se hace
+  squash.
+- Jest service cubre orden solicitado, preguntas moderadas/ausentes,
+  autoridad de sesión, los dos joins acotados, aceptación visible,
+  proyección, límites, payload inválido y fallos Mongo. Controller/DTO
+  cubre sesión, `no-store`, ruta POST, input y autoridad.
+- Validación local del carrier: 2 suites / 32 pruebas, API TypeScript,
+  ESLint sin warnings, Prettier API, `nest build`, Prettier del contrato
+  y `git diff --check` — PASS.
+- No se ejecutó CI. Los tests usan mocks; **no se validó la agregación
+  contra Mongo real**. Este entorno no tiene daemon Docker ni `mongod`.
+  Ejecutar aceptación con una réplica aislada antes de producción.
+- No cambia Web/Mobile, Q&A core, autenticación, schemas, índices,
+  migraciones, lockfile, dependencias ni workflows. La integración del
+  código no acredita runtime ni habilita un despliegue.
