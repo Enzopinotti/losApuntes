@@ -83,8 +83,10 @@ jobs:
         run: |
           node scripts/test-web-account-export-contract.mjs
           node scripts/test-b192-account-export-study-web.mjs
-          pnpm --filter @losapuntes/web exec prettier --check \
+          pnpm --filter @losapuntes/web exec prettier --write \
             src/features/account-export/AccountExportPanel.tsx
+          git --no-pager diff -- apps/web/src/features/account-export/AccountExportPanel.tsx
+          exit 1 # TEMPORARY B192 canonical formatter diagnostic
       - name: Strict touched-file ESLint and Prettier
         run: |
           pnpm --filter @losapuntes/api exec eslint \
