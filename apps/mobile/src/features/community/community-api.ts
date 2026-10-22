@@ -77,6 +77,19 @@ export type FollowingPageResponse = {
   nextCursor: string | null;
 };
 
+export type ProfileRelationshipResponse = {
+  isSelf: boolean;
+  isFollowing: boolean;
+  followsYou: boolean;
+  connection: {
+    id: string;
+    status: ConnectionStatus;
+    requestedByMe: boolean;
+    incoming: boolean;
+    respondedAt: string | null;
+  } | null;
+};
+
 export interface SocialConnectionsApi {
   connections(
     input: ConnectionsPageInput,
@@ -104,6 +117,13 @@ export interface SocialFollowingApi {
     signal?: AbortSignal,
   ): Promise<{ following: true }>;
   unfollowProfile(profileId: string, signal?: AbortSignal): Promise<void>;
+}
+
+export interface SocialProfileRelationshipApi {
+  profileRelationship(
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<ProfileRelationshipResponse>;
 }
 
 export interface CommunityQaReportsApi {
@@ -207,6 +227,11 @@ export interface CommunityTransport {
     profileId: string,
     signal?: AbortSignal,
   ): Promise<{ connection: ConnectionView }>;
+  profileRelationship(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ): Promise<ProfileRelationshipResponse>;
   following(
     credential: string,
     input: FollowingPageInput,
@@ -531,6 +556,17 @@ export class MobileCommunityHttpTransport implements CommunityTransport {
     );
   }
 
+  profileRelationship(
+    credential: string,
+    profileId: string,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<ProfileRelationshipResponse>(
+      `/social/profiles/${encodeURIComponent(profileId)}/relationship`,
+      { credential, ...(signal ? { signal } : {}) },
+    );
+  }
+
   following(
     credential: string,
     input: FollowingPageInput,
@@ -604,6 +640,7 @@ export class MobileCommunityApi
     CommunityNotificationsApi,
     SocialConnectionsApi,
     SocialFollowingApi,
+    SocialProfileRelationshipApi,
     CommunityQaReportsApi,
     CommunityQaMutationsApi
 {
@@ -736,6 +773,12 @@ export class MobileCommunityApi
   requestConnection(profileId: string, signal?: AbortSignal) {
     return this.authorized((credential) =>
       this.transport.requestConnection(credential, profileId, signal),
+    );
+  }
+
+  profileRelationship(profileId: string, signal?: AbortSignal) {
+    return this.authorized((credential) =>
+      this.transport.profileRelationship(credential, profileId, signal),
     );
   }
 

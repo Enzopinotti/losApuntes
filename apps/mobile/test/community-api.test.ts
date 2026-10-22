@@ -175,6 +175,18 @@ test("request methods retain the bearer credential and server cursor contract", 
       });
       return { connection: connection("pending") };
     },
+    profileRelationship: async (credential, profileId, signal) => {
+      calls.push({
+        method: "profileRelationship",
+        args: [credential, profileId, signal],
+      });
+      return {
+        isSelf: false,
+        isFollowing: true,
+        followsYou: false,
+        connection: null,
+      };
+    },
     following: async (credential, input, signal) => {
       calls.push({ method: "following", args: [credential, input, signal] });
       return { items: [], nextCursor: null };
@@ -228,6 +240,7 @@ test("request methods retain the bearer credential and server cursor contract", 
   await api.respondConnection("connection-a", "accept", signal);
   await api.disconnectConnection("connection-a", signal);
   await api.requestConnection("profile-a", signal);
+  await api.profileRelationship("profile-a", signal);
   await api.following({ limit: 30, cursor: "follow-cursor" }, signal);
   await api.followProfile("profile-a", signal);
   await api.unfollowProfile("profile-a", signal);
@@ -287,6 +300,10 @@ test("request methods retain the bearer credential and server cursor contract", 
     args: ["secret-session-token", "profile-a", signal],
   });
   assert.deepEqual(calls[9], {
+    method: "profileRelationship",
+    args: ["secret-session-token", "profile-a", signal],
+  });
+  assert.deepEqual(calls[10], {
     method: "following",
     args: [
       "secret-session-token",
@@ -294,19 +311,19 @@ test("request methods retain the bearer credential and server cursor contract", 
       signal,
     ],
   });
-  assert.deepEqual(calls[10], {
+  assert.deepEqual(calls[11], {
     method: "followProfile",
     args: ["secret-session-token", "profile-a", signal],
   });
-  assert.deepEqual(calls[11], {
+  assert.deepEqual(calls[12], {
     method: "unfollowProfile",
     args: ["secret-session-token", "profile-a", signal],
   });
-  assert.deepEqual(calls[12], {
+  assert.deepEqual(calls[13], {
     method: "reportQuestion",
     args: ["secret-session-token", "question-a", { reason: "spam" }, signal],
   });
-  assert.deepEqual(calls[13], {
+  assert.deepEqual(calls[14], {
     method: "reportAnswer",
     args: [
       "secret-session-token",
@@ -356,6 +373,11 @@ test("connection transport uses the authenticated paginated Social endpoints", a
     "profile/a",
     signal,
   );
+  await transport.profileRelationship(
+    "secret-session-token",
+    "profile/a",
+    signal,
+  );
   await transport.following(
     "secret-session-token",
     { limit: 30, cursor: "opaque/cursor" },
@@ -392,6 +414,10 @@ test("connection transport uses the authenticated paginated Social endpoints", a
     {
       path: "/social/profiles/profile%2Fa/connections",
       init: { method: "POST", credential: "secret-session-token", signal },
+    },
+    {
+      path: "/social/profiles/profile%2Fa/relationship",
+      init: { credential: "secret-session-token", signal },
     },
     {
       path: "/social/me/following?limit=30&cursor=opaque%2Fcursor",
@@ -455,6 +481,12 @@ test("requires the current session and never silently downgrades to anonymous", 
     respondConnection: async () => ({ connection: connection("pending") }),
     disconnectConnection: async () => undefined,
     requestConnection: async () => ({ connection: connection("pending") }),
+    profileRelationship: async () => ({
+      isSelf: false,
+      isFollowing: false,
+      followsYou: false,
+      connection: null,
+    }),
     following: async () => ({ items: [], nextCursor: null }),
     followProfile: async () => ({ following: true }),
     unfollowProfile: async () => undefined,
@@ -500,6 +532,12 @@ test("fences successful responses when the session generation changed", async ()
     respondConnection: async () => ({ connection: connection("pending") }),
     disconnectConnection: async () => undefined,
     requestConnection: async () => ({ connection: connection("pending") }),
+    profileRelationship: async () => ({
+      isSelf: false,
+      isFollowing: false,
+      followsYou: false,
+      connection: null,
+    }),
     following: async () => ({ items: [], nextCursor: null }),
     followProfile: async () => ({ following: true }),
     unfollowProfile: async () => undefined,
