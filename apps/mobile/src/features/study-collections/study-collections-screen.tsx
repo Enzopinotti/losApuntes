@@ -17,6 +17,7 @@ import { navigationAuthorityKey } from "@/features/navigation/product-navigation
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
 import { mobileSearchApi } from "@/features/search/search-runtime";
+import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { ApiRequestError } from "@/services/api/client";
 
 import {
@@ -780,14 +781,22 @@ export function StudyCollectionsScreen() {
                     Apunte no disponible o sin permiso.
                   </Text>
                 )}
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={mutating}
-                  onPress={() => removeResource(item.resourceId)}
-                  style={styles.secondaryButton}
-                >
-                  <Text style={styles.buttonText}>Quitar</Text>
-                </Pressable>
+                <View style={styles.resourceActions}>
+                  {item.resource && item.resource.id === item.resourceId ? (
+                    <MobileResourceShareAction
+                      resourceId={item.resource.id}
+                      resourceTitle={item.resource.title}
+                    />
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={mutating}
+                    onPress={() => removeResource(item.resourceId)}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.buttonText}>Quitar</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
             {currentDetail.nextCursor ? (
@@ -938,13 +947,17 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   form: { gap: 10 },
   resourceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    gap: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e2e2e8",
     paddingTop: 10,
   },
-  resourceLink: { flex: 1, gap: 4, minHeight: 44, justifyContent: "center" },
+  resourceLink: { gap: 4, minHeight: 44, justifyContent: "center" },
+  resourceActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   loadingRow: { flexDirection: "row", gap: 10, alignItems: "center" },
 });
