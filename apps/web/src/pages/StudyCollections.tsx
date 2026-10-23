@@ -16,6 +16,10 @@ import {
   StudyCollectionsApiError,
 } from "../features/study-collections/studyCollectionsService";
 import {
+  appendUniqueBy,
+  collectionCursorRepeats,
+} from "../features/study-collections/collectionPagination";
+import {
   useAsyncAuthorityFence,
   type AsyncAuthorityTicket,
 } from "../shared/useAsyncAuthorityFence";
@@ -34,6 +38,7 @@ type CollectionList = {
   nextCursor: string | null;
   busy: boolean;
   error: string | null;
+  cursorCycle: boolean;
 };
 
 type CollectionDetail = {
@@ -43,6 +48,7 @@ type CollectionDetail = {
   nextCursor: string | null;
   busy: boolean;
   error: string | null;
+  cursorCycle: boolean;
 };
 
 type SearchState = {
@@ -89,6 +95,14 @@ const StudyCollections = () => {
   const detailScope = `${authScope}:${selectedId}`;
   const [listState, setListState] = useState<CollectionList | null>(null);
   const [detailState, setDetailState] = useState<CollectionDetail | null>(null);
+  const loadedCollectionCursors = useRef({
+    scope: authScope,
+    cursors: new Set<string>(),
+  });
+  const loadedResourceCursors = useRef({
+    scope: detailScope,
+    cursors: new Set<string>(),
+  });
   const detailStateRef = useRef<CollectionDetail | null>(null);
   useEffect(() => {
     detailStateRef.current = detailState;
@@ -169,42 +183,83 @@ const StudyCollections = () => {
       if (!isListCurrent(ticket)) return;
       setListState((previous) => ({
         scope: authScope,
-        items: append && previous?.scope === authScope ? previous.items : [],
-        nextCursor:
-          append && previous?.scope === authScope ? previous.nextCursor : null,
+        items: previous?.scope === authScope ? previous.items : [],
+        nextCursor: previous?.scope === authScope ? previous.nextCursor : null,
         busy: true,
         error: null,
+        cursorCycle:
+          previous?.scope === authScope ? previous.cursorCycle : false,
       }));
       try {
         const next = await studyCollectionsApi.list(cursor, ticket.signal);
         if (!isListCurrent(ticket)) return;
+
+        const previousCursors =
+          loadedCollectionCursors.current.scope === authScope
+            ? loadedCollectionCursors.current.cursors
+            : new Set<string>();
+        if (
+          append &&
+          cursor &&
+          collectionCursorRepeats(previousCursors, cursor, next.nextCursor)
+        ) {
+          const cursors = new Set(previousCursors);
+          cursors.add(cursor);
+          loadedCollectionCursors.current = { scope: authScope, cursors };
+          setListState((previous) => ({
+            scope: authScope,
+            items: appendUniqueBy(
+              previous?.scope === authScope ? previous.items : [],
+              next.items,
+              (item) => item.id,
+            ),
+            nextCursor: null,
+            busy: false,
+            error:
+              "El listado repitió una página. Actualizá las colecciones para continuar.",
+            cursorCycle: true,
+          }));
+          return;
+        }
+
+        if (append) {
+          const cursors = new Set(previousCursors);
+          if (cursor) cursors.add(cursor);
+          loadedCollectionCursors.current = { scope: authScope, cursors };
+        } else {
+          loadedCollectionCursors.current = {
+            scope: authScope,
+            cursors: new Set<string>(),
+          };
+        }
         setListState((previous) => ({
           scope: authScope,
           items:
             append && previous?.scope === authScope
-              ? Array.from(
-                  new Map(
-                    [...previous.items, ...next.items].map((item) => [
-                      item.id,
-                      item,
-                    ]),
-                  ).values(),
-                )
+              ? appendUniqueBy(previous.items, next.items, (item) => item.id)
               : next.items,
           nextCursor: next.nextCursor,
           busy: false,
           error: null,
+          cursorCycle: false,
         }));
       } catch (error) {
         if (isListCurrent(ticket)) {
-          setListState((previous) => ({
-            scope: authScope,
-            items:
-              append && previous?.scope === authScope ? previous.items : [],
-            nextCursor: null,
-            busy: false,
-            error: errorMessage(error),
-          }));
+          const accessRevoked =
+            error instanceof StudyCollectionsApiError &&
+            [401, 403, 404, 503].includes(error.status);
+          setListState((previous) => {
+            const sameScope = previous?.scope === authScope;
+            const preserve = sameScope && !accessRevoked;
+            return {
+              scope: authScope,
+              items: preserve ? previous.items : [],
+              nextCursor: preserve ? previous.nextCursor : null,
+              busy: false,
+              error: errorMessage(error),
+              cursorCycle: preserve ? previous.cursorCycle : false,
+            };
+          });
         }
       } finally {
         finishList(ticket);
@@ -231,13 +286,19 @@ const StudyCollections = () => {
         scope: detailScope,
         collection:
           previous?.scope === detailScope ? previous.collection : null,
-        items: append && previous?.scope === detailScope ? previous.items : [],
+        items:
+          (append || previous?.cursorCycle === true) &&
+          previous?.scope === detailScope
+            ? previous.items
+            : [],
         nextCursor:
           append && previous?.scope === detailScope
             ? previous.nextCursor
             : null,
         busy: true,
         error: null,
+        cursorCycle:
+          previous?.scope === detailScope ? previous.cursorCycle : false,
       }));
       try {
         const [header, page] = await Promise.all([
@@ -259,45 +320,86 @@ const StudyCollections = () => {
             "La colección cambió durante la consulta.",
           );
         }
+        const previousCursors =
+          loadedResourceCursors.current.scope === detailScope
+            ? loadedResourceCursors.current.cursors
+            : new Set<string>();
+        if (
+          append &&
+          cursor &&
+          collectionCursorRepeats(previousCursors, cursor, page.nextCursor)
+        ) {
+          const cursors = new Set(previousCursors);
+          cursors.add(cursor);
+          loadedResourceCursors.current = { scope: detailScope, cursors };
+          setDetailState((previous) => ({
+            scope: detailScope,
+            collection: header.collection,
+            items: appendUniqueBy(
+              previous?.scope === detailScope ? previous.items : [],
+              page.items,
+              (item) => item.resourceId,
+            ),
+            nextCursor: null,
+            busy: false,
+            error:
+              "Los apuntes de la colección repitieron una página. Actualizá la colección para continuar.",
+            cursorCycle: true,
+          }));
+          return;
+        }
+
+        if (append) {
+          const cursors = new Set(previousCursors);
+          if (cursor) cursors.add(cursor);
+          loadedResourceCursors.current = { scope: detailScope, cursors };
+        } else {
+          loadedResourceCursors.current = {
+            scope: detailScope,
+            cursors: new Set<string>(),
+          };
+        }
         setDetailState((previous) => ({
           scope: detailScope,
           collection: header.collection,
           items:
             append && previous?.scope === detailScope
-              ? Array.from(
-                  new Map(
-                    [...previous.items, ...page.items].map((item) => [
-                      item.resourceId,
-                      item,
-                    ]),
-                  ).values(),
+              ? appendUniqueBy(
+                  previous.items,
+                  page.items,
+                  (item) => item.resourceId,
                 )
               : page.items,
           nextCursor: page.nextCursor,
           busy: false,
           error: null,
+          cursorCycle: false,
         }));
       } catch (error) {
         if (isDetailCurrent(ticket)) {
           const stale =
             error instanceof StudyCollectionsApiError &&
             error.code === "STUDY_COLLECTION_CURSOR_STALE";
-          setDetailState((previous) => ({
-            scope: detailScope,
-            collection: stale
-              ? null
-              : previous?.scope === detailScope
-                ? previous.collection
-                : null,
-            items: stale
-              ? []
-              : append && previous?.scope === detailScope
-                ? previous.items
-                : [],
-            nextCursor: null,
-            busy: false,
-            error: errorMessage(error),
-          }));
+          const accessRevoked =
+            error instanceof StudyCollectionsApiError &&
+            [401, 403, 404, 503].includes(error.status);
+          setDetailState((previous) => {
+            const sameScope = previous?.scope === detailScope;
+            const preserve =
+              sameScope &&
+              !stale &&
+              !accessRevoked &&
+              (append || previous.cursorCycle);
+            return {
+              scope: detailScope,
+              collection: preserve ? previous.collection : null,
+              items: preserve ? previous.items : [],
+              nextCursor: preserve ? previous.nextCursor : null,
+              busy: false,
+              error: errorMessage(error),
+              cursorCycle: preserve ? previous.cursorCycle : false,
+            };
+          });
         }
       } finally {
         finishDetail(ticket);
@@ -566,9 +668,17 @@ const StudyCollections = () => {
             </button>
           </form>
           {currentList?.error && (
-            <p role="alert" className="resources-error">
-              {currentList.error}
-            </p>
+            <div role="alert" className="resources-error">
+              <p>{currentList.error}</p>
+              <button
+                className="secondary"
+                disabled={currentList.busy}
+                type="button"
+                onClick={() => void loadList()}
+              >
+                Actualizar colecciones
+              </button>
+            </div>
           )}
           {currentList?.busy && <p role="status">Cargando colecciones…</p>}
           {!currentList?.busy && !currentList?.items.length && (
@@ -623,7 +733,11 @@ const StudyCollections = () => {
               {currentDetail?.error && (
                 <div role="alert" className="resources-error">
                   <p>{currentDetail.error}</p>
-                  <button type="button" onClick={() => void loadDetail()}>
+                  <button
+                    type="button"
+                    disabled={currentDetail.busy}
+                    onClick={() => void loadDetail()}
+                  >
                     Actualizar colección
                   </button>
                 </div>
