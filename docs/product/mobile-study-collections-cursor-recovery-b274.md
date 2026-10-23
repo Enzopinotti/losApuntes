@@ -7,9 +7,10 @@ La vista Mobile de Colecciones sincronizadas pagina por separado el listado de c
 ## Comportamiento
 
 - El listado y el detalle mantienen historiales independientes de cursores completados.
-- Una respuesta que repite el cursor solicitado o vuelve a una página anterior no reemplaza el contenido visible; detiene esa tanda y deja disponible la actualización de la superficie.
+- Una respuesta que repite el cursor solicitado o vuelve a una página anterior agrega y deduplica lo recibido antes de detener esa tanda. Deja disponible la actualización de la superficie.
 - Las páginas con error no consumen su cursor, así que los fallos transitorios siguen siendo reintentables.
 - Abrir o actualizar el listado y seleccionar o actualizar una colección reinicia el historial correspondiente.
+- Cada petición de continuación queda ligada a la sesión, selección y actualización que la iniciaron. Una respuesta anterior no puede sobrescribir la nueva superficie ni contaminar su historial de cursores; los toques rápidos no inician continuaciones duplicadas.
 
 El cambio no habilita la función ni modifica el flag, los contratos de API, la autoridad de lectura o la persistencia.
 
