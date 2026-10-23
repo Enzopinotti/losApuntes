@@ -20,8 +20,10 @@ export class MobileSearchResumeMemory {
   remember(
     sessionAuthority: string | null,
     input: MobileSearchInput | null,
+    options: { resumePending?: boolean } = {},
   ): void {
     if (!sessionAuthority || this.sessionAuthority !== sessionAuthority) return;
+    if (options.resumePending) return;
     const parsed = input
       ? parseMobileSearchLink({
           q: input.q,

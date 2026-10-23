@@ -600,13 +600,23 @@ export function SearchScreen() {
       sessionAuthorityRef.current = sessionAuthority;
       mobileSearchResumeMemory.setSession(sessionAuthority);
       controller.invalidate();
-      dispatchSearchInput({ type: "resetAll" });
+      if (!hasIncomingSearchParams && !hasResumeRecentSearchRequest) {
+        dispatchSearchInput({ type: "resetAll" });
+      }
       return;
     }
 
     mobileSearchResumeMemory.setSession(sessionAuthority);
-    mobileSearchResumeMemory.remember(sessionAuthority, searchInput);
-  }, [controller, searchInput, sessionAuthority]);
+    mobileSearchResumeMemory.remember(sessionAuthority, searchInput, {
+      resumePending: hasResumeRecentSearchRequest,
+    });
+  }, [
+    controller,
+    hasIncomingSearchParams,
+    hasResumeRecentSearchRequest,
+    searchInput,
+    sessionAuthority,
+  ]);
 
   useEffect(() => {
     if (!hasResumeRecentSearchRequest || hasIncomingSearchParams) {
