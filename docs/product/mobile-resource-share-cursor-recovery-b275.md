@@ -7,7 +7,7 @@ La lista paginada de personas con acceso a un apunte deduplicaba perfiles, pero 
 ## Comportamiento
 
 - El historial de páginas se limita al permiso, sesión, recurso y revisión actuales; la lista se reinicia con una actualización explícita o cambio de alcance.
-- Una página que repite su cursor o vuelve a uno consumido conserva los permisos ya mostrados, detiene la paginación y presenta una alerta accesible con acceso a «Actualizar accesos».
+- Una página que repite su cursor o vuelve a uno consumido agrega los permisos nuevos y deduplica los ya mostrados antes de detener la paginación. Presenta una alerta accesible con acceso a «Actualizar accesos».
 - Los fallos de red no consumen el cursor y siguen siendo reintentables.
 - No cambian la autoridad server-side del endpoint, la lista de destinatarios ni las operaciones de otorgar/revocar permisos.
 
