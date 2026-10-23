@@ -394,6 +394,10 @@ const Profile = () => {
                 ...current,
                 snapshot: {
                   ...current.snapshot,
+                  activities: appendActivities(
+                    current.snapshot.activities,
+                    page.items,
+                  ),
                   activitiesNextCursor: null,
                 },
               }
