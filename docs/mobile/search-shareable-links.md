@@ -9,6 +9,7 @@
 - Abrir el enlace `losapuntes:///search?q=parcial&scope=resources&subjectId=<uuid-v4>` en una instalación de la app; Mobile valida todos los campos y restaura el texto, categoría y materia **en una sola transición**. El controlador de Search efectúa una nueva consulta a la API autenticada vigente y filtra respuestas antiguas.
 - Seguir abriendo enlaces antiguos de la forma `losapuntes:///search?subjectId=<uuid-v4>` para explorar una materia sin texto.
 - Desde cada apunte visible en resultados de Buscar o descubrimiento contextual, tocar **Compartir enlace** para enviar su título y `losapuntes:///resources/<uuid-v4>` por el menú nativo. Al abrirlo, la ruta de detalle obtiene datos actuales y vuelve a verificar la sesión y el acceso del destinatario.
+- Desde la pantalla de detalle de un apunte, usar **Compartir enlace** para compartir el mismo localizador seguro. La acción aparece sólo después de cargar correctamente el detalle y no altera permisos ni visibilidad.
 - Si el enlace es inválido, mostrar un aviso accesible sin ejecutar silenciosamente una búsqueda global fuera del contexto requerido. El usuario puede elegir otra búsqueda manualmente.
 - Si la sesión caduca, no se presenta como una autorización heredada del enlace. La API y el Academic Graph vuelven a decidir visibilidad y acceso.
 
@@ -35,6 +36,6 @@ La búsqueda nativa autenticada no equivale a la búsqueda anónima Web. Los end
 
 `apps/mobile/test/search-deep-link.test.ts` prueba parser, roundtrip del esquema, unicode/caracteres reservados, inputs inválidos, compatibilidad de enlaces por materia, privacidad y sustitución atómica de filtros.
 
-`apps/mobile/test/resource-share-link.test.ts` prueba la ruta de recurso con UUIDv4, el payload y el rechazo de parámetros o metadatos inseguros.
+`apps/mobile/test/resource-share-link.test.ts` prueba la ruta de recurso con UUIDv4, el payload y el rechazo de parámetros o metadatos inseguros. `apps/mobile/test/resource-detail-share-action.test.ts` verifica que el detalle reutilice la acción accesible y limitada al localizador.
 
 **Pruebas de código CI**: typecheck, lint, test Mobile y contratos de Search. **Pendiente para aceptación final**: abrir enlace recibido en iOS/Android con sesión activa y expirada; share sheet cancelado/completado; navegación hacia recurso y vuelta; resumption desde background; lector de pantalla; y caducidad/rotación de contexto. No se iniciará la aplicación ni se afirmará aceptación de dispositivo hasta que se acuerde la fase de pruebas.
