@@ -493,6 +493,23 @@ async function run() {
       await loginPassword.getAttribute("autocomplete"),
       "current-password",
     );
+    // The reveal control has its own accessible name. Exact label matching
+    // must target the real input, while keeping the toggle keyboard-accessible.
+    const revealLoginPassword = page.getByRole("button", {
+      name: "Mostrar contraseña",
+      exact: true,
+    });
+    assert.equal(
+      await revealLoginPassword.getAttribute("aria-controls"),
+      "login-password",
+    );
+    assert.equal(await loginPassword.getAttribute("type"), "password");
+    await revealLoginPassword.click();
+    assert.equal(await loginPassword.getAttribute("type"), "text");
+    await page
+      .getByRole("button", { name: "Ocultar contraseña", exact: true })
+      .click();
+    assert.equal(await loginPassword.getAttribute("type"), "password");
     assert.equal(
       await page.evaluate(
         () => window.matchMedia("(forced-colors: active)").matches,
@@ -514,7 +531,7 @@ async function run() {
     );
     assert.equal(
       await page
-        .getByLabel("Confirmar contraseña")
+        .getByLabel("Confirmar contraseña", { exact: true })
         .getAttribute("autocomplete"),
       "new-password",
     );
@@ -580,6 +597,14 @@ async function run() {
     await page.keyboard.type(email);
     await page.keyboard.press("Tab");
     await page.keyboard.type(password);
+    await page.keyboard.press("Tab");
+    assert.equal(
+      await revealLoginPassword.evaluate(
+        (element) => document.activeElement === element,
+      ),
+      true,
+      "Tab should reach the accessible password visibility control",
+    );
     await page.keyboard.press("Tab");
     assert.equal(
       await loginSubmit.evaluate(
