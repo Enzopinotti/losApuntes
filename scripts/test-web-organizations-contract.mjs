@@ -53,6 +53,9 @@ assert.match(directory, /await loadRef\.current\(\)/u);
 assert.match(directory, /setInstitutionSelection\(\{\s*authScopeKey/u);
 
 const publicPage = await read('apps/web/src/pages/Organization.tsx');
+const contentPagination = await read(
+  'apps/web/src/features/organizations/contentPagination.ts',
+);
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
 assert.match(publicPage, /organizationsApi\.get\(/u);
 assert.match(publicPage, /useLocation\(\)/u);
@@ -87,12 +90,22 @@ assert.match(publicPage, /ticket\.signal/u);
 assert.match(publicPage, /verificationState/u);
 assert.match(publicPage, /organizationsApi\.posts\(/u);
 assert.match(publicPage, /organizationsApi\.events\(/u);
+assert.equal(
+  (publicPage.match(/organizationContentCursorRepeats\(/gu) ?? []).length,
+  2,
+);
+assert.match(publicPage, /postsCursorIssue/u);
+assert.match(publicPage, /eventsCursorIssue/u);
+assert.match(publicPage, /Actualizar publicaciones/u);
+assert.match(publicPage, /Actualizar eventos/u);
 assert.match(publicPage, /postsNextCursor/u);
 assert.match(publicPage, /eventsNextCursor/u);
 assert.match(publicPage, /appendPosts/u);
 assert.match(publicPage, /appendEvents/u);
 assert.match(publicPage, /Cargar más publicaciones/u);
 assert.match(publicPage, /Cargar más eventos/u);
+assert.match(contentPagination, /nextCursor === requestedCursor/u);
+assert.match(contentPagination, /loadedCursors\.has\(nextCursor\)/u);
 assert.doesNotMatch(publicPage, /actorUserId|createdByUserId/u);
 
 const manage = await read('apps/web/src/pages/OrganizationManage.tsx');
