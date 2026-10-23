@@ -69,3 +69,13 @@ Buscar `parcial` en una materia actual y luego en todas debe consultar los resul
 **Seguridad y UX:** el botón sólo aparece con un ID válido; no se ejecuta ninguna copia automática. Se rechazan ID malformados, rutas adicionales, query/fragmentos inyectados y orígenes no HTTP(S) o no exactos. La respuesta del portapapeles se muestra mediante `role=status` y queda vinculada a la consulta/cuenta vigente y a esa materia específica; al restablecer se limpia. Se ofrece instrucción de recuperación si Clipboard API falla y estados de foco visibles con objetivo táctil de 44 px. Los enlaces no persisten en almacenamiento ni generan telemetría.
 
 **Aceptación:** al copiar, abrir en otro navegador o cuenta, verificar que la URL sólo transporta `subjectId` y que los resultados respetan los permisos vigentes. Confirmar que las pruebas adversarias del contrato de búsqueda y `pnpm check` pasan; QA de navegador real y release audit quedan como controles separados. No se modifican API, permisos, dependencias, lockfile ni flags de release.
+
+## B207 — Compartir perfiles públicos desde Buscar
+
+**Funcionalidad:** en el grupo «Personas con identidad pública», cada perfil con UUIDv4 canónico presenta **Copiar enlace del perfil** junto a «Ver perfil». El enlace apunta exclusivamente a `/p/:profileId` del origen actual. No incluye el texto de búsqueda, filtros de cursada, cuenta, sesión, correos, acceso al perfil privado ni tokens.
+
+**Privacidad:** el dato se toma únicamente del `profileId` público que ya devuelve Search. El helper rechaza rutas arbitrarias, IDs inválidos o inyectados, caracteres extra, origen no HTTP(S), credenciales, rutas o un origen no exacto. Copiar el enlace no publica nada ni crea un grant; la visibilidad real se vuelve a comprobar en la página de destino para cada visitante.
+
+**UX:** solo se muestra la acción si hay UUIDv4 válido, exige activación explícita, conserva un mensaje accesible (`role=status`) aislado por consulta/cuenta y perfil, informa errores de Clipboard API y limpia el aviso al restablecer. El botón reutiliza foco visible, ancho responsive y altura mínima de 44 px. No se añade persistencia, telemetría, API, dependencia ni flag de exposición.
+
+**Criterios de aceptación:** copiar y abrir en otro navegador/cuenta, comprobar que solo se transporta el Profile UUID y que un perfil ocultado posteriormente no sigue expuesto. Probar errores de portapapeles, filtro cambiado y un resultado sin ID válido. El contrato `test:web-search-contract`, `pnpm check` y controles exact-head no reemplazan QA real ni autorizan un despliegue con auditoría de dependencias en HOLD.

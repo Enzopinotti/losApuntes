@@ -117,6 +117,7 @@ async function main() {
   let resourceRechecks = 0;
   let questionRechecks = 0;
   const searches = [];
+  let sourceStatus = 200;
   try {
     child = await boot();
     browser = await chromium.launch({ headless: true });
@@ -163,7 +164,15 @@ async function main() {
       }
       if (path === "/resources") {
         const q = url.searchParams.get("q") ?? "";
-        if (!q) return reply(200, { items: [], nextCursor: null });
+        if (!q) {
+          if (sourceStatus !== 200) {
+            return reply(sourceStatus, {
+              code: "SOURCE_UNAVAILABLE",
+              message: `Source failure ${sourceStatus}`,
+            });
+          }
+          return reply(200, { items: [resource], nextCursor: "source-page" });
+        }
         searches.push({ kind: "resource", q });
         const items =
           q === "revocado"
@@ -308,6 +317,46 @@ async function main() {
       "each resource add must reauthorize the item",
     );
     assert.equal(questionRechecks, 1, "question add must reauthorize the item");
+    const sourceResource = page
+      .locator(".study-session-sources")
+      .getByRole("link", { name: resource.title, exact: true });
+    await sourceResource.waitFor();
+    await page
+      .getByRole("button", { name: "Más apuntes", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Actualizar disponibles" })
+      .waitFor();
+    assert.equal(await sourceResource.count(), 1);
+
+    sourceStatus = 500;
+    await page.getByRole("button", { name: "Actualizar disponibles" }).click();
+    await page.getByText("Source failure 500", { exact: true }).waitFor();
+    assert.equal(await sourceResource.count(), 1);
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Actualizar disponibles" })
+        .count(),
+      1,
+      "a transient source refresh must retain the loaded resource and recovery",
+    );
+
+    for (const status of [401, 403, 404]) {
+      sourceStatus = 200;
+      await page.getByRole("button", { name: "Actualizar fuentes" }).click();
+      await sourceResource.waitFor();
+      sourceStatus = status;
+      await page.getByRole("button", { name: "Actualizar fuentes" }).click();
+      await page
+        .getByText(
+          status === 401
+            ? "La sesión ya no está activa."
+            : "El material dejó de estar disponible o accesible.",
+          { exact: true },
+        )
+        .waitFor();
+      await sourceResource.waitFor({ state: "hidden", timeout: 3000 });
+    }
     assert.equal(
       writes,
       0,
@@ -316,7 +365,7 @@ async function main() {
     assert.deepEqual(pageErrors, []);
     await context.close();
     console.log(
-      "PASS B180 Chromium: resource and closed-question search, reauthorization, revoked access, plan/notes preservation and no API writes",
+      "PASS Chromium: planner search, source cursor recovery, transient retention, 401/403/404 clearing, reauthorization, plan/notes preservation and no API writes",
     );
   } finally {
     await browser?.close();
