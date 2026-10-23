@@ -16,3 +16,7 @@ mantienen sus propios ámbitos y cursores; este documento cubre las tres listas
 de la sesión de estudio.
 
 Regresión: `pnpm test:web-study-session-source-cursors`.
+
+El recorrido Chromium `node scripts/test-web-study-plan-material-finder-browser.mjs`
+comprueba además el ciclo de la fuente disponible, su conservación ante 500 y
+la limpieza ante 401, 403 o 404 de Recursos, preservando el plan y sus notas.
