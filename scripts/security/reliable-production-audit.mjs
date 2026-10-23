@@ -9,7 +9,7 @@ export const ATTEMPT_TIMEOUT_MS = 95_000;
 
 const NETWORK_FAILURE = /\b(?:ERR_SOCKET_TIMEOUT|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|ERR_PNPM_META_FETCH_FAIL|ERR_PNPM_AUDIT_BAD_RESPONSE)\b|(?:fetch|request|socket)\s+timeout/iu;
 const VERIFIED_CLEAN = /(?:No known vulnerabilities found|found 0 vulnerabilities|0 vulnerabilities found)/iu;
-const ADVISORY_REPORT = /\b(?:\d+\s+vulnerabilit(?:y|ies)\s+found|Severity:\s*[\d\s\w|]+high|GHSA-[a-z0-9-]+)\b/iu;
+const ADVISORY_REPORT = /\b(?:[1-9]\d*\s+vulnerabilit(?:y|ies)\s+found|Severity:\s*[\d\s\w|]+high|GHSA-[a-z0-9-]+)\b/iu;
 
 export function classifyAuditAttempt(attempt) {
   if (!attempt || typeof attempt !== "object" ||
