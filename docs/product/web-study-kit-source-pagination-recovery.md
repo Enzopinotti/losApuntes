@@ -14,3 +14,7 @@ El buscador de recursos dentro del kit tiene su propio scope y recuperación;
 este cambio cubre únicamente las listas guardadas y encontradas por materia.
 
 Regresión: `pnpm test:web-study-kit-sources-cursor`.
+
+La prueba de Chromium `node scripts/test-web-study-kits-resource-search-browser.mjs`
+también verifica que la fuente encontrada detenga un cursor repetido, conserve
+los resultados ante un error 500 y los descarte ante 401, 403 o 404 de Recursos.
