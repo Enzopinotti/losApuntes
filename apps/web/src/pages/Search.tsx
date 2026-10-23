@@ -319,7 +319,8 @@ const Search = () => {
       setProfileCopyStatus({
         scopeKey: resultScopeKey,
         profileId,
-        message: "Enlace copiado. Solo comparte la dirección del perfil público.",
+        message:
+          "Enlace copiado. Solo comparte la dirección del perfil público.",
       });
     } catch {
       setProfileCopyStatus({
@@ -614,7 +615,9 @@ const Search = () => {
                         {shareablePublicProfileHref(person.profileId) && (
                           <button
                             type="button"
-                            onClick={() => void copyPublicProfileLink(person.profileId)}
+                            onClick={() => {
+                              void copyPublicProfileLink(person.profileId);
+                            }}
                             aria-label={`Copiar enlace del perfil de ${person.displayName}`}
                           >
                             Copiar enlace del perfil
