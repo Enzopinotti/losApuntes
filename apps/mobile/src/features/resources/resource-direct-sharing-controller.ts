@@ -165,19 +165,12 @@ export class MobileResourceDirectSharingController {
       }
       if (requestedCursor) {
         this.grantsCursorHistory.add(requestedCursor);
-        if (
-          result.nextCursor &&
-          this.grantsCursorHistory.has(result.nextCursor)
-        ) {
-          this.publish({
-            ...latest,
-            grantsState: "ready",
-            grantsNextCursor: null,
-            grantsFailure: "cursor_cycle",
-          });
-          return;
-        }
       }
+      const cursorCycle = Boolean(
+        requestedCursor &&
+        result.nextCursor &&
+        this.grantsCursorHistory.has(result.nextCursor),
+      );
       const seen = new Set<string>();
       const items = [
         ...(loadMore ? latest.grants : []),
@@ -191,8 +184,8 @@ export class MobileResourceDirectSharingController {
         ...latest,
         grantsState: "ready",
         grants: items,
-        grantsNextCursor: result.nextCursor,
-        grantsFailure: null,
+        grantsNextCursor: cursorCycle ? null : result.nextCursor,
+        grantsFailure: cursorCycle ? "cursor_cycle" : null,
       });
     } catch (error) {
       if (!this.grantsCurrent(operation)) return;
