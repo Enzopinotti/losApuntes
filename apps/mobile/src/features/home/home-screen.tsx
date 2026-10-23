@@ -75,6 +75,7 @@ import {
 import { useAcademicContext } from "../academic/academic-context-provider";
 import { HomeSavedReturnCard } from "./home-saved-return-card";
 import { HomeRecentOpenedCard } from "./home-recent-opened-card";
+import { HomeSearchResumeCard } from "./home-search-resume-card";
 import { HomeHelpOpportunitiesCard } from "./home-help-opportunities-card";
 import { homeSelectedCurrentSubject } from "./home-recent-academic-continuity";
 
@@ -969,6 +970,7 @@ export function HomeScreen() {
         sessionAuthorityKey={sessionAuthority}
         currentSubject={selectedRecentSubject}
       />
+      <HomeSearchResumeCard sessionAuthorityKey={sessionAuthority} />
       <HomeSavedReturnCard authorityKey={activeHomeAuthority} />
       <HomeHelpOpportunitiesCard authorityKey={activeHomeAuthority} />
       {MOBILE_STUDY_AGENDA_VISIBLE && session.kind === "authenticated" ? (

@@ -43,6 +43,12 @@ Bounded public posts with explicit organization source.
 
 Bounded organization events.
 
+Both continuation endpoints return `{ items, nextCursor }`. Web keeps posts and
+events as independent paged lists, appends and deduplicates by item ID, and
+stops a list if a page returns its current or a previously used cursor. The
+loaded items remain visible with an explicit refresh from that endpoint's first
+page; a failed page request keeps its cursor available for retry.
+
 ## Authenticated viewer
 
 ### PUT /organizations/:id/follow
