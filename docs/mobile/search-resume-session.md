@@ -21,6 +21,11 @@ context and access controls. A missing, malformed, or mismatched entry resets
 the Search input instead of broadening the query. Existing share links retain
 their separate, explicit behavior.
 
+A newly mounted Search screen defers remembering its initially empty input
+until a pending resume marker has been consumed. A session change clears the
+old entry but does not overwrite a new explicit search link with the generic
+input reset.
+
 Local evidence for this block is the @losapuntes/mobile type check, its
 targeted test suite, and formatting checks. These checks validate in-memory
 session isolation, input validation, generic Home copy, the query-free route,
