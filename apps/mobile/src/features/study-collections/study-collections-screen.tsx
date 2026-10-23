@@ -26,7 +26,7 @@ import {
 } from "./study-collections-api";
 import { MOBILE_PERSISTENT_COLLECTIONS_VISIBLE } from "./persistent-collections-flag";
 import { mobileStudyCollectionsApi } from "./study-collections-runtime";
-import { recordStudyCollectionPageCursor } from "./study-collections-pagination";
+import { StudyCollectionPageChain } from "./study-collections-pagination";
 
 type CollectionListState = {
   authorityKey: string;
@@ -126,8 +126,8 @@ export function StudyCollectionsScreen() {
   const mutationLock = useRef(false);
   const mutationAbort = useRef<AbortController | null>(null);
   const authorityRef = useRef<string | null>(null);
-  const listCursorHistory = useRef(new Set<string>());
-  const resourceCursorHistory = useRef(new Set<string>());
+  const listPages = useMemo(() => new StudyCollectionPageChain(), []);
+  const resourcePages = useMemo(() => new StudyCollectionPageChain(), []);
 
   const sessionAuthority =
     session.kind === "authenticated"
@@ -136,6 +136,15 @@ export function StudyCollectionsScreen() {
   const authorityKey =
     focused && appState === "active" ? sessionAuthority : null;
   authorityRef.current = authorityKey;
+  const listPageScope = authorityKey
+    ? JSON.stringify([authorityKey, listRefresh])
+    : null;
+  const resourcePageScope =
+    authorityKey && selectedId
+      ? JSON.stringify([authorityKey, selectedId, detailRefresh])
+      : null;
+  listPages.setScope(listPageScope);
+  resourcePages.setScope(resourcePageScope);
   const currentList =
     listState?.authorityKey === authorityKey ? listState : null;
   const currentDetail =
@@ -165,7 +174,6 @@ export function StudyCollectionsScreen() {
     if (!authorityKey || !MOBILE_PERSISTENT_COLLECTIONS_VISIBLE) return;
     const controller = new AbortController();
     const scope = authorityKey;
-    listCursorHistory.current.clear();
     setListState({
       authorityKey: scope,
       items: [],
@@ -217,7 +225,6 @@ export function StudyCollectionsScreen() {
     }
     const controller = new AbortController();
     const scope = authorityKey;
-    resourceCursorHistory.current.clear();
     setDetailState(null);
     void Promise.all([
       mobileStudyCollectionsApi.get(selectedId, controller.signal),
@@ -459,44 +466,36 @@ export function StudyCollectionsScreen() {
   };
 
   const loadMoreCollections = async () => {
-    if (!currentList?.nextCursor || !authorityKey) return;
+    if (!currentList?.nextCursor || currentList.busy || !authorityKey) return;
     const scope = authorityKey;
     const requestedCursor = currentList.nextCursor;
+    const ticket = listPages.begin(listPageScope, requestedCursor);
+    if (!ticket) return;
     setListState({ ...currentList, busy: true, error: null });
     try {
       const page = await mobileStudyCollectionsApi.list(requestedCursor);
-      if (authorityRef.current !== scope) return;
-      if (
-        recordStudyCollectionPageCursor(
-          listCursorHistory.current,
-          requestedCursor,
-          page.nextCursor,
-        )
-      ) {
-        setListState({
-          ...currentList,
-          nextCursor: null,
-          busy: false,
-          error:
-            "La lista devolvió una página repetida. Actualizá las colecciones para recibir una tanda nueva.",
-        });
+      if (authorityRef.current !== scope || !listPages.isCurrent(ticket))
         return;
-      }
+      const cursorCycle = listPages.record(ticket, page.nextCursor);
       setListState({
         authorityKey: scope,
         items: mergeById(currentList.items, page.items),
-        nextCursor: page.nextCursor,
+        nextCursor: cursorCycle ? null : page.nextCursor,
         busy: false,
-        error: null,
+        error: cursorCycle
+          ? "La lista devolvió una página repetida. Actualizá las colecciones para recibir una tanda nueva."
+          : null,
       });
     } catch (error) {
-      if (authorityRef.current === scope) {
+      if (authorityRef.current === scope && listPages.isCurrent(ticket)) {
         setListState({
           ...currentList,
           busy: false,
           error: errorMessage(error),
         });
       }
+    } finally {
+      listPages.finish(ticket);
     }
   };
 
@@ -506,19 +505,22 @@ export function StudyCollectionsScreen() {
       !currentDetail ||
       !collection ||
       !currentDetail.nextCursor ||
+      currentDetail.busy ||
       !authorityKey
     )
       return;
     const scope = authorityKey;
     const selectedCollectionId = collection.id;
     const requestedCursor = currentDetail.nextCursor;
+    const ticket = resourcePages.begin(resourcePageScope, requestedCursor);
+    if (!ticket) return;
     setDetailState({ ...currentDetail, busy: true, error: null });
     try {
       const page = await mobileStudyCollectionsApi.resources(
         selectedCollectionId,
         requestedCursor,
       );
-      if (authorityRef.current !== scope || selectedId !== selectedCollectionId)
+      if (authorityRef.current !== scope || !resourcePages.isCurrent(ticket))
         return;
       if (page.revision !== currentDetail.revision) {
         throw new ApiRequestError(
@@ -528,40 +530,26 @@ export function StudyCollectionsScreen() {
           "Collection changed while paging",
         );
       }
-      if (
-        recordStudyCollectionPageCursor(
-          resourceCursorHistory.current,
-          requestedCursor,
-          page.nextCursor,
-        )
-      ) {
-        setDetailState({
-          ...currentDetail,
-          nextCursor: null,
-          busy: false,
-          error:
-            "La lista de apuntes devolvió una página repetida. Actualizá la colección para recibir una tanda nueva.",
-        });
-        return;
-      }
+      const cursorCycle = resourcePages.record(ticket, page.nextCursor);
       setDetailState({
         ...currentDetail,
         items: mergeResources(currentDetail.items, page.items),
-        nextCursor: page.nextCursor,
+        nextCursor: cursorCycle ? null : page.nextCursor,
         busy: false,
-        error: null,
+        error: cursorCycle
+          ? "La lista de apuntes devolvió una página repetida. Actualizá la colección para recibir una tanda nueva."
+          : null,
       });
     } catch (error) {
-      if (
-        authorityRef.current === scope &&
-        selectedId === selectedCollectionId
-      ) {
+      if (authorityRef.current === scope && resourcePages.isCurrent(ticket)) {
         setDetailState({
           ...currentDetail,
           busy: false,
           error: errorMessage(error),
         });
       }
+    } finally {
+      resourcePages.finish(ticket);
     }
   };
 
