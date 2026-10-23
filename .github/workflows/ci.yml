@@ -422,6 +422,11 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
+      - name: Fail fast on password and dashboard browser contract regressions
+        run: |
+          node --check scripts/auth-browser-e2e.mjs
+          node --test scripts/test-auth-browser-password-locators.test.mjs scripts/test-auth-dashboard-route-contract.test.mjs
+
       - name: Install root and Web workspace dependencies
         run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
 

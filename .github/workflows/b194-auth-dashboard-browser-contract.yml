@@ -1,0 +1,54 @@
+name: B194 auth dashboard browser contract
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b194-auth-dashboard-browser-contract.yml
+      - .github/workflows/ci.yml
+      - scripts/auth-browser-e2e.mjs
+      - scripts/test-auth-browser-password-locators.test.mjs
+      - scripts/test-auth-dashboard-route-contract.test.mjs
+      - apps/web/src/pages/Dashboard.tsx
+      - docs/engineering/b194-auth-dashboard-browser-smoke.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b194-auth-browser-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: B194 exact-head auth and dashboard browser contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert immutable SHA and clean source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use canonical Node24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Test exact password labels, keyboard traversal, and current dashboard H1
+        run: |
+          node --check scripts/auth-browser-e2e.mjs
+          node --test scripts/test-auth-browser-password-locators.test.mjs scripts/test-auth-dashboard-route-contract.test.mjs
+      - name: Confirm unchanged source after test
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
