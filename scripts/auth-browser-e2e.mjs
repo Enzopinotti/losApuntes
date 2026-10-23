@@ -633,7 +633,7 @@ async function run() {
 
     await page.waitForURL((url) => url.pathname === "/dashboard");
     await page
-      .getByRole("heading", { name: "Tu espacio en Los Apuntes" })
+      .getByRole("heading", { name: "¿Qué querés hacer hoy?", exact: true })
       .waitFor();
 
     const cookies = await context.cookies(API_ORIGIN);
