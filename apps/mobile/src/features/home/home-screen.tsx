@@ -38,6 +38,7 @@ import {
   ProductSurface,
   type ProductSurfaceListProps,
 } from "@/features/navigation/product-surface";
+import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { mobileAuthenticatedApi } from "@/features/session/session-runtime";
 import { useSession } from "@/features/session/session-provider";
 import { MOBILE_STUDY_AGENDA_VISIBLE } from "@/features/study/study-agenda-flag";
@@ -220,6 +221,12 @@ function FeedItemRow({
       ) : (
         itemContent
       )}
+      {item.type === "resource" ? (
+        <MobileResourceShareAction
+          resourceId={item.id}
+          resourceTitle={item.title}
+        />
+      ) : null}
     </View>
   );
 }
