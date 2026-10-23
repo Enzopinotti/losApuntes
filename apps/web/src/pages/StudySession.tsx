@@ -453,7 +453,8 @@ export default function StudySession() {
       } catch (error) {
         if (foundCurrent(ticket)) {
           const accessRevoked =
-            isSearchApiError(error) && [401, 403, 404].includes(error.status);
+            isResourcesApiError(error) &&
+            [401, 403, 404].includes(error.status);
           if (accessRevoked) {
             foundCursors.current = { scope, values: new Set<string>() };
           }
