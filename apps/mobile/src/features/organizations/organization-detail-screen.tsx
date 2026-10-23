@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -357,26 +358,31 @@ export function MobileOrganizationDetailScreen({
                 Recursos destacados
               </Text>
               {current.organization.featuredResources.map((resource) => (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Abrir recurso destacado ${resource.title}`}
-                  key={resource.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/resources/[id]",
-                      params: { id: resource.id },
-                    })
-                  }
-                  style={styles.item}
-                >
-                  <Text style={styles.itemTitle}>{resource.title}</Text>
-                  <Text style={styles.meta}>
-                    {resource.academic.subject.name}
-                  </Text>
-                  {resource.description ? (
-                    <Text style={styles.copy}>{resource.description}</Text>
-                  ) : null}
-                </Pressable>
+                <View key={resource.id} style={styles.item}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Abrir recurso destacado ${resource.title}`}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/resources/[id]",
+                        params: { id: resource.id },
+                      })
+                    }
+                    style={styles.featuredResourceOpen}
+                  >
+                    <Text style={styles.itemTitle}>{resource.title}</Text>
+                    <Text style={styles.meta}>
+                      {resource.academic.subject.name}
+                    </Text>
+                    {resource.description ? (
+                      <Text style={styles.copy}>{resource.description}</Text>
+                    ) : null}
+                  </Pressable>
+                  <MobileResourceShareAction
+                    resourceId={resource.id}
+                    resourceTitle={resource.title}
+                  />
+                </View>
               ))}
             </View>
           ) : null}
@@ -542,6 +548,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
+  },
+  featuredResourceOpen: {
+    gap: 5,
+    minHeight: 44,
+    justifyContent: "center",
   },
   itemTitle: {
     fontSize: 16,
