@@ -1370,3 +1370,75 @@ test("published answer confirmation preserves a newer edited draft", () => {
 
   assert.deepEqual(transition, { visible: true, clearDraft: false });
 });
+
+test("refreshing a stopped answer chain permits the same cursor again", async () => {
+  let calls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => detail(id, [answer("newest")], "cursor-a"),
+    answers: async () => {
+      calls += 1;
+      return { items: [answer("older")], nextCursor: "cursor-a" };
+    },
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => ({ answer: answer("created") }),
+  });
+  await controller.load("authority-a", "question-a");
+  await controller.loadMoreAnswers("authority-a");
+  const stopped = controller.getSnapshot();
+  assert.equal(stopped.kind, "ready");
+  if (stopped.kind === "ready") {
+    assert.equal(stopped.answersCursorRepeated, true);
+    assert.equal(stopped.detail.answersNextCursor, null);
+  }
+  await controller.load("authority-a", "question-a");
+  const refreshed = controller.getSnapshot();
+  assert.equal(refreshed.kind, "ready");
+  if (refreshed.kind === "ready") {
+    assert.equal(refreshed.answersCursorRepeated, false);
+    assert.equal(refreshed.detail.answersNextCursor, "cursor-a");
+    assert.deepEqual(
+      refreshed.detail.answers.map((item) => item.id),
+      ["newest"],
+    );
+  }
+  await controller.loadMoreAnswers("authority-a");
+  assert.equal(calls, 2);
+});
+
+test("failed answer pagination preserves its cursor for a successful retry", async () => {
+  let calls = 0;
+  const controller = new MobileCommunityQuestionController({
+    questions: async () => page([]),
+    question: async (id) => detail(id, [answer("newest")], "cursor-a"),
+    answers: async () => {
+      if (++calls === 1) throw new Error("temporary failure");
+      return { items: [answer("older")], nextCursor: "cursor-b" };
+    },
+    createQuestion: async () => ({ question: question("created") }),
+    createAnswer: async () => ({ answer: answer("created") }),
+  });
+  await controller.load("authority-a", "question-a");
+  await controller.loadMoreAnswers("authority-a");
+  const failed = controller.getSnapshot();
+  assert.equal(failed.kind, "ready");
+  if (failed.kind === "ready") {
+    assert.ok(failed.answersFailure);
+    assert.equal(failed.detail.answersNextCursor, "cursor-a");
+    assert.equal(failed.answersCursorRepeated, false);
+    assert.equal(failed.detail.answers.length, 1);
+  }
+  await controller.loadMoreAnswers("authority-a");
+  const retried = controller.getSnapshot();
+  assert.equal(retried.kind, "ready");
+  if (retried.kind === "ready") {
+    assert.equal(retried.answersFailure, null);
+    assert.equal(retried.answersCursorRepeated, false);
+    assert.equal(retried.detail.answersNextCursor, "cursor-b");
+    assert.deepEqual(
+      retried.detail.answers.map((item) => item.id),
+      ["newest", "older"],
+    );
+  }
+  assert.equal(calls, 2);
+});
