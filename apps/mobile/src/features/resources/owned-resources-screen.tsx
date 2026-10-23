@@ -458,6 +458,22 @@ export function OwnedResourcesScreen() {
             </Text>
           ) : null}
 
+          {ready?.cursorRepeated ? (
+            <View style={styles.card}>
+              <Text accessibilityRole="alert" style={styles.error}>
+                El servidor devolvió un cursor repetido. Actualizá la lista para
+                empezar de nuevo.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={refresh}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.buttonText}>Actualizar publicaciones</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {ready?.data.nextCursor ? (
             <Pressable
               accessibilityRole="button"
