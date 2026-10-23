@@ -94,7 +94,8 @@ Owner and Public Profile:
 Owner Profile:
 
 - stop when a continuation response returns its current or a previously
-  consumed cursor, keeping the activities already loaded visible;
+  consumed cursor, retaining and deduplicating the received page alongside
+  the activities already loaded;
 - offer an owner-only refresh from the first page after a repeated cursor;
 - leave a cursor eligible for retry when its request fails before a page is
   received.
