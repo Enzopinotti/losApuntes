@@ -78,6 +78,41 @@ test("opening loads only the first bounded collection page for this resource sco
   });
 });
 
+test("opening another result fences the earlier collection response", async () => {
+  const first = deferred<{
+    items: StudyCollection[];
+    nextCursor: string | null;
+  }>();
+  const second = deferred<{
+    items: StudyCollection[];
+    nextCursor: string | null;
+  }>();
+  let calls = 0;
+  const { controller } = setup({
+    list: async () => {
+      calls += 1;
+      return calls === 1 ? first.promise : second.promise;
+    },
+  });
+
+  const openingFirst = controller.open("user:session", "resource-first");
+  const openingSecond = controller.open("user:session", "resource-second");
+  second.resolve({ items: [collection("second")], nextCursor: null });
+  await openingSecond;
+  first.resolve({ items: [collection("first")], nextCursor: null });
+  await openingFirst;
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.resourceId, "resource-second");
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["second"],
+    );
+  }
+});
+
 test("pagination preserves the opaque cursor and deduplicates collection IDs", async () => {
   const { controller, calls } = setup({
     list: async (cursor, signal) => {

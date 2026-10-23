@@ -83,9 +83,19 @@ Optional query:
 
 Returns available Questions only.
 
+Web clients may continue the result with `nextCursor`. They should deduplicate
+appended Questions by id and stop pagination if the server repeats the
+requested or any previously used cursor; a fresh request without `cursor`
+restarts the search.
+
 ### GET /questions/:id
 
 Returns one available Question and bounded available Answers.
+
+The embedded Answer page includes `answersNextCursor` and `answersLimit`.
+Continuation uses `GET /questions/:questionId/answers`; clients should
+deduplicate appended Answers by id and stop if a continuation cursor repeats.
+A request without `cursor` reloads the first Answer page.
 
 ### POST /questions
 
