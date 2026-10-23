@@ -13,6 +13,8 @@ import {
 } from '../apps/web/src/features/search/search-save-feedback.mjs';
 
 import {
+  shareablePublicProfileHref,
+  shareablePublicProfileUrl,
   shareableResourceHref,
   shareableResourceUrl,
   shareableSubjectResourcesHref,
@@ -256,6 +258,36 @@ assert.equal(
   'http://localhost:5173/resources?subjectId=' + subjectId,
 );
 
+// B207: public profile links contain a canonical Profile UUID only, never
+// the search query, session, account ID, or a grant to non-public content.
+const publicProfileId = 'bc27aff3-5f0b-4fe4-86ed-82dc97e6f364';
+assert.equal(shareablePublicProfileHref(publicProfileId), '/p/' + publicProfileId);
+assert.equal(
+  shareablePublicProfileUrl(publicProfileId.toUpperCase(), 'https://apuntes.example'),
+  'https://apuntes.example/p/' + publicProfileId,
+);
+assert.equal(
+  shareablePublicProfileUrl(publicProfileId, 'http://localhost:5173'),
+  'http://localhost:5173/p/' + publicProfileId,
+);
+for (const id of [
+  '', 'user-id', 'someone/../security', '%2F',
+  publicProfileId + '?session=secret',
+  publicProfileId + '/private',
+  'bc27aff3-5f0b-1fe4-86ed-82dc97e6f364',
+  null, undefined, {}, 25,
+]) {
+  assert.equal(shareablePublicProfileHref(id), null);
+  assert.equal(shareablePublicProfileUrl(id, 'https://apuntes.example'), null);
+}
+for (const origin of [
+  '', '/', '//attacker.example', 'javascript:alert(1)',
+  'file:///private', 'https://apuntes.example/path',
+  'https://name:pass@apuntes.example', 'https://apuntes.example/',
+]) {
+  assert.equal(shareablePublicProfileUrl(publicProfileId, origin), null);
+}
+
 const service = await read(
   'apps/web/src/features/search/services/searchService.ts',
 );
@@ -339,6 +371,16 @@ assert.match(page, /subjectCopyStatus\?\.scopeKey === resultScopeKey/u);
 assert.match(page, /subjectCopyStatus\.subjectId === subject\.id/u);
 assert.match(page, /setSubjectCopyStatus\(null\)/u);
 assert.match(page, /<small role="status">\s*\{subjectCopyStatus\.message\}\s*<\/small>/u);
+// B207: public people have an explicit, account-safe clipboard action.
+assert.match(page, /shareablePublicProfileHref\(person\.profileId\)/u);
+assert.match(page, /shareablePublicProfileUrl\(profileId, window\.location\.origin\)/u);
+assert.match(page, /copyPublicProfileLink\(person\.profileId\)/u);
+assert.match(page, /Copiar enlace del perfil de \$\{person\.displayName\}/u);
+assert.match(page, /Solo comparte la dirección del perfil público/u);
+assert.match(page, /profileCopyStatus\?\.scopeKey === resultScopeKey/u);
+assert.match(page, /profileCopyStatus\.profileId === person\.profileId/u);
+assert.match(page, /setProfileCopyStatus\(null\)/u);
+assert.match(page, /<small role="status">\s*\{profileCopyStatus\.message\}\s*<\/small>/u);
 assert.match(page, /copySearchLink/u);
 assert.match(page, /navigator\.clipboard\?\.writeText/u);
 assert.match(page, /role="status"/u);
@@ -415,6 +457,8 @@ assert.match(page, /Iniciá sesión/u);
 const saveStyles = await read('apps/web/src/pages/Search.scss');
 assert.match(saveStyles, /\.search-save-action button:focus-visible/u);
 assert.match(saveStyles, /\.search-subject-actions button:focus-visible/u);
+assert.match(saveStyles, /\.search-profile-actions button:focus-visible/u);
+assert.match(saveStyles, /\.search-profile-actions \[role="status"\]/u);
 assert.match(saveStyles, /\.search-subject-actions \[role="status"\]/u);
 assert.match(saveStyles, /\.search-save-action p\[role="alert"\]/u);
 const resourcesService = await read(
