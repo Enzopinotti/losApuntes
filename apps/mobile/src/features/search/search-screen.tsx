@@ -30,6 +30,7 @@ import {
 
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
 import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
+import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import {
@@ -203,6 +204,10 @@ function ResourceResult({
             <Text style={styles.collectionActionLabel}>A colección</Text>
           </Pressable>
         ) : null}
+        <MobileResourceShareAction
+          resourceId={resource.id}
+          resourceTitle={resource.title}
+        />
         {quickSaveEntry?.state === "uncertain" ? (
           <>
             <Text accessibilityRole="alert" style={styles.error}>
