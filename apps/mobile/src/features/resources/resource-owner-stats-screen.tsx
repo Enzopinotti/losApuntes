@@ -12,6 +12,7 @@ import {
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { useSession } from "@/features/session/session-provider";
 
 import type { ResourceConsumptionFailure } from "./resource-consumption-controller";
@@ -126,33 +127,38 @@ function OwnerStatisticsData({
           </Text>
         ) : (
           data.topResources.map((resource, index) => (
-            <Pressable
-              key={resource.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Abrir ${resource.title}. ${resource.saves} guardados vigentes, ${resource.shareGrants} permisos activos`}
-              onPress={() => onOpen(resource.id)}
-              style={styles.rankingRow}
-            >
-              <Text style={styles.rowTitle}>
-                {index + 1}. {resource.title}
-              </Text>
-              <Text style={styles.meta}>
-                {resource.saves} guardados · {resource.shareGrants} permisos
-                individuales activos
-              </Text>
-              <View style={styles.barTrack}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      width:
-                        `${Math.round((resource.saves / maxSaves) * 100)}%` as `${number}%`,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.actionText}>Abrir apunte</Text>
-            </Pressable>
+            <View key={resource.id} style={styles.rankingRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Abrir ${resource.title}. ${resource.saves} guardados vigentes, ${resource.shareGrants} permisos activos`}
+                onPress={() => onOpen(resource.id)}
+                style={styles.rankingOpen}
+              >
+                <Text style={styles.rowTitle}>
+                  {index + 1}. {resource.title}
+                </Text>
+                <Text style={styles.meta}>
+                  {resource.saves} guardados · {resource.shareGrants} permisos
+                  individuales activos
+                </Text>
+                <View style={styles.barTrack}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        width:
+                          `${Math.round((resource.saves / maxSaves) * 100)}%` as `${number}%`,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.actionText}>Abrir apunte</Text>
+              </Pressable>
+              <MobileResourceShareAction
+                resourceId={resource.id}
+                resourceTitle={resource.title}
+              />
+            </View>
           ))
         )}
       </View>
@@ -288,6 +294,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
   },
+  rankingOpen: { gap: 8, minHeight: 44, justifyContent: "center" },
   rowTitle: { fontSize: 15, fontWeight: "700", color: "#20202a" },
   barTrack: {
     height: 8,
