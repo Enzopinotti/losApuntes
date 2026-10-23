@@ -74,6 +74,30 @@ test("clearing the active query notifies Home subscribers", () => {
   assert.equal(memory.has(firstSession), false);
 });
 
+test("an empty remounted screen preserves the pending resume request", () => {
+  const memory = new MobileSearchResumeMemory();
+  memory.setSession(firstSession);
+  memory.remember(firstSession, { q: "parcial", scope: "resources" });
+  memory.setSession(firstSession);
+  memory.remember(firstSession, null, { resumePending: true });
+  const resumed = memory.get(firstSession);
+  assert.deepEqual(resumed, { q: "parcial", scope: "resources" });
+  memory.remember(firstSession, resumed);
+  assert.deepEqual(memory.get(firstSession), resumed);
+  memory.remember(firstSession, null);
+  assert.equal(memory.get(firstSession), null);
+});
+
+test("a pending resume never carries a previous session query into a new session", () => {
+  const memory = new MobileSearchResumeMemory();
+  memory.setSession(firstSession);
+  memory.remember(firstSession, { q: "parcial", scope: "resources" });
+  memory.setSession(secondSession);
+  memory.remember(secondSession, null, { resumePending: true });
+  assert.equal(memory.get(firstSession), null);
+  assert.equal(memory.get(secondSession), null);
+});
+
 test("Home exposes a generic resume action and passes no search text in its route", () => {
   const card = readFileSync(
     new URL(
