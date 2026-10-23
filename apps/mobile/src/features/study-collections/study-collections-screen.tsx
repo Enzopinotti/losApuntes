@@ -758,7 +758,7 @@ export function StudyCollectionsScreen() {
             ) : null}
             {currentDetail.items.map((item) => (
               <View key={item.resourceId} style={styles.resourceRow}>
-                {item.resource ? (
+                {item.resource && item.resource.id === item.resourceId ? (
                   <Pressable
                     accessibilityRole="link"
                     onPress={() =>
