@@ -547,7 +547,15 @@ test("a grants cursor cycle retains loaded permissions and requires refresh", as
           };
         }
         return {
-          items: [{ ...lucia, grantedAt: "2026-10-03T12:00:00.000Z" }],
+          items: [
+            { ...lucia, grantedAt: "2026-10-03T12:00:00.000Z" },
+            {
+              profileId: "profile-c",
+              displayName: "Carla",
+              avatarUrl: null,
+              grantedAt: "2026-10-04T12:00:00.000Z",
+            },
+          ],
           nextCursor: "cursor-a",
           resourceRevision: 2,
         };
@@ -567,7 +575,7 @@ test("a grants cursor cycle retains loaded permissions and requires refresh", as
   if (snapshot.kind !== "ready") return;
   assert.deepEqual(
     snapshot.grants.map((grant) => grant.profileId),
-    ["profile-a", "profile-b"],
+    ["profile-a", "profile-b", "profile-c"],
   );
   assert.equal(snapshot.grantsNextCursor, null);
   assert.equal(snapshot.grantsFailure, "cursor_cycle");
