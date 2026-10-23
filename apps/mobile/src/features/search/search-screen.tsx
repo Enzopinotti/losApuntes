@@ -65,6 +65,7 @@ import {
   mobileSearchShareUrl,
   parseMobileSearchLink,
 } from "./search-deep-link";
+import { mobileSearchResumeMemory } from "./search-resume-memory";
 import {
   MobileSearchQuickSaveController,
   type SearchQuickSaveEntry,
@@ -503,6 +504,7 @@ export function SearchScreen() {
     q?: string;
     scope?: string;
     subjectId?: string;
+    resumeRecentSearch?: string;
   }>();
   const incomingSearch = useMemo(
     () =>
@@ -517,6 +519,10 @@ export function SearchScreen() {
     routeParams.q !== undefined ||
     routeParams.scope !== undefined ||
     routeParams.subjectId !== undefined;
+  const hasResumeRecentSearchRequest =
+    routeParams.resumeRecentSearch !== undefined;
+  const isValidResumeRecentSearchRequest =
+    routeParams.resumeRecentSearch === "1";
   const incomingSearchKey = incomingSearch
     ? mobileSearchLinkKey(incomingSearch)
     : null;
@@ -526,6 +532,7 @@ export function SearchScreen() {
     routeParams.subjectId ?? null,
   ]);
   const handledIncomingSearch = useRef<string | null>(null);
+  const handledResumeSearch = useRef<string | null>(null);
   const isFocused = useIsFocused();
   const { snapshot: session } = useSession();
   const { snapshot: academic, retry: retryAcademic } = useAcademicContext();
@@ -642,6 +649,67 @@ export function SearchScreen() {
     () => searchInputForState(searchInputState),
     [query, scope, subjectId],
   );
+  const sessionAuthorityRef = useRef(sessionAuthority);
+  const [resumeSearchRevision, setResumeSearchRevision] = useState(0);
+
+  useEffect(() => {
+    if (sessionAuthorityRef.current !== sessionAuthority) {
+      sessionAuthorityRef.current = sessionAuthority;
+      mobileSearchResumeMemory.setSession(sessionAuthority);
+      controller.invalidate();
+      if (!hasIncomingSearchParams && !hasResumeRecentSearchRequest) {
+        dispatchSearchInput({ type: "resetAll" });
+      }
+      return;
+    }
+
+    mobileSearchResumeMemory.setSession(sessionAuthority);
+    mobileSearchResumeMemory.remember(sessionAuthority, searchInput, {
+      resumePending: hasResumeRecentSearchRequest,
+    });
+  }, [
+    controller,
+    hasIncomingSearchParams,
+    hasResumeRecentSearchRequest,
+    searchInput,
+    sessionAuthority,
+  ]);
+
+  useEffect(() => {
+    if (!hasResumeRecentSearchRequest || hasIncomingSearchParams) {
+      handledResumeSearch.current = null;
+      return;
+    }
+    if (!authorityKey) return;
+
+    const key = sessionAuthority + ":" + routeParams.resumeRecentSearch;
+    if (handledResumeSearch.current === key) return;
+    handledResumeSearch.current = key;
+
+    controller.cancelSearch();
+    const resumedSearch = isValidResumeRecentSearchRequest
+      ? mobileSearchResumeMemory.get(sessionAuthority)
+      : null;
+    if (resumedSearch) {
+      dispatchSearchInput({
+        type: "sharedSearchOpened",
+        input: resumedSearch,
+      });
+      setResumeSearchRevision((revision) => revision + 1);
+    } else {
+      dispatchSearchInput({ type: "invalidSharedSearchOpened" });
+    }
+    router.replace("/(tabs)/search");
+  }, [
+    authorityKey,
+    controller,
+    hasIncomingSearchParams,
+    hasResumeRecentSearchRequest,
+    isValidResumeRecentSearchRequest,
+    routeParams.resumeRecentSearch,
+    router,
+    sessionAuthority,
+  ]);
 
   useEffect(
     () => quickSaveController.subscribe(setQuickSave),
@@ -744,7 +812,7 @@ export function SearchScreen() {
     return () => {
       controller.cancelSearch(authorityKey);
     };
-  }, [authorityKey, controller, query, searchInput]);
+  }, [authorityKey, controller, query, resumeSearchRevision, searchInput]);
 
   useEffect(
     () => () => {
