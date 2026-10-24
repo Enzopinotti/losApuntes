@@ -1221,8 +1221,7 @@ export default function StudyRunner() {
                         .map(keyOf)
                         .join("|")}`}
                       allowed={{
-                        previous:
-                          !busy && !remoteBusy && runner.index > 0,
+                        previous: !busy && !remoteBusy && runner.index > 0,
                         next:
                           !busy &&
                           !remoteBusy &&
