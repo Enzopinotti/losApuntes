@@ -87,6 +87,9 @@ describe('B62 Study Progress owner export reader', () => {
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(f.model.find).not.toHaveBeenCalled();
+    // The mocked adapter must honor its cursor just like the indexed Mongo
+    // query: the next page begins strictly after the last returned Subject.
+    f.query.exec.mockResolvedValueOnce([stored(c)]);
     await f.reader.listAccountExportProgress(owner, {
       cursor: page.nextCursor,
       limit: 2,
@@ -154,6 +157,63 @@ describe('B62 Study Progress owner export reader', () => {
       old.reader.listAccountExportProgress(owner, {
         cursor: null,
         limit: 2,
+      }),
+    ).rejects.toThrow('row is invalid');
+  });
+
+  it('rejects repeated, reversed and oversized adapter pages before emitting a cursor', async () => {
+    const cases = [
+      { rows: [stored(a), stored(a)], error: 'page ordering' },
+      { rows: [stored(b), stored(a)], error: 'page ordering' },
+      {
+        rows: [stored(a), stored(b), stored(c)],
+        error: 'query budget',
+      },
+    ];
+    for (const sample of cases) {
+      const f = fixture(sample.rows);
+      await expect(
+        f.reader.listAccountExportProgress(owner, {
+          cursor: null,
+          limit: 1,
+        }),
+      ).rejects.toThrow(sample.error);
+      expect(f.model.find).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('rejects an overlapping continuation even if a reader adapter ignores its cursor', async () => {
+    const firstReader = fixture([stored(a), stored(b)]);
+    const first = await firstReader.reader.listAccountExportProgress(owner, {
+      cursor: null,
+      limit: 1,
+    });
+    expect(first.nextCursor).toEqual(expect.any(String));
+    const broken = fixture([stored(a), stored(b)]);
+    await expect(
+      broken.reader.listAccountExportProgress(owner, {
+        cursor: first.nextCursor,
+        limit: 1,
+      }),
+    ).rejects.toThrow('page ordering');
+    expect(broken.model.find).toHaveBeenCalledWith({
+      ownerUserId: owner,
+      subjectId: { $gt: a },
+    });
+  });
+
+  it('rejects a persisted progress record updated before its creation time', async () => {
+    const f = fixture([
+      {
+        ...stored(a),
+        createdAt: new Date('2026-10-03T12:00:00.000Z'),
+        updatedAt: new Date('2026-10-02T12:00:00.000Z'),
+      },
+    ]);
+    await expect(
+      f.reader.listAccountExportProgress(owner, {
+        cursor: null,
+        limit: 1,
       }),
     ).rejects.toThrow('row is invalid');
   });
