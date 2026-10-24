@@ -103,6 +103,9 @@ function needsHomeRefresh(error: unknown): boolean {
 
 function moreFailureMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
+    if (error.code === "HOME_FEED_CURSOR_CYCLE") {
+      return "El feed volvió a una página anterior. Actualizá Inicio para recibir una tanda nueva.";
+    }
     if (error.kind === "conflict" || error.kind === "gone") {
       return "La selección cambió. Actualizá Inicio para recibir una nueva tanda.";
     }
@@ -183,6 +186,10 @@ export class MobileHomeController {
     home: null,
     for_you: null,
   };
+  private consumedCursors: Record<HomeFeedSection, Set<string>> = {
+    home: new Set(),
+    for_you: new Set(),
+  };
 
   constructor(private readonly api: PilotHomeApi) {}
 
@@ -241,7 +248,8 @@ export class MobileHomeController {
       initial.kind !== "ready" ||
       initial.authorityKey !== authorityKey ||
       this.authorityKey !== authorityKey ||
-      this.moreOperations[section]
+      this.moreOperations[section] ||
+      initial.pagination?.[section]?.requiresRefresh
     ) {
       return;
     }
@@ -278,15 +286,6 @@ export class MobileHomeController {
           : await this.api.forYouFeed(cursor, mode, operation.signal);
       if (!stillCurrent()) return;
 
-      if (page.nextCursor === cursor) {
-        throw new ApiRequestError(
-          "conflict",
-          409,
-          "HOME_FEED_CURSOR_REPEATED",
-          "Home feed did not advance its cursor",
-        );
-      }
-
       const current = this.snapshot;
       if (current.kind !== "ready") return;
       if (
@@ -310,6 +309,16 @@ export class MobileHomeController {
 
       if (page.items.length > HOME_FEED_PAGE_SIZE) {
         throw new Error("Home feed page exceeds the server page limit");
+      }
+      const consumedCursors = this.consumedCursors[section];
+      consumedCursors.add(cursor);
+      if (page.nextCursor && consumedCursors.has(page.nextCursor)) {
+        throw new ApiRequestError(
+          "conflict",
+          409,
+          "HOME_FEED_CURSOR_CYCLE",
+          "Home feed returned a previously consumed cursor",
+        );
       }
       const items = dedupeFeedItems(currentFeed.items, page.items);
       const updatedData: PilotHomeResponse =
@@ -373,6 +382,7 @@ export class MobileHomeController {
     this.activeOperation?.abort();
     this.activeOperation = null;
     this.authorityKey = null;
+    this.resetConsumedCursors();
     this.publish({ kind: "idle" });
   }
 
@@ -386,6 +396,7 @@ export class MobileHomeController {
   private start(authorityKey: string, snapshot: MobileHomeSnapshot): number {
     this.operationGeneration += 1;
     this.abortMore();
+    this.resetConsumedCursors();
     this.activeOperation?.abort();
     this.activeOperation = new AbortController();
     this.authorityKey = authorityKey;
@@ -398,6 +409,11 @@ export class MobileHomeController {
       generation === this.operationGeneration &&
       authorityKey === this.authorityKey
     );
+  }
+
+  private resetConsumedCursors(): void {
+    this.consumedCursors.home.clear();
+    this.consumedCursors.for_you.clear();
   }
 
   private publish(snapshot: MobileHomeSnapshot): void {

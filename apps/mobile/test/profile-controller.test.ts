@@ -59,7 +59,7 @@ const ready = (
     },
     presentation: {
       accentPreset: "default",
-      coverPreset: "default",
+      coverPreset: "none",
       sectionOrder: [
         "about",
         "academic",
