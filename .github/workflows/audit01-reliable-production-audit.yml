@@ -1,0 +1,60 @@
+name: AUDIT01 strict production-audit runner tests
+
+on:
+  pull_request:
+    paths:
+      - scripts/security/reliable-production-audit.mjs
+      - scripts/security/reliable-production-audit.test.mjs
+      - scripts/security/enforce-reliable-production-audit.mjs
+      - .github/workflows/ci.yml
+      - .github/workflows/audit01-reliable-production-audit.yml
+      - docs/security/audit01-reliable-production-audit.md
+  push:
+    branches:
+      - security/audit01-fail-closed-npm-retries-20261022
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit01-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fail-closed-audit-contract:
+    name: AUDIT01 exact-head no-waiver audit behavior
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact source SHA without write credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Confirm source SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use canonical Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Syntax check all security code
+        run: |
+          node --check scripts/security/reliable-production-audit.mjs
+          node --check scripts/security/enforce-reliable-production-audit.mjs
+          node --check scripts/security/reliable-production-audit.test.mjs
+      - name: Execute adversarial outage and advisory test cases
+        run: node --test scripts/security/reliable-production-audit.test.mjs
+      - name: Preserve exact candidate and source tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# Only the global verify security job makes a mandatory live registry call.
+# Green tests of mock scanner outcomes do NOT certify production dependencies.
