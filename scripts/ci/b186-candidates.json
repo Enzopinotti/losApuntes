@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "baseSha": "6bd965c71f6426da3d49fc7c0555e0e5afda06a9",
+  "candidates": [
+    {
+      "pr": 484,
+      "branch": "ci/b156-mongo-kernel-smoke-recovery-20261020",
+      "sha": "9a24bfa92410835f04af1122d10a6fc4df934660",
+      "purpose": "MongoDB 8 kernel-compatible Ubuntu 22.04 runtime"
+    },
+    {
+      "pr": 495,
+      "branch": "security/b164-follow-redirects-patch-20261020",
+      "sha": "b12c23bed5045d652391ac463bc857c15e7d1130",
+      "purpose": "Production follow-redirects advisory patch"
+    },
+    {
+      "pr": 519,
+      "branch": "feat/b183-home-feed-momentary-hide-20261021",
+      "sha": "32036334d2a4d05476469ed47d3ca0ebb656693a",
+      "purpose": "Reversible in-memory home preview",
+      "newTestScript": "test:web-home-momentary-hide-b183"
+    },
+    {
+      "pr": 520,
+      "branch": "feat/b184-email-verification-resend-safety-20261021",
+      "sha": "05df4506d09f235dc8f62c6ea0af07ac4e6bfcd2",
+      "purpose": "Verification resend dedup and bounded wait",
+      "newTestScript": "test:web-verification-resend-b184"
+    },
+    {
+      "pr": 521,
+      "branch": "feat/b185-accessible-password-visibility-20261021",
+      "sha": "8d257d7ecd3f4ba64c105ff0eafb3b0c41533964",
+      "purpose": "Accessible opt-in password controls",
+      "newTestScript": "test:web-password-visibility-b185"
+    }
+  ]
+}

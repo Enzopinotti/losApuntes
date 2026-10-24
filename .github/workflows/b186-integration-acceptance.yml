@@ -1,0 +1,167 @@
+name: B186 five-PR read-only integration rehearsal
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b186-integration-acceptance.yml
+      - scripts/ci/b186-candidates.json
+      - scripts/ci/b186-reconcile-package-scripts.mjs
+      - scripts/ci/b186-reconcile-package-scripts.test.mjs
+      - scripts/ci/b186-compose-candidates.mjs
+      - docs/engineering/b186-integration-acceptance.md
+  push:
+    branches:
+      - ci/b186-integrated-auth-home-mongo-patch-20261022
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b186-integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  composed-quality:
+    name: B186 combined Web, Chromium and full monorepo quality
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout immutable B186 head with full graph
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Compose five pinned approved SHA heads without remote changes
+        run: node scripts/ci/b186-compose-candidates.mjs
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen composed workspace
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm install --frozen-lockfile
+      - name: Re-run reconciler's adversarial fixtures
+        run: node --test scripts/ci/b186-reconcile-package-scripts.test.mjs
+      - name: Verify all five combined root test scripts and Axios security
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: |
+          pnpm test:web-home-momentary-hide-b183
+          pnpm test:web-verification-resend-b184
+          pnpm test:web-password-visibility-b185
+          node scripts/test-web-navigation-contract.mjs
+          node scripts/security/check-follow-redirects-lock.mjs
+          node --test scripts/security/test-follow-redirects-regression.mjs
+      - name: Full repository quality contract on combined candidate
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm check
+      - name: Install real Chromium
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm exec playwright install --with-deps chromium
+      - name: "Three real browser journeys: Home preview, verification resend, password reveal"
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: |
+          node scripts/test-web-home-momentary-hide-b183-browser.mjs
+          node scripts/test-web-verification-resend-b184-browser.mjs
+          node scripts/test-web-password-visibility-b185-browser.mjs
+      - name: Verify clean composed tree
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  composed-audit:
+    name: B186 mandatory HIGH production audit (must not be suppressed)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout immutable B186 head with full graph
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Compose five pinned approved SHA heads without remote changes
+        run: node scripts/ci/b186-compose-candidates.mjs
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen composed workspace
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm install --frozen-lockfile
+      - name: Confirm no supply-chain audit exceptions
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: node scripts/security/check-audit-exceptions.mjs
+      - name: Mandatory HIGH-level production audit
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm audit:prod
+
+  composed-runtime:
+    name: B186 Mongo8 compatible-kernel full API smoke
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout immutable B186 head with full graph
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Compose five pinned approved SHA heads without remote changes
+        run: node scripts/ci/b186-compose-candidates.mjs
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install frozen composed workspace
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm install --frozen-lockfile
+      - name: Verify host kernel is safe for MongoDB 8
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: node scripts/ci/check-mongo-kernel.mjs
+      - name: Start actual Mongo, API, workers and storage
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm runtime:up
+      - name: Full API runtime lifecycle smoke
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm runtime:smoke
+      - name: Compose logs if smoke failed
+        if: failure()
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm runtime:logs
+      - name: Tear down test containers and volumes
+        if: always()
+        working-directory: ${{ env.B186_WORKTREE }}
+        run: pnpm runtime:down
