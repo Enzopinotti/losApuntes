@@ -126,6 +126,75 @@ test("reconciles only pages already loaded and refreshes their cursors", async (
   }
 });
 
+test("keeps notification pages retryable and stops a repeated cursor cycle", async () => {
+  const { api, calls } = apiHarness((input, call) => {
+    if (!input.cursor) return page(["one"], "cursor-a");
+    if (call === 2) {
+      throw new ApiRequestError(
+        "server_unavailable",
+        503,
+        "TEMPORARY_UNAVAILABLE",
+        "temporary failure",
+      );
+    }
+    return input.cursor === "cursor-a"
+      ? page(["two"], "cursor-b")
+      : page(["two", "three"], "cursor-a");
+  });
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user:session", false);
+
+  await controller.loadMore("user:session");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.data.nextCursor, "cursor-a");
+  assert.equal(snapshot.failure?.kind, "server_unavailable");
+
+  await controller.loadMore("user:session");
+  await controller.loadMore("user:session");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(
+    snapshot.data.items.map((item) => item.id),
+    ["one", "two", "three"],
+  );
+  assert.equal(snapshot.data.nextCursor, null);
+  assert.equal(snapshot.failure?.code, "MOBILE_NOTIFICATIONS_CURSOR_REPEATED");
+  assert.deepEqual(
+    calls.map((input) => input.cursor),
+    [undefined, "cursor-a", "cursor-a", "cursor-b"],
+  );
+});
+
+test("stops notification reconciliation when the server cycles a page cursor", async () => {
+  const { api, calls } = apiHarness((input, call) => {
+    if (call === 1) return page(["old-one"], "cursor-a");
+    if (call === 2) return page(["old-two"], "cursor-b");
+    if (call === 3) return page(["fresh-one"], "cursor-a");
+    return page(["fresh-two"], "cursor-a");
+  });
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user:session", false);
+  await controller.loadMore("user:session");
+  await controller.reconcile("user:session");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(
+    snapshot.data.items.map((item) => item.id),
+    ["fresh-one", "fresh-two"],
+  );
+  assert.equal(snapshot.data.nextCursor, null);
+  assert.equal(snapshot.failure?.code, "MOBILE_NOTIFICATIONS_CURSOR_REPEATED");
+  assert.deepEqual(
+    calls.map((input) => input.cursor),
+    [undefined, "cursor-a", undefined, "cursor-a"],
+  );
+});
+
 test("read actions reconcile the loaded list from the server", async () => {
   const { api, calls, actions } = apiHarness((input, call) => {
     if (call === 1) return page(["unread"], "cursor-next");
