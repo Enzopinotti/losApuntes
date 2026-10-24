@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, Model } from 'mongoose';
@@ -178,6 +179,54 @@ export class MongoStudyCollectionStore implements StudyCollectionStore {
         .lean<StudyCollectionRecord>()
         .exec(),
     );
+  }
+
+  async reorderResources(
+    input: Parameters<StudyCollectionStore['reorderResources']>[0],
+  ): Promise<StudyCollectionRecord | null> {
+    const mutation = async (session: ClientSession) => {
+      const updated = await this.collections
+        .findOneAndUpdate(
+          {
+            id: input.id,
+            ownerUserId: input.ownerUserId,
+            revision: input.expectedRevision,
+            // Protect against legacy writers that missed the revision bump.
+            resourceIds: input.originalResourceIds,
+          },
+          {
+            $set: { resourceIds: input.orderedResourceIds },
+            $inc: { revision: 1 },
+          },
+          { new: true, session },
+        )
+        .lean<StudyCollectionRecord>()
+        .exec();
+
+      // Fail before committing the transaction if Mongo reports an
+      // inconsistent post-write document. Account lifecycle is rolled back.
+      if (
+        updated &&
+        (updated.id !== input.id ||
+          updated.ownerUserId !== input.ownerUserId ||
+          updated.revision !== input.expectedRevision + 1 ||
+          !Array.isArray(updated.resourceIds) ||
+          updated.resourceIds.length !== input.orderedResourceIds.length ||
+          updated.resourceIds.some(
+            (id, index) => id !== input.orderedResourceIds[index],
+          ) ||
+          !(updated.updatedAt instanceof Date) ||
+          !Number.isFinite(updated.updatedAt.getTime()))
+      ) {
+        throw new ServiceUnavailableException({
+          code: 'STUDY_COLLECTION_ORDER_DATA_INVALID',
+          message: 'Collection order could not be changed safely',
+        });
+      }
+      return updated;
+    };
+
+    return this.withActiveOwnerTransaction(input.ownerUserId, mutation);
   }
 
   async addResource(
