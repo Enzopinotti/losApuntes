@@ -121,3 +121,113 @@ test("catalog paging appends entries once and keeps the current query", async ()
   assert.equal(snapshot.results.length, 1);
   assert.equal(snapshot.nextCursor, null);
 });
+
+test("catalog paging stops repeated cursors and preserves loaded options", async () => {
+  const cursors: Array<string | undefined> = [];
+  const api: AcademicFollowsApi = {
+    list: async () => ({ follows: [], truncated: false, limit: 100 }),
+    search: async (_kind, _query, cursor) => {
+      cursors.push(cursor);
+      return cursor
+        ? { items: [institution], nextCursor: cursor }
+        : { items: [institution], nextCursor: "cursor-a" };
+    },
+    follow: async () => ({ following: true }),
+    unfollow: async () => undefined,
+  };
+  const controller = new AcademicFollowsController(api);
+  controller.setAuthority("user:session");
+  await controller.search("user:session", "institution", "Nacional");
+  await controller.loadMore("user:session");
+
+  const snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [undefined, "cursor-a"]);
+  assert.deepEqual(snapshot.results, [institution]);
+  assert.equal(snapshot.nextCursor, null);
+  assert.equal(snapshot.searchCursorRepeated, true);
+  assert.equal(snapshot.loadingMore, false);
+});
+
+test("catalog paging stops a cycle back to an earlier page cursor", async () => {
+  const cursors: Array<string | undefined> = [];
+  const api: AcademicFollowsApi = {
+    list: async () => ({ follows: [], truncated: false, limit: 100 }),
+    search: async (_kind, _query, cursor) => {
+      cursors.push(cursor);
+      if (!cursor) return { items: [institution], nextCursor: "cursor-a" };
+      if (cursor === "cursor-a")
+        return { items: [institution], nextCursor: "cursor-b" };
+      return { items: [institution], nextCursor: "cursor-a" };
+    },
+    follow: async () => ({ following: true }),
+    unfollow: async () => undefined,
+  };
+  const controller = new AcademicFollowsController(api);
+  controller.setAuthority("user:session");
+  await controller.search("user:session", "institution", "Nacional");
+  await controller.loadMore("user:session");
+  await controller.loadMore("user:session");
+
+  const snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [undefined, "cursor-a", "cursor-b"]);
+  assert.equal(snapshot.results.length, 1);
+  assert.equal(snapshot.nextCursor, null);
+  assert.equal(snapshot.searchCursorRepeated, true);
+});
+
+test("a failed catalog page can retry without consuming its cursor", async () => {
+  const cursors: Array<string | undefined> = [];
+  let failNextPage = true;
+  const api: AcademicFollowsApi = {
+    list: async () => ({ follows: [], truncated: false, limit: 100 }),
+    search: async (_kind, _query, cursor) => {
+      cursors.push(cursor);
+      if (!cursor) return { items: [institution], nextCursor: "cursor-a" };
+      if (failNextPage) {
+        failNextPage = false;
+        throw new Error("temporary network failure");
+      }
+      return { items: [institution], nextCursor: null };
+    },
+    follow: async () => ({ following: true }),
+    unfollow: async () => undefined,
+  };
+  const controller = new AcademicFollowsController(api);
+  controller.setAuthority("user:session");
+  await controller.search("user:session", "institution", "Nacional");
+  await controller.loadMore("user:session");
+  assert.equal(controller.getSnapshot().nextCursor, "cursor-a");
+
+  await controller.loadMore("user:session");
+
+  assert.deepEqual(cursors, [undefined, "cursor-a", "cursor-a"]);
+  assert.equal(controller.getSnapshot().nextCursor, null);
+  assert.equal(controller.getSnapshot().searchCursorRepeated, false);
+});
+
+test("a new catalog query resets cursor history", async () => {
+  const cursors: Array<string | undefined> = [];
+  const api: AcademicFollowsApi = {
+    list: async () => ({ follows: [], truncated: false, limit: 100 }),
+    search: async (_kind, query, cursor) => {
+      cursors.push(cursor);
+      return query === "Nueva" && cursor
+        ? { items: [institution], nextCursor: null }
+        : { items: [institution], nextCursor: "cursor-a" };
+    },
+    follow: async () => ({ following: true }),
+    unfollow: async () => undefined,
+  };
+  const controller = new AcademicFollowsController(api);
+  controller.setAuthority("user:session");
+  await controller.search("user:session", "institution", "Anterior");
+  await controller.loadMore("user:session");
+  assert.equal(controller.getSnapshot().searchCursorRepeated, true);
+
+  await controller.search("user:session", "institution", "Nueva");
+  await controller.loadMore("user:session");
+
+  assert.deepEqual(cursors, [undefined, "cursor-a", undefined, "cursor-a"]);
+  assert.equal(controller.getSnapshot().searchCursorRepeated, false);
+  assert.equal(controller.getSnapshot().nextCursor, null);
+});
