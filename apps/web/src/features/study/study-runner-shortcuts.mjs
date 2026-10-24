@@ -9,9 +9,8 @@ export const RUNNER_SHORTCUTS = Object.freeze([
 ]);
 
 const INTERACTIVE = [
-  "input", "textarea", "select", "button", "a", "summary",
+  "input", "textarea", "select",
   "[contenteditable]", '[role="textbox"]', '[role="combobox"]',
-  '[role="button"]', '[role="link"]',
 ].join(",");
 
 export function resolveRunnerShortcut(event, allowed) {
