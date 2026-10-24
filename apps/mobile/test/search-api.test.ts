@@ -6,6 +6,7 @@ import type {
   ContextualDiscoveryResponse,
   MobileAuthenticatedSessionResponse,
   PasswordLoginInput,
+  ProfileActivityPageResponse,
   SearchResponse,
 } from "@losapuntes/contracts";
 
@@ -88,6 +89,10 @@ const makeTransport = (
   publicProfile: async () => {
     throw new Error("unused profile read");
   },
+  publicProfileActivities: async (): Promise<ProfileActivityPageResponse> => ({
+    items: [],
+    nextCursor: null,
+  }),
   ...overrides,
 });
 
@@ -116,6 +121,47 @@ test("allows a subject resource browse without a text predicate", async () => {
     scope: "resources",
     subjectId: "subject-a",
     limit: 8,
+  });
+});
+
+test("loads public profile activity pages with the active session credential", async () => {
+  const tokenRef = { value: "a".repeat(43) };
+  const session = new SessionController(
+    makeSessionApi(tokenRef),
+    new MemoryStore(),
+  );
+  await session.login({ email: "student@example.edu", password: "password" });
+  let received: unknown;
+  const api = new MobileSearchApi(
+    session,
+    makeTransport({
+      publicProfileActivities: async (
+        credential,
+        profileId,
+        cursor,
+        limit,
+        signal,
+      ) => {
+        received = { credential, profileId, cursor, limit, signal };
+        return { items: [], nextCursor: null };
+      },
+    }),
+  );
+  const controller = new AbortController();
+
+  await api.publicProfileActivities(
+    "profile-a",
+    "opaque-cursor",
+    20,
+    controller.signal,
+  );
+
+  assert.deepEqual(received, {
+    credential: tokenRef.value,
+    profileId: "profile-a",
+    cursor: "opaque-cursor",
+    limit: 20,
+    signal: controller.signal,
   });
 });
 

@@ -29,6 +29,7 @@ import {
 } from "@/features/community/social-profile-connection-action";
 
 import { mobileSearchApi } from "./search-runtime";
+import { PublicProfileActivities } from "./public-profile-activities";
 import { useFencedDetail } from "./use-fenced-detail";
 
 const errorCopy: Record<DetailFailureKind, string> = {
@@ -282,20 +283,11 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
                   Habilidades: {data.profile.skills.skills.join(", ")}
                 </Text>
               ) : null}
-              {data.profile.activities?.length ? (
-                <View style={styles.activityList}>
-                  <Text style={styles.sectionTitle}>Actividad pública</Text>
-                  {data.profile.activities.map((activity) => (
-                    <Text key={activity.id} style={styles.copy}>
-                      {activity.title}
-                    </Text>
-                  ))}
-                  {data.profile.activitiesNextCursor ? (
-                    <Text style={styles.meta}>
-                      Se muestra una tanda; hay más actividad disponible.
-                    </Text>
-                  ) : null}
-                </View>
+              {data.profile.activities ? (
+                <PublicProfileActivities
+                  authorityKey={authorityKey ?? ""}
+                  profile={data.profile}
+                />
               ) : null}
             </View>
             <SocialProfileConnectionAction
@@ -336,15 +328,6 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontWeight: "800",
     color: "#20202a",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#20202a",
-  },
-  activityList: {
-    gap: 8,
-    paddingTop: 8,
   },
   copy: {
     fontSize: 14,
