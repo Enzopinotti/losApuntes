@@ -51,3 +51,26 @@ export function shareableSubjectResourcesUrl(subjectId, origin) {
     return null;
   }
 }
+
+/**
+ * Public profiles use their stable Profile UUID, never an account/user ID.
+ * This URL contains no search text, session or authorization capability.
+ */
+export function shareablePublicProfileHref(profileId) {
+  if (typeof profileId !== "string" || !UUID_V4.test(profileId)) return null;
+  return `/p/${encodeURIComponent(profileId.toLowerCase())}`;
+}
+
+export function shareablePublicProfileUrl(profileId, origin) {
+  const href = shareablePublicProfileHref(profileId);
+  if (!href || typeof origin !== "string") return null;
+  try {
+    const base = new URL(origin);
+    if (!["https:", "http:"].includes(base.protocol) || base.origin !== origin) {
+      return null;
+    }
+    return new URL(href, base).toString();
+  } catch {
+    return null;
+  }
+}
