@@ -9,6 +9,7 @@ const RISKS = new Map([
     version: "1.4.0",
     parents: ["@expo/cli", "@expo/code-signing-certificates"],
   }],
+  ["zod", { version: "3.25.76", parents: ["@expo/cli"] }],
 ]);
 const IMPORTERS = ["apps/api", "apps/web", "apps/mobile"];
 
