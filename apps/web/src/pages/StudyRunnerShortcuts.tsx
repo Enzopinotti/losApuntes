@@ -43,7 +43,10 @@ export default function StudyRunnerShortcuts({
   }, [allowed, enabled, onPrevious, onNext, onClock]);
 
   return (
-    <aside className="study-runner-shortcuts" aria-label="Atajos de esta sesión">
+    <aside
+      className="study-runner-shortcuts"
+      aria-label="Atajos de esta sesión"
+    >
       <div className="study-runner-shortcuts-heading">
         <div>
           <h3>Controlá tu sesión con el teclado</h3>
