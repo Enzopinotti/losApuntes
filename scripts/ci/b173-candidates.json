@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "baseSha": "6bd965c71f6426da3d49fc7c0555e0e5afda06a9",
+  "candidates": [
+    {
+      "pr": 484,
+      "branch": "ci/b156-mongo-kernel-smoke-recovery-20261020",
+      "sha": "9a24bfa92410835f04af1122d10a6fc4df934660",
+      "category": "CI mongo kernel recovery"
+    },
+    {
+      "pr": 495,
+      "branch": "security/b164-follow-redirects-patch-20261020",
+      "sha": "b12c23bed5045d652391ac463bc857c15e7d1130",
+      "category": "Web supply-chain remediation"
+    },
+    {
+      "pr": 487,
+      "branch": "feat/b158-web-academic-dashboard-20261020",
+      "sha": "da7c78b1ed91207cc19a0dd25ca1154a5d39099c",
+      "category": "Dashboard journeys",
+      "newTestScript": "test:web-dashboard-b158"
+    },
+    {
+      "pr": 493,
+      "branch": "feat/b163-web-not-found-recovery-20261020",
+      "sha": "74ee65199f9819a8d44860ffaad0613f172ee768",
+      "category": "SPA route recovery"
+    },
+    {
+      "pr": 501,
+      "branch": "feat/b169-study-focus-clock-20261021",
+      "sha": "8b6aa2a56f59573f1d194a0758ba6530c508699b",
+      "category": "Study timer",
+      "newTestScript": "test:web-study-focus-clock-b169"
+    },
+    {
+      "pr": 503,
+      "branch": "feat/b170-resource-academic-citation-20261021",
+      "sha": "4e7ac9ab72367366b86b8fba31afd33f8ed796bc",
+      "category": "Resource citations",
+      "newTestScript": "test:web-resource-citation-b170"
+    }
+  ]
+}
