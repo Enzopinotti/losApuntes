@@ -24,6 +24,8 @@ const failureCopy = {
   not_found: "La persona o el apunte ya no están disponibles.",
   restricted: "La cuenta no puede administrar permisos.",
   error: "No pudimos verificar el resultado de esta operación.",
+  cursor_cycle:
+    "La lista volvió a una página anterior. Actualizá los accesos para iniciar una tanda nueva.",
 } as const;
 
 export function ResourceDirectSharingPanel({
@@ -143,6 +145,11 @@ export function ResourceDirectSharingPanel({
               {failureCopy[current.grantsFailure ?? "error"]}
             </Text>
           ) : null}
+          {current?.grantsState === "ready" && current.grantsFailure ? (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {failureCopy[current.grantsFailure]}
+            </Text>
+          ) : null}
           {current?.grantsState === "ready" ? (
             <>
               <Text style={styles.info}>
@@ -186,7 +193,11 @@ export function ResourceDirectSharingPanel({
               {current.grantsNextCursor ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Cargar más personas con acceso"
+                  accessibilityLabel={
+                    current.grantsFailure
+                      ? "Reintentar carga de personas con acceso"
+                      : "Cargar más personas con acceso"
+                  }
                   disabled={!authorityKey || busy}
                   onPress={() => {
                     if (authorityKey) {
@@ -202,7 +213,11 @@ export function ResourceDirectSharingPanel({
                     (!authorityKey || busy) && styles.disabled,
                   ]}
                 >
-                  <Text style={styles.buttonLabel}>Cargar más accesos</Text>
+                  <Text style={styles.buttonLabel}>
+                    {current.grantsFailure
+                      ? "Reintentar carga"
+                      : "Cargar más accesos"}
+                  </Text>
                 </Pressable>
               ) : null}
             </>
