@@ -1,0 +1,71 @@
+name: B188 Study Progress stored snapshot integrity
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b188-study-progress-stored-read-integrity.yml
+      - apps/api/src/study-progress/study-progress.service.ts
+      - apps/api/src/study-progress/study-progress.service.spec.ts
+      - docs/engineering/b188-study-progress-stored-read-integrity.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b188-study-progress-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  stored-snapshot:
+    name: Node24 exact-head Study Progress read security and API quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      STUDY_PROGRESS_ENABLED: 'false'
+    steps:
+      - name: Check out immutable PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Confirm source identity and clean tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Install pinned Node24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen workspace install
+        run: pnpm install --frozen-lockfile
+      - name: Exact source ESLint and Prettier
+        run: |
+          pnpm --filter @losapuntes/api exec eslint \
+            src/study-progress/study-progress.service.ts \
+            src/study-progress/study-progress.service.spec.ts \
+            --max-warnings=0
+          pnpm --filter @losapuntes/api exec prettier --check \
+            src/study-progress/study-progress.service.ts \
+            src/study-progress/study-progress.service.spec.ts
+      - name: Full API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+      - name: Real Jest stored-read, plan, feature-guard and export projection
+        run: |
+          pnpm --filter @losapuntes/api test:ci --runTestsByPath \
+            src/study-progress/study-progress.service.spec.ts \
+            src/study-progress/domain/study-progress.plan.spec.ts \
+            src/study-progress/study-progress.feature.guard.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            --passWithNoTests=false --detectOpenHandles
+      - name: Assert unchanged immutable source tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
