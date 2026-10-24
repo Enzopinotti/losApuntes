@@ -38,6 +38,8 @@ function fixture() {
     "    resolution: {integrity: sha512-fake}",
     "  node-forge@1.4.0:",
     "    resolution: {integrity: sha512-fake}",
+    "  zod@3.25.76:",
+    "    resolution: {integrity: sha512-fake}",
     "snapshots:",
     ...padding,
     "  safe-api@1.0.0: {}",
@@ -49,6 +51,7 @@ function fixture() {
     "  '@expo/cli@57.0.27':",
     "    dependencies:",
     "      node-forge: 1.4.0",
+    "      zod: 3.25.76",
     "  metro-file-map@0.84.5:",
     "    dependencies:",
     "      micromatch: 4.0.8",
@@ -57,6 +60,7 @@ function fixture() {
     "      braces: 3.0.3",
     "  node-forge@1.4.0: {}",
     "  braces@3.0.3: {}",
+    "  zod@3.25.76: {}",
     "",
   ].join("\n");
 }
@@ -69,7 +73,7 @@ test("B195 known Mobile exposure remains visible and never certifies release", (
   assert.equal(result.apiSnapshotCount, 1);
   assert.equal(result.webSnapshotCount, 1);
   assert.ok(result.mobileSnapshotCount >= 6);
-  assert.deepEqual(result.riskPackages.map((entry) => entry.name), ["braces", "node-forge"]);
+  assert.deepEqual(result.riskPackages.map((entry) => entry.name), ["braces", "node-forge", "zod"]);
   for (const entry of result.riskPackages) {
     assert.equal(entry.apiReachable, false);
     assert.equal(entry.webReachable, false);
@@ -79,8 +83,8 @@ test("B195 known Mobile exposure remains visible and never certifies release", (
 
 test("B195 rejects unexpected API/Web runtime exposure", () => {
   for (const app of ["apps/api", "apps/web"]) {
-    for (const name of ["braces", "node-forge"]) {
-      const version = name === "braces" ? "3.0.3" : "1.4.0";
+    for (const name of ["braces", "node-forge", "zod"]) {
+      const version = name === "braces" ? "3.0.3" : name === "zod" ? "3.25.76" : "1.4.0";
       const mutated = fixture().replace(
         "  " + app + ":\n    dependencies:",
         "  " + app + ":\n    dependencies:\n      " + name + ":\n        version: " + version,
@@ -95,7 +99,7 @@ test("B195 rejects unexpected API/Web runtime exposure", () => {
 
 test("B195 rejects new direct vulnerable package parents, even if unreachable", () => {
   for (const name of ["braces", "node-forge"]) {
-    const version = name === "braces" ? "3.0.3" : "1.4.0";
+    const version = name === "braces" ? "3.0.3" : name === "zod" ? "3.25.76" : "1.4.0";
     const changed = fixture() + [
       "  unexpected-parent@1.0.0:",
       "    dependencies:",
@@ -107,7 +111,7 @@ test("B195 rejects new direct vulnerable package parents, even if unreachable", 
 });
 
 test("B195 requires explicit review if an old Mobile advisory disappears", () => {
-  for (const edge of ["      braces: 3.0.3\n", "      node-forge: 1.4.0\n"]) {
+  for (const edge of ["      braces: 3.0.3\n", "      node-forge: 1.4.0\n", "      zod: 3.25.76\n"]) {
     assert.throws(
       () => checkExpoRiskLockBoundary(fixture().replace(edge, "")),
       /known Mobile exposure moved/u,
