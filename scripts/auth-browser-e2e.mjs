@@ -514,7 +514,7 @@ async function run() {
     );
     assert.equal(
       await page
-        .getByLabel("Confirmar contraseña")
+        .getByRole("textbox", { name: "Confirmar contraseña", exact: true })
         .getAttribute("autocomplete"),
       "new-password",
     );
