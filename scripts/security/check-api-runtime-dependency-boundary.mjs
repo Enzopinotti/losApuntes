@@ -3,7 +3,11 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const prohibited = ["braces", "node-forge"];
+// Keep the installed API runtime isolated from native Expo tooling and its
+// known high-risk transitive packages, including the newly reported Zod HIGH.
+// A future legitimate API use of Zod requires an explicit review of this
+// boundary, not a silent relaxation or a dependency-audit waiver.
+const prohibited = ["braces", "node-forge", "zod"];
 const expectedApiPackages = ["@nestjs+core@", "fastify@", "mongoose@"];
 
 // This checks the packages that pnpm actually installed in the filtered,
