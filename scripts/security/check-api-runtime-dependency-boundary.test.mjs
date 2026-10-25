@@ -50,7 +50,12 @@ test("rejects Mobile tooling packages regardless of version or peer suffix", () 
 
 test("a similarly named package does not count as a vulnerable exact package", () => {
   assert.doesNotThrow(() =>
-    inspectApiPnpmStore([...productionPackages, "braces-helper@1.0.0"]),
+    inspectApiPnpmStore([
+      ...productionPackages,
+      "braces-helper@1.0.0",
+      "node-forge-helper@1.0.0",
+      "zod-to-json-schema@3.24.6",
+    ]),
   );
 });
 
