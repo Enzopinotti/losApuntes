@@ -91,15 +91,15 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
     // only its decoded request field in this isolated Jest adapter so this
     // suite also works when run by all canonical coverage jobs, without VM
     // module flags or changing the actual AuthSessionGuard.
-    fastifyApp.getHttpAdapter().getInstance().addHook(
-      'onRequest',
-      (request, _reply, done) => {
+    fastifyApp
+      .getHttpAdapter()
+      .getInstance()
+      .addHook('onRequest', (request, _reply, done) => {
         const raw = request.headers.cookie ?? '';
         const match = /^losapuntes_session=([A-Za-z0-9_-]{43})$/u.exec(raw);
         request.cookies = match ? { losapuntes_session: match[1] } : {};
         done();
-      },
-    );
+      });
     configureHttpRuntime(fastifyApp, module.get(ConfigService));
     await fastifyApp.init();
     await fastifyApp.getHttpAdapter().getInstance().ready();
