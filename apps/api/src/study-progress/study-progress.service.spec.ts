@@ -101,6 +101,15 @@ describe('B188 private stored Study Progress response', () => {
     });
   });
 
+  it('never projects a stored record belonging to a different owner', async () => {
+    const f = fixture(stored({ ownerUserId: 'foreign-account' }));
+    await expect(f.service.get(ownerUserId, subjectId)).rejects.toMatchObject({
+      status: 500,
+      response: { code: 'STUDY_PROGRESS_STORED_INVALID' },
+    });
+    expect(f.findOne).toHaveBeenCalledWith({ ownerUserId, subjectId });
+  });
+
   it('fails closed on a cross-subject record even if an adapter returns one', async () => {
     const f = fixture(
       stored({ subjectId: '33333333-3333-4333-8333-333333333333' }),
