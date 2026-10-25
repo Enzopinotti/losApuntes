@@ -56,8 +56,6 @@ jobs:
           node --test scripts/test-b217-study-http-contract.mjs
       - name: Real Jest Fastify HTTP suite with exact non-skipped cases
         shell: bash
-        env:
-          NODE_OPTIONS: --experimental-vm-modules
         run: |
           set -Eeuo pipefail
           report="$(mktemp)"
