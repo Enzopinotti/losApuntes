@@ -42,6 +42,9 @@ export function inspectApiPnpmStore(packageEntries) {
     event: "security.api_runtime_dependency_boundary.valid",
     packageCount: packageEntries.length,
     absentPackages: prohibited,
+    // Passing an isolation check never cancels a known HIGH advisory.
+    productionAuditCertified: false,
+    releaseAuthorized: false,
   };
 }
 
