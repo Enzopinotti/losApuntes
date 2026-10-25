@@ -16,6 +16,8 @@ test("allows a bounded API-only production dependency store", () => {
     event: "security.api_runtime_dependency_boundary.valid",
     packageCount: productionPackages.length,
     absentPackages: ["braces", "node-forge", "zod"],
+    productionAuditCertified: false,
+    releaseAuthorized: false,
   });
 });
 
