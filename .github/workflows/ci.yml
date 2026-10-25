@@ -386,15 +386,15 @@ jobs:
       - name: Validate governed audit exceptions
         run: pnpm security:audit-exceptions
 
-      - name: Classify live advisories (diagnostic only, not a release gate)
-        continue-on-error: true
-        shell: bash
-        run: |
-          pnpm audit --prod --json > "$RUNNER_TEMP/los-apuntes-production-audit.json" || true
-          node scripts/security/triage-production-audit.mjs "$RUNNER_TEMP/los-apuntes-production-audit.json"
+      - name: Test bounded, fail-closed npm audit decision logic
+        run: node --test scripts/security/reliable-production-audit.test.mjs
 
-      - name: Audit production dependency graph
-        run: pnpm audit --prod --audit-level high
+      - name: Audit production dependency graph (canonical HIGH audit, limited outage retry)
+        run: node scripts/security/enforce-reliable-production-audit.mjs
+
+      - name: Verify audit could not modify the source worktree
+        if: always()
+        run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
   runtime-smoke:
     name: Container runtime smoke
