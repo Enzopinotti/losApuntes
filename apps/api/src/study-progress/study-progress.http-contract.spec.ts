@@ -174,7 +174,9 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
       expect(result.statusCode).toBe(503);
       expect(result.headers['cache-control']).toBe('private, no-store');
       // 5xx details are deliberately sanitized by the actual API filter.
-      expect(result.json() as unknown).toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
+      expect(result.json()).toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+    });
     }
     expect(study.get).not.toHaveBeenCalled();
     expect(study.save).not.toHaveBeenCalled();
@@ -191,7 +193,9 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
     ]) {
       const result = await call({ method: 'GET', ...input });
       expect(result.statusCode).toBe(401);
-      expect(result.json() as unknown).toMatchObject({ code: 'AUTHENTICATION_REQUIRED' });
+      expect(result.json()).toMatchObject({
+      code: 'AUTHENTICATION_REQUIRED',
+    });
     }
     expect(study.get).not.toHaveBeenCalled();
   });
@@ -206,7 +210,9 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
     });
     const restricted = await call({ method: 'GET', token: tokenA });
     expect(restricted.statusCode).toBe(403);
-    expect(restricted.json() as unknown).toMatchObject({ code: 'ACCOUNT_RESTRICTED' });
+    expect(restricted.json()).toMatchObject({
+      code: 'ACCOUNT_RESTRICTED',
+    });
     expect(sessions.revokeCurrent).toHaveBeenCalledWith(tokenA);
 
     sessions.resolve.mockResolvedValueOnce({
@@ -227,10 +233,10 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
     ]);
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
-    expect(first.json() as unknown).toMatchObject({
+    expect(first.json()).toMatchObject({
       progress: { plan: { title: 'Privado de ' + ownerA } },
     });
-    expect(second.json() as unknown).toMatchObject({
+    expect(second.json()).toMatchObject({
       progress: { plan: { title: 'Privado de ' + ownerB } },
     });
     expect(study.get).toHaveBeenCalledWith(ownerA, subjectId);
@@ -257,7 +263,7 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
     ]) {
       const response = await call({ method: 'PUT', token: tokenA, payload });
       expect(response.statusCode).toBe(400);
-      expect(response.json() as unknown).toMatchObject({ code: 'BAD_REQUEST' });
+      expect(response.json()).toMatchObject({ code: 'BAD_REQUEST' });
     }
     for (const payload of [
       { expectedRevision: 0 },
@@ -299,7 +305,9 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
     );
     const missing = await call({ method: 'GET', token: tokenB });
     expect(missing.statusCode).toBe(404);
-    expect(missing.json() as unknown).toMatchObject({ code: 'STUDY_PROGRESS_NOT_FOUND' });
+    expect(missing.json()).toMatchObject({
+      code: 'STUDY_PROGRESS_NOT_FOUND',
+    });
 
     study.save.mockRejectedValueOnce(
       new ConflictException({
@@ -313,7 +321,9 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
       payload: { expectedRevision: 1, plan: validPlan },
     });
     expect(conflict.statusCode).toBe(409);
-    expect(conflict.json() as unknown).toMatchObject({ code: 'STUDY_PROGRESS_REVISION_CONFLICT' });
-    expect(JSON.stringify(conflict.json() as unknown)).not.toContain(ownerB);
+    expect(conflict.json()).toMatchObject({
+      code: 'STUDY_PROGRESS_REVISION_CONFLICT',
+    });
+    expect(JSON.stringify(conflict.json())).not.toContain(ownerB);
   });
 });
