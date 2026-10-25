@@ -41,8 +41,10 @@ function isRestrictedHostname(hostname) {
 }
 
 function validatePublicApiOrigin(raw) {
-  assert.ok(typeof raw === "string" && raw === raw.trim() && raw.length > 0,
-    "EXPO_PUBLIC_API_ORIGIN must be a configured HTTPS origin");
+  assert.ok(
+    typeof raw === "string" && raw === raw.trim() && raw.length > 0,
+    "EXPO_PUBLIC_API_ORIGIN must be a configured HTTPS origin",
+  );
   let url;
   try {
     url = new URL(raw);
@@ -59,8 +61,11 @@ function validatePublicApiOrigin(raw) {
       !isRestrictedHostname(url.hostname),
     "EXPO_PUBLIC_API_ORIGIN must be a public HTTPS origin without credentials or paths",
   );
-  assert.equal(url.origin, raw.replace(/\/$/u, ""),
-    "EXPO_PUBLIC_API_ORIGIN must be the canonical HTTPS origin");
+  assert.equal(
+    url.origin,
+    raw.replace(/\/$/u, ""),
+    "EXPO_PUBLIC_API_ORIGIN must be the canonical HTTPS origin",
+  );
   return url.origin;
 }
 
@@ -69,26 +74,39 @@ function validatePublicApiOrigin(raw) {
  * signed binary, run a dependency audit, or qualify deployment.
  */
 export function inspectMobilePublicReleaseEnvironment(env, expectedSourceSha) {
-  assert.ok(env && typeof env === "object" && !Array.isArray(env),
-    "missing Mobile build environment");
-  assert.ok(typeof expectedSourceSha === "string" && SHA40.test(expectedSourceSha),
-    "expected exact source SHA must contain 40 hexadecimal characters");
+  assert.ok(
+    env && typeof env === "object" && !Array.isArray(env),
+    "missing Mobile build environment",
+  );
+  assert.ok(
+    typeof expectedSourceSha === "string" && SHA40.test(expectedSourceSha),
+    "expected exact source SHA must contain 40 hexadecimal characters",
+  );
 
   for (const name of Object.keys(env)) {
     if (name.startsWith("EXPO_PUBLIC_")) {
-      assert.ok(PUBLIC_VARIABLES.has(name),
-        `unreviewed public Mobile build variable: ${name}`);
+      assert.ok(
+        PUBLIC_VARIABLES.has(name),
+        `unreviewed public Mobile build variable: ${name}`,
+      );
     }
   }
 
   const profile = env.EXPO_PUBLIC_DISTRIBUTION_PROFILE;
-  assert.ok(profile === "preview" || profile === "production",
-    "distributed Mobile build must use preview or production profile");
+  assert.ok(
+    profile === "preview" || profile === "production",
+    "distributed Mobile build must use preview or production profile",
+  );
   const sha = env.EXPO_PUBLIC_RELEASE_SHA;
-  assert.ok(typeof sha === "string" && SHA40.test(sha),
-    "EXPO_PUBLIC_RELEASE_SHA must be a 40-character Git SHA");
-  assert.equal(sha.toLowerCase(), expectedSourceSha.toLowerCase(),
-    "embedded Mobile source SHA does not match exact candidate head");
+  assert.ok(
+    typeof sha === "string" && SHA40.test(sha),
+    "EXPO_PUBLIC_RELEASE_SHA must be a 40-character Git SHA",
+  );
+  assert.equal(
+    sha.toLowerCase(),
+    expectedSourceSha.toLowerCase(),
+    "embedded Mobile source SHA does not match exact candidate head",
+  );
   const apiOrigin = validatePublicApiOrigin(env.EXPO_PUBLIC_API_ORIGIN);
 
   for (const name of [
@@ -96,22 +114,35 @@ export function inspectMobilePublicReleaseEnvironment(env, expectedSourceSha) {
     "EXPO_PUBLIC_STUDY_COLLECTIONS_ENABLED",
   ]) {
     const value = env[name];
-    assert.ok(value === undefined || value === "" || value === "true" || value === "false",
-      `${name} must be an explicit boolean if present`);
+    assert.ok(
+      value === undefined ||
+        value === "" ||
+        value === "true" ||
+        value === "false",
+      `${name} must be an explicit boolean if present`,
+    );
   }
 
   const iosClientId = env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const iosScheme = env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME;
-  assert.ok(Boolean(iosClientId) === Boolean(iosScheme),
-    "Google iOS Client ID and URL scheme must be configured together");
+  assert.ok(
+    Boolean(iosClientId) === Boolean(iosScheme),
+    "Google iOS Client ID and URL scheme must be configured together",
+  );
   if (iosScheme !== undefined && iosScheme !== "") {
-    assert.ok(typeof iosScheme === "string" && /^[A-Za-z0-9.-]{1,256}$/u.test(iosScheme),
-      "Google iOS URL scheme must be bounded and contain no URL/userinfo");
+    assert.ok(
+      typeof iosScheme === "string" &&
+        /^[A-Za-z0-9.-]{1,256}$/u.test(iosScheme),
+      "Google iOS URL scheme must be bounded and contain no URL/userinfo",
+    );
   }
 
   // Retain the product's independent backend authority fence from #353.
-  assert.notEqual(env.STUDY_PROGRESS_ENABLED, "true",
-    "Study Progress backend authority remains release-disabled");
+  assert.notEqual(
+    env.STUDY_PROGRESS_ENABLED,
+    "true",
+    "Study Progress backend authority remains release-disabled",
+  );
   assert.ok(apiOrigin.startsWith("https://"), "HTTPS transport required");
 
   return {
@@ -120,7 +151,8 @@ export function inspectMobilePublicReleaseEnvironment(env, expectedSourceSha) {
     sourceSha: sha.toLowerCase(),
     apiTransport: "https",
     publicVariablesReviewed: Object.keys(env).filter((key) =>
-      key.startsWith("EXPO_PUBLIC_")).length,
+      key.startsWith("EXPO_PUBLIC_"),
+    ).length,
     productionAuditCertified: false,
     serverReleaseObserved: false,
     nativeBinaryValidated: false,
@@ -132,9 +164,14 @@ if (
   process.argv[1] &&
   pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
 ) {
-  assert.equal(process.argv.length, 3,
-    "usage: node check-mobile-release-public-env.mjs <exact-40-character-head-sha>");
-  console.log(JSON.stringify(
-    inspectMobilePublicReleaseEnvironment(process.env, process.argv[2]),
-  ));
+  assert.equal(
+    process.argv.length,
+    3,
+    "usage: node check-mobile-release-public-env.mjs <exact-40-character-head-sha>",
+  );
+  console.log(
+    JSON.stringify(
+      inspectMobilePublicReleaseEnvironment(process.env, process.argv[2]),
+    ),
+  );
 }
