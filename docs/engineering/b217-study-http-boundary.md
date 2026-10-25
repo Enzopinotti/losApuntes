@@ -9,16 +9,16 @@ Existing tests verify strict plan payloads, controller sources, and 56 real Mong
 
 ## Acceptance surface (no product code modified)
 
-The fixture mounts the real `StudyProgressController` under `createHttpAdapter()` and `configureHttpRuntime()`, with real guards. Only **external** session/user lookups and the persistence service are faked: two random generated session tokens resolve to two different user IDs. No actual MongoDB, S3, external origin, network listening, registered real users or production session tokens are involved. The suite checks:
+The fixture mounts the real `StudyProgressController` under `createHttpAdapter()` and `configureHttpRuntime()`, with real guards. The Fastify cookie plugin is replaced only in this isolated test fixture by an explicit decoded-cookie request hook, because its runtime dynamic import is incompatible with the canonical CommonJS Jest suites. Only **external** session/user lookups and the persistence service are otherwise faked: two random generated session tokens resolve to two different user IDs. No actual MongoDB, S3, external origin, network listening, registered real users or production session tokens are involved. The suite checks:
 
 - Default `STUDY_PROGRESS_ENABLED=false`: authenticated GET, PUT and DELETE fail HTTP 503 with sanitized 5xx body; no service access.
 - Missing, malformed, unknown or conflicting cookie + Bearer credentials yield HTTP 401; no service access.
 - Restricted account yields HTTP 403 and revocation; credential version mismatch yields HTTP 401 and revocation.
 - Two separate mobile Bearer tokens project only their respective authenticated owner IDs to the service; no-store/private caching on successful responses.
-- A Web cookie uses the Web transport, not Mobile.
+- A Web cookie represented by the test-only decoded-cookie hook uses the Web transport, not Mobile. This tests guard transport selection, **not** Fastify cookie parsing.
 - Forged `ownerUserId` in request bodies and invalid revisions yield HTTP 400 before any write.
 - Valid PUT and DELETE route only to authenticated owner; 404 missing progress and 409 revision conflict retain their public contract without another owner's data.
-- Exact-head CI pins Node24/pnpm9, verifies frozen lock and no audit exceptions, expects exactly 8/8 real Jest HTTP cases (none skipped), checks TypeScript, strict lint and Prettier, and checks immutable SHA and clean source before and after.
+- Exact-head CI runs without custom Jest VM flags (compatible with all global coverage suites), pins Node24/pnpm9, verifies frozen lock and no audit exceptions, expects exactly 8/8 real Jest HTTP cases (none skipped), checks TypeScript, strict lint and Prettier, and checks immutable SHA and clean source before and after.
 
 ## Isolation and concurrency
 
@@ -26,7 +26,7 @@ This PR only adds `study-progress.http-contract.spec.ts`, its static invariant s
 
 ## What it does NOT certify
 
-This suite is an **HTTP contract integration test**, not a production multi-user end-to-end login/browser test and not a Mongo persistence test: external session service, UsersService and StudyProgressService are mocked. The existing B129 real Mongo suite, B192 #713 owner projection suite, replica concurrency and two-device browser flows are complementary; none substitutes for the others. It does not demonstrate disaster recovery, legal retention policy, live backup+restore or a rollout plan.
+This suite is an **HTTP contract integration test**, not a production multi-user end-to-end login/browser test and not a Mongo persistence test: external session service, UsersService and StudyProgressService are mocked; a test-only hook supplies decoded Web cookies without loading the production cookie parser. The existing B129 real Mongo suite, B192 #713 owner projection suite, replica concurrency and two-device browser flows are complementary; none substitutes for the others. It does not demonstrate disaster recovery, legal retention policy, live backup+restore or a rollout plan.
 
 All of #353 owner-account release acceptance remains required. In addition, `node-forge` #133 and Zod #705 HIGH vulnerability findings leave canonical production dependency audit FAIL. This PR does not suppress them or turn on `STUDY_PROGRESS_ENABLED` and must **not** be merged/released until canonical repository gates permit it.
 
