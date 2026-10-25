@@ -175,8 +175,8 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
       expect(result.headers['cache-control']).toBe('private, no-store');
       // 5xx details are deliberately sanitized by the actual API filter.
       expect(result.json()).toMatchObject({
-      code: 'INTERNAL_SERVER_ERROR',
-    });
+        code: 'INTERNAL_SERVER_ERROR',
+      });
     }
     expect(study.get).not.toHaveBeenCalled();
     expect(study.save).not.toHaveBeenCalled();
@@ -194,8 +194,8 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
       const result = await call({ method: 'GET', ...input });
       expect(result.statusCode).toBe(401);
       expect(result.json()).toMatchObject({
-      code: 'AUTHENTICATION_REQUIRED',
-    });
+        code: 'AUTHENTICATION_REQUIRED',
+      });
     }
     expect(study.get).not.toHaveBeenCalled();
   });
