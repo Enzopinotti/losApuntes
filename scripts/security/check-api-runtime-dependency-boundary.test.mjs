@@ -15,7 +15,7 @@ test("allows a bounded API-only production dependency store", () => {
   assert.deepEqual(inspectApiPnpmStore(productionPackages), {
     event: "security.api_runtime_dependency_boundary.valid",
     packageCount: productionPackages.length,
-    absentPackages: ["braces", "node-forge"],
+    absentPackages: ["braces", "node-forge", "zod"],
   });
 });
 
