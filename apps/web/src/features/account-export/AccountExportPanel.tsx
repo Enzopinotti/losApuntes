@@ -203,6 +203,11 @@ export function AccountExportPanel() {
   const mayRequest =
     !job || job.state === "failed" || (job.state === "completed" && !available);
 
+  const studyExportNotice =
+    "Esta copia incluye el progreso de estudio guardado en tu cuenta, si lo hay: planes, actividades y avances propios. No incorpora materiales de otras personas ni otorga permisos de acceso.";
+  const showStudyExportNotice =
+    job?.formatVersion === 3 && job.state === "completed" && job.downloadable;
+
   if (status !== "authenticated") return null;
 
   return (
@@ -224,6 +229,7 @@ export function AccountExportPanel() {
       {job && (
         <div aria-live="polite" aria-atomic="true">
           <p>{statusMessage(job)}</p>
+          {showStudyExportNotice && <p>{studyExportNotice}</p>}
           <p>Solicitado: {new Date(job.requestedAt).toLocaleString("es-AR")}</p>
           {job.downloadExpiresAt && (
             <p>
