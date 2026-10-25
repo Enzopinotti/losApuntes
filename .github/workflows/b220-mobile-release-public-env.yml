@@ -51,9 +51,7 @@ jobs:
       - name: Frozen install and formatting
         run: |
           pnpm install --frozen-lockfile
-          pnpm exec prettier --write scripts/security/check-mobile-release-public-env.mjs scripts/security/check-mobile-release-public-env.test.mjs
-          node -e 'for (const p of ["scripts/security/check-mobile-release-public-env.mjs","scripts/security/check-mobile-release-public-env.test.mjs"]) console.log("B220_FORMATTED:"+p+":"+require("node:fs").readFileSync(p).toString("base64"))'
-          git diff --exit-code -- scripts/security/check-mobile-release-public-env.mjs scripts/security/check-mobile-release-public-env.test.mjs
+          pnpm exec prettier --check scripts/security/check-mobile-release-public-env.mjs scripts/security/check-mobile-release-public-env.test.mjs
       - name: Unit tests for release environment and refusal cases
         run: |
           node --check scripts/security/check-mobile-release-public-env.mjs
