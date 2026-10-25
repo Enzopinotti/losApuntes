@@ -11,7 +11,7 @@ The current main already supports account export format v3 and the `study.progre
 
 ## Changes
 
-1. **Fail-closed owner GET/PUT projection:** reparse stored plan against the exact normalized requested subject ID; require valid revision and chronological dates. The 404 for missing progress stays different from the sanitized 500 `STUDY_PROGRESS_STORED_INVALID` for corrupt persisted content. Unexpected fields/tokens are never included in responses.
+1. **Fail-closed owner GET/PUT projection:** reparse stored plan against the exact normalized requested subject ID; assert the stored owner matches the authenticated owner, and require valid revision and chronological dates. The 404 for missing progress stays different from the sanitized 500 `STUDY_PROGRESS_STORED_INVALID` for corrupt persisted content. Unexpected fields/tokens are never included in responses.
 2. **Owner-scoped portable pagination:** use the existing owner filter and immutable subject cursor; verify lookahead, row budget, canonical strict ascending Subject UUIDs and timestamps before returning any page. Duplicates and overlapping continuation fail closed.
 3. **Coverage:** Jest exercises corruption, mismatched subjects, invalid revisions/dates, bounded pages, cross-user cursors, adapter misordering and missing progress vs database failure. B61/B62 static regression contracts are brought into line with the current safer conflict refresh and exact Mongo projection.
 4. **Web Security export v3:** show an informational notice only for a completed/downloadable v3 export. It explains this copy may include the owner's study progress but never transfers access to other people's material. Previous v1/v2 response formats remain valid.
