@@ -84,7 +84,11 @@ export class StudyProgressService {
     }
   }
 
-  private present(record: StudyProgress, subjectId: string, ownerUserId: string) {
+  private present(
+    record: StudyProgress,
+    subjectId: string,
+    ownerUserId: string,
+  ) {
     // Even trusted Mongo documents can be corrupt or originate from a
     // previous schema. Never return an unchecked stored plan to the browser.
     const invalidStoredProgress = (): never => {
