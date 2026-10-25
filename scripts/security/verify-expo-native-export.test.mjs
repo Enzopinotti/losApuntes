@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -136,4 +136,11 @@ test("walks a real temporary directory and rejects symlinks", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("mobile Expo config explicitly excludes unsupported web builds", async () => {
+  const raw = await readFile(new URL("../../apps/mobile/app.json", import.meta.url), "utf8");
+  const config = JSON.parse(raw);
+  assert.deepEqual(config.expo.platforms, ["ios", "android"]);
+  assert.equal(config.expo.web, undefined);
 });
