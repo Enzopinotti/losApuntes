@@ -13,7 +13,10 @@ import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { AuthSessionService } from '../auth/session/auth-session.service';
 import { createSessionToken } from '../auth/session/session-token';
 import { UsersService } from '../users/users.service';
-import { configureHttpRuntime, createHttpAdapter } from '../runtime/http-runtime';
+import {
+  configureHttpRuntime,
+  createHttpAdapter,
+} from '../runtime/http-runtime';
 import { StudyProgressController } from './study-progress.controller';
 import { StudyProgressFeatureGuard } from './study-progress.feature.guard';
 import { StudyProgressService } from './study-progress.service';
@@ -66,13 +69,16 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
       providers: [
         AuthSessionGuard,
         StudyProgressFeatureGuard,
-        { provide: ConfigService, useValue: {
-          get: (key: string) => {
-            if (key === 'STUDY_PROGRESS_ENABLED') return enabled;
-            if (key === 'NODE_ENV') return 'test';
-            return undefined;
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'STUDY_PROGRESS_ENABLED') return enabled;
+              if (key === 'NODE_ENV') return 'test';
+              return undefined;
+            },
           },
-        } },
+        },
         { provide: AuthSessionService, useValue: sessions },
         { provide: UsersService, useValue: users },
         { provide: StudyProgressService, useValue: study },
@@ -111,14 +117,20 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
       }),
     );
     study.get.mockImplementation((userId: string) =>
-      Promise.resolve({ progress: {
-        plan: { ...validPlan, title: 'Privado de ' + userId },
-        revision: 1,
-        updatedAt: '2026-10-01T00:00:00.000Z',
-      } }),
+      Promise.resolve({
+        progress: {
+          plan: { ...validPlan, title: 'Privado de ' + userId },
+          revision: 1,
+          updatedAt: '2026-10-01T00:00:00.000Z',
+        },
+      }),
     );
     study.save.mockResolvedValue({
-      progress: { plan: validPlan, revision: 1, updatedAt: '2026-10-01T00:00:00.000Z' },
+      progress: {
+        plan: validPlan,
+        revision: 1,
+        updatedAt: '2026-10-01T00:00:00.000Z',
+      },
     });
     study.remove.mockResolvedValue({ deleted: true });
   });
@@ -133,16 +145,20 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
   }) => {
     const headers: Record<string, string> = {};
     if (options.token) {
-      if (options.cookie) headers.cookie = 'losapuntes_session=' + options.token;
+      if (options.cookie)
+        headers.cookie = 'losapuntes_session=' + options.token;
       else headers.authorization = 'Bearer ' + options.token;
     }
     if (options.authHeader) headers.authorization = options.authHeader;
-    return (app as NestFastifyApplication).getHttpAdapter().getInstance().inject({
-      method: options.method,
-      url: options.path ?? '/study-progress/' + subjectId,
-      headers,
-      ...(options.payload ? { payload: options.payload } : {}),
-    });
+    return (app as NestFastifyApplication)
+      .getHttpAdapter()
+      .getInstance()
+      .inject({
+        method: options.method,
+        url: options.path ?? '/study-progress/' + subjectId,
+        headers,
+        ...(options.payload ? { payload: options.payload } : {}),
+      });
   };
 
   it('fails closed at HTTP boundary by default for authenticated GET/PUT/DELETE', async () => {
@@ -150,7 +166,9 @@ describe('B217 real Nest/Fastify Study Progress HTTP security contract', () => {
       const result = await call({
         method,
         token: tokenA,
-        ...(method === 'PUT' ? { payload: { expectedRevision: 0, plan: validPlan } } : {}),
+        ...(method === 'PUT'
+          ? { payload: { expectedRevision: 0, plan: validPlan } }
+          : {}),
         ...(method === 'DELETE' ? { payload: { expectedRevision: 1 } } : {}),
       });
       expect(result.statusCode).toBe(503);
