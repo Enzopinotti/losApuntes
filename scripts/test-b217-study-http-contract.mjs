@@ -52,7 +52,7 @@ test("B217 HTTP fixture checks both identities, Web and Mobile, and all three me
 
 test("B217 isolated HTTP fixture makes no deployment, runtime-flag or storage changes", () => {
   assert.doesNotMatch(suite, /MongoClient|createConnection|mongoose\.connect|http:\/\/localhost|listen\(/u);
-  assert.match(suite, /getInstance\(\)\.inject\(/u);
+  assert.match(suite, /getInstance\(\)\s*\.inject\(/u);
   assert.match(suite, /configureHttpRuntime\(/u);
   assert.match(suite, /jest\.fn\(/u);
 });
