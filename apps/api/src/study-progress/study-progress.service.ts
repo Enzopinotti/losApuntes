@@ -84,7 +84,7 @@ export class StudyProgressService {
     }
   }
 
-  private present(record: StudyProgress, subjectId: string) {
+  private present(record: StudyProgress, subjectId: string, ownerUserId: string) {
     // Even trusted Mongo documents can be corrupt or originate from a
     // previous schema. Never return an unchecked stored plan to the browser.
     const invalidStoredProgress = (): never => {
@@ -94,6 +94,7 @@ export class StudyProgressService {
       });
     };
     if (
+      record.ownerUserId !== ownerUserId ||
       record.subjectId !== subjectId ||
       !Number.isSafeInteger(record.revision) ||
       record.revision < 1 ||
@@ -128,7 +129,7 @@ export class StudyProgressService {
       .lean<StudyProgress>()
       .exec();
     if (!record) return missing();
-    return { progress: this.present(record, subject) };
+    return { progress: this.present(record, subject, ownerUserId) };
   }
 
   async save(
@@ -192,7 +193,7 @@ export class StudyProgressService {
         if (!updated) return conflict();
         return updated;
       });
-      return { progress: this.present(record, subject) };
+      return { progress: this.present(record, subject, ownerUserId) };
     } catch (error) {
       if (duplicate(error)) return conflict();
       throw error;
