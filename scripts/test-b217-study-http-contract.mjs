@@ -21,11 +21,9 @@ test("B217 HTTP guards preserve private cache headers", () => {
     controller,
     /@UseGuards\(AuthSessionGuard, StudyProgressFeatureGuard\)/u,
   );
-  assert.equal(
-    (controller.match(/@Header\('Cache-Control', 'private, no-store'\)/gu) ?? [])
-      .length,
-    3,
-  );
+  const privateHeaders =
+    controller.match(/@Header\('Cache-Control', 'private, no-store'\)/gu) ?? [];
+  assert.equal(privateHeaders.length, 3);
   assert.match(controller, /req\.user\.id, subjectId/u);
   assert.doesNotMatch(controller, /@Body\(\).*ownerUserId/u);
 });
