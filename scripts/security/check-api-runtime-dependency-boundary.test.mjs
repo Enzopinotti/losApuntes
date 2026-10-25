@@ -36,6 +36,9 @@ test("rejects Mobile tooling packages regardless of version or peer suffix", () 
     "braces@3.0.4",
     "node-forge@1.4.0",
     "node-forge@1.4.0(peer@1.0.0)",
+    "zod@3.25.76",
+    "zod@3.25.76(peer@1.0.0)",
+    "zod@4.6.6",
   ]) {
     assert.throws(
       () => inspectApiPnpmStore([...productionPackages, exposed]),
