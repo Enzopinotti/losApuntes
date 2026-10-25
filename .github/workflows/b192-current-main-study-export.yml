@@ -1,0 +1,81 @@
+name: B192 Study Progress private export reconciliation
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b192-current-main-study-export.yml
+      - apps/api/src/study-progress/**
+      - apps/web/src/features/account-export/**
+      - scripts/test-study-progress-b61-integration.mjs
+      - scripts/test-account-export-b62-integration.mjs
+      - scripts/test-b192-account-export-study-web.mjs
+      - docs/engineering/b192-study-export-current-main.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b192-private-export-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-contracts:
+    name: B192 Node24 owner read, export and Web v3 contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Require exact SHA and clean source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Pin pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Keep audit exceptions disabled
+        run: pnpm security:audit-exceptions
+      - name: Validate both client-facing source contracts
+        run: |
+          node scripts/test-study-progress-b61-integration.mjs
+          node scripts/test-account-export-b62-integration.mjs
+          node scripts/test-web-account-export-contract.mjs
+          node scripts/test-b192-account-export-study-web.mjs
+      - name: Focused API Jest with negative owner cases
+        run: |
+          pnpm --filter @losapuntes/api test:ci --runTestsByPath \
+            src/study-progress/study-progress.service.spec.ts \
+            src/study-progress/domain/study-progress.plan.spec.ts \
+            src/study-progress/study-progress.feature.guard.spec.ts \
+            src/study-progress/mongo/study-progress-export.reader.spec.ts \
+            src/data-lifecycle/contributors/account-export-study-progress.contributor.spec.ts \
+            --passWithNoTests=false
+      - name: Typecheck and builds for affected clients
+        run: |
+          pnpm --filter @losapuntes/api check:types
+          pnpm --filter @losapuntes/web check:types
+          pnpm --filter @losapuntes/api build
+          pnpm --filter @losapuntes/web build
+      - name: Verify immutable source after checks
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# Separate global 'verify' workflow remains authoritative for runtime smoke,
+# dependency vulnerabilities, cross-domain coverage, and merge/release decisions.
