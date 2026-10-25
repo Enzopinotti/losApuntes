@@ -7,7 +7,7 @@
 
 Mobile uses Expo SDK 57, React Native 0.86, and a frozen pnpm 9 lockfile. Its transitive CLI toolchain currently contains `node-forge@1.4.0` (GHSA-86w9-cpqp-85rv, #133) and `zod@3.25.76` (GHSA-mrhx-c7xc-m3w5, #705), both HIGH in the mandatory production dependency audit. The Zod advisory identifies `4.6.6` as the first patched major-4 release. Do **not** silently force a major-4 transitive override into SDK 57's major-3 consumer. Node-forge <=1.4.0 has no upstream patched release identified as of this baseline. Expo CLI SDK-57 patch updates exist, but a patch release alone is not evidence that both advisories are resolved.
 
-A safe compatibility migration needs a repeatable proof that the Mobile code can generate both **iOS and Android native JavaScript/Hermes bundles** on the exact future lockfile, before package updates are considered for integration. This PR adds that proof without changing any manifests, package versions, node-forge, Zod, config, runtime services, or source code.
+A safe compatibility migration needs a repeatable proof that the Mobile code can generate both **iOS and Android native JavaScript/Hermes bundles** on the exact future lockfile, before package updates are considered for integration. This PR adds that proof without changing package versions, node-forge, Zod, pnpm lock, runtime services or application logic. The Expo app manifest is explicitly restricted to the two supported native platforms (iOS and Android), because SDK 57's default `--platform all` also attempted unsupported Web and failed before compiling.
 
 ## New acceptance
 
@@ -23,7 +23,7 @@ This **does** cover Metro's exact-head native bundle and packaging paths for bot
 
 ## Coordination
 
-B219 creates only a dedicated `scripts/security/verify-expo-native-export*` pair, a B219 workflow and this document. It does not touch the B195 root lock risk graph (#709), AUDIT01 runner (#711), Auth browser (#712), Study export (#713), HTTP Auth (#714), or installed API runtime audit gate (#715). It is an isolated staging lane for **future reviewed Expo SDK 57 patch and/or major version migration**.
+B219 adds a dedicated `scripts/security/verify-expo-native-export*` pair, a B219 workflow, this document and the narrowly scoped `apps/mobile/app.json` native-only platform declaration. It does not touch the B195 root lock risk graph (#709), AUDIT01 runner (#711), Auth browser (#712), Study export (#713), HTTP Auth (#714), or installed API runtime audit gate (#715). It is an isolated staging lane for **future reviewed Expo SDK 57 patch and/or major version migration**.
 
 The canonical production audit `pnpm audit --prod --audit-level high` remains mandatory; the build preflight is not a waiver. Keep issue #133 and #705 OPEN and all PRs HOLD until the advisories are actually resolved in the live lockfile and full exact-head global gates pass.
 
