@@ -29,12 +29,56 @@ test("serializes a scheduled event with UTC dates and optional event details", (
   assert.match(calendar, /DTSTART:20261103T210000Z\r\n/u);
   assert.match(calendar, /DTEND:20261103T223000Z\r\n/u);
   assert.match(calendar, /SUMMARY:Taller de estudio\r\n/u);
+  assert.match(calendar, /URL:https:\/\/example\.test\/event\r\n/u);
   assert.match(
     calendar,
     /DESCRIPTION:Una actividad útil\\n\\nhttps:\/\/example\.test\/event\r\n/u,
   );
   assert.match(calendar, /LOCATION:Aula 12\r\n/u);
   assert.match(calendar, /END:VEVENT\r\nEND:VCALENDAR\r\n$/u);
+});
+
+test("keeps only validated HTTPS event links in URL and description", () => {
+  const calendar = serializeOrganizationEventCalendar(
+    makeEvent({ externalUrl: "https://example.test/event?mode=public&lang=es" }),
+    fixedNow,
+  );
+  assert.match(
+    calendar,
+    /URL:https:\/\/example\.test\/event\?mode=public&lang=es\r\n/u,
+  );
+
+  const maliciousLinks = [
+    "javascript:alert(1)",
+    "http://example.test/event",
+    "https://user:secret@example.test/event",
+    "https://example.test/event\r\nATTENDEE:attacker@example.test",
+    "https://example.test/path with spaces",
+    "https://example.test/" + "a".repeat(2048),
+    "not a url",
+    "\u0000https://example.test",
+  ];
+  for (const externalUrl of maliciousLinks) {
+    const result = serializeOrganizationEventCalendar(
+      makeEvent({ externalUrl }),
+      fixedNow,
+    );
+    assert.doesNotMatch(result, /^URL:/mu);
+    assert.doesNotMatch(result, /attacker@example\.test|javascript:|secret@/u);
+    assert.match(result, /DESCRIPTION:Una actividad útil\r\n/u);
+  }
+});
+
+test("folds long valid event URL lines to 75 UTF-8 octets", () => {
+  const result = serializeOrganizationEventCalendar(
+    makeEvent({ externalUrl: "https://example.test/" + "a".repeat(120) }),
+    fixedNow,
+  );
+  assert.match(result, /^URL:https:\/\/example\.test\//mu);
+  const encoder = new TextEncoder();
+  for (const line of result.split("\r\n")) {
+    assert.ok(encoder.encode(line).length <= 75);
+  }
 });
 
 test("escapes calendar control characters and folds long UTF-8 lines safely", () => {
