@@ -118,6 +118,8 @@ async function main() {
   let questionRechecks = 0;
   const searches = [];
   let sourceStatus = 200;
+  const materialPages = [];
+  let failMaterialPage = true;
   try {
     child = await boot();
     browser = await chromium.launch({ headless: true });
@@ -161,6 +163,27 @@ async function main() {
       }
       if (path === "/resources/saved/search") {
         return reply(200, { items: [], nextCursor: null });
+      }
+      if (
+        (path === "/resources" || path === "/questions") &&
+        url.searchParams.get("q") === "ciclos"
+      ) {
+        const cursor = url.searchParams.get("cursor");
+        materialPages.push({ path, cursor });
+        if (path === "/resources" && cursor === "page-a" && failMaterialPage) {
+          failMaterialPage = false;
+          return reply(500, { code: "UNAVAILABLE" });
+        }
+        const number = cursor === "page-b" ? 3 : cursor ? 2 : 1;
+        return reply(200, {
+          items: Array.from({ length: number }, (_, index) => ({
+            id: `material-${index + 1}`,
+            title: `Material ${index + 1}`,
+            academic: resource.academic,
+          })),
+          nextCursor:
+            cursor === "page-b" ? "page-a" : cursor ? "page-b" : "page-a",
+        });
       }
       if (path === "/resources") {
         const q = url.searchParams.get("q") ?? "";
@@ -317,6 +340,63 @@ async function main() {
       "each resource add must reauthorize the item",
     );
     assert.equal(questionRechecks, 1, "question add must reauthorize the item");
+    const finder = page.locator(".study-session-material-finder");
+    for (const kind of ["resource", "question"]) {
+      await page.getByLabel("Qué querés repasar").selectOption(kind);
+      await page.getByLabel("Buscar por tema").fill("ciclos");
+      await page.getByRole("button", { name: "Buscar material" }).click();
+      await finder.getByText("Material 1", { exact: true }).waitFor();
+      await finder
+        .getByRole("button", { name: "Más resultados de la búsqueda" })
+        .click();
+      if (kind === "resource") {
+        await finder.getByText(/No pudimos comprobar el contenido/).waitFor();
+        assert.equal(
+          await finder.getByText("Material 1", { exact: true }).count(),
+          1,
+        );
+        await finder
+          .getByRole("button", { name: "Reintentar", exact: true })
+          .click();
+      }
+      await finder.getByText("Material 2", { exact: true }).waitFor();
+      await finder
+        .getByRole("button", { name: "Más resultados de la búsqueda" })
+        .click();
+      await finder
+        .getByText(/El servidor repitió una página de material/)
+        .waitFor();
+      for (const number of [1, 2, 3]) {
+        assert.equal(
+          await finder.getByText(`Material ${number}`, { exact: true }).count(),
+          1,
+        );
+      }
+      assert.equal(
+        await finder
+          .getByRole("button", { name: "Más resultados de la búsqueda" })
+          .count(),
+        0,
+      );
+      await finder
+        .getByRole("button", { name: "Reintentar", exact: true })
+        .click();
+      await finder
+        .getByText("Material 3", { exact: true })
+        .waitFor({ state: "hidden" });
+      await finder
+        .getByRole("button", { name: "Más resultados de la búsqueda" })
+        .click();
+      await finder.getByText("Material 2", { exact: true }).waitFor();
+    }
+    assert.deepEqual(
+      materialPages.filter((x) => x.path === "/resources").map((x) => x.cursor),
+      [null, "page-a", "page-a", "page-b", null, "page-a"],
+    );
+    assert.deepEqual(
+      materialPages.filter((x) => x.path === "/questions").map((x) => x.cursor),
+      [null, "page-a", "page-b", null, "page-a"],
+    );
     const sourceResource = page
       .locator(".study-session-sources")
       .getByRole("link", { name: resource.title, exact: true });
