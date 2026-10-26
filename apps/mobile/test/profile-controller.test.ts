@@ -261,6 +261,97 @@ test("paginates owner activities with id dedupe", async () => {
   }
 });
 
+test("stops repeated activity cursors and resets cursor history on refresh", async () => {
+  const cursors: Array<string | undefined> = [];
+  let profileLoads = 0;
+  const controller = new MobileProfileController(
+    apiStub({
+      me: async () => {
+        profileLoads += 1;
+        return ready([activity("a1")], "cursor-a");
+      },
+      activities: async (cursor) => {
+        cursors.push(cursor);
+        if (cursor === "cursor-a") {
+          return { items: [activity("a2")], nextCursor: "cursor-b" };
+        }
+        return { items: [activity("a3")], nextCursor: "cursor-a" };
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  await controller.loadMoreActivities("session-a");
+  await controller.loadMoreActivities("session-a");
+  await controller.loadMoreActivities("session-a");
+
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.data.activities.map((item) => item.id),
+      ["a1", "a2", "a3"],
+    );
+    assert.equal(snapshot.data.activitiesNextCursor, null);
+    assert.equal(snapshot.failure?.code, "PROFILE_ACTIVITY_CURSOR_REPEATED");
+  }
+  assert.deepEqual(cursors, ["cursor-a", "cursor-b"]);
+
+  await controller.load("session-a");
+  await controller.loadMoreActivities("session-a");
+  snapshot = controller.getSnapshot();
+  assert.equal(profileLoads, 2);
+  assert.equal(cursors.at(-1), "cursor-a");
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.activitiesNextCursor, "cursor-b");
+    assert.equal(snapshot.failure, null);
+  }
+});
+
+test("a failed activity page can retry its cursor", async () => {
+  let pageRequests = 0;
+  const controller = new MobileProfileController(
+    apiStub({
+      me: async () => ready([activity("a1")], "retryable-cursor"),
+      activities: async () => {
+        pageRequests += 1;
+        if (pageRequests === 1) {
+          throw new ApiRequestError(
+            "offline",
+            null,
+            null,
+            "network unavailable",
+          );
+        }
+        return { items: [activity("a2")], nextCursor: null };
+      },
+    }),
+  );
+
+  await controller.load("session-a");
+  await controller.loadMoreActivities("session-a");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.activitiesNextCursor, "retryable-cursor");
+    assert.equal(snapshot.failure?.kind, "offline");
+  }
+
+  await controller.loadMoreActivities("session-a");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.activitiesNextCursor, null);
+    assert.equal(snapshot.failure, null);
+    assert.deepEqual(
+      snapshot.data.activities.map((item) => item.id),
+      ["a1", "a2"],
+    );
+  }
+  assert.equal(pageRequests, 2);
+});
+
 test("activity mutations use canonical snapshots and refresh after commit", async () => {
   const created: CreateProfileActivityInput[] = [];
   const deleted: ProfileActivity[] = [];

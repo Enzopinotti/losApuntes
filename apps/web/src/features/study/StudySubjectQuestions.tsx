@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
 import type { QuestionState, QuestionView } from "../community/interfaces";
 import {
@@ -14,6 +20,10 @@ import {
   STUDY_QUESTION_QUERY_MAX_LENGTH,
   type StudyQuestionFilter,
 } from "./study-question-explorer.mjs";
+import { repeatsStudyQuestionCursor } from "./study-question-pagination.mjs";
+
+const repeatedCursorMessage =
+  "El servidor repitió una página de preguntas. Conservamos las preguntas cargadas y detuvimos la búsqueda.";
 
 type ScopedFilter = StudyQuestionFilter & { scope: string };
 type QuestionPage = {
@@ -71,6 +81,10 @@ export function StudySubjectQuestions({
     `study-question-explorer:${filterScope ?? "invalid"}`,
   );
   const [pageState, setPageState] = useState<QuestionPage | null>(null);
+  const cursorHistoryRef = useRef({
+    scope: filterScope,
+    cursors: new Set<string>(),
+  });
   const currentPage =
     filterScope !== null && pageState?.scope === filterScope ? pageState : null;
   const validation = normalizeStudyQuestionFilter(draft);
@@ -83,6 +97,22 @@ export function StudySubjectQuestions({
   const load = useCallback(
     async (cursor?: string, append = false) => {
       if (!filterScope) return;
+      const cursorHistory = cursorHistoryRef.current;
+      if (append) {
+        if (!cursor || cursorHistory.scope !== filterScope) return;
+        if (cursorHistory.cursors.has(cursor)) {
+          setPageState((previous) =>
+            previous?.scope === filterScope
+              ? {
+                  ...previous,
+                  nextCursor: null,
+                  error: repeatedCursorMessage,
+                }
+              : previous,
+          );
+          return;
+        }
+      }
       const ticket = beginQuestions();
       if (!isQuestionsCurrent(ticket)) return;
       setPageState((previous) => ({
@@ -107,6 +137,21 @@ export function StudySubjectQuestions({
           ticket.signal,
         );
         if (!isQuestionsCurrent(ticket)) return;
+        const repeatedCursor =
+          append && cursor
+            ? repeatsStudyQuestionCursor(
+                cursorHistory.cursors,
+                cursor,
+                page.nextCursor,
+              )
+            : false;
+        if (append && cursor) cursorHistory.cursors.add(cursor);
+        else {
+          cursorHistoryRef.current = {
+            scope: filterScope,
+            cursors: new Set<string>(),
+          };
+        }
         setPageState((previous) => ({
           scope: filterScope,
           items:
@@ -120,9 +165,9 @@ export function StudySubjectQuestions({
                   ).values(),
                 )
               : page.items,
-          nextCursor: page.nextCursor,
+          nextCursor: repeatedCursor ? null : page.nextCursor,
           loading: false,
-          error: null,
+          error: repeatedCursor ? repeatedCursorMessage : null,
         }));
       } catch (error) {
         if (!isQuestionsCurrent(ticket)) return;

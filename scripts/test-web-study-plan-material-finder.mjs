@@ -8,6 +8,7 @@ import {
   normalizeStudyMaterialSearchFilter,
   studyMaterialSearchKey,
 } from "../apps/web/src/features/study/study-plan-material-search.mjs";
+import { repeatsStudyPlanMaterialCursor } from "../apps/web/src/features/study/study-plan-material-pagination.mjs";
 
 const root = new URL("../", import.meta.url);
 const src = (path) => readFileSync(new URL(path, root), "utf8");
@@ -101,6 +102,9 @@ assert.equal(canAdd("anything", "new", 1, 1200), false);
 assert.equal(canAdd("resource", "new", -1, 1200), false);
 
 const finder = src("apps/web/src/features/study/StudyPlanMaterialFinder.tsx");
+assert.match(finder, /cursorHistoryRef/u);
+assert.match(finder, /repeatedCursorMessage/u);
+assert.match(finder, /repeatsStudyPlanMaterialCursor/u);
 const page = src("apps/web/src/pages/StudySession.tsx");
 const styles = src("apps/web/src/pages/StudySession.scss");
 assert.match(finder, /resourcesApi\.search\(/u);
@@ -112,7 +116,10 @@ assert.match(finder, /ticket\.signal/u);
 assert.match(finder, /useAsyncAuthorityFence/u);
 assert.match(finder, /isSearchCurrent\(ticket\)/u);
 assert.match(finder, /isAddCurrent\(ticket\)/u);
-assert.match(finder, /resource\.academic\.subject\.id|item\.academic\.subject\.id === subjectId/u);
+assert.match(
+  finder,
+  /resource\.academic\.subject\.id|item\.academic\.subject\.id === subjectId/u,
+);
 assert.match(finder, /verified\.academic\.subject\.id !== subjectId/u);
 assert.match(finder, /resourcesApi\.get\(item\.id, ticket\.signal\)/u);
 assert.match(finder, /communityApi\.question\(item\.id, ticket\.signal\)/u);
@@ -124,6 +131,35 @@ assert.match(finder, /page\?\.nextCursor/u);
 assert.match(finder, /Reintentar/u);
 assert.match(finder, /Sumar al plan/u);
 assert.doesNotMatch(finder, /localStorage|sessionStorage|indexedDB/u);
+const requestedMaterialCursors = new Set(["cursor-a"]);
+assert.equal(
+  repeatsStudyPlanMaterialCursor(
+    requestedMaterialCursors,
+    "cursor-a",
+    "cursor-a",
+  ),
+  true,
+);
+assert.equal(
+  repeatsStudyPlanMaterialCursor(
+    requestedMaterialCursors,
+    "cursor-b",
+    "cursor-a",
+  ),
+  true,
+);
+assert.equal(
+  repeatsStudyPlanMaterialCursor(
+    requestedMaterialCursors,
+    "cursor-b",
+    "cursor-c",
+  ),
+  false,
+);
+assert.equal(
+  repeatsStudyPlanMaterialCursor(requestedMaterialCursors, "cursor-a", null),
+  false,
+);
 assert.match(page, /<StudyPlanMaterialFinder/u);
 assert.match(page, /key=\{scope\}/u);
 assert.match(page, /subjectId=\{subject\.id\}/u);

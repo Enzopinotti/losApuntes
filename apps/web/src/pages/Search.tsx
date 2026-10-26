@@ -9,6 +9,8 @@ import {
   searchSelectionKey,
 } from "../features/search/search-navigation.mjs";
 import {
+  shareablePublicProfileHref,
+  shareablePublicProfileUrl,
   shareableResourceHref,
   shareableResourceUrl,
   shareableSubjectResourcesHref,
@@ -88,6 +90,11 @@ const Search = () => {
   const [subjectCopyStatus, setSubjectCopyStatus] = useState<{
     scopeKey: string;
     subjectId: string;
+    message: string;
+  } | null>(null);
+  const [profileCopyStatus, setProfileCopyStatus] = useState<{
+    scopeKey: string;
+    profileId: string;
     message: string;
   } | null>(null);
   const [contextState, setContextState] = useState<{
@@ -241,6 +248,7 @@ const Search = () => {
     setCopyStatus(null);
     setResourceCopyStatus(null);
     setSubjectCopyStatus(null);
+    setProfileCopyStatus(null);
     setQuery("");
     setScope("all");
     setSubjectId("");
@@ -295,6 +303,31 @@ const Search = () => {
         subjectId: selectedSubjectId,
         message:
           "No pudimos copiar el enlace. Abrí la materia para copiar su URL.",
+      });
+    }
+  };
+
+  const copyPublicProfileLink = async (profileId: string) => {
+    const url = shareablePublicProfileUrl(profileId, window.location.origin);
+    if (!url) return;
+
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(url);
+      setProfileCopyStatus({
+        scopeKey: resultScopeKey,
+        profileId,
+        message:
+          "Enlace copiado. Solo comparte la dirección del perfil público.",
+      });
+    } catch {
+      setProfileCopyStatus({
+        scopeKey: resultScopeKey,
+        profileId,
+        message:
+          "No pudimos copiar el enlace. Abrí el perfil para copiar su URL.",
       });
     }
   };
@@ -576,9 +609,28 @@ const Search = () => {
                   {result.results.people.map((person) => (
                     <li key={person.profileId}>
                       <strong>{person.displayName}</strong>
-                      <Link to={`/p/${encodeURIComponent(person.profileId)}`}>
-                        Ver perfil
-                      </Link>
+                      <div className="search-profile-actions">
+                        <Link to={`/p/${encodeURIComponent(person.profileId)}`}>
+                          Ver perfil
+                        </Link>
+                        {shareablePublicProfileHref(person.profileId) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void copyPublicProfileLink(person.profileId);
+                            }}
+                            aria-label={`Copiar enlace del perfil de ${person.displayName}`}
+                          >
+                            Copiar enlace del perfil
+                          </button>
+                        )}
+                        {profileCopyStatus?.scopeKey === resultScopeKey &&
+                          profileCopyStatus.profileId === person.profileId && (
+                            <small role="status">
+                              {profileCopyStatus.message}
+                            </small>
+                          )}
+                      </div>
                     </li>
                   ))}
                 </ul>

@@ -24,6 +24,7 @@ import {
   studySubjectHref,
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
+import { studyWorkbenchCursorRepeats } from "../features/study/study-workbench-pagination";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import StudyFocusClock from "./StudyFocusClock";
@@ -77,6 +78,20 @@ function appendDistinct<T extends { id: string }>(
   );
 }
 
+function clearsWorkbenchSource(error: unknown): boolean {
+  const status =
+    isResourcesApiError(error) || isSearchApiError(error) ? error.status : null;
+  return status === 401 || status === 403 || status === 404;
+}
+
+function clearsSavedCursor(error: unknown): boolean {
+  return (
+    clearsWorkbenchSource(error) ||
+    (isResourcesApiError(error) &&
+      error.code === "RESOURCE_SAVED_SEARCH_CURSOR_STALE")
+  );
+}
+
 export default function StudyWorkbench() {
   const { status, user, session } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -101,6 +116,14 @@ export default function StudyWorkbench() {
   );
   const [availableState, setAvailableState] =
     useState<PageState<ResourceView> | null>(null);
+  const savedCursorHistoryRef = useRef<{
+    scope: string;
+    cursors: Set<string>;
+  } | null>(null);
+  const availableCursorHistoryRef = useRef<{
+    scope: string;
+    cursors: Set<string>;
+  } | null>(null);
   const saved = savedState?.scope === dataScope ? savedState : null;
   const available = availableState?.scope === dataScope ? availableState : null;
 
@@ -176,6 +199,11 @@ export default function StudyWorkbench() {
   const loadSaved = useCallback(
     async (cursor?: string, append = false) => {
       if (!subjectId) return;
+      const history =
+        append && savedCursorHistoryRef.current?.scope === dataScope
+          ? savedCursorHistoryRef.current
+          : { scope: dataScope, cursors: new Set<string>() };
+      savedCursorHistoryRef.current = history;
       const ticket = beginSaved();
       if (!isSavedCurrent(ticket)) return;
       setSavedState((previous) => ({
@@ -193,23 +221,38 @@ export default function StudyWorkbench() {
           ticket.signal,
         );
         if (!isSavedCurrent(ticket)) return;
+        const cursorCycle =
+          append &&
+          studyWorkbenchCursorRepeats(history.cursors, cursor, page.nextCursor);
+        if (append && cursor) history.cursors.add(cursor);
         setSavedState((previous) => ({
           scope: dataScope,
           items:
             append && previous?.scope === dataScope
               ? appendDistinct(previous.items, page.items)
               : page.items,
-          cursor: page.nextCursor,
+          cursor: cursorCycle ? null : page.nextCursor,
           loading: false,
-          error: null,
+          error: cursorCycle
+            ? "La lista de guardados no avanzó. Actualizala para empezar de nuevo."
+            : null,
         }));
       } catch (error) {
         if (isSavedCurrent(ticket)) {
+          const clearCursor = clearsSavedCursor(error);
+          if (clearCursor) history.cursors.clear();
           setSavedState((previous) => ({
             scope: dataScope,
             items:
-              append && previous?.scope === dataScope ? previous.items : [],
-            cursor: null,
+              append &&
+              previous?.scope === dataScope &&
+              !clearsWorkbenchSource(error)
+                ? previous.items
+                : [],
+            cursor:
+              append && previous?.scope === dataScope && !clearCursor
+                ? previous.cursor
+                : null,
             loading: false,
             error: messageFor(error),
           }));
@@ -224,6 +267,11 @@ export default function StudyWorkbench() {
   const loadAvailable = useCallback(
     async (cursor?: string, append = false) => {
       if (!subjectId) return;
+      const history =
+        append && availableCursorHistoryRef.current?.scope === dataScope
+          ? availableCursorHistoryRef.current
+          : { scope: dataScope, cursors: new Set<string>() };
+      availableCursorHistoryRef.current = history;
       const ticket = beginAvailable();
       if (!isAvailableCurrent(ticket)) return;
       setAvailableState((previous) => ({
@@ -240,23 +288,36 @@ export default function StudyWorkbench() {
           ticket.signal,
         );
         if (!isAvailableCurrent(ticket)) return;
+        const cursorCycle =
+          append &&
+          studyWorkbenchCursorRepeats(history.cursors, cursor, page.nextCursor);
+        if (append && cursor) history.cursors.add(cursor);
         setAvailableState((previous) => ({
           scope: dataScope,
           items:
             append && previous?.scope === dataScope
               ? appendDistinct(previous.items, page.items)
               : page.items,
-          cursor: page.nextCursor,
+          cursor: cursorCycle ? null : page.nextCursor,
           loading: false,
-          error: null,
+          error: cursorCycle
+            ? "La lista de apuntes disponibles no avanzó. Actualizala para empezar de nuevo."
+            : null,
         }));
       } catch (error) {
         if (isAvailableCurrent(ticket)) {
+          const clearSource = clearsWorkbenchSource(error);
+          if (clearSource) history.cursors.clear();
           setAvailableState((previous) => ({
             scope: dataScope,
             items:
-              append && previous?.scope === dataScope ? previous.items : [],
-            cursor: null,
+              append && previous?.scope === dataScope && !clearSource
+                ? previous.items
+                : [],
+            cursor:
+              append && previous?.scope === dataScope && !clearSource
+                ? previous.cursor
+                : null,
             loading: false,
             error: messageFor(error),
           }));
