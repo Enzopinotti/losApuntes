@@ -512,12 +512,16 @@ export class MobileOrganizationDetailController {
     organizationId: string,
   ): Promise<void> {
     const current = this.currentReady(authorityKey, organizationId);
-    if (
-      !current ||
-      current.busy ||
-      !current.organization.eventsNextCursor ||
-      this.active
-    ) {
+    const cursor = current?.organization.eventsNextCursor;
+    if (!current || current.busy || !cursor || this.active) return;
+
+    if (this.requestedEventCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        organization: { ...current.organization, eventsNextCursor: null },
+        failure: mobileOrganizationsFailure(repeatedDetailCursor()),
+        notice: null,
+      });
       return;
     }
 
@@ -532,12 +536,18 @@ export class MobileOrganizationDetailController {
     try {
       const page = await this.api.events(
         organizationId,
-        current.organization.eventsNextCursor,
+        cursor,
         operation.controller.signal,
       );
       if (!this.isCurrent(operation, organizationId)) return;
       const latest = this.currentReady(authorityKey, organizationId);
       if (!latest) return;
+      const repeatedCursor = repeatsDetailCursor(
+        this.requestedEventCursors,
+        cursor,
+        page.nextCursor,
+      );
+      this.requestedEventCursors.add(cursor);
 
       this.publish({
         ...latest,
@@ -547,9 +557,13 @@ export class MobileOrganizationDetailController {
             latest.organization.events,
             page.items,
           ),
-          eventsNextCursor: page.nextCursor,
+          eventsNextCursor: repeatedCursor ? null : page.nextCursor,
         },
         busy: null,
+        failure: repeatedCursor
+          ? mobileOrganizationsFailure(repeatedDetailCursor())
+          : null,
+        notice: repeatedCursor ? null : latest.notice,
       });
     } catch (error) {
       if (!this.isCurrent(operation, organizationId)) return;
