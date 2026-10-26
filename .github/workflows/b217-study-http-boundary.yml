@@ -1,0 +1,94 @@
+name: B217 Study Progress Auth and HTTP Boundary
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b217-study-http-boundary.yml
+      - apps/api/src/study-progress/study-progress.http-contract.spec.ts
+      - scripts/test-b217-study-http-contract.mjs
+      - docs/engineering/b217-study-http-boundary.md
+      - apps/api/src/study-progress/study-progress.controller.ts
+      - apps/api/src/study-progress/study-progress.feature.guard.ts
+      - apps/api/src/auth/guards/auth-session.guard.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b217-http-boundary-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-http:
+    name: B217 real Fastify HTTP auth and private plan contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable candidate HEAD without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check exact SHA and working tree before executing fixtures
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$STUDY_PROGRESS_ENABLED" = false
+      - name: Repository pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Repository Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen dependency lockfile
+        run: pnpm install --frozen-lockfile
+      - name: No supply-chain exceptions or lowered thresholds
+        run: pnpm security:audit-exceptions
+      - name: Source boundary checks
+        run: |
+          node --check scripts/test-b217-study-http-contract.mjs
+          node --test scripts/test-b217-study-http-contract.mjs
+      - name: Real Jest Fastify HTTP suite with exact non-skipped cases
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          report="$(mktemp)"
+          export B217_REPORT="$report"
+          trap 'rm -f "$report"' EXIT
+          pnpm --filter @losapuntes/api exec jest --runInBand \
+            --runTestsByPath src/study-progress/study-progress.http-contract.spec.ts \
+            --passWithNoTests=false --detectOpenHandles --json --outputFile="$report"
+          node <<'B217_ASSERT'
+          const fs = require('node:fs');
+          const result = JSON.parse(fs.readFileSync(process.env.B217_REPORT, 'utf8'));
+          const tests = (result.testResults ?? []).flatMap(s => s.assertionResults ?? []);
+          const pass = tests.filter(x => x.status === 'passed').length;
+          if (result.numTotalTestSuites !== 1 || result.numPassedTestSuites !== 1 ||
+              result.numFailedTests !== 0 || result.numPendingTests !== 0 ||
+              result.numTotalTests !== 8 || result.numPassedTests !== 8 ||
+              tests.length !== 8 || pass !== 8) {
+            throw new Error('B217 HTTP security cases missing, failing or skipped');
+          }
+          console.log('B217 actual Nest/Fastify HTTP fixture: 8/8 PASS, no skips');
+          B217_ASSERT
+      - name: API typecheck strict fixture lint and canonical format
+        run: |
+          pnpm --filter @losapuntes/api check:types
+          pnpm --filter @losapuntes/api exec eslint src/study-progress/study-progress.http-contract.spec.ts --max-warnings=0
+          pnpm --filter @losapuntes/api exec prettier --check src/study-progress/study-progress.http-contract.spec.ts
+          pnpm exec prettier --check scripts/test-b217-study-http-contract.mjs
+      - name: Assert source unchanged and release remains opt-in
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$STUDY_PROGRESS_ENABLED" = false
+
+# Canonical verify owns all domains, real DB/runtime, audit and release authorization.

@@ -1,0 +1,91 @@
+name: B220 Mobile release public environment preflight
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b220-mobile-release-public-env.yml
+      - scripts/security/check-mobile-release-public-env.mjs
+      - scripts/security/check-mobile-release-public-env.test.mjs
+      - apps/mobile/env.example
+      - apps/mobile/src/config/runtime.ts
+      - apps/mobile/src/config/release-runtime.ts
+      - apps/mobile/src/config/release-qualification.ts
+      - docs/security/b220-mobile-release-public-environment.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b220-mobile-release-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  release-public-env:
+    name: B220 exact-head Node24 Mobile config fail-closed contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout exact unprivileged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify immutable source SHA and clean tree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$STUDY_PROGRESS_ENABLED" = false
+      - name: Use pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Frozen install and formatting
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --check scripts/security/check-mobile-release-public-env.mjs scripts/security/check-mobile-release-public-env.test.mjs
+      - name: Unit tests for release environment and refusal cases
+        run: |
+          node --check scripts/security/check-mobile-release-public-env.mjs
+          node --check scripts/security/check-mobile-release-public-env.test.mjs
+          node --test scripts/security/check-mobile-release-public-env.test.mjs
+      - name: Require that no production advisory is hidden by policy
+        run: pnpm security:audit-exceptions
+      - name: Reject a missing API origin even if a JS bundle could compile
+        env:
+          EXPO_PUBLIC_RELEASE_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPO_PUBLIC_DISTRIBUTION_PROFILE: preview
+        run: |
+          set -euo pipefail
+          if node scripts/security/check-mobile-release-public-env.mjs "${{ github.event.pull_request.head.sha }}" >/dev/null 2>&1; then
+            echo "Expected missing API origin to fail release preflight"
+            exit 1
+          fi
+      - name: Accept a synthetic candidate configuration without release approval
+        env:
+          EXPO_PUBLIC_API_ORIGIN: https://api.candidate-build-fixture.dev
+          EXPO_PUBLIC_RELEASE_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPO_PUBLIC_DISTRIBUTION_PROFILE: preview
+          EXPO_PUBLIC_STUDY_AGENDA_ENABLED: "false"
+          EXPO_PUBLIC_STUDY_COLLECTIONS_ENABLED: "false"
+        run: |
+          set -euo pipefail
+          node scripts/security/check-mobile-release-public-env.mjs "${{ github.event.pull_request.head.sha }}"
+      - name: Recheck exact source SHA after tests
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# A synthetic HTTPS fixture is used only to exercise the checker.
+# Passing this job never validates the target API, mobile runtime startup,
+# signing, or the repository mandatory HIGH/CRITICAL dependency audit.

@@ -29,6 +29,7 @@ import {
 } from "@/features/community/social-profile-connection-action";
 
 import { mobileSearchApi } from "./search-runtime";
+import { publicProfileAcademicSummary } from "./public-profile-academic-summary";
 import { useFencedDetail } from "./use-fenced-detail";
 
 const errorCopy: Record<DetailFailureKind, string> = {
@@ -265,6 +266,20 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
                   {data.profile.professional.headline}
                 </Text>
               ) : null}
+              {data.profile.academic ? (
+                <View style={styles.profileSection}>
+                  <Text accessibilityRole="header" style={styles.sectionTitle}>
+                    Trayectoria académica
+                  </Text>
+                  {publicProfileAcademicSummary(data.profile.academic).map(
+                    (line) => (
+                      <Text key={line} style={styles.meta}>
+                        {line}
+                      </Text>
+                    ),
+                  )}
+                </View>
+              ) : null}
               {data.profile.learning?.learningTopics.length ? (
                 <Text style={styles.meta}>
                   Está aprendiendo:{" "}
@@ -341,6 +356,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#20202a",
+  },
+  profileSection: {
+    gap: 6,
+    paddingTop: 4,
   },
   activityList: {
     gap: 8,

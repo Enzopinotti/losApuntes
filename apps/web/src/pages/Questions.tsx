@@ -7,6 +7,12 @@ import {
 } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { QuestionSubjectFilter } from "../features/community/QuestionSubjectFilter";
+import {
+  questionDetailSearchParams,
+  questionListHref,
+  questionSubjectIdFromSearchParams,
+} from "../features/community/qa-subject-navigation.mjs";
 import type {
   AnswerView,
   CommunityPerson,
@@ -91,6 +97,7 @@ const Questions = () => {
   ].join(":");
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id");
+  const discoverySubjectId = questionSubjectIdFromSearchParams(searchParams);
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<QuestionState | "">("");
@@ -98,6 +105,9 @@ const Questions = () => {
     viewerScopeKey,
     query.trim(),
     statusFilter || "all-states",
+    discoverySubjectId === undefined
+      ? "invalid-subject-link"
+      : (discoverySubjectId ?? "all-subjects"),
   ].join(":");
   const {
     begin: beginList,
@@ -218,6 +228,11 @@ const Questions = () => {
   } | null>(null);
   const feedback =
     feedbackState?.scopeKey === viewerScopeKey ? feedbackState.message : null;
+  const [shareFeedback, setShareFeedback] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const shareScopeKey = `${viewerScopeKey}:${discoverySubjectId ?? "invalid-or-all"}`;
 
   const error =
     currentActionState?.error ??
@@ -236,6 +251,19 @@ const Questions = () => {
     async (cursor?: string, append = false) => {
       const ticket = beginList();
       if (!isListCurrent(ticket)) return;
+      if (discoverySubjectId === undefined) {
+        setListState({
+          scopeKey: listScopeKey,
+          items: [],
+          nextCursor: null,
+          loading: false,
+          busyMore: false,
+          error: null,
+          cursorCycle: false,
+        });
+        finishList(ticket);
+        return;
+      }
 
       setListState((current) => ({
         scopeKey: listScopeKey,
@@ -254,6 +282,7 @@ const Questions = () => {
           {
             q: query.trim() || undefined,
             status: statusFilter || undefined,
+            subjectId: discoverySubjectId ?? undefined,
             cursor,
             limit: 25,
           },
@@ -350,7 +379,15 @@ const Questions = () => {
         }
       }
     },
-    [beginList, finishList, isListCurrent, listScopeKey, query, statusFilter],
+    [
+      beginList,
+      discoverySubjectId,
+      finishList,
+      isListCurrent,
+      listScopeKey,
+      query,
+      statusFilter,
+    ],
   );
   const loadListRef = useRef(loadList);
   loadListRef.current = loadList;
@@ -418,7 +455,7 @@ const Questions = () => {
         void loadDetailRef.current();
         return;
       }
-      setSearchParams({ id });
+      setSearchParams((params) => questionDetailSearchParams(params, id));
     },
     [initialId, setSearchParams],
   );
@@ -728,9 +765,46 @@ const Questions = () => {
         });
         await loadListRef.current();
         if (!isActionCurrent(ticket)) return;
-        setSearchParams({ id: result.question.id });
+        setSearchParams((params) =>
+          questionDetailSearchParams(params, result.question.id),
+        );
       },
     );
+  };
+
+  const selectDiscoverySubject = useCallback(
+    (subjectId: string | null) => {
+      const href = questionListHref(subjectId);
+      if (!href) return;
+      const queryString = href.split("?")[1] ?? "";
+      setSearchParams(new URLSearchParams(queryString));
+    },
+    [setSearchParams],
+  );
+
+  const copyDiscoveryLink = async () => {
+    const href = questionListHref(discoverySubjectId);
+    if (typeof discoverySubjectId !== "string" || !href) return;
+    const scopeKey = shareScopeKey;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(
+        new URL(href, window.location.origin).toString(),
+      );
+      setShareFeedback({
+        scopeKey,
+        message:
+          "Enlace copiado. Solo contiene el identificador público de la materia.",
+      });
+    } catch {
+      setShareFeedback({
+        scopeKey,
+        message:
+          "No pudimos copiarlo. Podés copiar el enlace desde la barra del navegador.",
+      });
+    }
   };
 
   const createAnswer = async (event: FormEvent<HTMLFormElement>) => {
@@ -954,6 +1028,18 @@ const Questions = () => {
         </p>
       )}
 
+      <QuestionSubjectFilter
+        viewerScopeKey={viewerScopeKey}
+        subjectId={discoverySubjectId}
+        onSelect={selectDiscoverySubject}
+        onCopy={() => void copyDiscoveryLink()}
+      />
+      {shareFeedback?.scopeKey === shareScopeKey && (
+        <p role="status" className="community-note">
+          {shareFeedback.message}
+        </p>
+      )}
+
       <div className="community-qa-grid">
         <section className="community-card">
           <h2>Preguntas</h2>
@@ -976,6 +1062,15 @@ const Questions = () => {
                     <small>
                       {question.answerCount} respuesta(s) · {question.state}
                     </small>
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary community-filter-shortcut"
+                    onClick={() =>
+                      selectDiscoverySubject(question.academic.subject.id)
+                    }
+                  >
+                    Ver esta materia
                   </button>
                 </li>
               ))}

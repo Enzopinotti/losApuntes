@@ -12,6 +12,7 @@ import {
   profileApi,
 } from "../features/profile/services/profileService";
 import { publicProfileActivityLink } from "../features/profile/public-profile-activity-link";
+import { PublicProfileShareAction } from "../features/profile/public-profile-share-action";
 import { publicProfilePresentationPresets } from "../features/profile/public-profile-presentation";
 import { PublicProfileAvatar } from "../features/profile/public-profile-avatar";
 import { publicProfileContentSectionOrder } from "../features/profile/public-profile-section-order";
@@ -525,17 +526,25 @@ const PublicProfile = () => {
             {profile.about?.bio && <p>{profile.about.bio}</p>}
           </div>
         </div>
-        {profile.about?.displayName && status === "authenticated" && (
-          <PublicProfileSocialActions
-            profileId={profile.id}
-            viewerScopeKey={viewerScopeKey}
-          />
-        )}
-        {profile.about?.displayName && status === "anonymous" && (
-          <Link className="public-profile-signin" to="/login">
-            Ingresá para seguir o conectar
-          </Link>
-        )}
+        <div className="public-profile-header-actions">
+          {profile.about?.displayName && status === "authenticated" && (
+            <PublicProfileSocialActions
+              profileId={profile.id}
+              viewerScopeKey={viewerScopeKey}
+            />
+          )}
+          {profile.about?.displayName && status === "anonymous" && (
+            <Link className="public-profile-signin" to="/login">
+              Ingresá para seguir o conectar
+            </Link>
+          )}
+          {profile.about?.displayName && (
+            <PublicProfileShareAction
+              displayName={profile.about.displayName}
+              profileId={profile.id}
+            />
+          )}
+        </div>
       </header>
 
       <div className="profile-grid">

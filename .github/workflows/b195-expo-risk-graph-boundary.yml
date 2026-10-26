@@ -1,0 +1,62 @@
+name: B195 Expo advisory graph isolation (not audit waiver)
+
+on:
+  pull_request:
+    paths:
+      - pnpm-lock.yaml
+      - apps/api/package.json
+      - apps/web/package.json
+      - apps/mobile/package.json
+      - scripts/security/check-expo-risk-lock-boundary.mjs
+      - scripts/security/check-expo-risk-lock-boundary.test.mjs
+      - .github/workflows/b195-expo-risk-graph-boundary.yml
+      - docs/security/b195-expo-lock-risk-boundary.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b195-risk-graph-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  lock-risk-boundary:
+    name: B195 exact-head API Web Mobile advisory reachability (NOT audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable PR head without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify SHA and read-only checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use canonical Node24 without install
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Parse real pnpm9 snapshot graph and run adversarial tests
+        run: |
+          node --check scripts/security/check-expo-risk-lock-boundary.mjs
+          node --check scripts/security/check-expo-risk-lock-boundary.test.mjs
+          node --test scripts/security/check-expo-risk-lock-boundary.test.mjs
+          node scripts/security/check-expo-risk-lock-boundary.mjs
+      - name: Enforce no audit exceptions or changes to high gate
+        run: |
+          node scripts/security/check-audit-exceptions.mjs
+          grep -Fq 'run: pnpm audit --prod --audit-level high' .github/workflows/ci.yml
+      - name: Confirm candidate immutable after inspection
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
