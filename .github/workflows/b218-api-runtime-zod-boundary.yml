@@ -1,0 +1,95 @@
+name: B218 API runtime HIGH advisory isolation
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b218-api-runtime-zod-boundary.yml
+      - scripts/security/check-api-runtime-dependency-boundary.mjs
+      - scripts/security/check-api-runtime-dependency-boundary.test.mjs
+      - scripts/security/check-audit-exceptions.mjs
+      - apps/api/Dockerfile
+      - apps/api/package.json
+      - pnpm-lock.yaml
+      - docs/security/b218-api-runtime-zod-isolation.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b218-api-runtime-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-policy:
+    name: B218 Node24 fail-closed production graph unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable PR HEAD without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check immutable source before execution
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$STUDY_PROGRESS_ENABLED" = false
+      - name: Use repository Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Test exact runtime package names and Dockerfile placement
+        run: |
+          node --check scripts/security/check-api-runtime-dependency-boundary.mjs
+          node --check scripts/security/check-api-runtime-dependency-boundary.test.mjs
+          node --test scripts/security/check-api-runtime-dependency-boundary.test.mjs
+      - name: No audit waivers / exceptions
+        run: node scripts/security/check-audit-exceptions.mjs
+      - name: Confirm exact clean HEAD again
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  exact-head-production-image:
+    name: B218 frozen API production-only Docker runtime build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout immutable PR HEAD
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Require clean exact SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Build real filtered API production image and execute boundary
+        run: |
+          set -Eeuo pipefail
+          test "$STUDY_PROGRESS_ENABLED" = false
+          docker build -f apps/api/Dockerfile --target runtime -t losapuntes-b218-api:"${{ github.event.pull_request.head.sha }}" .
+          docker image inspect losapuntes-b218-api:"${{ github.event.pull_request.head.sha }}" >/dev/null
+      - name: Confirm source unchanged after image build
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# An image passing the confinement test does NOT waive the repository-wide
+# production HIGH/CRITICAL audit nor authorize release or deployment.

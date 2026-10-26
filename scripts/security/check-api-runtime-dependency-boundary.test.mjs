@@ -15,7 +15,9 @@ test("allows a bounded API-only production dependency store", () => {
   assert.deepEqual(inspectApiPnpmStore(productionPackages), {
     event: "security.api_runtime_dependency_boundary.valid",
     packageCount: productionPackages.length,
-    absentPackages: ["braces", "node-forge"],
+    absentPackages: ["braces", "node-forge", "zod"],
+    productionAuditCertified: false,
+    releaseAuthorized: false,
   });
 });
 
@@ -36,6 +38,9 @@ test("rejects Mobile tooling packages regardless of version or peer suffix", () 
     "braces@3.0.4",
     "node-forge@1.4.0",
     "node-forge@1.4.0(peer@1.0.0)",
+    "zod@3.25.76",
+    "zod@3.25.76(peer@1.0.0)",
+    "zod@4.6.6",
   ]) {
     assert.throws(
       () => inspectApiPnpmStore([...productionPackages, exposed]),
@@ -47,7 +52,12 @@ test("rejects Mobile tooling packages regardless of version or peer suffix", () 
 
 test("a similarly named package does not count as a vulnerable exact package", () => {
   assert.doesNotThrow(() =>
-    inspectApiPnpmStore([...productionPackages, "braces-helper@1.0.0"]),
+    inspectApiPnpmStore([
+      ...productionPackages,
+      "braces-helper@1.0.0",
+      "node-forge-helper@1.0.0",
+      "zod-to-json-schema@3.24.6",
+    ]),
   );
 });
 
