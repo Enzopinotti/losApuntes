@@ -29,6 +29,7 @@ import {
 } from "react";
 
 import { useAcademicContext } from "@/features/academic/academic-context-provider";
+import { NetworkPersonAvatar } from "@/features/community/network-person-avatar";
 import { mobileResourceConsumptionApi } from "@/features/resources/resource-runtime";
 import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
@@ -356,10 +357,16 @@ function PeopleGroup({
             accessibilityLabel={`Ver perfil de ${person.displayName}`}
             key={person.profileId}
             onPress={() => onOpen(person.profileId)}
-            style={styles.resultRow}
+            style={styles.peopleResultRow}
           >
-            <Text style={styles.resultTitle}>{person.displayName}</Text>
-            <Text style={styles.actionLabel}>Ver perfil</Text>
+            <NetworkPersonAvatar
+              avatarUrl={person.avatarUrl}
+              displayName={person.displayName}
+            />
+            <View style={styles.peopleResultText}>
+              <Text style={styles.resultTitle}>{person.displayName}</Text>
+              <Text style={styles.actionLabel}>Ver perfil</Text>
+            </View>
           </Pressable>
         ))
       )}
@@ -1476,6 +1483,19 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
+  },
+  peopleResultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 64,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e2e2e8",
+    paddingTop: 12,
+  },
+  peopleResultText: {
+    flex: 1,
+    gap: 4,
   },
   resourceOpenAction: {
     alignItems: "flex-start",
