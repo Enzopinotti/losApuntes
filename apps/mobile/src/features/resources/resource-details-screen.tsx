@@ -56,6 +56,7 @@ import {
 } from "./resource-direct-sharing-controller";
 import { ResourceMetadataEditor } from "./resource-metadata-editor";
 import { MobileResourceCitationPanel } from "./resource-citation-panel";
+import { MobileResourceShareAction } from "./resource-share-action";
 import { ResourceCollectionSaveAction } from "@/features/study-collections/resource-collection-save-action";
 import {
   MobileResourceMetadataController,
@@ -598,6 +599,12 @@ export function MobileResourceDetailsScreen({
               </Pressable>
 
               <ResourceCollectionSaveAction
+                key={resource.id}
+                resourceId={resource.id}
+                resourceTitle={resource.title}
+              />
+
+              <MobileResourceShareAction
                 key={resource.id}
                 resourceId={resource.id}
                 resourceTitle={resource.title}
