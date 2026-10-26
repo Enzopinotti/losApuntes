@@ -154,6 +154,73 @@ test("pages with the opaque cursor and deduplicates by connection id", async () 
   );
 });
 
+test("stops a repeated pending cursor without consuming the accepted list cursor", async () => {
+  const requests: Array<{ status?: ConnectionStatus; cursor?: string }> = [];
+  const controller = new SocialConnectionsController(
+    api({
+      connections: async (input) => {
+        requests.push(input);
+        if (input.status === "pending") {
+          return input.cursor
+            ? {
+                items: [connection("incoming-b", "pending")],
+                nextCursor: "shared-cursor",
+              }
+            : {
+                items: [connection("incoming-a", "pending")],
+                nextCursor: "shared-cursor",
+              };
+        }
+        if (input.status === "accepted") {
+          return input.cursor
+            ? {
+                items: [connection("accepted-b", "accepted")],
+                nextCursor: null,
+              }
+            : {
+                items: [connection("accepted-a", "accepted")],
+                nextCursor: "shared-cursor",
+              };
+        }
+        return emptyPage;
+      },
+    }),
+  );
+  controller.setAuthority("user-a:session-a");
+
+  await controller.load("user-a:session-a", null);
+  await controller.loadMore("user-a:session-a", "pending");
+  const afterPendingLoop = readySnapshot(controller);
+  assert.deepEqual(
+    afterPendingLoop.pending.map((item) => item.id),
+    ["incoming-a", "incoming-b"],
+  );
+  assert.equal(afterPendingLoop.pendingNextCursor, null);
+  assert.equal(
+    afterPendingLoop.failure?.code,
+    "SOCIAL_CONNECTIONS_CURSOR_REPEATED",
+  );
+  assert.equal(afterPendingLoop.acceptedNextCursor, "shared-cursor");
+
+  await controller.loadMore("user-a:session-a", "accepted");
+  const afterAcceptedPage = readySnapshot(controller);
+  assert.deepEqual(
+    afterAcceptedPage.accepted.map((item) => item.id),
+    ["accepted-a", "accepted-b"],
+  );
+  assert.equal(afterAcceptedPage.acceptedNextCursor, null);
+  assert.equal(afterAcceptedPage.failure, null);
+  assert.deepEqual(
+    requests.map(({ status, cursor }) => `${status}:${cursor ?? "first"}`),
+    [
+      "pending:first",
+      "accepted:first",
+      "pending:shared-cursor",
+      "accepted:shared-cursor",
+    ],
+  );
+});
+
 test("accepting an incoming request moves the canonical response to connections", async () => {
   const accepted = connection("incoming-a", "accepted", false);
   let actionCalls = 0;
