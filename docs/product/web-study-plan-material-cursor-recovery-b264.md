@@ -22,3 +22,16 @@ visibility checks.
 
 The production build writes the release manifest as `unavailable` in local
 development because no deployment metadata is configured.
+
+## Main reconciliation review
+
+The existing Chromium planner scenario now tests resource and question searches
+with independent A-B-A cursor cycles, preservation and deduplication of all
+three received items, retrying a failed resource page with the same cursor,
+and resetting cursor history through the recovery action for the same query.
+Existing plan/notes preservation, per-add authorization, source failure recovery
+and zero API write assertions remain active.
+
+The browser scenario, B180 finder contract, study handoff integration and three
+source cursor tests pass locally. The Vite production build passes with release
+metadata unavailable. No CI was started or retried.
