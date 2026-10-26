@@ -1,6 +1,13 @@
 import { publicProfileAvatarUrl } from "./public-profile-avatar-policy";
 import "./public-profile-avatar.scss";
 
+const sizeClasses = {
+  profile: "",
+  small: " public-profile-avatar--small",
+  compact: " public-profile-avatar--compact",
+  feed: " public-profile-avatar--feed",
+} as const;
+
 export function PublicProfileAvatar({
   avatarUrl,
   displayName,
@@ -8,7 +15,7 @@ export function PublicProfileAvatar({
 }: {
   avatarUrl: string | null | undefined;
   displayName: string;
-  size?: "profile" | "small" | "compact";
+  size?: keyof typeof sizeClasses;
 }) {
   const safeAvatarUrl = publicProfileAvatarUrl(avatarUrl);
   const initial =
@@ -16,7 +23,7 @@ export function PublicProfileAvatar({
 
   return (
     <span
-      className={`public-profile-avatar${size === "small" ? " public-profile-avatar--small" : size === "compact" ? " public-profile-avatar--compact" : ""}`}
+      className={`public-profile-avatar${sizeClasses[size]}`}
       aria-hidden="true"
     >
       <span>{initial}</span>

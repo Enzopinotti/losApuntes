@@ -170,6 +170,11 @@ assert.doesNotMatch(
 );
 assert.match(itemContext, /FeedSourceAttribution item=\{item\}/u);
 assert.match(itemContext, /presentFeedItem\(item, reasonLimit\)/u);
+assert.match(itemContext, /import \{ PublicProfileAvatar \}/u);
+assert.match(itemContext, /avatarUrl=\{presentation\.avatarUrl\}/u);
+assert.match(itemContext, /displayName=\{presentation\.displayName\}/u);
+assert.match(itemContext, /size="feed"/u);
+assert.doesNotMatch(itemContext, /<img/u);
 assert.match(itemContext, /feedReturnTo:\s*returnTo/u);
 assert.match(itemContext, /feedReturnKey:\s*returnKey/u);
 assert.match(itemContext, /feedReturnHomeIntent:\s*homeIntent/u);
@@ -199,10 +204,7 @@ assert.match(
   /\.feed-item-byline \.feed-source-link:focus-visible/u,
 );
 assert.match(resourcesPage, /const resourceReturnState = searchReturnTo/u);
-assert.match(
-  resourcesPage,
-  /: feedReturnRestoreState\(location\.state\)/u,
-);
+assert.match(resourcesPage, /: feedReturnRestoreState\(location\.state\)/u);
 assert.match(resourcesPage, /state=\{resourceReturnState\}/u);
 assert.match(
   questionsPage,

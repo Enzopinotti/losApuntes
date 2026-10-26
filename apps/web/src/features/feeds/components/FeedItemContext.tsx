@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../../contexts/useAuth";
+import { PublicProfileAvatar } from "../../profile/public-profile-avatar";
 import type { FeedItem } from "../interfaces";
 import { presentFeedItem } from "../feed-item-presentation.mjs";
 import type { HomeFeedIntent } from "../feed-navigation.mjs";
@@ -20,28 +21,14 @@ export function FeedItemContext({
   homeIntent?: HomeFeedIntent;
 }) {
   const presentation = presentFeedItem(item, reasonLimit);
-  const initials =
-    presentation.displayName.trim().slice(0, 1).toLocaleUpperCase("es-AR") ||
-    "?";
 
   return (
     <div className="feed-item-context">
-      <span className="feed-item-avatar" aria-hidden="true">
-        <span>{initials}</span>
-        {presentation.avatarUrl ? (
-          <img
-            src={presentation.avatarUrl}
-            alt=""
-            width={44}
-            height={44}
-            loading="lazy"
-            decoding="async"
-            onError={(event) => {
-              event.currentTarget.hidden = true;
-            }}
-          />
-        ) : null}
-      </span>
+      <PublicProfileAvatar
+        avatarUrl={presentation.avatarUrl}
+        displayName={presentation.displayName}
+        size="feed"
+      />
 
       <div className="feed-item-context-details">
         <div className="feed-item-byline">

@@ -32,7 +32,8 @@ assert.match(
   "Connection rows must render their public avatar beside the name",
 );
 assert.match(avatar, /publicProfileAvatarUrl\(avatarUrl\)/u);
-assert.match(avatar, /size === "small" \? " public-profile-avatar--small"/u);
+assert.match(avatar, /small:\s*" public-profile-avatar--small"/u);
+assert.match(avatar, /sizeClasses\[size\]/u);
 assert.match(avatar, /event\.currentTarget\.hidden = true/u);
 assert.match(policy, /url\.protocol !== "https:"/u);
 assert.match(policy, /url\.username \|\|/u);
