@@ -139,7 +139,7 @@ assert.match(questions, /communityApi\.reportQuestion\([\s\S]{0,160}signal/u);
 assert.match(questions, /communityApi\.reportAnswer\([\s\S]{0,160}signal/u);
 assert.match(questions, /await loadListRef\.current\(\)/u);
 assert.match(questions, /loadDetailRef\.current\(\)/u);
-assert.match(questions, /setSearchParams\(\{ id: result\.question\.id \}\)/u);
+assert.match(questions, /questionDetailSearchParams\(params, result\.question\.id\)/u);
 assert.match(questions, /Cargando pregunta…/u);
 assert.match(questions, /feedReturnHref\(location\.state\)/u);
 assert.match(
