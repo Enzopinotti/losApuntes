@@ -213,7 +213,8 @@ const Organizations = () => {
     type,
   ]);
   const loadMore = useCallback(async () => {
-    const current = listState?.scopeKey === directoryScopeKey ? listState : null;
+    const current =
+      listState?.scopeKey === directoryScopeKey ? listState : null;
     const cursor = current?.nextCursor;
     if (!current || current.loading || current.loadingMore || !cursor) return;
     if (paginationRequestRef.current?.scopeKey === directoryScopeKey) return;
