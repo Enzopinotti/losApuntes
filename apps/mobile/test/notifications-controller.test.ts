@@ -439,3 +439,70 @@ test("a second open during an in-flight read cannot issue duplicate mutations", 
   assert.equal(await opening, true);
   assert.equal(mutations, 1);
 });
+
+test("reconciliation replaces cursor history before manual pagination continues", async () => {
+  let refreshed = false;
+  const { api, calls } = apiHarness(({ cursor }) => {
+    if (!refreshed)
+      return cursor
+        ? page(["old-second"], "old-b")
+        : page(["old-first"], "cursor-a");
+    if (!cursor) return page(["fresh-first"], "cursor-x");
+    if (cursor === "cursor-x") return page(["fresh-second"], "cursor-a");
+    return page(["fresh-third"], "cursor-x");
+  });
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user:session", false);
+  await controller.loadMore("user:session");
+  refreshed = true;
+  await controller.reconcile("user:session");
+  await controller.loadMore("user:session");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.data.items.map((item) => item.id),
+      ["fresh-first", "fresh-second", "fresh-third"],
+    );
+    assert.equal(snapshot.data.nextCursor, null);
+    assert.equal(
+      snapshot.failure?.code,
+      "MOBILE_NOTIFICATIONS_CURSOR_REPEATED",
+    );
+  }
+  assert.deepEqual(
+    calls.map((input) => input.cursor),
+    [undefined, "cursor-a", undefined, "cursor-x", "cursor-a"],
+  );
+});
+
+test("a failed reconciliation keeps the cursor history of the retained notification pages", async () => {
+  let refresh = false;
+  const { api } = apiHarness(({ cursor }) => {
+    if (refresh && cursor === "cursor-x")
+      throw new Error("temporary refresh error");
+    if (refresh && !cursor) return page(["discarded-refresh"], "cursor-x");
+    if (!cursor) return page(["first"], "cursor-a");
+    if (cursor === "cursor-a") return page(["second"], "cursor-b");
+    return page(["third"], "cursor-a");
+  });
+  const controller = new MobileNotificationsController(api);
+  await controller.load("user:session", false);
+  await controller.loadMore("user:session");
+  refresh = true;
+  await controller.reconcile("user:session");
+  await controller.loadMore("user:session");
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.data.items.map((item) => item.id),
+      ["first", "second", "third"],
+    );
+    assert.equal(snapshot.data.nextCursor, null);
+    assert.equal(
+      snapshot.failure?.code,
+      "MOBILE_NOTIFICATIONS_CURSOR_REPEATED",
+    );
+  }
+});
