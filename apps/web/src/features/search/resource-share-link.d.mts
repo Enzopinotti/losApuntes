@@ -18,3 +18,13 @@ export declare function shareableSubjectResourcesUrl(
   subjectId: unknown,
   origin: unknown,
 ): string | null;
+
+/** Link to a public Profile UUID. Never an account identifier or a grant. */
+export declare function shareablePublicProfileHref(
+  profileId: unknown,
+): string | null;
+
+export declare function shareablePublicProfileUrl(
+  profileId: unknown,
+  origin: unknown,
+): string | null;

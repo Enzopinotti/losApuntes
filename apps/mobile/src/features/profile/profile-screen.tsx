@@ -84,6 +84,9 @@ function listText(values: string[]): string {
 }
 
 function failureMessage(failure: MobileProfileFailure): string {
+  if (failure.code === "PROFILE_ACTIVITY_CURSOR_REPEATED") {
+    return "El servidor devolvió una página repetida. Actualizá el perfil para empezar de nuevo.";
+  }
   if (failure.code === "PROFILE_REVISION_CONFLICT") {
     return "Tu perfil cambió en otro lugar. Actualizá el estado confirmado antes de volver a guardar.";
   }

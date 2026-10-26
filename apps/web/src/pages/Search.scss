@@ -160,7 +160,8 @@
 }
 
 .search-group li .search-resource-actions,
-.search-group li .search-subject-actions {
+.search-group li .search-subject-actions,
+.search-group li .search-profile-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -169,7 +170,8 @@
 }
 
 .search-resource-actions button,
-.search-subject-actions button {
+.search-subject-actions button,
+.search-profile-actions button {
   padding: 0.5rem 0.7rem;
   min-height: 44px;
   border: 1px solid #5b5bd6;
@@ -182,13 +184,15 @@
 }
 
 .search-resource-actions button:focus-visible,
-.search-subject-actions button:focus-visible {
+.search-subject-actions button:focus-visible,
+.search-profile-actions button:focus-visible {
   outline: 3px solid #7474d9;
   outline-offset: 3px;
 }
 
 .search-resource-actions [role="status"],
-.search-subject-actions [role="status"] {
+.search-subject-actions [role="status"],
+.search-profile-actions [role="status"] {
   flex-basis: 100%;
   overflow-wrap: anywhere;
 }
