@@ -4,6 +4,10 @@ import path from 'node:path';
 import { shouldReconcileNotificationTick } from '../apps/web/src/features/community/notificationReconciliation.ts';
 import { notificationTargetPath } from '../apps/web/src/features/community/notification-navigation.mjs';
 import {
+  appendUniqueNotifications,
+  repeatsNotificationCursor,
+} from '../apps/web/src/features/community/notification-pagination.mjs';
+import {
   notificationCategoryForType,
   notificationCategoryCounts,
   selectNotificationCategory,
@@ -211,6 +215,30 @@ assert.deepEqual(notificationCategoryCounts([]), {
   study: 0,
   network: 0,
 });
+const visitedNotificationCursors = new Set(['cursor-a']);
+assert.equal(
+  repeatsNotificationCursor(visitedNotificationCursors, 'cursor-a', 'cursor-a'),
+  true,
+);
+assert.equal(
+  repeatsNotificationCursor(visitedNotificationCursors, 'cursor-b', 'cursor-a'),
+  true,
+);
+assert.equal(
+  repeatsNotificationCursor(visitedNotificationCursors, 'cursor-b', 'cursor-c'),
+  false,
+);
+assert.equal(
+  repeatsNotificationCursor(visitedNotificationCursors, 'cursor-a', null),
+  false,
+);
+assert.deepEqual(
+  appendUniqueNotifications(
+    [{ id: 'n1', message: 'old' }, { id: 'n2', message: 'second' }],
+    [{ id: 'n1', message: 'updated' }, { id: 'n3', message: 'third' }],
+  ).map((item) => item.id),
+  ['n1', 'n2', 'n3'],
+);
 assert.deepEqual(
   selectNotificationCategory(fakeAlerts.filter((item) => !item.readAt), 'study')
     .map((item) => item.id),
@@ -230,6 +258,10 @@ assert.match(notifications, /Marcar todas\s+como leídas afecta la bandeja compl
 assert.match(notifications, /visibleItems\.length === 0/u);
 assert.match(notifications, /Podés cargar más para consultar/u);
 assert.match(notifications, /nextCursor &&/u);
+assert.match(notifications, /requestedCursorsRef/u);
+assert.match(notifications, /repeatedCursorMessage/u);
+assert.match(notifications, /repeatsNotificationCursor/u);
+assert.match(notifications, /appendUniqueNotifications/u);
 assert.match(notifications, /labels\[item\.type\]\s*\?\?/u);
 const notificationStyles = await read('apps/web/src/pages/Community.scss');
 assert.match(notificationStyles, /\.community-notification-categories/u);
