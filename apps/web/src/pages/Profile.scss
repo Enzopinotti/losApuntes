@@ -400,3 +400,41 @@
     width: 100%;
   }
 }
+
+/* B261: public profile sharing stays separate from follow/connect actions. */
+.public-profile-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.public-profile-share-action {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+
+.public-profile-share-action p {
+  margin: 0;
+  color: #626274;
+  font-size: 0.9rem;
+}
+
+.public-profile-share-action label {
+  display: grid;
+  gap: 0.35rem;
+  width: min(100%, 22rem);
+  max-width: 100%;
+  font-weight: 600;
+}
+
+.public-profile-share-action input {
+  width: 100%;
+  min-width: 0;
+}
+
+.public-profile-share-action button {
+  min-height: 44px;
+}
