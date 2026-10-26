@@ -49,7 +49,14 @@ function mockResource(id, visibility) {
         name: "Álgebra I",
       },
     },
-    author: { displayName: "Belén Suárez", profileId: null },
+    author: {
+      displayName: "Belén Suárez",
+      profileId: visibility === "public" ? PUBLIC_ID : null,
+      avatarUrl:
+        visibility === "public"
+          ? "https://avatars.example.test/author.svg"
+          : "https://avatars.example.test/unlinked.svg",
+    },
     capabilities: { edit: false, manageShares: false },
   };
 }
@@ -117,6 +124,14 @@ async function mountContext(browser, authenticated, blockedPrivate = false) {
     origin: ORIGIN,
   });
   let httpMutations = 0;
+  const imageReads = [];
+  await context.route("https://avatars.example.test/**", (route) => {
+    imageReads.push(route.request().url());
+    return route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="green"/></svg>',
+    });
+  });
   const listRequests = [];
   let failListPage = true;
   await context.route(API + "/**", async (route) => {
@@ -141,6 +156,20 @@ async function mountContext(browser, authenticated, blockedPrivate = false) {
         authenticated ? AUTH : { code: "AUTHENTICATION_REQUIRED" },
       );
     }
+    if (url.pathname === "/discovery/contextual")
+      return send(200, { subjects: [] });
+    if (url.pathname === "/search")
+      return send(200, {
+        query: "algebra",
+        results: {
+          resources: [
+            mockResource(PUBLIC_ID, "public"),
+            mockResource(PRIVATE_ID, "private"),
+          ],
+          subjects: [],
+          people: [],
+        },
+      });
     if (["/resources", "/resources/saved"].includes(url.pathname)) {
       const cursor = url.searchParams.get("cursor");
       listRequests.push({ path: url.pathname, cursor });
@@ -179,6 +208,7 @@ async function mountContext(browser, authenticated, blockedPrivate = false) {
     page: await context.newPage(),
     mutations: () => httpMutations,
     listRequests,
+    imageReads,
   };
 }
 
@@ -342,6 +372,56 @@ async function main() {
         .filter((x) => x.path === "/resources/saved" && x.cursor !== null)
         .map((x) => x.cursor),
       ["page-a", "page-b"],
+    );
+    const publicRow = list.locator("article").filter({
+      has: lists.page.getByRole("heading", {
+        name: "Álgebra lineal: resumen",
+        exact: true,
+      }),
+    });
+    const privateRow = list.locator("article").filter({
+      has: lists.page.getByRole("heading", {
+        name: "Apunte privado de examen",
+        exact: true,
+      }),
+    });
+    assert.equal(
+      await publicRow
+        .locator(".author-profile-link .public-profile-avatar")
+        .evaluate((node) => getComputedStyle(node).width),
+      "32px",
+    );
+    assert.equal(await privateRow.locator(".author-profile-link").count(), 0);
+    await lists.page.goto(ORIGIN + "/search?q=algebra&scope=resources");
+    const publicResult = lists.page
+      .locator("li")
+      .filter({ hasText: "Álgebra lineal: resumen" });
+    const privateResult = lists.page
+      .locator("li")
+      .filter({ hasText: "Apunte privado de examen" });
+    await publicResult
+      .getByRole("link", { name: "Ver perfil de Belén Suárez", exact: true })
+      .waitFor();
+    await publicResult.scrollIntoViewIfNeeded();
+    await lists.page.waitForFunction(
+      () =>
+        document.querySelector(".author-profile-link img")?.naturalWidth > 0,
+    );
+    assert.equal(
+      await publicResult
+        .locator(".public-profile-avatar")
+        .evaluate((node) => getComputedStyle(node).width),
+      "32px",
+    );
+    assert.equal(
+      await privateResult.locator(".author-profile-link").count(),
+      0,
+    );
+    assert.equal(await privateResult.locator("img").count(), 0);
+    assert.ok(lists.imageReads.some((url) => url.endsWith("author.svg")));
+    assert.equal(
+      lists.imageReads.some((url) => url.endsWith("unlinked.svg")),
+      false,
     );
     assert.equal(lists.mutations(), 0);
     await lists.context.close();

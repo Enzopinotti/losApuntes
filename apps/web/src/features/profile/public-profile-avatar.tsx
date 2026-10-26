@@ -8,7 +8,7 @@ export function PublicProfileAvatar({
 }: {
   avatarUrl: string | null | undefined;
   displayName: string;
-  size?: "profile" | "small";
+  size?: "profile" | "small" | "compact";
 }) {
   const safeAvatarUrl = publicProfileAvatarUrl(avatarUrl);
   const initial =
@@ -16,7 +16,7 @@ export function PublicProfileAvatar({
 
   return (
     <span
-      className={`public-profile-avatar${size === "small" ? " public-profile-avatar--small" : ""}`}
+      className={`public-profile-avatar${size === "small" ? " public-profile-avatar--small" : size === "compact" ? " public-profile-avatar--compact" : ""}`}
       aria-hidden="true"
     >
       <span>{initial}</span>

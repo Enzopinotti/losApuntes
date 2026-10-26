@@ -1426,6 +1426,7 @@ const Resources = () => {
                       displayName={
                         resource.author?.displayName ?? "Usuario de Los Apuntes"
                       }
+                      avatarUrl={resource.author?.avatarUrl}
                     />{" "}
                     · {resource.academic.subject.name}
                   </p>
