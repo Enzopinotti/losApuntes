@@ -336,7 +336,9 @@ describe('Account export v2 compatibility — B45', () => {
     );
     expect(incompatible.chunks).toHaveLength(0);
     expect(incompatible.service.readContributorPage).not.toHaveBeenCalled();
-    expect(incompatible.service.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
+    expect(
+      incompatible.service.captureStudyProgressExportEpoch,
+    ).not.toHaveBeenCalled();
     expect(incompatible.commit).not.toHaveBeenCalled();
   });
 });
