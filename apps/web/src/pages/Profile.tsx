@@ -16,6 +16,7 @@ import type {
   ProfileSection,
   ProfileVisibility,
 } from "../features/profile/interfaces";
+import { activityCursorRepeats } from "../features/profile/activityPagination";
 import {
   isProfileApiError,
   profileApi,
@@ -183,6 +184,12 @@ const Profile = () => {
   const busy = currentActionState?.busy ?? false;
   const feedback = currentActionState?.feedback ?? null;
   const error = currentActionState?.error ?? currentLoadState?.error ?? null;
+  const [activityCursorIssue, setActivityCursorIssue] = useState<{
+    scopeKey: string;
+  } | null>(null);
+  const currentActivityCursorIssue =
+    activityCursorIssue?.scopeKey === authScopeKey ? activityCursorIssue : null;
+  const loadedActivityCursors = useRef(new Set<string>());
 
   const resetDrafts = useCallback(() => {
     setDisplayName("");
@@ -216,6 +223,8 @@ const Profile = () => {
   }, []);
 
   const hydrate = useCallback((next: ReadyProfile, scopeKey: string) => {
+    loadedActivityCursors.current.clear();
+    setActivityCursorIssue(null);
     setSnapshotState({
       scopeKey,
       snapshot: next,
@@ -392,16 +401,44 @@ const Profile = () => {
   const loadMoreActivities = async () => {
     if (!snapshot?.activitiesNextCursor) return;
     const target = snapshot;
+    const requestedCursor = target.activitiesNextCursor;
+    if (!requestedCursor) return;
     const ticket = beginBusyAction();
     if (!ticket) return;
 
     try {
       const page = await profileApi.activities(
-        target.activitiesNextCursor ?? undefined,
+        requestedCursor,
         target.activitiesLimit,
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
+      if (
+        activityCursorRepeats(
+          loadedActivityCursors.current,
+          requestedCursor,
+          page.nextCursor,
+        )
+      ) {
+        setSnapshotState((current) =>
+          current?.scopeKey === authScopeKey && current.snapshot
+            ? {
+                ...current,
+                snapshot: {
+                  ...current.snapshot,
+                  activities: appendActivities(
+                    current.snapshot.activities,
+                    page.items,
+                  ),
+                  activitiesNextCursor: null,
+                },
+              }
+            : current,
+        );
+        setActivityCursorIssue({ scopeKey: authScopeKey });
+        return;
+      }
+      loadedActivityCursors.current.add(requestedCursor);
       setSnapshotState((current) =>
         current?.scopeKey === authScopeKey && current.snapshot
           ? {
@@ -412,6 +449,46 @@ const Profile = () => {
                   current.snapshot.activities,
                   page.items,
                 ),
+                activitiesNextCursor: page.nextCursor,
+              },
+            }
+          : current,
+      );
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setActionState({
+        scopeKey: authScopeKey,
+        busy: true,
+        error: messageFor(nextError),
+        feedback: null,
+      });
+    } finally {
+      finishBusyAction(ticket);
+    }
+  };
+
+  const refreshActivities = async () => {
+    if (!snapshot) return;
+    const target = snapshot;
+    const ticket = beginBusyAction();
+    if (!ticket) return;
+
+    try {
+      const page = await profileApi.activities(
+        undefined,
+        target.activitiesLimit,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      loadedActivityCursors.current.clear();
+      setActivityCursorIssue(null);
+      setSnapshotState((current) =>
+        current?.scopeKey === authScopeKey && current.snapshot
+          ? {
+              ...current,
+              snapshot: {
+                ...current.snapshot,
+                activities: appendActivities([], page.items),
                 activitiesNextCursor: page.nextCursor,
               },
             }
@@ -826,6 +903,24 @@ const Profile = () => {
           >
             Cargar más actividades
           </button>
+        )}
+
+        {currentActivityCursorIssue && (
+          <>
+            <p className="profile-error" role="alert">
+              Recibimos una página repetida y detuvimos la lista. Conservamos
+              las actividades ya cargadas; podés actualizar para volver a
+              empezar.
+            </p>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => void refreshActivities()}
+            >
+              {busy ? "Actualizando…" : "Actualizar actividades"}
+            </button>
+          </>
         )}
 
         <form onSubmit={addActivity} className="profile-activity-form">

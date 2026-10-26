@@ -6,6 +6,7 @@ import {
   studyQuestionFilterKey,
   STUDY_QUESTION_QUERY_MAX_LENGTH,
 } from "../apps/web/src/features/study/study-question-explorer.mjs";
+import { repeatsStudyQuestionCursor } from "../apps/web/src/features/study/study-question-pagination.mjs";
 
 import {
   resolveStudySubject,
@@ -46,18 +47,15 @@ assert.deepEqual(
   ),
   { kind: "invalid" },
 );
-assert.deepEqual(
-  resolveStudySubject({ kind: "invalid" }, buckets),
-  { kind: "invalid" },
-);
-assert.deepEqual(
-  resolveStudySubject({ kind: "unselected" }, []),
-  { kind: "no-context" },
-);
-assert.deepEqual(
-  resolveStudySubject({ kind: "selected", subjectId: b }, []),
-  { kind: "no-context" },
-);
+assert.deepEqual(resolveStudySubject({ kind: "invalid" }, buckets), {
+  kind: "invalid",
+});
+assert.deepEqual(resolveStudySubject({ kind: "unselected" }, []), {
+  kind: "no-context",
+});
+assert.deepEqual(resolveStudySubject({ kind: "selected", subjectId: b }, []), {
+  kind: "no-context",
+});
 assert.deepEqual(
   resolveStudySubject(
     { kind: "selected", subjectId: "33333333-3333-4333-8333-333333333333" },
@@ -74,19 +72,15 @@ assert.equal(
   b,
 );
 assert.deepEqual(
-  resolveStudySubject(
-    { kind: "unselected" },
-    [{ subject: { id: "invalid", name: "Unsafe" } }],
-  ),
+  resolveStudySubject({ kind: "unselected" }, [
+    { subject: { id: "invalid", name: "Unsafe" } },
+  ]),
   { kind: "unavailable" },
 );
 const base = {
   ...DEFAULT_STUDY_QUESTION_FILTER,
 };
-assert.deepEqual(
-  normalizeStudyQuestionFilter(base),
-  { q: "", status: "open" },
-);
+assert.deepEqual(normalizeStudyQuestionFilter(base), { q: "", status: "open" });
 assert.deepEqual(
   normalizeStudyQuestionFilter({ q: "  matrices  ", status: "closed" }),
   { q: "matrices", status: "closed" },
@@ -132,12 +126,18 @@ assert.notEqual(
   questionKey,
   studyQuestionFilterKey(scopeOne, { q: "", status: "closed" }),
 );
-assert.equal(studyQuestionFilterKey(scopeOne, { q: "x", status: "open" }), null);
+assert.equal(
+  studyQuestionFilterKey(scopeOne, { q: "x", status: "open" }),
+  null,
+);
 const source = (relativePath) =>
   readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
 const explorer = source(
   "apps/web/src/features/study/StudySubjectQuestions.tsx",
 );
+assert.match(explorer, /cursorHistoryRef/u);
+assert.match(explorer, /repeatedCursorMessage/u);
+assert.match(explorer, /repeatsStudyQuestionCursor/u);
 const workbench = source("apps/web/src/pages/StudyWorkbench.tsx");
 const styles = source("apps/web/src/pages/StudyWorkbench.scss");
 assert.match(explorer, /communityApi\.questions\(/u);
@@ -154,9 +154,26 @@ assert.match(explorer, /item\.state === "open"/u);
 assert.match(explorer, /No hay preguntas visibles con estos filtros/u);
 assert.match(explorer, /estado/u);
 assert.doesNotMatch(explorer, /localStorage|sessionStorage|indexedDB/u);
+const requestedQuestionCursors = new Set(["cursor-a"]);
+assert.equal(
+  repeatsStudyQuestionCursor(requestedQuestionCursors, "cursor-a", "cursor-a"),
+  true,
+);
+assert.equal(
+  repeatsStudyQuestionCursor(requestedQuestionCursors, "cursor-b", "cursor-a"),
+  true,
+);
+assert.equal(
+  repeatsStudyQuestionCursor(requestedQuestionCursors, "cursor-b", "cursor-c"),
+  false,
+);
+assert.equal(
+  repeatsStudyQuestionCursor(requestedQuestionCursors, "cursor-a", null),
+  false,
+);
 assert.match(workbench, /<StudySubjectQuestions/u);
 assert.ok(
-  workbench.includes('key={`${authScope}:${selectedSubject.id}`}'),
+  workbench.includes("key={`${authScope}:${selectedSubject.id}`}"),
   "The explorer must remount on viewer and subject changes",
 );
 assert.doesNotMatch(
@@ -167,4 +184,6 @@ assert.doesNotMatch(
 assert.match(styles, /study-workbench-question-filters input:focus-visible/u);
 assert.match(styles, /study-workbench-question-actions button/u);
 
-console.log("Study Workbench Q&A explorer contract: PASS (filters, scoping and navigation)");
+console.log(
+  "Study Workbench Q&A explorer contract: PASS (filters, scoping and navigation)",
+);
