@@ -69,13 +69,14 @@ const PROFILE = "4fc90c37-710f-4c9a-9681-ed0476409b4d";
 let projectedOrder = ["activities", "skills", "activities", "professional"];
 let avatarUrl = "https://avatars.example.test/broken.png";
 let publishAbout = true;
+let presentation = { accentPreset: "emerald", coverPreset: "paper" };
 const projection = () => ({
   profile: {
     id: PROFILE,
     about: publishAbout
       ? { displayName: "Perfil de prueba", bio: "Biografía visible", avatarUrl }
       : undefined,
-    presentation: { sectionOrder: projectedOrder },
+    presentation: { sectionOrder: projectedOrder, ...presentation },
     skills: { skills: ["Álgebra"], interests: [], languages: [] },
     learning: { helpTopics: ["No proyectado"], learningTopics: [] },
     professional: { headline: "Titular público" },
@@ -188,6 +189,33 @@ try {
   await page.reload();
   await page.getByRole("heading", { name: "Perfil privado" }).waitFor();
   assert.equal(await page.locator(".public-profile-avatar").count(), 0);
+  for (const [accent, cover, expectedAccent, expectedCover] of [
+    ["emerald", "paper", "emerald", "paper"],
+    ["slate", "campus", "slate", "campus"],
+    ["unexpected-value", "url(https://example.test/cover)", "default", "none"],
+  ]) {
+    presentation = { accentPreset: accent, coverPreset: cover };
+    await page.reload();
+    await page.getByRole("heading", { name: "Perfil privado" }).waitFor();
+    const profile = page.locator(".public-profile");
+    assert.equal(await profile.getAttribute("data-accent"), expectedAccent);
+    assert.equal(await profile.getAttribute("data-cover"), expectedCover);
+    const hero = page.locator(".profile-hero");
+    if (expectedCover === "paper") {
+      assert.equal(
+        await hero.evaluate((node) => getComputedStyle(node).backgroundColor),
+        "rgb(248, 244, 233)",
+      );
+    } else {
+      const background = await hero.evaluate(
+        (node) => getComputedStyle(node).backgroundImage,
+      );
+      assert.equal(
+        background.includes("linear-gradient"),
+        expectedCover === "campus",
+      );
+    }
+  }
   await context.close();
   console.log(
     "PASS Chromium: projected public sections match DOM order, absent/duplicate sections omitted, responsive order and safe activity links",
