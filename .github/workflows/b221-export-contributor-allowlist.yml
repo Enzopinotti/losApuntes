@@ -7,6 +7,7 @@ on:
       - apps/api/src/data-lifecycle/domain/account-export-assembler.ts
       - apps/api/src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts
       - apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts
+      - apps/api/src/data-lifecycle/domain/account-export-versioning.spec.ts
       - docs/security/b221-export-contributor-allowlist.md
 
 permissions:
@@ -48,7 +49,7 @@ jobs:
       - name: Install frozen dependency tree
         run: pnpm install --frozen-lockfile
       - name: Enforce Prettier on production patch and focused Jest file
-        run: pnpm exec prettier --check apps/api/src/data-lifecycle/domain/account-export-assembler.ts apps/api/src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts
+        run: pnpm exec prettier --check apps/api/src/data-lifecycle/domain/account-export-assembler.ts apps/api/src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts apps/api/src/data-lifecycle/domain/account-export-versioning.spec.ts
       - name: Full API TypeScript
         run: pnpm --filter @losapuntes/api check:types
       - name: Full API strict lint
