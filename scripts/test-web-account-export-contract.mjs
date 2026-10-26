@@ -5,6 +5,11 @@ import {
   parseAccountExportRequest,
   parseAccountExportStatus,
 } from "../apps/web/src/features/account-export/accountExportContract.ts";
+import {
+  accountExportExpiryDelayMs,
+  accountExportStatusMessage,
+  isAccountExportDownloadAvailable,
+} from "../apps/web/src/features/account-export/accountExportPresentation.ts";
 
 const valid = {
   id: "123e4567-e89b-42d3-a456-426614174000",
@@ -18,6 +23,38 @@ const valid = {
 };
 
 assert.deepEqual(parseAccountExportStatus(valid), valid);
+const now = Date.parse("2026-10-15T12:00:00.000Z");
+assert.equal(isAccountExportDownloadAvailable(valid, now), true);
+assert.equal(
+  accountExportStatusMessage(valid, now),
+  "El archivo está disponible para descargar.",
+);
+assert.equal(
+  isAccountExportDownloadAvailable(valid, Date.parse(valid.downloadExpiresAt)),
+  false,
+);
+assert.equal(
+  accountExportStatusMessage(valid, Date.parse(valid.downloadExpiresAt)),
+  "Este archivo ya no está disponible. Podés solicitar otro.",
+);
+assert.equal(
+  accountExportExpiryDelayMs(
+    "2026-10-15T12:10:00.000Z",
+    Date.parse("2026-10-15T12:05:00.000Z"),
+  ),
+  5 * 60 * 1000,
+);
+assert.equal(
+  accountExportExpiryDelayMs(
+    "2026-10-15T12:05:00.000Z",
+    Date.parse("2026-10-15T12:05:00.000Z"),
+  ),
+  0,
+);
+assert.equal(
+  isAccountExportDownloadAvailable({ ...valid, downloadable: false }, now),
+  false,
+);
 for (const formatVersion of [1, 2, 3]) {
   assert.equal(
     parseAccountExportStatus({ ...valid, formatVersion }).formatVersion,
@@ -72,6 +109,9 @@ const api = await read(
 const panel = await read(
   "apps/web/src/features/account-export/AccountExportPanel.tsx",
 );
+const presentation = await read(
+  "apps/web/src/features/account-export/accountExportPresentation.ts",
+);
 const security = await read("apps/web/src/pages/Security.tsx");
 const authService = await read(
   "apps/web/src/features/auth/services/authService.ts",
@@ -93,7 +133,14 @@ assert.match(panel, /useAsyncAuthorityFence/u);
 assert.match(panel, /session\?\.id/u);
 assert.match(panel, /document\.visibilityState/u);
 assert.match(panel, /visibilitychange/u);
+assert.match(panel, /setTimeout\(/u);
+assert.match(panel, /setNow\(currentTime\)/u);
+assert.match(panel, /accountExportExpiryDelayMs\(/u);
+assert.match(panel, /const currentTime = Date\.now\(\)/u);
+assert.match(panel, /accountExportStatusMessage\(job, now\)/u);
+assert.match(panel, /isAccountExportDownloadAvailable\(job, now\)/u);
 assert.match(panel, /referrerPolicy="no-referrer"/u);
+assert.match(presentation, /Date\.parse\(value\.downloadExpiresAt\) > now/u);
 assert.match(panel, /target="_blank"/u);
 assert.doesNotMatch(
   panel,
