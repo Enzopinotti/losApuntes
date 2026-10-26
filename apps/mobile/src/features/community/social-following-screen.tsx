@@ -23,7 +23,7 @@ import {
   SocialFollowingController,
   type SocialFollowingSnapshot,
 } from "./social-following-controller";
-import { NetworkPersonAvatar } from "./network-person-avatar";
+import { PublicAvatar } from "../profile/public-avatar";
 
 function failureCopy(failure: CommunityFailure): string {
   if (failure.code === "EMAIL_VERIFICATION_REQUIRED") {
@@ -98,7 +98,7 @@ function FollowingCard({
   return (
     <View style={styles.person}>
       <View style={styles.personSummary}>
-        <NetworkPersonAvatar
+        <PublicAvatar
           avatarUrl={item.profile.avatarUrl}
           displayName={item.profile.displayName}
         />

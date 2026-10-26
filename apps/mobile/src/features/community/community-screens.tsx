@@ -17,7 +17,7 @@ import type {
 import { ProductSurface } from "@/features/navigation/product-surface";
 
 import { communityAuthorAction } from "./community-author-action";
-import { NetworkPersonAvatar } from "./network-person-avatar";
+import { PublicAvatar } from "../profile/public-avatar";
 import {
   cancelCommunityComposerSubmission,
   canRefreshCommunityQuestion,
@@ -271,10 +271,7 @@ function CommunityAuthorAttribution({
         pressed ? styles.authorActionPressed : null,
       ]}
     >
-      <NetworkPersonAvatar
-        avatarUrl={author?.avatarUrl}
-        displayName={displayName}
-      />
+      <PublicAvatar avatarUrl={author?.avatarUrl} displayName={displayName} />
       <Text style={styles.authorActionLabel}>{visibleName}</Text>
     </Pressable>
   );

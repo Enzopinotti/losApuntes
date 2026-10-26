@@ -23,7 +23,7 @@ import {
 } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 
-import { NetworkPersonAvatar } from "./network-person-avatar";
+import { PublicAvatar } from "../profile/public-avatar";
 import { mobileCommunityApi } from "./community-runtime";
 import type { CommunityFailure } from "./community-controller";
 import {
@@ -96,7 +96,7 @@ function ConnectionCard({
         onPress={onOpenProfile}
         style={styles.personButton}
       >
-        <NetworkPersonAvatar
+        <PublicAvatar
           avatarUrl={connection.other.avatarUrl}
           displayName={connection.other.displayName}
         />
