@@ -1,0 +1,49 @@
+name: B224 PR integration readiness
+
+on:
+  pull_request:
+    paths:
+      - scripts/lib/pr-integration-readiness.mjs
+      - scripts/tests/pr-integration-readiness.test.mjs
+      - scripts/pr-integration-readiness.mjs
+      - docs/engineering/b224-pr-integration-readiness.md
+      - .github/workflows/pr-integration-readiness.yml
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/lib/pr-integration-readiness.mjs
+      - scripts/tests/pr-integration-readiness.test.mjs
+      - scripts/pr-integration-readiness.mjs
+      - .github/workflows/pr-integration-readiness.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b224-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-readiness:
+    name: B224 fail-closed preflight tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify immutable source SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Run read-only gate regression suite
+        run: node --test scripts/tests/pr-integration-readiness.test.mjs
+      - name: Check integration CLI syntax
+        run: node --check scripts/pr-integration-readiness.mjs
