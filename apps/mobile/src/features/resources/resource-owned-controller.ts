@@ -41,6 +41,7 @@ export type OwnedResourcesSnapshot =
       visibility: ResourceVisibility | null;
       filters: OwnedLibraryFilters;
       data: OwnedResourcesPage;
+      cursorRepeated: boolean;
       loadingMore: boolean;
       failure: ResourceConsumptionFailure | null;
     };
@@ -100,6 +101,7 @@ export class MobileOwnedResourcesController {
   private readonly listeners = new Set<Listener>();
   private generation = 0;
   private active: Operation | null = null;
+  private readonly requestedCursors = new Set<string>();
 
   constructor(private readonly api: OwnedResourcesApi) {}
 
@@ -118,6 +120,7 @@ export class MobileOwnedResourcesController {
     query: Pick<OwnedResourcesQuery, "q" | "subjectId" | "order"> = {},
   ): Promise<void> {
     const filters = normalizeFilters(visibility, query);
+    this.requestedCursors.clear();
     const operation = this.begin(authorityKey, filters);
     this.publish({ kind: "loading", authorityKey, visibility, filters });
 
@@ -133,6 +136,7 @@ export class MobileOwnedResourcesController {
         visibility,
         filters,
         data,
+        cursorRepeated: false,
         loadingMore: false,
         failure: null,
       });
@@ -153,12 +157,17 @@ export class MobileOwnedResourcesController {
 
   async loadMore(authorityKey: string): Promise<void> {
     const current = this.ready(authorityKey);
-    if (
-      !current ||
-      !current.data.nextCursor ||
-      current.loadingMore ||
-      this.active
-    ) {
+    const cursor = current?.data.nextCursor;
+    if (!current || !cursor || current.loadingMore || this.active) {
+      return;
+    }
+
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        data: { ...current.data, nextCursor: null },
+        cursorRepeated: true,
+      });
       return;
     }
 
@@ -167,18 +176,24 @@ export class MobileOwnedResourcesController {
 
     try {
       const next = await this.api.listOwned(
-        { ...serverQuery(current.filters), cursor: current.data.nextCursor },
+        { ...serverQuery(current.filters), cursor },
         operation.controller.signal,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.ready(authorityKey);
       if (!latest || latest.filters !== operation.filters) return;
+      const cursorRepeated =
+        next.nextCursor !== null &&
+        (next.nextCursor === cursor ||
+          this.requestedCursors.has(next.nextCursor));
+      this.requestedCursors.add(cursor);
       this.publish({
         ...latest,
         data: {
           items: appendUnique(latest.data.items, next.items),
-          nextCursor: next.nextCursor,
+          nextCursor: cursorRepeated ? null : next.nextCursor,
         },
+        cursorRepeated: latest.cursorRepeated || cursorRepeated,
         loadingMore: false,
         failure: null,
       });
@@ -208,6 +223,7 @@ export class MobileOwnedResourcesController {
       this.snapshot.authorityKey !== authorityKey
     )
       return;
+    this.requestedCursors.clear();
     this.cancel();
     this.publish({ kind: "idle" });
   }
