@@ -37,6 +37,7 @@ export type CommunityQuestionFeedSnapshot =
       page: QuestionSearchResponse;
       loadingMore: boolean;
       loadMoreFailure: CommunityFailure | null;
+      loadMoreCursorRepeated: boolean;
     }
   | {
       kind: "failure";
@@ -58,6 +59,7 @@ export type CommunityQuestionDetailSnapshot =
       detail: QuestionDetailResponse;
       loadingMoreAnswers: boolean;
       answersFailure: CommunityFailure | null;
+      answersCursorRepeated: boolean;
       submittingAnswer: boolean;
       answerRetryBlocked: boolean;
       actionFailure: CommunityFailure | null;
@@ -387,6 +389,7 @@ export class MobileCommunityFeedController {
   private activeOperation: AbortController | null = null;
   private authorityKey: string | null = null;
   private input: QuestionPageInput = { limit: 25 };
+  private readonly requestedCursors = new Set<string>();
 
   constructor(private readonly api: CommunityApi) {}
 
@@ -410,12 +413,14 @@ export class MobileCommunityFeedController {
         this.activeOperation?.signal,
       );
       if (!this.isCurrent(generation, authorityKey)) return;
+      this.requestedCursors.clear();
       this.publish({
         kind: "ready",
         authorityKey,
         page,
         loadingMore: false,
         loadMoreFailure: null,
+        loadMoreCursorRepeated: false,
       });
     } catch (error) {
       if (!this.isCurrent(generation, authorityKey)) return;
@@ -438,11 +443,12 @@ export class MobileCommunityFeedController {
       return;
     }
 
+    const cursor = current.page.nextCursor;
     const generation = this.begin(authorityKey);
     this.publish({ ...current, loadingMore: true, loadMoreFailure: null });
     try {
       const nextPage = await this.api.questions(
-        { ...this.input, cursor: current.page.nextCursor },
+        { ...this.input, cursor },
         this.activeOperation?.signal,
       );
       if (!this.isCurrent(generation, authorityKey)) return;
@@ -452,11 +458,19 @@ export class MobileCommunityFeedController {
       }
       const byId = new Map(latest.page.items.map((item) => [item.id, item]));
       for (const item of nextPage.items) byId.set(item.id, item);
+      this.requestedCursors.add(cursor);
+      const cursorRepeated =
+        nextPage.nextCursor !== null &&
+        this.requestedCursors.has(nextPage.nextCursor);
       this.publish({
         ...latest,
-        page: { items: [...byId.values()], nextCursor: nextPage.nextCursor },
+        page: {
+          items: [...byId.values()],
+          nextCursor: cursorRepeated ? null : nextPage.nextCursor,
+        },
         loadingMore: false,
         loadMoreFailure: null,
+        loadMoreCursorRepeated: latest.loadMoreCursorRepeated || cursorRepeated,
       });
     } catch (error) {
       if (!this.isCurrent(generation, authorityKey)) return;
@@ -478,6 +492,7 @@ export class MobileCommunityFeedController {
     this.activeOperation?.abort();
     this.activeOperation = null;
     this.authorityKey = null;
+    this.requestedCursors.clear();
     this.publish({ kind: "idle" });
   }
 
@@ -509,6 +524,7 @@ export class MobileCommunityQuestionController {
   private activeOperation: AbortController | null = null;
   private authorityKey: string | null = null;
   private pendingAnswer: PendingAnswerReconciliation | null = null;
+  private readonly requestedAnswerCursors = new Set<string>();
 
   constructor(private readonly api: CommunityApi) {}
 
@@ -640,15 +656,20 @@ export class MobileCommunityQuestionController {
       ) {
         return;
       }
+      this.requestedAnswerCursors.add(cursor);
+      const cursorRepeated =
+        page.nextCursor !== null &&
+        this.requestedAnswerCursors.has(page.nextCursor);
       this.publish({
         ...latest,
         detail: {
           ...latest.detail,
           answers: appendUniqueAnswers(latest.detail.answers, page.items),
-          answersNextCursor: page.nextCursor,
+          answersNextCursor: cursorRepeated ? null : page.nextCursor,
         },
         loadingMoreAnswers: false,
         answersFailure: null,
+        answersCursorRepeated: latest.answersCursorRepeated || cursorRepeated,
       });
     } catch (error) {
       if (!this.isCurrent(generation, authorityKey)) return;
@@ -759,10 +780,12 @@ export class MobileCommunityQuestionController {
           refreshed.authorityKey === authorityKey &&
           refreshed.questionId === questionId
         ) {
+          this.requestedAnswerCursors.clear();
           this.publish({
             ...refreshed,
             detail,
             submittingAnswer: false,
+            answersCursorRepeated: false,
             answerRetryBlocked: false,
             actionFailure: null,
             actionFailureCode: null,
@@ -832,10 +855,12 @@ export class MobileCommunityQuestionController {
             ambiguousPending,
           );
           this.pendingAnswer = null;
+          this.requestedAnswerCursors.clear();
           this.publish({
             ...reconciled,
             detail,
             submittingAnswer: false,
+            answersCursorRepeated: false,
             answerRetryBlocked: false,
             actionFailure: observedCommittedAnswer ? null : failure,
             actionFailureCode: observedCommittedAnswer ? null : failure.code,
@@ -891,6 +916,7 @@ export class MobileCommunityQuestionController {
     this.activeOperation?.abort();
     this.activeOperation = null;
     this.authorityKey = null;
+    this.requestedAnswerCursors.clear();
     this.publish({ kind: "idle" });
   }
 
@@ -914,6 +940,7 @@ export class MobileCommunityQuestionController {
     questionId: string,
     detail: QuestionDetailResponse,
   ): Extract<CommunityQuestionDetailSnapshot, { kind: "ready" }> {
+    this.requestedAnswerCursors.clear();
     return {
       kind: "ready",
       authorityKey,
@@ -921,6 +948,7 @@ export class MobileCommunityQuestionController {
       detail,
       loadingMoreAnswers: false,
       answersFailure: null,
+      answersCursorRepeated: false,
       submittingAnswer: false,
       answerRetryBlocked: false,
       actionFailure: null,

@@ -578,6 +578,125 @@ test("Home refuses academic scope shifts, unchanged cursors and stale-authority 
   }
 });
 
+test("Home stops repeated cursors and cycles independently for each feed", async (t) => {
+  for (const section of ["home", "for_you"] as const) {
+    await t.test(section, async () => {
+      const initial = home();
+      if (section === "home") {
+        initial.homeFeed.nextCursor = "cursor-a";
+      } else {
+        initial.forYou.nextCursor = "cursor-a";
+      }
+      let calls = 0;
+      const controller = new MobileHomeController({
+        ...defaultPages,
+        pilotHome: async () => initial,
+        academicFeed: async (cursor) => {
+          calls += 1;
+          return {
+            ...initial.academicFeed,
+            items: [item(`home-page-${calls}`)],
+            nextCursor: cursor === "cursor-a" ? "cursor-b" : "cursor-a",
+          };
+        },
+        forYouFeed: async (cursor) => {
+          calls += 1;
+          return {
+            ...initial.forYou,
+            items: [item(`for-you-page-${calls}`)],
+            nextCursor: cursor === "cursor-a" ? "cursor-b" : "cursor-a",
+          };
+        },
+      });
+
+      await controller.load("authority-a", context());
+      await controller.loadMore("authority-a", section);
+      await controller.loadMore("authority-a", section);
+      await controller.loadMore("authority-a", section);
+
+      const snapshot = controller.getSnapshot();
+      assert.equal(snapshot.kind, "ready");
+      assert.equal(calls, 2);
+      if (snapshot.kind !== "ready") return;
+      const feed =
+        section === "home" ? snapshot.data.homeFeed : snapshot.data.forYou;
+      assert.deepEqual(
+        feed.items.map((row) => row.id),
+        [section === "home" ? "home-page-1" : "for-you-page-1"],
+      );
+      assert.equal(feed.nextCursor, "cursor-b");
+      assert.match(
+        snapshot.pagination?.[section]?.error ?? "",
+        /página anterior/,
+      );
+      assert.equal(snapshot.pagination?.[section]?.requiresRefresh, true);
+    });
+  }
+});
+
+test("Home isolates cursor history between feed sections", async () => {
+  const initial = home();
+  initial.homeFeed.nextCursor = "shared-cursor";
+  initial.forYou.nextCursor = "other-feed-cursor";
+  const controller = new MobileHomeController({
+    ...defaultPages,
+    pilotHome: async () => initial,
+    academicFeed: async () => ({
+      ...initial.academicFeed,
+      items: [item("home-page")],
+      nextCursor: null,
+    }),
+    forYouFeed: async () => ({
+      ...initial.forYou,
+      items: [item("for-you-page")],
+      nextCursor: "shared-cursor",
+    }),
+  });
+
+  await controller.load("authority-a", context());
+  await controller.loadMore("authority-a", "home");
+  await controller.loadMore("authority-a", "for_you");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.forYou.nextCursor, "shared-cursor");
+    assert.equal(snapshot.pagination?.for_you?.error, null);
+  }
+});
+
+test("Home resets cursor history when a fresh session starts", async () => {
+  let reads = 0;
+  const controller = new MobileHomeController({
+    ...defaultPages,
+    pilotHome: async () => {
+      reads += 1;
+      const snapshot = home();
+      snapshot.homeFeed.nextCursor =
+        reads === 1 ? "old-cursor" : "fresh-cursor";
+      return snapshot;
+    },
+    academicFeed: async (cursor) => ({
+      ...home().academicFeed,
+      items: [item(cursor)],
+      nextCursor:
+        cursor === "old-cursor" ? "cursor-from-old-session" : "old-cursor",
+    }),
+  });
+
+  await controller.load("authority-a", context());
+  await controller.loadMore("authority-a", "home");
+  await controller.load("authority-a", context());
+  await controller.loadMore("authority-a", "home");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.homeFeed.nextCursor, "old-cursor");
+    assert.equal(snapshot.pagination?.home?.error, null);
+  }
+});
+
 test("Home only reads whole cursor pages that fit the bounded memory budget", async () => {
   const initial = home();
   initial.homeFeed.items = Array.from(
