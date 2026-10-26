@@ -432,6 +432,81 @@ test("detail paginates posts and events with id dedupe", async () => {
   }
 });
 
+test("detail posts can retry transient failures and stop repeated cursors", async () => {
+  const initial = detail("o1", false, [post("p1")]);
+  initial.postsNextCursor = "posts-next";
+  let requests = 0;
+  const controller = new MobileOrganizationDetailController(
+    apiStub({
+      get: async () => ({ organization: initial }),
+      posts: async (_id, cursor) => {
+        requests += 1;
+        if (requests === 1) {
+          throw new ApiRequestError(
+            "server_unavailable",
+            503,
+            "TEMPORARY_UNAVAILABLE",
+            "temporary failure",
+          );
+        }
+        return { items: [post("p2")], nextCursor: cursor! };
+      },
+    }),
+  );
+
+  await controller.load("session-a:org:o1", "o1");
+  await controller.loadMorePosts("session-a:org:o1", "o1");
+  await controller.loadMorePosts("session-a:org:o1", "o1");
+  await controller.loadMorePosts("session-a:org:o1", "o1");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(requests, 2);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.organization.posts.map((item) => item.id),
+      ["p1", "p2"],
+    );
+    assert.equal(snapshot.organization.postsNextCursor, null);
+    assert.equal(snapshot.failure?.kind, "server_unavailable");
+    assert.equal(snapshot.failure?.code, "ORGANIZATION_DETAIL_CURSOR_REPEATED");
+  }
+});
+
+test("detail event pagination stops a cycle to an earlier cursor", async () => {
+  const initial = detail("o1", false, [post("p1")], [event("e1")]);
+  initial.eventsNextCursor = "events-a";
+  const cursors: Array<string | undefined> = [];
+  const controller = new MobileOrganizationDetailController(
+    apiStub({
+      get: async () => ({ organization: initial }),
+      events: async (_id, cursor) => {
+        cursors.push(cursor);
+        return cursor === "events-a"
+          ? { items: [event("e2")], nextCursor: "events-b" }
+          : { items: [event("e3")], nextCursor: "events-a" };
+      },
+    }),
+  );
+
+  await controller.load("session-a:org:o1", "o1");
+  await controller.loadMoreEvents("session-a:org:o1", "o1");
+  await controller.loadMoreEvents("session-a:org:o1", "o1");
+  await controller.loadMoreEvents("session-a:org:o1", "o1");
+
+  const snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, ["events-a", "events-b"]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.organization.events.map((item) => item.id),
+      ["e1", "e2", "e3"],
+    );
+    assert.equal(snapshot.organization.eventsNextCursor, null);
+    assert.equal(snapshot.failure?.code, "ORGANIZATION_DETAIL_CURSOR_REPEATED");
+  }
+});
+
 test("organization search query policy mirrors the server 2-120 contract", () => {
   assert.deepEqual(normalizeOrganizationQuery("  "), { ok: true, query: "" });
   assert.deepEqual(normalizeOrganizationQuery("  GIDAS  "), {
