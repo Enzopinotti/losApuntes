@@ -21,3 +21,16 @@ existing authenticated, subject-scoped resource search.
 
 The production build writes the release manifest as `unavailable` in local
 development because no deployment metadata is configured.
+
+## Main reconciliation review
+
+The existing Chromium kit scenario now tests a failed search page retaining its
+loaded resource, recovery by restarting the same query, page-two/page-three
+cursor cycles, deduplication, retention of a new resource on the cyclic page,
+and exclusion of a foreign-subject resource on both normal and cyclic pages.
+Restarting after a cycle permits pagination again. Existing per-add access
+checks, source recovery and zero API write assertions remain active.
+
+Local kit integration and three source cursor tests pass, as do Prettier and
+the production Vite build. Release deployment metadata remains unavailable.
+No CI was started or retried.
