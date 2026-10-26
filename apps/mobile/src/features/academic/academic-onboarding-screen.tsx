@@ -663,6 +663,23 @@ export function AcademicOnboardingScreen() {
               </Text>
             ) : null}
 
+            {activeSearch.cursorRepeated ? (
+              <View style={styles.inlineMessage}>
+                <Text accessibilityRole="alert" style={styles.error}>
+                  El servidor devolvió un cursor repetido. Volvé a buscar para
+                  actualizar el catálogo.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!authorityKey || submitting}
+                  onPress={searchCatalog}
+                  style={styles.secondaryButton}
+                >
+                  <Text style={styles.buttonLabel}>Volver a buscar</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             {activeSearch.nextCursor ? (
               <Pressable
                 accessibilityRole="button"

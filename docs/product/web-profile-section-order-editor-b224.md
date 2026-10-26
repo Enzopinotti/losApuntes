@@ -16,3 +16,15 @@ El perfil público ya respeta el orden que devuelve la API, pero el dueño no po
 - Los límites desactivan “Subir” para la primera sección y “Bajar” para la última.
 - Cambiar el orden conserva todos los elementos exactamente una vez.
 - Recargar restaura el orden guardado por el servidor.
+
+## Revisión de integración
+
+El escenario Chromium del editor ahora usa las siete secciones del contrato.
+Comprueba los botones deshabilitados en extremos, movimientos con Enter,
+conservación de todos los identificadores, ausencia de escrituras al reordenar
+y guardado del orden completo dentro de la actualización con revisión vigente.
+La respuesta canónica del servidor y un conflicto conservan el orden esperado.
+
+Los contratos de perfil, presentación y política/UI de orden pasan, así como
+Prettier y build Vite. Metadatos de despliegue unavailable.
+Sin ejecutar ni reintentar CI.

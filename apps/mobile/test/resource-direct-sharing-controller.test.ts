@@ -526,6 +526,127 @@ test("owner receives real paginated grants and can load the next page", async ()
   assert.deepEqual(calls, [undefined, "next-page"]);
 });
 
+test("a grants cursor cycle retains loaded permissions and requires refresh", async () => {
+  const calls: Array<string | undefined> = [];
+  const controller = new MobileResourceDirectSharingController(
+    apiStub({
+      listGrants: async (_resourceId, cursor) => {
+        calls.push(cursor);
+        if (!cursor) {
+          return {
+            items: [{ ...ana, grantedAt: "2026-10-01T12:00:00.000Z" }],
+            nextCursor: "cursor-a",
+            resourceRevision: 2,
+          };
+        }
+        if (cursor === "cursor-a") {
+          return {
+            items: [{ ...lucia, grantedAt: "2026-10-02T12:00:00.000Z" }],
+            nextCursor: "cursor-b",
+            resourceRevision: 2,
+          };
+        }
+        return {
+          items: [
+            { ...lucia, grantedAt: "2026-10-03T12:00:00.000Z" },
+            {
+              profileId: "profile-c",
+              displayName: "Carla",
+              avatarUrl: null,
+              grantedAt: "2026-10-04T12:00:00.000Z",
+            },
+          ],
+          nextCursor: "cursor-a",
+          resourceRevision: 2,
+        };
+      },
+    }),
+  );
+  controller.setScope("session-a", resource());
+
+  await controller.loadGrants("session-a", "resource-a");
+  await controller.loadGrants("session-a", "resource-a", true);
+  await controller.loadGrants("session-a", "resource-a", true);
+  await controller.loadGrants("session-a", "resource-a", true);
+
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  assert.deepEqual(calls, [undefined, "cursor-a", "cursor-b"]);
+  if (snapshot.kind !== "ready") return;
+  assert.deepEqual(
+    snapshot.grants.map((grant) => grant.profileId),
+    ["profile-a", "profile-b", "profile-c"],
+  );
+  assert.equal(snapshot.grantsNextCursor, null);
+  assert.equal(snapshot.grantsFailure, "cursor_cycle");
+
+  await controller.loadGrants("session-a", "resource-a");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.grantsFailure, null);
+  assert.equal(snapshot.grantsState, "ready");
+  assert.equal(snapshot.grantsNextCursor, "cursor-a");
+});
+
+test("a failed grants page keeps its cursor available for retry", async () => {
+  let failNextPage = true;
+  const calls: Array<string | undefined> = [];
+  const controller = new MobileResourceDirectSharingController(
+    apiStub({
+      listGrants: async (_resourceId, cursor) => {
+        calls.push(cursor);
+        if (!cursor) {
+          return {
+            items: [{ ...ana, grantedAt: "2026-10-01T12:00:00.000Z" }],
+            nextCursor: "cursor-a",
+            resourceRevision: 2,
+          };
+        }
+        if (failNextPage) {
+          failNextPage = false;
+          throw new ApiRequestError(
+            "offline",
+            null,
+            "NETWORK_UNAVAILABLE",
+            "Offline",
+          );
+        }
+        return {
+          items: [{ ...lucia, grantedAt: "2026-10-02T12:00:00.000Z" }],
+          nextCursor: null,
+          resourceRevision: 2,
+        };
+      },
+    }),
+  );
+  controller.setScope("session-a", resource());
+
+  await controller.loadGrants("session-a", "resource-a");
+  await controller.loadGrants("session-a", "resource-a", true);
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.grantsState, "ready");
+  assert.equal(snapshot.grantsNextCursor, "cursor-a");
+  assert.equal(snapshot.grantsFailure, "offline");
+  assert.deepEqual(
+    snapshot.grants.map((grant) => grant.profileId),
+    ["profile-a"],
+  );
+
+  await controller.loadGrants("session-a", "resource-a", true);
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.grantsNextCursor, null);
+  assert.deepEqual(
+    snapshot.grants.map((grant) => grant.profileId),
+    ["profile-a", "profile-b"],
+  );
+  assert.deepEqual(calls, [undefined, "cursor-a", "cursor-a"]);
+});
+
 test("only a profile returned by the owner grants endpoint can be selected", async () => {
   const controller = new MobileResourceDirectSharingController(
     apiStub({
