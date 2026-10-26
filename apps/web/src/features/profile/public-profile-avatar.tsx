@@ -22,6 +22,7 @@ export function PublicProfileAvatar({
       <span>{initial}</span>
       {safeAvatarUrl ? (
         <img
+          key={safeAvatarUrl}
           alt=""
           decoding="async"
           height={80}

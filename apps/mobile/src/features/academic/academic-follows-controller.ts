@@ -41,6 +41,7 @@ export interface AcademicFollowsSnapshot {
   results: AcademicCatalogNode[];
   nextCursor: string | null;
   loadingMore: boolean;
+  searchCursorRepeated: boolean;
   searchFailure: ApiFailureKind | null;
   pendingTargetIds: string[];
   actionFailure: ApiFailureKind | null;
@@ -64,6 +65,7 @@ const initialSnapshot = (
   results: [],
   nextCursor: null,
   loadingMore: false,
+  searchCursorRepeated: false,
   searchFailure: null,
   pendingTargetIds: [],
   actionFailure: null,
@@ -80,6 +82,7 @@ export class AcademicFollowsController {
   private searchGeneration = 0;
   private listAbort: AbortController | null = null;
   private searchAbort: AbortController | null = null;
+  private readonly requestedCursors = new Set<string>();
   private readonly mutations = new Map<string, AbortController>();
 
   constructor(private readonly api: AcademicFollowsApi) {}
@@ -144,6 +147,7 @@ export class AcademicFollowsController {
     const query = rawQuery.trim();
     if (this.authorityKey !== authorityKey || query.length < 2) return;
     if (query.length > 120) {
+      this.requestedCursors.clear();
       this.publish({
         ...this.snapshot,
         kind,
@@ -151,12 +155,15 @@ export class AcademicFollowsController {
         searchPhase: "failure",
         results: [],
         nextCursor: null,
+        loadingMore: false,
+        searchCursorRepeated: false,
         searchFailure: "validation",
       });
       return;
     }
 
     this.searchGeneration += 1;
+    this.requestedCursors.clear();
     const generation = this.searchGeneration;
     this.searchAbort?.abort();
     this.searchAbort = new AbortController();
@@ -168,6 +175,7 @@ export class AcademicFollowsController {
       results: [],
       nextCursor: null,
       loadingMore: false,
+      searchCursorRepeated: false,
       searchFailure: null,
       actionFailure: null,
     });
@@ -188,6 +196,8 @@ export class AcademicFollowsController {
         searchPhase: "failure",
         results: [],
         nextCursor: null,
+        loadingMore: false,
+        searchCursorRepeated: false,
         searchFailure: failureKind(error),
       });
     }
@@ -205,17 +215,34 @@ export class AcademicFollowsController {
       return;
     }
 
+    const cursor = current.nextCursor;
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        nextCursor: null,
+        loadingMore: false,
+        searchCursorRepeated: true,
+        searchFailure: null,
+      });
+      return;
+    }
+
     this.searchGeneration += 1;
     const generation = this.searchGeneration;
     this.searchAbort?.abort();
     this.searchAbort = new AbortController();
-    this.publish({ ...current, loadingMore: true, searchFailure: null });
+    this.publish({
+      ...current,
+      loadingMore: true,
+      searchCursorRepeated: false,
+      searchFailure: null,
+    });
 
     try {
       const response = await this.api.search(
         current.kind,
         current.query,
-        current.nextCursor,
+        cursor,
         this.searchAbort.signal,
       );
       if (
@@ -225,13 +252,19 @@ export class AcademicFollowsController {
         return;
       }
       const latest = this.snapshot;
+      const repeatedCursor =
+        response.nextCursor !== null &&
+        (response.nextCursor === cursor ||
+          this.requestedCursors.has(response.nextCursor));
+      this.requestedCursors.add(cursor);
       const results = new Map(latest.results.map((item) => [item.id, item]));
       for (const item of response.items) results.set(item.id, item);
       this.publish({
         ...latest,
         results: [...results.values()],
-        nextCursor: response.nextCursor,
+        nextCursor: repeatedCursor ? null : response.nextCursor,
         loadingMore: false,
+        searchCursorRepeated: repeatedCursor,
         searchFailure: null,
       });
     } catch (error) {
@@ -240,6 +273,7 @@ export class AcademicFollowsController {
       this.publish({
         ...this.snapshot,
         loadingMore: false,
+        searchCursorRepeated: false,
         searchFailure: failureKind(error),
       });
     }
@@ -307,6 +341,7 @@ export class AcademicFollowsController {
     this.searchAbort?.abort();
     this.listAbort = null;
     this.searchAbort = null;
+    this.requestedCursors.clear();
     for (const operation of this.mutations.values()) operation.abort();
     this.mutations.clear();
   }
@@ -344,6 +379,7 @@ export class AcademicFollowsController {
       ),
       nextCursor: response.nextCursor,
       loadingMore: false,
+      searchCursorRepeated: false,
       searchFailure: null,
     });
   }

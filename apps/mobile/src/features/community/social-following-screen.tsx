@@ -23,10 +23,14 @@ import {
   SocialFollowingController,
   type SocialFollowingSnapshot,
 } from "./social-following-controller";
+import { NetworkPersonAvatar } from "./network-person-avatar";
 
 function failureCopy(failure: CommunityFailure): string {
   if (failure.code === "EMAIL_VERIFICATION_REQUIRED") {
     return "Verificá tu email para administrar los perfiles que seguís.";
+  }
+  if (failure.code === "SOCIAL_FOLLOWING_CURSOR_REPEATED") {
+    return "El servidor repitió una página. Conservamos los perfiles y detuvimos esta lista.";
   }
   switch (failure.kind) {
     case "offline":
@@ -93,15 +97,21 @@ function FollowingCard({
 }) {
   return (
     <View style={styles.person}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Abrir perfil de ${item.profile.displayName}`}
-        onPress={onOpenProfile}
-        style={styles.personDetails}
-      >
-        <Text style={styles.personName}>{item.profile.displayName}</Text>
-        <Text style={styles.copy}>Seguís este perfil.</Text>
-      </Pressable>
+      <View style={styles.personSummary}>
+        <NetworkPersonAvatar
+          avatarUrl={item.profile.avatarUrl}
+          displayName={item.profile.displayName}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir perfil de ${item.profile.displayName}`}
+          onPress={onOpenProfile}
+          style={styles.personDetails}
+        >
+          <Text style={styles.personName}>{item.profile.displayName}</Text>
+          <Text style={styles.copy}>Seguís este perfil.</Text>
+        </Pressable>
+      </View>
       <ActionButton
         label={busy ? "Actualizando…" : "Dejar de seguir"}
         accessibilityLabel={`Dejar de seguir a ${item.profile.displayName}`}
@@ -340,8 +350,14 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   personDetails: {
+    flex: 1,
     minHeight: 44,
     justifyContent: "center",
+  },
+  personSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   personName: {
     color: "#20202a",

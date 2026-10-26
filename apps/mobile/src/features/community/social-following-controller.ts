@@ -5,6 +5,7 @@ import {
   type CommunityFailure,
 } from "./community-controller";
 import type { SocialFollowingApi } from "./community-api";
+import { repeatsSocialCursor } from "./social-pagination";
 
 export const SOCIAL_FOLLOWING_PAGE_SIZE = 25;
 
@@ -52,6 +53,7 @@ export class SocialFollowingController {
   private generation = 0;
   private operation: Operation | null = null;
   private snapshot: SocialFollowingSnapshot = { kind: "idle" };
+  private readonly requestedCursors = new Set<string>();
   private readonly listeners = new Set<Listener>();
 
   constructor(private readonly api: SocialFollowingApi) {}
@@ -70,6 +72,7 @@ export class SocialFollowingController {
     this.cancelOperation();
     this.generation += 1;
     this.authorityKey = authorityKey;
+    this.requestedCursors.clear();
     this.publish({ kind: "idle" });
   }
 
@@ -90,6 +93,7 @@ export class SocialFollowingController {
         operation.controller.signal,
       );
       if (!this.isCurrent(operation)) return;
+      this.requestedCursors.clear();
       this.publish({
         kind: "ready",
         authorityKey,
@@ -128,6 +132,17 @@ export class SocialFollowingController {
     }
     const cursor = current.nextCursor;
     if (!cursor) return;
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        nextCursor: null,
+        failure: {
+          kind: "server_unavailable",
+          code: "SOCIAL_FOLLOWING_CURSOR_REPEATED",
+        },
+      });
+      return;
+    }
 
     const operation = this.begin(authorityKey);
     if (!operation) return;
@@ -145,12 +160,23 @@ export class SocialFollowingController {
       if (!this.isCurrent(operation)) return;
       const latest = this.ready(authorityKey);
       if (!latest) return;
+      const repeatedCursor = repeatsSocialCursor(
+        this.requestedCursors,
+        cursor,
+        page.nextCursor,
+      );
+      this.requestedCursors.add(cursor);
       this.publish({
         ...latest,
         items: appendUnique(latest.items, page.items),
-        nextCursor: page.nextCursor,
+        nextCursor: repeatedCursor ? null : page.nextCursor,
         loadingMore: false,
-        failure: null,
+        failure: repeatedCursor
+          ? {
+              kind: "server_unavailable",
+              code: "SOCIAL_FOLLOWING_CURSOR_REPEATED",
+            }
+          : null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
@@ -227,6 +253,7 @@ export class SocialFollowingController {
     this.cancelOperation();
     this.generation += 1;
     this.authorityKey = null;
+    this.requestedCursors.clear();
     this.publish({ kind: "idle" });
   }
 

@@ -15,6 +15,10 @@ import {
 } from "../features/community/notification-category.mjs";
 import { notificationTargetPath } from "../features/community/notification-navigation.mjs";
 import {
+  appendUniqueNotifications,
+  repeatsNotificationCursor,
+} from "../features/community/notification-pagination.mjs";
+import {
   communityApi,
   isCommunityApiError,
 } from "../features/community/services/communityService";
@@ -24,6 +28,8 @@ import "./Community.scss";
 
 const NOTIFICATION_PAGE_SIZE = 50;
 const NOTIFICATION_RECONCILE_INTERVAL_MS = 30_000;
+const repeatedCursorMessage =
+  "El servidor repitió una página de notificaciones. Conservamos lo cargado y detuvimos la paginación.";
 
 const labels: Record<NotificationView["type"], string> = {
   "social.followed": "empezó a seguirte",
@@ -56,6 +62,7 @@ const Notifications = () => {
   const [error, setError] = useState<string | null>(null);
   const firstPagePendingRef = useRef(false);
   const consumedReconcileTickRef = useRef(0);
+  const requestedCursorsRef = useRef(new Set<string>());
 
   const authorityScope = [
     status,
@@ -88,6 +95,7 @@ const Notifications = () => {
     previousAuthorityScopeRef.current = authorityScope;
     firstPagePendingRef.current = false;
     consumedReconcileTickRef.current = 0;
+    requestedCursorsRef.current.clear();
     setItems([]);
     setNextCursor(null);
     setLoadedPages(1);
@@ -119,6 +127,7 @@ const Notifications = () => {
       );
       if (!isListRequestCurrent(ticket)) return;
 
+      requestedCursorsRef.current.clear();
       setItems(result.items);
       setNextCursor(result.nextCursor);
       setLoadedPages(1);
@@ -136,6 +145,11 @@ const Notifications = () => {
 
   const loadMore = useCallback(
     async (cursor: string) => {
+      if (requestedCursorsRef.current.has(cursor)) {
+        setNextCursor(null);
+        setError(repeatedCursorMessage);
+        return;
+      }
       const ticket = beginListRequest();
       setLoadingMore(true);
       setError(null);
@@ -151,9 +165,16 @@ const Notifications = () => {
         );
         if (!isListRequestCurrent(ticket)) return;
 
-        setItems((current) => [...current, ...result.items]);
-        setNextCursor(result.nextCursor);
+        const repeatedCursor = repeatsNotificationCursor(
+          requestedCursorsRef.current,
+          cursor,
+          result.nextCursor,
+        );
+        requestedCursorsRef.current.add(cursor);
+        setItems((current) => appendUniqueNotifications(current, result.items));
+        setNextCursor(repeatedCursor ? null : result.nextCursor);
         setLoadedPages((current) => current + 1);
+        if (repeatedCursor) setError(repeatedCursorMessage);
       } catch (nextError) {
         if (!isListRequestCurrent(ticket)) return;
         setError(
@@ -170,9 +191,11 @@ const Notifications = () => {
     if (firstPagePendingRef.current) return;
 
     const ticket = beginListRequest();
-    const reconciled: NotificationView[] = [];
+    let reconciled: NotificationView[] = [];
+    const requestedCursors = new Set<string>();
     let cursor: string | undefined;
     let finalCursor: string | null = null;
+    let repeatedCursor = false;
 
     try {
       for (let page = 0; page < loadedPages; page += 1) {
@@ -186,16 +209,26 @@ const Notifications = () => {
         );
         if (!isListRequestCurrent(ticket)) return;
 
-        reconciled.push(...result.items);
+        reconciled = appendUniqueNotifications(reconciled, result.items);
         finalCursor = result.nextCursor;
+        if (cursor !== undefined) requestedCursors.add(cursor);
         if (!result.nextCursor) break;
+        if (
+          (cursor !== undefined && result.nextCursor === cursor) ||
+          requestedCursors.has(result.nextCursor)
+        ) {
+          repeatedCursor = true;
+          finalCursor = null;
+          break;
+        }
         cursor = result.nextCursor;
       }
 
       if (!isListRequestCurrent(ticket)) return;
+      requestedCursorsRef.current = requestedCursors;
       setItems(reconciled);
       setNextCursor(finalCursor);
-      setError(null);
+      setError(repeatedCursor ? repeatedCursorMessage : null);
     } catch {
       // Background reconciliation is best-effort; visible state remains usable.
     } finally {

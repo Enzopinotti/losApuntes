@@ -92,6 +92,55 @@ test("loading more retains chronological order and deduplicates overlapping page
   ]);
 });
 
+test("owned resource pagination stops cursor cycles and resets on a new load", async () => {
+  const cursors: Array<string | undefined> = [];
+  const controller = new MobileOwnedResourcesController({
+    listOwned: async (query) => {
+      cursors.push(query.cursor);
+      if (!query.cursor) {
+        return { items: [resource("first")], nextCursor: "cursor-a" };
+      }
+      if (query.cursor === "cursor-a") {
+        return { items: [resource("second")], nextCursor: "cursor-b" };
+      }
+      return { items: [resource("third")], nextCursor: "cursor-a" };
+    },
+  });
+
+  await controller.load("session-a", "shared", { q: "parcial" });
+  await controller.loadMore("session-a");
+  await controller.loadMore("session-a");
+  await controller.loadMore("session-a");
+
+  let snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [undefined, "cursor-a", "cursor-b"]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.data.items.map((item) => item.id),
+      ["first", "second", "third"],
+    );
+    assert.equal(snapshot.data.nextCursor, null);
+    assert.equal(snapshot.cursorRepeated, true);
+  }
+
+  await controller.load("session-a", "shared", { q: "parcial" });
+  await controller.loadMore("session-a");
+  snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [
+    undefined,
+    "cursor-a",
+    "cursor-b",
+    undefined,
+    "cursor-a",
+  ]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.data.nextCursor, "cursor-b");
+    assert.equal(snapshot.cursorRepeated, false);
+  }
+});
+
 test("switching visibility aborts prior page and keeps filters isolated", async () => {
   const prior = deferred<{
     items: ResourceView[];
