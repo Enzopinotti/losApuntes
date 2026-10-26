@@ -143,6 +143,7 @@ async function main() {
   let savedRequests = 0;
   let testSources = false;
   let availableStatus = 200;
+  let failQuestionPage = true;
   const sourceResource = (kind) => ({
     id: kind === "saved" ? SUBJECT_A : SUBJECT_B,
     title: `Source ${kind}`,
@@ -209,13 +210,27 @@ async function main() {
         questionRequests.push(params);
         if (params.subjectId === SUBJECT_B) {
           await json(route, { items: [], nextCursor: null });
+        } else if (params.cursor === "page-3") {
+          if (failQuestionPage) {
+            failQuestionPage = false;
+            await json(
+              route,
+              { code: "TEMPORARY", message: "Question page unavailable" },
+              500,
+            );
+          } else {
+            await json(route, {
+              items: [secondQuestion, closedQuestion],
+              nextCursor: "page-2",
+            });
+          }
         } else if (params.cursor === "page-2") {
           await json(route, {
             items: [
               { ...openQuestion, title: "Pregunta principal actualizada" },
               secondQuestion,
             ],
-            nextCursor: null,
+            nextCursor: "page-3",
           });
         } else if (params.q === "integrales" && params.status === "closed") {
           await json(route, { items: [closedQuestion], nextCursor: null });
@@ -353,6 +368,44 @@ async function main() {
       "pagination refreshed saved materials",
     );
 
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText("Question page unavailable", { exact: true })
+      .waitFor();
+    assert.equal(await panel.locator("ul > li").count(), 2);
+    await panel
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await panel.getByText("Pregunta de integrales", { exact: true }).waitFor();
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText("Pregunta principal actualizada", { exact: true })
+      .waitFor();
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText(/El servidor repitió una página de preguntas/)
+      .waitFor();
+    assert.equal(await panel.locator("ul > li").count(), 3);
+    assert.equal(
+      await panel.getByText("Integrales por partes", { exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await panel.getByRole("button", { name: "Más preguntas" }).count(),
+      0,
+    );
+    assert.deepEqual(
+      questionRequests.slice(-6).map((x) => x.cursor),
+      [undefined, "page-2", "page-3", undefined, "page-2", "page-3"],
+    );
+    await panel
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await panel.getByText("Pregunta de integrales", { exact: true }).waitFor();
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText("Pregunta principal actualizada", { exact: true })
+      .waitFor();
     await page.locator("#study-subject").selectOption(SUBJECT_B);
     await page.waitForURL(ORIGIN + "/study?subjectId=" + SUBJECT_B);
     await page.waitForFunction(() => {
