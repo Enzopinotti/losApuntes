@@ -85,6 +85,9 @@ assert.doesNotMatch(network, /academic.*connect|auto.*connect/iu);
 assert.doesNotMatch(network, /localStorage|sessionStorage/u);
 
 const questions = await read('apps/web/src/pages/Questions.tsx');
+const questionPagination = await read(
+  'apps/web/src/features/community/questionPagination.ts',
+);
 const communityStyles = await read('apps/web/src/pages/Community.scss');
 assert.match(questions, /useAuth\(\)/u);
 assert.match(questions, /user\?\.id/u);
@@ -140,10 +143,19 @@ assert.match(
 assert.match(communityStyles, /\.community-back-link:focus-visible/u);
 assert.match(questions, /nextCursor/u);
 assert.match(questions, /questions-more/u);
+assert.match(questions, /questionCursorRepeats/u);
+assert.match(questions, /appendUniqueItems/u);
+assert.match(questions, /cursorCycle: true/u);
+assert.match(questions, /Actualizar preguntas/u);
 assert.match(questions, /answersNextCursor/u);
 assert.match(questions, /answers-more/u);
 assert.match(questions, /appendAnswers/u);
+assert.match(questions, /answersCursorCycle: true/u);
+assert.match(questions, /refreshAnswers/u);
+assert.match(questions, /Actualizar respuestas/u);
 assert.match(questions, /Cargar más respuestas/u);
+assert.match(questionPagination, /nextCursor === requestedCursor/u);
+assert.match(questionPagination, /loadedCursors\.has\(nextCursor\)/u);
 assert.match(questions, /function CommunityAuthorAttribution/u);
 assert.match(questions, /profileId\.trim\(\) !== profileId/u);
 assert.match(

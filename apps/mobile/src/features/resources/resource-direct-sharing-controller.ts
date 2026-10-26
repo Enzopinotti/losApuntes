@@ -30,7 +30,7 @@ export type ResourceDirectSharingSnapshot =
       grantsState: "idle" | "loading" | "ready" | "error";
       grants: ResourceShareGrantView[];
       grantsNextCursor: string | null;
-      grantsFailure: ResourceConsumptionFailure | null;
+      grantsFailure: ResourceConsumptionFailure | "cursor_cycle" | null;
       searchState: ShareSearchState;
       query: string;
       people: SearchPersonResult[];
@@ -67,6 +67,7 @@ export class MobileResourceDirectSharingController {
   private grantsOperation: Operation | null = null;
   private mutationOperation: Operation | null = null;
   private generation = 0;
+  private grantsCursorHistory = new Set<string>();
 
   constructor(private readonly api: ResourceDirectSharingApi) {}
 
@@ -90,6 +91,7 @@ export class MobileResourceDirectSharingController {
     )
       return;
     this.abortAll();
+    this.grantsCursorHistory.clear();
     this.publish({
       kind: "ready",
       authorityKey,
@@ -130,6 +132,8 @@ export class MobileResourceDirectSharingController {
     )
       return;
 
+    if (!loadMore) this.grantsCursorHistory.clear();
+    const requestedCursor = loadMore ? current.grantsNextCursor! : undefined;
     const operation = this.operation(authorityKey, resourceId);
     this.grantsOperation = operation;
     this.publish({
@@ -141,7 +145,7 @@ export class MobileResourceDirectSharingController {
     try {
       const result = await this.api.listGrants(
         resourceId,
-        loadMore ? (current.grantsNextCursor ?? undefined) : undefined,
+        requestedCursor,
         operation.controller.signal,
       );
       if (!this.grantsCurrent(operation)) return;
@@ -156,8 +160,17 @@ export class MobileResourceDirectSharingController {
           outcome: "visibility_changed",
           selected: null,
         });
+        this.grantsCursorHistory.clear();
         return;
       }
+      if (requestedCursor) {
+        this.grantsCursorHistory.add(requestedCursor);
+      }
+      const cursorCycle = Boolean(
+        requestedCursor &&
+        result.nextCursor &&
+        this.grantsCursorHistory.has(result.nextCursor),
+      );
       const seen = new Set<string>();
       const items = [
         ...(loadMore ? latest.grants : []),
@@ -171,8 +184,8 @@ export class MobileResourceDirectSharingController {
         ...latest,
         grantsState: "ready",
         grants: items,
-        grantsNextCursor: result.nextCursor,
-        grantsFailure: null,
+        grantsNextCursor: cursorCycle ? null : result.nextCursor,
+        grantsFailure: cursorCycle ? "cursor_cycle" : null,
       });
     } catch (error) {
       if (!this.grantsCurrent(operation)) return;
@@ -182,12 +195,14 @@ export class MobileResourceDirectSharingController {
         error instanceof ApiRequestError &&
         (error.code === "RESOURCE_SHARES_CURSOR_STALE" ||
           error.code === "RESOURCE_SHARE_VISIBILITY_REQUIRED");
+      if (stale) this.grantsCursorHistory.clear();
+      const failure = stale ? null : resourceConsumptionFailure(error);
       this.publish({
         ...latest,
-        grantsState: stale ? "idle" : "error",
+        grantsState: stale ? "idle" : loadMore ? "ready" : "error",
         grants: stale ? [] : latest.grants,
         grantsNextCursor: stale ? null : latest.grantsNextCursor,
-        grantsFailure: stale ? null : resourceConsumptionFailure(error),
+        grantsFailure: failure,
         outcome: stale ? "visibility_changed" : latest.outcome,
       });
     } finally {
@@ -487,6 +502,7 @@ export class MobileResourceDirectSharingController {
     )
       return;
     this.abortAll();
+    this.grantsCursorHistory.clear();
     this.publish({ kind: "idle" });
   }
 
