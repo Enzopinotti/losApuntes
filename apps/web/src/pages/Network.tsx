@@ -21,6 +21,7 @@ import {
   isCommunityApiError,
 } from "../features/community/services/communityService";
 import { NetworkActionGate } from "../features/community/network-action-gate";
+import { PublicProfileAvatar } from "../features/profile/public-profile-avatar";
 import {
   groupNetworkConnections,
   networkConnectionStatusLabel,
@@ -58,16 +59,23 @@ function ConnectionRow({
 }) {
   return (
     <li>
-      <div>
-        <Link
-          className="network-person-name"
-          to={`/p/${encodeURIComponent(connection.other.profileId)}`}
-        >
-          {connection.other.displayName}
-        </Link>
-        <span className="community-status">
-          {networkConnectionStatusLabel(connection)}
-        </span>
+      <div className="network-person-summary">
+        <PublicProfileAvatar
+          avatarUrl={connection.other.avatarUrl}
+          displayName={connection.other.displayName}
+          size="small"
+        />
+        <div>
+          <Link
+            className="network-person-name"
+            to={`/p/${encodeURIComponent(connection.other.profileId)}`}
+          >
+            {connection.other.displayName}
+          </Link>
+          <span className="community-status">
+            {networkConnectionStatusLabel(connection)}
+          </span>
+        </div>
       </div>
       <div className="community-actions">
         {connection.incoming && connection.status === "pending" && (
@@ -507,9 +515,16 @@ const Network = () => {
           <ul className="community-list">
             {people.map((person) => (
               <li key={person.profileId}>
-                <div>
-                  <strong>{person.displayName}</strong>
-                  <Link to={`/p/${person.profileId}`}>Ver perfil</Link>
+                <div className="network-person-summary">
+                  <PublicProfileAvatar
+                    avatarUrl={person.avatarUrl}
+                    displayName={person.displayName}
+                    size="small"
+                  />
+                  <div>
+                    <strong>{person.displayName}</strong>
+                    <Link to={`/p/${person.profileId}`}>Ver perfil</Link>
+                  </div>
                 </div>
                 <div className="community-actions">
                   <button
@@ -572,9 +587,16 @@ const Network = () => {
               <ul className="community-list">
                 {following.map((item) => (
                   <li key={item.profile.profileId}>
-                    <div>
-                      <strong>{item.profile.displayName}</strong>
-                      <Link to={`/p/${item.profile.profileId}`}>Perfil</Link>
+                    <div className="network-person-summary">
+                      <PublicProfileAvatar
+                        avatarUrl={item.profile.avatarUrl}
+                        displayName={item.profile.displayName}
+                        size="small"
+                      />
+                      <div>
+                        <strong>{item.profile.displayName}</strong>
+                        <Link to={`/p/${item.profile.profileId}`}>Perfil</Link>
+                      </div>
                     </div>
                     <button
                       type="button"
