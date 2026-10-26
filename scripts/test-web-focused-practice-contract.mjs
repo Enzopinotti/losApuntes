@@ -50,7 +50,11 @@ const fixture = {
 };
 assert.equal(isPracticeQuestionForSubject(fixture, subject, question), true);
 assert.equal(
-  isPracticeQuestionForSubject(fixture, "c2d9085e-4fa2-4f12-8b31-2acf4219d876", question),
+  isPracticeQuestionForSubject(
+    fixture,
+    "c2d9085e-4fa2-4f12-8b31-2acf4219d876",
+    question,
+  ),
   false,
 );
 assert.equal(
@@ -71,27 +75,47 @@ assert.equal(
   false,
 );
 
-const workbench = await source("apps/web/src/pages/StudyWorkbench.tsx");
-assert.match(workbench, /practiceQuestionHref\(selectedSubject\.id, item\.id\)/u);
-assert.match(workbench, /Practicar esta pregunta/u);
+const explorer = await source(
+  "apps/web/src/features/study/StudySubjectQuestions.tsx",
+);
+assert.match(explorer, /practiceQuestionHref\(subjectId, item\.id\)/u);
+assert.match(explorer, /Practicar esta pregunta/u);
 
 const practice = await source("apps/web/src/pages/StudyPractice.tsx");
 assert.match(practice, /practiceQuestionFromParams\(params\)/u);
 assert.match(practice, /questionSelection\.kind === "invalid"/u);
-assert.match(practice, /status !== "authenticated" \|\| !subjectId \|\| !focusId/u);
+assert.match(
+  practice,
+  /status !== "authenticated" \|\| !subjectId \|\| !focusId/u,
+);
 assert.match(practice, /communityApi\.question\(focusId, ticket\.signal\)/u);
-assert.match(practice, /isPracticeQuestionForSubject\(response\.question, subjectId, focusId\)/u);
-assert.match(practice, /useAsyncAuthorityFence\(`practice-focus:\$\{focusedKey\}`\)/u);
+assert.match(
+  practice,
+  /isPracticeQuestionForSubject\(response\.question, subjectId, focusId\)/u,
+);
+assert.match(
+  practice,
+  /useAsyncAuthorityFence\(`practice-focus:\$\{focusedKey\}`\)/u,
+);
 assert.match(practice, /focusedState\?\.key === focusedKey/u);
 assert.match(practice, /if \(!focusedCurrent\(ticket\)\) return/u);
 assert.match(practice, /Empezar práctica enfocada/u);
 assert.match(practice, /startRound\(\[focused\.question!\.id\]\)/u);
-assert.match(practice, /No\s+abrimos otra pregunta ni iniciamos una práctica general/u);
+assert.match(
+  practice,
+  /No\s+abrimos otra pregunta ni iniciamos una práctica general/u,
+);
 assert.match(practice, /Las respuestas se mantienen ocultas/u);
-assert.match(practice, /response\.question\.academic\.subject\.id !== subjectId/u);
+assert.match(
+  practice,
+  /response\.question\.academic\.subject\.id !== subjectId/u,
+);
 assert.doesNotMatch(practice, /localStorage|sessionStorage/u);
 
 const scopeMatch = practice.match(/const scope = `([^\n]+)`;/u)?.[1];
-assert.ok(scopeMatch?.includes("focusId"), "Focus change must invalidate prior round");
+assert.ok(
+  scopeMatch?.includes("focusId"),
+  "Focus change must invalidate prior round",
+);
 
 console.log("PASS focused question practice links, access and answer privacy");

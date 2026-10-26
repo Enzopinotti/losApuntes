@@ -6,6 +6,7 @@ import type {
   ProfileSection,
   PublicProfileResponse,
 } from "../features/profile/interfaces";
+import { activityCursorRepeats } from "../features/profile/activityPagination";
 import {
   isProfileApiError,
   profileApi,
@@ -79,21 +80,32 @@ const PublicProfile = () => {
     loadingMore: boolean;
     error: string | null;
     loadMoreError: string | null;
+    cursorCycle: boolean;
   } | null>(null);
   const pagingRef = useRef<{ scopeKey: string; cursor: string } | null>(null);
+  const loadedActivityCursors = useRef({
+    scopeKey: profileScopeKey,
+    cursors: new Set<string>(),
+  });
   const currentViewState =
     viewState?.scopeKey === profileScopeKey ? viewState : null;
   const loadingMore = currentViewState?.loadingMore ?? false;
   const error = currentViewState?.error ?? null;
   const loadMoreError = currentViewState?.loadMoreError ?? null;
+  const cursorCycle = currentViewState?.cursorCycle ?? false;
 
   useEffect(() => {
+    loadedActivityCursors.current = {
+      scopeKey: profileScopeKey,
+      cursors: new Set(),
+    };
     if (!profileId) {
       setViewState({
         scopeKey: profileScopeKey,
         loadingMore: false,
         loadMoreError: null,
         error: "Perfil inválido.",
+        cursorCycle: false,
       });
       return;
     }
@@ -105,6 +117,7 @@ const PublicProfile = () => {
       loadingMore: false,
       loadMoreError: null,
       error: null,
+      cursorCycle: false,
     });
 
     void profileApi
@@ -127,6 +140,7 @@ const PublicProfile = () => {
             isProfileApiError(nextError) && nextError.status === 404
               ? "Este perfil no existe o ya no está disponible."
               : "No pudimos cargar este perfil.",
+          cursorCycle: false,
         });
       })
       .finally(() => {
@@ -150,22 +164,71 @@ const PublicProfile = () => {
     if (!cursor) return;
     pagingRef.current = { scopeKey: profileScopeKey, cursor };
     const ticket = beginPagination();
-    if (!isPaginationCurrent(ticket)) return;
+    if (!isPaginationCurrent(ticket)) {
+      pagingRef.current = null;
+      return;
+    }
     setViewState((previous) => ({
       scopeKey: profileScopeKey,
       loadingMore: true,
       error: previous?.scopeKey === profileScopeKey ? previous.error : null,
       loadMoreError: null,
+      cursorCycle: false,
     }));
 
     try {
       const page = await profileApi.publicActivities(
         profileId,
-        cursor ?? undefined,
+        cursor,
         target.profile.activitiesLimit ?? 20,
         ticket.signal,
       );
       if (!isPaginationCurrent(ticket)) return;
+      const cursorState = loadedActivityCursors.current;
+      const loadedCursors =
+        cursorState.scopeKey === profileScopeKey
+          ? cursorState.cursors
+          : new Set<string>();
+      if (activityCursorRepeats(loadedCursors, cursor, page.nextCursor)) {
+        setSnapshotState((current) => {
+          if (
+            current?.scopeKey !== profileScopeKey ||
+            current.profileId !== profileId ||
+            !current.snapshot.profile.activities
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            snapshot: {
+              ...current.snapshot,
+              profile: {
+                ...current.snapshot.profile,
+                activities: appendActivities(
+                  current.snapshot.profile.activities,
+                  page.items,
+                ),
+                activitiesNextCursor: null,
+              },
+            },
+          };
+        });
+        setViewState((previous) => ({
+          scopeKey: profileScopeKey,
+          loadingMore: true,
+          error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+          loadMoreError:
+            "Recibimos una página repetida. Conservamos las actividades cargadas; podés actualizar para volver a empezar.",
+          cursorCycle: true,
+        }));
+        return;
+      }
+      loadedCursors.add(cursor);
+      loadedActivityCursors.current = {
+        scopeKey: profileScopeKey,
+        cursors: loadedCursors,
+      };
       setSnapshotState((current) => {
         if (
           current?.scopeKey !== profileScopeKey ||
@@ -201,6 +264,84 @@ const PublicProfile = () => {
             }
           : previous,
       );
+    } finally {
+      if (pagingRef.current?.scopeKey === profileScopeKey) {
+        pagingRef.current = null;
+      }
+      if (finishPagination(ticket)) {
+        setViewState((current) =>
+          current?.scopeKey === profileScopeKey
+            ? { ...current, loadingMore: false }
+            : current,
+        );
+      }
+    }
+  };
+
+  const refreshActivities = async () => {
+    if (
+      !profileId ||
+      currentSnapshotState?.profileId !== profileId ||
+      loadingMore ||
+      pagingRef.current?.scopeKey === profileScopeKey
+    ) {
+      return;
+    }
+
+    pagingRef.current = { scopeKey: profileScopeKey, cursor: "refresh" };
+    const ticket = beginPagination();
+    if (!isPaginationCurrent(ticket)) {
+      pagingRef.current = null;
+      return;
+    }
+    setViewState((previous) => ({
+      scopeKey: profileScopeKey,
+      loadingMore: true,
+      error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+      loadMoreError: null,
+      cursorCycle,
+    }));
+
+    try {
+      const result = await profileApi.publicProfile(profileId, ticket.signal);
+      if (!isPaginationCurrent(ticket)) return;
+      loadedActivityCursors.current = {
+        scopeKey: profileScopeKey,
+        cursors: new Set(),
+      };
+      setSnapshotState({
+        scopeKey: profileScopeKey,
+        profileId,
+        snapshot: result,
+      });
+      setViewState((previous) => ({
+        scopeKey: profileScopeKey,
+        loadingMore: true,
+        error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+        loadMoreError: null,
+        cursorCycle: false,
+      }));
+    } catch (nextError) {
+      if (!isPaginationCurrent(ticket)) return;
+      if (isProfileApiError(nextError) && nextError.status === 404) {
+        setSnapshotState(null);
+        setViewState({
+          scopeKey: profileScopeKey,
+          loadingMore: true,
+          error: "Este perfil no existe o ya no está disponible.",
+          loadMoreError: null,
+          cursorCycle: false,
+        });
+      } else {
+        setViewState((previous) => ({
+          scopeKey: profileScopeKey,
+          loadingMore: true,
+          error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+          loadMoreError:
+            "No pudimos actualizar el perfil. Podés volver a intentarlo.",
+          cursorCycle: true,
+        }));
+      }
     } finally {
       if (pagingRef.current?.scopeKey === profileScopeKey) {
         pagingRef.current = null;
@@ -381,18 +522,26 @@ const PublicProfile = () => {
                 {loadMoreError}
               </p>
             )}
-            {profile.activitiesNextCursor && (
+            {(profile.activitiesNextCursor || cursorCycle) && (
               <button
                 type="button"
                 className="secondary"
                 disabled={loadingMore}
-                onClick={() => void loadMoreActivities()}
+                onClick={() =>
+                  void (cursorCycle
+                    ? refreshActivities()
+                    : loadMoreActivities())
+                }
               >
                 {loadingMore
-                  ? "Cargando…"
-                  : loadMoreError
-                    ? "Reintentar actividades"
-                    : "Cargar más actividades"}
+                  ? cursorCycle
+                    ? "Actualizando…"
+                    : "Cargando…"
+                  : cursorCycle
+                    ? "Actualizar actividades"
+                    : loadMoreError
+                      ? "Reintentar actividades"
+                      : "Cargar más actividades"}
               </button>
             )}
           </section>

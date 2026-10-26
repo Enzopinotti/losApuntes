@@ -16,6 +16,14 @@
 - La mutación de nombre exige `expectedRevision`; una modificación concurrente devuelve conflicto. Las modificaciones de miembros incrementan revisión sólo cuando cambian algo.
 - Los cursores de miembros contienen revisión y posición y son inválidos al cambiar la colección. Los de listado incluyen owner para no poder reutilizarlos entre cuentas.
 
+Web debe tratar cada cursor como consumible dentro del listado de la sesión o
+de la colección seleccionada: deduplicar colecciones por id y miembros por
+`resourceId`, detenerse si la respuesta repite el cursor solicitado o uno ya
+recorrido, y volver a pedir la primera página para reiniciar. Un
+`STUDY_COLLECTION_CURSOR_STALE` descarta la cadena de miembros y requiere
+actualizar la colección antes de continuar. Los errores transitorios conservan
+la página y el cursor para reintentar.
+
 ## Endpoints
 
 Todos bajo `/study-collections`, con `AuthSessionGuard`, `Cache-Control: private, no-store`.

@@ -22,9 +22,15 @@ import { mobileStudyCollectionsApi } from "./study-collections-runtime";
 export function ResourceCollectionSaveAction({
   resourceId,
   resourceTitle,
+  autoOpen = false,
+  hideToggle = false,
+  onClose,
 }: {
   resourceId: string;
   resourceTitle: string;
+  autoOpen?: boolean;
+  hideToggle?: boolean;
+  onClose?: () => void;
 }) {
   const focused = useIsFocused();
   const { snapshot: session } = useSession();
@@ -58,6 +64,14 @@ export function ResourceCollectionSaveAction({
     return () => controller.close();
   }, [authorityKey, controller, resourceId]);
 
+  useEffect(() => {
+    if (!autoOpen || !authorityKey || !MOBILE_PERSISTENT_COLLECTIONS_VISIBLE) {
+      return;
+    }
+    setExpanded(true);
+    void controller.open(authorityKey, resourceId);
+  }, [autoOpen, authorityKey, controller, resourceId]);
+
   useEffect(() => () => controller.dispose(), [controller]);
 
   const current =
@@ -77,6 +91,7 @@ export function ResourceCollectionSaveAction({
   const close = () => {
     setExpanded(false);
     controller.close();
+    onClose?.();
   };
 
   if (
@@ -88,18 +103,20 @@ export function ResourceCollectionSaveAction({
 
   return (
     <View style={styles.container}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Agregar ${resourceTitle} a una colección de estudio`}
-        accessibilityState={{ disabled: !authorityKey }}
-        disabled={!authorityKey}
-        onPress={expanded ? close : open}
-        style={[styles.toggleButton, !authorityKey && styles.disabled]}
-      >
-        <Text style={styles.toggleLabel}>
-          {expanded ? "Cerrar colecciones" : "Agregar a colección"}
-        </Text>
-      </Pressable>
+      {!hideToggle ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Agregar ${resourceTitle} a una colección de estudio`}
+          accessibilityState={{ disabled: !authorityKey }}
+          disabled={!authorityKey}
+          onPress={expanded ? close : open}
+          style={[styles.toggleButton, !authorityKey && styles.disabled]}
+        >
+          <Text style={styles.toggleLabel}>
+            {expanded ? "Cerrar colecciones" : "Agregar a colección"}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {expanded ? (
         <View style={styles.picker}>

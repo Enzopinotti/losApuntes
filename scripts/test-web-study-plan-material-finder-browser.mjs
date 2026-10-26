@@ -117,6 +117,9 @@ async function main() {
   let resourceRechecks = 0;
   let questionRechecks = 0;
   const searches = [];
+  let sourceStatus = 200;
+  const materialPages = [];
+  let failMaterialPage = true;
   try {
     child = await boot();
     browser = await chromium.launch({ headless: true });
@@ -161,9 +164,38 @@ async function main() {
       if (path === "/resources/saved/search") {
         return reply(200, { items: [], nextCursor: null });
       }
+      if (
+        (path === "/resources" || path === "/questions") &&
+        url.searchParams.get("q") === "ciclos"
+      ) {
+        const cursor = url.searchParams.get("cursor");
+        materialPages.push({ path, cursor });
+        if (path === "/resources" && cursor === "page-a" && failMaterialPage) {
+          failMaterialPage = false;
+          return reply(500, { code: "UNAVAILABLE" });
+        }
+        const number = cursor === "page-b" ? 3 : cursor ? 2 : 1;
+        return reply(200, {
+          items: Array.from({ length: number }, (_, index) => ({
+            id: `material-${index + 1}`,
+            title: `Material ${index + 1}`,
+            academic: resource.academic,
+          })),
+          nextCursor:
+            cursor === "page-b" ? "page-a" : cursor ? "page-b" : "page-a",
+        });
+      }
       if (path === "/resources") {
         const q = url.searchParams.get("q") ?? "";
-        if (!q) return reply(200, { items: [], nextCursor: null });
+        if (!q) {
+          if (sourceStatus !== 200) {
+            return reply(sourceStatus, {
+              code: "SOURCE_UNAVAILABLE",
+              message: `Source failure ${sourceStatus}`,
+            });
+          }
+          return reply(200, { items: [resource], nextCursor: "source-page" });
+        }
         searches.push({ kind: "resource", q });
         const items =
           q === "revocado"
@@ -308,6 +340,103 @@ async function main() {
       "each resource add must reauthorize the item",
     );
     assert.equal(questionRechecks, 1, "question add must reauthorize the item");
+    const finder = page.locator(".study-session-material-finder");
+    for (const kind of ["resource", "question"]) {
+      await page.getByLabel("Qué querés repasar").selectOption(kind);
+      await page.getByLabel("Buscar por tema").fill("ciclos");
+      await page.getByRole("button", { name: "Buscar material" }).click();
+      await finder.getByText("Material 1", { exact: true }).waitFor();
+      await finder
+        .getByRole("button", { name: "Más resultados de la búsqueda" })
+        .click();
+      if (kind === "resource") {
+        await finder.getByText(/No pudimos comprobar el contenido/).waitFor();
+        assert.equal(
+          await finder.getByText("Material 1", { exact: true }).count(),
+          1,
+        );
+        await finder
+          .getByRole("button", { name: "Reintentar", exact: true })
+          .click();
+      }
+      await finder.getByText("Material 2", { exact: true }).waitFor();
+      await finder
+        .getByRole("button", { name: "Más resultados de la búsqueda" })
+        .click();
+      await finder
+        .getByText(/El servidor repitió una página de material/)
+        .waitFor();
+      for (const number of [1, 2, 3]) {
+        assert.equal(
+          await finder.getByText(`Material ${number}`, { exact: true }).count(),
+          1,
+        );
+      }
+      assert.equal(
+        await finder
+          .getByRole("button", { name: "Más resultados de la búsqueda" })
+          .count(),
+        0,
+      );
+      await finder
+        .getByRole("button", { name: "Reintentar", exact: true })
+        .click();
+      await finder
+        .getByText("Material 3", { exact: true })
+        .waitFor({ state: "hidden" });
+      await finder
+        .getByRole("button", { name: "Más resultados de la búsqueda" })
+        .click();
+      await finder.getByText("Material 2", { exact: true }).waitFor();
+    }
+    assert.deepEqual(
+      materialPages.filter((x) => x.path === "/resources").map((x) => x.cursor),
+      [null, "page-a", "page-a", "page-b", null, "page-a"],
+    );
+    assert.deepEqual(
+      materialPages.filter((x) => x.path === "/questions").map((x) => x.cursor),
+      [null, "page-a", "page-b", null, "page-a"],
+    );
+    const sourceResource = page
+      .locator(".study-session-sources")
+      .getByRole("link", { name: resource.title, exact: true });
+    await sourceResource.waitFor();
+    await page
+      .getByRole("button", { name: "Más apuntes", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Actualizar disponibles" })
+      .waitFor();
+    assert.equal(await sourceResource.count(), 1);
+
+    sourceStatus = 500;
+    await page.getByRole("button", { name: "Actualizar disponibles" }).click();
+    await page.getByText("Source failure 500", { exact: true }).waitFor();
+    assert.equal(await sourceResource.count(), 1);
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Actualizar disponibles" })
+        .count(),
+      1,
+      "a transient source refresh must retain the loaded resource and recovery",
+    );
+
+    for (const status of [401, 403, 404]) {
+      sourceStatus = 200;
+      await page.getByRole("button", { name: "Actualizar fuentes" }).click();
+      await sourceResource.waitFor();
+      sourceStatus = status;
+      await page.getByRole("button", { name: "Actualizar fuentes" }).click();
+      await page
+        .getByText(
+          status === 401
+            ? "La sesión ya no está activa."
+            : "El material dejó de estar disponible o accesible.",
+          { exact: true },
+        )
+        .waitFor();
+      await sourceResource.waitFor({ state: "hidden", timeout: 3000 });
+    }
     assert.equal(
       writes,
       0,
@@ -316,7 +445,7 @@ async function main() {
     assert.deepEqual(pageErrors, []);
     await context.close();
     console.log(
-      "PASS B180 Chromium: resource and closed-question search, reauthorization, revoked access, plan/notes preservation and no API writes",
+      "PASS Chromium: planner search, source cursor recovery, transient retention, 401/403/404 clearing, reauthorization, plan/notes preservation and no API writes",
     );
   } finally {
     await browser?.close();

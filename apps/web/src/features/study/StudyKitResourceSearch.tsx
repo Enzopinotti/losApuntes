@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
 
 import type { ResourceView } from "../resources/interfaces";
@@ -12,6 +18,10 @@ import {
   studyKitResourceSearchScope,
   STUDY_KIT_RESOURCE_QUERY_MAX,
 } from "./study-kit-resource-query.mjs";
+import { repeatsStudyKitResourceCursor } from "./study-kit-resource-pagination.mjs";
+
+const repeatedCursorMessage =
+  "El servidor repitió una página de apuntes. Conservamos los resultados cargados y detuvimos la búsqueda.";
 
 type SearchPage = {
   scope: string;
@@ -59,6 +69,10 @@ export function StudyKitResourceSearch({
     finish: finishSearch,
   } = useAsyncAuthorityFence(`study-kit-resource-search:${scope ?? "empty"}`);
   const [pageState, setPageState] = useState<SearchPage | null>(null);
+  const cursorHistoryRef = useRef({
+    scope,
+    cursors: new Set<string>(),
+  });
   const page = scope && pageState?.scope === scope ? pageState : null;
   const query = normalizeStudyKitResourceQuery(draft);
   const knownIds = new Set(resourceIds);
@@ -66,6 +80,22 @@ export function StudyKitResourceSearch({
   const load = useCallback(
     async (cursor?: string, append = false) => {
       if (!scope || !submitted) return;
+      const cursorHistory = cursorHistoryRef.current;
+      if (append) {
+        if (!cursor || cursorHistory.scope !== scope) return;
+        if (cursorHistory.cursors.has(cursor)) {
+          setPageState((previous) =>
+            previous?.scope === scope
+              ? {
+                  ...previous,
+                  nextCursor: null,
+                  error: repeatedCursorMessage,
+                }
+              : previous,
+          );
+          return;
+        }
+      }
       const ticket = beginSearch();
       if (!isSearchCurrent(ticket)) return;
       setPageState((previous) => ({
@@ -87,6 +117,21 @@ export function StudyKitResourceSearch({
         const matching = response.items.filter(
           (resource) => resource.academic.subject.id === subjectId,
         );
+        const repeatedCursor =
+          append && cursor
+            ? repeatsStudyKitResourceCursor(
+                cursorHistory.cursors,
+                cursor,
+                response.nextCursor,
+              )
+            : false;
+        if (append && cursor) cursorHistory.cursors.add(cursor);
+        else {
+          cursorHistoryRef.current = {
+            scope,
+            cursors: new Set<string>(),
+          };
+        }
         setPageState((previous) => ({
           scope,
           items:
@@ -100,9 +145,9 @@ export function StudyKitResourceSearch({
                   ).values(),
                 )
               : matching,
-          nextCursor: response.nextCursor,
+          nextCursor: repeatedCursor ? null : response.nextCursor,
           loading: false,
-          error: null,
+          error: repeatedCursor ? repeatedCursorMessage : null,
         }));
       } catch (error) {
         if (!isSearchCurrent(ticket)) return;
