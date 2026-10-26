@@ -1,0 +1,74 @@
+name: B221 Account Export fail-closed contributor allowlist
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/b221-export-contributor-allowlist.yml
+      - apps/api/src/data-lifecycle/domain/account-export-assembler.ts
+      - apps/api/src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts
+      - apps/api/src/data-lifecycle/domain/account-export-contributor.registry.ts
+      - docs/security/b221-export-contributor-allowlist.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b221-account-export-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-export-policy:
+    name: B221 Node24 strict API export policy and regression Jest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      STUDY_PROGRESS_ENABLED: "false"
+    steps:
+      - name: Checkout candidate exact SHA, no persisted GitHub credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Require immutable candidate HEAD and disabled study release
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$STUDY_PROGRESS_ENABLED" = false
+      - name: Use pnpm 9 from project
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Use Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen dependency tree
+        run: pnpm install --frozen-lockfile
+      - name: Enforce Prettier on production patch and focused Jest file
+        run: pnpm exec prettier --check apps/api/src/data-lifecycle/domain/account-export-assembler.ts apps/api/src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts
+      - name: Full API TypeScript
+        run: pnpm --filter @losapuntes/api check:types
+      - name: Full API strict lint
+        run: pnpm --filter @losapuntes/api lint
+      - name: Run exact-head versioned export tests
+        run: |
+          pnpm --filter @losapuntes/api exec jest --runInBand \
+            --runTestsByPath \
+            src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts \
+            src/data-lifecycle/domain/account-export-assembler.spec.ts \
+            src/data-lifecycle/domain/account-export-versioning.spec.ts \
+            src/data-lifecycle/data-lifecycle.module.spec.ts
+      - name: No audit exceptions or hidden HIGH
+        run: pnpm security:audit-exceptions
+      - name: Confirm clean exact commit after acceptance
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# The global verify security audit remains mandatory. No deployment, signing,
+# feature enablement or HIGH/Critical waiver is allowed by this workflow.
