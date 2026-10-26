@@ -17,3 +17,18 @@ La API permitía editar actividades propias con control de revisión, pero Web s
 - Editar y quitar un enlace se guardan a través del endpoint de actualización existente.
 - Los límites y fechas siguen validados por el servidor.
 - El conflicto de revisión se distingue del conflicto de edición general del perfil.
+
+## Revisión de integración
+
+Se recortan los espacios externos de enlaces de actividad en creación y edición
+antes de la validación nativa. La regresión Chromium fallaba para un HTTPS pegado
+con espacios y pasa con la corrección.
+
+El escenario verifica revisión observada al editar, título y URL recortados,
+relectura canónica tras guardar, conservación del borrador ante conflicto,
+cancelación sin escribir, eliminación de enlace mediante null y creación con
+URL opcional. Conserva cobertura de avatar, presentación, orden y privacidad.
+La cadena de contratos incluye también el cliente PATCH de actividades.
+
+Chromium y contratos pasan; el build Vite pasa con metadatos unavailable.
+Sin ejecutar ni reintentar CI.

@@ -15,3 +15,14 @@ La API y el perfil público ya admiten presets de acento y portada, pero la pers
 - Recargar conserva la selección devuelta por el servidor.
 - Guardar envía los presets dentro de `presentation` junto con la revisión optimista existente.
 - Opciones accesibles muestran nombres localizados y solo valores admitidos.
+
+## Revisión de integración
+
+El escenario Chromium comprueba hidratación de controles, selección sin escrituras,
+guardado explícito con revisión vigente y privacidad intacta, rehidratación desde
+los valores canónicos del servidor y conservación del borrador ante un conflicto.
+Las respuestas API se simulan localmente; no se modifica ningún perfil real.
+
+Los contratos de privacidad/presentación y TypeScript Web, API y Mobile (producto
+y pruebas) pasan con los contratos fuente actuales. Prettier y build Vite pasan.
+El manifiesto de despliegue permanece unavailable. Sin ejecutar ni reintentar CI.
