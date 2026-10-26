@@ -57,11 +57,7 @@ export function OrganizationPublicShareAction({
 
   return (
     <div className="organization-share-action">
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => void share()}
-      >
+      <button type="button" disabled={pending} onClick={() => void share()}>
         {pending ? "Preparando enlace…" : "Compartir organización"}
       </button>
       {message ? <p role={failed ? "alert" : "status"}>{message}</p> : null}
