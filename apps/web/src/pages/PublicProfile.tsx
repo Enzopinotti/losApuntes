@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -6,6 +6,7 @@ import type {
   ProfileSection,
   PublicProfileResponse,
 } from "../features/profile/interfaces";
+import { activityCursorRepeats } from "../features/profile/activityPagination";
 import {
   isProfileApiError,
   profileApi,
@@ -80,21 +81,32 @@ const PublicProfile = () => {
     loadingMore: boolean;
     error: string | null;
     loadMoreError: string | null;
+    cursorCycle: boolean;
   } | null>(null);
   const pagingRef = useRef<{ scopeKey: string; cursor: string } | null>(null);
+  const loadedActivityCursors = useRef({
+    scopeKey: profileScopeKey,
+    cursors: new Set<string>(),
+  });
   const currentViewState =
     viewState?.scopeKey === profileScopeKey ? viewState : null;
   const loadingMore = currentViewState?.loadingMore ?? false;
   const error = currentViewState?.error ?? null;
   const loadMoreError = currentViewState?.loadMoreError ?? null;
+  const cursorCycle = currentViewState?.cursorCycle ?? false;
 
   useEffect(() => {
+    loadedActivityCursors.current = {
+      scopeKey: profileScopeKey,
+      cursors: new Set(),
+    };
     if (!profileId) {
       setViewState({
         scopeKey: profileScopeKey,
         loadingMore: false,
         loadMoreError: null,
         error: "Perfil inválido.",
+        cursorCycle: false,
       });
       return;
     }
@@ -106,6 +118,7 @@ const PublicProfile = () => {
       loadingMore: false,
       loadMoreError: null,
       error: null,
+      cursorCycle: false,
     });
 
     void profileApi
@@ -128,6 +141,7 @@ const PublicProfile = () => {
             isProfileApiError(nextError) && nextError.status === 404
               ? "Este perfil no existe o ya no está disponible."
               : "No pudimos cargar este perfil.",
+          cursorCycle: false,
         });
       })
       .finally(() => {
@@ -151,22 +165,71 @@ const PublicProfile = () => {
     if (!cursor) return;
     pagingRef.current = { scopeKey: profileScopeKey, cursor };
     const ticket = beginPagination();
-    if (!isPaginationCurrent(ticket)) return;
+    if (!isPaginationCurrent(ticket)) {
+      pagingRef.current = null;
+      return;
+    }
     setViewState((previous) => ({
       scopeKey: profileScopeKey,
       loadingMore: true,
       error: previous?.scopeKey === profileScopeKey ? previous.error : null,
       loadMoreError: null,
+      cursorCycle: false,
     }));
 
     try {
       const page = await profileApi.publicActivities(
         profileId,
-        cursor ?? undefined,
+        cursor,
         target.profile.activitiesLimit ?? 20,
         ticket.signal,
       );
       if (!isPaginationCurrent(ticket)) return;
+      const cursorState = loadedActivityCursors.current;
+      const loadedCursors =
+        cursorState.scopeKey === profileScopeKey
+          ? cursorState.cursors
+          : new Set<string>();
+      if (activityCursorRepeats(loadedCursors, cursor, page.nextCursor)) {
+        setSnapshotState((current) => {
+          if (
+            current?.scopeKey !== profileScopeKey ||
+            current.profileId !== profileId ||
+            !current.snapshot.profile.activities
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            snapshot: {
+              ...current.snapshot,
+              profile: {
+                ...current.snapshot.profile,
+                activities: appendActivities(
+                  current.snapshot.profile.activities,
+                  page.items,
+                ),
+                activitiesNextCursor: null,
+              },
+            },
+          };
+        });
+        setViewState((previous) => ({
+          scopeKey: profileScopeKey,
+          loadingMore: true,
+          error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+          loadMoreError:
+            "Recibimos una página repetida. Conservamos las actividades cargadas; podés actualizar para volver a empezar.",
+          cursorCycle: true,
+        }));
+        return;
+      }
+      loadedCursors.add(cursor);
+      loadedActivityCursors.current = {
+        scopeKey: profileScopeKey,
+        cursors: loadedCursors,
+      };
       setSnapshotState((current) => {
         if (
           current?.scopeKey !== profileScopeKey ||
@@ -216,6 +279,84 @@ const PublicProfile = () => {
     }
   };
 
+  const refreshActivities = async () => {
+    if (
+      !profileId ||
+      currentSnapshotState?.profileId !== profileId ||
+      loadingMore ||
+      pagingRef.current?.scopeKey === profileScopeKey
+    ) {
+      return;
+    }
+
+    pagingRef.current = { scopeKey: profileScopeKey, cursor: "refresh" };
+    const ticket = beginPagination();
+    if (!isPaginationCurrent(ticket)) {
+      pagingRef.current = null;
+      return;
+    }
+    setViewState((previous) => ({
+      scopeKey: profileScopeKey,
+      loadingMore: true,
+      error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+      loadMoreError: null,
+      cursorCycle,
+    }));
+
+    try {
+      const result = await profileApi.publicProfile(profileId, ticket.signal);
+      if (!isPaginationCurrent(ticket)) return;
+      loadedActivityCursors.current = {
+        scopeKey: profileScopeKey,
+        cursors: new Set(),
+      };
+      setSnapshotState({
+        scopeKey: profileScopeKey,
+        profileId,
+        snapshot: result,
+      });
+      setViewState((previous) => ({
+        scopeKey: profileScopeKey,
+        loadingMore: true,
+        error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+        loadMoreError: null,
+        cursorCycle: false,
+      }));
+    } catch (nextError) {
+      if (!isPaginationCurrent(ticket)) return;
+      if (isProfileApiError(nextError) && nextError.status === 404) {
+        setSnapshotState(null);
+        setViewState({
+          scopeKey: profileScopeKey,
+          loadingMore: true,
+          error: "Este perfil no existe o ya no está disponible.",
+          loadMoreError: null,
+          cursorCycle: false,
+        });
+      } else {
+        setViewState((previous) => ({
+          scopeKey: profileScopeKey,
+          loadingMore: true,
+          error: previous?.scopeKey === profileScopeKey ? previous.error : null,
+          loadMoreError:
+            "No pudimos actualizar el perfil. Podés volver a intentarlo.",
+          cursorCycle: true,
+        }));
+      }
+    } finally {
+      if (pagingRef.current?.scopeKey === profileScopeKey) {
+        pagingRef.current = null;
+      }
+      if (finishPagination(ticket)) {
+        setViewState((current) =>
+          current?.scopeKey === profileScopeKey
+            ? { ...current, loadingMore: false }
+            : current,
+        );
+      }
+    }
+  };
+
   if (error) {
     return (
       <section className="profile-page">
@@ -250,8 +391,113 @@ const PublicProfile = () => {
     profile.presentation.sectionOrder,
     availableProfileSections,
   );
-  const sectionOrder = (section: PublicProfileContentSection) =>
-    orderedProfileSections.indexOf(section);
+  const sectionContent: Record<PublicProfileContentSection, ReactNode> = {
+    skills: profile.skills && (
+      <section key="skills" className="profile-card">
+        <h2>Habilidades e intereses</h2>
+        {profile.skills.skills.length > 0 && (
+          <p>
+            <strong>Habilidades:</strong> {profile.skills.skills.join(", ")}
+          </p>
+        )}
+        {profile.skills.interests.length > 0 && (
+          <p>
+            <strong>Intereses:</strong> {profile.skills.interests.join(", ")}
+          </p>
+        )}
+        {profile.skills.languages.length > 0 && (
+          <p>
+            <strong>Idiomas:</strong> {profile.skills.languages.join(", ")}
+          </p>
+        )}
+      </section>
+    ),
+    learning: profile.learning && (
+      <section key="learning" className="profile-card">
+        <h2>Aprendizaje</h2>
+        <p>
+          <strong>Puede ayudar en:</strong>{" "}
+          {profile.learning.helpTopics.join(", ") || "Sin temas publicados"}
+        </p>
+        <p>
+          <strong>Quiere aprender:</strong>{" "}
+          {profile.learning.learningTopics.join(", ") || "Sin temas publicados"}
+        </p>
+      </section>
+    ),
+    professional: profile.professional && (
+      <section key="professional" className="profile-card">
+        <h2>Proyección profesional</h2>
+        <p>{profile.professional.headline ?? "Sin titular publicado"}</p>
+      </section>
+    ),
+    academic: profile.academic && (
+      <section key="academic" className="profile-card">
+        <h2>Trayectoria académica</h2>
+        <p>
+          {profile.academic.affiliations.length} afiliación(es) académica(s)
+          publicada(s).
+        </p>
+        <p>{profile.academic.participations.length} materia(s) asociada(s).</p>
+      </section>
+    ),
+    activities: profile.activities && (
+      <section key="activities" className="profile-card profile-wide">
+        <h2>Proyectos y actividades</h2>
+        {profile.activities.length === 0 ? (
+          <p>No hay actividades publicadas.</p>
+        ) : (
+          <ul className="public-activity-list">
+            {profile.activities.map((item) => {
+              const externalLink = publicProfileActivityLink(item.url);
+              return (
+                <li key={item.id}>
+                  <strong>{item.title}</strong>
+                  {item.description && <p>{item.description}</p>}
+                  {externalLink ? (
+                    <a
+                      aria-label={`Abrir enlace externo de ${item.title} en ${externalLink.hostname}`}
+                      className="public-activity-link"
+                      href={externalLink.href}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      Abrir enlace externo · {externalLink.hostname}
+                    </a>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {loadMoreError && (
+          <p className="profile-error" role="alert">
+            {loadMoreError}
+          </p>
+        )}
+        {(profile.activitiesNextCursor || cursorCycle) && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={loadingMore}
+            onClick={() =>
+              void (cursorCycle ? refreshActivities() : loadMoreActivities())
+            }
+          >
+            {loadingMore
+              ? cursorCycle
+                ? "Actualizando…"
+                : "Cargando…"
+              : cursorCycle
+                ? "Actualizar actividades"
+                : loadMoreError
+                  ? "Reintentar actividades"
+                  : "Cargar más actividades"}
+          </button>
+        )}
+      </section>
+    ),
+  };
 
   return (
     <section className="profile-page public-profile">
@@ -284,128 +530,7 @@ const PublicProfile = () => {
       </header>
 
       <div className="profile-grid">
-        {profile.skills && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("skills") }}
-          >
-            <h2>Habilidades e intereses</h2>
-            {profile.skills.skills.length > 0 && (
-              <p>
-                <strong>Habilidades:</strong> {profile.skills.skills.join(", ")}
-              </p>
-            )}
-            {profile.skills.interests.length > 0 && (
-              <p>
-                <strong>Intereses:</strong>{" "}
-                {profile.skills.interests.join(", ")}
-              </p>
-            )}
-            {profile.skills.languages.length > 0 && (
-              <p>
-                <strong>Idiomas:</strong> {profile.skills.languages.join(", ")}
-              </p>
-            )}
-          </section>
-        )}
-
-        {profile.learning && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("learning") }}
-          >
-            <h2>Aprendizaje</h2>
-            <p>
-              <strong>Puede ayudar en:</strong>{" "}
-              {profile.learning.helpTopics.join(", ") || "Sin temas publicados"}
-            </p>
-            <p>
-              <strong>Quiere aprender:</strong>{" "}
-              {profile.learning.learningTopics.join(", ") ||
-                "Sin temas publicados"}
-            </p>
-          </section>
-        )}
-
-        {profile.professional && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("professional") }}
-          >
-            <h2>Proyección profesional</h2>
-            <p>{profile.professional.headline ?? "Sin titular publicado"}</p>
-          </section>
-        )}
-
-        {profile.academic && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("academic") }}
-          >
-            <h2>Trayectoria académica</h2>
-            <p>
-              {profile.academic.affiliations.length} afiliación(es) académica(s)
-              publicada(s).
-            </p>
-            <p>
-              {profile.academic.participations.length} materia(s) asociada(s).
-            </p>
-          </section>
-        )}
-
-        {profile.activities && (
-          <section
-            className="profile-card profile-wide"
-            style={{ order: sectionOrder("activities") }}
-          >
-            <h2>Proyectos y actividades</h2>
-            {profile.activities.length === 0 ? (
-              <p>No hay actividades publicadas.</p>
-            ) : (
-              <ul className="public-activity-list">
-                {profile.activities.map((item) => {
-                  const externalLink = publicProfileActivityLink(item.url);
-                  return (
-                    <li key={item.id}>
-                      <strong>{item.title}</strong>
-                      {item.description && <p>{item.description}</p>}
-                      {externalLink ? (
-                        <a
-                          aria-label={`Abrir enlace externo de ${item.title} en ${externalLink.hostname}`}
-                          className="public-activity-link"
-                          href={externalLink.href}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                        >
-                          Abrir enlace externo · {externalLink.hostname}
-                        </a>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {loadMoreError && (
-              <p className="profile-error" role="alert">
-                {loadMoreError}
-              </p>
-            )}
-            {profile.activitiesNextCursor && (
-              <button
-                type="button"
-                className="secondary"
-                disabled={loadingMore}
-                onClick={() => void loadMoreActivities()}
-              >
-                {loadingMore
-                  ? "Cargando…"
-                  : loadMoreError
-                    ? "Reintentar actividades"
-                    : "Cargar más actividades"}
-              </button>
-            )}
-          </section>
-        )}
+        {orderedProfileSections.map((section) => sectionContent[section])}
       </div>
     </section>
   );
