@@ -20,6 +20,7 @@ import {
   resourceFileTypeLabel,
   resourceRowAccessibilityLabel,
 } from "@/features/resources/resource-details-copy";
+import { MobileResourceShareAction } from "./resource-share-action";
 import { useSession } from "@/features/session/session-provider";
 import { subjectResourcesSearchAction } from "@/features/search/search-subject-navigation";
 
@@ -134,6 +135,12 @@ function SavedResourceRow({
           <Text style={styles.actionLabel}>Preguntas de la materia</Text>
         </Pressable>
       ) : null}
+
+      <MobileResourceShareAction
+        key={resource.id}
+        resourceId={resource.id}
+        resourceTitle={resource.title}
+      />
 
       <Pressable
         accessibilityRole="button"

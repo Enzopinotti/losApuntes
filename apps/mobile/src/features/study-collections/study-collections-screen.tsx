@@ -17,6 +17,7 @@ import { navigationAuthorityKey } from "@/features/navigation/product-navigation
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
 import { mobileSearchApi } from "@/features/search/search-runtime";
+import { MobileResourceShareAction } from "@/features/resources/resource-share-action";
 import { ApiRequestError } from "@/services/api/client";
 
 import {
@@ -25,6 +26,7 @@ import {
 } from "./study-collections-api";
 import { MOBILE_PERSISTENT_COLLECTIONS_VISIBLE } from "./persistent-collections-flag";
 import { mobileStudyCollectionsApi } from "./study-collections-runtime";
+import { StudyCollectionPageChain } from "./study-collections-pagination";
 
 type CollectionListState = {
   authorityKey: string;
@@ -124,6 +126,8 @@ export function StudyCollectionsScreen() {
   const mutationLock = useRef(false);
   const mutationAbort = useRef<AbortController | null>(null);
   const authorityRef = useRef<string | null>(null);
+  const listPages = useMemo(() => new StudyCollectionPageChain(), []);
+  const resourcePages = useMemo(() => new StudyCollectionPageChain(), []);
 
   const sessionAuthority =
     session.kind === "authenticated"
@@ -132,6 +136,15 @@ export function StudyCollectionsScreen() {
   const authorityKey =
     focused && appState === "active" ? sessionAuthority : null;
   authorityRef.current = authorityKey;
+  const listPageScope = authorityKey
+    ? JSON.stringify([authorityKey, listRefresh])
+    : null;
+  const resourcePageScope =
+    authorityKey && selectedId
+      ? JSON.stringify([authorityKey, selectedId, detailRefresh])
+      : null;
+  listPages.setScope(listPageScope);
+  resourcePages.setScope(resourcePageScope);
   const currentList =
     listState?.authorityKey === authorityKey ? listState : null;
   const currentDetail =
@@ -453,27 +466,36 @@ export function StudyCollectionsScreen() {
   };
 
   const loadMoreCollections = async () => {
-    if (!currentList?.nextCursor || !authorityKey) return;
+    if (!currentList?.nextCursor || currentList.busy || !authorityKey) return;
     const scope = authorityKey;
+    const requestedCursor = currentList.nextCursor;
+    const ticket = listPages.begin(listPageScope, requestedCursor);
+    if (!ticket) return;
     setListState({ ...currentList, busy: true, error: null });
     try {
-      const page = await mobileStudyCollectionsApi.list(currentList.nextCursor);
-      if (authorityRef.current !== scope) return;
+      const page = await mobileStudyCollectionsApi.list(requestedCursor);
+      if (authorityRef.current !== scope || !listPages.isCurrent(ticket))
+        return;
+      const cursorCycle = listPages.record(ticket, page.nextCursor);
       setListState({
         authorityKey: scope,
         items: mergeById(currentList.items, page.items),
-        nextCursor: page.nextCursor,
+        nextCursor: cursorCycle ? null : page.nextCursor,
         busy: false,
-        error: null,
+        error: cursorCycle
+          ? "La lista devolvió una página repetida. Actualizá las colecciones para recibir una tanda nueva."
+          : null,
       });
     } catch (error) {
-      if (authorityRef.current === scope) {
+      if (authorityRef.current === scope && listPages.isCurrent(ticket)) {
         setListState({
           ...currentList,
           busy: false,
           error: errorMessage(error),
         });
       }
+    } finally {
+      listPages.finish(ticket);
     }
   };
 
@@ -483,18 +505,22 @@ export function StudyCollectionsScreen() {
       !currentDetail ||
       !collection ||
       !currentDetail.nextCursor ||
+      currentDetail.busy ||
       !authorityKey
     )
       return;
     const scope = authorityKey;
     const selectedCollectionId = collection.id;
+    const requestedCursor = currentDetail.nextCursor;
+    const ticket = resourcePages.begin(resourcePageScope, requestedCursor);
+    if (!ticket) return;
     setDetailState({ ...currentDetail, busy: true, error: null });
     try {
       const page = await mobileStudyCollectionsApi.resources(
         selectedCollectionId,
-        currentDetail.nextCursor,
+        requestedCursor,
       );
-      if (authorityRef.current !== scope || selectedId !== selectedCollectionId)
+      if (authorityRef.current !== scope || !resourcePages.isCurrent(ticket))
         return;
       if (page.revision !== currentDetail.revision) {
         throw new ApiRequestError(
@@ -504,24 +530,26 @@ export function StudyCollectionsScreen() {
           "Collection changed while paging",
         );
       }
+      const cursorCycle = resourcePages.record(ticket, page.nextCursor);
       setDetailState({
         ...currentDetail,
         items: mergeResources(currentDetail.items, page.items),
-        nextCursor: page.nextCursor,
+        nextCursor: cursorCycle ? null : page.nextCursor,
         busy: false,
-        error: null,
+        error: cursorCycle
+          ? "La lista de apuntes devolvió una página repetida. Actualizá la colección para recibir una tanda nueva."
+          : null,
       });
     } catch (error) {
-      if (
-        authorityRef.current === scope &&
-        selectedId === selectedCollectionId
-      ) {
+      if (authorityRef.current === scope && resourcePages.isCurrent(ticket)) {
         setDetailState({
           ...currentDetail,
           busy: false,
           error: errorMessage(error),
         });
       }
+    } finally {
+      resourcePages.finish(ticket);
     }
   };
 
@@ -605,9 +633,19 @@ export function StudyCollectionsScreen() {
           <ActivityIndicator accessibilityLabel="Cargando colecciones" />
         ) : null}
         {currentList?.error ? (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {currentList.error}
-          </Text>
+          <View>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {currentList.error}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Actualizar colecciones"
+              onPress={() => setListRefresh((value) => value + 1)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.buttonText}>Actualizar colecciones</Text>
+            </Pressable>
+          </View>
         ) : null}
         {currentList && !currentList.busy && !currentList.items.length ? (
           <Text style={styles.copy}>
@@ -742,6 +780,7 @@ export function StudyCollectionsScreen() {
                 </Text>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Actualizar colección"
                   onPress={() => setDetailRefresh((value) => value + 1)}
                   style={styles.secondaryButton}
                 >
@@ -757,7 +796,7 @@ export function StudyCollectionsScreen() {
             ) : null}
             {currentDetail.items.map((item) => (
               <View key={item.resourceId} style={styles.resourceRow}>
-                {item.resource ? (
+                {item.resource && item.resource.id === item.resourceId ? (
                   <Pressable
                     accessibilityRole="link"
                     onPress={() =>
@@ -780,14 +819,22 @@ export function StudyCollectionsScreen() {
                     Apunte no disponible o sin permiso.
                   </Text>
                 )}
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={mutating}
-                  onPress={() => removeResource(item.resourceId)}
-                  style={styles.secondaryButton}
-                >
-                  <Text style={styles.buttonText}>Quitar</Text>
-                </Pressable>
+                <View style={styles.resourceActions}>
+                  {item.resource && item.resource.id === item.resourceId ? (
+                    <MobileResourceShareAction
+                      resourceId={item.resource.id}
+                      resourceTitle={item.resource.title}
+                    />
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={mutating}
+                    onPress={() => removeResource(item.resourceId)}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.buttonText}>Quitar</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
             {currentDetail.nextCursor ? (
@@ -938,13 +985,17 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   form: { gap: 10 },
   resourceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    gap: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e2e2e8",
     paddingTop: 10,
   },
-  resourceLink: { flex: 1, gap: 4, minHeight: 44, justifyContent: "center" },
+  resourceLink: { gap: 4, minHeight: 44, justifyContent: "center" },
+  resourceActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   loadingRow: { flexDirection: "row", gap: 10, alignItems: "center" },
 });
