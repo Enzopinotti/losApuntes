@@ -296,13 +296,14 @@ describe('DataLifecycleModule account export wiring', () => {
     const registry = new AccountExportContributorRegistry(
       wiredContributors(domain),
     );
+    const getStudyProgressExportEpoch = jest.fn().mockResolvedValue(0);
     const assembler = new AccountExportAssembler(
       registry,
       new AccountExportService(
         {} as never,
         {
           hasActiveAccount: jest.fn().mockResolvedValue(true),
-          getStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
+          getStudyProgressExportEpoch,
         } as never,
       ),
     );
@@ -325,6 +326,8 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(output.version).toBe(2);
     expect(Object.keys(output.sections)).toEqual(EXPECTED_V2_SECTION_IDS);
     expect(output.sections['study.collections']).toEqual([]);
+    // Persisted v2 jobs do not reveal or depend on private v3 progress epochs.
+    expect(getStudyProgressExportEpoch).not.toHaveBeenCalled();
     expect(calls).toHaveLength(31);
     expect(
       calls.find(({ method }) => method === 'listAccountExportCollections'),
@@ -373,6 +376,7 @@ describe('DataLifecycleModule account export wiring', () => {
     const registry = new AccountExportContributorRegistry(
       wiredContributors(domain),
     );
+    const getStudyProgressExportEpoch = jest.fn().mockResolvedValue(0);
     const assembler = new AccountExportAssembler(
       registry,
       new AccountExportService(
@@ -380,7 +384,7 @@ describe('DataLifecycleModule account export wiring', () => {
         {
           hasActiveAccount: jest.fn().mockResolvedValue(true),
           // V3 captures and rechecks the same owner epoch before publication.
-          getStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
+          getStudyProgressExportEpoch,
         } as never,
       ),
     );
@@ -403,6 +407,9 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(output.version).toBe(3);
     expect(Object.keys(output.sections)).toEqual(EXPECTED_V3_SECTION_IDS);
     expect(output.sections['study.progress']).toEqual([]);
+    expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(1, ownerId);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(2, ownerId);
     expect(calls).toHaveLength(32);
     expect(
       calls.find(({ method }) => method === 'listAccountExportProgress'),
@@ -410,5 +417,23 @@ describe('DataLifecycleModule account export wiring', () => {
       method: 'listAccountExportProgress',
       args: [ownerId, { limit: 100, cursor: null }],
     });
+
+    // Simulate a real owner mutation after streaming starts but before the
+    // final private artifact can be published. No mixed-epoch export may
+    // become downloadable.
+    getStudyProgressExportEpoch
+      .mockReset()
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+    (sink.commit as jest.Mock).mockClear();
+    (sink.abort as jest.Mock).mockClear();
+    await expect(assembler.writeJsonV3(ownerId, sink)).rejects.toThrow(
+      'Study progress changed during account export',
+    );
+    expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(1, ownerId);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(2, ownerId);
+    expect((sink.commit as jest.Mock).mock.calls).toHaveLength(0);
+    expect((sink.abort as jest.Mock).mock.calls).toHaveLength(1);
   });
 });
