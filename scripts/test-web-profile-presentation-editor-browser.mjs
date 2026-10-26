@@ -92,7 +92,7 @@ let profile = {
   presentation: {
     accentPreset: "indigo",
     coverPreset: "gradient",
-    sectionOrder: ["about", "skills", "activities"],
+    sectionOrder: Object.keys(visibility),
   },
   visibility,
   recommendationSignals: {
@@ -163,6 +163,7 @@ try {
         revision: profile.revision + 1,
         presentation: {
           ...profile.presentation,
+          sectionOrder: input.presentation.sectionOrder,
           accentPreset: "slate",
           coverPreset: "campus",
         },
@@ -178,6 +179,36 @@ try {
   await accent.waitFor();
   assert.equal(await accent.inputValue(), "indigo");
   assert.equal(await cover.inputValue(), "gradient");
+  const sectionLabels = page.locator(".profile-section-order > li > span");
+  assert.equal(await sectionLabels.count(), 7);
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Subir Presentación", exact: true })
+      .isDisabled(),
+    true,
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Bajar Contribuciones", exact: true })
+      .isDisabled(),
+    true,
+  );
+  await page
+    .getByRole("button", { name: "Bajar Presentación", exact: true })
+    .press("Enter");
+  await page
+    .getByRole("button", { name: "Subir Contribuciones", exact: true })
+    .press("Enter");
+  const orderedLabels = [
+    "Trayectoria académica",
+    "Presentación",
+    "Aprendizaje y ayuda",
+    "Proyectos y actividades",
+    "Habilidades e intereses",
+    "Contribuciones",
+    "Proyección profesional",
+  ];
+  assert.deepEqual(await sectionLabels.allTextContents(), orderedLabels);
   await accent.selectOption("emerald");
   await cover.selectOption("paper");
   assert.equal(writes.length, 0);
@@ -190,10 +221,20 @@ try {
   assert.deepEqual(writes[0].presentation, {
     accentPreset: "emerald",
     coverPreset: "paper",
+    sectionOrder: [
+      "academic",
+      "about",
+      "learning",
+      "activities",
+      "skills",
+      "contributions",
+      "professional",
+    ],
   });
   assert.deepEqual(writes[0].visibility, visibility);
   assert.equal(await accent.inputValue(), "slate");
   assert.equal(await cover.inputValue(), "campus");
+  assert.deepEqual(await sectionLabels.allTextContents(), orderedLabels);
   rejectUpdate = true;
   await accent.selectOption("rose");
   await page
@@ -206,6 +247,11 @@ try {
   assert.equal(writes[1].expectedRevision, 8);
   assert.equal(await accent.inputValue(), "rose");
   assert.equal(await cover.inputValue(), "campus");
+  assert.deepEqual(
+    writes[1].presentation.sectionOrder,
+    writes[0].presentation.sectionOrder,
+  );
+  assert.deepEqual(await sectionLabels.allTextContents(), orderedLabels);
   await context.close();
   console.log(
     "PASS Chromium: owner presentation hydration, explicit save, current revision, privacy payload, server canonical values and conflict retention",
