@@ -118,11 +118,13 @@ let activity = {
 };
 const activityWrites = [];
 let rejectActivity = false;
+let deleted = false;
+const deletions = [];
 const response = () => ({
   profile,
   onboardingRequired: false,
   academic: { affiliations: [], participations: [], currentContext: null },
-  activities: [activity],
+  activities: deleted ? [] : [activity],
   activitiesNextCursor: null,
   activitiesLimit: 20,
   contributions: { available: false, items: [] },
@@ -145,7 +147,7 @@ try {
           "access-control-allow-origin": ORIGIN,
           "access-control-allow-credentials": "true",
           "access-control-allow-headers": "content-type",
-          "access-control-allow-methods": "GET,PATCH,POST,OPTIONS",
+          "access-control-allow-methods": "GET,PATCH,POST,DELETE,OPTIONS",
         },
         body: JSON.stringify(value),
       });
@@ -207,6 +209,17 @@ try {
     ) {
       activityWrites.push(request.postDataJSON());
       return reply(201, { activity });
+    }
+    if (
+      url.pathname === "/profile/me/activities/" + activity.id &&
+      request.method() === "DELETE"
+    ) {
+      deletions.push({
+        id: activity.id,
+        revision: url.searchParams.get("expectedRevision"),
+      });
+      deleted = true;
+      return reply(204, null);
     }
     return reply(404, { code: "NOT_FOUND" });
   });
@@ -395,6 +408,53 @@ try {
     .click();
   await page.getByText("Actividad agregada.", { exact: true }).waitFor();
   assert.equal(activityWrites[3].url, "https://example.test/new");
+  const remove = activities.getByRole("button", {
+    name: "Eliminar",
+    exact: true,
+  });
+  const dialog = page.getByRole("dialog", {
+    name: "Eliminar actividad",
+    exact: true,
+  });
+  await remove.click();
+  await dialog.waitFor();
+  assert.match(await dialog.innerText(), /Título canónico del servidor/);
+  assert.equal(deletions.length, 0);
+  assert.equal(
+    await dialog
+      .getByRole("button", { name: "Conservar actividad", exact: true })
+      .evaluate((node) => node === document.activeElement),
+    true,
+  );
+  await dialog
+    .getByRole("button", { name: "Conservar actividad", exact: true })
+    .click();
+  await dialog.waitFor({ state: "hidden" });
+  assert.equal(
+    await remove.evaluate((node) => node === document.activeElement),
+    true,
+  );
+  assert.equal(deletions.length, 0);
+  await remove.click();
+  await dialog.waitFor();
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden" });
+  assert.equal(
+    await remove.evaluate((node) => node === document.activeElement),
+    true,
+  );
+  assert.equal(deletions.length, 0);
+  await remove.click();
+  await dialog
+    .getByRole("button", { name: "Eliminar actividad", exact: true })
+    .click();
+  await page.getByText("Actividad eliminada.", { exact: true }).waitFor();
+  await page
+    .getByText("Todavía no agregaste actividades.", { exact: true })
+    .waitFor();
+  assert.deepEqual(deletions, [
+    { id: "f93ebfb6-57c6-4e7f-9910-a5363b6840ce", revision: "6" },
+  ]);
   await context.close();
   console.log(
     "PASS Chromium: owner presentation hydration, explicit save, current revision, privacy payload, server canonical values and conflict retention",
