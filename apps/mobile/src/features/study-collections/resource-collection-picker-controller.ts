@@ -43,6 +43,9 @@ function mergeById(
   );
 }
 
+const repeatedCursorMessage =
+  "El servidor repitió una página de colecciones. Cerrá y volvé a abrir el selector para actualizarlo.";
+
 function failureMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
     if (
@@ -80,6 +83,7 @@ export class ResourceCollectionPickerController {
   >();
   private sequence = 0;
   private abortController: AbortController | null = null;
+  private readonly requestedCursors = new Set<string>();
 
   constructor(private readonly api: ResourceCollectionPickerApi) {}
 
@@ -96,6 +100,7 @@ export class ResourceCollectionPickerController {
 
   async open(authorityKey: string, resourceId: string): Promise<void> {
     this.cancelCurrent();
+    this.requestedCursors.clear();
     const sequence = ++this.sequence;
     const abortController = new AbortController();
     this.abortController = abortController;
@@ -138,12 +143,22 @@ export class ResourceCollectionPickerController {
 
   async loadMore(): Promise<void> {
     const current = this.snapshot;
+    const cursor = current.kind === "ready" ? current.nextCursor : null;
     if (
       current.kind !== "ready" ||
-      !current.nextCursor ||
+      !cursor ||
       current.loadingMore ||
       current.busyCollectionId
     ) {
+      return;
+    }
+
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        nextCursor: null,
+        error: repeatedCursorMessage,
+      });
       return;
     }
     const sequence = this.sequence;
@@ -151,19 +166,21 @@ export class ResourceCollectionPickerController {
     this.abortController = abortController;
     this.publish({ ...current, loadingMore: true, error: null });
     try {
-      const page = await this.api.list(
-        current.nextCursor,
-        abortController.signal,
-      );
+      const page = await this.api.list(cursor, abortController.signal);
       if (!this.isCurrent(sequence, abortController)) return;
       const latest = this.snapshot;
       if (latest.kind !== "ready") return;
+      const cursorRepeated =
+        page.nextCursor !== null &&
+        (page.nextCursor === cursor ||
+          this.requestedCursors.has(page.nextCursor));
+      this.requestedCursors.add(cursor);
       this.publish({
         ...latest,
         items: mergeById(latest.items, page.items),
-        nextCursor: page.nextCursor,
+        nextCursor: cursorRepeated ? null : page.nextCursor,
         loadingMore: false,
-        error: null,
+        error: cursorRepeated ? repeatedCursorMessage : null,
       });
     } catch (error) {
       if (!this.isCurrent(sequence, abortController)) return;
@@ -246,6 +263,7 @@ export class ResourceCollectionPickerController {
   close(): void {
     this.cancelCurrent();
     this.sequence += 1;
+    this.requestedCursors.clear();
     this.publish({ kind: "idle" });
   }
 

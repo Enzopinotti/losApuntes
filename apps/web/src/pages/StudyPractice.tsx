@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type ChangeEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -65,6 +71,7 @@ import {
   studySubjectHref,
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
+import { repeatsStudyPracticeCursor } from "../features/study/study-practice-pagination.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import StudyPracticeShortcuts from "./StudyPracticeShortcuts";
 import "./StudyPractice.scss";
@@ -106,6 +113,11 @@ type Feedback = {
   message: string;
   error: boolean;
 };
+
+const repeatedQuestionCursorMessage =
+  "El servidor repitió una página de preguntas. Conservamos las preguntas cargadas y detuvimos la lista.";
+const repeatedAnswerCursorMessage =
+  "El servidor repitió una página de respuestas. Conservamos las respuestas cargadas y detuvimos la lista.";
 
 function messageFor(error: unknown): string {
   if (isSearchApiError(error) || isCommunityApiError(error)) {
@@ -182,6 +194,10 @@ export default function StudyPractice() {
   const focusedKey = `${scope}:focused-question`;
   const focused = focusedState?.key === focusedKey ? focusedState : null;
   const [listState, setListState] = useState<QuestionList | null>(null);
+  const listCursorHistoryRef = useRef({
+    scope,
+    cursors: new Set<string>(),
+  });
   const list = listState?.scope === scope ? listState : null;
   const [selectionState, setSelectionState] = useState<{
     scope: string;
@@ -234,6 +250,10 @@ export default function StudyPractice() {
   const currentId = round?.ids[round.position] ?? null;
   const detailKey = `${scope}:attempt-${round?.pass ?? 0}:activation-${activationId}:${currentId ?? "none"}`;
   const [detailState, setDetailState] = useState<QuestionDetail | null>(null);
+  const answerCursorHistoryRef = useRef({
+    key: detailKey,
+    cursors: new Set<string>(),
+  });
   const detail = detailState?.key === detailKey ? detailState : null;
   const revealed = Boolean(currentId && round?.revealedIds.includes(currentId));
   const summary = round ? recallSummary(round.ids, round.outcomes) : null;
@@ -403,6 +423,22 @@ export default function StudyPractice() {
   const loadQuestions = useCallback(
     async (cursor?: string) => {
       if (!subjectId || questionSelection.kind === "invalid") return;
+      const cursorHistory = listCursorHistoryRef.current;
+      if (cursor) {
+        if (cursorHistory.scope !== scope) return;
+        if (cursorHistory.cursors.has(cursor)) {
+          setListState((previous) =>
+            previous?.scope === scope
+              ? {
+                  ...previous,
+                  nextCursor: null,
+                  error: repeatedQuestionCursorMessage,
+                }
+              : previous,
+          );
+          return;
+        }
+      }
       const ticket = beginList();
       if (!listCurrent(ticket)) return;
       setListState((previous) => ({
@@ -418,6 +454,21 @@ export default function StudyPractice() {
           ticket.signal,
         );
         if (listCurrent(ticket)) {
+          const repeatedCursor =
+            cursor !== undefined
+              ? repeatsStudyPracticeCursor(
+                  cursorHistory.cursors,
+                  cursor,
+                  response.nextCursor,
+                )
+              : false;
+          if (cursor) cursorHistory.cursors.add(cursor);
+          else {
+            listCursorHistoryRef.current = {
+              scope,
+              cursors: new Set<string>(),
+            };
+          }
           setListState((previous) => ({
             scope,
             loading: false,
@@ -425,8 +476,8 @@ export default function StudyPractice() {
               cursor && previous?.scope === scope
                 ? addUnique(previous.items, response.items)
                 : response.items,
-            nextCursor: response.nextCursor,
-            error: null,
+            nextCursor: repeatedCursor ? null : response.nextCursor,
+            error: repeatedCursor ? repeatedQuestionCursorMessage : null,
           }));
         }
       } catch (error) {
@@ -472,6 +523,10 @@ export default function StudyPractice() {
         throw new Error("Question subject changed");
       }
       if (detailCurrent(ticket)) {
+        answerCursorHistoryRef.current = {
+          key: detailKey,
+          cursors: new Set<string>(),
+        };
         setDetailState({
           key: detailKey,
           loading: false,
@@ -521,6 +576,10 @@ export default function StudyPractice() {
         throw new Error("Question subject changed");
       }
       if (!revealCurrent(ticket)) return;
+      answerCursorHistoryRef.current = {
+        key: detailKey,
+        cursors: new Set<string>(),
+      };
       setDetailState({
         key: detailKey,
         loading: false,
@@ -557,6 +616,20 @@ export default function StudyPractice() {
     )
       return;
     const cursor = detail.nextCursor;
+    const cursorHistory = answerCursorHistoryRef.current;
+    if (cursorHistory.key !== detailKey) return;
+    if (cursorHistory.cursors.has(cursor)) {
+      setDetailState((previous) =>
+        previous?.key === detailKey
+          ? {
+              ...previous,
+              nextCursor: null,
+              error: repeatedAnswerCursorMessage,
+            }
+          : previous,
+      );
+      return;
+    }
     const ticket = beginMore();
     if (!moreCurrent(ticket)) return;
     setDetailState((previous) =>
@@ -572,13 +645,20 @@ export default function StudyPractice() {
         ticket.signal,
       );
       if (moreCurrent(ticket)) {
+        const repeatedCursor = repeatsStudyPracticeCursor(
+          cursorHistory.cursors,
+          cursor,
+          response.nextCursor,
+        );
+        cursorHistory.cursors.add(cursor);
         setDetailState((previous) =>
           previous?.key === detailKey
             ? {
                 ...previous,
                 answers: addUnique(previous.answers, response.items),
-                nextCursor: response.nextCursor,
+                nextCursor: repeatedCursor ? null : response.nextCursor,
                 loadingMore: false,
+                error: repeatedCursor ? repeatedAnswerCursorMessage : null,
               }
             : previous,
         );
