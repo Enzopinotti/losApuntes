@@ -104,11 +104,25 @@ let profile = {
   createdAt: timestamp,
   updatedAt: timestamp,
 };
+let activity = {
+  id: "f93ebfb6-57c6-4e7f-9910-a5363b6840ce",
+  type: "project",
+  title: "Proyecto original",
+  description: "Descripción",
+  url: "https://example.test/original",
+  startedOn: "2024-01",
+  endedOn: null,
+  revision: 4,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+};
+const activityWrites = [];
+let rejectActivity = false;
 const response = () => ({
   profile,
   onboardingRequired: false,
   academic: { affiliations: [], participations: [], currentContext: null },
-  activities: [],
+  activities: [activity],
   activitiesNextCursor: null,
   activitiesLimit: 20,
   contributions: { available: false, items: [] },
@@ -131,7 +145,7 @@ try {
           "access-control-allow-origin": ORIGIN,
           "access-control-allow-credentials": "true",
           "access-control-allow-headers": "content-type",
-          "access-control-allow-methods": "GET,PATCH,OPTIONS",
+          "access-control-allow-methods": "GET,PATCH,POST,OPTIONS",
         },
         body: JSON.stringify(value),
       });
@@ -170,6 +184,29 @@ try {
         },
       };
       return reply(200, { profile });
+    }
+    if (
+      url.pathname === "/profile/me/activities/" + activity.id &&
+      request.method() === "PATCH"
+    ) {
+      const input = request.postDataJSON();
+      activityWrites.push(input);
+      if (rejectActivity)
+        return reply(409, { code: "PROFILE_ACTIVITY_REVISION_CONFLICT" });
+      activity = {
+        ...activity,
+        ...input,
+        title: "Título canónico del servidor",
+        revision: activity.revision + 1,
+      };
+      return reply(200, { activity });
+    }
+    if (
+      url.pathname === "/profile/me/activities" &&
+      request.method() === "POST"
+    ) {
+      activityWrites.push(request.postDataJSON());
+      return reply(201, { activity });
     }
     return reply(404, { code: "NOT_FOUND" });
   });
@@ -285,6 +322,79 @@ try {
   assert.equal(writes[2].expectedRevision, 8);
   assert.equal(writes[2].avatarUrl, null);
   assert.equal(await avatar.inputValue(), "");
+  const activities = page.locator(".profile-activities");
+  await activities.getByRole("button", { name: "Editar", exact: true }).click();
+  const edit = page.locator(".profile-activity-edit-form");
+  assert.equal(
+    await edit.getByLabel("Título", { exact: true }).inputValue(),
+    "Proyecto original",
+  );
+  await edit.getByLabel("Título", { exact: true }).fill("  Título editado  ");
+  await edit
+    .getByLabel("URL pública (HTTPS)", { exact: true })
+    .fill("  https://example.test/updated  ");
+  assert.equal(
+    await edit
+      .getByLabel("URL pública (HTTPS)", { exact: true })
+      .evaluate((node) => node.checkValidity()),
+    true,
+  );
+  await edit
+    .getByRole("button", { name: "Guardar cambios", exact: true })
+    .click();
+  await page.getByText("Actividad actualizada.", { exact: true }).waitFor();
+  await activities
+    .getByText("Título canónico del servidor", { exact: true })
+    .waitFor();
+  assert.equal(activityWrites[0].expectedRevision, 4);
+  assert.equal(activityWrites[0].title, "Título editado");
+  assert.equal(activityWrites[0].url, "https://example.test/updated");
+  rejectActivity = true;
+  await activities.getByRole("button", { name: "Editar", exact: true }).click();
+  await edit
+    .getByLabel("Título", { exact: true })
+    .fill("Borrador en conflicto");
+  await edit
+    .getByRole("button", { name: "Guardar cambios", exact: true })
+    .click();
+  await page
+    .getByText(
+      "La actividad cambió en otra pestaña. Recargá el perfil antes de guardar.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(activityWrites[1].expectedRevision, 5);
+  assert.equal(
+    await edit.getByLabel("Título", { exact: true }).inputValue(),
+    "Borrador en conflicto",
+  );
+  await edit.getByRole("button", { name: "Cancelar", exact: true }).click();
+  assert.equal(activityWrites.length, 2);
+  rejectActivity = false;
+  await activities.getByRole("button", { name: "Editar", exact: true }).click();
+  await edit.getByLabel("URL pública (HTTPS)", { exact: true }).fill("");
+  await edit
+    .getByRole("button", { name: "Guardar cambios", exact: true })
+    .click();
+  await page.getByText("Actividad actualizada.", { exact: true }).waitFor();
+  assert.equal(activityWrites[2].expectedRevision, 5);
+  assert.equal(activityWrites[2].url, null);
+  const create = page.locator(".profile-activity-form");
+  await create.getByLabel("Título", { exact: true }).fill("Nueva actividad");
+  await create
+    .getByLabel("URL pública (HTTPS)", { exact: true })
+    .fill("  https://example.test/new  ");
+  assert.equal(
+    await create
+      .getByLabel("URL pública (HTTPS)", { exact: true })
+      .evaluate((node) => node.checkValidity()),
+    true,
+  );
+  await create
+    .getByRole("button", { name: "Agregar actividad", exact: true })
+    .click();
+  await page.getByText("Actividad agregada.", { exact: true }).waitFor();
+  assert.equal(activityWrites[3].url, "https://example.test/new");
   await context.close();
   console.log(
     "PASS Chromium: owner presentation hydration, explicit save, current revision, privacy payload, server canonical values and conflict retention",

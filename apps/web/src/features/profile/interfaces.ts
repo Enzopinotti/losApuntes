@@ -12,4 +12,5 @@ export type {
   ProfileVisibility,
   PublicProfileResponse,
   UpdateProfileInput,
+  UpdateProfileActivityInput,
 } from "@losapuntes/contracts";
