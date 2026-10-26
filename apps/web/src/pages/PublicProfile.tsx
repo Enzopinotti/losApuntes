@@ -12,6 +12,7 @@ import {
   profileApi,
 } from "../features/profile/services/profileService";
 import { publicProfileActivityLink } from "../features/profile/public-profile-activity-link";
+import { publicProfilePresentationPresets } from "../features/profile/public-profile-presentation";
 import { PublicProfileAvatar } from "../features/profile/public-profile-avatar";
 import { publicProfileContentSectionOrder } from "../features/profile/public-profile-section-order";
 import type { PublicProfileContentSection } from "../features/profile/public-profile-section-order";
@@ -391,6 +392,10 @@ const PublicProfile = () => {
     profile.presentation.sectionOrder,
     availableProfileSections,
   );
+  const presentationPresets = publicProfilePresentationPresets(
+    profile.presentation.accentPreset,
+    profile.presentation.coverPreset,
+  );
   const sectionContent: Record<PublicProfileContentSection, ReactNode> = {
     skills: profile.skills && (
       <section key="skills" className="profile-card">
@@ -500,7 +505,11 @@ const PublicProfile = () => {
   };
 
   return (
-    <section className="profile-page public-profile">
+    <section
+      className="profile-page public-profile"
+      data-accent={presentationPresets.accentPreset}
+      data-cover={presentationPresets.coverPreset}
+    >
       {feedReturnLink}
       <header className="profile-hero">
         <div className="public-profile-identity">
