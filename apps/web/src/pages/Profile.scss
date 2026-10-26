@@ -180,6 +180,21 @@
   margin-top: 1rem;
 }
 
+.public-activity-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 0.35rem;
+  color: #43366a;
+  font-weight: 700;
+  text-underline-offset: 0.15em;
+}
+
+.public-activity-link:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
 @media (max-width: 760px) {
   .profile-grid,
   .profile-privacy-grid,
