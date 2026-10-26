@@ -19,6 +19,10 @@ import {
   isCommunityApiError,
 } from "../features/community/services/communityService";
 import {
+  appendUniqueItems,
+  questionCursorRepeats,
+} from "../features/community/questionPagination";
+import {
   feedReturnHref,
   feedReturnRestoreState,
 } from "../features/feeds/feed-navigation.mjs";
@@ -51,9 +55,7 @@ function appendAnswers(
   current: AnswerView[],
   next: AnswerView[],
 ): AnswerView[] {
-  const byId = new Map(current.map((item) => [item.id, item]));
-  for (const item of next) byId.set(item.id, item);
-  return [...byId.values()];
+  return appendUniqueItems(current, next);
 }
 
 function messageFor(error: unknown): string {
@@ -134,7 +136,12 @@ const Questions = () => {
     loading: boolean;
     busyMore: boolean;
     error: string | null;
+    cursorCycle: boolean;
   } | null>(null);
+  const loadedQuestionCursors = useRef({
+    scopeKey: listScopeKey,
+    cursors: new Set<string>(),
+  });
   const currentListState =
     listState?.scopeKey === listScopeKey ? listState : null;
   const items = currentListState?.items ?? [];
@@ -147,11 +154,18 @@ const Questions = () => {
     loading: boolean;
     busyMore: boolean;
     error: string | null;
+    answersCursorCycle: boolean;
   } | null>(null);
+  const loadedAnswerCursors = useRef({
+    scopeKey: detailScopeKey,
+    cursors: new Set<string>(),
+  });
   const currentDetailState =
     detailState?.scopeKey === detailScopeKey ? detailState : null;
   const selected = currentDetailState?.detail ?? null;
   const detailLoading = currentDetailState?.loading ?? Boolean(initialId);
+  const questionsCursorCycle = currentListState?.cursorCycle ?? false;
+  const answersCursorCycle = currentDetailState?.answersCursorCycle ?? false;
 
   const [subjectSearchState, setSubjectSearchState] = useState<{
     scopeKey: string;
@@ -231,6 +245,8 @@ const Questions = () => {
         loading: !append,
         busyMore: append,
         error: null,
+        cursorCycle:
+          current?.scopeKey === listScopeKey ? current.cursorCycle : false,
       }));
 
       try {
@@ -245,16 +261,70 @@ const Questions = () => {
         );
         if (!isListCurrent(ticket)) return;
 
+        if (
+          append &&
+          cursor &&
+          questionCursorRepeats(
+            loadedQuestionCursors.current.scopeKey === listScopeKey
+              ? loadedQuestionCursors.current.cursors
+              : new Set<string>(),
+            cursor,
+            result.nextCursor,
+          )
+        ) {
+          loadedQuestionCursors.current = {
+            scopeKey: listScopeKey,
+            cursors: new Set([
+              ...(loadedQuestionCursors.current.scopeKey === listScopeKey
+                ? loadedQuestionCursors.current.cursors
+                : []),
+              cursor,
+            ]),
+          };
+          setListState((current) => {
+            const previousItems =
+              current?.scopeKey === listScopeKey ? current.items : [];
+            return {
+              scopeKey: listScopeKey,
+              items: appendUniqueItems(previousItems, result.items),
+              nextCursor: null,
+              loading: false,
+              busyMore: false,
+              error:
+                "La lista repitió una página. Actualizá las preguntas para continuar.",
+              cursorCycle: true,
+            };
+          });
+          return;
+        }
+
+        if (append) {
+          const cursors =
+            loadedQuestionCursors.current.scopeKey === listScopeKey
+              ? new Set(loadedQuestionCursors.current.cursors)
+              : new Set<string>();
+          if (cursor) cursors.add(cursor);
+          loadedQuestionCursors.current = { scopeKey: listScopeKey, cursors };
+        } else {
+          loadedQuestionCursors.current = {
+            scopeKey: listScopeKey,
+            cursors: new Set<string>(),
+          };
+        }
+
         setListState((current) => {
           const previousItems =
             current?.scopeKey === listScopeKey ? current.items : [];
           return {
             scopeKey: listScopeKey,
-            items: append ? [...previousItems, ...result.items] : result.items,
+            items: append
+              ? appendUniqueItems(previousItems, result.items)
+              : result.items,
             nextCursor: result.nextCursor,
             loading: false,
             busyMore: false,
             error: null,
+            cursorCycle: false,
           };
         });
       } catch (nextError) {
@@ -267,6 +337,8 @@ const Questions = () => {
           loading: false,
           busyMore: false,
           error: messageFor(nextError),
+          cursorCycle:
+            current?.scopeKey === listScopeKey ? current.cursorCycle : false,
         }));
       } finally {
         if (finishList(ticket)) {
@@ -294,17 +366,26 @@ const Questions = () => {
       loading: true,
       busyMore: false,
       error: null,
+      answersCursorCycle:
+        current?.scopeKey === detailScopeKey
+          ? current.answersCursorCycle
+          : false,
     }));
 
     try {
       const detail = await communityApi.question(initialId, ticket.signal);
       if (!isDetailCurrent(ticket)) return;
+      loadedAnswerCursors.current = {
+        scopeKey: detailScopeKey,
+        cursors: new Set<string>(),
+      };
       setDetailState({
         scopeKey: detailScopeKey,
         detail,
         loading: false,
         busyMore: false,
         error: null,
+        answersCursorCycle: false,
       });
       setEditTitle(detail.question.title);
       setEditBody(detail.question.body);
@@ -316,6 +397,7 @@ const Questions = () => {
         loading: false,
         busyMore: false,
         error: messageFor(nextError),
+        answersCursorCycle: false,
       });
     } finally {
       if (finishDetail(ticket)) {
@@ -410,10 +492,10 @@ const Questions = () => {
   };
 
   const loadMoreAnswers = async () => {
-    if (!selected?.answersNextCursor) return;
-
     const target = selected;
-    const cursor = target.answersNextCursor;
+    const cursor = target?.answersNextCursor;
+    if (!target || !cursor) return;
+
     const ticket = beginDetail();
     if (!isDetailCurrent(ticket)) return;
     setDetailState({
@@ -422,6 +504,7 @@ const Questions = () => {
       loading: false,
       busyMore: true,
       error: null,
+      answersCursorCycle,
     });
 
     try {
@@ -432,6 +515,46 @@ const Questions = () => {
         ticket.signal,
       );
       if (!isDetailCurrent(ticket)) return;
+      if (
+        questionCursorRepeats(
+          loadedAnswerCursors.current.scopeKey === detailScopeKey
+            ? loadedAnswerCursors.current.cursors
+            : new Set<string>(),
+          cursor,
+          page.nextCursor,
+        )
+      ) {
+        const cursors =
+          loadedAnswerCursors.current.scopeKey === detailScopeKey
+            ? new Set(loadedAnswerCursors.current.cursors)
+            : new Set<string>();
+        cursors.add(cursor);
+        loadedAnswerCursors.current = { scopeKey: detailScopeKey, cursors };
+        setDetailState((current) =>
+          current?.scopeKey === detailScopeKey &&
+          current.detail?.question.id === target.question.id
+            ? {
+                ...current,
+                detail: {
+                  ...current.detail,
+                  answers: appendAnswers(current.detail.answers, page.items),
+                  answersNextCursor: null,
+                },
+                busyMore: false,
+                error:
+                  "Las respuestas repitieron una página. Actualizá las respuestas para continuar.",
+                answersCursorCycle: true,
+              }
+            : current,
+        );
+        return;
+      }
+      const cursors =
+        loadedAnswerCursors.current.scopeKey === detailScopeKey
+          ? new Set(loadedAnswerCursors.current.cursors)
+          : new Set<string>();
+      cursors.add(cursor);
+      loadedAnswerCursors.current = { scopeKey: detailScopeKey, cursors };
       setDetailState((current) =>
         current?.scopeKey === detailScopeKey &&
         current.detail?.question.id === target.question.id
@@ -443,6 +566,7 @@ const Questions = () => {
                 answersNextCursor: page.nextCursor,
               },
               busyMore: false,
+              answersCursorCycle: false,
             }
           : current,
       );
@@ -454,6 +578,74 @@ const Questions = () => {
               ...current,
               busyMore: false,
               error: messageFor(nextError),
+            }
+          : current,
+      );
+    } finally {
+      if (finishDetail(ticket)) {
+        setDetailState((current) =>
+          current?.scopeKey === detailScopeKey
+            ? { ...current, busyMore: false }
+            : current,
+        );
+      }
+    }
+  };
+
+  const refreshAnswers = async () => {
+    if (!selected) return;
+
+    const target = selected;
+    const ticket = beginDetail();
+    if (!isDetailCurrent(ticket)) return;
+    setDetailState((current) =>
+      current?.scopeKey === detailScopeKey
+        ? { ...current, busyMore: true, error: null }
+        : current,
+    );
+
+    try {
+      const page = await communityApi.answers(
+        target.question.id,
+        undefined,
+        target.answersLimit,
+        ticket.signal,
+      );
+      if (!isDetailCurrent(ticket)) return;
+      loadedAnswerCursors.current = {
+        scopeKey: detailScopeKey,
+        cursors: new Set<string>(),
+      };
+      setDetailState((current) =>
+        current?.scopeKey === detailScopeKey &&
+        current.detail?.question.id === target.question.id
+          ? {
+              ...current,
+              detail: {
+                ...current.detail,
+                answers: page.items,
+                answersNextCursor: page.nextCursor,
+              },
+              busyMore: false,
+              error: null,
+              answersCursorCycle: false,
+            }
+          : current,
+      );
+    } catch (nextError) {
+      if (!isDetailCurrent(ticket)) return;
+      const missingQuestion =
+        isCommunityApiError(nextError) && nextError.status === 404;
+      setDetailState((current) =>
+        current?.scopeKey === detailScopeKey
+          ? {
+              ...current,
+              detail: missingQuestion ? null : current.detail,
+              busyMore: false,
+              error: messageFor(nextError),
+              answersCursorCycle: missingQuestion
+                ? false
+                : current.answersCursorCycle,
             }
           : current,
       );
@@ -770,36 +962,44 @@ const Questions = () => {
           ) : items.length === 0 ? (
             <p>No encontramos preguntas.</p>
           ) : (
-            <>
-              <ul className="community-list">
-                {items.map((question) => (
-                  <li key={question.id}>
-                    <button
-                      type="button"
-                      className="community-question-link"
-                      disabled={busy === `open:${question.id}`}
-                      onClick={() => void openQuestion(question.id)}
-                    >
-                      <strong>{question.title}</strong>
-                      <span>{question.academic.subject.name}</span>
-                      <small>
-                        {question.answerCount} respuesta(s) · {question.state}
-                      </small>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {nextCursor && (
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy === "questions-more"}
-                  onClick={() => void loadList(nextCursor, true)}
-                >
-                  {busy === "questions-more" ? "Cargando…" : "Cargar más"}
-                </button>
-              )}
-            </>
+            <ul className="community-list">
+              {items.map((question) => (
+                <li key={question.id}>
+                  <button
+                    type="button"
+                    className="community-question-link"
+                    disabled={busy === `open:${question.id}`}
+                    onClick={() => void openQuestion(question.id)}
+                  >
+                    <strong>{question.title}</strong>
+                    <span>{question.academic.subject.name}</span>
+                    <small>
+                      {question.answerCount} respuesta(s) · {question.state}
+                    </small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {nextCursor && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={loading || busy === "questions-more"}
+              onClick={() => void loadList(nextCursor, true)}
+            >
+              {busy === "questions-more" ? "Cargando…" : "Cargar más"}
+            </button>
+          )}
+          {questionsCursorCycle && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={loading}
+              onClick={() => void loadList()}
+            >
+              {loading ? "Actualizando…" : "Actualizar preguntas"}
+            </button>
           )}
         </section>
 
@@ -978,16 +1178,22 @@ const Questions = () => {
                 </ul>
               )}
 
-              {selected.answersNextCursor && (
+              {(selected.answersNextCursor || answersCursorCycle) && (
                 <button
                   type="button"
                   className="secondary"
-                  disabled={busy === "answers-more"}
-                  onClick={() => void loadMoreAnswers()}
+                  disabled={detailLoading || busy === "answers-more"}
+                  onClick={() =>
+                    void (answersCursorCycle
+                      ? refreshAnswers()
+                      : loadMoreAnswers())
+                  }
                 >
                   {busy === "answers-more"
                     ? "Cargando…"
-                    : "Cargar más respuestas"}
+                    : answersCursorCycle
+                      ? "Actualizar respuestas"
+                      : "Cargar más respuestas"}
                 </button>
               )}
 
