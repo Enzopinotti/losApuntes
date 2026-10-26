@@ -32,7 +32,12 @@ const items = [1, 2, 3].map((n) => ({
   author: {
     profileId: null,
     displayName: "Persona de prueba",
-    avatarUrl: null,
+    avatarUrl:
+      n === 1
+        ? "https://avatars.example.test/good.svg"
+        : n === 2
+          ? "http://unsafe.example.test/avatar.png"
+          : "https://avatars.example.test/broken.png",
   },
   source: { kind: "personal_user" },
   academic: {
@@ -128,6 +133,19 @@ async function main() {
     const ctx = await browser.newContext({ reducedMotion: "reduce" });
     let authorized = false;
     let mutationCount = 0;
+    let unsafeImages = 0;
+    await ctx.route("http://unsafe.example.test/**", (route) => {
+      unsafeImages += 1;
+      return route.abort();
+    });
+    await ctx.route("https://avatars.example.test/**", (route) =>
+      route.request().url().endsWith("broken.png")
+        ? route.abort()
+        : route.fulfill({
+            contentType: "image/svg+xml",
+            body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="green"/></svg>',
+          }),
+    );
     await ctx.route(API + "/**", async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
@@ -177,6 +195,28 @@ async function main() {
       3,
     );
 
+    const avatars = card.locator(".public-profile-avatar");
+    await avatars.first().scrollIntoViewIfNeeded();
+    await page.waitForFunction(() =>
+      [
+        ...document.querySelectorAll(
+          ".pilot-home-feed .public-profile-avatar img",
+        ),
+      ].some((img) => img.naturalWidth > 0),
+    );
+    assert.equal(
+      await avatars.first().evaluate((node) => getComputedStyle(node).width),
+      "44px",
+    );
+    assert.equal(await avatars.nth(1).locator("img").count(), 0);
+    await avatars.nth(2).scrollIntoViewIfNeeded();
+    await page.waitForFunction(
+      () =>
+        document.querySelector('.pilot-home-feed img[src$="broken.png"]')
+          ?.hidden === true,
+    );
+    assert.equal(await avatars.nth(2).locator("span").textContent(), "P");
+    assert.equal(unsafeImages, 0);
     await card
       .getByRole("button", {
         name: "Apartar de esta tanda: Contenido de prueba 2",
