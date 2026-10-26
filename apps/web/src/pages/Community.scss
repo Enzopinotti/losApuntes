@@ -377,3 +377,38 @@
   line-height: 1.5;
   font-size: 0.9rem;
 }
+
+/* B260: Subject discovery uses the same accessible controls as Q&A. */
+.community-discovery-filter {
+  margin-top: 1rem;
+}
+.community-discovery-filter .community-inline {
+  flex-wrap: wrap;
+}
+.community-discovery-filter .community-inline input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.community-filter-label {
+  font-weight: 600;
+}
+.community-discovery-actions {
+  justify-content: flex-start;
+  margin-top: 0.85rem;
+}
+.community-filter-shortcut {
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+.community-discovery-filter button:focus-visible,
+.community-filter-shortcut:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 2px;
+}
+@media (max-width: 680px) {
+  .community-discovery-filter .community-inline input {
+    flex: 0 1 auto;
+    width: 100%;
+    min-height: 44px;
+  }
+}
