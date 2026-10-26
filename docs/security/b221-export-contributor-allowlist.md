@@ -17,6 +17,10 @@ A successful export is not a safe indication of completeness when an unreviewed 
 - On an unknown provider, throw before any contributor read, epoch capture, artifact write or commit. Do not reveal content from the unreviewed provider and do not try to downgrade the job version.
 - Port the existing [#372](https://github.com/Enzopinotti/losApuntes/pull/372) adversarial Jest suite, including 3 negative tests (one per version) and 2 positive legacy compatibility tests, unchanged to preserve origin provenance.
 
+## Legacy test expectation corrected during exact-head verification
+
+The first real CI pass exposed a conflicting historical Jest case in `account-export-versioning.spec.ts`: it explicitly required legacy v2 assembly to *succeed* when the registry contained `unreviewed.private`, omitting that provider. B221 deliberately changes this unsafe expectation. It now requires a sanitized inventory rejection **before any data read, epoch capture, chunk write, or commit**. The positive compatibility test remains: persisted v1/v2 jobs continue to produce their immutable 30/31 sections when all additional registered providers belong to the **reviewed** v3 inventory. This is a security contract change, not a test skip or a downgrade.
+
 ## Verification
 
 `.github/workflows/b221-export-contributor-allowlist.yml` enforces immutable PR head, Node24/pnpm9 frozen lock, full API strict TypeScript and ESLint, Prettier, focused Jest allowlist + existing assembler/versioning/module contracts, no audit exceptions and clean source after the run.
