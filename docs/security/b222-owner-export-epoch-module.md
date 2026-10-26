@@ -12,7 +12,7 @@
 1. Replace only the local v3 `getStudyProgressExportEpoch` test double with a named Jest mock; assert it receives the owner ID **twice** (at capture and at pre-commit recheck).
 2. Assert persisted legacy v2 (31-section) export never reads the v3 private epoch even when the test double is present.
 3. In the same real v3 module/wired contributor test, reset the epoch double to resolve 0 then 1. Expect explicit `Study progress changed during account export` rejection and **no artifact commit**, plus exactly one staged artifact abort. This preserves the existing bounded `listAccountExportProgress(ownerId, {limit:100,cursor:null})` check.
-4. A dedicated exact-head Node24/pnpm9 workflow verifies API Prettier, full strict API types/lint, module + assembler + versioning + B221 allowlist Jest, zero audit exceptions and source SHA clean. Canonical CI remains independent and mandatory.
+4. A dedicated exact-head Node24/pnpm9 workflow verifies API Prettier, full strict API types/lint, module + assembler + versioning + AccountExportService Jest already present on main. B221 allowlist Jest remains exclusively in its separate unmerged #718 PR, zero audit exceptions and source SHA clean. Canonical CI remains independent and mandatory.
 
 ## Authority boundaries
 
