@@ -118,6 +118,7 @@ export const serializeOrganizationEventCalendar = (
     ...(endsAt ? [`DTEND:${endsAt}`] : []),
     `SUMMARY:${escapeCalendarText(event.title.trim())}`,
     ...(details ? [`DESCRIPTION:${escapeCalendarText(details)}`] : []),
+    ...(eventUrl ? [`URL:${eventUrl}`] : []),
     ...(event.locationLabel?.trim()
       ? [`LOCATION:${escapeCalendarText(event.locationLabel.trim())}`]
       : []),
