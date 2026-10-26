@@ -1,6 +1,28 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  appendUniqueOrganizations,
+  organizationDirectoryCursorRepeats,
+} from '../apps/web/src/features/organizations/organization-directory-pagination.mjs';
+
+const alreadyVisited = new Set(['cursor-1', 'cursor-2']);
+assert.equal(organizationDirectoryCursorRepeats(alreadyVisited, 'cursor-3', 'cursor-3'), true);
+assert.equal(organizationDirectoryCursorRepeats(alreadyVisited, 'cursor-3', 'cursor-1'), true);
+assert.equal(organizationDirectoryCursorRepeats(alreadyVisited, 'cursor-3', 'cursor-2'), true);
+assert.equal(organizationDirectoryCursorRepeats(alreadyVisited, 'cursor-3', 'cursor-4'), false);
+assert.equal(organizationDirectoryCursorRepeats(alreadyVisited, 'cursor-3', null), false);
+assert.equal(alreadyVisited.size, 2, 'Pure helpers never mutate history');
+const dedupedDirectory = appendUniqueOrganizations(
+  [{ id: 'a', name: 'Old' }, { id: 'b', name: 'Kept' }],
+  [{ id: 'a', name: 'Updated' }, { id: 'c', name: 'New' }, { id: 'c', name: 'New again' }],
+);
+assert.deepEqual(dedupedDirectory, [
+  { id: 'a', name: 'Updated' },
+  { id: 'b', name: 'Kept' },
+  { id: 'c', name: 'New again' },
+]);
+assert.deepEqual(appendUniqueOrganizations([], []), []);
 
 const root = process.cwd();
 const read = (relativePath) =>
@@ -47,6 +69,17 @@ assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 3);
 assert.match(directory, /user\?\.id/u);
 assert.match(directory, /session\?\.id/u);
 assert.match(directory, /directoryScopeKey/u);
+assert.match(service, /if \(input\.cursor\) query\.set\("cursor", input\.cursor\)/u);
+assert.match(directory, /requestedCursorsRef\.current/u);
+assert.match(directory, /paginationRequestRef\.current/u);
+assert.match(directory, /organizationDirectoryCursorRepeats\(/u);
+assert.match(directory, /appendUniqueOrganizations\(latest\.items, result\.items\)/u);
+assert.match(directory, /nextCursor: repeatedCursor \? null : result\.nextCursor/u);
+assert.match(directory, /scopeKey: directoryScopeKey,\s*cursors: new Set\(\)/u);
+assert.match(directory, /className="organizations-load-more"/u);
+assert.match(directory, /aria-busy=\{loadingMore\}/u);
+assert.match(directory, /Cargar más organizaciones/u);
+assert.match(directory, /Reintentar carga/u);
 assert.match(directory, /institutionSearchScopeKey/u);
 assert.match(directory, /ticket\.signal/u);
 assert.match(directory, /await loadRef\.current\(\)/u);
@@ -57,6 +90,7 @@ const contentPagination = await read(
   'apps/web/src/features/organizations/contentPagination.ts',
 );
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
+assert.match(publicPageStyles, /\.organizations-load-more button\s*\{[^}]*min-height:\s*44px/su);
 const eventCalendar = await read(
   'apps/web/src/features/organizations/organization-event-calendar.mjs',
 );
