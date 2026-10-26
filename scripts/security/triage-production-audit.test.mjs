@@ -75,3 +75,78 @@ test('zero high still requires separate release qualification', () => {
   assert.deepEqual(result.reasonCodes, []);
   assert.equal(result.productionAuditCertified, false);
 });
+
+const npmAudit = (name, via, severity = 'high') => ({
+  vulnerabilities: { [name]: { severity, via } },
+  metadata: { vulnerabilities: {
+    info: 0, low: 0, moderate: 0,
+    high: severity === 'high' ? 1 : 0,
+    critical: severity === 'critical' ? 1 : 0,
+  } },
+});
+
+test('B141 npm high package with known AND new high via retains both signals', () => {
+  const result = classifyProductionAudit(npmAudit('node-forge', [
+    { id: 'GHSA-86w9-cpqp-85rv', severity: 'high',
+      url: 'https://github.com/advisories/GHSA-86w9-cpqp-85rv' },
+    { id: 'GHSA-aaaa-bbbb-cccc', severity: 'high',
+      url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc' },
+  ]));
+  assert.equal(result.status, 'HOLD');
+  assert.equal(result.highCount, 1, 'npm counts vulnerable packages, not via items');
+  assert.deepEqual(result.knownIssueNumbers, [133]);
+  assert.equal(result.newHighCount, 1);
+  assert.deepEqual(result.reasonCodes, ['ACTIVE_HIGH_OR_CRITICAL', 'UNREVIEWED_HIGH_OR_CRITICAL']);
+  assert.equal(result.productionAuditCertified, false);
+});
+
+test('B141 npm moderate via before known high must not hide correct issue', () => {
+  const result = classifyProductionAudit(npmAudit('braces', [
+    { id: 'GHSA-mmmm-nnnn-oooo', severity: 'moderate',
+      url: 'https://github.com/advisories/GHSA-mmmm-nnnn-oooo' },
+    { id: 'GHSA-vfj7-8cjw-p6xm', severity: 'high',
+      url: 'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm' },
+  ]));
+  assert.equal(result.status, 'HOLD');
+  assert.deepEqual(result.knownIssueNumbers, [141]);
+  assert.equal(result.newHighCount, 0);
+  assert.deepEqual(result.reasonCodes, ['ACTIVE_HIGH_OR_CRITICAL']);
+});
+
+test('B141 ambiguous and mismatched advisory identities are never accepted as known-only', () => {
+  for (const via of [
+    [{ id: 'GHSA-86w9-cpqp-85rv', severity: 'high',
+      url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc' }],
+    [{ id: 'GHSA-86w9-cpqp-85rv', severity: 'high',
+      url: 'https://github.com/advisories/GHSA-86w9-cpqp-85rv GHSA-aaaa-bbbb-cccc' }],
+    ['transitive-only-high-without-advisory-identity'],
+    [{ severity: 'high', url: 'https://example.invalid/no-ghsa' }],
+    [],
+  ]) {
+    const result = classifyProductionAudit(npmAudit('node-forge', via));
+    assert.equal(result.status, 'HOLD');
+    assert.equal(result.newHighCount, 1);
+    assert.equal(result.productionAuditCertified, false);
+  }
+});
+
+test('B141 legacy advisory metadata cannot substitute mismatched IDs', () => {
+  const result = classifyProductionAudit(audit({
+    1: { ...advisory('node-forge', 'high', 'GHSA-86w9-cpqp-85rv'),
+      id: 'GHSA-aaaa-bbbb-cccc' },
+  }, 1));
+  assert.equal(result.status, 'HOLD');
+  assert.deepEqual(result.knownIssueNumbers, []);
+  assert.equal(result.newHighCount, 1);
+});
+
+test('B141 root critical always remains unreviewed even if its via resembles an old high', () => {
+  const result = classifyProductionAudit(npmAudit('node-forge', [
+    { id: 'GHSA-86w9-cpqp-85rv', severity: 'critical',
+      url: 'https://github.com/advisories/GHSA-86w9-cpqp-85rv' },
+  ], 'critical'));
+  assert.equal(result.status, 'HOLD');
+  assert.equal(result.criticalCount, 1);
+  assert.equal(result.newHighCount, 1);
+  assert.deepEqual(result.knownIssueNumbers, []);
+});
