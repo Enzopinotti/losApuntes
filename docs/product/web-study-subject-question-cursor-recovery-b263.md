@@ -20,3 +20,13 @@ visibility filters and does not broaden the Q&A query.
 
 The production build writes the release manifest as `unavailable` in local
 development because no deployment metadata is configured.
+
+## Main reconciliation review
+
+The existing Chromium Workbench scenario now covers a question-page 500 that
+preserves loaded records, recovery through the existing search restart action,
+a cycle page-2/page-3/page-2 that retains the new question and deduplicates old
+records, and pagination after restarting the same query following the cycle.
+It retains subject/session scoping and independent resource source checks.
+The explorer contract and four source cursor tests pass locally.
+No CI was started or retried.
