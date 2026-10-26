@@ -28,6 +28,9 @@ function failureCopy(failure: CommunityFailure): string {
   if (failure.code === "EMAIL_VERIFICATION_REQUIRED") {
     return "Verificá tu email para administrar los perfiles que seguís.";
   }
+  if (failure.code === "SOCIAL_FOLLOWING_CURSOR_REPEATED") {
+    return "El servidor repitió una página. Conservamos los perfiles y detuvimos esta lista.";
+  }
   switch (failure.kind) {
     case "offline":
       return "No hay conexión. Volvé a intentarlo cuando estés en línea.";
