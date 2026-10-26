@@ -23,3 +23,15 @@ page requests retain the existing retry behavior and do not consume a cursor.
 
 The production build writes the release manifest as `unavailable` in local
 development because no deployment metadata is configured.
+
+## Main reconciliation review
+
+The existing B182 Chromium scenario now exercises the actual practice screen:
+question cursor cycle A-B-A, deduplication, independent answer cursor history
+using the same cursor names, retry after a 500, and retention of new answers
+on the cyclic page. Both pagination buttons disappear after their cycle.
+The scenario also retains shortcut, editable-input and auth-loss coverage.
+
+Local B134-B139, focused practice, B58 and practice integration contracts pass.
+The production Vite build passes; deployment metadata remains unavailable.
+No CI was started or retried.
