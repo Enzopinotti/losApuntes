@@ -10,16 +10,12 @@ page, the controller preserves and deduplicates the loaded options, stops
 pagination, and exposes a clear message in the screen. The safeguard applies
 equally to institution and program searches.
 
-## Validation
+## Validation after reconciliation with main
 
-- Focused Academic Follows controller and screen tests: 7/7 pass
-- `pnpm --filter @losapuntes/mobile check:types`
-- `pnpm --filter @losapuntes/mobile format:check`
-- `pnpm check:hygiene` and `git diff --check`
+- Focused controller and screen tests: 9/9 passed, including a late page after
+  restarting the same program query and retaining new options on a cyclic page.
+- Full Mobile suite: 775/775 passed.
+- Prettier on affected TypeScript files and git diff --check passed.
+- The profile fixture correction from #669 is now present in main.
 
-The complete Mobile test command currently stops during its test TypeScript
-check at the inherited invalid profile fixture in
-`apps/mobile/test/profile-controller.test.ts:62`, tracked separately in PR
-#669. The focused Academic Follows tests pass. The Expo iOS export could not
-write Metro's cache (`ENOSPC`) while C: had no free space; no source or workflow
-changes were made to work around the environment limit.
+Native device acceptance was not run. No CI was started or retried.
