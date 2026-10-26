@@ -296,13 +296,14 @@ describe('DataLifecycleModule account export wiring', () => {
     const registry = new AccountExportContributorRegistry(
       wiredContributors(domain),
     );
+    const getStudyProgressExportEpoch = jest.fn().mockResolvedValue(0);
     const assembler = new AccountExportAssembler(
       registry,
       new AccountExportService(
         {} as never,
         {
           hasActiveAccount: jest.fn().mockResolvedValue(true),
-          getStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
+          getStudyProgressExportEpoch,
         } as never,
       ),
     );
@@ -325,6 +326,8 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(output.version).toBe(2);
     expect(Object.keys(output.sections)).toEqual(EXPECTED_V2_SECTION_IDS);
     expect(output.sections['study.collections']).toEqual([]);
+    // Persisted v2 jobs do not reveal or depend on private v3 progress epochs.
+    expect(getStudyProgressExportEpoch).not.toHaveBeenCalled();
     expect(calls).toHaveLength(31);
     expect(
       calls.find(({ method }) => method === 'listAccountExportCollections'),
