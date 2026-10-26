@@ -165,6 +165,16 @@ Optional:
 - `limit` 1..100;
 - `cursor`.
 
+### GET /notifications/unread-count
+
+Authenticated-only, owner-scoped, no parameters, with `Cache-Control: private, no-store`.
+
+```json
+{ "unreadCount": 4 }
+```
+
+The API computes the count directly over the acting Account's unread rows (`userId` + `readAt: null`) through the existing indexed notification store. It never returns notification bodies, actor details, target IDs or data belonging to another account. A storage error is a request failure, **not** a false zero count. Useful for a client badge without listing entire pages of notifications. Counts can change between requests; no polling or push delivery is implied. Existing `GET /notifications`, `PATCH /notifications/:id/read` and `POST /notifications/read-all` contracts remain unchanged.
+
 ### PATCH /notifications/:id/read
 
 Marks only the acting user's notification as read.
