@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
@@ -390,8 +390,113 @@ const PublicProfile = () => {
     profile.presentation.sectionOrder,
     availableProfileSections,
   );
-  const sectionOrder = (section: PublicProfileContentSection) =>
-    orderedProfileSections.indexOf(section);
+  const sectionContent: Record<PublicProfileContentSection, ReactNode> = {
+    skills: profile.skills && (
+      <section key="skills" className="profile-card">
+        <h2>Habilidades e intereses</h2>
+        {profile.skills.skills.length > 0 && (
+          <p>
+            <strong>Habilidades:</strong> {profile.skills.skills.join(", ")}
+          </p>
+        )}
+        {profile.skills.interests.length > 0 && (
+          <p>
+            <strong>Intereses:</strong> {profile.skills.interests.join(", ")}
+          </p>
+        )}
+        {profile.skills.languages.length > 0 && (
+          <p>
+            <strong>Idiomas:</strong> {profile.skills.languages.join(", ")}
+          </p>
+        )}
+      </section>
+    ),
+    learning: profile.learning && (
+      <section key="learning" className="profile-card">
+        <h2>Aprendizaje</h2>
+        <p>
+          <strong>Puede ayudar en:</strong>{" "}
+          {profile.learning.helpTopics.join(", ") || "Sin temas publicados"}
+        </p>
+        <p>
+          <strong>Quiere aprender:</strong>{" "}
+          {profile.learning.learningTopics.join(", ") || "Sin temas publicados"}
+        </p>
+      </section>
+    ),
+    professional: profile.professional && (
+      <section key="professional" className="profile-card">
+        <h2>Proyección profesional</h2>
+        <p>{profile.professional.headline ?? "Sin titular publicado"}</p>
+      </section>
+    ),
+    academic: profile.academic && (
+      <section key="academic" className="profile-card">
+        <h2>Trayectoria académica</h2>
+        <p>
+          {profile.academic.affiliations.length} afiliación(es) académica(s)
+          publicada(s).
+        </p>
+        <p>{profile.academic.participations.length} materia(s) asociada(s).</p>
+      </section>
+    ),
+    activities: profile.activities && (
+      <section key="activities" className="profile-card profile-wide">
+        <h2>Proyectos y actividades</h2>
+        {profile.activities.length === 0 ? (
+          <p>No hay actividades publicadas.</p>
+        ) : (
+          <ul className="public-activity-list">
+            {profile.activities.map((item) => {
+              const externalLink = publicProfileActivityLink(item.url);
+              return (
+                <li key={item.id}>
+                  <strong>{item.title}</strong>
+                  {item.description && <p>{item.description}</p>}
+                  {externalLink ? (
+                    <a
+                      aria-label={`Abrir enlace externo de ${item.title} en ${externalLink.hostname}`}
+                      className="public-activity-link"
+                      href={externalLink.href}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      Abrir enlace externo · {externalLink.hostname}
+                    </a>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {loadMoreError && (
+          <p className="profile-error" role="alert">
+            {loadMoreError}
+          </p>
+        )}
+        {(profile.activitiesNextCursor || cursorCycle) && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={loadingMore}
+            onClick={() =>
+              void (cursorCycle ? refreshActivities() : loadMoreActivities())
+            }
+          >
+            {loadingMore
+              ? cursorCycle
+                ? "Actualizando…"
+                : "Cargando…"
+              : cursorCycle
+                ? "Actualizar actividades"
+                : loadMoreError
+                  ? "Reintentar actividades"
+                  : "Cargar más actividades"}
+          </button>
+        )}
+      </section>
+    ),
+  };
 
   return (
     <section className="profile-page public-profile">
@@ -416,136 +521,7 @@ const PublicProfile = () => {
       </header>
 
       <div className="profile-grid">
-        {profile.skills && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("skills") }}
-          >
-            <h2>Habilidades e intereses</h2>
-            {profile.skills.skills.length > 0 && (
-              <p>
-                <strong>Habilidades:</strong> {profile.skills.skills.join(", ")}
-              </p>
-            )}
-            {profile.skills.interests.length > 0 && (
-              <p>
-                <strong>Intereses:</strong>{" "}
-                {profile.skills.interests.join(", ")}
-              </p>
-            )}
-            {profile.skills.languages.length > 0 && (
-              <p>
-                <strong>Idiomas:</strong> {profile.skills.languages.join(", ")}
-              </p>
-            )}
-          </section>
-        )}
-
-        {profile.learning && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("learning") }}
-          >
-            <h2>Aprendizaje</h2>
-            <p>
-              <strong>Puede ayudar en:</strong>{" "}
-              {profile.learning.helpTopics.join(", ") || "Sin temas publicados"}
-            </p>
-            <p>
-              <strong>Quiere aprender:</strong>{" "}
-              {profile.learning.learningTopics.join(", ") ||
-                "Sin temas publicados"}
-            </p>
-          </section>
-        )}
-
-        {profile.professional && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("professional") }}
-          >
-            <h2>Proyección profesional</h2>
-            <p>{profile.professional.headline ?? "Sin titular publicado"}</p>
-          </section>
-        )}
-
-        {profile.academic && (
-          <section
-            className="profile-card"
-            style={{ order: sectionOrder("academic") }}
-          >
-            <h2>Trayectoria académica</h2>
-            <p>
-              {profile.academic.affiliations.length} afiliación(es) académica(s)
-              publicada(s).
-            </p>
-            <p>
-              {profile.academic.participations.length} materia(s) asociada(s).
-            </p>
-          </section>
-        )}
-
-        {profile.activities && (
-          <section
-            className="profile-card profile-wide"
-            style={{ order: sectionOrder("activities") }}
-          >
-            <h2>Proyectos y actividades</h2>
-            {profile.activities.length === 0 ? (
-              <p>No hay actividades publicadas.</p>
-            ) : (
-              <ul className="public-activity-list">
-                {profile.activities.map((item) => {
-                  const externalLink = publicProfileActivityLink(item.url);
-                  return (
-                    <li key={item.id}>
-                      <strong>{item.title}</strong>
-                      {item.description && <p>{item.description}</p>}
-                      {externalLink ? (
-                        <a
-                          aria-label={`Abrir enlace externo de ${item.title} en ${externalLink.hostname}`}
-                          className="public-activity-link"
-                          href={externalLink.href}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                        >
-                          Abrir enlace externo · {externalLink.hostname}
-                        </a>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {loadMoreError && (
-              <p className="profile-error" role="alert">
-                {loadMoreError}
-              </p>
-            )}
-            {(profile.activitiesNextCursor || cursorCycle) && (
-              <button
-                type="button"
-                className="secondary"
-                disabled={loadingMore}
-                onClick={() =>
-                  void (cursorCycle
-                    ? refreshActivities()
-                    : loadMoreActivities())
-                }
-              >
-                {loadingMore
-                  ? cursorCycle
-                    ? "Actualizando…"
-                    : "Cargando…"
-                  : cursorCycle
-                    ? "Actualizar actividades"
-                    : loadMoreError
-                      ? "Reintentar actividades"
-                      : "Cargar más actividades"}
-              </button>
-            )}
-          </section>
-        )}
+        {orderedProfileSections.map((section) => sectionContent[section])}
       </div>
     </section>
   );
