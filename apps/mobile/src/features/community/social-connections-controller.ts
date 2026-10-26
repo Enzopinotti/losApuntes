@@ -6,6 +6,7 @@ import {
   type CommunityFailure,
 } from "./community-controller";
 import type { SocialConnectionsApi } from "./community-api";
+import { repeatsSocialCursor } from "./social-pagination";
 
 const CONNECTIONS_PAGE_SIZE = 25;
 const RECONCILIATION_PAGE_SIZE = 100;
@@ -84,6 +85,8 @@ export class SocialConnectionsController {
     kind: "idle",
     authorityKey: null,
   };
+  private readonly requestedPendingCursors = new Set<string>();
+  private readonly requestedAcceptedCursors = new Set<string>();
   private readonly listeners = new Set<Listener>();
 
   constructor(private readonly api: SocialConnectionsApi) {}
@@ -93,6 +96,8 @@ export class SocialConnectionsController {
     this.cancelOperation();
     this.authorityKey = authorityKey;
     this.generation += 1;
+    this.requestedPendingCursors.clear();
+    this.requestedAcceptedCursors.clear();
     this.publish({ kind: "idle", authorityKey: null });
   }
 
@@ -176,6 +181,8 @@ export class SocialConnectionsController {
           }
         }
       }
+      this.requestedPendingCursors.clear();
+      this.requestedAcceptedCursors.clear();
       this.publish(ready);
     } catch (error) {
       if (!this.isCurrent(operation)) return;
@@ -206,6 +213,32 @@ export class SocialConnectionsController {
         ? current.pendingNextCursor
         : current.acceptedNextCursor;
     if (!cursor) return;
+    const requestedCursors =
+      list === "pending"
+        ? this.requestedPendingCursors
+        : this.requestedAcceptedCursors;
+    if (requestedCursors.has(cursor)) {
+      this.publish(
+        list === "pending"
+          ? {
+              ...current,
+              pendingNextCursor: null,
+              failure: {
+                kind: "server_unavailable",
+                code: "SOCIAL_CONNECTIONS_CURSOR_REPEATED",
+              },
+            }
+          : {
+              ...current,
+              acceptedNextCursor: null,
+              failure: {
+                kind: "server_unavailable",
+                code: "SOCIAL_CONNECTIONS_CURSOR_REPEATED",
+              },
+            },
+      );
+      return;
+    }
 
     const operation = this.begin(authorityKey);
     if (!operation) return;
@@ -223,21 +256,37 @@ export class SocialConnectionsController {
       if (!this.isCurrent(operation)) return;
       const latest = this.ready(authorityKey);
       if (!latest) return;
+      const repeatedCursor = repeatsSocialCursor(
+        requestedCursors,
+        cursor,
+        page.nextCursor,
+      );
+      requestedCursors.add(cursor);
       let ready: Extract<SocialConnectionsSnapshot, { kind: "ready" }> =
         list === "pending"
           ? {
               ...latest,
               pending: appendUnique(latest.pending, page.items),
-              pendingNextCursor: page.nextCursor,
+              pendingNextCursor: repeatedCursor ? null : page.nextCursor,
               loadingMore: null,
-              failure: null,
+              failure: repeatedCursor
+                ? {
+                    kind: "server_unavailable",
+                    code: "SOCIAL_CONNECTIONS_CURSOR_REPEATED",
+                  }
+                : null,
             }
           : {
               ...latest,
               accepted: appendUnique(latest.accepted, page.items),
-              acceptedNextCursor: page.nextCursor,
+              acceptedNextCursor: repeatedCursor ? null : page.nextCursor,
               loadingMore: null,
-              failure: null,
+              failure: repeatedCursor
+                ? {
+                    kind: "server_unavailable",
+                    code: "SOCIAL_CONNECTIONS_CURSOR_REPEATED",
+                  }
+                : null,
             };
       const reconciliationId = ready.reconciliationRequiredConnectionId;
       if (
@@ -411,6 +460,8 @@ export class SocialConnectionsController {
     this.cancelOperation();
     this.generation += 1;
     this.authorityKey = null;
+    this.requestedPendingCursors.clear();
+    this.requestedAcceptedCursors.clear();
     this.publish({ kind: "idle", authorityKey: null });
   }
 

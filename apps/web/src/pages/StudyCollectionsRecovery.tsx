@@ -8,6 +8,7 @@ import {
   studyCollectionsApi,
   type StudyCollection,
 } from "../features/study-collections/studyCollectionsService";
+import { collectionRecoveryCursorRepeats } from "../features/study-collections/collection-recovery-list-pagination";
 import {
   CollectionRecoveryError,
   inspectCollectionHealth,
@@ -69,6 +70,12 @@ function recoveryError(error: unknown): string {
   return "No se pudo completar la operación. Verificá tu conexión y reintentá.";
 }
 
+function shouldClearCollectionList(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("status" in error)) return false;
+  const status = (error as { status?: number }).status;
+  return status === 401 || status === 403 || status === 404 || status === 503;
+}
+
 export default function StudyCollectionsRecovery() {
   const { status, user, session } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -76,6 +83,10 @@ export default function StudyCollectionsRecovery() {
   const ownerScope = [status, user?.id ?? "", session?.id ?? ""].join(":");
   const scope = `${ownerScope}:${selectedId}`;
   const [listState, setListState] = useState<CollectionList | null>(null);
+  const listCursorHistoryRef = useRef<{
+    scope: string;
+    cursors: Set<string>;
+  } | null>(null);
   const [state, setState] = useState<RecoveryState | null>(null);
   const [actionLock, setActionLock] = useState<string | null>(null);
   const lockRef = useRef<string | null>(null);
@@ -96,6 +107,11 @@ export default function StudyCollectionsRecovery() {
   const loadList = useCallback(
     async (cursor?: string) => {
       if (status !== "authenticated" || !PERSISTENT_COLLECTIONS_VISIBLE) return;
+      const history =
+        cursor && listCursorHistoryRef.current?.scope === ownerScope
+          ? listCursorHistoryRef.current
+          : { scope: ownerScope, cursors: new Set<string>() };
+      listCursorHistoryRef.current = history;
       const ticket = beginList();
       if (!listCurrent(ticket)) return;
       setListState((previous) => ({
@@ -109,6 +125,14 @@ export default function StudyCollectionsRecovery() {
       try {
         const result = await studyCollectionsApi.list(cursor, ticket.signal);
         if (!listCurrent(ticket)) return;
+        const cursorCycle =
+          Boolean(cursor) &&
+          collectionRecoveryCursorRepeats(
+            history.cursors,
+            cursor,
+            result.nextCursor,
+          );
+        if (cursor) history.cursors.add(cursor);
         setListState((previous) => ({
           scope: ownerScope,
           items:
@@ -122,16 +146,26 @@ export default function StudyCollectionsRecovery() {
                   ).values(),
                 )
               : result.items,
-          nextCursor: result.nextCursor,
+          nextCursor: cursorCycle ? null : result.nextCursor,
           busy: false,
-          error: null,
+          error: cursorCycle
+            ? "La lista de Colecciones no avanzó. Actualizala para empezar de nuevo."
+            : null,
         }));
       } catch (error) {
         if (listCurrent(ticket)) {
+          const clearSource = shouldClearCollectionList(error);
+          if (clearSource) history.cursors.clear();
           setListState((previous) => ({
             scope: ownerScope,
-            items: previous?.scope === ownerScope ? previous.items : [],
-            nextCursor: null,
+            items:
+              cursor && previous?.scope === ownerScope && !clearSource
+                ? previous.items
+                : [],
+            nextCursor:
+              cursor && previous?.scope === ownerScope && !clearSource
+                ? previous.nextCursor
+                : null,
             busy: false,
             error: recoveryError(error),
           }));
@@ -376,6 +410,13 @@ export default function StudyCollectionsRecovery() {
             Mostrar más Colecciones
           </button>
         )}
+        <button
+          type="button"
+          disabled={list?.busy || busy}
+          onClick={() => void loadList()}
+        >
+          Actualizar lista de Colecciones
+        </button>
       </section>
 
       <section

@@ -131,6 +131,7 @@ async function main() {
   let writes = 0;
   let markAllCalls = 0;
   const listReads = [];
+  let chainMode = null;
   try {
     child = await boot();
     browser = await chromium.launch({ headless: true });
@@ -165,6 +166,43 @@ async function main() {
         const unreadOnly = url.searchParams.get("unreadOnly") === "true";
         const cursor = url.searchParams.get("cursor");
         listReads.push({ unreadOnly, cursor: cursor ?? null });
+        if (chainMode) {
+          if (chainMode === "failed" && cursor === "cursor-x") {
+            return reply(500, { code: "TEMPORARY" });
+          }
+          if (chainMode === "failed" && !cursor) {
+            return reply(200, { items: [], nextCursor: "cursor-x" });
+          }
+          const fresh = chainMode === "fresh";
+          const name = fresh
+            ? cursor === "cursor-a"
+              ? "Fresh third"
+              : cursor
+                ? "Fresh second"
+                : "Fresh first"
+            : cursor
+              ? cursor === "old-b"
+                ? "Old third"
+                : "Old second"
+              : "Old first";
+          const item = {
+            ...notifications[2],
+            id: name,
+            actor: { ...notifications[2].actor, displayName: name },
+          };
+          return reply(200, {
+            items: [item],
+            nextCursor: fresh
+              ? cursor === "cursor-x"
+                ? "cursor-a"
+                : "cursor-x"
+              : cursor
+                ? cursor === "old-b"
+                  ? "cursor-a"
+                  : "old-b"
+                : "cursor-a",
+          });
+        }
         const source = cursor ? olderNotifications : notifications;
         const filtered = unreadOnly
           ? source.filter((item) => item.readAt === null)
@@ -289,6 +327,61 @@ async function main() {
       await page.getByRole("button", { name: "Actividad social (0)" }).count(),
       1,
     );
+    chainMode = "old";
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByText("Old first empezó a seguirte").waitFor();
+    await page
+      .getByRole("button", { name: "Cargar más notificaciones" })
+      .click();
+    await page.getByText("Old second empezó a seguirte").waitFor();
+    chainMode = "fresh";
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByText("Fresh second empezó a seguirte").waitFor();
+    await page
+      .getByRole("button", { name: "Cargar más notificaciones" })
+      .click();
+    await page
+      .getByText("Fresh third empezó a seguirte")
+      .waitFor({ timeout: 3000 });
+    await page
+      .getByText(/El servidor repitió una página de notificaciones/)
+      .waitFor();
+    assert.equal(await page.locator(".community-list > li").count(), 3);
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Cargar más notificaciones" })
+        .count(),
+      0,
+    );
+    chainMode = "old";
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByText("Old first empezó a seguirte").waitFor();
+    await page
+      .getByRole("button", { name: "Cargar más notificaciones" })
+      .click();
+    await page.getByText("Old second empezó a seguirte").waitFor();
+    chainMode = "failed";
+    const failedRefresh = page.waitForResponse(
+      (response) =>
+        response.url().includes("cursor=cursor-x") && response.status() === 500,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await failedRefresh;
+    await page
+      .getByRole("button", { name: "Cargar más notificaciones" })
+      .click();
+    await page.getByText("Old third empezó a seguirte").waitFor();
+    await page
+      .getByText(/El servidor repitió una página de notificaciones/)
+      .waitFor();
+    assert.equal(await page.locator(".community-list > li").count(), 3);
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Cargar más notificaciones" })
+        .count(),
+      0,
+    );
+    assert.equal(writes, 1);
     assert.deepEqual(pageErrors, []);
     await context.close();
     console.log(

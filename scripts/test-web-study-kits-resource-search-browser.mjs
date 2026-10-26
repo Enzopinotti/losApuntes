@@ -109,6 +109,8 @@ async function main() {
   let writes = 0;
   const authorizedReads = [];
   const searches = [];
+  let sourceStatus = 200;
+  let failSearchPage = true;
   try {
     child = await boot();
     browser = await chromium.launch({ headless: true });
@@ -153,9 +155,40 @@ async function main() {
       }
       if (path === "/resources") {
         const q = url.searchParams.get("q") ?? "";
-        if (!q) return reply(200, { items: [], nextCursor: null });
+        if (!q) {
+          if (sourceStatus !== 200) {
+            return reply(sourceStatus, {
+              code: "SOURCE_UNAVAILABLE",
+              message: `Source failure ${sourceStatus}`,
+            });
+          }
+          return reply(200, {
+            items: [resources[1]],
+            nextCursor: "source-page",
+          });
+        }
         const cursor = url.searchParams.get("cursor");
         searches.push({ q, cursor });
+        if (q === "ciclos") {
+          if (cursor === "page-two" && failSearchPage) {
+            failSearchPage = false;
+            return reply(500, { code: "TEMPORARY" });
+          }
+          return reply(200, {
+            items:
+              cursor === "page-three"
+                ? resources
+                : cursor
+                  ? [resources[0], resources[1], resources[2]]
+                  : [resources[0]],
+            nextCursor:
+              cursor === "page-three"
+                ? "page-two"
+                : cursor
+                  ? "page-three"
+                  : "page-two",
+          });
+        }
         if (q === "integrales") {
           return reply(200, {
             items: cursor
@@ -307,10 +340,100 @@ async function main() {
       0,
       "searching and adding to a portable kit must not write to the API",
     );
+    await searchInput.fill("ciclos");
+    await page.getByRole("button", { name: "Buscar apuntes" }).click();
+    await finder.getByRole("link", { name: "Integrales definidas" }).waitFor();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder.getByText(/No pudimos consultar los apuntes/).waitFor();
+    assert.equal(
+      await finder.getByRole("link", { name: "Integrales definidas" }).count(),
+      1,
+    );
+    await finder
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder.getByRole("link", { name: "Integrales impropias" }).waitFor();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder
+      .getByText(/El servidor repitió una página de apuntes/)
+      .waitFor();
+    assert.equal(await finder.getByRole("link").count(), 3);
+    assert.equal(
+      await finder.getByRole("link", { name: "Integrales revocadas" }).count(),
+      1,
+    );
+    assert.equal(await finder.getByText("Apunte de otra materia").count(), 0);
+    assert.equal(
+      await finder
+        .getByRole("button", { name: "Más resultados de búsqueda" })
+        .count(),
+      0,
+    );
+    await finder
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder.getByRole("link", { name: "Integrales impropias" }).waitFor();
+    assert.deepEqual(
+      searches.filter((x) => x.q === "ciclos").map((x) => x.cursor),
+      [null, "page-two", null, "page-two", "page-three", null, "page-two"],
+    );
+    await finder.getByRole("button", { name: "Limpiar búsqueda" }).click();
+    const discovery = page.locator(".study-kits-discovery");
+    const discoveredResource = discovery.getByRole("link", {
+      name: "Integrales impropias",
+      exact: true,
+    });
+    await discoveredResource.waitFor();
+    await page
+      .getByRole("button", { name: "Más apuntes", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Actualizar encontrados" })
+      .waitFor();
+    assert.equal(await discoveredResource.count(), 1);
+
+    sourceStatus = 500;
+    await page.getByRole("button", { name: "Actualizar encontrados" }).click();
+    await page.getByText("Source failure 500", { exact: true }).waitFor();
+    assert.equal(await discoveredResource.count(), 1);
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Actualizar encontrados" })
+        .count(),
+      1,
+      "a transient refresh failure must retain the source and its recovery action",
+    );
+
+    for (const status of [401, 403, 404]) {
+      sourceStatus = 200;
+      await page.getByRole("button", { name: "Actualizar fuentes" }).click();
+      await discoveredResource.waitFor();
+      sourceStatus = status;
+      await page.getByRole("button", { name: "Actualizar fuentes" }).click();
+      await page
+        .getByText(
+          status === 401
+            ? "La sesión venció. Iniciá sesión nuevamente."
+            : "El apunte dejó de estar disponible.",
+          { exact: true },
+        )
+        .waitFor();
+      await discoveredResource.waitFor({ state: "hidden", timeout: 3000 });
+    }
     assert.deepEqual(pageErrors, []);
     await context.close();
     console.log(
-      "PASS B177 Chromium: explicit subject-scoped search, pagination/deduplication, local add, access recheck, and no API writes",
+      "PASS Chromium: Study Kit search, source cursor recovery, transient retention, 401/403/404 source clearing, access recheck, and no API writes",
     );
   } finally {
     await browser?.close();

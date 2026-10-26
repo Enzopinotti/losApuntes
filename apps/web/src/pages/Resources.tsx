@@ -29,6 +29,7 @@ import {
   isResourcesApiError,
   resourcesApi,
 } from "../features/resources/services/resourcesService";
+import { repeatsResourceCursor } from "../features/resources/resource-pagination.mjs";
 import {
   useAsyncAuthorityFence,
   type AsyncAuthorityTicket,
@@ -36,6 +37,8 @@ import {
 import "./Resources.scss";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const repeatedCursorMessage =
+  "El servidor repitió una página de recursos. Conservamos los apuntes cargados y detuvimos la búsqueda.";
 const SUPPORTED_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -264,6 +267,10 @@ const Resources = () => {
     savedView ? "saved" : "discovery",
     queryGeneration,
   ].join(":");
+  const cursorHistoryRef = useRef({
+    scopeKey: listScopeKey,
+    cursors: new Set<string>(),
+  });
   const listScopeKeyRef = useRef(listScopeKey);
   listScopeKeyRef.current = listScopeKey;
   const {
@@ -443,6 +450,22 @@ const Resources = () => {
   const load = useCallback(
     async (cursor?: string, append = false) => {
       if (!routeQueryIsSynchronized) return;
+      const cursorHistory = cursorHistoryRef.current;
+      if (append) {
+        if (!cursor || cursorHistory.scopeKey !== listScopeKey) return;
+        if (cursorHistory.cursors.has(cursor)) {
+          setListState((current) =>
+            current?.scopeKey === listScopeKey
+              ? { ...current, nextCursor: null }
+              : current,
+          );
+          setErrorState({
+            scopeKey: listScopeKey,
+            message: repeatedCursorMessage,
+          });
+          return;
+        }
+      }
       const ticket = beginListRequest();
       if (!isListRequestCurrent(ticket)) return;
       setListState((current) => {
@@ -480,6 +503,21 @@ const Resources = () => {
               );
 
         if (!isListRequestCurrent(ticket)) return;
+        const repeatedCursor =
+          append && cursor
+            ? repeatsResourceCursor(
+                cursorHistory.cursors,
+                cursor,
+                result.nextCursor,
+              )
+            : false;
+        if (append && cursor) cursorHistory.cursors.add(cursor);
+        else {
+          cursorHistoryRef.current = {
+            scopeKey: listScopeKey,
+            cursors: new Set<string>(),
+          };
+        }
         setListState((current) => {
           if (!isListRequestCurrent(ticket)) return current;
           const currentScope =
@@ -489,11 +527,18 @@ const Resources = () => {
             items: append
               ? appendResources(currentScope?.items ?? [], result.items)
               : result.items,
-            nextCursor: result.nextCursor,
+            nextCursor: repeatedCursor ? null : result.nextCursor,
             loading: false,
             loadingMore: false,
           };
         });
+        if (repeatedCursor) {
+          setErrorState({
+            scopeKey: listScopeKey,
+            message: repeatedCursorMessage,
+            isCurrent: () => isListRequestCurrent(ticket),
+          });
+        }
       } catch (nextError) {
         if (isListRequestCurrent(ticket)) {
           setErrorState({

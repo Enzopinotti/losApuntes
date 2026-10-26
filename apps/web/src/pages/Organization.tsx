@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
+import { organizationContentCursorRepeats } from "../features/organizations/contentPagination";
 import {
   isOrganizationsApiError,
   organizationsApi,
@@ -132,6 +133,22 @@ const Organization = () => {
     feedbackState?.scopeKey === organizationScopeKey
       ? feedbackState.message
       : null;
+  const [cursorIssueState, setCursorIssueState] = useState<{
+    scopeKey: string;
+    posts: boolean;
+    events: boolean;
+  } | null>(null);
+  const currentCursorIssues =
+    cursorIssueState?.scopeKey === organizationScopeKey
+      ? cursorIssueState
+      : null;
+  const postsCursorIssue = currentCursorIssues?.posts ?? false;
+  const eventsCursorIssue = currentCursorIssues?.events ?? false;
+  const loadedContentCursors = useRef({
+    scopeKey: organizationScopeKey,
+    posts: new Set<string>(),
+    events: new Set<string>(),
+  });
 
   const load = useCallback(async () => {
     if (!organizationId) return;
@@ -141,6 +158,12 @@ const Organization = () => {
     try {
       const result = await organizationsApi.get(organizationId, ticket.signal);
       if (!isLoadCurrent(ticket)) return;
+      loadedContentCursors.current = {
+        scopeKey: organizationScopeKey,
+        posts: new Set(),
+        events: new Set(),
+      };
+      setCursorIssueState(null);
       setOrganizationState({
         scopeKey: organizationScopeKey,
         organization: result.organization,
@@ -210,6 +233,8 @@ const Organization = () => {
   const loadMorePosts = async () => {
     if (!organization?.postsNextCursor) return;
     const target = organization;
+    const requestedCursor = target.postsNextCursor;
+    if (!requestedCursor) return;
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) return;
     setBusyState({ scopeKey: organizationScopeKey, value: "posts-more" });
@@ -218,10 +243,54 @@ const Organization = () => {
     try {
       const page = await organizationsApi.posts(
         target.id,
-        target.postsNextCursor ?? undefined,
+        requestedCursor,
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
+      const cursorState = loadedContentCursors.current;
+      const loadedCursors =
+        cursorState.scopeKey === organizationScopeKey
+          ? cursorState.posts
+          : new Set<string>();
+      if (
+        organizationContentCursorRepeats(
+          loadedCursors,
+          requestedCursor,
+          page.nextCursor,
+        )
+      ) {
+        setOrganizationState((current) =>
+          current?.scopeKey === organizationScopeKey &&
+          current.organization.id === target.id
+            ? {
+                scopeKey: organizationScopeKey,
+                organization: {
+                  ...current.organization,
+                  posts: appendPosts(current.organization.posts, page.items),
+                  postsNextCursor: null,
+                },
+              }
+            : current,
+        );
+        setCursorIssueState((previous) => ({
+          scopeKey: organizationScopeKey,
+          posts: true,
+          events:
+            previous?.scopeKey === organizationScopeKey
+              ? previous.events
+              : false,
+        }));
+        return;
+      }
+      loadedCursors.add(requestedCursor);
+      loadedContentCursors.current = {
+        scopeKey: organizationScopeKey,
+        posts: loadedCursors,
+        events:
+          cursorState.scopeKey === organizationScopeKey
+            ? cursorState.events
+            : new Set(),
+      };
       setOrganizationState((current) =>
         current?.scopeKey === organizationScopeKey &&
         current.organization.id === target.id
@@ -248,9 +317,67 @@ const Organization = () => {
     }
   };
 
+  const refreshPosts = async () => {
+    if (!organization || busy) return;
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "posts-refresh" });
+    setErrorState(null);
+
+    try {
+      const page = await organizationsApi.posts(
+        target.id,
+        undefined,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      const cursorState = loadedContentCursors.current;
+      loadedContentCursors.current = {
+        scopeKey: organizationScopeKey,
+        posts: new Set(),
+        events:
+          cursorState.scopeKey === organizationScopeKey
+            ? cursorState.events
+            : new Set(),
+      };
+      setOrganizationState((current) =>
+        current?.scopeKey === organizationScopeKey &&
+        current.organization.id === target.id
+          ? {
+              scopeKey: organizationScopeKey,
+              organization: {
+                ...current.organization,
+                posts: appendPosts([], page.items),
+                postsNextCursor: page.nextCursor,
+              },
+            }
+          : current,
+      );
+      setCursorIssueState((previous) => ({
+        scopeKey: organizationScopeKey,
+        posts: false,
+        events:
+          previous?.scopeKey === organizationScopeKey ? previous.events : false,
+      }));
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
+    }
+  };
+
   const loadMoreEvents = async () => {
     if (!organization?.eventsNextCursor) return;
     const target = organization;
+    const requestedCursor = target.eventsNextCursor;
+    if (!requestedCursor) return;
     const ticket = beginAction();
     if (!isActionCurrent(ticket)) return;
     setBusyState({ scopeKey: organizationScopeKey, value: "events-more" });
@@ -259,10 +386,54 @@ const Organization = () => {
     try {
       const page = await organizationsApi.events(
         target.id,
-        target.eventsNextCursor ?? undefined,
+        requestedCursor,
         ticket.signal,
       );
       if (!isActionCurrent(ticket)) return;
+      const cursorState = loadedContentCursors.current;
+      const loadedCursors =
+        cursorState.scopeKey === organizationScopeKey
+          ? cursorState.events
+          : new Set<string>();
+      if (
+        organizationContentCursorRepeats(
+          loadedCursors,
+          requestedCursor,
+          page.nextCursor,
+        )
+      ) {
+        setOrganizationState((current) =>
+          current?.scopeKey === organizationScopeKey &&
+          current.organization.id === target.id
+            ? {
+                scopeKey: organizationScopeKey,
+                organization: {
+                  ...current.organization,
+                  events: appendEvents(current.organization.events, page.items),
+                  eventsNextCursor: null,
+                },
+              }
+            : current,
+        );
+        setCursorIssueState((previous) => ({
+          scopeKey: organizationScopeKey,
+          posts:
+            previous?.scopeKey === organizationScopeKey
+              ? previous.posts
+              : false,
+          events: true,
+        }));
+        return;
+      }
+      loadedCursors.add(requestedCursor);
+      loadedContentCursors.current = {
+        scopeKey: organizationScopeKey,
+        posts:
+          cursorState.scopeKey === organizationScopeKey
+            ? cursorState.posts
+            : new Set(),
+        events: loadedCursors,
+      };
       setOrganizationState((current) =>
         current?.scopeKey === organizationScopeKey &&
         current.organization.id === target.id
@@ -276,6 +447,62 @@ const Organization = () => {
             }
           : current,
       );
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
+    }
+  };
+
+  const refreshEvents = async () => {
+    if (!organization || busy) return;
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "events-refresh" });
+    setErrorState(null);
+
+    try {
+      const page = await organizationsApi.events(
+        target.id,
+        undefined,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      const cursorState = loadedContentCursors.current;
+      loadedContentCursors.current = {
+        scopeKey: organizationScopeKey,
+        posts:
+          cursorState.scopeKey === organizationScopeKey
+            ? cursorState.posts
+            : new Set(),
+        events: new Set(),
+      };
+      setOrganizationState((current) =>
+        current?.scopeKey === organizationScopeKey &&
+        current.organization.id === target.id
+          ? {
+              scopeKey: organizationScopeKey,
+              organization: {
+                ...current.organization,
+                events: appendEvents([], page.items),
+                eventsNextCursor: page.nextCursor,
+              },
+            }
+          : current,
+      );
+      setCursorIssueState((previous) => ({
+        scopeKey: organizationScopeKey,
+        posts:
+          previous?.scopeKey === organizationScopeKey ? previous.posts : false,
+        events: false,
+      }));
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
       setErrorState({
@@ -517,6 +744,24 @@ const Organization = () => {
               {busy === "posts-more" ? "Cargando…" : "Cargar más publicaciones"}
             </button>
           )}
+          {postsCursorIssue && (
+            <>
+              <p className="organizations-error" role="alert">
+                Recibimos una publicación repetida y detuvimos la lista. Se
+                conservaron las publicaciones cargadas.
+              </p>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy !== null}
+                onClick={() => void refreshPosts()}
+              >
+                {busy === "posts-refresh"
+                  ? "Actualizando…"
+                  : "Actualizar publicaciones"}
+              </button>
+            </>
+          )}
         </section>
 
         <section className="organizations-card organizations-wide">
@@ -584,6 +829,24 @@ const Organization = () => {
             >
               {busy === "events-more" ? "Cargando…" : "Cargar más eventos"}
             </button>
+          )}
+          {eventsCursorIssue && (
+            <>
+              <p className="organizations-error" role="alert">
+                Recibimos un evento repetido y detuvimos la lista. Se
+                conservaron los eventos cargados.
+              </p>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy !== null}
+                onClick={() => void refreshEvents()}
+              >
+                {busy === "events-refresh"
+                  ? "Actualizando…"
+                  : "Actualizar eventos"}
+              </button>
+            </>
           )}
         </section>
 

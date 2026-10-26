@@ -44,6 +44,9 @@ function failureCopy(failure: CommunityFailure): string {
   if (failure.code === "SOCIAL_CONNECTION_STATE_CONFLICT") {
     return "La relación cambió. Actualizá la lista antes de volver a intentar.";
   }
+  if (failure.code === "SOCIAL_CONNECTIONS_CURSOR_REPEATED") {
+    return "El servidor repitió una página. Conservamos las relaciones y detuvimos esta lista.";
+  }
   switch (failure.kind) {
     case "offline":
       return "No hay conexión. Volvé a intentarlo cuando estés en línea.";

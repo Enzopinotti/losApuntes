@@ -78,6 +78,41 @@ test("opening loads only the first bounded collection page for this resource sco
   });
 });
 
+test("opening another result fences the earlier collection response", async () => {
+  const first = deferred<{
+    items: StudyCollection[];
+    nextCursor: string | null;
+  }>();
+  const second = deferred<{
+    items: StudyCollection[];
+    nextCursor: string | null;
+  }>();
+  let calls = 0;
+  const { controller } = setup({
+    list: async () => {
+      calls += 1;
+      return calls === 1 ? first.promise : second.promise;
+    },
+  });
+
+  const openingFirst = controller.open("user:session", "resource-first");
+  const openingSecond = controller.open("user:session", "resource-second");
+  second.resolve({ items: [collection("second")], nextCursor: null });
+  await openingSecond;
+  first.resolve({ items: [collection("first")], nextCursor: null });
+  await openingFirst;
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.resourceId, "resource-second");
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["second"],
+    );
+  }
+});
+
 test("pagination preserves the opaque cursor and deduplicates collection IDs", async () => {
   const { controller, calls } = setup({
     list: async (cursor, signal) => {
@@ -109,6 +144,92 @@ test("pagination preserves the opaque cursor and deduplicates collection IDs", a
     assert.equal(snapshot.items[0]?.title, "Actualizada");
     assert.equal(snapshot.nextCursor, null);
   }
+});
+
+test("stops a collection cursor cycle and starts fresh when the picker reopens", async () => {
+  const cursors: Array<string | undefined> = [];
+  const { controller } = setup({
+    list: async (cursor) => {
+      cursors.push(cursor);
+      if (!cursor)
+        return { items: [collection("one")], nextCursor: "cursor-a" };
+      if (cursor === "cursor-a") {
+        return { items: [collection("two")], nextCursor: "cursor-b" };
+      }
+      return { items: [collection("three")], nextCursor: "cursor-a" };
+    },
+  });
+
+  await controller.open("user:session", "resource-1");
+  await controller.loadMore();
+  await controller.loadMore();
+  await controller.loadMore();
+
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["one", "two", "three"],
+    );
+    assert.equal(snapshot.nextCursor, null);
+    assert.match(snapshot.error ?? "", /repitió una página/u);
+  }
+  assert.deepEqual(cursors, [undefined, "cursor-a", "cursor-b"]);
+
+  await controller.open("user:session", "resource-1");
+  await controller.loadMore();
+  snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [
+    undefined,
+    "cursor-a",
+    "cursor-b",
+    undefined,
+    "cursor-a",
+  ]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.nextCursor, "cursor-b");
+    assert.equal(snapshot.error, null);
+  }
+});
+
+test("a failed collection page preserves its cursor and loaded rows for retry", async () => {
+  let pageRequests = 0;
+  const { controller } = setup({
+    list: async (cursor) => {
+      if (!cursor) return { items: [collection("one")], nextCursor: "retry" };
+      pageRequests += 1;
+      if (pageRequests === 1) throw new Error("temporary failure");
+      return { items: [collection("two")], nextCursor: null };
+    },
+  });
+
+  await controller.open("user:session", "resource-1");
+  await controller.loadMore();
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.nextCursor, "retry");
+    assert.match(snapshot.error ?? "", /No pudimos completar/u);
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["one"],
+    );
+  }
+
+  await controller.loadMore();
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.nextCursor, null);
+    assert.equal(snapshot.error, null);
+    assert.deepEqual(
+      snapshot.items.map((item) => item.id),
+      ["one", "two"],
+    );
+  }
+  assert.equal(pageRequests, 2);
 });
 
 test("saving uses the selected collection and updates its server-confirmed count", async () => {
