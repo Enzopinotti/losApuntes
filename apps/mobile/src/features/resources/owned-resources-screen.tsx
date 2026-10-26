@@ -19,6 +19,7 @@ import {
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { useSession } from "@/features/session/session-provider";
+import { MobileResourceShareAction } from "./resource-share-action";
 
 import {
   resourceFileSizeLabel,
@@ -61,33 +62,40 @@ function OwnedResourceRow({
   onOpen: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={resourceRowAccessibilityLabel(
-        {
-          title: resource.title,
-          subjectName: resource.academic.subject.name,
-          authorName: resource.author?.displayName ?? null,
-          mimeType: resource.file.mimeType,
-          byteSize: resource.file.byteSize,
-        },
-        "Administrar mi apunte",
-      )}
-      onPress={onOpen}
-      style={styles.resourceRow}
-    >
-      <Text style={styles.resourceTitle}>{resource.title}</Text>
-      <Text style={styles.meta}>{resource.academic.subject.name}</Text>
-      <Text style={styles.meta}>
-        {resourceVisibilityLabel(resource.visibility)} ·{" "}
-        {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
-        {resourceFileSizeLabel(resource.file.byteSize)}
-      </Text>
-      <Text style={styles.meta}>
-        Publicado: {new Date(resource.createdAt).toLocaleDateString("es-AR")}
-      </Text>
-      <Text style={styles.actionText}>Abrir y administrar</Text>
-    </Pressable>
+    <View style={styles.resourceRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={resourceRowAccessibilityLabel(
+          {
+            title: resource.title,
+            subjectName: resource.academic.subject.name,
+            authorName: resource.author?.displayName ?? null,
+            mimeType: resource.file.mimeType,
+            byteSize: resource.file.byteSize,
+          },
+          "Administrar mi apunte",
+        )}
+        onPress={onOpen}
+        style={styles.resourceOpenButton}
+      >
+        <Text style={styles.resourceTitle}>{resource.title}</Text>
+        <Text style={styles.meta}>{resource.academic.subject.name}</Text>
+        <Text style={styles.meta}>
+          {resourceVisibilityLabel(resource.visibility)} ·{" "}
+          {resourceFileTypeLabel(resource.file.mimeType)} ·{" "}
+          {resourceFileSizeLabel(resource.file.byteSize)}
+        </Text>
+        <Text style={styles.meta}>
+          Publicado: {new Date(resource.createdAt).toLocaleDateString("es-AR")}
+        </Text>
+        <Text style={styles.actionText}>Abrir y administrar</Text>
+      </Pressable>
+      <MobileResourceShareAction
+        key={resource.id}
+        resourceId={resource.id}
+        resourceTitle={resource.title}
+      />
+    </View>
   );
 }
 
@@ -450,6 +458,22 @@ export function OwnedResourcesScreen() {
             </Text>
           ) : null}
 
+          {ready?.cursorRepeated ? (
+            <View style={styles.card}>
+              <Text accessibilityRole="alert" style={styles.error}>
+                El servidor devolvió un cursor repetido. Actualizá la lista para
+                empezar de nuevo.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={refresh}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.buttonText}>Actualizar publicaciones</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {ready?.data.nextCursor ? (
             <Pressable
               accessibilityRole="button"
@@ -536,6 +560,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#dddce6",
   },
+  resourceOpenButton: { minHeight: 44, gap: 5, justifyContent: "center" },
   resourceTitle: { color: "#20202a", fontSize: 16, fontWeight: "700" },
   actionText: { color: "#43366a", fontSize: 14, fontWeight: "700" },
   secondaryButton: {

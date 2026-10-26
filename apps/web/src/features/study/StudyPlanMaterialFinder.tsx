@@ -28,6 +28,10 @@ import {
   type MaterialSearchFilter,
   type MaterialSearchKind,
 } from "./study-plan-material-search.mjs";
+import { repeatsStudyPlanMaterialCursor } from "./study-plan-material-pagination.mjs";
+
+const repeatedCursorMessage =
+  "El servidor repitió una página de material. Conservamos los resultados cargados y detuvimos la búsqueda.";
 
 type Result = {
   id: string;
@@ -103,6 +107,10 @@ export function StudyPlanMaterialFinder({
   );
   const pendingAdd = useRef(false);
   const [pageState, setPageState] = useState<Page | null>(null);
+  const cursorHistoryRef = useRef({
+    scope: searchScope,
+    cursors: new Set<string>(),
+  });
   const [addFeedback, setAddFeedback] = useState<AddFeedback | null>(null);
   const page =
     searchScope && pageState?.scope === searchScope ? pageState : null;
@@ -112,9 +120,26 @@ export function StudyPlanMaterialFinder({
   const load = useCallback(
     async (cursor?: string) => {
       if (!applied || !searchScope) return;
+      const isMore = Boolean(cursor);
+      const cursorHistory = cursorHistoryRef.current;
+      if (isMore) {
+        if (!cursor || cursorHistory.scope !== searchScope) return;
+        if (cursorHistory.cursors.has(cursor)) {
+          setPageState((previous) =>
+            previous?.scope === searchScope
+              ? {
+                  ...previous,
+                  nextCursor: null,
+                  error: repeatedCursorMessage,
+                  retryCursor: null,
+                }
+              : previous,
+          );
+          return;
+        }
+      }
       const ticket = beginSearch();
       if (!isSearchCurrent(ticket)) return;
-      const isMore = Boolean(cursor);
       setPageState((previous) => ({
         scope: searchScope,
         items: isMore && previous?.scope === searchScope ? previous.items : [],
@@ -145,6 +170,21 @@ export function StudyPlanMaterialFinder({
                 ticket.signal,
               );
         if (!isSearchCurrent(ticket)) return;
+        const repeatedCursor =
+          isMore && cursor
+            ? repeatsStudyPlanMaterialCursor(
+                cursorHistory.cursors,
+                cursor,
+                response.nextCursor,
+              )
+            : false;
+        if (isMore && cursor) cursorHistory.cursors.add(cursor);
+        else {
+          cursorHistoryRef.current = {
+            scope: searchScope,
+            cursors: new Set<string>(),
+          };
+        }
         const matching: Result[] = response.items
           .filter((item) => item.academic.subject.id === subjectId)
           .map((item) => ({
@@ -165,9 +205,9 @@ export function StudyPlanMaterialFinder({
                   ).values(),
                 )
               : matching,
-          nextCursor: response.nextCursor,
+          nextCursor: repeatedCursor ? null : response.nextCursor,
           loading: false,
-          error: null,
+          error: repeatedCursor ? repeatedCursorMessage : null,
           retryCursor: null,
         }));
       } catch (error) {
