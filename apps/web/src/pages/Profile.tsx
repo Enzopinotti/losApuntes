@@ -701,7 +701,7 @@ const Profile = () => {
             pattern="https://.+"
             title="Ingresá una URL válida que empiece con https://."
             value={avatarUrl}
-            onChange={(event) => setAvatarUrl(event.target.value)}
+            onChange={(event) => setAvatarUrl(event.target.value.trim())}
           />
           <small>
             Usá una dirección HTTPS. Dejalo vacío para quitar el avatar.
