@@ -141,6 +141,15 @@ async function main() {
   let browser;
   let denied = false;
   let savedRequests = 0;
+  let testSources = false;
+  let availableStatus = 200;
+  let failQuestionPage = true;
+  const sourceResource = (kind) => ({
+    id: kind === "saved" ? SUBJECT_A : SUBJECT_B,
+    title: `Source ${kind}`,
+    academic: { subject: { id: SUBJECT_B, name: "Álgebra" } },
+    file: { filename: "source.pdf" },
+  });
   const questionRequests = [];
   try {
     server = await boot();
@@ -176,21 +185,52 @@ async function main() {
         });
       } else if (path === "/resources/saved/search") {
         savedRequests++;
-        await json(route, { items: [], nextCursor: null });
+        await json(route, {
+          items: testSources ? [sourceResource("saved")] : [],
+          nextCursor: testSources ? "saved-page" : null,
+        });
       } else if (path === "/resources") {
-        await json(route, { items: [], nextCursor: null });
+        if (testSources && availableStatus !== 200) {
+          await json(
+            route,
+            {
+              code: "SOURCE_UNAVAILABLE",
+              message: `Source failure ${availableStatus}`,
+            },
+            availableStatus,
+          );
+        } else {
+          await json(route, {
+            items: testSources ? [sourceResource("available")] : [],
+            nextCursor: testSources ? "available-page" : null,
+          });
+        }
       } else if (path === "/questions") {
         const params = Object.fromEntries(url.searchParams.entries());
         questionRequests.push(params);
         if (params.subjectId === SUBJECT_B) {
           await json(route, { items: [], nextCursor: null });
+        } else if (params.cursor === "page-3") {
+          if (failQuestionPage) {
+            failQuestionPage = false;
+            await json(
+              route,
+              { code: "TEMPORARY", message: "Question page unavailable" },
+              500,
+            );
+          } else {
+            await json(route, {
+              items: [secondQuestion, closedQuestion],
+              nextCursor: "page-2",
+            });
+          }
         } else if (params.cursor === "page-2") {
           await json(route, {
             items: [
               { ...openQuestion, title: "Pregunta principal actualizada" },
               secondQuestion,
             ],
-            nextCursor: null,
+            nextCursor: "page-3",
           });
         } else if (params.q === "integrales" && params.status === "closed") {
           await json(route, { items: [closedQuestion], nextCursor: null });
@@ -328,6 +368,44 @@ async function main() {
       "pagination refreshed saved materials",
     );
 
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText("Question page unavailable", { exact: true })
+      .waitFor();
+    assert.equal(await panel.locator("ul > li").count(), 2);
+    await panel
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await panel.getByText("Pregunta de integrales", { exact: true }).waitFor();
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText("Pregunta principal actualizada", { exact: true })
+      .waitFor();
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText(/El servidor repitió una página de preguntas/)
+      .waitFor();
+    assert.equal(await panel.locator("ul > li").count(), 3);
+    assert.equal(
+      await panel.getByText("Integrales por partes", { exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await panel.getByRole("button", { name: "Más preguntas" }).count(),
+      0,
+    );
+    assert.deepEqual(
+      questionRequests.slice(-6).map((x) => x.cursor),
+      [undefined, "page-2", "page-3", undefined, "page-2", "page-3"],
+    );
+    await panel
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await panel.getByText("Pregunta de integrales", { exact: true }).waitFor();
+    await panel.getByRole("button", { name: "Más preguntas" }).click();
+    await panel
+      .getByText("Pregunta principal actualizada", { exact: true })
+      .waitFor();
     await page.locator("#study-subject").selectOption(SUBJECT_B);
     await page.waitForURL(ORIGIN + "/study?subjectId=" + SUBJECT_B);
     await page.waitForFunction(() => {
@@ -347,6 +425,85 @@ async function main() {
     assert.equal(questionRequests.at(-1).subjectId, SUBJECT_B);
     assert.equal(questionRequests.at(-1).status, "open");
 
+    testSources = true;
+    const savedPanel = page.getByRole("region", { name: "Mis guardados" });
+    const availablePanel = page.getByRole("region", {
+      name: "Apuntes disponibles",
+    });
+    await savedPanel
+      .getByRole("button", { name: "Actualizar guardados" })
+      .click();
+    await savedPanel.getByRole("link", { name: "Source saved" }).waitFor();
+    await availablePanel
+      .getByRole("button", { name: "Actualizar apuntes" })
+      .click();
+    const availableLink = availablePanel.getByRole("link", {
+      name: "Source available",
+    });
+    await availableLink.waitFor();
+    await savedPanel
+      .getByRole("button", { name: "Mostrar más guardados" })
+      .click();
+    await savedPanel
+      .getByRole("alert")
+      .filter({ hasText: "no avanzó" })
+      .waitFor();
+    assert.equal(
+      await savedPanel.getByRole("link", { name: "Source saved" }).count(),
+      1,
+    );
+    assert.equal(
+      await savedPanel
+        .getByRole("button", { name: "Mostrar más guardados" })
+        .count(),
+      0,
+    );
+    assert.equal(
+      await availablePanel.getByRole("button", { name: "Más apuntes" }).count(),
+      1,
+    );
+
+    availableStatus = 500;
+    await availablePanel.getByRole("button", { name: "Más apuntes" }).click();
+    await availablePanel
+      .getByText("Source failure 500", { exact: true })
+      .waitFor();
+    assert.equal(await availableLink.count(), 1);
+    availableStatus = 200;
+    await availablePanel.getByRole("button", { name: "Más apuntes" }).click();
+    await availablePanel
+      .getByRole("alert")
+      .filter({ hasText: "no avanzó" })
+      .waitFor();
+    assert.equal(await availableLink.count(), 1);
+    assert.equal(
+      await availablePanel.getByRole("button", { name: "Más apuntes" }).count(),
+      0,
+    );
+
+    for (const statusCode of [401, 403, 404]) {
+      availableStatus = 200;
+      await availablePanel
+        .getByRole("button", { name: "Actualizar apuntes" })
+        .click();
+      await availablePanel
+        .getByRole("button", { name: "Más apuntes" })
+        .waitFor();
+      availableStatus = statusCode;
+      await availablePanel.getByRole("button", { name: "Más apuntes" }).click();
+      await availableLink.waitFor({ state: "hidden" });
+      assert.equal(
+        await availablePanel
+          .getByRole("button", { name: "Más apuntes" })
+          .count(),
+        0,
+      );
+      assert.equal(
+        await savedPanel.getByRole("link", { name: "Source saved" }).count(),
+        1,
+      );
+    }
+
     denied = true;
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForURL(ORIGIN + "/login", { timeout: 15000 });
@@ -358,7 +515,7 @@ async function main() {
     );
     await context.close();
     console.log(
-      "PASS B176 Chromium explicit Q&A search, closed/all filters, pagination dedupe, subject/session scope",
+      "PASS Chromium: Q&A filters, independent source cursor recovery, transient retry, 401/403/404 clearing and subject/session scope",
     );
   } finally {
     await browser?.close();

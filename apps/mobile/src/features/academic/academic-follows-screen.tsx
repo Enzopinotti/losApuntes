@@ -363,6 +363,12 @@ export function AcademicFollowsScreen() {
                 {followFailureCopy[current.searchFailure]}
               </Text>
             ) : null}
+            {current.searchCursorRepeated ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                El catálogo repitió una página. Conservamos las opciones
+                cargadas y detuvimos la búsqueda; podés buscar de nuevo.
+              </Text>
+            ) : null}
             {current.searchPhase === "ready" && current.results.length === 0 ? (
               <Text style={styles.copy}>
                 No encontramos opciones activas con ese nombre.

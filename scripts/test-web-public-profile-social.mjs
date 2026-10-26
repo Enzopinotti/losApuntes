@@ -28,8 +28,10 @@ assert.match(
   page,
   /publicProfileContentSectionOrder\(\s*profile\.presentation\.sectionOrder/u,
 );
-assert.match(page, /style=\{\{ order: sectionOrder\("skills"\) \}\}/u);
-assert.match(page, /style=\{\{ order: sectionOrder\("activities"\) \}\}/u);
+assert.match(
+  page,
+  /orderedProfileSections\.map\(\(section\) => sectionContent\[section\]\)/u,
+);
 assert.match(
   page,
   /externalLink \? \([\s\S]*?className="public-activity-link"[\s\S]*?href=\{externalLink\.href\}[\s\S]*?rel="noopener noreferrer"[\s\S]*?target="_blank"/u,
