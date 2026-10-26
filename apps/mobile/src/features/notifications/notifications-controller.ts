@@ -250,8 +250,8 @@ export class MobileNotificationsController {
         items = appendUniqueNotifications(items, result.items);
         loadedPages += 1;
         nextCursor = result.nextCursor;
-        if (!result.nextCursor) break;
         if (cursor !== undefined) requestedCursors.add(cursor);
+        if (!result.nextCursor) break;
         if (
           repeatsNotificationCursor(requestedCursors, cursor, result.nextCursor)
         ) {
@@ -263,6 +263,10 @@ export class MobileNotificationsController {
       }
 
       if (!this.isCurrentList(operation)) return;
+      this.requestedCursors.clear();
+      for (const requestedCursor of requestedCursors) {
+        this.requestedCursors.add(requestedCursor);
+      }
       this.publish({
         ...current,
         data: { items, nextCursor },
