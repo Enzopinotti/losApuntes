@@ -66,7 +66,7 @@
     "test:web-study-recall-closure": "node scripts/test-web-study-recall-closure.mjs",
     "test:web-study-recall-goals": "node scripts/test-web-study-recall-goals.mjs",
     "test:web-pilot-contract": "node scripts/test-web-pilot-contract.mjs",
-    "test:web-organizations-contract": "node --experimental-strip-types --test scripts/test-web-organization-content-pagination.test.mjs && node scripts/test-web-organizations-contract.mjs && node --test scripts/test-web-organization-event-calendar.test.mjs",
+    "test:web-organizations-contract": "node --experimental-strip-types --test scripts/test-web-organization-content-pagination.test.mjs && node scripts/test-web-organizations-contract.mjs && node --test scripts/test-web-organization-event-calendar.test.mjs && node --test scripts/test-web-organization-share-b262.test.mjs",
     "test:web-alumni-contract": "node scripts/test-web-alumni-contract.mjs",
     "test:mobile-auth-contract": "node scripts/test-mobile-auth-contract.mjs",
     "recovery:backup": "node scripts/recovery/backup-set.mjs",
