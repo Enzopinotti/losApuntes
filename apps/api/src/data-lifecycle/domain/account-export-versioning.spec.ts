@@ -319,29 +319,24 @@ describe('Account export v2 compatibility — B45', () => {
       legacy.assembler.writeJsonV2(OWNER, legacy.sink),
     ).rejects.toThrow('Unknown account export section: study.collections');
     expect(legacy.commit).not.toHaveBeenCalled();
-    // Version-pinned legacy v2 must remain readable when newer v3+
-    // contributors are mounted. The v2 manifest selects its exact 31
-    // reviewed sections; it must never serialize an unreviewed section.
+    // A persisted v2 job must never silently succeed with an unknown
+    // registered private data source. Known v3 contributors remain
+    // compatible (verified above), but a novel contributor requires review.
     const expanded = mounted(true).contributors;
-    const compatible = fixture(
+    const incompatible = fixture(
       new AccountExportContributorRegistry([
         ...expanded,
         contributor('unreviewed.private'),
       ]),
     );
-    const result = await compatible.assembler.writeJsonV2(
-      OWNER,
-      compatible.sink,
+    await expect(
+      incompatible.assembler.writeJsonV2(OWNER, incompatible.sink),
+    ).rejects.toThrow(
+      'Account export v2 contributor inventory is incomplete or incompatible',
     );
-    const output = JSON.parse(compatible.chunks.join('')) as {
-      version: number;
-      sections: Record<string, unknown[]>;
-    };
-    expect(result.sectionCount).toBe(31);
-    expect(result.formatVersion).toBe(2);
-    expect(Object.keys(output.sections)).toEqual(ACCOUNT_EXPORT_V2_SECTION_IDS);
-    expect(output.sections).not.toHaveProperty('unreviewed.private');
-    expect(output.sections).not.toHaveProperty('study.progress');
-    expect(compatible.commit).toHaveBeenCalledTimes(1);
+    expect(incompatible.chunks).toHaveLength(0);
+    expect(incompatible.service.readContributorPage).not.toHaveBeenCalled();
+    expect(incompatible.service.captureStudyProgressExportEpoch).not.toHaveBeenCalled();
+    expect(incompatible.commit).not.toHaveBeenCalled();
   });
 });
