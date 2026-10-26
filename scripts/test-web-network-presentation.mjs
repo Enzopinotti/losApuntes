@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NetworkActionGate } from "../apps/web/src/features/community/network-action-gate.ts";
 import {
+  appendUniqueNetworkItems,
+  repeatsNetworkCursor,
+} from "../apps/web/src/features/community/network-pagination.mjs";
+import {
   groupNetworkConnections,
   networkConnectionStatusLabel,
 } from "../apps/web/src/features/community/network-presentation.ts";
@@ -17,6 +21,39 @@ const item = (id, status, incoming) => ({
   updatedAt: "",
   respondedAt: null,
 });
+
+const visitedCursors = new Set(["following-a"]);
+assert.equal(
+  repeatsNetworkCursor(visitedCursors, "following-a", "following-a"),
+  true,
+);
+assert.equal(
+  repeatsNetworkCursor(visitedCursors, "following-b", "following-a"),
+  true,
+);
+assert.equal(
+  repeatsNetworkCursor(visitedCursors, "following-b", "following-c"),
+  false,
+);
+assert.equal(repeatsNetworkCursor(visitedCursors, "following-a", null), false);
+assert.deepEqual(
+  appendUniqueNetworkItems(
+    [
+      { id: "person-1", name: "Old name" },
+      { id: "person-2", name: "Second person" },
+    ],
+    [
+      { id: "person-1", name: "Updated name" },
+      { id: "person-3", name: "Third person" },
+    ],
+    (candidate) => candidate.id,
+  ),
+  [
+    { id: "person-1", name: "Updated name" },
+    { id: "person-2", name: "Second person" },
+    { id: "person-3", name: "Third person" },
+  ],
+);
 
 const relationships = [
   item("accepted", "accepted", false),
@@ -144,6 +181,11 @@ assert.match(page, /people\.length === 0/u);
 assert.match(page, /role="status"/u);
 assert.match(page, /connectionsNextCursor/u);
 assert.match(page, /loadMoreConnections/u);
+assert.match(page, /cursorHistoryRef/u);
+assert.match(page, /history\.following/u);
+assert.match(page, /history\.connections/u);
+assert.match(page, /repeatedCursorMessage/u);
+assert.match(page, /appendUniqueNetworkItems/u);
 assert.match(styles, /\.network-requests/u);
 assert.match(styles, /\.network-request-count/u);
 assert.match(root, /test:web-network-presentation/u);

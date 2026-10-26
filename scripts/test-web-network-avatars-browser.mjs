@@ -69,6 +69,8 @@ const PERSON = "4fc90c37-710f-4c9a-9681-ed0476409b4d";
 let writes = 0;
 let unsafeReads = 0;
 let searches = 0;
+let failFollowing = true;
+const pageReads = [];
 const person = (name, avatarUrl) => ({
   profileId: PERSON,
   displayName: name,
@@ -96,9 +98,9 @@ try {
   await context.route(API + "/**", (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const reply = (value) =>
+    const reply = (value, status = 200) =>
       route.fulfill({
-        status: 200,
+        status,
         contentType: "application/json",
         headers: {
           "access-control-allow-origin": ORIGIN,
@@ -120,33 +122,52 @@ try {
           expiresAt: "2027-01-01T00:00:00Z",
         },
       });
-    if (url.pathname === "/social/me/following")
-      return reply({
-        items: [
-          {
-            profile: person(
-              "Ana seguida",
-              "https://avatars.example.test/good.svg",
-            ),
-          },
-        ],
-        nextCursor: null,
+    if (
+      ["/social/me/following", "/social/me/connections"].includes(url.pathname)
+    ) {
+      const cursor = url.searchParams.get("cursor");
+      const isFollowing = url.pathname.endsWith("following");
+      pageReads.push({ path: url.pathname, cursor });
+      if (isFollowing && cursor === "cursor-a" && failFollowing) {
+        failFollowing = false;
+        return reply(
+          { code: "TEMPORARY", message: "Following page unavailable" },
+          500,
+        );
+      }
+      const count = cursor === "cursor-b" ? 3 : cursor ? 2 : 1;
+      const items = Array.from({ length: count }, (_, index) => {
+        const profile = {
+          ...person(
+            index === 0
+              ? isFollowing
+                ? "Ana seguida"
+                : "Bruno solicitud"
+              : `${isFollowing ? "Seguido" : "Solicitud"} ${index + 1}`,
+            index === 0 && !isFollowing
+              ? "https://avatars.example.test/broken.png"
+              : "https://avatars.example.test/good.svg",
+          ),
+          profileId:
+            index === 0
+              ? PERSON
+              : `00000000-0000-4000-8000-00000000000${index}`,
+        };
+        return isFollowing
+          ? { profile }
+          : {
+              id: `connection-${index}`,
+              incoming: true,
+              status: "pending",
+              other: profile,
+            };
       });
-    if (url.pathname === "/social/me/connections")
       return reply({
-        items: [
-          {
-            id: "connection",
-            incoming: true,
-            status: "pending",
-            other: person(
-              "Bruno solicitud",
-              "https://avatars.example.test/broken.png",
-            ),
-          },
-        ],
-        nextCursor: null,
+        items,
+        nextCursor:
+          cursor === "cursor-b" ? "cursor-a" : cursor ? "cursor-b" : "cursor-a",
       });
+    }
     if (url.pathname === "/search") {
       searches += 1;
       return reply({
@@ -229,6 +250,65 @@ try {
   assert.equal(
     await result.getByRole("button", { name: "Conectar", exact: true }).count(),
     1,
+  );
+  const followsPanel = page.locator(".community-card").filter({
+    has: page.getByRole("heading", { name: "Siguiendo", exact: true }),
+  });
+  const connectionsPanel = page.locator(".network-relationships");
+  await followsPanel
+    .getByRole("button", { name: "Cargar más", exact: true })
+    .click();
+  await page.getByText("Following page unavailable", { exact: true }).waitFor();
+  assert.equal(await followsPanel.locator("li").count(), 1);
+  await followsPanel
+    .getByRole("button", { name: "Cargar más", exact: true })
+    .click();
+  await followsPanel.getByText("Seguido 2", { exact: true }).waitFor();
+  await followsPanel
+    .getByRole("button", { name: "Cargar más", exact: true })
+    .click();
+  await page.getByText(/La red devolvió una página repetida/).waitFor();
+  assert.equal(await followsPanel.locator("li").count(), 3);
+  assert.equal(
+    await followsPanel.getByText("Seguido 3", { exact: true }).count(),
+    1,
+  );
+  assert.equal(
+    await followsPanel
+      .getByRole("button", { name: "Cargar más", exact: true })
+      .count(),
+    0,
+  );
+  await connectionsPanel
+    .getByRole("button", { name: "Ver más relaciones", exact: true })
+    .click();
+  await connectionsPanel.getByText("Solicitud 2", { exact: true }).waitFor();
+  await connectionsPanel
+    .getByRole("button", { name: "Ver más relaciones", exact: true })
+    .click();
+  await page.getByText(/La red devolvió una página repetida/).waitFor();
+  assert.equal(await connectionsPanel.locator("li").count(), 3);
+  assert.equal(
+    await connectionsPanel.getByText("Solicitud 3", { exact: true }).count(),
+    1,
+  );
+  assert.equal(
+    await connectionsPanel
+      .getByRole("button", { name: "Ver más relaciones", exact: true })
+      .count(),
+    0,
+  );
+  assert.deepEqual(
+    pageReads
+      .filter((x) => x.path.endsWith("following") && x.cursor)
+      .map((x) => x.cursor),
+    ["cursor-a", "cursor-a", "cursor-b"],
+  );
+  assert.deepEqual(
+    pageReads
+      .filter((x) => x.path.endsWith("connections") && x.cursor)
+      .map((x) => x.cursor),
+    ["cursor-a", "cursor-b"],
   );
   assert.equal(unsafeReads, 0);
   assert.equal(writes, 0);
