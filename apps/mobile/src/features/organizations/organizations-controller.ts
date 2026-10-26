@@ -66,6 +66,26 @@ function appendUnique<T extends { id: string }>(current: T[], next: T[]): T[] {
   return [...byId.values()];
 }
 
+function repeatedDetailCursor(): ApiRequestError {
+  return new ApiRequestError(
+    "server_unavailable",
+    503,
+    "ORGANIZATION_DETAIL_CURSOR_REPEATED",
+    "Organization detail cursor repeated",
+  );
+}
+
+function repeatsDetailCursor(
+  requestedCursors: ReadonlySet<string>,
+  cursor: string,
+  nextCursor: string | null,
+): boolean {
+  return (
+    nextCursor !== null &&
+    (nextCursor === cursor || requestedCursors.has(nextCursor))
+  );
+}
+
 type Operation = {
   authorityKey: string;
   generation: number;
@@ -303,6 +323,8 @@ export class MobileOrganizationDetailController {
   private organizationId: string | null = null;
   private generation = 0;
   private active: Operation | null = null;
+  private readonly requestedPostCursors = new Set<string>();
+  private readonly requestedEventCursors = new Set<string>();
 
   constructor(private readonly api: MobileOrganizationsApiContract) {}
 
@@ -317,6 +339,8 @@ export class MobileOrganizationDetailController {
 
   async load(authorityKey: string, organizationId: string): Promise<void> {
     this.organizationId = organizationId;
+    this.requestedPostCursors.clear();
+    this.requestedEventCursors.clear();
     const operation = this.begin(authorityKey);
     this.publish({ kind: "loading", authorityKey, organizationId });
 
@@ -543,6 +567,8 @@ export class MobileOrganizationDetailController {
     if (authorityKey && authorityKey !== this.authorityKey) return;
     this.authorityKey = null;
     this.organizationId = null;
+    this.requestedPostCursors.clear();
+    this.requestedEventCursors.clear();
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
