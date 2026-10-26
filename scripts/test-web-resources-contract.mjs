@@ -1,15 +1,34 @@
-import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { repeatsResourceCursor } from "../apps/web/src/features/resources/resource-pagination.mjs";
 
 const root = process.cwd();
 
 async function read(relativePath) {
-  return readFile(path.join(root, relativePath), 'utf8');
+  return readFile(path.join(root, relativePath), "utf8");
 }
 
+const visitedResourceCursors = new Set(["cursor-a"]);
+assert.equal(
+  repeatsResourceCursor(visitedResourceCursors, "cursor-a", "cursor-a"),
+  true,
+);
+assert.equal(
+  repeatsResourceCursor(visitedResourceCursors, "cursor-b", "cursor-a"),
+  true,
+);
+assert.equal(
+  repeatsResourceCursor(visitedResourceCursors, "cursor-b", "cursor-c"),
+  false,
+);
+assert.equal(
+  repeatsResourceCursor(visitedResourceCursors, "cursor-a", null),
+  false,
+);
+
 const service = await read(
-  'apps/web/src/features/resources/services/resourcesService.ts',
+  "apps/web/src/features/resources/services/resourcesService.ts",
 );
 assert.match(service, /credentials:\s*"include"/u);
 assert.match(service, /cache:\s*"no-store"/u);
@@ -30,7 +49,10 @@ assert.match(
 assert.match(service, /AbortSignal\.any\(\[signal, timeout\]\)/u);
 assert.match(service, /signal: requestSignal\(init\.signal\)/u);
 assert.match(service, /text = await response\.text\(\)/u);
-assert.match(service, /function parseResourceCreateResponse\(value: unknown\)/u);
+assert.match(
+  service,
+  /function parseResourceCreateResponse\(value: unknown\)/u,
+);
 assert.match(service, /\.then\(parseResourceCreateResponse\)/u);
 assert.match(service, /"INVALID_RESPONSE"/u);
 assert.doesNotMatch(service, /localStorage|sessionStorage/u);
@@ -38,12 +60,15 @@ assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
 assert.doesNotMatch(service, /withCredentials\s*=\s*true/u);
 
-const page = await read('apps/web/src/pages/Resources.tsx');
+const page = await read("apps/web/src/pages/Resources.tsx");
+assert.match(page, /cursorHistoryRef/u);
+assert.match(page, /repeatedCursorMessage/u);
+assert.match(page, /repeatsResourceCursor/u);
 const authorProfileLink = await read(
-  'apps/web/src/features/profile/AuthorProfileLink.tsx',
+  "apps/web/src/features/profile/AuthorProfileLink.tsx",
 );
 const authorProfileLinkStyles = await read(
-  'apps/web/src/features/profile/AuthorProfileLink.scss',
+  "apps/web/src/features/profile/AuthorProfileLink.scss",
 );
 assert.match(authorProfileLink, /profileId\.trim\(\) !== profileId/u);
 assert.match(authorProfileLink, /encodeURIComponent\(profileId\)/u);
@@ -65,7 +90,10 @@ assert.match(
   page,
   /<AuthorProfileLink[\s\S]{0,120}profileId=\{resource\.author\?\.profileId\}/u,
 );
-assert.match(page, /Este apunte ya no está disponible o dejó de ser accesible/u);
+assert.match(
+  page,
+  /Este apunte ya no está disponible o dejó de ser accesible/u,
+);
 assert.match(page, /useAsyncAuthorityFence/u);
 assert.equal((page.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 4);
 assert.match(page, /user\?\.id/u);
@@ -103,7 +131,7 @@ const uncertaintyStorageWrite = page.match(
 )?.[0];
 assert.ok(
   uncertaintyStorageWrite,
-  'uncertain create persistence must write only the bounded user marker',
+  "uncertain create persistence must write only the bounded user marker",
 );
 assert.doesNotMatch(
   uncertaintyStorageWrite,
@@ -141,12 +169,15 @@ assert.match(
 assert.match(page, /Quitar de guardados/u);
 assert.match(page, /import \{ ResourceStudyHandoff \}/u);
 assert.match(page, /<ResourceStudyHandoff/u);
-assert.match(page, /resource\.id\.toLowerCase\(\) ===\s*resourceId\.toLowerCase\(\)/u);
+assert.match(
+  page,
+  /resource\.id\.toLowerCase\(\) ===\s*resourceId\.toLowerCase\(\)/u,
+);
 assert.match(page, /session\?\.id \?\? "none"/u);
 assert.match(page, /status,\s*user\?\.id \?\? "anonymous"/u);
 assert.match(page, /resourceId=\{resource\.id\}/u);
 const studyHandoff = await read(
-  'apps/web/src/features/study/ResourceStudyHandoff.tsx',
+  "apps/web/src/features/study/ResourceStudyHandoff.tsx",
 );
 assert.match(studyHandoff, /resourcesApi\.get\(resourceId, ticket\.signal\)/u);
 assert.match(studyHandoff, /searchApi\.contextual\(/u);
@@ -156,23 +187,23 @@ assert.match(studyHandoff, /useAsyncAuthorityFence/u);
 assert.doesNotMatch(studyHandoff, /localStorage|sessionStorage|indexedDB/u);
 
 assert.match(page, /appendResources/u);
-assert.match(page, /nextCursor: result\.nextCursor/u);
+assert.match(page, /nextCursor: repeatedCursor \? null : result\.nextCursor/u);
 assert.match(page, /load\(nextCursor, true\)/u);
 assert.match(page, /Cargar más/u);
 assert.doesNotMatch(page, /let active\s*=/u);
 assert.doesNotMatch(page, /objectKey/u);
 assert.doesNotMatch(page, /localStorage/u);
 
-const routes = await read('apps/web/src/app/routes.tsx');
+const routes = await read("apps/web/src/app/routes.tsx");
 assert.match(
   routes,
   /\{\s*path:\s*"resources",\s*element:\s*<Resources\s*\/>\s*\}/u,
-  'Resources discovery route must remain anonymous-readable',
+  "Resources discovery route must remain anonymous-readable",
 );
 assert.match(
   routes,
   /\{\s*path:\s*"resources\/:resourceId",\s*element:\s*<Resources\s*\/>\s*\}/u,
-  'Direct resource route must use the same anonymous-readable authorized detail page',
+  "Direct resource route must use the same anonymous-readable authorized detail page",
 );
 
-console.log('PASS Web Resources privacy/upload contract');
+console.log("PASS Web Resources privacy/upload contract");

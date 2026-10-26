@@ -16,3 +16,16 @@ La proyección pública del perfil ya incluye el avatar cuando la sección “Ac
 - Un avatar inseguro, ausente o roto nunca reemplaza el fallback.
 - Un perfil que no publica la sección “Acerca de” no expone ni renderiza su avatar.
 - La respuesta del servidor y las reglas de visibilidad permanecen como autoridad.
+
+## Revisión tras reconciliar con main
+
+Si falla una imagen, se conserva la inicial de respaldo. Una URL validada nueva
+crea otra imagen para no heredar el estado oculto del intento anterior.
+La regresión Chromium fallaba antes del arreglo y pasa después al refrescar
+el mismo perfil desde su recuperación de paginación. Comprueba la inicial tras
+fallo, la carga real de la URL nueva y la ausencia de avatar sin About público.
+Mantiene el orden proyectado de tarjetas y enlaces externos de actividades.
+
+Los contratos de URL/UI de avatar, perfil público, enlaces y orden pasan.
+Prettier y build Vite pasan; metadatos de despliegue unavailable.
+Sin ejecutar ni reintentar CI.

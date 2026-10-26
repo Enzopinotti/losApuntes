@@ -26,5 +26,7 @@ test("academic context links to the authenticated follow management screen", () 
   assert.match(route, /AcademicFollowsScreen/u);
   assert.match(screen, /activeNavigationAuthorityKey/u);
   assert.match(screen, /controller\.toggleFollow\(authorityKey/u);
+  assert.match(screen, /current\.searchCursorRepeated/u);
+  assert.match(screen, /El catálogo repitió una página/u);
   assert.match(screen, /Mostramos hasta \{current\.limit\} seguimientos/u);
 });

@@ -79,6 +79,7 @@ export type MobileOrganizationsDirectorySnapshot =
       kind: "ready";
       authorityKey: string;
       page: OrganizationSearchPage;
+      cursorRepeated: boolean;
       loadingMore: boolean;
       failure: MobileOrganizationsFailure | null;
     }
@@ -99,6 +100,7 @@ export class MobileOrganizationsDirectoryController {
   private input: OrganizationDirectoryInput = {};
   private generation = 0;
   private active: Operation | null = null;
+  private readonly requestedCursors = new Set<string>();
 
   constructor(private readonly api: MobileOrganizationsApiContract) {}
 
@@ -119,6 +121,7 @@ export class MobileOrganizationsDirectoryController {
       ...(input.q ? { q: input.q } : {}),
       ...(input.type ? { type: input.type } : {}),
     };
+    this.requestedCursors.clear();
     const operation = this.begin(authorityKey);
     this.publish({ kind: "loading", authorityKey });
 
@@ -132,6 +135,7 @@ export class MobileOrganizationsDirectoryController {
         kind: "ready",
         authorityKey,
         page,
+        cursorRepeated: false,
         loadingMore: false,
         failure: null,
       });
@@ -158,24 +162,41 @@ export class MobileOrganizationsDirectoryController {
       return;
     }
 
+    const cursor = current.page.nextCursor;
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        page: { ...current.page, nextCursor: null },
+        cursorRepeated: true,
+      });
+      return;
+    }
+
     const operation = this.begin(authorityKey);
     this.publish({ ...current, loadingMore: true, failure: null });
 
     try {
       const page = await this.api.search(
-        { ...this.input, cursor: current.page.nextCursor },
+        { ...this.input, cursor },
         operation.controller.signal,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (!latest) return;
 
+      const cursorRepeated =
+        page.nextCursor !== null &&
+        (page.nextCursor === cursor ||
+          this.requestedCursors.has(page.nextCursor));
+      this.requestedCursors.add(cursor);
+
       this.publish({
         ...latest,
         page: {
           items: appendUnique(latest.page.items, page.items),
-          nextCursor: page.nextCursor,
+          nextCursor: cursorRepeated ? null : page.nextCursor,
         },
+        cursorRepeated: latest.cursorRepeated || cursorRepeated,
         loadingMore: false,
         failure: null,
       });
@@ -209,6 +230,7 @@ export class MobileOrganizationsDirectoryController {
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
+    this.requestedCursors.clear();
     this.publish({ kind: "idle" });
   }
 

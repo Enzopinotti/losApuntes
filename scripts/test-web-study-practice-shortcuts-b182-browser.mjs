@@ -13,7 +13,10 @@ const SUBJECT = "104b311b-852c-497d-982c-4d8146a9874a";
 const QUESTION_ONE = "67fe8f36-2c8d-4c85-897d-46702ebf127a";
 const QUESTION_TWO = "7ea090ad-a87a-4fce-99a9-948b7a223e56";
 const AUTH = {
-  user: { id: "6f421f06-1cc0-49c1-96c7-3325c5a3edc7", email: "b182@example.invalid" },
+  user: {
+    id: "6f421f06-1cc0-49c1-96c7-3325c5a3edc7",
+    email: "b182@example.invalid",
+  },
   session: {
     id: "b3f1c920-f2c4-41ac-984b-1c0da61c92b7",
     clientType: "web",
@@ -37,23 +40,37 @@ const questions = [QUESTION_ONE, QUESTION_TWO].map((id, index) => ({
 }));
 
 async function startVite() {
-  const child = spawn(process.execPath,
-    [VITE, "--host", "127.0.0.1", "--port", "5192", "--strictPort"], {
+  const child = spawn(
+    process.execPath,
+    [VITE, "--host", "127.0.0.1", "--port", "5192", "--strictPort"],
+    {
       cwd: resolve(ROOT, "apps/web"),
       env: { ...process.env, VITE_API_BASE_URL: API, CI: "true" },
       stdio: ["ignore", "pipe", "pipe"],
-    });
+    },
+  );
   let logs = "";
   let exit = false;
-  child.on("exit", () => { exit = true; });
-  child.stdout.on("data", (b) => { logs = (logs + b.toString()).slice(-2000); });
-  child.stderr.on("data", (b) => { logs = (logs + b.toString()).slice(-2000); });
+  child.on("exit", () => {
+    exit = true;
+  });
+  child.stdout.on("data", (b) => {
+    logs = (logs + b.toString()).slice(-2000);
+  });
+  child.stderr.on("data", (b) => {
+    logs = (logs + b.toString()).slice(-2000);
+  });
   for (let i = 0; i < 120; i++) {
     if (exit) throw new Error("Vite exited: " + logs);
     try {
-      if ((await fetch(ORIGIN + "/study/practice", {
-        signal: AbortSignal.timeout(1000),
-      })).ok) return child;
+      if (
+        (
+          await fetch(ORIGIN + "/study/practice", {
+            signal: AbortSignal.timeout(1000),
+          })
+        ).ok
+      )
+        return child;
     } catch {
       // Local server is not ready yet.
     }
@@ -78,90 +95,183 @@ async function main() {
     const context = await browser.newContext({ reducedMotion: "reduce" });
     let authenticated = true;
     let unexpectedWrites = 0;
+    const questionCursors = [];
+    const answerCursors = [];
+    let failAnswerPage = true;
 
     await context.route(API + "/**", async (route) => {
       const url = new URL(route.request().url());
       const method = route.request().method();
-      const response = (status, value) => route.fulfill({
-        status,
-        contentType: "application/json",
-        headers: {
-          "access-control-allow-origin": ORIGIN,
-          "access-control-allow-credentials": "true",
-        },
-        body: JSON.stringify(value),
-      });
+      const response = (status, value) =>
+        route.fulfill({
+          status,
+          contentType: "application/json",
+          headers: {
+            "access-control-allow-origin": ORIGIN,
+            "access-control-allow-credentials": "true",
+          },
+          body: JSON.stringify(value),
+        });
       if (method !== "GET") {
         unexpectedWrites++;
         return response(405, { code: "METHOD_NOT_ALLOWED" });
       }
       if (url.pathname === "/auth/me") {
-        return response(authenticated ? 200 : 401,
-          authenticated ? AUTH : { code: "AUTHENTICATION_REQUIRED" });
+        return response(
+          authenticated ? 200 : 401,
+          authenticated ? AUTH : { code: "AUTHENTICATION_REQUIRED" },
+        );
       }
       if (url.pathname === "/discovery/contextual") {
-        return response(200, { subjects: [{
-          subject: { id: SUBJECT, name: "Álgebra" }, resources: [],
-        }] });
+        return response(200, {
+          subjects: [
+            {
+              subject: { id: SUBJECT, name: "Álgebra" },
+              resources: [],
+            },
+          ],
+        });
       }
       if (url.pathname === "/questions") {
-        return response(200, { items: questions, nextCursor: null });
+        const cursor = url.searchParams.get("cursor");
+        questionCursors.push(cursor);
+        return response(200, {
+          items: cursor ? questions : [questions[0]],
+          nextCursor:
+            cursor === "page-b" ? "page-a" : cursor ? "page-b" : "page-a",
+        });
       }
-      const hit = questions.find(x => url.pathname === "/questions/" + x.id);
+      if (url.pathname === "/questions/" + QUESTION_TWO + "/answers") {
+        const cursor = url.searchParams.get("cursor");
+        answerCursors.push(cursor);
+        if (failAnswerPage) {
+          failAnswerPage = false;
+          return response(500, { code: "UNAVAILABLE" });
+        }
+        return response(200, {
+          items: [
+            {
+              id: cursor === "page-a" ? "answer-two" : "answer-three",
+              body:
+                cursor === "page-a" ? "Segunda respuesta" : "Tercera respuesta",
+              author: { displayName: "Participante" },
+            },
+          ],
+          nextCursor: cursor === "page-a" ? "page-b" : "page-a",
+        });
+      }
+      const hit = questions.find((x) => url.pathname === "/questions/" + x.id);
       if (hit) {
         return response(200, {
           question: hit,
-          answers: [{
-            id: "fde699c9-1f29-4d46-bfd6-dc10d3630b1a",
-            body: "Respuesta de la comunidad",
-            author: { displayName: "Participante" },
-          }],
-          answersNextCursor: null,
+          answers: [
+            {
+              id: "fde699c9-1f29-4d46-bfd6-dc10d3630b1a",
+              body: "Respuesta de la comunidad",
+              author: { displayName: "Participante" },
+            },
+          ],
+          answersNextCursor: "page-a",
         });
       }
       return response(404, { code: "NOT_FOUND", message: "Route not mocked" });
     });
 
     const page = await context.newPage();
-    await page.goto(ORIGIN + "/study/practice?subjectId=" + SUBJECT,
-      { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Practicar las primeras 5" })
+    await page.goto(ORIGIN + "/study/practice?subjectId=" + SUBJECT, {
+      waitUntil: "domcontentloaded",
+    });
+    await page
+      .getByRole("button", { name: "Practicar las primeras 5" })
       .waitFor({ timeout: 15000 });
-    await page.getByRole("button", { name: "Practicar las primeras 5" }).click();
-    const round = page.locator('section[aria-labelledby="study-practice-round"]');
-    await round.getByRole("heading", { name: "Pregunta de prueba 1" })
+    await page.getByRole("button", { name: "Cargar más preguntas" }).click();
+    await page.getByText("Pregunta de prueba 2", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Cargar más preguntas" }).click();
+    await page
+      .getByText(/El servidor repitió una página de preguntas/)
+      .waitFor();
+    assert.equal(
+      await page.getByRole("button", { name: "Cargar más preguntas" }).count(),
+      0,
+    );
+    assert.deepEqual(questionCursors.filter(Boolean), ["page-a", "page-b"]);
+    await page
+      .getByRole("button", { name: "Practicar las primeras 5" })
+      .click();
+    const round = page.locator(
+      'section[aria-labelledby="study-practice-round"]',
+    );
+    await round
+      .getByRole("heading", { name: "Pregunta de prueba 1" })
       .waitFor({ timeout: 15000 });
 
     await page.keyboard.press("Shift+K");
-    assert.ok(await round.getByText("Pregunta 1 de 2").isVisible(),
-      "shortcut should be disabled by default");
+    assert.ok(
+      await round.getByText("Pregunta 1 de 2").isVisible(),
+      "shortcut should be disabled by default",
+    );
 
     await round.getByRole("button", { name: "Activar atajos" }).click();
-    assert.equal(await round.getByRole("button", { name: "Desactivar atajos" })
-      .getAttribute("aria-pressed"), "true");
+    assert.equal(
+      await round
+        .getByRole("button", { name: "Desactivar atajos" })
+        .getAttribute("aria-pressed"),
+      "true",
+    );
     await round.locator("textarea").fill("Mi propia explicación");
     await round.locator("textarea").press("Shift+K");
-    assert.ok(await round.getByText("Pregunta 1 de 2").isVisible(),
-      "typing must not navigate away from question");
-    assert.ok((await round.locator("textarea").inputValue()).startsWith("Mi propia explicación"),
-      "typing must be preserved");
+    assert.ok(
+      await round.getByText("Pregunta 1 de 2").isVisible(),
+      "typing must not navigate away from question",
+    );
+    assert.ok(
+      (await round.locator("textarea").inputValue()).startsWith(
+        "Mi propia explicación",
+      ),
+      "typing must be preserved",
+    );
 
     await round.getByRole("heading", { name: "Pregunta de prueba 1" }).click();
     await page.keyboard.press("Shift+K");
-    await round.getByRole("heading", { name: "Pregunta de prueba 2" })
+    await round
+      .getByRole("heading", { name: "Pregunta de prueba 2" })
       .waitFor({ timeout: 15000 });
 
     await page.keyboard.press("Shift+R");
-    await round.getByText("Respuesta de la comunidad", { exact: true })
+    await round
+      .getByText("Respuesta de la comunidad", { exact: true })
       .waitFor({ timeout: 15000 });
+    await round.getByRole("button", { name: "Ver más respuestas" }).click();
+    await round.getByText(/No pudimos completar/).waitFor();
+    await round.getByRole("button", { name: "Ver más respuestas" }).click();
+    await round.getByText("Segunda respuesta", { exact: true }).waitFor();
+    await round.getByRole("button", { name: "Ver más respuestas" }).click();
+    await round.getByText("Tercera respuesta", { exact: true }).waitFor();
+    await round
+      .getByText(/El servidor repitió una página de respuestas/)
+      .waitFor();
+    assert.equal(
+      await round.getByRole("button", { name: "Ver más respuestas" }).count(),
+      0,
+    );
+    assert.deepEqual(answerCursors, ["page-a", "page-a", "page-b"]);
+    assert.equal(
+      await round
+        .getByText("Respuesta de la comunidad", { exact: true })
+        .count(),
+      1,
+    );
     await page.keyboard.press("Shift+J");
-    await round.getByRole("heading", { name: "Pregunta de prueba 1" })
+    await round
+      .getByRole("heading", { name: "Pregunta de prueba 1" })
       .waitFor({ timeout: 15000 });
 
     await round.getByRole("button", { name: "Desactivar atajos" }).click();
     await page.keyboard.press("Shift+K");
-    assert.ok(await round.getByText("Pregunta 1 de 2").isVisible(),
-      "shortcut must stop as soon as opted out");
+    assert.ok(
+      await round.getByText("Pregunta 1 de 2").isVisible(),
+      "shortcut must stop as soon as opted out",
+    );
 
     authenticated = false;
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -169,7 +279,9 @@ async function main() {
     assert.equal(await page.locator(".study-practice-shortcuts").count(), 0);
     assert.equal(unexpectedWrites, 0);
     await context.close();
-    console.log("PASS B182 Chromium: opt-in, editable isolation, next/reveal/back, opt-out and auth-loss");
+    console.log(
+      "PASS B182 Chromium: opt-in, editable isolation, next/reveal/back, opt-out and auth-loss",
+    );
   } finally {
     await browser?.close();
     await stopVite(child);
