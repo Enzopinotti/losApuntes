@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import type {
   OwnerProfileResponse,
   ProfileAccentPreset,
@@ -198,6 +199,9 @@ const Profile = () => {
   const [activityEndedOn, setActivityEndedOn] = useState("");
   const [activityEditDraft, setActivityEditDraft] =
     useState<ProfileActivityEditDraft | null>(null);
+  const [activityToDelete, setActivityToDelete] =
+    useState<ProfileActivity | null>(null);
+  const deleteActivityFocusRef = useRef<HTMLButtonElement>(null);
 
   const [loadState, setLoadState] = useState<{
     scopeKey: string;
@@ -259,6 +263,7 @@ const Profile = () => {
     setActivityStartedOn("");
     setActivityEndedOn("");
     setActivityEditDraft(null);
+    setActivityToDelete(null);
   }, []);
 
   const hydrate = useCallback((next: ReadyProfile, scopeKey: string) => {
@@ -733,6 +738,25 @@ const Profile = () => {
 
   return (
     <section className="profile-page" aria-labelledby="profile-title">
+      <ConfirmDialog
+        open={activityToDelete !== null}
+        title="Eliminar actividad"
+        description={
+          activityToDelete
+            ? `Se eliminará “${activityToDelete.title}” de tu perfil público. Esta acción no se puede deshacer.`
+            : "¿Querés eliminar esta actividad?"
+        }
+        confirmLabel="Eliminar actividad"
+        cancelLabel="Conservar actividad"
+        onCancel={() => setActivityToDelete(null)}
+        onConfirm={() => {
+          if (!activityToDelete || busy) return;
+          const target = activityToDelete;
+          setActivityToDelete(null);
+          void removeActivity(target.id);
+        }}
+        returnFocusRef={deleteActivityFocusRef}
+      />
       <header className="profile-hero">
         <div>
           <p className="profile-eyebrow">Mi perfil</p>
@@ -1174,7 +1198,11 @@ const Profile = () => {
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => void removeActivity(item.id)}
+                          onClick={(event) => {
+                            deleteActivityFocusRef.current =
+                              event.currentTarget;
+                            setActivityToDelete(item);
+                          }}
                         >
                           Eliminar
                         </button>
