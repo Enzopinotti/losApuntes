@@ -30,6 +30,7 @@ export type AcademicCatalogSearchSnapshot =
       query: string;
       items: AcademicCatalogNode[];
       nextCursor: string | null;
+      cursorRepeated: boolean;
       loadingMore: boolean;
       failure: ApiFailureKind | null;
     }
@@ -61,6 +62,7 @@ export class AcademicCatalogSearchController {
   private generation = 0;
   private authorityKey: string | null = null;
   private activeSearch: AbortController | null = null;
+  private readonly requestedCursors = new Set<string>();
 
   constructor(
     private readonly api: AcademicCatalogSearchApi,
@@ -95,6 +97,7 @@ export class AcademicCatalogSearchController {
     }
 
     const generation = this.startSearch();
+    this.requestedCursors.clear();
     const signal = this.activeSearch?.signal;
     this.publish({ kind: "loading", authorityKey, query });
 
@@ -117,6 +120,7 @@ export class AcademicCatalogSearchController {
           (item) => item.kind === this.kind && item.status === "active",
         ),
         nextCursor: response.nextCursor,
+        cursorRepeated: false,
         loadingMore: false,
         failure: null,
       });
@@ -143,6 +147,16 @@ export class AcademicCatalogSearchController {
       return;
     }
 
+    const cursor = current.nextCursor;
+    if (this.requestedCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        nextCursor: null,
+        cursorRepeated: true,
+      });
+      return;
+    }
+
     const generation = this.startSearch();
     const signal = this.activeSearch?.signal;
     this.publish({ ...current, loadingMore: true, failure: null });
@@ -153,7 +167,7 @@ export class AcademicCatalogSearchController {
           kind: this.kind,
           q: current.query,
           limit: CATALOG_SEARCH_LIMIT,
-          cursor: current.nextCursor,
+          cursor,
           ...(this.parentId ? { parentId: this.parentId } : {}),
         },
         signal,
@@ -173,10 +187,16 @@ export class AcademicCatalogSearchController {
           items.set(item.id, item);
         }
       }
+      this.requestedCursors.add(cursor);
+      const cursorRepeated =
+        response.nextCursor !== null &&
+        (response.nextCursor === cursor ||
+          this.requestedCursors.has(response.nextCursor));
       this.publish({
         ...latest,
         items: [...items.values()],
-        nextCursor: response.nextCursor,
+        nextCursor: cursorRepeated ? null : response.nextCursor,
+        cursorRepeated: latest.cursorRepeated || cursorRepeated,
         loadingMore: false,
         failure: null,
       });
@@ -203,6 +223,7 @@ export class AcademicCatalogSearchController {
     this.generation += 1;
     this.activeSearch?.abort();
     this.activeSearch = null;
+    this.requestedCursors.clear();
   }
 
   private startSearch(): number {

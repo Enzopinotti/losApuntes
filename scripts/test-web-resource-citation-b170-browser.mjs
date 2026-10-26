@@ -117,6 +117,8 @@ async function mountContext(browser, authenticated, blockedPrivate = false) {
     origin: ORIGIN,
   });
   let httpMutations = 0;
+  const listRequests = [];
+  let failListPage = true;
   await context.route(API + "/**", async (route) => {
     const url = new URL(route.request().url());
     const send = async (status, body) =>
@@ -139,6 +141,29 @@ async function mountContext(browser, authenticated, blockedPrivate = false) {
         authenticated ? AUTH : { code: "AUTHENTICATION_REQUIRED" },
       );
     }
+    if (["/resources", "/resources/saved"].includes(url.pathname)) {
+      const cursor = url.searchParams.get("cursor");
+      listRequests.push({ path: url.pathname, cursor });
+      if (cursor === "page-a" && failListPage) {
+        failListPage = false;
+        return send(500, {
+          code: "TEMPORARY",
+          message: "List page unavailable",
+        });
+      }
+      const items = [mockResource(PUBLIC_ID, "public")];
+      if (cursor) items.push(mockResource(PRIVATE_ID, "private"));
+      if (cursor === "page-b")
+        items.push({
+          ...mockResource("947f7d8e-543c-42c4-a06e-ea53a814ca90", "public"),
+          title: "Tercer recurso del ciclo",
+        });
+      return send(200, {
+        items,
+        nextCursor:
+          cursor === "page-b" ? "page-a" : cursor ? "page-b" : "page-a",
+      });
+    }
     if (url.pathname === "/resources/" + PUBLIC_ID) {
       return send(200, { resource: mockResource(PUBLIC_ID, "public") });
     }
@@ -153,6 +178,7 @@ async function mountContext(browser, authenticated, blockedPrivate = false) {
     context,
     page: await context.newPage(),
     mutations: () => httpMutations,
+    listRequests,
   };
 }
 
@@ -252,6 +278,73 @@ async function main() {
     assert.equal(await revoked.page.locator(".resource-citation").count(), 0);
     await revoked.context.close();
 
+    const lists = await mountContext(browser, true);
+    await lists.page.goto(ORIGIN + "/resources", {
+      waitUntil: "domcontentloaded",
+    });
+    const list = lists.page.locator(".resources-list");
+    await list
+      .getByRole("heading", { name: "Álgebra lineal: resumen" })
+      .waitFor();
+    await lists.page
+      .getByRole("button", { name: "Cargar más", exact: true })
+      .click();
+    await lists.page
+      .getByText("List page unavailable", { exact: true })
+      .waitFor();
+    assert.equal(await list.locator("article").count(), 1);
+    await lists.page
+      .getByRole("button", { name: "Cargar más", exact: true })
+      .click();
+    await list
+      .getByRole("heading", { name: "Apunte privado de examen" })
+      .waitFor();
+    for (const mode of ["discovery", "saved"]) {
+      if (mode === "saved") {
+        await lists.page
+          .getByRole("button", { name: "Ver guardados", exact: true })
+          .click();
+        await lists.page
+          .getByRole("button", { name: "Cargar más", exact: true })
+          .click();
+        await list
+          .getByRole("heading", { name: "Apunte privado de examen" })
+          .waitFor();
+      }
+      await lists.page
+        .getByRole("button", { name: "Cargar más", exact: true })
+        .click();
+      await lists.page
+        .getByText(/El servidor repitió una página de recursos/)
+        .waitFor();
+      assert.equal(await list.locator("article").count(), 3);
+      assert.equal(
+        await list
+          .getByRole("heading", { name: "Tercer recurso del ciclo" })
+          .count(),
+        1,
+      );
+      assert.equal(
+        await lists.page
+          .getByRole("button", { name: "Cargar más", exact: true })
+          .count(),
+        0,
+      );
+    }
+    assert.deepEqual(
+      lists.listRequests
+        .filter((x) => x.path === "/resources" && x.cursor !== null)
+        .map((x) => x.cursor),
+      ["page-a", "page-a", "page-b"],
+    );
+    assert.deepEqual(
+      lists.listRequests
+        .filter((x) => x.path === "/resources/saved" && x.cursor !== null)
+        .map((x) => x.cursor),
+      ["page-a", "page-b"],
+    );
+    assert.equal(lists.mutations(), 0);
+    await lists.context.close();
     console.log(
       "PASS B170 real Chromium: public explicit clipboard, nonpublic no URL, guest denied private, no mutation",
     );

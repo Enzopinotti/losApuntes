@@ -93,6 +93,13 @@ export function mobileProfileFailure(error: unknown): MobileProfileFailure {
   return { kind: "error", code: error.code };
 }
 
+function repeatedActivityCursorFailure(): MobileProfileFailure {
+  return {
+    kind: "server_unavailable",
+    code: "PROFILE_ACTIVITY_CURSOR_REPEATED",
+  };
+}
+
 function ambiguousFailure(failure: MobileProfileFailure): boolean {
   return (
     failure.kind === "offline" ||
@@ -116,6 +123,7 @@ export class MobileProfileController {
   private authorityKey: string | null = null;
   private generation = 0;
   private active: Operation | null = null;
+  private readonly requestedActivityCursors = new Set<string>();
 
   constructor(private readonly api: MobileProfileApiContract) {}
 
@@ -214,13 +222,23 @@ export class MobileProfileController {
 
   async loadMoreActivities(authorityKey: string): Promise<void> {
     const current = this.currentReady(authorityKey);
+    const cursor = current?.data.activitiesNextCursor;
     if (
       !current ||
       current.busy ||
       current.loadingMore ||
-      !current.data.activitiesNextCursor ||
+      !cursor ||
       this.active
     ) {
+      return;
+    }
+
+    if (this.requestedActivityCursors.has(cursor)) {
+      this.publish({
+        ...current,
+        data: { ...current.data, activitiesNextCursor: null },
+        failure: repeatedActivityCursorFailure(),
+      });
       return;
     }
 
@@ -234,13 +252,19 @@ export class MobileProfileController {
 
     try {
       const page = await this.api.activities(
-        current.data.activitiesNextCursor,
+        cursor,
         current.data.activitiesLimit,
         operation.controller.signal,
       );
       if (!this.isCurrent(operation)) return;
       const latest = this.currentReady(authorityKey);
       if (!latest) return;
+
+      const cursorRepeated =
+        page.nextCursor !== null &&
+        (page.nextCursor === cursor ||
+          this.requestedActivityCursors.has(page.nextCursor));
+      this.requestedActivityCursors.add(cursor);
 
       this.publish({
         ...latest,
@@ -250,10 +274,10 @@ export class MobileProfileController {
             latest.data.activities,
             page.items,
           ),
-          activitiesNextCursor: page.nextCursor,
+          activitiesNextCursor: cursorRepeated ? null : page.nextCursor,
         },
         loadingMore: false,
-        failure: null,
+        failure: cursorRepeated ? repeatedActivityCursorFailure() : null,
       });
     } catch (error) {
       if (!this.isCurrent(operation)) return;
@@ -299,6 +323,7 @@ export class MobileProfileController {
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
+    this.requestedActivityCursors.clear();
     this.publish({ kind: "idle" });
   }
 
@@ -369,6 +394,7 @@ export class MobileProfileController {
     response: OwnerProfileResponse,
     notice: string | null,
   ): void {
+    this.requestedActivityCursors.clear();
     if (response.onboardingRequired) {
       this.publish({
         kind: "onboarding",
