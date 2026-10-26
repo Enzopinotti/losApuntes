@@ -57,6 +57,9 @@ const contentPagination = await read(
   'apps/web/src/features/organizations/contentPagination.ts',
 );
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
+const eventCalendar = await read(
+  'apps/web/src/features/organizations/organization-event-calendar.mjs',
+);
 assert.match(publicPage, /organizationsApi\.get\(/u);
 assert.match(publicPage, /useLocation\(\)/u);
 assert.match(publicPage, /feedReturnHref\(location\.state\)/u);
@@ -100,6 +103,18 @@ assert.match(publicPage, /Actualizar publicaciones/u);
 assert.match(publicPage, /Actualizar eventos/u);
 assert.match(publicPage, /postsNextCursor/u);
 assert.match(publicPage, /eventsNextCursor/u);
+assert.match(publicPage, /serializeOrganizationEventCalendar/u);
+assert.match(publicPage, /downloadOrganizationEventCalendar\(event\)/u);
+assert.match(publicPage, /event\.state === "cancelled"/u);
+assert.match(publicPage, /Descargar \.ics/u);
+assert.match(publicPage, /Evento cancelado/u);
+assert.match(publicPage, /URL\.createObjectURL/u);
+assert.match(publicPage, /URL\.revokeObjectURL/u);
+assert.match(eventCalendar, /DTSTART:/u);
+assert.match(eventCalendar, /DTEND:/u);
+assert.match(eventCalendar, /encodeURIComponent\(event\.id\)/u);
+assert.match(eventCalendar, /foldCalendarLine/u);
+assert.match(eventCalendar, /event\.state === ['"]scheduled['"]/u);
 assert.match(publicPage, /appendPosts/u);
 assert.match(publicPage, /appendEvents/u);
 assert.match(publicPage, /Cargar más publicaciones/u);

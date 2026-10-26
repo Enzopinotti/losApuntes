@@ -7,6 +7,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { serializeOrganizationEventCalendar } from "../features/organizations/organization-event-calendar.mjs";
 import { AuthorProfileLink } from "../features/profile/AuthorProfileLink";
 import {
   feedReturnHref,
@@ -36,6 +37,33 @@ function appendEvents(
 function messageFor(error: unknown): string {
   if (isOrganizationsApiError(error)) return error.message;
   return "No pudimos completar la operación.";
+}
+
+function downloadOrganizationEventCalendar(
+  event: OrganizationDetail["events"][number],
+) {
+  const calendar = serializeOrganizationEventCalendar(event);
+  if (!calendar) return;
+
+  const filename =
+    event.title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/gu, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, "-")
+      .replace(/^-|-$/gu, "")
+      .slice(0, 60) || "evento";
+  const objectUrl = URL.createObjectURL(
+    new Blob([calendar], { type: "text/calendar;charset=utf-8" }),
+  );
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = `${filename}.ics`;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 const Organization = () => {
@@ -754,6 +782,20 @@ const Organization = () => {
                       <> → {new Date(event.endsAt).toLocaleString("es-AR")}</>
                     )}
                   </p>
+                  {event.state === "cancelled" ? (
+                    <p className="organization-event-cancelled">
+                      Evento cancelado
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      className="secondary organization-event-calendar"
+                      onClick={() => downloadOrganizationEventCalendar(event)}
+                      aria-label={`Descargar calendario para ${event.title}`}
+                    >
+                      Descargar .ics
+                    </button>
+                  )}
                   {event.locationLabel && <p>{event.locationLabel}</p>}
                   {event.externalUrl && (
                     <a

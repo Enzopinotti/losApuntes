@@ -210,6 +210,16 @@
   margin-bottom: 0.35rem;
 }
 
+.organization-event-calendar {
+  min-height: 44px;
+  margin-bottom: 0.5rem;
+}
+
+.organization-event-cancelled {
+  color: #8b1e1e;
+  font-weight: 700;
+}
+
 .organizations-success,
 .organizations-error,
 .organizations-login-note {
