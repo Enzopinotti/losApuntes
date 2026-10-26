@@ -433,7 +433,7 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
     expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(1, ownerId);
     expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(2, ownerId);
-    expect(sink.commit).not.toHaveBeenCalled();
-    expect(sink.abort).toHaveBeenCalledTimes(1);
+    expect((sink.commit as jest.Mock).mock.calls).toHaveLength(0);
+    expect((sink.abort as jest.Mock).mock.calls).toHaveLength(1);
   });
 });
