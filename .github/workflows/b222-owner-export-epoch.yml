@@ -61,7 +61,7 @@ jobs:
             src/data-lifecycle/data-lifecycle.module.spec.ts \
             src/data-lifecycle/domain/account-export-versioning.spec.ts \
             src/data-lifecycle/domain/account-export-assembler.spec.ts \
-            src/data-lifecycle/domain/account-export-contributor-allowlist.spec.ts
+            src/data-lifecycle/domain/account-export.service.spec.ts
       - name: Confirm zero audit waivers
         run: pnpm security:audit-exceptions
       - name: Confirm exact SHA and clean tree after verification
