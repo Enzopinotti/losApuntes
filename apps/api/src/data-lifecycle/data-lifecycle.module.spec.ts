@@ -417,5 +417,23 @@ describe('DataLifecycleModule account export wiring', () => {
       method: 'listAccountExportProgress',
       args: [ownerId, { limit: 100, cursor: null }],
     });
+
+    // Simulate a real owner mutation after streaming starts but before the
+    // final private artifact can be published. No mixed-epoch export may
+    // become downloadable.
+    getStudyProgressExportEpoch
+      .mockReset()
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+    (sink.commit as jest.Mock).mockClear();
+    (sink.abort as jest.Mock).mockClear();
+    await expect(assembler.writeJsonV3(ownerId, sink)).rejects.toThrow(
+      'Study progress changed during account export',
+    );
+    expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(1, ownerId);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(2, ownerId);
+    expect(sink.commit).not.toHaveBeenCalled();
+    expect(sink.abort).toHaveBeenCalledTimes(1);
   });
 });
