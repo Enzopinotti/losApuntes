@@ -298,6 +298,24 @@ export function MobileOrganizationsDirectoryScreen() {
             </Text>
           ) : null}
 
+          {current.cursorRepeated ? (
+            <View style={styles.card}>
+              <Text accessibilityRole="alert" style={styles.error}>
+                El servidor devolvió un cursor repetido. Actualizá el directorio
+                para empezar de nuevo.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={retry}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Actualizar directorio
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {current.page.nextCursor ? (
             <Pressable
               accessibilityRole="button"

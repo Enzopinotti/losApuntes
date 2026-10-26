@@ -48,6 +48,7 @@ import {
   studySubjectSelectionFromParams,
 } from "../features/study/study-subject-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
+import { studyKitCursorRepeats } from "../features/study/study-kit-source-pagination";
 import { PERSISTENT_COLLECTIONS_VISIBLE } from "../features/study-collections/persistentCollectionsFlags";
 import {
   studyCollectionsApi,
@@ -69,6 +70,7 @@ type ScopeState<T> = {
 type ResourcePage = {
   items: ResourceView[];
   nextCursor: string | null;
+  cursorCycle: boolean;
 };
 type VerifiedResource = {
   resourceId: string;
@@ -237,6 +239,8 @@ export default function StudyKits() {
   const [foundState, setFoundState] = useState<ScopeState<ResourcePage> | null>(
     null,
   );
+  const savedCursors = useRef({ scope, values: new Set<string>() });
+  const foundCursors = useRef({ scope, values: new Set<string>() });
   const saved = savedState?.scope === scope ? savedState : null;
   const found = foundState?.scope === scope ? foundState : null;
   const [verifiedState, setVerifiedState] = useState<ScopeState<
@@ -348,7 +352,7 @@ export default function StudyKits() {
         scope,
         loading: true,
         error: null,
-        data: cursor && previous?.scope === scope ? previous.data : null,
+        data: previous?.scope === scope ? previous.data : null,
       }));
       try {
         const response = await resourcesApi.savedBySubject(
@@ -357,6 +361,40 @@ export default function StudyKits() {
           ticket.signal,
         );
         if (savedCurrent(ticket)) {
+          const used =
+            savedCursors.current.scope === scope
+              ? savedCursors.current.values
+              : new Set<string>();
+          if (
+            cursor &&
+            studyKitCursorRepeats(used, cursor, response.nextCursor)
+          ) {
+            const values = new Set(used);
+            values.add(cursor);
+            savedCursors.current = { scope, values };
+            setSavedState((previous) => ({
+              scope,
+              loading: false,
+              error:
+                "Los apuntes guardados repitieron una página. Actualizá las fuentes para continuar.",
+              data: {
+                items: addDistinct(
+                  previous?.scope === scope ? (previous.data?.items ?? []) : [],
+                  response.items,
+                ),
+                nextCursor: null,
+                cursorCycle: true,
+              },
+            }));
+            return;
+          }
+          if (cursor) {
+            const values = new Set(used);
+            values.add(cursor);
+            savedCursors.current = { scope, values };
+          } else {
+            savedCursors.current = { scope, values: new Set<string>() };
+          }
           setSavedState((previous) => ({
             scope,
             loading: false,
@@ -367,16 +405,26 @@ export default function StudyKits() {
                   ? addDistinct(previous.data.items, response.items)
                   : response.items,
               nextCursor: response.nextCursor,
+              cursorCycle: false,
             },
           }));
         }
       } catch (error) {
         if (savedCurrent(ticket)) {
+          const accessRevoked =
+            isResourcesApiError(error) &&
+            [401, 403, 404].includes(error.status);
+          if (accessRevoked) {
+            savedCursors.current = { scope, values: new Set<string>() };
+          }
           setSavedState((previous) => ({
             scope,
             loading: false,
             error: errorFor(error),
-            data: previous?.scope === scope ? previous.data : null,
+            data:
+              previous?.scope === scope && !accessRevoked
+                ? previous.data
+                : null,
           }));
         }
       } finally {
@@ -395,7 +443,7 @@ export default function StudyKits() {
         scope,
         loading: true,
         error: null,
-        data: cursor && previous?.scope === scope ? previous.data : null,
+        data: previous?.scope === scope ? previous.data : null,
       }));
       try {
         const response = await resourcesApi.search(
@@ -403,6 +451,40 @@ export default function StudyKits() {
           ticket.signal,
         );
         if (foundCurrent(ticket)) {
+          const used =
+            foundCursors.current.scope === scope
+              ? foundCursors.current.values
+              : new Set<string>();
+          if (
+            cursor &&
+            studyKitCursorRepeats(used, cursor, response.nextCursor)
+          ) {
+            const values = new Set(used);
+            values.add(cursor);
+            foundCursors.current = { scope, values };
+            setFoundState((previous) => ({
+              scope,
+              loading: false,
+              error:
+                "Los apuntes encontrados repitieron una página. Actualizá las fuentes para continuar.",
+              data: {
+                items: addDistinct(
+                  previous?.scope === scope ? (previous.data?.items ?? []) : [],
+                  response.items,
+                ),
+                nextCursor: null,
+                cursorCycle: true,
+              },
+            }));
+            return;
+          }
+          if (cursor) {
+            const values = new Set(used);
+            values.add(cursor);
+            foundCursors.current = { scope, values };
+          } else {
+            foundCursors.current = { scope, values: new Set<string>() };
+          }
           setFoundState((previous) => ({
             scope,
             loading: false,
@@ -413,16 +495,26 @@ export default function StudyKits() {
                   ? addDistinct(previous.data.items, response.items)
                   : response.items,
               nextCursor: response.nextCursor,
+              cursorCycle: false,
             },
           }));
         }
       } catch (error) {
         if (foundCurrent(ticket)) {
+          const accessRevoked =
+            isResourcesApiError(error) &&
+            [401, 403, 404].includes(error.status);
+          if (accessRevoked) {
+            foundCursors.current = { scope, values: new Set<string>() };
+          }
           setFoundState((previous) => ({
             scope,
             loading: false,
             error: errorFor(error),
-            data: previous?.scope === scope ? previous.data : null,
+            data:
+              previous?.scope === scope && !accessRevoked
+                ? previous.data
+                : null,
           }));
         }
       } finally {
@@ -1096,9 +1188,14 @@ export default function StudyKits() {
                       }
                     />
 
-                    {(saved?.error || found?.error) && (
+                    {saved?.error && (
                       <p className="study-kits-error" role="alert">
-                        {saved?.error ?? found?.error}
+                        {saved.error}
+                      </p>
+                    )}
+                    {found?.error && (
+                      <p className="study-kits-error" role="alert">
+                        {found.error}
                       </p>
                     )}
                     {(saved?.loading || found?.loading) && (
@@ -1165,8 +1262,27 @@ export default function StudyKits() {
                           Más apuntes
                         </button>
                       )}
+                      {saved?.data?.cursorCycle && (
+                        <button
+                          type="button"
+                          disabled={saved.loading}
+                          onClick={() => void loadSaved()}
+                        >
+                          Actualizar guardados
+                        </button>
+                      )}
+                      {found?.data?.cursorCycle && (
+                        <button
+                          type="button"
+                          disabled={found.loading}
+                          onClick={() => void loadFound()}
+                        >
+                          Actualizar encontrados
+                        </button>
+                      )}
                       <button
                         type="button"
+                        disabled={saved?.loading || found?.loading}
                         onClick={() => {
                           void loadSaved();
                           void loadFound();
