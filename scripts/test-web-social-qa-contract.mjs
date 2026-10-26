@@ -14,6 +14,12 @@ import {
   NOTIFICATION_CATEGORIES,
 } from '../apps/web/src/features/community/notification-category.mjs';
 
+import {
+  questionSubjectIdFromSearchParams,
+  questionListHref,
+  questionDetailSearchParams,
+} from '../apps/web/src/features/community/qa-subject-navigation.mjs';
+
 const root = process.cwd();
 
 async function read(relativePath) {
@@ -421,5 +427,45 @@ assert.match(
   routes,
   /path:\s*"notifications"[\s\S]*?<PrivateRoute>[\s\S]*?<Notifications\s*\/>[\s\S]*?<\/PrivateRoute>/u,
 );
+
+// B260: malformed and duplicated Subject IDs must never widen to a global list.
+const canonicalSubjectId = '123e4567-e89b-42d3-a456-426614174000';
+const parseSubject = (query) =>
+  questionSubjectIdFromSearchParams(new URLSearchParams(query));
+assert.equal(parseSubject(''), null);
+assert.equal(parseSubject('subjectId=' + canonicalSubjectId), canonicalSubjectId);
+assert.equal(parseSubject('subjectId=not-a-uuid'), undefined);
+assert.equal(
+  parseSubject('subjectId=' + canonicalSubjectId + '&subjectId=' + canonicalSubjectId),
+  undefined,
+);
+assert.equal(questionListHref(undefined), null);
+assert.equal(questionListHref('malformed'), null);
+assert.equal(questionListHref(null), '/questions');
+assert.equal(
+  questionListHref(canonicalSubjectId),
+  '/questions?subjectId=' + canonicalSubjectId,
+);
+assert.equal(
+  questionDetailSearchParams(
+    new URLSearchParams('subjectId=' + canonicalSubjectId + '&q=exam'),
+    'question-1',
+  ).toString(),
+  'subjectId=' + canonicalSubjectId + '&q=exam&id=question-1',
+);
+const subjectFilter = await read(
+  'apps/web/src/features/community/QuestionSubjectFilter.tsx',
+);
+assert.match(subjectFilter, /resourcesApi\.searchSubjects\(q, ticket\.signal\)/u);
+assert.match(subjectFilter, /viewerScopeKey/u);
+assert.match(subjectFilter, /useAsyncAuthorityFence/u);
+assert.match(questions, /QuestionSubjectFilter/u);
+assert.match(questions, /subjectId: discoverySubjectId \?\? undefined/u);
+assert.match(questions, /if \(discoverySubjectId === undefined\)/u);
+assert.match(questions, /questionDetailSearchParams\(params, id\)/u);
+assert.match(questions, /questionListHref\(discoverySubjectId\)/u);
+assert.match(questions, /community-filter-shortcut/u);
+assert.match(communityStyles, /community-discovery-filter/u);
+assert.match(communityStyles, /community-filter-shortcut:focus-visible/u);
 
 console.log('PASS Web Social Q&A privacy/session contract');
