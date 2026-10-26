@@ -26,6 +26,7 @@ import { ReceivedRepliesModule } from './qa-received-replies/received-replies.mo
 import { QaSubjectActivityModule } from './qa-subject-activity/qa-subject-activity.module';
 import { ResourcesModule } from './resources/resources.module';
 import { SearchDiscoveryModule } from './search/search-discovery.module';
+import { StudyCollectionOverviewModule } from './study-collection-overview/study-collection-overview.module';
 import { StudyAgendaModule } from './study-agenda/study-agenda.module';
 import { StudyCalendarModule } from './study-calendar/study-calendar.module';
 import { StudyNextActionsModule } from './study-next-actions/study-next-actions.module';
@@ -56,6 +57,7 @@ import { UsersModule } from './users/users.module';
     ResourcesModule,
     SearchDiscoveryModule,
     StudyCollectionsModule,
+    StudyCollectionOverviewModule,
     StudyProgressModule,
     StudyAgendaModule,
     StudyCalendarModule,
