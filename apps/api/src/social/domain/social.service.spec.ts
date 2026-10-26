@@ -39,6 +39,7 @@ function store(): jest.Mocked<SocialStore> {
     requestConnection: jest.fn(),
     findConnectionById: jest.fn(),
     listConnections: jest.fn(),
+    countIncomingConnectionRequests: jest.fn(),
     listConnectionsForAccountExport: jest.fn(),
     respondConnection: jest.fn(),
     disconnectConnection: jest.fn(),
