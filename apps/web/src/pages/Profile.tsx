@@ -1091,7 +1091,7 @@ const Profile = () => {
                         pattern="https://.+"
                         value={activityEditDraft.url}
                         onChange={(event) =>
-                          updateActivityDraft("url", event.target.value)
+                          updateActivityDraft("url", event.target.value.trim())
                         }
                       />
                       <label htmlFor={`activity-started-on-${item.id}`}>
@@ -1259,7 +1259,7 @@ const Profile = () => {
               maxLength={2048}
               pattern="https://.+"
               value={activityUrl}
-              onChange={(event) => setActivityUrl(event.target.value)}
+              onChange={(event) => setActivityUrl(event.target.value.trim())}
             />
           </label>
           <label>
