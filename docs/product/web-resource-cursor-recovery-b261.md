@@ -21,3 +21,17 @@ isolates the new list from the old cursor history.
 
 The production build writes the release manifest as `unavailable` in local
 development because no deployment metadata is configured.
+
+## Main reconciliation review
+
+The existing Chromium resource scenario now also tests the actual Resources
+list in discovery and saved modes using identical cursor names. Both A-B-A
+cycles retain all three resources without duplicates and remove pagination.
+A discovery page 500 preserves the first resource and retries the same cursor
+successfully. Initial session reconciliation may request the first page more
+than once; the regression asserts the exact subsequent pagination sequence.
+Existing citation clipboard, private-link isolation and zero-write checks remain.
+
+The browser scenario, Resources contract, affected Prettier checks and production
+Vite build pass locally. Release deployment metadata remains unavailable.
+No CI was started or retried.
