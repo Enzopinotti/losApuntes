@@ -211,8 +211,8 @@ const Notifications = () => {
 
         reconciled = appendUniqueNotifications(reconciled, result.items);
         finalCursor = result.nextCursor;
-        if (!result.nextCursor) break;
         if (cursor !== undefined) requestedCursors.add(cursor);
+        if (!result.nextCursor) break;
         if (
           (cursor !== undefined && result.nextCursor === cursor) ||
           requestedCursors.has(result.nextCursor)
@@ -225,6 +225,7 @@ const Notifications = () => {
       }
 
       if (!isListRequestCurrent(ticket)) return;
+      requestedCursorsRef.current = requestedCursors;
       setItems(reconciled);
       setNextCursor(finalCursor);
       setError(repeatedCursor ? repeatedCursorMessage : null);
