@@ -12,3 +12,19 @@ La exportación incluye título, fecha y hora UTC, fin cuando existe, descripci�
 - Formato del monorepo, higiene y `git diff --check`.
 
 Esta mejora no cambia los endpoints, el almacenamiento, los permisos de organización ni las notificaciones. La validación local no representa un resultado de los workflows automáticos de GitHub.
+
+## Revisión de integración
+
+Se rechaza un fin igual o anterior al inicio de origen. Para preservar eventos
+válidos con fracciones de segundo, el fin se redondea hacia arriba a segundos;
+el inicio mantiene la precisión truncada. Así un evento positivo subsegundo
+conserva un DTEND posterior sin descartar el evento.
+La regla de DTEND procede de RFC 5545, sección 3.8.2.2:
+https://www.rfc-editor.org/rfc/rfc5545.html#section-3.8.2.2
+
+Seis pruebas del serializador cubren UTC, escape, folding UTF-8, cancelación,
+campos opcionales y los límites nuevos. La regresión de fin idéntico fallaba antes
+de la corrección. Chromium descarga el archivo real generado por Blob, comprueba
+nombre, contenido UTC y escape, y ausencia de exportación en cancelados.
+API simulada; cero escrituras. Build Vite aprobado, despliegue unavailable.
+Sin ejecutar ni reintentar CI.
