@@ -16,6 +16,33 @@ const toCalendarDate = (value, roundUp = false) => {
     .replace(/\.\d{3}Z$/u, "Z");
 };
 
+const toCalendarUrl = (value) => {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim();
+  if (
+    candidate.length === 0 ||
+    candidate.length > 2048 ||
+    /[\u0000-\u0020\u007f]/u.test(candidate)
+  ) {
+    return null;
+  }
+
+  try {
+    const url = new URL(candidate);
+    if (
+      url.protocol !== "https:" ||
+      !url.hostname ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+};
+
 const utf8Length = (character) => {
   const codePoint = character.codePointAt(0);
   if (codePoint <= 0x7f) return 1;
@@ -74,7 +101,8 @@ export const serializeOrganizationEventCalendar = (
     return null;
   }
 
-  const details = [event.description?.trim(), event.externalUrl?.trim()]
+  const eventUrl = toCalendarUrl(event.externalUrl);
+  const details = [event.description?.trim(), eventUrl]
     .filter(Boolean)
     .join("\n\n");
   const lines = [
