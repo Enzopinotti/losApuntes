@@ -158,6 +158,100 @@ test("organization directory appends cursor pages with id dedupe", async () => {
   }
 });
 
+test("organization directory stops cursor cycles and resets after a refresh", async () => {
+  const cursors: Array<string | undefined> = [];
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async (input) => {
+        cursors.push(input.cursor);
+        if (!input.cursor) {
+          return { items: [card("o1")], nextCursor: "cursor-a" };
+        }
+        if (input.cursor === "cursor-a") {
+          return { items: [card("o2")], nextCursor: "cursor-b" };
+        }
+        return { items: [card("o3")], nextCursor: "cursor-a" };
+      },
+    }),
+  );
+
+  await controller.load("session-a:clubs", { q: "club", type: "club" });
+  await controller.loadMore("session-a:clubs");
+  await controller.loadMore("session-a:clubs");
+  await controller.loadMore("session-a:clubs");
+
+  let snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [undefined, "cursor-a", "cursor-b"]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.deepEqual(
+      snapshot.page.items.map((item) => item.id),
+      ["o1", "o2", "o3"],
+    );
+    assert.equal(snapshot.page.nextCursor, null);
+    assert.equal(snapshot.cursorRepeated, true);
+  }
+
+  await controller.load("session-a:clubs", { q: "club", type: "club" });
+  await controller.loadMore("session-a:clubs");
+  snapshot = controller.getSnapshot();
+  assert.deepEqual(cursors, [
+    undefined,
+    "cursor-a",
+    "cursor-b",
+    undefined,
+    "cursor-a",
+  ]);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.page.nextCursor, "cursor-b");
+    assert.equal(snapshot.cursorRepeated, false);
+  }
+});
+
+test("a failed organization page can retry its cursor", async () => {
+  let pageRequests = 0;
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async (input) => {
+        if (!input.cursor) {
+          return { items: [card("o1")], nextCursor: "retry" };
+        }
+        pageRequests += 1;
+        if (pageRequests === 1) throw new Error("temporary failure");
+        return { items: [card("o2")], nextCursor: null };
+      },
+    }),
+  );
+
+  await controller.load("session-a:clubs", { type: "club" });
+  await controller.loadMore("session-a:clubs");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.page.nextCursor, "retry");
+    assert.equal(snapshot.failure?.kind, "error");
+    assert.deepEqual(
+      snapshot.page.items.map((item) => item.id),
+      ["o1"],
+    );
+  }
+
+  await controller.loadMore("session-a:clubs");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.page.nextCursor, null);
+    assert.equal(snapshot.failure, null);
+    assert.equal(snapshot.cursorRepeated, false);
+    assert.deepEqual(
+      snapshot.page.items.map((item) => item.id),
+      ["o1", "o2"],
+    );
+  }
+  assert.equal(pageRequests, 2);
+});
+
 test("directory principal/filter switch aborts and discards stale results", async () => {
   const first = deferred<{
     items: OrganizationCard[];

@@ -464,6 +464,12 @@ export function CommunityNetworkScreen() {
                   onRetry={loadMore}
                 />
               ) : null}
+              {visibleFeed.loadMoreCursorRepeated ? (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  El servidor devolvió un cursor repetido. Actualizá la lista
+                  para continuar.
+                </Text>
+              ) : null}
               {visibleFeed.page.nextCursor ? (
                 <ActionButton
                   label={visibleFeed.loadingMore ? "Cargando…" : "Cargar más"}
@@ -845,6 +851,12 @@ function QuestionDetailContent({
         )}
         {snapshot.answersFailure ? (
           <FailureCard failure={snapshot.answersFailure} onRetry={onLoadMore} />
+        ) : null}
+        {snapshot.answersCursorRepeated ? (
+          <Text accessibilityRole="alert" style={styles.error}>
+            El servidor devolvió un cursor repetido. Actualizá la conversación
+            para continuar.
+          </Text>
         ) : null}
         {detail.answersNextCursor ? (
           <ActionButton
