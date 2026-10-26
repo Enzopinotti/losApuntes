@@ -9,8 +9,10 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   OwnerProfileResponse,
+  ProfileAccentPreset,
   ProfileActivity,
   ProfileActivityType,
+  ProfileCoverPreset,
   ProfileSection,
   ProfileVisibility,
 } from "../features/profile/interfaces";
@@ -45,6 +47,28 @@ const visibilityOptions: Array<{
   { value: "university", label: "Comunidad universitaria" },
   { value: "connections", label: "Conexiones" },
   { value: "private", label: "Privado" },
+];
+
+const accentPresetOptions: Array<{
+  value: ProfileAccentPreset;
+  label: string;
+}> = [
+  { value: "default", label: "Predeterminado" },
+  { value: "indigo", label: "Índigo" },
+  { value: "emerald", label: "Esmeralda" },
+  { value: "amber", label: "Ámbar" },
+  { value: "rose", label: "Rosa" },
+  { value: "slate", label: "Pizarra" },
+];
+
+const coverPresetOptions: Array<{
+  value: ProfileCoverPreset;
+  label: string;
+}> = [
+  { value: "none", label: "Sin portada" },
+  { value: "gradient", label: "Degradado" },
+  { value: "paper", label: "Papel" },
+  { value: "campus", label: "Campus" },
 ];
 
 function toList(value: string): string[] {
@@ -115,6 +139,9 @@ const Profile = () => {
   const [helpTopics, setHelpTopics] = useState("");
   const [learningTopics, setLearningTopics] = useState("");
   const [headline, setHeadline] = useState("");
+  const [accentPreset, setAccentPreset] =
+    useState<ProfileAccentPreset>("default");
+  const [coverPreset, setCoverPreset] = useState<ProfileCoverPreset>("none");
   const [careerDiscovery, setCareerDiscovery] = useState(false);
   const [visibility, setVisibility] = useState<
     Record<ProfileSection, ProfileVisibility>
@@ -173,6 +200,8 @@ const Profile = () => {
     setHelpTopics("");
     setLearningTopics("");
     setHeadline("");
+    setAccentPreset("default");
+    setCoverPreset("none");
     setCareerDiscovery(false);
     setVisibility({
       about: "public",
@@ -209,6 +238,8 @@ const Profile = () => {
     setHelpTopics(next.profile.helpTopics.join(", "));
     setLearningTopics(next.profile.learningTopics.join(", "));
     setHeadline(next.profile.professional.headline ?? "");
+    setAccentPreset(next.profile.presentation.accentPreset);
+    setCoverPreset(next.profile.presentation.coverPreset);
     setCareerDiscovery(next.profile.professional.careerDiscoveryOptIn);
     setVisibility(next.profile.visibility);
     setRecommendAcademic(next.profile.recommendationSignals.academicContext);
@@ -335,6 +366,7 @@ const Profile = () => {
             headline: headline.trim() || null,
             careerDiscoveryOptIn: careerDiscovery,
           },
+          presentation: { accentPreset, coverPreset },
           visibility,
           recommendationSignals: {
             academicContext: recommendAcademic,
@@ -649,6 +681,39 @@ const Profile = () => {
             value={bio}
             onChange={(event) => setBio(event.target.value)}
           />
+          <h3>Apariencia del perfil</h3>
+          <p className="profile-help">
+            Estos estilos se ven en tu perfil público y no cambian su
+            privacidad.
+          </p>
+          <label htmlFor="profile-accent-preset">Color de acento</label>
+          <select
+            id="profile-accent-preset"
+            value={accentPreset}
+            onChange={(event) =>
+              setAccentPreset(event.target.value as ProfileAccentPreset)
+            }
+          >
+            {accentPresetOptions.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="profile-cover-preset">Portada</label>
+          <select
+            id="profile-cover-preset"
+            value={coverPreset}
+            onChange={(event) =>
+              setCoverPreset(event.target.value as ProfileCoverPreset)
+            }
+          >
+            {coverPresetOptions.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <label htmlFor="profile-headline">Titular profesional opcional</label>
           <input
             id="profile-headline"
