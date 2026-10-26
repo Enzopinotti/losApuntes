@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
 import { organizationContentCursorRepeats } from "../features/organizations/contentPagination";
+import { OrganizationPublicShareAction } from "../features/organizations/OrganizationPublicShareAction";
 import {
   isOrganizationsApiError,
   organizationsApi,
@@ -622,6 +623,11 @@ const Organization = () => {
           </div>
         </div>
         <div className="organization-header-actions">
+          <OrganizationPublicShareAction
+            key={organization.id}
+            organizationId={organization.id}
+            displayName={organization.name}
+          />
           {authenticated ? (
             <button
               type="button"
