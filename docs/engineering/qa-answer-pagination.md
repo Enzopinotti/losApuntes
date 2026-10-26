@@ -8,7 +8,10 @@ Question search was already cursor-paginated, but Question detail loaded Answers
 fixed `limit=100` and returned only:
 
 ```ts
-{ question, answers }
+{
+  "question": {},
+  "answers": []
+}
 ```
 
 That bounded the database read, but it was not an honest inventory contract:
@@ -82,8 +85,18 @@ The Questions page:
 - shows “Cargar más respuestas” only when `answersNextCursor` exists;
 - appends pages instead of replacing existing Answers;
 - deduplicates by Answer id;
+- tracks continuation cursors per Question and stops when a page returns the
+  requested cursor or any earlier cursor;
+- keeps the received page, hides its repeated continuation cursor, and offers
+  “Actualizar respuestas” to fetch a fresh first page without discarding the
+  user's question-edit draft;
 - resets to a fresh first page after create/edit/accept operations through the
   existing Question refresh path.
+
+Question search uses the same cursor-cycle protection. A repeated continuation
+cursor stops further paging, merges any newly received questions by id, and
+offers “Actualizar preguntas” to restart the active search. Failed page reads
+do not advance cursor history, so the same page remains retryable.
 
 ## Error semantics
 
