@@ -19,11 +19,19 @@ assert.match(page, /status === "anonymous"/u);
 assert.match(page, /profile\.about\?\.displayName && status/u);
 assert.match(page, /viewerScopeKey=\{viewerScopeKey\}/u);
 assert.match(page, /profileId=\{profile\.id\}/u);
-assert.match(page, /profile\.professional\?\.headline/u);
+assert.match(page, /profile\.professional\.headline/u);
 assert.match(page, /profile\.about\?\.bio/u);
 assert.match(page, /Ingresá para seguir o conectar/u);
 assert.match(page, /<Link className="public-profile-signin" to="\/login">/u);
 assert.match(page, /publicProfileActivityLink\(item\.url\)/u);
+assert.match(
+  page,
+  /publicProfileContentSectionOrder\(\s*profile\.presentation\.sectionOrder/u,
+);
+assert.match(
+  page,
+  /orderedProfileSections\.map\(\(section\) => sectionContent\[section\]\)/u,
+);
 assert.match(
   page,
   /externalLink \? \([\s\S]*?className="public-activity-link"[\s\S]*?href=\{externalLink\.href\}[\s\S]*?rel="noopener noreferrer"[\s\S]*?target="_blank"/u,
