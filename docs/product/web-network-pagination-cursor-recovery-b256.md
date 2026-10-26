@@ -10,3 +10,15 @@ Las listas de perfiles seguidos y relaciones de conexión conservan historiales 
 - Prettier en los archivos de producto, higiene del repositorio y `git diff --check`.
 
 La validación local no sustituye los checks automáticos de GitHub.
+
+## Revisión de integración
+
+El escenario Chromium de Red conserva las pruebas de avatares y ahora cubre
+ciclos A-B-A en seguidos y conexiones con los mismos nombres de cursor,
+deduplicación por identidad canónica, conservación de la tercera fila recibida
+y desaparición de la paginación solo en la lista afectada. Un 500 en seguidos
+conserva la primera fila y reintenta exactamente el mismo cursor.
+No se envían escrituras API; todas las respuestas se simulan localmente.
+
+Contratos de Red y avatares y build Vite aprobados. Metadatos de despliegue
+unavailable. Sin ejecutar ni reintentar CI.
