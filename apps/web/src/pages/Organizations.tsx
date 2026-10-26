@@ -13,6 +13,10 @@ import type {
   OrganizationType,
 } from "../features/organizations/interfaces";
 import {
+  appendUniqueOrganizations,
+  organizationDirectoryCursorRepeats,
+} from "../features/organizations/organization-directory-pagination.mjs";
+import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
@@ -30,6 +34,9 @@ const typeLabels: Record<OrganizationType, string> = {
   cultural_sports: "Grupo cultural o deportivo",
   career_community: "Comunidad de carrera",
 };
+
+const repeatedDirectoryCursorMessage =
+  "El servidor repitió un cursor de página. Detuvimos esta lista para evitar resultados duplicados.";
 
 function messageFor(error: unknown): string {
   if (!isOrganizationsApiError(error)) {
@@ -74,11 +81,31 @@ const Organizations = () => {
     scopeKey: string;
     items: OrganizationCard[];
     loading: boolean;
+    loadingMore: boolean;
+    nextCursor: string | null;
   } | null>(null);
   const currentListState =
     listState?.scopeKey === directoryScopeKey ? listState : null;
   const items = currentListState?.items ?? [];
   const loading = currentListState?.loading ?? true;
+  const loadingMore = currentListState?.loadingMore ?? false;
+  const nextCursor = currentListState?.nextCursor ?? null;
+  const requestedCursorsRef = useRef<{
+    scopeKey: string;
+    cursors: Set<string>;
+  } | null>(null);
+  const paginationRequestRef = useRef<{
+    scopeKey: string;
+    cursor: string;
+  } | null>(null);
+  const [paginationErrorState, setPaginationErrorState] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const paginationError =
+    paginationErrorState?.scopeKey === directoryScopeKey
+      ? paginationErrorState.message
+      : null;
   const [busyState, setBusyState] = useState<{
     scopeKey: string;
     value: boolean;
@@ -133,12 +160,19 @@ const Organizations = () => {
   const load = useCallback(async () => {
     const ticket = beginDirectoryLoad();
     if (!isDirectoryLoadCurrent(ticket)) return;
+    requestedCursorsRef.current = {
+      scopeKey: directoryScopeKey,
+      cursors: new Set(),
+    };
     setListState((current) => ({
       scopeKey: directoryScopeKey,
       items: current?.scopeKey === directoryScopeKey ? current.items : [],
       loading: true,
+      loadingMore: false,
+      nextCursor: null,
     }));
     setErrorState(null);
+    setPaginationErrorState(null);
     try {
       const result = await organizationsApi.search(
         {
@@ -152,6 +186,8 @@ const Organizations = () => {
         scopeKey: directoryScopeKey,
         items: result.items,
         loading: false,
+        loadingMore: false,
+        nextCursor: result.nextCursor,
       });
     } catch (nextError) {
       if (!isDirectoryLoadCurrent(ticket)) return;
@@ -176,6 +212,105 @@ const Organizations = () => {
     query,
     type,
   ]);
+  const loadMore = useCallback(async () => {
+    const current = listState?.scopeKey === directoryScopeKey ? listState : null;
+    const cursor = current?.nextCursor;
+    if (!current || current.loading || current.loadingMore || !cursor) return;
+    if (paginationRequestRef.current?.scopeKey === directoryScopeKey) return;
+    const history =
+      requestedCursorsRef.current?.scopeKey === directoryScopeKey
+        ? requestedCursorsRef.current
+        : null;
+    if (history?.cursors.has(cursor)) {
+      setPaginationErrorState({
+        scopeKey: directoryScopeKey,
+        message: repeatedDirectoryCursorMessage,
+      });
+      setListState((latest) =>
+        latest?.scopeKey === directoryScopeKey
+          ? { ...latest, nextCursor: null }
+          : latest,
+      );
+      return;
+    }
+
+    const request = { scopeKey: directoryScopeKey, cursor };
+    paginationRequestRef.current = request;
+    const ticket = beginDirectoryLoad();
+    if (!isDirectoryLoadCurrent(ticket)) {
+      if (paginationRequestRef.current === request) {
+        paginationRequestRef.current = null;
+      }
+      return;
+    }
+
+    setListState((latest) =>
+      latest?.scopeKey === directoryScopeKey
+        ? { ...latest, loadingMore: true }
+        : latest,
+    );
+    setPaginationErrorState(null);
+
+    try {
+      const result = await organizationsApi.search(
+        { q: query.trim() || undefined, type: type || undefined, cursor },
+        ticket.signal,
+      );
+      if (!isDirectoryLoadCurrent(ticket)) return;
+      const cursorState =
+        requestedCursorsRef.current?.scopeKey === directoryScopeKey
+          ? requestedCursorsRef.current
+          : { scopeKey: directoryScopeKey, cursors: new Set<string>() };
+      const repeatedCursor = organizationDirectoryCursorRepeats(
+        cursorState.cursors,
+        cursor,
+        result.nextCursor,
+      );
+      cursorState.cursors.add(cursor);
+      requestedCursorsRef.current = cursorState;
+      setListState((latest) =>
+        latest?.scopeKey === directoryScopeKey
+          ? {
+              ...latest,
+              items: appendUniqueOrganizations(latest.items, result.items),
+              loadingMore: false,
+              nextCursor: repeatedCursor ? null : result.nextCursor,
+            }
+          : latest,
+      );
+      if (repeatedCursor) {
+        setPaginationErrorState({
+          scopeKey: directoryScopeKey,
+          message: repeatedDirectoryCursorMessage,
+        });
+      }
+    } catch (nextError) {
+      if (!isDirectoryLoadCurrent(ticket)) return;
+      setPaginationErrorState({
+        scopeKey: directoryScopeKey,
+        message: messageFor(nextError),
+      });
+      setListState((latest) =>
+        latest?.scopeKey === directoryScopeKey
+          ? { ...latest, loadingMore: false }
+          : latest,
+      );
+    } finally {
+      finishDirectoryLoad(ticket);
+      if (paginationRequestRef.current === request) {
+        paginationRequestRef.current = null;
+      }
+    }
+  }, [
+    beginDirectoryLoad,
+    directoryScopeKey,
+    finishDirectoryLoad,
+    isDirectoryLoadCurrent,
+    listState,
+    query,
+    type,
+  ]);
+
   const loadRef = useRef(load);
   loadRef.current = load;
 
@@ -349,6 +484,29 @@ const Organizations = () => {
           ))
         )}
       </section>
+
+      {paginationError && (
+        <p className="organizations-error" role="alert">
+          No pudimos cargar más organizaciones: {paginationError}
+        </p>
+      )}
+      {nextCursor && (
+        <div className="organizations-load-more">
+          <button
+            type="button"
+            className="secondary"
+            aria-busy={loadingMore}
+            disabled={loading || loadingMore}
+            onClick={() => void loadMore()}
+          >
+            {loadingMore
+              ? "Cargando más organizaciones…"
+              : paginationError
+                ? "Reintentar carga"
+                : "Cargar más organizaciones"}
+          </button>
+        </div>
+      )}
 
       {authenticated ? (
         <details className="organizations-create">
