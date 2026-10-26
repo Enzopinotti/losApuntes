@@ -426,3 +426,76 @@ test("a delayed page from the previous session cannot replace the new authority"
     false,
   );
 });
+
+test("accepted cursor cycles retain new rows, retry failures and reset across authorities", async () => {
+  const requests: string[] = [];
+  let failAcceptedOnce = true;
+  const controller = new SocialConnectionsController(
+    api({
+      connections: async ({ status, cursor }) => {
+        if (cursor) requests.push(`${status}:${cursor}`);
+        if (status === "pending")
+          return {
+            items: [connection(cursor ? "pending-b" : "pending-a", "pending")],
+            nextCursor: cursor ? null : "cursor-a",
+          };
+        if (status !== "accepted") return emptyPage;
+        if (!cursor)
+          return {
+            items: [connection("accepted-a", "accepted")],
+            nextCursor: "cursor-a",
+          };
+        if (cursor === "cursor-a" && failAcceptedOnce) {
+          failAcceptedOnce = false;
+          throw new Error("temporary page failure");
+        }
+        return cursor === "cursor-a"
+          ? {
+              items: [
+                connection("accepted-a", "accepted"),
+                connection("accepted-b", "accepted"),
+              ],
+              nextCursor: "cursor-b",
+            }
+          : {
+              items: [
+                connection("accepted-b", "accepted"),
+                connection("accepted-c", "accepted"),
+              ],
+              nextCursor: "cursor-a",
+            };
+      },
+    }),
+  );
+  controller.setAuthority("user-a:session-a");
+  await controller.load("user-a:session-a", null);
+  await controller.loadMore("user-a:session-a", "accepted");
+  assert.equal(readySnapshot(controller).acceptedNextCursor, "cursor-a");
+  await controller.loadMore("user-a:session-a", "accepted");
+  await controller.loadMore("user-a:session-a", "accepted");
+  const stopped = readySnapshot(controller);
+  assert.deepEqual(
+    stopped.accepted.map((item) => item.id),
+    ["accepted-a", "accepted-b", "accepted-c"],
+  );
+  assert.equal(stopped.acceptedNextCursor, null);
+  assert.equal(stopped.failure?.code, "SOCIAL_CONNECTIONS_CURSOR_REPEATED");
+  assert.equal(stopped.pendingNextCursor, "cursor-a");
+  await controller.loadMore("user-a:session-a", "pending");
+  assert.deepEqual(
+    readySnapshot(controller).pending.map((item) => item.id),
+    ["pending-a", "pending-b"],
+  );
+  controller.setAuthority("user-b:session-b");
+  await controller.load("user-b:session-b", null);
+  await controller.loadMore("user-b:session-b", "accepted");
+  assert.equal(readySnapshot(controller).acceptedNextCursor, "cursor-b");
+  assert.equal(readySnapshot(controller).failure, null);
+  assert.deepEqual(requests, [
+    "accepted:cursor-a",
+    "accepted:cursor-a",
+    "accepted:cursor-b",
+    "pending:cursor-a",
+    "accepted:cursor-a",
+  ]);
+});
