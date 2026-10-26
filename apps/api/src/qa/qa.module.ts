@@ -10,6 +10,7 @@ import {
 import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module';
 import { ProfileModule } from '../profile/profile.module';
 import { UsersModule } from '../users/users.module';
+import { QaMyAnswersService } from './domain/qa-my-answers.service';
 import { QaService } from './domain/qa.service';
 import { QA_STORE } from './domain/qa.store';
 import { MongoQaStore } from './mongo/mongo-qa.store';
@@ -21,6 +22,7 @@ import {
   Question,
   QuestionSchema,
 } from './mongo/qa.mongo-schemas';
+import { QaMyAnswersController } from './qa-my-answers.controller';
 import { QuestionsController } from './questions.controller';
 
 @Module({
@@ -39,13 +41,14 @@ import { QuestionsController } from './questions.controller';
   ],
   providers: [
     QaService,
+    QaMyAnswersService,
     MongoQaStore,
     {
       provide: QA_STORE,
       useExisting: MongoQaStore,
     },
   ],
-  controllers: [QuestionsController],
+  controllers: [QuestionsController, QaMyAnswersController],
   exports: [QaService],
 })
 export class QaModule {}
