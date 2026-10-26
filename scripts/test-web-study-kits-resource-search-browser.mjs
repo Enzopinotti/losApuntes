@@ -110,6 +110,7 @@ async function main() {
   const authorizedReads = [];
   const searches = [];
   let sourceStatus = 200;
+  let failSearchPage = true;
   try {
     child = await boot();
     browser = await chromium.launch({ headless: true });
@@ -168,6 +169,26 @@ async function main() {
         }
         const cursor = url.searchParams.get("cursor");
         searches.push({ q, cursor });
+        if (q === "ciclos") {
+          if (cursor === "page-two" && failSearchPage) {
+            failSearchPage = false;
+            return reply(500, { code: "TEMPORARY" });
+          }
+          return reply(200, {
+            items:
+              cursor === "page-three"
+                ? resources
+                : cursor
+                  ? [resources[0], resources[1], resources[2]]
+                  : [resources[0]],
+            nextCursor:
+              cursor === "page-three"
+                ? "page-two"
+                : cursor
+                  ? "page-three"
+                  : "page-two",
+          });
+        }
         if (q === "integrales") {
           return reply(200, {
             items: cursor
@@ -319,6 +340,54 @@ async function main() {
       0,
       "searching and adding to a portable kit must not write to the API",
     );
+    await searchInput.fill("ciclos");
+    await page.getByRole("button", { name: "Buscar apuntes" }).click();
+    await finder.getByRole("link", { name: "Integrales definidas" }).waitFor();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder.getByText(/No pudimos consultar los apuntes/).waitFor();
+    assert.equal(
+      await finder.getByRole("link", { name: "Integrales definidas" }).count(),
+      1,
+    );
+    await finder
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder.getByRole("link", { name: "Integrales impropias" }).waitFor();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder
+      .getByText(/El servidor repitió una página de apuntes/)
+      .waitFor();
+    assert.equal(await finder.getByRole("link").count(), 3);
+    assert.equal(
+      await finder.getByRole("link", { name: "Integrales revocadas" }).count(),
+      1,
+    );
+    assert.equal(await finder.getByText("Apunte de otra materia").count(), 0);
+    assert.equal(
+      await finder
+        .getByRole("button", { name: "Más resultados de búsqueda" })
+        .count(),
+      0,
+    );
+    await finder
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await finder
+      .getByRole("button", { name: "Más resultados de búsqueda" })
+      .click();
+    await finder.getByRole("link", { name: "Integrales impropias" }).waitFor();
+    assert.deepEqual(
+      searches.filter((x) => x.q === "ciclos").map((x) => x.cursor),
+      [null, "page-two", null, "page-two", "page-three", null, "page-two"],
+    );
+    await finder.getByRole("button", { name: "Limpiar búsqueda" }).click();
     const discovery = page.locator(".study-kits-discovery");
     const discoveredResource = discovery.getByRole("link", {
       name: "Integrales impropias",
