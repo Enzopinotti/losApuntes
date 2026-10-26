@@ -43,6 +43,9 @@ function failureMessage(snapshot: MobileNotificationsSnapshot): string {
   }
   const failure = snapshot.failure;
   if (!failure) return "No pudimos actualizar tus notificaciones.";
+  if (failure.code === "MOBILE_NOTIFICATIONS_CURSOR_REPEATED") {
+    return "El servidor repitió una página. Conservamos las notificaciones y detuvimos esta lista.";
+  }
   switch (failure.kind) {
     case "offline":
       return "No hay conexión. Tus notificaciones siguen disponibles al volver a conectarte.";
