@@ -82,7 +82,7 @@ let profile = {
   id: PROFILE,
   displayName: "Mi perfil",
   bio: null,
-  avatarUrl: null,
+  avatarUrl: "https://avatars.example.test/saved.png",
   languages: [],
   skills: [],
   interests: [],
@@ -160,6 +160,7 @@ try {
         });
       profile = {
         ...profile,
+        avatarUrl: input.avatarUrl,
         revision: profile.revision + 1,
         presentation: {
           ...profile.presentation,
@@ -176,9 +177,26 @@ try {
   await page.goto(ORIGIN + "/profile");
   const accent = page.getByLabel("Color de acento", { exact: true });
   const cover = page.getByLabel("Portada", { exact: true });
+  const avatar = page.getByLabel("Avatar (URL HTTPS)", { exact: true });
   await accent.waitFor();
   assert.equal(await accent.inputValue(), "indigo");
   assert.equal(await cover.inputValue(), "gradient");
+  assert.equal(
+    await avatar.inputValue(),
+    "https://avatars.example.test/saved.png",
+  );
+  await avatar.fill("http://avatars.example.test/insecure.png");
+  assert.equal(await avatar.evaluate((node) => node.checkValidity()), false);
+  await page
+    .getByRole("button", { name: "Guardar perfil", exact: true })
+    .click();
+  assert.equal(writes.length, 0);
+  await avatar.fill("  https://avatars.example.test/new.png  ");
+  assert.equal(
+    await avatar.evaluate((node) => node.checkValidity()),
+    true,
+    "a trimmed HTTPS avatar URL must be submittable",
+  );
   const sectionLabels = page.locator(".profile-section-order > li > span");
   assert.equal(await sectionLabels.count(), 7);
   assert.equal(
@@ -218,6 +236,7 @@ try {
   await page.getByText("Perfil actualizado.", { exact: true }).waitFor();
   assert.equal(writes.length, 1);
   assert.equal(writes[0].expectedRevision, 7);
+  assert.equal(writes[0].avatarUrl, "https://avatars.example.test/new.png");
   assert.deepEqual(writes[0].presentation, {
     accentPreset: "emerald",
     coverPreset: "paper",
@@ -234,6 +253,10 @@ try {
   assert.deepEqual(writes[0].visibility, visibility);
   assert.equal(await accent.inputValue(), "slate");
   assert.equal(await cover.inputValue(), "campus");
+  assert.equal(
+    await avatar.inputValue(),
+    "https://avatars.example.test/new.png",
+  );
   assert.deepEqual(await sectionLabels.allTextContents(), orderedLabels);
   rejectUpdate = true;
   await accent.selectOption("rose");
@@ -252,6 +275,16 @@ try {
     writes[0].presentation.sectionOrder,
   );
   assert.deepEqual(await sectionLabels.allTextContents(), orderedLabels);
+  rejectUpdate = false;
+  await avatar.fill("");
+  await page
+    .getByRole("button", { name: "Guardar perfil", exact: true })
+    .click();
+  await page.getByText("Perfil actualizado.", { exact: true }).waitFor();
+  assert.equal(writes.length, 3);
+  assert.equal(writes[2].expectedRevision, 8);
+  assert.equal(writes[2].avatarUrl, null);
+  assert.equal(await avatar.inputValue(), "");
   await context.close();
   console.log(
     "PASS Chromium: owner presentation hydration, explicit save, current revision, privacy payload, server canonical values and conflict retention",
