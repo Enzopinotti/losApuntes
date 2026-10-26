@@ -373,6 +373,7 @@ describe('DataLifecycleModule account export wiring', () => {
     const registry = new AccountExportContributorRegistry(
       wiredContributors(domain),
     );
+    const getStudyProgressExportEpoch = jest.fn().mockResolvedValue(0);
     const assembler = new AccountExportAssembler(
       registry,
       new AccountExportService(
@@ -380,7 +381,7 @@ describe('DataLifecycleModule account export wiring', () => {
         {
           hasActiveAccount: jest.fn().mockResolvedValue(true),
           // V3 captures and rechecks the same owner epoch before publication.
-          getStudyProgressExportEpoch: jest.fn().mockResolvedValue(0),
+          getStudyProgressExportEpoch,
         } as never,
       ),
     );
@@ -403,6 +404,9 @@ describe('DataLifecycleModule account export wiring', () => {
     expect(output.version).toBe(3);
     expect(Object.keys(output.sections)).toEqual(EXPECTED_V3_SECTION_IDS);
     expect(output.sections['study.progress']).toEqual([]);
+    expect(getStudyProgressExportEpoch).toHaveBeenCalledTimes(2);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(1, ownerId);
+    expect(getStudyProgressExportEpoch).toHaveBeenNthCalledWith(2, ownerId);
     expect(calls).toHaveLength(32);
     expect(
       calls.find(({ method }) => method === 'listAccountExportProgress'),
