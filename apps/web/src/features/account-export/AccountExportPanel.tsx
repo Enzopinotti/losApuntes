@@ -158,7 +158,9 @@ export function AccountExportPanel() {
       job?.state !== "completed" ||
       !job.downloadable ||
       !expiresAt
-    ) return;
+    ) {
+      return;
+    }
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     const clearExpiryTimer = () => {
