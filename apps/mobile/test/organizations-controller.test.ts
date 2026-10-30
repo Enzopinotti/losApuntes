@@ -261,6 +261,146 @@ test("a failed organization page can retry its cursor", async () => {
   assert.equal(pageRequests, 2);
 });
 
+test("directory follow updates the card after the mutation is acknowledged", async () => {
+  const pending = deferred<{ following: true; changed: boolean }>();
+  let followCalls = 0;
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async () => ({ items: [card("org-a")], nextCursor: null }),
+      follow: async () => {
+        followCalls += 1;
+        return pending.promise;
+      },
+    }),
+  );
+
+  await controller.load("session-a:organizations", {});
+  const follow = controller.toggleFollow("session-a:organizations", "org-a");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.page.items[0]?.viewer?.following, false);
+  assert.equal(snapshot.followAction?.status, "loading");
+
+  pending.resolve({ following: true, changed: true });
+  await follow;
+
+  snapshot = controller.getSnapshot();
+  assert.equal(followCalls, 1);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.page.items[0]?.viewer?.following, true);
+    assert.equal(snapshot.followAction?.status, "success");
+    assert.equal(
+      snapshot.followAction?.message,
+      "Ahora seguís Organización org-a.",
+    );
+  }
+});
+
+test("directory unfollow updates the card after the mutation is acknowledged", async () => {
+  let followCalls = 0;
+  let unfollowCalls = 0;
+  const followedCard = { ...card("org-a"), viewer: { following: true } };
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async () => ({ items: [followedCard], nextCursor: null }),
+      follow: async () => {
+        followCalls += 1;
+        return { following: true, changed: false };
+      },
+      unfollow: async () => {
+        unfollowCalls += 1;
+        return { following: false, changed: true };
+      },
+    }),
+  );
+
+  await controller.load("session-a:organizations", {});
+  await controller.toggleFollow("session-a:organizations", "org-a");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(followCalls, 0);
+  assert.equal(unfollowCalls, 1);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.page.items[0]?.viewer?.following, false);
+    assert.equal(snapshot.followAction?.status, "success");
+    assert.equal(
+      snapshot.followAction?.message,
+      "Dejaste de seguir Organización org-a.",
+    );
+  }
+});
+
+test("ambiguous directory follow reconciles server state without retry", async () => {
+  let followCalls = 0;
+  let getCalls = 0;
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async () => ({ items: [card("org-a")], nextCursor: null }),
+      get: async (id) => {
+        getCalls += 1;
+        return { organization: detail(id, true) };
+      },
+      follow: async () => {
+        followCalls += 1;
+        throw new ApiRequestError(
+          "timeout",
+          null,
+          "REQUEST_TIMEOUT",
+          "timeout",
+        );
+      },
+    }),
+  );
+
+  await controller.load("session-a:organizations", {});
+  await controller.toggleFollow("session-a:organizations", "org-a");
+
+  const snapshot = controller.getSnapshot();
+  assert.equal(followCalls, 1);
+  assert.equal(getCalls, 1);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.page.items[0]?.viewer?.following, true);
+    assert.equal(snapshot.followAction?.status, "success");
+    assert.match(snapshot.followAction?.message ?? "", /servidor confirma/u);
+  }
+});
+
+test("directory discards a delayed follow result after the session changes", async () => {
+  const pending = deferred<{ following: true; changed: boolean }>();
+  const signals: AbortSignal[] = [];
+  const controller = new MobileOrganizationsDirectoryController(
+    apiStub({
+      search: async (_input, signal) => {
+        signals.push(signal!);
+        return { items: [card("org-a")], nextCursor: null };
+      },
+      follow: async (_id, signal) => {
+        signals.push(signal!);
+        return pending.promise;
+      },
+    }),
+  );
+
+  await controller.load("session-a:organizations", {});
+  const oldFollow = controller.toggleFollow("session-a:organizations", "org-a");
+  await controller.load("session-b:organizations", {});
+  pending.resolve({ following: true, changed: true });
+  await oldFollow;
+
+  assert.equal(signals[1]?.aborted, true);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.authorityKey, "session-b:organizations");
+    assert.equal(snapshot.page.items[0]?.viewer?.following, false);
+    assert.equal(snapshot.followAction, null);
+  }
+});
+
 test("directory principal/filter switch aborts and discards stale results", async () => {
   const first = deferred<{
     items: OrganizationCard[];
