@@ -615,17 +615,17 @@ const Organization = () => {
           />
           <div>
             <p className="organizations-eyebrow">
-            {organization.scope.institution.name}
-          </p>
-          <h1 id="organization-title">{organization.name}</h1>
-          <p>{organization.about ?? "Sin descripción pública todavía."}</p>
-          <div className="organization-badges">
-            <span>{organization.type.replaceAll("_", " ")}</span>
-            <span>
-              {organization.verificationState === "verified"
-                ? "Identidad verificada"
-                : "Claim sin verificar"}
-            </span>
+              {organization.scope.institution.name}
+            </p>
+            <h1 id="organization-title">{organization.name}</h1>
+            <p>{organization.about ?? "Sin descripción pública todavía."}</p>
+            <div className="organization-badges">
+              <span>{organization.type.replaceAll("_", " ")}</span>
+              <span>
+                {organization.verificationState === "verified"
+                  ? "Identidad verificada"
+                  : "Claim sin verificar"}
+              </span>
               <span>{organization.followerCount} seguidores</span>
             </div>
           </div>
