@@ -30,6 +30,7 @@ import {
 
 import { mobileSearchApi } from "./search-runtime";
 import { publicProfileAcademicSummary } from "./public-profile-academic-summary";
+import { publicProfileActivityPresentation } from "./public-profile-activity-presentation";
 import { SharePublicProfileAction } from "./share-public-profile-action";
 import { useFencedDetail } from "./use-fenced-detail";
 
@@ -311,11 +312,25 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
               {data.profile.activities?.length ? (
                 <View style={styles.activityList}>
                   <Text style={styles.sectionTitle}>Actividad pública</Text>
-                  {data.profile.activities.map((activity) => (
-                    <Text key={activity.id} style={styles.copy}>
-                      {activity.title}
-                    </Text>
-                  ))}
+                  {data.profile.activities.map((activity) => {
+                    const presentation = publicProfileActivityPresentation(activity);
+                    return (
+                      <View key={activity.id} style={styles.activityCard}>
+                        <Text accessibilityRole="header" style={styles.activityTitle}>
+                          {activity.title}
+                        </Text>
+                        <View style={styles.activityDetails}>
+                          <Text style={styles.meta}>{presentation.typeLabel}</Text>
+                          {presentation.dateLabel ? (
+                            <Text style={styles.meta}>{presentation.dateLabel}</Text>
+                          ) : null}
+                        </View>
+                        {activity.description ? (
+                          <Text style={styles.copy}>{activity.description}</Text>
+                        ) : null}
+                      </View>
+                    );
+                  })}
                   {data.profile.activitiesNextCursor ? (
                     <Text style={styles.meta}>
                       Se muestra una tanda; hay más actividad disponible.
@@ -376,6 +391,23 @@ const styles = StyleSheet.create({
   activityList: {
     gap: 8,
     paddingTop: 8,
+  },
+  activityCard: {
+    gap: 6,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e7e7ef",
+    borderRadius: 12,
+  },
+  activityTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#20202a",
+  },
+  activityDetails: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   copy: {
     fontSize: 14,
