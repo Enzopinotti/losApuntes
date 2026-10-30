@@ -53,6 +53,7 @@ import {
   studySubjectHref,
 } from "../features/study/study-subject-navigation.mjs";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
+import StudyRunnerShortcuts from "./StudyRunnerShortcuts";
 import "./StudyRunner.scss";
 
 type Context = {
@@ -1215,6 +1216,27 @@ export default function StudyRunner() {
                           : "Marcar como realizada"}
                       </button>
                     </div>
+                    <StudyRunnerShortcuts
+                      key={`${scope}:${runner.plan.title}:${runner.plan.tasks.map(keyOf).join("|")}`}
+                      allowed={{
+                        previous: !busy && !remoteBusy && runner.index > 0,
+                        next:
+                          !busy &&
+                          !remoteBusy &&
+                          runner.index < runner.plan.tasks.length - 1,
+                        clock:
+                          !busy &&
+                          !remoteBusy &&
+                          Boolean(label) &&
+                          !task.done &&
+                          Boolean(activeClock) &&
+                          remainingMs > 0 &&
+                          !document.hidden,
+                      }}
+                      onPrevious={() => move(runner.index - 1)}
+                      onNext={() => move(runner.index + 1)}
+                      onClock={() => changeClock("toggle")}
+                    />
                     <fieldset
                       className="study-runner-ratings"
                       disabled={Boolean(busy) || remoteBusy || !label}
