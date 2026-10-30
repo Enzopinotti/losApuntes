@@ -20,6 +20,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { OrganizationDirectoryFollowAction } from "../features/organizations/OrganizationDirectoryFollowAction";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
 
@@ -143,6 +144,24 @@ const Organizations = () => {
   } | null>(null);
   const feedback =
     feedbackState?.scopeKey === authScopeKey ? feedbackState.message : null;
+
+  const updateFollowing = useCallback(
+    (organizationId: string, following: boolean) => {
+      setListState((current) =>
+        current?.scopeKey === directoryScopeKey
+          ? {
+              ...current,
+              items: current.items.map((item) =>
+                item.id === organizationId
+                  ? { ...item, viewer: { ...item.viewer, following } }
+                  : item,
+              ),
+            }
+          : current,
+      );
+    },
+    [directoryScopeKey],
+  );
 
   const [name, setName] = useState("");
   const [createType, setCreateType] =
@@ -632,7 +651,16 @@ const Organizations = () => {
                     : "Claim sin verificar"}
                 </span>
               </div>
-              <Link to={`/organizations/${item.id}`}>Ver organización</Link>
+              <div className="organization-card-actions">
+                {authenticated && (
+                  <OrganizationDirectoryFollowAction
+                    organization={item}
+                    authScopeKey={authScopeKey}
+                    onFollowingChanged={updateFollowing}
+                  />
+                )}
+                <Link to={`/organizations/${item.id}`}>Ver organización</Link>
+              </div>
             </article>
           ))
         )}
