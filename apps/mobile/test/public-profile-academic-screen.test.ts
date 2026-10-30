@@ -9,9 +9,6 @@ const screen = readFileSync(
 
 test("public profile only renders academic summary when the server includes it", () => {
   assert.match(screen, /profile\.academic\s*\?\s*\(/u);
-  assert.match(
-    screen,
-    /publicProfileAcademicSummary\(profile\.academic\)/u,
-  );
+  assert.match(screen, /publicProfileAcademicSummary\(profile\.academic\)/u);
   assert.match(screen, /Trayectoria académica/u);
 });
