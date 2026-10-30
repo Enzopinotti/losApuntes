@@ -61,11 +61,21 @@ const Organizations = () => {
   ].join(":");
   const [query, setQuery] = useState("");
   const [type, setType] = useState<OrganizationType | "">("");
+  const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
+  const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
+    authScopeKey: string;
+    institution: AcademicInstitutionOption;
+  } | null>(null);
+  const filterInstitution =
+    filterInstitutionSelection?.authScopeKey === authScopeKey
+      ? filterInstitutionSelection.institution
+      : null;
   const directoryScopeKey = [
     "organizations-directory",
     authScopeKey,
     query.trim(),
     type || "all-types",
+    filterInstitution?.id ?? "all-institutions",
   ].join(":");
   const {
     begin: beginDirectoryLoad,
@@ -77,6 +87,16 @@ const Organizations = () => {
     isCurrent: isCreateCurrent,
     finish: finishCreate,
   } = useAsyncAuthorityFence(`organizations-create:${authScopeKey}`);
+  const filterInstitutionSearchScopeKey = [
+    "organizations-filter-institutions",
+    authScopeKey,
+    filterInstitutionQuery.trim(),
+  ].join(":");
+  const {
+    begin: beginFilterInstitutionSearch,
+    isCurrent: isFilterInstitutionSearchCurrent,
+    finish: finishFilterInstitutionSearch,
+  } = useAsyncAuthorityFence(filterInstitutionSearchScopeKey);
   const [listState, setListState] = useState<{
     scopeKey: string;
     items: OrganizationCard[];
@@ -156,6 +176,21 @@ const Organizations = () => {
     institutionSelection?.authScopeKey === authScopeKey
       ? institutionSelection.institution
       : null;
+  const [filterInstitutionsState, setFilterInstitutionsState] = useState<{
+    scopeKey: string;
+    items: AcademicInstitutionOption[];
+  } | null>(null);
+  const filterInstitutions =
+    filterInstitutionsState?.scopeKey === filterInstitutionSearchScopeKey
+      ? filterInstitutionsState.items
+      : [];
+  const [filterInstitutionBusyState, setFilterInstitutionBusyState] = useState<{
+    scopeKey: string;
+    value: boolean;
+  } | null>(null);
+  const filterInstitutionBusy =
+    filterInstitutionBusyState?.scopeKey === filterInstitutionSearchScopeKey &&
+    filterInstitutionBusyState.value;
 
   const load = useCallback(async () => {
     const ticket = beginDirectoryLoad();
@@ -178,6 +213,7 @@ const Organizations = () => {
         {
           q: query.trim() || undefined,
           type: type || undefined,
+          institutionId: filterInstitution?.id,
         },
         ticket.signal,
       );
@@ -209,6 +245,7 @@ const Organizations = () => {
     directoryScopeKey,
     finishDirectoryLoad,
     isDirectoryLoadCurrent,
+    filterInstitution?.id,
     query,
     type,
   ]);
@@ -254,7 +291,12 @@ const Organizations = () => {
 
     try {
       const result = await organizationsApi.search(
-        { q: query.trim() || undefined, type: type || undefined, cursor },
+        {
+          q: query.trim() || undefined,
+          type: type || undefined,
+          institutionId: filterInstitution?.id,
+          cursor,
+        },
         ticket.signal,
       );
       if (!isDirectoryLoadCurrent(ticket)) return;
@@ -307,6 +349,7 @@ const Organizations = () => {
     directoryScopeKey,
     finishDirectoryLoad,
     isDirectoryLoadCurrent,
+    filterInstitution?.id,
     listState,
     query,
     type,
@@ -324,9 +367,45 @@ const Organizations = () => {
     setAbout("");
     setWebsiteUrl("");
     setInstitutionQuery("");
+    setFilterInstitutionQuery("");
     setInstitutionsState(null);
+    setFilterInstitutionsState(null);
     setInstitutionSelection(null);
+    setFilterInstitutionSelection(null);
   }, [authScopeKey]);
+
+  const searchFilterInstitutions = async () => {
+    if (filterInstitutionQuery.trim().length < 2) return;
+    const ticket = beginFilterInstitutionSearch();
+    if (!isFilterInstitutionSearchCurrent(ticket)) return;
+    setFilterInstitutionBusyState({
+      scopeKey: filterInstitutionSearchScopeKey,
+      value: true,
+    });
+    setFilterInstitutionsState(null);
+    setErrorState(null);
+    try {
+      const result = await organizationsApi.searchInstitutions(
+        filterInstitutionQuery.trim(),
+        ticket.signal,
+      );
+      if (!isFilterInstitutionSearchCurrent(ticket)) return;
+      setFilterInstitutionsState({
+        scopeKey: filterInstitutionSearchScopeKey,
+        items: result,
+      });
+    } catch (nextError) {
+      if (!isFilterInstitutionSearchCurrent(ticket)) return;
+      setErrorState({ scopeKey: authScopeKey, message: messageFor(nextError) });
+    } finally {
+      if (finishFilterInstitutionSearch(ticket)) {
+        setFilterInstitutionBusyState({
+          scopeKey: filterInstitutionSearchScopeKey,
+          value: false,
+        });
+      }
+    }
+  };
 
   const searchInstitutions = async () => {
     if (institutionQuery.trim().length < 2) return;
@@ -459,6 +538,79 @@ const Organizations = () => {
           Buscar
         </button>
       </form>
+
+      <div className="organizations-institution-filter">
+        <label htmlFor="organizations-filter-institution">
+          Filtrar por institución
+        </label>
+        <div className="organizations-inline">
+          <input
+            id="organizations-filter-institution"
+            value={filterInstitutionQuery}
+            onChange={(event) => {
+              setFilterInstitutionQuery(event.target.value);
+              setFilterInstitutionSelection(null);
+              setFilterInstitutionsState(null);
+            }}
+            placeholder="Buscar universidad"
+          />
+          <button
+            type="button"
+            disabled={
+              filterInstitutionQuery.trim().length < 2 || filterInstitutionBusy
+            }
+            onClick={() => void searchFilterInstitutions()}
+          >
+            {filterInstitutionBusy ? "Buscando…" : "Buscar institución"}
+          </button>
+        </div>
+        {filterInstitution && (
+          <div className="organizations-selected-institution">
+            <span>Filtro activo: {filterInstitution.name}</span>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setFilterInstitutionSelection(null);
+                setFilterInstitutionQuery("");
+                setFilterInstitutionsState(null);
+              }}
+            >
+              Quitar filtro
+            </button>
+          </div>
+        )}
+        {filterInstitutions.length > 0 && (
+          <ul className="organization-option-list">
+            {filterInstitutions.map((option) => (
+              <li key={option.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterInstitutionSelection({
+                      authScopeKey,
+                      institution: option,
+                    });
+                    setFilterInstitutionQuery(option.name);
+                    setFilterInstitutionsState(null);
+                    setErrorState(null);
+                  }}
+                >
+                  {option.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {filterInstitutionsState?.scopeKey ===
+          filterInstitutionSearchScopeKey &&
+          filterInstitutions.length === 0 &&
+          !filterInstitutionBusy && (
+            <p className="organizations-filter-empty" role="status">
+              No encontramos instituciones con ese nombre.
+            </p>
+          )}
+      </div>
 
       <section className="organizations-list" aria-live="polite">
         {loading ? (
