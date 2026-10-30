@@ -97,6 +97,7 @@
 
 .organizations-search input,
 .organizations-search select,
+.organizations-institution-filter input,
 .organizations-form input,
 .organizations-form textarea,
 .organizations-form select,
@@ -110,6 +111,36 @@
   background: #fff;
   color: inherit;
   font: inherit;
+}
+
+.organizations-institution-filter {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e7e7ef;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.organizations-institution-filter > label {
+  font-weight: 700;
+}
+
+.organizations-selected-institution {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.organizations-filter-empty {
+  margin: 0;
+  color: #626274;
+}
+
+.organizations-institution-filter button {
+  min-height: 44px;
 }
 
 .organizations-list,
