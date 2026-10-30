@@ -20,6 +20,7 @@ import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
+import { OrganizationAvatar } from "../features/organizations/OrganizationAvatar";
 import { OrganizationDirectoryFollowAction } from "../features/organizations/OrganizationDirectoryFollowAction";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
@@ -639,17 +640,24 @@ const Organizations = () => {
         ) : (
           items.map((item) => (
             <article className="organization-card" key={item.id}>
-              <div>
-                <span className="organization-type">
-                  {typeLabels[item.type]}
-                </span>
-                <h2>{item.name}</h2>
-                <p>{item.institution.name}</p>
-                <span className="organization-verification">
-                  {item.verificationState === "verified"
-                    ? "Identidad verificada"
-                    : "Claim sin verificar"}
-                </span>
+              <div className="organization-card-main">
+                <OrganizationAvatar
+                  avatarUrl={item.avatarUrl}
+                  name={item.name}
+                  size="small"
+                />
+                <div className="organization-card-copy">
+                  <span className="organization-type">
+                    {typeLabels[item.type]}
+                  </span>
+                  <h2>{item.name}</h2>
+                  <p>{item.institution.name}</p>
+                  <span className="organization-verification">
+                    {item.verificationState === "verified"
+                      ? "Identidad verificada"
+                      : "Claim sin verificar"}
+                  </span>
+                </div>
               </div>
               <div className="organization-card-actions">
                 {authenticated && (

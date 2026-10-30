@@ -224,6 +224,21 @@ assert.match(
   /to=\{`\/organizations\/\$\{encodeURIComponent\(item\.source\.organization\.id\)\}`\}/u,
 );
 
+const avatarRendererB282 = await read('apps/web/src/features/organizations/OrganizationAvatar.tsx');
+const avatarDirectoryB282 = await read('apps/web/src/pages/Organizations.tsx');
+const avatarDetailB282 = await read('apps/web/src/pages/Organization.tsx');
+const avatarStylesB282 = await read('apps/web/src/pages/Organizations.scss');
+assert.match(avatarRendererB282, /PublicProfileAvatar/u);
+assert.match(avatarRendererB282, /avatarUrl=\{avatarUrl\}/u);
+assert.match(avatarDirectoryB282, /<OrganizationAvatar/u);
+assert.match(avatarDirectoryB282, /avatarUrl=\{item\.avatarUrl\}/u);
+assert.match(avatarDirectoryB282, /institutionId:\s*filterInstitution\?\.id/u);
+assert.match(avatarDetailB282, /<OrganizationAvatar/u);
+assert.match(avatarDetailB282, /avatarUrl=\{organization\.avatarUrl\}/u);
+assert.match(avatarDetailB282, /<OrganizationPublicShareAction/u);
+assert.match(avatarStylesB282, /\.organization-public-identity/u);
+assert.match(avatarStylesB282, /\.organization-card-main/u);
+
 const directoryFollowB283 = await read('apps/web/src/features/organizations/OrganizationDirectoryFollowAction.tsx');
 const followPageB283 = await read('apps/web/src/pages/Organizations.tsx');
 const followStylesB283 = await read('apps/web/src/pages/Organizations.scss');

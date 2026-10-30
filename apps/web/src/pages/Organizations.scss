@@ -168,6 +168,26 @@
   gap: 1rem;
 }
 
+.organization-card-main,
+.organization-public-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.organization-card-main {
+  flex: 1;
+}
+
+.organization-card-copy {
+  min-width: 0;
+}
+
+.organization-public-identity > div {
+  min-width: 0;
+}
+
 .organization-card-actions,
 .organization-directory-follow {
   display: grid;
